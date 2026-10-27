@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-*
+.pgtmp
+.env
+.env.*
+!.env.example
+!.env.artifact
+!.env.production
+*.log
+coverage
+test-results
