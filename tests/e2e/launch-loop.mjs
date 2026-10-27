@@ -201,14 +201,33 @@ try {
   check('artwork published', true);
   await page.click('[data-testid=view-on-map]');
   await page.waitForSelector('[data-testid=world-map]', { timeout: 15000 });
+  // a remounted map can take a while to load in software-rendered headless Chrome
+  await page.waitForFunction(() => !!window.__landvasMap?.getSource?.('lv-art'), null, { timeout: 90000 });
   await page.evaluate(() => document.querySelector('[data-testid=plot-panel] button[aria-label="Close plot panel"]')?.click());
   await gotoPlot(page, START.gx, START.gy, 16);
-  await page.waitForTimeout(3000);
+  await page.waitForFunction(() => window.__landvasMap.areTilesLoaded(), null, { timeout: 60000 });
+  await page.waitForTimeout(1500);
   const f = path.join(OUT, '09-art-on-map.png');
   await page.screenshot({ path: f, timeout: 90000 });
   const at = await screenOf(page, START.gx, START.gy, 0.3, 0.3);
   const px = await pixelAt(f, at.x, at.y);
-  check('published art visible on the map', near(px, [255, 61, 154], 70), JSON.stringify(px));
+  const artOk = near(px, [255, 61, 154], 70);
+  check('published art visible on the map', artOk, JSON.stringify(px));
+  if (!artOk) {
+    const diag = await page.evaluate(async () => {
+      const m = window.__landvasMap;
+      const tm = m.style.tileManagers?.['lv-art'];
+      let tiles = '';
+      try { tiles = tm._inViewTiles.getAllIds().map((id) => { const t = tm._inViewTiles.getTileById(id); const c = t.tileID.canonical; return `${c.z}/${c.x}/${c.y}:${t.state}`; }).join(' '); } catch (e) { tiles = 'ERR ' + e; }
+      const idx = await window.__landvasApi.artTileIndex(16, [[12398 >> 4, 24628 >> 4]]);
+      const pubs = await window.__landvasApi.myPublications();
+      return { zoom: m.getZoom(), center: m.getCenter(), mode: m.getPaintProperty('lv-groups-line', 'line-opacity'), tiles, idx, pubs: pubs.map((p) => [p.status, p.plot_count, p.title]), log: (window.__lvartLog || []).slice(-30) };
+    });
+    console.log('ARTDIAG', JSON.stringify(diag, null, 1));
+    await page.evaluate(() => window.__landvasMap.triggerRepaint());
+    await page.waitForTimeout(800);
+    await shot('09b-after-repaint');
+  }
 
   // persistence across reload
   await page.goto(URL, { waitUntil: 'load' });
@@ -219,7 +238,21 @@ try {
   });
   check('plots, rent, explorer and Ink persist across reload', persisted.plots === 2 && persisted.usd > 0 && persisted.explorer, JSON.stringify(persisted));
 
-  // phone layout
+  // every screen renders without crashing
+  await page.evaluate(async () => { await window.__landvasApi.devGrantSelfAdmin(); });
+  const screens = ['/canvases', '/play', '/gallery', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/admin'];
+  const broken = [];
+  for (const sc of screens) {
+    await page.evaluate((p) => window.__landvasNav(p), sc);
+    await page.waitForTimeout(1200);
+    const txt = await page.evaluate(() => document.querySelector('main, [class*=gutter]')?.textContent ?? document.body.textContent ?? '');
+    if (txt.trim().length < 30 || /Something went wrong/i.test(txt)) broken.push(sc);
+  }
+  check('all screens render', broken.length === 0, broken.join(', '));
+  await shot('11-admin');
+
+  // phone layout (local mode allows one tab per device, so close the desktop one first)
+  await page.close();
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' });
   const mp = await phone.newPage();
   mp.on('pageerror', (e) => errors.push('[phone] ' + e.message));
