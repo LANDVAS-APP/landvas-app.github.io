@@ -40,6 +40,34 @@ export function composeParent(children: (RGBA | null)[], size = 256): RGBA {
   return downsample2x(big);
 }
 
+/** A sheet of white paper: what every plot starts as in the editor. */
+export function whitePaper(w = 256, h = w): RGBA {
+  return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4).fill(255) };
+}
+
+/**
+ * Composite an image onto opaque white, exactly like the editor shows it. Published
+ * plots are always fully opaque, so the map shows the true artwork (white paper
+ * included) with nothing showing through from behind.
+ */
+export function flattenOnWhite(img: RGBA): RGBA {
+  const s = img.data;
+  const out = new Uint8ClampedArray(s.length);
+  for (let i = 0; i < s.length; i += 4) {
+    const a = s[i + 3];
+    if (a === 255) {
+      out[i] = s[i]; out[i + 1] = s[i + 1]; out[i + 2] = s[i + 2];
+    } else if (a === 0) {
+      out[i] = 255; out[i + 1] = 255; out[i + 2] = 255;
+    } else {
+      const k = a / 255, w = 255 * (1 - k);
+      out[i] = Math.round(s[i] * k + w); out[i + 1] = Math.round(s[i + 1] * k + w); out[i + 2] = Math.round(s[i + 2] * k + w);
+    }
+    out[i + 3] = 255;
+  }
+  return { width: img.width, height: img.height, data: out };
+}
+
 export function isTransparent(img: RGBA, threshold = 0): boolean {
   const d = img.data;
   for (let i = 3; i < d.length; i += 4) if (d[i] > threshold) return false;

@@ -95,6 +95,14 @@ export class SupabaseBackend implements Backend {
     const { error } = await this.sb.storage.from('submissions').upload(`${ownerId}/${publicationId}/${cellKey}.png`, png, { contentType: 'image/png', upsert: true });
     if (error) throw new GameError('upload_failed', error.message);
   }
+  async uploadAvatar(ownerId: string, name: string, image: Blob) {
+    // names are content hashes, so an existing object is already the same picture
+    const { error } = await this.sb.storage.from('avatars').upload(`${ownerId}/${name}`, image, { contentType: image.type, upsert: false, cacheControl: '31536000' });
+    if (error && !/exists|Duplicate|409/i.test(error.message)) throw new GameError('upload_failed', error.message);
+  }
+  async avatarUrl(path: string | null | undefined) {
+    return path ? `${config.supabaseUrl}/storage/v1/object/public/avatars/${path}` : null;
+  }
   async publicAssetUrl(path: string | null | undefined) {
     return path ? `${config.supabaseUrl}/storage/v1/object/public/public-art/${path}` : null;
   }

@@ -27,14 +27,6 @@ export const MAX_LAT = 85.0511287798066;
 export type Cell = { gx: number; gy: number };
 export type CellTuple = [number, number];
 export type PlotTypeId = 'graphite' | 'pigment' | 'mosaic' | 'lumina';
-export type PlotTypeWeight = { id: PlotTypeId; weight: number; sort: number };
-
-export const DEFAULT_PLOT_TYPE_WEIGHTS: PlotTypeWeight[] = [
-  { id: 'graphite', weight: 30, sort: 1 },
-  { id: 'pigment', weight: 30, sort: 2 },
-  { id: 'mosaic', weight: 20, sort: 3 },
-  { id: 'lumina', weight: 20, sort: 4 },
-];
 
 export const clampLat = (lat: number) => Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
 export const wrapLng = (lng: number) => ((((lng + 180) % 360) + 360) % 360) - 180;
@@ -111,7 +103,9 @@ export function adjacent(a: Cell, b: Cell): boolean {
   return a.gx === b.gx && Math.abs(a.gy - b.gy) === 1;
 }
 
-// ---- Deterministic plot types (identical to private.plot_type_for) ----------
+// ---- Hashing ------------------------------------------------------------------
+// Plot types and rarities are decided on the server with secret salts, so the
+// client can't predict them; this hash is kept for deterministic visuals.
 
 /** Park–Miller style hash; every intermediate stays below 2^53. */
 export function mix(a: number, b: number): number {
@@ -119,20 +113,6 @@ export function mix(a: number, b: number): number {
   h = (h * 48271) % 2147483647;
   h = (h * 48271) % 2147483647;
   return h;
-}
-
-export function plotTypeFor(gx: number, gy: number, weights: PlotTypeWeight[] = DEFAULT_PLOT_TYPE_WEIGHTS): PlotTypeId {
-  const active = weights.filter((w) => w.weight > 0).sort((a, b) => a.sort - b.sort || (a.id < b.id ? -1 : 1));
-  const total = active.reduce((s, w) => s + w.weight, 0);
-  if (total === 0) return 'graphite';
-  if (mix(gx, gy) % 100 < 22) return active[mix(gx, gy + 7) % active.length].id;
-  const roll = mix(gx >> 3, gy >> 3) % total;
-  let acc = 0;
-  for (const w of active) {
-    acc += w.weight;
-    if (roll < acc) return w.id;
-  }
-  return active[0].id;
 }
 
 // ---- Tiles ------------------------------------------------------------------

@@ -1,7 +1,7 @@
 // The operator's admin hub. Only the owner can open it; the owner is claimed
 // once with a one-time code. Every action is authorised and audited in SQL.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, Eye, KeyRound, MapPin, Shield, ShieldCheck, X } from 'lucide-react';
+import { Check, CheckCheck, DoorOpen, Eye, KeyRound, MapPin, Shield, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,9 +15,9 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_INFO, type GameId } from '../shared/minigames';
-import { Avatar, Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm } from '../ui';
+import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
-import { visitPlayer } from '../visit/visit';
+import type { AdminPlot } from '../backend/types';
 
 const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
   try { await fn(); toast.success(ok); after?.(); } catch (e) { toast.error(toGameError(e).message); }
@@ -126,7 +126,7 @@ function Card({ title, children, actions, className }: { title: string; children
 function PubPreview({ path, className }: { path: string | null; className?: string }) {
   const q = useQuery({ queryKey: ['private-asset', path], queryFn: () => getBackend().privateAssetUrl(path), enabled: !!path });
   return q.data
-    ? <img src={q.data} alt="" className={cn('checker rounded-2xl object-contain [image-rendering:pixelated]', className)} />
+    ? <img src={q.data} alt="" className={cn('art-paper rounded-2xl object-contain [image-rendering:pixelated]', className)} />
     : <div className={cn('flex items-center justify-center rounded-2xl bg-surface-2 text-xs text-faint', className)}>{path ? '' : 'no preview'}</div>;
 }
 
@@ -182,7 +182,7 @@ function ReviewTab() {
                 <div>
                   <div className="truncate font-display text-lg font-semibold">{p.title}</div>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                    <Avatar seed={p.artist.avatar_seed} style={p.artist.avatar_style} accent={p.artist.accent_color} size={18} />
+                    <PlayerAvatar p={p.artist} size={18} />
                     <b className="text-fg">@{p.artist.username}</b>{p.is_mine && <span className="rounded bg-accent/20 px-1 font-bold text-accent-2">you</span>}
                     · {p.plot_count} plot{p.plot_count === 1 ? '' : 's'} · {timeAgo(p.submitted_at ?? p.created_at)}
                     · {p.artist_published} published{p.artist_strikes ? ` · ${p.artist_strikes} strike${p.artist_strikes === 1 ? '' : 's'}` : ''}
@@ -319,21 +319,24 @@ function PlayerDetail({ id }: { id: string }) {
   const nav = useNavigate();
   const confirm = useConfirm();
   const detail = useQuery({ queryKey: ['admin', 'player', id], queryFn: () => api.admin.playerDetail(id) });
-  const username = detail.data?.profile?.username as string | undefined;
-  const land = useQuery({ queryKey: ['admin', 'land', username], queryFn: () => api.playerLand(username!), enabled: !!username });
   const [adj, setAdj] = useState({ resource: 'ink', delta: '', reason: '' });
-  const refetch = () => { void detail.refetch(); void land.refetch(); void qc.invalidateQueries({ queryKey: ['admin', 'players'] }); };
+  const refetch = () => { void detail.refetch(); void qc.invalidateQueries({ queryKey: ['admin', 'players'] }); };
   if (!detail.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   const d = detail.data;
   const pr = d.profile;
+  const plots = (d.plot_list ?? []) as AdminPlot[];
+  const muted = d.player.chat_muted_until && new Date(d.player.chat_muted_until) > new Date();
   return (
     <div className="grid gap-4">
       <Card title={`@${pr.username}`} actions={<div className="flex gap-2">
         <Button size="sm" variant="ghost" onClick={() => nav(`/u/${pr.username}`)}><Eye className="h-4 w-4" /> Profile</Button>
-        {(land.data?.total_plots ?? 0) > 0 && <Button size="sm" variant="secondary" onClick={async () => { if (await visitPlayer(pr.username)) nav('/'); }}><MapPin className="h-4 w-4" /> Visit land</Button>}
+        {d.plots > 0 && <Button size="sm" variant="secondary" onClick={() => nav(`/u/${pr.username}/room`)}><DoorOpen className="h-4 w-4" /> Visit room</Button>}
       </div>}>
         <div className="grid gap-2 text-sm">
-          <div className="flex flex-wrap items-center gap-2"><Avatar seed={pr.avatar_seed} style={pr.avatar_style} accent={pr.accent_color} size={36} /><span>{d.email}</span> · <b className={d.player.status === 'active' ? 'text-ok' : 'text-bad'}>{d.player.status}</b> · strikes {d.player.strikes} · joined {new Date(d.player.created_at).toLocaleDateString()} · seen {timeAgo(d.player.last_active_at)}</div>
+          <div className="flex flex-wrap items-center gap-2"><PlayerAvatar p={pr} size={36} /><span>{d.email}</span> · <b className={d.player.status === 'active' ? 'text-ok' : 'text-bad'}>{d.player.status}</b> · strikes {d.player.strikes} · joined {new Date(d.player.created_at).toLocaleDateString()} · seen {timeAgo(d.player.last_active_at)}{muted ? <> · <b className="text-warn">chat muted until {new Date(d.player.chat_muted_until).toLocaleString()}</b></> : null}</div>
+          {(d.referrals?.codes?.length > 0 || d.referrals?.referred_by) && (
+            <div className="text-xs text-muted">Invite codes {(d.referrals.codes as string[]).join(', ') || '—'} · invited {d.referrals.invited} ({d.referrals.rewarded} rewarded){d.referrals.referred_by ? ` · invited by @${d.referrals.referred_by}` : ''}</div>
+          )}
           <div className="tnum">Ink <b>{fmt(d.balances.ink)}</b> · Pigments <b>{fmt(d.balances.pigments)}</b> · XP <b>{fmt(d.balances.brush_points)}</b> · Tokens <b>{fmt(d.balances.gallery_tokens)}</b> · USD <b>${Number(d.rent.live_usd).toFixed(9)}</b></div>
           <div className="text-xs text-muted">{d.plots} plots · {d.groups} canvases{d.explorer ? ` · explorer ${d.explorer.mode}${d.explorer.traveling ? ', travelling' : ''} near block ${d.explorer.gx}, ${d.explorer.gy}` : ' · no explorer yet'}{d.joystick ? ` · joystick ${Math.round(d.joystick.seconds_left)}s left` : ''}</div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -349,13 +352,20 @@ function PlayerDetail({ id }: { id: string }) {
             <Button size="sm" variant="danger" onClick={async () => { if (await confirm({ title: `Ban @${pr.username}?`, body: 'They can no longer play. Their art stays unless you remove it.', confirm: 'Ban' })) void run(() => api.admin.setPlayerStatus(id, 'banned', null, 'Banned by the operator'), 'Banned', refetch); }}>Ban</Button>
             <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.setPlayerStatus(id, 'active', null, ''), 'Reactivated', refetch)}>Reactivate</Button>
             <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.hideProfile(id, !pr.is_hidden, 'Operator decision'), pr.is_hidden ? 'Profile visible again' : 'Profile hidden', refetch)}>{pr.is_hidden ? 'Unhide profile' : 'Hide profile'}</Button>
+            {pr.avatar_path && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.clearAvatar(id, 'Profile picture removed by the operator'), 'Profile picture removed', refetch)}>Remove picture</Button>}
+            {muted
+              ? <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.mutePlayer(id, 0, 'Unmuted by the operator'), 'Chat unmuted', refetch)}>Unmute chat</Button>
+              : <>
+                <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.mutePlayer(id, 60, 'Muted by the operator'), 'Muted in chat for 1 hour', refetch)}>Mute chat 1h</Button>
+                <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.mutePlayer(id, 7 * 24 * 60, 'Muted by the operator'), 'Muted in chat for 7 days', refetch)}>Mute 7 days</Button>
+              </>}
           </div>
         </div>
       </Card>
-      <Card title={`Land (${land.data?.total_plots ?? d.plots})`}>
-        {!land.data ? <Spinner /> : !land.data.plots.length ? <p className="text-sm text-muted">No plots.</p> : (
+      <Card title={`Land (${d.plots})`}>
+        {!plots.length ? <p className="text-sm text-muted">No plots.</p> : (
           <div className="grid max-h-72 gap-1 overflow-y-auto text-sm scroll-thin">
-            {land.data.plots.map(([gx, gy, r, t, level, art, , name]) => (
+            {plots.map(([gx, gy, r, t, level, art, , name]) => (
               <div key={`${gx}_${gy}`} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-surface-2">
                 <RarityBadge r={r} small />
                 <span className="min-w-0 flex-1 truncate"><b>{name || `Plot ${plotLabel(gx, gy)}`}</b> <span className="text-xs text-faint">{t} · lvl {level}{art ? ' · painted' : ''}</span></span>

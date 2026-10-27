@@ -211,11 +211,18 @@ export class LocalBackend implements Backend {
   async uploadSubmission(ownerId: string, publicationId: string, cellKey: string, png: Blob) {
     await this.blobs.put(`submissions/${ownerId}/${publicationId}/${cellKey}.png`, new Uint8Array(await png.arrayBuffer()));
   }
+  async uploadAvatar(ownerId: string, name: string, image: Blob) {
+    await this.blobs.put(`avatars/${ownerId}/${name}`, new Uint8Array(await image.arrayBuffer()));
+  }
+  async avatarUrl(path: string | null | undefined) {
+    return path ? this.objectUrl(`avatars/${path}`) : null;
+  }
   private async objectUrl(key: string) {
     if (this.urlCache.has(key)) return this.urlCache.get(key)!;
     const bytes = await this.blobs.get(key);
     if (!bytes) return null;
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/png' }));
+    const type = key.endsWith('.webp') ? 'image/webp' : key.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
     this.urlCache.set(key, url);
     return url;
   }

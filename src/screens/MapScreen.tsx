@@ -14,7 +14,7 @@ import { PlotPanel } from '../plot/PlotPanel';
 import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { Avatar, Button, Dialog, LogoMark } from '../ui';
+import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
 import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter } from '../shared/grid';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
@@ -22,14 +22,13 @@ import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../ex
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
-import { endVisit, refreshVisit, useVisit } from '../visit/visit';
 import { Joystick, fmtTank } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 
 const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: MapPinned, hint: 'Places, borders and every owned territory' },
   { id: 'canvas', label: 'Canvas', icon: Palette, hint: 'The art itself — the map steps back' },
-  { id: 'discovery', label: 'Discover', icon: Compass, hint: 'Claimable plots, their types and neighbours' },
+  { id: 'discovery', label: 'Discover', icon: Compass, hint: 'Claimable mystery plots and who owns the land around you' },
   { id: 'land', label: 'My Land', icon: Layers, hint: 'Your plots, canvases and upgrade options' },
 ];
 
@@ -43,14 +42,7 @@ export function MapScreen() {
   useRaritySync();
   useExplorerSync();
   const placing = useExplorer((s) => s.placing);
-  const visit = useVisit((s) => s.visit);
   const [joystick, setJoystick] = useState(false);
-  useEffect(() => { if (visit) setJoystick(false); }, [visit]);
-  useEffect(() => {
-    if (!visit) return;
-    const t = setInterval(() => void refreshVisit(), 30_000);
-    return () => clearInterval(t);
-  }, [visit?.player.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="absolute inset-0">
       <WorldMap />
@@ -79,18 +71,6 @@ export function MapScreen() {
           {!me && !session && <div className="md:hidden"><SignInChip /></div>}
           {me && <div className="md:hidden"><div className="glass rounded-2xl p-1"><ResourceBar compact /></div></div>}
         </div>
-        {visit && (
-          <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-hot/60 px-3 py-2 text-sm" role="status" data-testid="visit-banner">
-            <span className="flex min-w-0 items-center gap-2">
-              <Avatar seed={visit.player.avatar_seed} style={visit.player.avatar_style} accent={visit.player.accent_color} size={26} />
-              <span className="min-w-0">
-                <b className="block truncate">Visiting @{visit.player.username}</b>
-                <span className="block text-xs text-muted">Live view of their land — you can’t claim plots while visiting.</span>
-              </span>
-            </span>
-            <button onClick={endVisit} className="shrink-0 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold hover:bg-surface" data-testid="visit-end">Back to me</button>
-          </div>
-        )}
         {placing && (
           <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-gold/50 px-4 py-2.5 text-sm font-semibold" role="status">
             <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-gold" /> Tap the map where your explorer should start</span>
@@ -101,7 +81,7 @@ export function MapScreen() {
       <ZoomHint zoom={view.zoom} />
       {me && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
       <AnimatePresence>
-        {me && joystick && !visit && (
+        {me && joystick && (
           <div className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-6">
             <Joystick onClose={() => setJoystick(false)} />
           </div>
@@ -134,7 +114,6 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const requestFly = useUi((s) => s.requestFly);
   const tilt = useUi((s) => s.settings.tilt3d);
   const updateSettings = useUi((s) => s.updateSettings);
-  const visiting = !!useVisit((s) => s.visit);
   const joy = ex.state?.joystick;
   const has = !!ex.state;
   const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
@@ -160,7 +139,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
       </button>
       {has && joy?.enabled !== false && (
         <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', joystick && 'text-accent-2 ring-2 ring-accent-2/60')}
-          disabled={visiting} onClick={onJoystick} aria-pressed={joystick} title={visiting ? 'Leave the visit to use the joystick' : 'Steer your explorer with the joystick'} data-testid="joystick-toggle">
+          onClick={onJoystick} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
           <Gamepad className="h-4 w-4" /> <span className="tnum">{joy ? fmtTank(Number(joy.seconds_left)) : 'Joystick'}</span>
         </button>
       )}
@@ -246,11 +225,12 @@ function Legend({ mode }: { mode: MapMode }) {
       {open && (
         <div className="glass absolute bottom-12 right-0 w-72 rounded-2xl p-4 text-xs">
           <p className="mb-3 text-muted">{MODES.find((m) => m.id === mode)?.hint}</p>
-          <div className="eyebrow mb-2">Rarity · rent per plot</div>
+          <div className="eyebrow mb-2">Rarity · rent per plot (owned plots)</div>
           {RARITY_ORDER.map((r) => (
             <div key={r} className="mb-1.5 flex items-center justify-between gap-2"><RarityBadge r={r} small /><span className="tnum text-muted">{formatRate(rarityInfo(r).usd_per_second)}</span></div>
           ))}
-          <div className="eyebrow mb-2 mt-3">Minigame by plot type</div>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-dashed border-line-strong p-2 text-muted"><span className="font-display text-base font-bold text-fg">?</span> Unclaimed plots are a mystery — type, minigame and rarity are revealed when claimed.</div>
+          <div className="eyebrow mb-2 mt-3">Minigame by plot type (owned plots)</div>
           {(['graphite', 'pigment', 'mosaic', 'lumina'] as const).map((t) => (
             <div key={t} className="mb-1.5 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span><span className="text-faint">{{ graphite: 'TraceCraft', pigment: 'ColorBurst', mosaic: 'PatternShift', lumina: 'LightLines' }[t]}</span></div>
           ))}
@@ -427,7 +407,7 @@ function Checklist() {
 export function MeChip() {
   const me = useOnboardedMe();
   if (!me) return null;
-  return <Avatar seed={me.profile.avatar_seed} style={me.profile.avatar_style} accent={me.profile.accent_color} size={32} />;
+  return <PlayerAvatar p={me.profile} size={32} />;
 }
 
 export { getBackend };

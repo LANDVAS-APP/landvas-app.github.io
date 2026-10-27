@@ -19,14 +19,19 @@ export type BrushDef = {
 export const BRUSHES: Record<BrushId, BrushDef> = {
   pencil: { name: 'Pencil', hardness: 0.9, spacing: 0.1, flow: 0.95, pressureSize: false, pressureFlow: true, tip: 'round', defaultSize: 3, maxSize: 24 },
   round: { name: 'Paintbrush', hardness: 0.55, spacing: 0.08, flow: 0.85, pressureSize: true, pressureFlow: false, tip: 'round', defaultSize: 18, maxSize: 220 },
-  ink: { name: 'Ink pen', hardness: 1, spacing: 0.05, flow: 1, pressureSize: true, pressureFlow: false, tip: 'round', defaultSize: 7, maxSize: 80 },
-  marker: { name: 'Marker', hardness: 0.95, spacing: 0.06, flow: 1, pressureSize: false, pressureFlow: false, tip: 'chisel', defaultSize: 22, maxSize: 120 },
+  ink: { name: 'Ink pen', hardness: 1, spacing: 0.05, flow: 1, pressureSize: true, pressureFlow: false, tip: 'round', defaultSize: 7, maxSize: 80, unlock: 'brush.ink' },
+  marker: { name: 'Marker', hardness: 0.95, spacing: 0.06, flow: 1, pressureSize: false, pressureFlow: false, tip: 'chisel', defaultSize: 22, maxSize: 120, unlock: 'brush.marker' },
   airbrush: { name: 'Airbrush', hardness: 0, spacing: 0.05, flow: 0.08, pressureSize: false, pressureFlow: true, tip: 'round', defaultSize: 60, maxSize: 300, unlock: 'brush.airbrush' },
   spray: { name: 'Spray can', hardness: 1, spacing: 0.2, flow: 1, pressureSize: false, pressureFlow: true, tip: 'scatter', defaultSize: 44, maxSize: 200, unlock: 'brush.spray' },
   calligraphy: { name: 'Calligraphy nib', hardness: 0.97, spacing: 0.04, flow: 1, pressureSize: true, pressureFlow: false, tip: 'nib', defaultSize: 16, maxSize: 120, unlock: 'brush.calligraphy' },
-  pixel: { name: 'Pixel brush', hardness: 1, spacing: 1, flow: 1, pressureSize: false, pressureFlow: false, tip: 'square', defaultSize: 2, maxSize: 32 },
+  pixel: { name: 'Pixel brush', hardness: 1, spacing: 1, flow: 1, pressureSize: false, pressureFlow: false, tip: 'square', defaultSize: 2, maxSize: 32, unlock: 'brush.pixel' },
   eraser: { name: 'Eraser', hardness: 0.8, spacing: 0.07, flow: 1, pressureSize: true, pressureFlow: false, tip: 'round', defaultSize: 28, maxSize: 300 },
 };
+
+/** Tools that are bought in the Studio (everything else is free for everyone). */
+export const TOOL_UNLOCKS: Record<string, string> = { rect: 'tool.shapes', ellipse: 'tool.shapes', gradient: 'tool.gradient' };
+/** Brush sizes above this need the Giant Brushes upgrade. */
+export const STARTER_MAX_SIZE = 48;
 
 const cache = new Map<string, HTMLCanvasElement>();
 

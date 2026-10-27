@@ -5,7 +5,7 @@ import * as RSlider from '@radix-ui/react-slider';
 import * as RSwitch from '@radix-ui/react-switch';
 import * as RTooltip from '@radix-ui/react-tooltip';
 import { Loader2, X } from 'lucide-react';
-import { createContext, forwardRef, useCallback, useContext, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../lib/utils';
 import type { Resource } from '../backend/types';
 
@@ -235,7 +235,35 @@ function seedRand(seed: string) {
   };
 }
 const AV_COLORS = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#22C7B5'];
-export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, className, frame }: { seed: string; style?: string; accent?: string; size?: number; className?: string; frame?: 'gold' | 'prism' | null }) {
+/** Resolved profile-picture URLs, shared by every Avatar on the page. */
+const avatarUrls = new Map<string, string | null>();
+let resolveAvatar: ((path: string) => Promise<string | null>) | null = null;
+/** Called once by the app with the backend's URL resolver. */
+export function setAvatarResolver(fn: (path: string) => Promise<string | null>) { resolveAvatar = fn; }
+
+function useAvatarImage(path: string | null | undefined) {
+  const [url, setUrl] = useState<string | null>(() => (path ? avatarUrls.get(path) ?? null : null));
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+    if (!path) { setUrl(null); return; }
+    if (avatarUrls.has(path)) { setUrl(avatarUrls.get(path)!); return; }
+    let live = true;
+    void resolveAvatar?.(path).then((u) => { avatarUrls.set(path, u); if (live) setUrl(u); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [path]);
+  return { url: failed ? null : url, onError: () => setFailed(true) };
+}
+
+type AvatarProfile = { avatar_seed: string; avatar_style?: string; accent_color?: string; avatar_path?: string | null; username?: string };
+
+/** Avatar for a player profile: their uploaded picture, or the generated one. */
+export function PlayerAvatar({ p, size = 40, className, frame }: { p: AvatarProfile; size?: number; className?: string; frame?: 'gold' | 'prism' | null }) {
+  return <Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} image={p.avatar_path} size={size} className={className} frame={frame} alt={p.username ? `@${p.username}` : undefined} />;
+}
+
+export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, className, frame, image, alt }: { seed: string; style?: string; accent?: string; size?: number; className?: string; frame?: 'gold' | 'prism' | null; image?: string | null; alt?: string }) {
+  const pic = useAvatarImage(image);
   const shapes = useMemo(() => {
     const r = seedRand(seed + style);
     const pick = () => AV_COLORS[Math.floor(r() * AV_COLORS.length)];
@@ -262,7 +290,9 @@ export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, c
   }, [seed, style]);
   return (
     <span className={cn('relative inline-block shrink-0 overflow-hidden rounded-[30%]', className)} style={{ width: size, height: size, background: accent }}>
-      <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden>{shapes}</svg>
+      {pic.url
+        ? <img src={pic.url} alt={alt ?? ''} width={size} height={size} loading="lazy" decoding="async" draggable={false} onError={pic.onError} className="block h-full w-full object-cover" />
+        : <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden>{shapes}</svg>}
       {frame && <span className={cn('pointer-events-none absolute inset-0 rounded-[30%]', frame === 'gold' ? 'ring-2 ring-gold ring-inset' : 'rainbow-edge')} />}
     </span>
   );

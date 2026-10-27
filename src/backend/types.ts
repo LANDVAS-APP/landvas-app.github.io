@@ -14,9 +14,15 @@ export type Profile = {
   avatar_seed: string;
   avatar_style: 'prism' | 'orbit' | 'mosaic' | 'bloom';
   accent_color: string;
+  /** uploaded profile picture (avatars bucket path), or null for the generated avatar */
+  avatar_path?: string | null;
+  explorer_style?: ExplorerStyle;
   bio: string | null;
   created_at: string;
 };
+
+export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura';
+export type ExplorerStyle = Partial<Record<ExplorerPart, string>>;
 
 export type PlotTypeInfo = {
   id: PlotTypeId;
@@ -31,14 +37,14 @@ export type PlotTypeInfo = {
   acquire_multiplier: number;
 };
 
-export type ShopItem = { key: string; name: string; kind: string; description: string; cost: Partial<Balances>; requires?: string; enabled?: boolean };
+export type ShopItem = { key: string; name: string; kind: string; group?: string; part?: string; id?: string; description: string; cost: Partial<Balances>; requires?: string; enabled?: boolean };
 
 export type WorldConfig = {
   grid: { level: number; size: number; plot_px: number; art_min_zoom: number; art_max_zoom: number };
   plot_types: PlotTypeInfo[];
   rarities: RarityInfo[];
   economy: any;
-  rent: { enabled: boolean; currency: string; level_bonus: number; max_offline_days: number; boost: { multiplier: number; minutes_per_boost: number; max_stack_hours: number; free_per_day: number; reset_hour_utc: number }; cashout: { minimum_usd: number; methods: string[] } };
+  rent: { enabled: boolean; currency: string; level_bonus: number; max_offline_days: number; boost: { multiplier: number; minutes_per_boost: number; max_stack_hours: number; free_per_day: number; reset_hour_utc: number }; cashout: { minimum_usd: number; methods: string[] }; convert?: { enabled: boolean; ink_per_usd: number } };
   explorer: {
     claim_reach: number; max_speed_kmh: number; manual_travel: boolean; travel_speed_kmh: number; jump_cooldown_hours: number;
     joystick?: { enabled: boolean; speed_kmh: number; tank_seconds: number; daily_refill: boolean; burst_seconds: number };
@@ -110,16 +116,17 @@ export type CashoutStatus = {
   history: { id: string; amount_usd: number; status: string; method: string; created_at: string; decided_at: string | null }[];
 };
 
-export type Neighbor = { gx: number; gy: number; dir: 'n' | 's' | 'e' | 'w'; plot_type: PlotTypeId; rarity: RarityId | null; owned: boolean; is_mine: boolean; owner_username: string | null; group_id: string | null; same_group: boolean };
+export type Neighbor = { gx: number; gy: number; dir: 'n' | 's' | 'e' | 'w'; plot_type: PlotTypeId | null; rarity: RarityId | null; owned: boolean; is_mine: boolean; owner_username: string | null; group_id: string | null; same_group: boolean };
 
 export type PlotDetails = {
   gx: number;
   gy: number;
   center: { lng: number; lat: number };
   name?: string | null;
-  plot_type: PlotTypeId;
-  type_info: PlotTypeInfo;
-  /** null until the plot is claimed — rarity is a surprise */
+  /** null until the plot is claimed — type, minigame and rarity are a surprise */
+  plot_type: PlotTypeId | null;
+  type_info: PlotTypeInfo | null;
+  mystery?: boolean;
   rarity: RarityId | null;
   rarity_info: RarityInfo | null;
   rarity_hidden?: boolean;
@@ -135,7 +142,7 @@ export type PlotDetails = {
   neighbors: Neighbor[];
   group?: { id: string; name: string; plot_count: number; project_id: string; min_gx: number; min_gy: number; max_gx: number; max_gy: number };
   connections?: { group_id: string; name: string; plot_count: number }[];
-  acquire?: { ink?: number; owned?: number; plot_type?: string; rarity?: RarityId; starter_available: boolean };
+  acquire?: { ink?: number; owned?: number; starter_available: boolean };
   available?: boolean;
 };
 
@@ -154,13 +161,46 @@ export type DirectoryPlayer = {
 };
 
 /** Land row from player_land: [gx, gy, rarity, type, level, has_art, group_id, name] */
-export type LandPlot = [number, number, RarityId, PlotTypeId, number, boolean, string | null, string | null];
+/** A plot inside a canvas, relative to the canvas corner: [dx, dy, rarity, type, level, has_art, name] (no coordinates) */
+export type LandCell = [number, number, RarityId, PlotTypeId, number, boolean, string | null];
+export type LandCanvas = { id: string; name: string; plot_count: number; width: number; height: number; cells: LandCell[]; art: ArtworkCard | null };
 export type PlayerLand = {
   player: Profile;
   total_plots: number;
   usd_per_second: number;
-  plots: LandPlot[];
-  canvases: { id: string; name: string; plot_count: number; min_gx: number; min_gy: number; max_gx: number; max_gy: number; art: ArtworkCard | null }[];
+  rarity_counts: Partial<Record<RarityId, number>>;
+  type_counts: Partial<Record<PlotTypeId, number>>;
+  canvases: LandCanvas[];
+};
+/** Admin-only absolute plot row: [gx, gy, rarity, type, level, has_art, group_id, name] */
+export type AdminPlot = [number, number, RarityId, PlotTypeId, number, boolean, string | null, string | null];
+
+export type FriendStatus = 'none' | 'self' | 'friends' | 'incoming' | 'outgoing';
+export type FriendsList = {
+  friends: { player: Profile; since: string; plots: number }[];
+  incoming: { player: Profile; at: string }[];
+  outgoing: { player: Profile; at: string }[];
+};
+export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
+export type FeedEvent = {
+  id: number;
+  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level';
+  data: Record<string, any>;
+  created_at: string;
+  player: Profile;
+};
+export type Referrals = {
+  enabled: boolean;
+  reward_ink: number;
+  referee_reward_ink: number;
+  qualify: 'signup' | 'starter_plot' | 'first_win';
+  daily_cap: number;
+  default_code: string;
+  custom_code: string | null;
+  stats: { total: number; pending: number; rewarded: number; earned_ink: number };
+  recent: { player: Profile; status: string; reward_ink: number; created_at: string; qualified_at: string | null }[];
+  referred_by: { player: Profile; status: string; code: string } | null;
+  can_redeem: boolean;
 };
 
 export type GroupCell = [number, number, PlotTypeId, number, boolean];
@@ -232,12 +272,13 @@ export type ArtworkCard = {
   preview_width: number | null;
   preview_height: number | null;
   appreciation_count: number;
-  center_lng: number;
-  center_lat: number;
-  min_gx: number;
-  min_gy: number;
-  max_gx: number;
-  max_gy: number;
+  /** map position — only for the artist and moderators */
+  center_lng?: number;
+  center_lat?: number;
+  min_gx?: number;
+  min_gy?: number;
+  max_gx?: number;
+  max_gy?: number;
   status: PublicationStatus;
   artist: Profile;
   appreciated: boolean;

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, FlipHorizontal2, FlipVertical2, Layers3, Merge, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, FlipHorizontal2, FlipVertical2, Layers3, Lock, Merge, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -40,11 +40,17 @@ export function ColorPanel({ ed, unlocks }: { ed: Editor; unlocks: Set<string> }
         </button>
         <p className="text-xs text-muted">Primary paints strokes; secondary fills shapes and ends gradients. Alt-click the canvas to pick a colour.</p>
       </div>
-      <ColorPicker value={ed.s.color} onChange={(c) => ed.set({ color: c })} />
+      {unlocks.has('tool.mixer') ? <ColorPicker value={ed.s.color} onChange={(c) => ed.set({ color: c })} /> : (
+        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-line-strong p-3 text-xs text-muted" data-testid="mixer-locked">
+          <span className="h-10 w-10 shrink-0 rounded-xl opacity-60" style={{ background: 'conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)' }} />
+          <span><b className="text-fg">Colour Mixer</b> — pick any colour and type hex codes. Buy it in the Studio shop; until then, paint with your palettes and the eyedropper.</span>
+          <Lock className="h-4 w-4 shrink-0 text-gold" />
+        </div>
+      )}
       {recent.length > 0 && <Swatches title="Recent" colors={recent} ed={ed} />}
       {Object.entries(PALETTES).map(([id, p]) => {
-        const locked = p.unlock && !unlocks.has(p.unlock);
-        return <Swatches key={id} title={p.name + (locked ? ' · locked' : '')} colors={p.colors} ed={ed} locked={!!locked} />;
+        const locked = !!p.unlock && !unlocks.has(p.unlock);
+        return <Swatches key={id} title={p.name + (locked ? ' · buy in the Studio' : '')} colors={p.colors} ed={ed} locked={locked} />;
       })}
       {(palettes.data ?? []).map((p) => (
         <Swatches key={p.id} title={p.name} colors={p.colors} ed={ed} onDelete={async () => { await api.deletePalette(p.id); void qc.invalidateQueries({ queryKey: ['palettes'] }); }} />
@@ -58,7 +64,7 @@ function Swatches({ title, colors, ed, locked, onDelete }: { title: string; colo
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between"><span className="eyebrow">{title}</span>{onDelete && <button className="text-[11px] text-faint hover:text-bad" onClick={onDelete}>Remove</button>}</div>
-      <div className={cn('grid grid-cols-8 gap-1.5', locked && 'pointer-events-none opacity-35')}>
+      <div className={cn('grid grid-cols-8 gap-1.5', locked && 'pointer-events-none opacity-30 grayscale-[35%]')} aria-disabled={locked || undefined}>
         {colors.map((c, i) => (
           <button key={c + i} title={c} aria-label={`Colour ${c}`} onClick={() => ed.set({ color: c })} onContextMenu={(e) => { e.preventDefault(); ed.set({ color2: c }); }}
             className={cn('aspect-square rounded-md border', ed.s.color === c ? 'border-fg ring-2 ring-accent-2' : 'border-line')} style={{ background: c }} />
@@ -82,16 +88,19 @@ export function BrushPanel({ ed, unlocks }: { ed: Editor; unlocks: Set<string> }
             const b = BRUSHES[id];
             const locked = b.unlock && !unlocks.has(b.unlock);
             return (
-              <button key={id} onClick={() => ed.set({ brush: id })} disabled={!!locked} title={locked ? 'Unlock in the Studio' : b.name}
-                className={cn('rounded-xl border px-2 py-2 text-[11.5px] font-bold', ed.s.brush === id ? 'border-accent bg-accent/15' : 'border-line', locked && 'opacity-40')}>
-                {b.name}{locked ? ' · locked' : ''}
+              <button key={id} onClick={() => ed.set({ brush: id })} disabled={!!locked} title={locked ? 'Buy it in the Studio shop' : b.name}
+                className={cn('flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[11.5px] font-bold', ed.s.brush === id ? 'border-accent bg-accent/15' : 'border-line', locked && 'opacity-40')}>
+                {locked && <Lock className="h-3 w-3 text-gold" />}{b.name}
               </button>
             );
           })}
         </div>
       )}
       {(isBrush || ['line', 'rect', 'ellipse'].includes(t)) && (
-        <Slider id="size" label={t === 'brush' && ed.s.brush === 'pixel' ? 'Pixel size' : 'Size'} min={1} max={def.maxSize} step={ed.s.brush === 'pixel' ? 1 : 0.5} value={ed.size} onChange={(v) => ed.setSize(v)} format={(v) => `${Math.round(v * 10) / 10} px`} />
+        <>
+          <Slider id="size" label={t === 'brush' && ed.s.brush === 'pixel' ? 'Pixel size' : 'Size'} min={1} max={ed.sizeCap(def)} step={ed.s.brush === 'pixel' ? 1 : 0.5} value={ed.size} onChange={(v) => ed.setSize(v)} format={(v) => `${Math.round(v * 10) / 10} px`} />
+          {ed.sizeCap(def) < def.maxSize && <p className="-mt-2 flex items-center gap-1 text-[11px] text-faint"><Lock className="h-3 w-3 text-gold" /> Up to {def.maxSize} px with Giant Brushes from the Studio.</p>}
+        </>
       )}
       {t !== 'hand' && t !== 'move' && t !== 'eyedropper' && (
         <Slider id="opacity" label="Opacity" min={0.05} max={1} step={0.01} value={ed.s.opacity} onChange={(v) => ed.set({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
@@ -102,10 +111,10 @@ export function BrushPanel({ ed, unlocks }: { ed: Editor; unlocks: Set<string> }
       {isBrush && <Slider id="smooth" label="Stabilizer" min={0} max={0.9} step={0.01} value={ed.s.smoothing} onChange={(v) => ed.set({ smoothing: v })} format={(v) => `${Math.round(v * 100)}%`} />}
       {isBrush && (
         <div>
-          <div className="eyebrow mb-1.5">Symmetry</div>
-          <div className="grid grid-cols-5 gap-1">
+          <div className="eyebrow mb-1.5 flex items-center gap-1">Symmetry{!unlocks.has('tool.symmetry') && <><Lock className="h-3 w-3 text-gold" /><span className="normal-case tracking-normal text-faint">buy the Symmetry Mirror in the Studio</span></>}</div>
+          <div className={cn('grid grid-cols-5 gap-1', !unlocks.has('tool.symmetry') && 'opacity-45')}>
             {(['off', 'vertical', 'horizontal', 'quad', 'radial'] as const).map((m) => (
-              <button key={m} onClick={() => ed.set({ symmetry: m })} className={cn('rounded-lg border py-1.5 text-[11px] font-bold capitalize', ed.s.symmetry === m ? 'border-[#FF4FD8] bg-[#FF4FD8]/15' : 'border-line text-muted')}>
+              <button key={m} onClick={() => ed.set({ symmetry: m })} disabled={m !== 'off' && !unlocks.has('tool.symmetry')} className={cn('rounded-lg border py-1.5 text-[11px] font-bold capitalize', ed.s.symmetry === m ? 'border-[#FF4FD8] bg-[#FF4FD8]/15' : 'border-line text-muted')}>
                 {m === 'vertical' ? 'Mirror' : m === 'horizontal' ? 'Flip' : m}
               </button>
             ))}

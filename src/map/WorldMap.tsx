@@ -12,15 +12,15 @@ import { config } from '../env';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { effectiveDark, useUi, type MapMode } from '../lib/store';
 import { outlineEdges } from '../shared/fusion';
-import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygon, latToY, lngLatToCell, plotTypeFor, viewportCells, xToLng, yToLat, type PlotTypeWeight } from '../shared/grid';
+import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygon, latToY, lngLatToCell, viewportCells, xToLng, yToLat } from '../shared/grid';
 import { rarities } from '../shared/rarity';
 import { explorerNow, travelTo, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
 import { STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
-import { patternImages, typeIconImages } from './plotStyle';
-import { useVisit } from '../visit/visit';
+import { patternImages } from './plotStyle';
 import { mapHandle } from './mapHandle';
+import { explorerElement } from '../explorer/character';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -30,8 +30,6 @@ const ART_TILES = (gen: number) => [`lvart://{z}/{x}/{y}?g=${gen}`];
 const PLOTS_MIN_ZOOM = GRID_LEVEL - 6.5; // owned plots load (~3 px each)
 const CELLS_MIN_ZOOM = GRID_LEVEL - 3.8; // every plot drawn (~18 px)
 const GRIDLINES_MIN_ZOOM = GRID_LEVEL - 4.8;
-const TYPE_PATTERN_ZOOM = GRID_LEVEL - 3;
-const TYPE_ICON_ZOOM = GRID_LEVEL - 2.4;
 const NAMES_MIN_ZOOM = GRID_LEVEL - 1.8;
 const MAX_CELLS = 5200;
 
@@ -46,33 +44,6 @@ const setData = (map: MLMap, id: string, data: GeoJSON.GeoJSON) => (map.getSourc
 
 export const artIndex = new ArtIndex();
 
-function explorerElement(accent: string) {
-  const el = document.createElement('div');
-  el.className = 'lv-explorer';
-  el.innerHTML = `
-    <div class="lv-explorer-ring" style="--c:${accent}"></div>
-    <svg viewBox="0 0 46 58" width="46" height="58" aria-hidden="true">
-      <ellipse class="shadow" cx="23" cy="54" rx="11" ry="3.4" fill="rgba(0,0,0,0.45)"/>
-      <g class="body"><g class="flip">
-        <rect x="16" y="40" width="5" height="11" rx="2.5" fill="#1b1f3d"/>
-        <rect x="25" y="40" width="5" height="11" rx="2.5" fill="#1b1f3d"/>
-        <ellipse cx="11.5" cy="33" rx="5.5" ry="6.5" fill="#FFB31F"/>
-        <circle cx="10" cy="31" r="1.3" fill="#FF3D9A"/><circle cx="12.6" cy="34.5" r="1.3" fill="#22E3FF"/><circle cx="10" cy="36" r="1.2" fill="#3DDC97"/>
-        <rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${accent}"/>
-        <rect x="14" y="27.5" width="18" height="6" rx="3" fill="rgba(255,255,255,0.22)"/>
-        <circle cx="23" cy="17" r="11" fill="#FFE2C4"/>
-        <path d="M11.5 13.5 Q22 1 34.5 11.5 Q29 9.5 11.5 13.5Z" fill="#FF3D9A"/>
-        <circle cx="25" cy="4.6" r="2.1" fill="#FF3D9A"/>
-        <circle cx="19.3" cy="18" r="1.9" fill="#1b1f3d"/><circle cx="27" cy="18" r="1.9" fill="#1b1f3d"/>
-        <circle cx="19.9" cy="17.4" r="0.6" fill="#fff"/><circle cx="27.6" cy="17.4" r="0.6" fill="#fff"/>
-        <path d="M19.6 22.2 Q23 25.2 26.6 22.2" stroke="#1b1f3d" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-        <circle cx="16.8" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/><circle cx="29.4" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/>
-        <g transform="rotate(28 36 30)"><rect x="34.8" y="22" width="2.6" height="15" rx="1.2" fill="#8B5A2B"/><path d="M34.4 22 Q36.1 15.5 37.8 22Z" fill="#22E3FF"/></g>
-      </g></g>
-    </svg>`;
-  return el;
-}
-
 export function WorldMap() {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -85,7 +56,6 @@ export function WorldMap() {
   const rarityKeyRef = useRef('');
   const explorerMarker = useRef<maplibregl.Marker | null>(null);
   const nameMarkers = useRef(new Map<string, maplibregl.Marker>());
-  const typesRef = useRef<PlotTypeWeight[] | undefined>(undefined);
   const [ready, setReady] = useState(false);
   const mode = useUi((s) => s.mode);
   const selected = useUi((s) => s.selected);
@@ -98,8 +68,7 @@ export function WorldMap() {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const accent = me?.profile.accent_color ?? '#7B5CFF';
-  typesRef.current = world.data?.plot_types?.map((t) => ({ id: t.id, weight: Number(t.weight), sort: Number(t.sort) }));
-  const visit = useVisit((s) => s.visit);
+  const styleKey = JSON.stringify(me?.profile.explorer_style ?? {});
 
   // ---- init -----------------------------------------------------------------
   useEffect(() => {
@@ -265,7 +234,7 @@ export function WorldMap() {
         /* transient */
       }
     }
-    // every unclaimed plot in view, showing its type (rarity stays secret until claimed)
+    // every unclaimed plot in view as a plain square: its type and rarity stay a surprise until claimed
     const rarityKey = `${v.minGx}_${v.minGy}_${v.maxGx}_${v.maxGy}_${rowsRef.current.length}_${rowsRef.current[0]?.[0] ?? ''}`;
     if (z >= CELLS_MIN_ZOOM && cols * rows <= MAX_CELLS) {
       if (rarityKeyRef.current === rarityKey) return void updateLabels(map, b, z);
@@ -275,7 +244,7 @@ export function WorldMap() {
       for (let y = v.minGy; y <= v.maxGy; y++)
         for (let x = v.minGx; x <= v.maxGx; x++) {
           const gx = ((x % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
-          if (!owned.has(`${gx}_${y}`)) feats.push(poly(x, y, { t: plotTypeFor(gx, y, typesRef.current) }));
+          if (!owned.has(`${gx}_${y}`)) feats.push(poly(x, y, {}));
         }
       setData(map, 'lv-rarity', { type: 'FeatureCollection', features: feats });
     } else if (rarityKeyRef.current !== 'empty') {
@@ -339,20 +308,15 @@ export function WorldMap() {
     let lastRoute = 0;
     let lastFollow = 0;
     let lastPaint = 0;
-    const el = explorerElement(accent);
+    const el = explorerElement(me?.profile.explorer_style, accent);
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] });
     explorerMarker.current = marker;
     let added = false;
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
-    let reachHidden = false;
     const loop = () => {
-      const { state, offset, heading, following: follow, gps } = useExplorer.getState();
-      const visiting = !!useVisit.getState().visit;
-      const following = follow && !visiting;
+      const { state, offset, heading, following, gps } = useExplorer.getState();
       const p = explorerNow(state, offset);
-      if (visiting && !reachHidden) { reachHidden = true; lastCell = ''; setData(map, 'lv-reach', EMPTY); }
-      if (!visiting && reachHidden) reachHidden = false;
       if (p) {
         if (!added) { marker.setLngLat([p.lng, p.lat]).addTo(map); added = true; }
         else marker.setLngLat([p.lng, p.lat]);
@@ -363,7 +327,7 @@ export function WorldMap() {
         el.classList.toggle('gps', gps === 'on');
         const c = lngLatToCell(p.lng, p.lat);
         const key = `${c.gx}_${c.gy}_${state?.reach ?? 1}`;
-        if (key !== lastCell && !visiting) {
+        if (key !== lastCell) {
           lastCell = key;
           const r = state?.reach ?? 6;
           // the claimable square around the explorer, as one outline
@@ -403,29 +367,7 @@ export function WorldMap() {
       marker.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, accent]);
-
-  // ---- visiting another player: their land glows, a ghost of you stands on it ---------
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-    if (!visit) {
-      setData(map, 'lv-visit', EMPTY);
-      return;
-    }
-    const color = visit.player.accent_color || '#FF3D9A';
-    for (const [id, prop] of [['lv-visit-fill', 'fill-color'], ['lv-visit-glow', 'line-color'], ['lv-visit-line', 'line-color']] as const) if (map.getLayer(id)) map.setPaintProperty(id, prop, color);
-    setData(map, 'lv-visit', { type: 'FeatureCollection', features: visit.plots.slice(0, 2000).map((p) => poly(p[0], p[1], {})) });
-    const el = explorerElement(accent);
-    el.classList.add('ghost');
-    const tag = document.createElement('div');
-    tag.className = 'lv-visit-tag';
-    tag.textContent = `Visiting @${visit.player.username}`;
-    el.appendChild(tag);
-    const ghost = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] }).setLngLat([visit.center.lng, visit.center.lat]).addTo(map);
-    return () => { ghost.remove(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visit, ready, accent]);
+  }, [ready, accent, styleKey]);
 
   // legendary & mythic plots shimmer
   useEffect(() => {
@@ -531,11 +473,10 @@ export function WorldMap() {
 
 function addLayers(map: MLMap) {
   for (const img of patternImages()) if (!map.hasImage(img.id)) map.addImage(img.id, { width: img.width, height: img.height, data: img.data }, { pixelRatio: 2 });
-  for (const img of typeIconImages()) if (!map.hasImage(img.id)) map.addImage(img.id, { width: img.width, height: img.height, data: img.data }, { pixelRatio: 2 });
   // Canvas mode lays a veil over the base map so the art leads
   map.addLayer({ id: 'lv-veil', type: 'background', paint: { 'background-color': themeColors().bg || '#0b0820', 'background-opacity': 0 } });
   map.addSource('lv-density', { type: 'geojson', data: EMPTY });
-  map.addSource('lv-rarity', { type: 'geojson', data: EMPTY }); // unclaimed cells in view (type only)
+  map.addSource('lv-rarity', { type: 'geojson', data: EMPTY }); // unclaimed cells in view (no type or rarity)
   map.addSource('lv-plots', { type: 'geojson', data: EMPTY });
   map.addSource('lv-art', { type: 'raster', tiles: ART_TILES(1), tileSize: 256, minzoom: ART_MIN_ZOOM, maxzoom: ART_MAX_ZOOM });
   map.addSource('lv-grid', { type: 'geojson', data: EMPTY });
@@ -544,7 +485,6 @@ function addLayers(map: MLMap) {
   map.addSource('lv-route', { type: 'geojson', data: EMPTY });
   map.addSource('lv-hover', { type: 'geojson', data: EMPTY });
   map.addSource('lv-sel', { type: 'geojson', data: EMPTY });
-  map.addSource('lv-visit', { type: 'geojson', data: EMPTY });
 
   map.addLayer({
     id: 'lv-density', type: 'circle', source: 'lv-density', maxzoom: PLOTS_MIN_ZOOM + 1,
@@ -555,23 +495,11 @@ function addLayers(map: MLMap) {
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.35,
     },
   });
-  // unclaimed plots: a faint grid square, the type's pattern, then its minigame badge (rarity is secret)
+  // unclaimed plots: a faint, identical square each — what's inside is a surprise until it's claimed
   map.addLayer({ id: 'lv-cells-fill', type: 'fill', source: 'lv-rarity', minzoom: CELLS_MIN_ZOOM, paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.035 } });
-  map.addLayer({
-    id: 'lv-free-pattern', type: 'fill', source: 'lv-rarity', minzoom: TYPE_PATTERN_ZOOM,
-    paint: { 'fill-pattern': ['concat', 'pat-free-', ['get', 't']], 'fill-opacity': ['interpolate', ['linear'], ['zoom'], TYPE_PATTERN_ZOOM, 0, TYPE_PATTERN_ZOOM + 0.8, 0.7] },
-  });
   map.addLayer({
     id: 'lv-cells-line', type: 'line', source: 'lv-rarity', minzoom: CELLS_MIN_ZOOM,
     paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], CELLS_MIN_ZOOM, 0.5, GRID_LEVEL, 1.4], 'line-opacity': ['interpolate', ['linear'], ['zoom'], CELLS_MIN_ZOOM, 0.12, GRID_LEVEL - 2, 0.3] },
-  });
-  map.addLayer({
-    id: 'lv-free-icon', type: 'symbol', source: 'lv-rarity', minzoom: TYPE_ICON_ZOOM,
-    layout: {
-      'icon-image': ['concat', 'ico-', ['get', 't']], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], TYPE_ICON_ZOOM, 0.45, GRID_LEVEL - 1, 0.8, GRID_LEVEL + 0.5, 1.15],
-    },
-    paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], TYPE_ICON_ZOOM, 0, TYPE_ICON_ZOOM + 0.6, 0.95] },
   });
   map.addLayer({ id: 'lv-grid', type: 'line', source: 'lv-grid', minzoom: GRIDLINES_MIN_ZOOM, paint: { 'line-color': '#c7b8ff', 'line-width': 0.6, 'line-opacity': 0.25 } });
   // claimed plots without art: owner colour + plot-type pattern; plots with art show nothing but the art
@@ -585,9 +513,6 @@ function addLayers(map: MLMap) {
     id: 'lv-plots-line', type: 'line', source: 'lv-plots',
     paint: { 'line-color': ['case', ['==', ['get', 'm'], 1], '#FFFFFF', ['get', 'c']], 'line-width': ['interpolate', ['linear'], ['zoom'], PLOTS_MIN_ZOOM, 0.5, GRID_LEVEL - 1, ['case', ['==', ['get', 'm'], 1], 2.4, 1.6]], 'line-opacity': 0.9 },
   });
-  map.addLayer({ id: 'lv-visit-fill', type: 'fill', source: 'lv-visit', paint: { 'fill-color': '#FF3D9A', 'fill-opacity': 0.16 } });
-  map.addLayer({ id: 'lv-visit-glow', type: 'line', source: 'lv-visit', paint: { 'line-color': '#FF3D9A', 'line-width': 9, 'line-blur': 7, 'line-opacity': 0.55 } });
-  map.addLayer({ id: 'lv-visit-line', type: 'line', source: 'lv-visit', paint: { 'line-color': '#FF3D9A', 'line-width': 2, 'line-opacity': 0.95 } });
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.06 } });
@@ -636,7 +561,7 @@ export function applyMode(map: MLMap, mode: MapMode, online: boolean) {
   const p = (id: string, prop: string, v: unknown) => map.getLayer(id) && map.setPaintProperty(id, prop as any, v as any);
   const mine = (a: number, b: number) => ['case', ['==', ['get', 'm'], 1], a, b];
   dimBase(map, mode === 'canvas', online);
-  for (const id of ['lv-cells-fill', 'lv-cells-line', 'lv-free-pattern', 'lv-free-icon', 'lv-grid', 'lv-owned-glow']) vis(id, mode !== 'canvas');
+  for (const id of ['lv-cells-fill', 'lv-cells-line', 'lv-grid', 'lv-owned-glow']) vis(id, mode !== 'canvas');
   vis('lv-density', true);
   // the art itself is never tinted or faded: modes only change the overlays around it
   p('lv-art', 'raster-opacity', 1);

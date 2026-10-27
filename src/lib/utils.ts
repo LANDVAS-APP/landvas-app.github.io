@@ -30,3 +30,8 @@ export function saveStorage(key: string, value: unknown) {
     /* ignore */
   }
 }
+
+export async function sha256Hex(bytes: ArrayBuffer) {
+  const d = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}

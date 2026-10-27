@@ -7,7 +7,7 @@ import { getBackend } from '../backend/backend';
 import type { ArtworkCard } from '../backend/types';
 import { Page, PageHeader } from '../app/Shell';
 import { cn, fmt, timeAgo } from '../lib/utils';
-import { Avatar, Empty, Spinner, Tabs } from '../ui';
+import { Empty, Spinner, Tabs, PlayerAvatar } from '../ui';
 
 export function useAssetUrl(path: string | null | undefined) {
   return useQuery({ queryKey: ['asset', path], queryFn: () => getBackend().publicAssetUrl(path), enabled: !!path, staleTime: Infinity }).data ?? null;
@@ -16,7 +16,7 @@ export function useAssetUrl(path: string | null | undefined) {
 export function ArtThumb({ card, className }: { card: Pick<ArtworkCard, 'thumb_path' | 'title'>; className?: string }) {
   const url = useAssetUrl(card.thumb_path);
   return (
-    <div className={cn('checker aspect-square overflow-hidden rounded-2xl', className)}>
+    <div className={cn('art-paper aspect-square overflow-hidden rounded-2xl', className)}>
       {url ? <img src={url} alt={card.title} className="h-full w-full object-cover [image-rendering:pixelated]" loading="lazy" /> : <div className="h-full w-full animate-pulse bg-surface-2" />}
     </div>
   );
@@ -31,7 +31,7 @@ export function ArtGrid({ cards }: { cards: ArtworkCard[] }) {
           <div className="px-1.5 pb-1 pt-2">
             <div className="truncate text-sm font-bold">{c.title}</div>
             <div className="flex items-center justify-between gap-2 text-xs text-muted">
-              <span className="flex min-w-0 items-center gap-1.5"><Avatar seed={c.artist.avatar_seed} style={c.artist.avatar_style} accent={c.artist.accent_color} size={16} /><span className="truncate">@{c.artist.username}</span></span>
+              <span className="flex min-w-0 items-center gap-1.5"><PlayerAvatar p={c.artist} size={16} /><span className="truncate">@{c.artist.username}</span></span>
               <span className="flex shrink-0 items-center gap-1 tnum"><Heart className={cn('h-3 w-3', c.appreciated && 'fill-hot text-hot')} />{fmt(c.appreciation_count)}</span>
             </div>
             <div className="text-[11px] text-faint">{c.plot_count} plot{c.plot_count === 1 ? '' : 's'} · {timeAgo(c.published_at)}</div>
@@ -70,7 +70,7 @@ export default function GalleryScreen() {
           <div className="flex flex-wrap gap-2">
             {artists.data.map((a) => (
               <Link key={a.artist.id} to={`/u/${a.artist.username}`} className="glass flex items-center gap-2 rounded-2xl px-3 py-2">
-                <Avatar seed={a.artist.avatar_seed} style={a.artist.avatar_style} accent={a.artist.accent_color} size={28} />
+                <PlayerAvatar p={a.artist} size={28} />
                 <span className="text-sm font-bold">@{a.artist.username}</span>
                 <span className="text-xs text-muted tnum">{fmt(a.appreciations)} ♥</span>
               </Link>

@@ -1,7 +1,6 @@
-// Plot rarities: five tiers fixed per cell by a deterministic hash, so the map
-// can color every plot before anyone claims it. Mirrors private.plot_rarity_for
-// in supabase/migrations/20261026000002_core_functions.sql exactly.
-import { mix } from './grid';
+// Plot rarities: five tiers fixed per cell on the server (private.plot_rarity_for,
+// salted with a secret so nobody can predict them). A plot's rarity is revealed
+// when it is claimed.
 
 export type RarityId = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
@@ -46,21 +45,6 @@ export function rarities() {
 
 export function rarityInfo(id: RarityId | string | null | undefined): RarityInfo {
   return byId.get(id as RarityId) ?? table[0];
-}
-
-/** Deterministic rarity of a cell. */
-export function rarityFor(gx: number, gy: number, list: RarityInfo[] = table): RarityId {
-  let total = 0;
-  for (const r of list) if (r.weight > 0) total += r.weight;
-  if (total === 0) return 'common';
-  const roll = mix(gx + 40503, gy * 3 + 977) % total;
-  let acc = 0;
-  for (const r of list) {
-    if (r.weight <= 0) continue;
-    acc += r.weight;
-    if (roll < acc) return r.id;
-  }
-  return 'common';
 }
 
 /** Rent of one plot in USD/second (1% per level above 1 by default). */

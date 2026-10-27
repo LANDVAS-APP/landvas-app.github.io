@@ -12,7 +12,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { useUi, type Theme } from '../lib/store';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
 import { startGps, stopGps, useExplorer } from '../explorer/explorer';
-import { Avatar, Button, Switch, useConfirm } from '../ui';
+import { Button, Switch, useConfirm, PlayerAvatar } from '../ui';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -61,7 +61,7 @@ export default function Settings() {
         {me && (
           <Section title="Account">
             <div className="flex items-center gap-3">
-              <Avatar seed={me.profile.avatar_seed} style={me.profile.avatar_style} accent={me.profile.accent_color} size={48} />
+              <PlayerAvatar p={me.profile} size={48} />
               <div className="min-w-0">
                 <div className="font-bold">@{me.profile.username}</div>
                 <div className="truncate text-sm text-muted">{session?.email ?? ''}</div>
@@ -81,7 +81,7 @@ export default function Settings() {
               <div className="grid gap-2">
                 {(blocks.data ?? []).map((p) => (
                   <div key={p.id} className="flex items-center justify-between gap-2 rounded-2xl border border-line p-2.5">
-                    <span className="flex items-center gap-2"><Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} size={28} /> @{p.username}</span>
+                    <span className="flex items-center gap-2"><PlayerAvatar p={p} size={28} /> @{p.username}</span>
                     <Button size="sm" variant="ghost" onClick={async () => { try { await api.blockPlayer(p.id, false); void blocks.refetch(); } catch (e) { toast.error(toGameError(e).message); } }}>Unblock</Button>
                   </div>
                 ))}

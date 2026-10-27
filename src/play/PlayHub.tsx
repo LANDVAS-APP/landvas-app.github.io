@@ -1,6 +1,6 @@
 // /play — your plots' minigames: the only way to earn Ink (which buys plots).
 import { useQuery } from '@tanstack/react-query';
-import { Gamepad2, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
@@ -11,6 +11,7 @@ import { GAME_INFO, type GameId } from '../shared/minigames';
 import { rarityInfo } from '../shared/rarity';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
+import { GamePreview } from './GamePreview';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = [
   { game: 'lightlines', type: 'lumina' },
@@ -53,7 +54,7 @@ export default function PlayHub() {
                     <h2 className="font-display text-xl font-semibold">{GAME_INFO[game].name}</h2>
                     <p className="text-sm text-muted">{GAME_INFO[game].tagline}</p>
                   </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: `linear-gradient(135deg, ${t.a}, ${t.b})` }}><Gamepad2 className="h-6 w-6 text-white" /></div>
+                  <GamePreview game={game} size={88} className="shrink-0 shadow-lg ring-1 ring-white/10" />
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
                   <span>{mine.length} plot{mine.length === 1 ? '' : 's'}</span>
@@ -66,7 +67,7 @@ export default function PlayHub() {
                     <Button variant="primary" onClick={() => nav(`/play/${game}?gx=${best.gx}&gy=${best.gy}`)}>Play</Button>
                   </div>
                 ) : (
-                  <p className="mt-4 text-xs text-faint">Claim a {t.name} plot to unlock — look for <span style={{ color: t.a }}>{t.name}</span> squares near you on the <Link to="/" className="underline">map</Link>.</p>
+                  <p className="mt-4 text-xs text-faint">You don’t own a <span style={{ color: t.a }}>{t.name}</span> plot yet. Every plot’s type stays hidden until it’s claimed, so keep claiming on the <Link to="/" className="underline">map</Link> to discover one.</p>
                 )}
               </div>
             );

@@ -83,12 +83,18 @@ export function mixPigments(colors: RGB[], weights: number[]): RGB {
 export const BRAND_RAINBOW = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8'];
 
 export const PALETTES: Record<string, { name: string; colors: string[]; unlock?: string }> = {
-  studio: {
-    name: 'Studio',
-    colors: ['#0B1026', '#FFFFFF', '#F2F2F2', '#9AA3C7', '#5C6680', '#1F2A55', '#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#22C7B5', '#34C3FF', '#2F6BFF', '#7B5CFF', '#FF4FD8', '#8B4A2B'],
+  // everyone's starter colours; every other palette is bought in the Studio
+  starter: {
+    name: 'Starter',
+    colors: ['#0B1026', '#FFFFFF', '#9AA3C7', '#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#2F6BFF', '#7B5CFF', '#FF4FD8', '#8B4A2B'],
   },
-  graphite: { name: 'Graphite', colors: ['#111111', '#2A2A2E', '#45464D', '#63656E', '#868892', '#A9ABB3', '#CBCDD3', '#EDEEF1'] },
-  neon: { name: 'Neon', unlock: 'palette.neon', colors: ['#00F0FF', '#22E3FF', '#8B5CFF', '#B026FF', '#FF2BD6', '#FF3D7F', '#FFEA00', '#B6FF00', '#39FF14', '#00FFA3', '#FF6B00', '#FFFFFF'] },
+  graphite: { name: 'Graphite Greys', unlock: 'palette.graphite', colors: ['#111111', '#2A2A2E', '#45464D', '#63656E', '#868892', '#A9ABB3', '#CBCDD3', '#EDEEF1'] },
   earth: { name: 'Earth & Mineral', unlock: 'palette.earth', colors: ['#3B2416', '#6B4226', '#8C5A3C', '#B07D4F', '#C9A26B', '#D9C3A0', '#5A6B4E', '#7D8F69', '#40514E', '#6E7F80', '#A35C3F', '#2E3B4E'] },
   pastel: { name: 'Pastel Bloom', unlock: 'palette.pastel', colors: ['#FFD6E0', '#FFC2D1', '#FFE5B4', '#FFF3B0', '#D8F3DC', '#B7E4C7', '#CDE7FF', '#BDE0FE', '#E2D4F7', '#CDB4DB', '#F6E7D8', '#FFFFFF'] },
+  ocean: { name: 'Ocean Deep', unlock: 'palette.ocean', colors: ['#03045E', '#023E8A', '#0077B6', '#0096C7', '#00B4D8', '#48CAE4', '#90E0EF', '#ADE8F4', '#CAF0F8', '#006D77', '#83C5BE', '#EDF6F9'] },
+  sunset: { name: 'Sunset Blaze', unlock: 'palette.sunset', colors: ['#3D0C45', '#6A0F49', '#9D174D', '#E11D48', '#FB7185', '#FF6B35', '#F7931E', '#FFB627', '#FFD166', '#FFE8A3', '#FF8FAB', '#C77DFF'] },
+  skin: { name: 'Skin Tones', unlock: 'palette.skin', colors: ['#FFE0CC', '#F9D3B4', '#F1C27D', '#E0AC69', '#D1A07A', '#C68642', '#A86B3C', '#8D5524', '#6F4225', '#5A3420', '#3E2316', '#2B1810'] },
+  neon: { name: 'Neon', unlock: 'palette.neon', colors: ['#00F0FF', '#22E3FF', '#8B5CFF', '#B026FF', '#FF2BD6', '#FF3D7F', '#FFEA00', '#B6FF00', '#39FF14', '#00FFA3', '#FF6B00', '#FFFFFF'] },
+  retro: { name: 'Retro Arcade', unlock: 'palette.retro', colors: ['#000000', '#1D2B53', '#7E2553', '#008751', '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8', '#FF004D', '#FFA300', '#FFEC27', '#00E436', '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'] },
+  metal: { name: 'Metallics', unlock: 'palette.metal', colors: ['#7A5C12', '#B8860B', '#D4AF37', '#FFD700', '#F7E7A1', '#5E5E5E', '#9E9E9E', '#C0C0C0', '#E5E4E2', '#8C4A2F', '#B87333', '#DA8A67'] },
 };

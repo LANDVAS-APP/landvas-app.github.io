@@ -28,6 +28,10 @@ export interface Backend {
   publicAssetUrl(path: string | null | undefined): Promise<string | null>;
   /** URL for a not-yet-public processed asset (owner/moderators only). */
   privateAssetUrl(bucketPath: string | null | undefined): Promise<string | null>;
+  /** Store a profile picture (already cropped and re-encoded) at avatars/<owner>/<name>. */
+  uploadAvatar(ownerId: string, name: string, image: Blob): Promise<void>;
+  /** URL for a profile picture path (profiles.avatar_path). */
+  avatarUrl(path: string | null | undefined): Promise<string | null>;
   /** Encoded PNG bytes of a published map art tile. */
   artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal): Promise<ArrayBuffer | null>;
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
@@ -104,6 +108,39 @@ const MESSAGES: Record<string, string> = {
   email_taken: 'An account with that email already exists on this device.',
   weak_password: 'Use at least 8 characters for your password.',
   invalid_email: 'Enter a valid email address.',
+  // shop & explorer
+  unknown_item: 'That item isn’t in the shop any more.',
+  not_owned: 'Buy that item in the shop first.',
+  invalid_avatar: 'That picture couldn’t be used. Try a JPG, PNG or WebP image.',
+  upload_failed: 'The upload didn’t go through. Check your connection and try again.',
+  // friends
+  cannot_friend_self: 'That’s you!',
+  already_friends: 'You’re already friends.',
+  request_pending: 'Your friend request is waiting for an answer.',
+  friend_limit: 'You’ve reached the friend limit.',
+  // chat
+  chat_disabled: 'The chat is switched off right now.',
+  chat_muted: 'You’re muted in the chat for a while.',
+  chat_empty: 'Type a message first.',
+  chat_too_long: 'Messages can be up to 300 characters.',
+  chat_invalid: 'That message contains characters that aren’t allowed.',
+  chat_links: 'Links aren’t allowed in the chat — it keeps everyone safe from scams.',
+  // referrals
+  referrals_disabled: 'Invites are switched off right now.',
+  already_referred: 'You’ve already used an invite code.',
+  referral_window_closed: 'Invite codes can only be entered in your first days of playing.',
+  invalid_referral_code: 'That invite code doesn’t exist.',
+  'invalid_referral_code:format': 'Codes use 4–16 letters, numbers or underscores.',
+  'invalid_referral_code:language': 'Please pick a friendlier code — that one isn’t allowed.',
+  referral_code_unavailable: 'That invite code can’t be used.',
+  cannot_refer_self: 'You can’t use your own invite code.',
+  custom_code_exists: 'You already made your custom code — each account gets one.',
+  code_taken: 'That code is taken. Try another.',
+  // USD -> Ink
+  conversion_disabled: 'Converting USD to Ink is switched off right now.',
+  conversion_too_small: 'The smallest conversion is $0.01 (1 Ink).',
+  invalid_amount: 'Enter an amount above $0.',
+  ink_minigame_only: 'Ink can only be earned in minigames.',
 };
 
 export function friendlyError(code: string, detail?: string) {

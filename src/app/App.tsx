@@ -11,6 +11,7 @@ import { Shell } from './Shell';
 import { MapScreen } from '../screens/MapScreen';
 import { Welcome } from '../screens/Welcome';
 import { Onboarding } from '../screens/Onboarding';
+import { useReferralRedeemer } from '../social/referral';
 
 const EditorScreen = lazy(() => import('../editor/EditorScreen'));
 const CanvasesScreen = lazy(() => import('../canvases/CanvasesScreen'));
@@ -28,6 +29,10 @@ const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
+const VisitRoom = lazy(() => import('../visit/VisitRoom'));
+const SocialScreen = lazy(() => import('../social/SocialScreen'));
+const InviteScreen = lazy(() => import('../social/InviteScreen'));
+const ExplorerScreen = lazy(() => import('../explorer/ExplorerScreen'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -67,6 +72,7 @@ function OnboardingGate() {
 
 function SessionSync() {
   const qc = useQueryClient();
+  useReferralRedeemer();
   useEffect(() => getBackend().onAuthChange(() => void qc.resetQueries()), [qc]);
   useEffect(() => {
     const onError = (e: ErrorEvent | PromiseRejectionEvent) => {
@@ -103,6 +109,10 @@ const routes: RouteObject[] = [
           { path: '/gallery', element: p(<GalleryScreen />) },
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },
+          { path: '/u/:username/room', element: p(<VisitRoom />) },
+          { path: '/social', element: p(<SocialScreen />) },
+          { path: '/invite', element: player(<InviteScreen />) },
+          { path: '/explorer', element: player(<ExplorerScreen />) },
           { path: '/players', element: p(<PlayersScreen />) },
           { path: '/me', element: player(<MeHub />) },
           { path: '/achievements', element: player(<AchievementsScreen />) },

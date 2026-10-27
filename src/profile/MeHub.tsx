@@ -1,15 +1,17 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, Brush, ChevronRight, Gamepad2, LayoutGrid, LogOut, Package, Settings as SettingsIcon, Shield, Trophy, Users, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { Award, Brush, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
-import { cn, fmt } from '../lib/utils';
+import { cn, fmt, sha256Hex } from '../lib/utils';
 import { LiveUsd, WalletDialog, useRent } from '../rent/RentHud';
-import { Avatar, Button, Field, Spinner, inputCls } from '../ui';
+import { Avatar, Button, Field, Spinner, inputCls, PlayerAvatar } from '../ui';
+import { ExplorerFigure } from '../explorer/ExplorerFigure';
+
 
 const ACCENTS = ['#7B5CFF', '#FF3D9A', '#3DDC97', '#2FB8FF', '#FFB31F', '#FF5A3D', '#22E3FF', '#B8F04A'];
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
@@ -26,7 +28,11 @@ export default function MeHub() {
   const links = [
     { to: '/canvases', label: 'My canvases', icon: LayoutGrid, hint: `${me.group_count} canvas${me.group_count === 1 ? '' : 'es'}` },
     { to: '/play', label: 'Play & earn Ink', icon: Gamepad2, hint: `${fmt(me.balances.ink)} Ink` },
-    { to: '/inventory', label: 'Studio & shop', icon: Package, hint: 'Brushes, palettes, frames' },
+    { to: '/invite', label: 'Invite friends', icon: Gift, hint: 'Earn Ink for every friend' },
+    { to: '/inventory', label: 'Studio & shop', icon: Package, hint: 'Brushes, colours, tools' },
+    { to: '/explorer', label: 'My explorer', icon: Shirt, hint: 'Hats, outfits, trails' },
+    { to: `/u/${p.username}/room`, label: 'My room', icon: DoorOpen, hint: 'What visitors see' },
+    { to: '/social', label: 'Social', icon: MessagesSquare, hint: 'Feed, chat, friends' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top landholders & artists' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },
@@ -40,12 +46,15 @@ export default function MeHub() {
       <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
         <section className="glass rounded-3xl p-5">
           <div className="flex items-center gap-4">
-            <Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} size={72} />
-            <div className="min-w-0">
+            <PlayerAvatar p={p} size={72} />
+            <div className="min-w-0 flex-1">
               <h2 className="truncate font-display text-xl font-semibold">{p.display_name || p.username}</h2>
               <p className="text-sm text-muted">@{p.username} · Artist level {me.artist_level}</p>
               {p.bio && <p className="mt-1 text-sm">{p.bio}</p>}
             </div>
+            <Link to="/explorer" className="hidden shrink-0 rounded-2xl p-1 hover:bg-surface-2 sm:block" aria-label="Customise your explorer" title="Customise your explorer">
+              <ExplorerFigure style={p.explorer_style} accent={p.accent_color} size={44} />
+            </Link>
           </div>
           <div className="mt-5 grid grid-cols-3 gap-2 text-center">
             <Stat label="Plots" value={fmt(me.plot_count)} />
@@ -113,6 +122,7 @@ function EditProfile({ onDone }: { onDone(): void }) {
         onDone();
       } catch (err) { toast.error(toGameError(err).message); } finally { setBusy(false); }
     }}>
+      <ProfilePicture />
       <Field label="Display name" htmlFor="dn"><input id="dn" className={inputCls} maxLength={40} value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <Field label="Bio" htmlFor="bio"><textarea id="bio" className={cn(inputCls, 'h-20 py-2')} maxLength={280} value={bio} onChange={(e) => setBio(e.target.value)} /></Field>
       <div>
@@ -122,7 +132,7 @@ function EditProfile({ onDone }: { onDone(): void }) {
         </div>
       </div>
       <div>
-        <div className="eyebrow mb-2">Avatar</div>
+        <div className="eyebrow mb-2">Avatar (shown when you have no picture)</div>
         <div className="flex gap-2">
           {STYLES.map((s) => (
             <button type="button" key={s} onClick={() => setStyle(s)} className={cn('rounded-2xl border p-1', style === s ? 'border-accent-2' : 'border-line')}>
@@ -136,5 +146,73 @@ function EditProfile({ onDone }: { onDone(): void }) {
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
       </div>
     </form>
+  );
+}
+
+/** Crop to a centred square, scale to 256 px and re-encode — which also drops hidden data such as where a photo was taken. */
+async function preparePicture(file: File): Promise<Blob> {
+  if (file.size > 20 * 1024 * 1024) throw new Error('That picture is over 20 MB — pick a smaller one.');
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(file);
+  } catch {
+    throw new Error('That file isn’t a picture this browser can open. Try a JPG, PNG or WebP.');
+  }
+  const side = Math.min(bmp.width, bmp.height);
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 256, 256);
+  bmp.close?.();
+  const encode = (type: string, q: number) => new Promise<Blob | null>((r) => c.toBlob(r, type, q));
+  const webp = await encode('image/webp', 0.86);
+  if (webp && webp.type === 'image/webp') return webp;
+  const jpg = await encode('image/jpeg', 0.88);
+  if (!jpg) throw new Error('Couldn’t process that picture.');
+  return jpg;
+}
+
+function ProfilePicture() {
+  const me = useOnboardedMe()!;
+  const qc = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<'up' | 'rm' | null>(null);
+  const p = me.profile;
+  const refresh = () => { invalidateGame(qc); void qc.invalidateQueries({ queryKey: ['profile'] }); };
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface/40 p-3">
+      <PlayerAvatar p={p} size={56} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-bold">Profile picture</div>
+        <div className="text-xs text-muted">Cropped to a square. Hidden photo data like location is removed. Keep it friendly — everyone can see it.</div>
+      </div>
+      <div className="flex gap-2">
+        <input ref={input} type="file" accept="image/*" className="hidden" data-testid="avatar-file" onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy('up');
+          try {
+            const blob = await preparePicture(file);
+            const hash = await sha256Hex(await blob.arrayBuffer());
+            const name = `${hash}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
+            await getBackend().uploadAvatar(me.user_id, name, blob);
+            await api.setAvatarImage(`${me.user_id}/${name}`);
+            toast.success('Profile picture updated');
+            refresh();
+          } catch (err) {
+            toast.error(err instanceof Error && !(err as any).code ? err.message : toGameError(err).message);
+          } finally { setBusy(null); }
+        }} />
+        <Button type="button" size="sm" variant="secondary" loading={busy === 'up'} onClick={() => input.current?.click()} data-testid="avatar-upload"><Camera className="h-4 w-4" /> {p.avatar_path ? 'Change' : 'Upload'}</Button>
+        {p.avatar_path && (
+          <Button type="button" size="sm" variant="ghost" loading={busy === 'rm'} aria-label="Remove profile picture" onClick={async () => {
+            setBusy('rm');
+            try { await api.setAvatarImage(null); toast.success('Picture removed'); refresh(); } catch (err) { toast.error(toGameError(err).message); } finally { setBusy(null); }
+          }}><Trash2 className="h-4 w-4" /></Button>
+        )}
+      </div>
+    </div>
   );
 }

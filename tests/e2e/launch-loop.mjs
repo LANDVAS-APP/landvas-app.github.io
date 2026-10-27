@@ -115,8 +115,11 @@ try {
   await page.waitForTimeout(800);
   await clickPlot(page, START.gx, START.gy);
   await shot('04-plot-panel');
-  const typeIcons = await page.evaluate(() => window.__landvasMap.queryRenderedFeatures({ layers: ['lv-free-icon'] }).length);
-  check('unclaimed plots show their type', typeIcons > 0, `${typeIcons} badges`);
+  const mystery = await page.evaluate(() => ({
+    typeLayer: !!window.__landvasMap.getLayer('lv-free-icon') || !!window.__landvasMap.getLayer('lv-free-pattern'),
+    note: !!document.querySelector('[data-testid=mystery-note]'),
+  }));
+  check('unclaimed plots show neither type nor minigame', !mystery.typeLayer && mystery.note, JSON.stringify(mystery));
   const hidden = await page.evaluate(async ([gx, gy]) => {
     const d = await window.__landvasApi.plotDetails(gx, gy);
     const feats = window.__landvasMap.querySourceFeatures('lv-rarity');
@@ -198,13 +201,13 @@ try {
   check('explorer travels toward the tapped plot', moving.traveling === true && !!moving.dest, JSON.stringify({ traveling: moving.traveling }));
   await shot('08-travelling');
 
-  // every small plot in view is drawn, typed, but with no rarity
+  // every small plot in view is drawn as a plain mystery square
   const layers = await page.evaluate(() => {
     const m = window.__landvasMap;
     const feats = m.querySourceFeatures('lv-rarity');
-    return { cells: feats.length, types: [...new Set(feats.map((f) => f.properties.t))], rarity: feats.filter((f) => f.properties.r).length };
+    return { cells: feats.length, typed: feats.filter((f) => 't' in f.properties).length, rarity: feats.filter((f) => 'r' in f.properties).length };
   });
-  check('every unclaimed plot in view is drawn with its type, none with a rarity', layers.cells > 100 && layers.types.length >= 2 && layers.rarity === 0, JSON.stringify(layers));
+  check('every unclaimed plot in view is drawn, with no type or rarity', layers.cells > 100 && layers.typed === 0 && layers.rarity === 0, JSON.stringify(layers));
   const metres = (40075016.7 / G) * Math.cos((center(START.gx, START.gy).lat * Math.PI) / 180);
   check('plots are house-sized (~7 m at Salt Lake City)', metres > 6 && metres < 8, `${metres.toFixed(2)} m`);
 
@@ -298,7 +301,7 @@ try {
 
   // every screen renders without crashing
   await page.evaluate(async () => { await window.__landvasApi.devGrantSelfAdmin(); });
-  const screens = ['/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/admin'];
+  const screens = ['/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/u/ava_explorer/room', '/social', '/social?tab=chat', '/social?tab=friends', '/invite', '/explorer', '/admin'];
   const broken = [];
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
@@ -325,6 +328,66 @@ try {
   await page.waitForSelector('[data-testid=player-card]', { timeout: 15000 });
   await shot('12-players');
   check('players page lists real players', (await page.locator('[data-testid=player-card]').count()) >= 1);
+
+  // the visit room shows land and art without any location
+  await page.evaluate(() => window.__landvasNav('/u/ava_explorer/room'));
+  await page.waitForSelector('[data-testid=room-canvases]', { timeout: 15000 });
+  await page.waitForTimeout(1200);
+  await shot('13-visit-room');
+  const room = await page.evaluate(async () => {
+    const land = await window.__landvasApi.playerLand('ava_explorer');
+    const text = document.querySelector('[data-testid=visit-room]')?.textContent ?? '';
+    const shapes = land.canvases.map(({ art, ...c }) => c);
+    return {
+      canvases: document.querySelectorAll('[data-testid=room-canvases] canvas').length,
+      // canvases carry shapes relative to their own corner, never map coordinates
+      coordsInData: JSON.stringify(shapes).match(/"(gx|gy|min_gx|min_gy|max_gx|max_gy|center_lng|center_lat|lng|lat)"/g) ?? [],
+      relative: land.canvases.every((c) => c.cells.every((x) => x[0] < c.width && x[1] < c.height)),
+      coordsOnPage: /-?\d{1,3}\.\d{3,}°/.test(text),
+    };
+  });
+  check('visit room shows their canvases with no coordinates anywhere', room.canvases >= 1 && !room.coordsInData.length && room.relative && !room.coordsOnPage, JSON.stringify(room));
+
+  // USD rent converts to Ink at $1 = 100 Ink, from a single cent
+  const conv = await page.evaluate(async () => {
+    const s0 = await window.__landvasApi.myState();
+    await window.__landvasApi.admin.adjustRent(s0.user_id, 0.05, 'e2e top-up');
+    const r = await window.__landvasApi.convertUsd(0.01);
+    return { ink: r.ink, usd: Number(r.usd), before: Number(s0.balances.ink), after: Number(r.balances.ink) };
+  });
+  check('converting $0.01 of rent gives 1 Ink', conv.ink === 1 && Math.abs(conv.usd - 0.01) < 1e-9 && conv.after === conv.before + 1, JSON.stringify(conv));
+
+  // dress the explorer: buy a cap with Ink and wear it
+  await page.evaluate(() => window.__landvasNav('/explorer'));
+  await page.waitForSelector('[data-testid=explorer-items]', { timeout: 15000 });
+  const look = await page.evaluate(async () => {
+    const api = window.__landvasApi;
+    const s = await api.myState();
+    if (Number(s.balances.ink) < 40) await api.admin.adjustBalance(s.user_id, 'ink', 40, 'e2e test top-up');
+    await api.purchaseUnlock('explorer.hat.cap');
+    const p = await api.equipExplorer({ hat: 'cap', trail: 'none' });
+    return p.explorer_style;
+  });
+  check('explorer cosmetics are bought with Ink and worn', look?.hat === 'cap', JSON.stringify(look));
+
+  // global chat and the live feed
+  await page.evaluate(() => window.__landvasNav('/social?tab=chat'));
+  await page.waitForSelector('[data-testid=chat-input]', { timeout: 15000 });
+  await page.fill('[data-testid=chat-input]', 'Hello from the launch test!');
+  await page.click('[data-testid=chat-send]');
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-testid=chat-message]')].some((m) => m.textContent.includes('Hello from the launch test!')), null, { timeout: 15000 });
+  await shot('14-chat');
+  check('global chat sends and shows messages', true);
+  await page.evaluate(() => window.__landvasNav('/social?tab=feed'));
+  await page.waitForSelector('[data-testid=feed-row]', { timeout: 15000 });
+  const kinds = await page.evaluate(() => [...new Set([...document.querySelectorAll('[data-testid=feed-row]')].map((r) => r.getAttribute('data-kind')))]);
+  check('live feed shows joins, claims and new art', kinds.includes('join') && kinds.includes('claim'), kinds.join(','));
+
+  // invites: everyone has a code
+  await page.evaluate(() => window.__landvasNav('/invite'));
+  await page.waitForSelector('[data-testid=invite-code]', { timeout: 15000 });
+  const code = await page.textContent('[data-testid=invite-code]');
+  check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
 
   // phone layout (local mode allows one tab per device, so close the desktop one first)
   await page.close();

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Gamepad2, Map as MapIcon, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { GamePreview } from './GamePreview';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -116,9 +117,10 @@ export default function GameScreen() {
       <main className="gutter flex flex-1 flex-col items-center justify-center pb-[max(20px,env(safe-area-inset-bottom,0px))]">
         {phase.k === 'intro' && (
           <div className="glass w-full max-w-lg rounded-[28px] p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: `linear-gradient(135deg, ${t.a}, ${t.b})` }}><Gamepad2 className="h-7 w-7 text-white" /></div>
+            <div className="flex items-center gap-4">
+              <GamePreview game={game} size={104} className="shrink-0 shadow-lg ring-1 ring-white/10" />
               <div>
+                <div className="eyebrow" style={{ color: t.a }}>{t.name} plots</div>
                 <h2 className="font-display text-xl font-semibold">{info.name}</h2>
                 <p className="text-sm text-muted">{info.tagline}</p>
               </div>
@@ -127,7 +129,7 @@ export default function GameScreen() {
               {info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}
             </ol>
             {!candidates.length && !plots.isLoading && (
-              <p className="mt-4 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">You need a {t.name} plot to play {info.name}. Claim one on the map.</p>
+              <p className="mt-4 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">You need a {t.name} plot to play {info.name}. Plot types are revealed when you claim them — keep claiming to find one.</p>
             )}
             {candidates.length > 1 && (
               <div className="mt-4">

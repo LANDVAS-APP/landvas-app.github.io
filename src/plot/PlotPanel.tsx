@@ -13,12 +13,12 @@ import { useUi } from '../lib/store';
 import { cn, fmt, plotLabel } from '../lib/utils';
 import { PLOT_TYPES, drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
-import { Avatar, Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm } from '../ui';
+import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from './RarityBadge';
+import { GamePreview } from '../play/GamePreview';
 import { formatDuration, formatRate } from '../shared/rent';
 import { cellCenter, plotMetres } from '../shared/grid';
 import { travelEta, travelTo, useExplorer } from '../explorer/explorer';
-import { endVisit, useVisit } from '../visit/visit';
 import { useCelebration } from './ClaimCelebration';
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
@@ -48,11 +48,11 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       aria-label="Plot details" data-testid="plot-panel">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
       <div className="flex items-start gap-3">
-        {d ? <PlotSwatch type={d.plot_type} className="ring-2" /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
+        {d?.plot_type ? <PlotSwatch type={d.plot_type} className="ring-2" /> : d ? <MysterySwatch /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
-            <span className="eyebrow">{d ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>
+            <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : d ? 'Mystery plot' : 'Plot'}</span>
           </div>
           <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>}</h2>
           {d && <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{plotMetres(d.center.lat).toFixed(1)} m square</p>}
@@ -80,18 +80,34 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
             </div>
             <div className="rounded-2xl border border-line bg-surface/50 p-3">
               <div className="eyebrow !text-[10px]">Minigame</div>
-              <div className="font-display text-[15px] font-semibold">{d.type_info.minigame_name}</div>
-              <div className="text-[11px] text-muted">{d.rarity_info ? `×${Number(d.rarity_info.ink_reward_multiplier).toFixed(2)} Ink per win` : 'Rarer plots pay more Ink'}</div>
+              {d.type_info ? (
+                <>
+                  <div className="font-display text-[15px] font-semibold">{d.type_info.minigame_name}</div>
+                  <div className="text-[11px] text-muted">{d.rarity_info ? `×${Number(d.rarity_info.ink_reward_multiplier).toFixed(2)} Ink per win` : 'Rarer plots pay more Ink'}</div>
+                </>
+              ) : (
+                <>
+                  <div className="font-display text-[15px] font-semibold">Hidden</div>
+                  <div className="text-[11px] text-muted">One of four games — revealed when claimed</div>
+                </>
+              )}
             </div>
           </div>
-          <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn USD rent every second and win Ink by playing <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
+          {d.type_info && d.plot_type ? (
+            <div className="flex items-center gap-3">
+              <GamePreview game={d.type_info.minigame} size={64} className="shrink-0" />
+              <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn USD rent every second and win Ink by playing <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted" data-testid="mystery-note">A mystery plot. Its <b className="text-fg">type, minigame, rarity and rent</b> are revealed the moment you claim it — Common to Mythic, any plot could be the big one.</p>
+          )}
           {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
           {d.art && <ArtCard art={d.art} />}
           <NeighborDiagram d={d} />
           {!d.owned && <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />}
           {d.owned && !d.is_mine && d.owner && (
             <Link to={`/u/${d.owner.username}`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 hover:border-line-strong">
-              <Avatar seed={d.owner.avatar_seed} style={d.owner.avatar_style} accent={d.owner.accent_color} size={40} />
+              <PlayerAvatar p={d.owner} size={40} />
               <div className="min-w-0 flex-1">
                 <div className="eyebrow">Owned by</div>
                 <div className="truncate font-semibold">{d.owner.display_name || d.owner.username} <span className="text-faint">@{d.owner.username}</span></div>
@@ -141,8 +157,8 @@ function NeighborDiagram({ d }: { d: PlotDetails }) {
     return (
       <div className={cn('flex aspect-square flex-col items-center justify-center rounded-lg border text-[9.5px] font-bold leading-tight',
         n.is_mine ? (n.same_group ? 'border-accent-2 bg-accent-2/15 text-accent-2' : 'border-accent-2/60 text-accent-2') : n.owned ? 'border-line bg-surface-2/70 text-muted' : 'border-dashed border-line-strong text-faint')}
-        title={n.owned ? `Owned by @${n.owner_username}` : `${n.plot_type} · available`}>
-        <span className="capitalize">{n.plot_type}</span>
+        title={n.owned ? `Owned by @${n.owner_username}` : 'Mystery plot · available'}>
+        <span className="capitalize">{n.plot_type ?? '?'}</span>
         <span>{n.is_mine ? (n.same_group ? 'canvas' : 'yours') : n.owned ? `@${(n.owner_username ?? '').slice(0, 8)}` : 'free'}</span>
       </div>
     );
@@ -171,17 +187,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const visiting = useVisit((s) => s.visit);
   const a = d.acquire;
-  if (visiting) {
-    return (
-      <div className="grid gap-2 rounded-2xl border border-hot/40 bg-hot/10 p-4 text-sm" data-testid="visit-no-claim">
-        <b>You’re visiting @{visiting.player.username}</b>
-        <span className="text-xs text-muted">Claiming and buying are off while you visit. Head back to your explorer to claim plots near you.</span>
-        <Button size="sm" variant="secondary" onClick={endVisit}>Back to my explorer</Button>
-      </div>
-    );
-  }
   if (!signedIn || !me) {
     return (
       <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
@@ -349,7 +355,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
       <RenamePlot d={d} />
       <div className="grid grid-cols-2 gap-2">
         <Button variant="primary" onClick={() => d.group && nav(`/create/${d.group.id}`)} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>
-        <Button onClick={() => nav(`/play/${d.type_info.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info.minigame_name}</Button>
+        <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>
       {d.group && d.group.plot_count > 1 && (
         <p className="text-xs text-muted">Part of <b className="text-fg">{d.group.name}</b> — a {d.group.max_gx - d.group.min_gx + 1}×{d.group.max_gy - d.group.min_gy + 1} canvas of {d.group.plot_count} plots.</p>
@@ -428,5 +434,15 @@ function MysteryBadge() {
     <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-line-strong px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wider text-muted" title="Rarity is revealed when the plot is claimed" data-testid="mystery-rarity">
       <span className="bg-[linear-gradient(90deg,#3DDC97,#2FB8FF,#A45CFF,#FFB31F,#FF3D9A)] bg-clip-text text-transparent">?</span> Mystery rarity
     </span>
+  );
+}
+
+/** The face of an unclaimed plot: nothing about it is known until it's claimed. */
+export function MysterySwatch({ size = 56, className }: { size?: number; className?: string }) {
+  return (
+    <div className={cn('relative shrink-0 overflow-hidden rounded-xl ring-2 ring-white/20', className)} style={{ width: size, height: size }} aria-hidden>
+      <div className="absolute inset-0 shimmer opacity-80" />
+      <div className="absolute inset-0 flex items-center justify-center font-display text-2xl font-bold text-white drop-shadow">?</div>
+    </div>
   );
 }

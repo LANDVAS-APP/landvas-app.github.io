@@ -5,7 +5,9 @@ import { config } from './env';
 import { applyTheme, useUi } from './lib/store';
 import { initBackend } from './backend/backend';
 import { BootScreen } from './app/BootScreen';
+import { setAvatarResolver } from './ui';
 import { startUpdates } from './app/updates';
+import { captureReferral } from './social/referralStore';
 
 if (config.fonts === 'self') {
   void import('@fontsource-variable/unbounded');
@@ -20,6 +22,8 @@ applyTheme(useUi.getState().settings.theme);
 if (config.e2e) document.documentElement.classList.add('e2e');
 
 startUpdates();
+// keep an invite code from a ?ref= link before the router tidies the address
+captureReferral();
 
 function Root() {
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; error?: unknown; App?: React.ComponentType }>({ status: 'loading' });
@@ -27,7 +31,8 @@ function Root() {
     let cancelled = false;
     (async () => {
       try {
-        await initBackend();
+        const backend = await initBackend();
+        setAvatarResolver((path) => backend.avatarUrl(path));
         const { App } = await import('./app/App');
         if (!cancelled) setState({ status: 'ready', App });
       } catch (error) {

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
 import { cn, fmt } from '../lib/utils';
-import { Avatar, Empty, Spinner, Tabs } from '../ui';
+import { Empty, Spinner, Tabs, PlayerAvatar } from '../ui';
 
 const KINDS = [
   { value: 'plots', label: 'Landholders', unit: 'plots' },
@@ -35,7 +35,7 @@ export default function Leaderboards() {
           {rows.map((r: any) => (
             <li key={`${r.rank}-${r.player.id}-${r.artwork?.id ?? ''}`} className="flex items-center gap-3 px-4 py-3">
               <span className={cn('w-8 text-center font-display font-bold tnum', r.rank <= 3 ? 'text-gold' : 'text-muted')}>{r.rank}</span>
-              <Avatar seed={r.player.avatar_seed} style={r.player.avatar_style} accent={r.player.accent_color} size={34} />
+              <PlayerAvatar p={r.player} size={34} />
               <Link to={`/u/${r.player.username}`} className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{r.player.display_name || r.player.username}</div>
                 <div className="truncate text-xs text-muted">@{r.player.username}{r.artwork ? ` · “${r.artwork.title}”` : ''}</div>

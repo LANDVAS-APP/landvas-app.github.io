@@ -135,11 +135,14 @@ describe('players directory and land', () => {
     expect([...names].sort()).toEqual(names);
   });
 
-  it("returns a player's land: plots (with names), canvases and rent rate", async () => {
+  it("returns a player's land: canvases with relative plot shapes (names included) and rent rate — never coordinates", async () => {
     const land = await db.rpc(null, 'player_land', { p_username: 'Landlord' });
     expect(land.total_plots).toBe(4);
-    expect(land.plots.find((x: any[]) => x[0] === B.gx)[7]).toBe('HQ');
     expect(land.canvases.length).toBe(4);
+    const cells = land.canvases.flatMap((c: any) => c.cells);
+    expect(cells.find((x: any[]) => x[6] === 'HQ')).toBeTruthy();
+    for (const c of cells) { expect(c[0]).toBe(0); expect(c[1]).toBe(0); }
+    expect(JSON.stringify(land)).not.toMatch(new RegExp(`${B.gx}|${B.gy}|"lng"|"lat"|min_gx|center_`));
     expect(Number(land.usd_per_second)).toBeGreaterThan(0);
     await expectError(db.rpc(null, 'player_land', { p_username: 'ghostly' }), 'not_found');
   });

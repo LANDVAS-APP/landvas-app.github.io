@@ -3,7 +3,8 @@
 // Runs in the Node worker (production, images via sharp) and inside the browser
 // for local mode (images via canvas). Steps for a publication:
 //   process  : validate each submitted plot image (PNG, 256x256, size), decode,
-//              re-encode (strips metadata), stitch a preview + thumbnail, count
+//              flatten onto white paper and re-encode (strips metadata; blank
+//              plots become plain white), stitch a preview + thumbnail, count
 //              colours, run safety screening, then hand the result to SQL which
 //              decides: approved (auto/screened), pending_review, or rejected.
 //   publish  : copy each plot image to its immutable z16 tile path, rebuild the
@@ -13,7 +14,7 @@
 //              rebuild the pyramid.
 // Tiles are immutable: tiles/<z>/<x>/<y>/<rev>.png, so a CDN can cache forever.
 // ---------------------------------------------------------------------------
-import { composeParent, countColors, fitWithin, isTransparent, readPngSize, stitch, type RGBA } from '../shared/art';
+import { composeParent, countColors, fitWithin, flattenOnWhite, isTransparent, readPngSize, stitch, whitePaper, type RGBA } from '../shared/art';
 import { canvasLayout } from '../shared/fusion';
 import { ART_MIN_ZOOM, GRID_LEVEL, PLOT_PX, cellKey, type CellTuple } from '../shared/grid';
 
@@ -105,14 +106,15 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
 
   const cells = ctx.cells as CellTuple[];
   const layout = canvasLayout(cells);
-  const images: { col: number; row: number; img: RGBA | null }[] = [];
+  // validate and decode everything first, so a bad plot fails the whole publication
+  const decoded: { key: string; col: number; row: number; img: RGBA | null }[] = [];
   let nonEmpty = 0;
   for (const [gx, gy] of cells) {
     const key = cellKey(gx, gy);
     const bytes = await deps.store.get(BUCKETS.submissions, `${ctx.owner_id}/${publicationId}/${key}.png`);
     const pos = layout.byKey.get(key)!;
     if (!bytes) {
-      images.push({ col: pos.col, row: pos.row, img: null });
+      decoded.push({ key, col: pos.col, row: pos.row, img: null });
       continue;
     }
     if (bytes.byteLength > MAX_SUBMISSION_BYTES) return fail(`Plot ${key}: image is larger than ${MAX_SUBMISSION_BYTES / 1024} KB.`);
@@ -126,17 +128,23 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
       return fail(`Plot ${key}: the image data is corrupt.`);
     }
     if (img.width !== PLOT_PX || img.height !== PLOT_PX) return fail(`Plot ${key}: unexpected decoded size.`);
-    if (isTransparent(img)) {
-      images.push({ col: pos.col, row: pos.row, img: null });
-      continue;
-    }
-    // re-encode from raw pixels: drops every ancillary chunk / metadata
-    const clean = await deps.codec.encodePng(img);
-    await deps.store.put(BUCKETS.processed, `${publicationId}/${key}.png`, clean, 'image/png');
-    images.push({ col: pos.col, row: pos.row, img });
-    nonEmpty++;
+    const painted = !isTransparent(img);
+    if (painted) nonEmpty++;
+    decoded.push({ key, col: pos.col, row: pos.row, img: painted ? img : null });
   }
   if (nonEmpty === 0) return fail('The artwork is empty — draw or place something first.');
+
+  // Every plot of the canvas is published as the editor shows it: the artwork on
+  // white paper (untouched plots are plain white). Re-encoding from raw pixels
+  // also drops every ancillary chunk / metadata.
+  const images: { col: number; row: number; img: RGBA | null }[] = [];
+  let paperPng: Uint8Array | null = null;
+  for (const d of decoded) {
+    const img = d.img ? flattenOnWhite(d.img) : whitePaper(PLOT_PX);
+    const clean = d.img ? await deps.codec.encodePng(img) : (paperPng ??= await deps.codec.encodePng(img));
+    await deps.store.put(BUCKETS.processed, `${publicationId}/${d.key}.png`, clean, 'image/png');
+    images.push({ col: d.col, row: d.row, img });
+  }
 
   const full = stitch(images, layout.cols, layout.rows, PLOT_PX);
   const preview = fitWithin(full, 1024);

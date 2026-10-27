@@ -150,6 +150,7 @@ export function WalletDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             })}
           </div>
         </div>
+        <ConvertToInk />
         <div className="rounded-2xl border border-line bg-surface/40 p-3 text-sm">
           <div className="font-bold">Cash-out</div>
           {cash.isLoading ? <Spinner /> : (
@@ -170,11 +171,70 @@ export function WalletDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           </details>
         )}
         <p className="text-[11px] leading-relaxed text-faint">
-          Rates are set by LANDVAS and can change; they're not a promise of future earnings, and owning plots is not an investment. Plots can only be bought with Ink, which is earned by winning minigames — never with money.
+          Rates are set by LANDVAS and can change; they're not a promise of future earnings, and owning plots is not an investment. Plots can only be bought with Ink, which you earn by playing — winning minigames, inviting friends or converting your rent — never with money.
           Rent keeps accruing while you visit at least once every {rent.max_offline_days} days.
         </p>
         <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
       </div>
     </Dialog>
+  );
+}
+
+/** Turn USD rent into Ink at the configured rate ($1 = 100 Ink by default). No minimum beyond one whole Ink. */
+function ConvertToInk() {
+  const { rent, offset, update } = useRent();
+  const world = useWorld();
+  const qc = useQueryClient();
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  useTicker(1000);
+  const cfg = (world.data?.rent as any)?.convert as { enabled?: boolean; ink_per_usd?: number } | undefined;
+  if (!rent || cfg?.enabled === false) return null;
+  const rate = Math.max(1, Number(cfg?.ink_per_usd ?? 100));
+  const live = liveRent(rent, Date.now() + offset);
+  const usd = amount.trim() === '' ? NaN : Number(amount);
+  const ink = Number.isFinite(usd) ? Math.floor(Math.min(usd, live) * rate + 1e-9) : 0;
+  const minUsd = 1 / rate;
+  const run = async (all: boolean) => {
+    setBusy(true);
+    try {
+      const r = await api.convertUsd(all ? null : usd);
+      update(r.rent);
+      qc.setQueryData<MyState>(qk.me, (old) => (old && old.onboarded ? { ...old, balances: r.balances, rent: r.rent } : old));
+      toast.success(`+${fmt(r.ink)} Ink`, { description: `Converted $${Number(r.usd).toFixed(2)} of rent at $1 = ${fmt(r.rate)} Ink.` });
+      setAmount('');
+    } catch (e) {
+      toast.error(toGameError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="grid gap-2.5 rounded-2xl border border-[#34C3FF]/40 bg-[#34C3FF]/[0.07] p-3 text-sm" data-testid="convert-usd">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-bold">Convert to Ink</div>
+        <span className="text-xs font-bold text-muted tnum">$1 = {fmt(rate)} Ink</span>
+      </div>
+      <p className="text-xs text-muted">Any amount from ${minUsd.toFixed(2)} works. Only whole Ink is issued — the rest stays in your rent.</p>
+      <div className="flex items-center gap-2">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-1 rounded-xl border border-line bg-surface/80 px-3 focus-within:border-accent">
+          <span className="text-muted">$</span>
+          <input className="h-full min-w-0 flex-1 bg-transparent tnum focus:outline-none" inputMode="decimal" placeholder="0.01" value={amount} aria-label="Amount in USD" data-testid="convert-amount"
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 14))} />
+        </label>
+        <Button variant="primary" disabled={busy || ink < 1} loading={busy} onClick={() => run(false)} data-testid="convert-submit">
+          {ink >= 1 ? `Get ${fmt(ink)} Ink` : 'Convert'}
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {[0.01, 0.1, 1].map((v) => (
+          <button key={v} className="rounded-lg border border-line px-2 py-1 text-xs font-bold tnum hover:border-line-strong disabled:opacity-40" disabled={live < v} onClick={() => setAmount(String(v))}>${v.toFixed(2)}</button>
+        ))}
+        <button className="rounded-lg border border-line px-2 py-1 text-xs font-bold hover:border-line-strong disabled:opacity-40" disabled={busy || live * rate < 1} onClick={() => run(true)} data-testid="convert-all">
+          All · {fmt(Math.floor(live * rate))} Ink
+        </button>
+        {Number.isFinite(usd) && usd > live && <span className="text-xs text-warn">You have ${live.toFixed(4)}</span>}
+      </div>
+    </div>
   );
 }

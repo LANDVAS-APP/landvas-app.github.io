@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Flag, Heart, MapPin, Share2 } from 'lucide-react';
+import { DoorOpen, Flag, Heart, MapPin, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,7 +10,7 @@ import { celebrate, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { fmt, timeAgo } from '../lib/utils';
 import { cellCenter, Z_PLOT, Z_STREET } from '../shared/grid';
-import { Avatar, Button, Dialog, Empty, Spinner, inputCls } from '../ui';
+import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
 
 export default function ArtworkScreen() {
@@ -24,9 +24,12 @@ export default function ArtworkScreen() {
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (!q.data) return <Page><Empty title="Artwork not found">It may have been removed or replaced by a newer version.</Empty></Page>;
   const a = q.data;
+  // only the artist (and moderators) learn where an artwork is; everyone else sees the art itself
+  const located = Number.isFinite(a.min_gx) && Number.isFinite(a.max_gx);
   const fly = () => {
-    const [lng, lat] = cellCenter(Math.floor((a.min_gx + a.max_gx) / 2), Math.floor((a.min_gy + a.max_gy) / 2));
-    const span = Math.max(a.max_gx - a.min_gx + 1, a.max_gy - a.min_gy + 1);
+    const [x0, x1, y0, y1] = [a.min_gx ?? 0, a.max_gx ?? 0, a.min_gy ?? 0, a.max_gy ?? 0];
+    const [lng, lat] = cellCenter(Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2));
+    const span = Math.max(x1 - x0 + 1, y1 - y0 + 1);
     useUi.getState().setMode('canvas');
     useUi.getState().requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(span)) });
     nav('/');
@@ -34,14 +37,14 @@ export default function ArtworkScreen() {
   return (
     <Page wide>
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <div className="checker overflow-hidden rounded-[28px]">
+        <div className="art-paper overflow-hidden rounded-[28px]">
           {preview ? <img src={preview} alt={a.title} className="h-full w-full object-contain [image-rendering:pixelated]" /> : <div className="aspect-square animate-pulse bg-surface-2" />}
         </div>
         <div className="grid content-start gap-4">
           <div>
             <h1 className="font-display text-2xl font-bold">{a.title}</h1>
             <Link to={`/u/${a.artist.username}`} className="mt-2 flex items-center gap-2 text-sm">
-              <Avatar seed={a.artist.avatar_seed} style={a.artist.avatar_style} accent={a.artist.accent_color} size={28} />
+              <PlayerAvatar p={a.artist} size={28} />
               <span className="font-semibold">{a.artist.display_name || a.artist.username}</span><span className="text-muted">@{a.artist.username}</span>
             </Link>
           </div>
@@ -52,7 +55,8 @@ export default function ArtworkScreen() {
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold">{timeAgo(a.published_at)}</div><div className="eyebrow !text-[10px]">Published</div></div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="rainbow" onClick={fly}><MapPin className="h-4 w-4" /> View on the map</Button>
+            {located && <Button variant="rainbow" onClick={fly}><MapPin className="h-4 w-4" /> View on the map</Button>}
+            {!a.is_owner && <Button variant="secondary" onClick={() => nav(`/u/${a.artist.username}/room`)}><DoorOpen className="h-4 w-4" /> Visit @{a.artist.username}’s room</Button>}
             {me && !a.is_owner && (
               <Button variant={a.appreciated ? 'secondary' : 'primary'} onClick={async () => {
                 try { const r = await api.appreciate(a.id, !a.appreciated); celebrate(r.achievements); void qc.invalidateQueries({ queryKey: ['artwork', id] }); } catch (e) { toast.error(toGameError(e).message); }

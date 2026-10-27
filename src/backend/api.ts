@@ -3,8 +3,9 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand,
+  DirectoryPlayer, PlayerLand, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
 } from './types';
+import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
 
@@ -13,7 +14,7 @@ export const idemKey = (op: string) => `${op}-${Date.now().toString(36)}-${Math.
 
 export type ClaimResult = {
   gx: number; gy: number; group_id: string; plot_type: string; rarity: RarityId; usd_per_second: number; name: string | null;
-  rarity_info?: import('../shared/rarity').RarityInfo;
+  rarity_info?: RarityInfo; type_info?: PlotTypeInfo;
   balances: Balances; rent: RentState; achievements: NewAchievement[];
 };
 export type MinigameRecords = {
@@ -78,6 +79,31 @@ export const api = {
   playersDirectory: (query: string, sort: string, limit = 30, offset = 0) =>
     rpc<{ total: number; rows: DirectoryPlayer[]; sort: string }>('players_directory', { p_query: query, p_sort: sort, p_limit: limit, p_offset: offset }),
   playerLand: (username: string) => rpc<PlayerLand>('player_land', { p_username: username }),
+
+  // profile picture & explorer
+  setAvatarImage: (path: string | null) => rpc<Profile>('set_avatar_image', { p_path: path }),
+  equipExplorer: (style: ExplorerStyle) => rpc<Profile>('equip_explorer', { p_style: style }),
+
+  // referrals
+  myReferrals: () => rpc<Referrals>('my_referrals'),
+  createReferralCode: (code: string) => rpc<Referrals>('create_referral_code', { p_code: code }),
+  redeemReferral: (code: string) => rpc<Referrals>('redeem_referral', { p_code: code }),
+
+  // friends
+  friendStatus: (id: string) => rpc<{ status: FriendStatus }>('friend_status', { p_player_id: id }),
+  friendRequest: (id: string) => rpc<{ status: FriendStatus }>('friend_request', { p_player_id: id }),
+  friendRespond: (id: string, accept: boolean) => rpc<{ status: FriendStatus }>('friend_respond', { p_player_id: id, p_accept: accept }),
+  friendRemove: (id: string) => rpc<{ status: FriendStatus }>('friend_remove', { p_player_id: id }),
+  myFriends: () => rpc<FriendsList>('my_friends'),
+
+  // chat & live feed
+  chatRecent: (afterId?: number | null) => rpc<{ messages: ChatMessage[]; muted_until: string | null; enabled: boolean }>('chat_recent', { p_after_id: afterId ?? null, p_limit: 80 }),
+  sendChat: (body: string) => rpc<ChatMessage>('send_chat_message', { p_body: body }),
+  reportChat: (id: number, reason: string) => rpc('report_chat_message', { p_message_id: id, p_reason: reason }),
+  feed: (afterId?: number | null, beforeId?: number | null, limit = 40) => rpc<FeedEvent[]>('feed_recent', { p_after_id: afterId ?? null, p_before_id: beforeId ?? null, p_limit: limit }),
+
+  // USD rent -> Ink
+  convertUsd: (usd: number | null) => rpc<{ ink: number; usd: number; rate: number; balances: Balances; rent: RentState }>('convert_usd_to_ink', { p_usd: usd, p_idempotency_key: idemKey('convert') }),
 
   // the operator
   ownerStatus: () => rpc<{ claimed: boolean; is_owner: boolean }>('owner_status'),
@@ -158,6 +184,9 @@ export const api = {
     setPlotLock: (gx: number, gy: number, locked: boolean, reason: string) => rpc('admin_set_plot_lock', { p_gx: gx, p_gy: gy, p_locked: locked, p_reason: reason }),
     releasePlot: (gx: number, gy: number, reason: string) => rpc('admin_release_plot', { p_gx: gx, p_gy: gy, p_reason: reason }),
     clearPlotName: (gx: number, gy: number, reason: string) => rpc('admin_clear_plot_name', { p_gx: gx, p_gy: gy, p_reason: reason }),
+    clearAvatar: (id: string, reason: string) => rpc('admin_clear_avatar', { p_player_id: id, p_reason: reason }),
+    deleteChat: (id: number, reason?: string) => rpc('admin_delete_chat_message', { p_message_id: id, p_reason: reason ?? null }),
+    mutePlayer: (id: string, minutes: number, reason?: string) => rpc<{ muted_until: string | null }>('admin_mute_player', { p_player_id: id, p_minutes: minutes, p_reason: reason ?? null }),
     updatePlotType: (id: string, patch: Record<string, unknown>) => rpc('admin_update_plot_type', { p_id: id, p_patch: patch }),
     updateRarity: (id: RarityId, patch: Record<string, unknown>) => rpc('admin_update_rarity', { p_id: id, p_patch: patch }),
     adjustRent: (id: string, deltaUsd: number, reason: string) => rpc<RentState>('admin_adjust_rent', { p_player_id: id, p_delta_usd: deltaUsd, p_reason: reason }),

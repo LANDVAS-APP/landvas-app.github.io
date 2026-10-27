@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Brush, Circle, Columns2, Eraser, Expand, Grid2X2, Hand, History as HistoryIcon, ImagePlus, Minus, Move, PaintBucket,
-  Pencil, Pipette, Plus, Redo2, RotateCw, Send, Slash, Square, Undo2, Blend, FlipHorizontal2, Check, X, Layers3, SlidersHorizontal, Maximize,
+  Pencil, Pipette, Plus, Redo2, RotateCw, Send, Slash, Square, Undo2, Blend, FlipHorizontal2, Check, X, Layers3, SlidersHorizontal, Maximize, Lock,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -22,18 +22,18 @@ import { loadDoc, publish, saveTiles, type PublishStep } from './engine/io';
 import { ImportDialog } from './ui/ImportDialog';
 import { BrushPanel, ColorPanel, LayersPanel } from './ui/panels';
 
-type ToolDef = { id: string; label: string; icon: any; key: string; apply: (ed: Editor) => void; active: (ed: Editor) => boolean };
+type ToolDef = { id: string; label: string; icon: any; key: string; apply: (ed: Editor) => void; active: (ed: Editor) => boolean; unlock?: string };
 const TOOLS: ToolDef[] = [
   { id: 'pencil', label: 'Pencil', icon: Pencil, key: 'P', apply: (e) => e.set({ tool: 'brush', brush: 'pencil' }), active: (e) => e.s.tool === 'brush' && e.s.brush === 'pencil' },
   { id: 'brush', label: 'Paintbrush', icon: Brush, key: 'B', apply: (e) => e.set({ tool: 'brush', brush: ['pencil', 'pixel'].includes(e.s.brush) ? 'round' : e.s.brush }), active: (e) => e.s.tool === 'brush' && !['pencil', 'pixel'].includes(e.s.brush) },
-  { id: 'pixel', label: 'Pixel brush', icon: Grid2X2, key: '', apply: (e) => e.set({ tool: 'brush', brush: 'pixel' }), active: (e) => e.s.tool === 'brush' && e.s.brush === 'pixel' },
+  { id: 'pixel', label: 'Pixel brush', icon: Grid2X2, key: '', apply: (e) => e.set({ tool: 'brush', brush: 'pixel' }), active: (e) => e.s.tool === 'brush' && e.s.brush === 'pixel', unlock: 'brush.pixel' },
   { id: 'eraser', label: 'Eraser', icon: Eraser, key: 'E', apply: (e) => e.set({ tool: 'eraser' }), active: (e) => e.s.tool === 'eraser' },
   { id: 'fill', label: 'Fill bucket', icon: PaintBucket, key: 'G', apply: (e) => e.set({ tool: 'fill' }), active: (e) => e.s.tool === 'fill' },
   { id: 'eyedropper', label: 'Eyedropper', icon: Pipette, key: 'I', apply: (e) => e.set({ tool: 'eyedropper' }), active: (e) => e.s.tool === 'eyedropper' },
   { id: 'line', label: 'Straight line', icon: Slash, key: 'L', apply: (e) => e.set({ tool: 'line' }), active: (e) => e.s.tool === 'line' },
-  { id: 'rect', label: 'Rectangle', icon: Square, key: 'R', apply: (e) => e.set({ tool: 'rect' }), active: (e) => e.s.tool === 'rect' },
-  { id: 'ellipse', label: 'Circle / ellipse', icon: Circle, key: 'O', apply: (e) => e.set({ tool: 'ellipse' }), active: (e) => e.s.tool === 'ellipse' },
-  { id: 'gradient', label: 'Gradient', icon: Blend, key: '', apply: (e) => e.set({ tool: 'gradient' }), active: (e) => e.s.tool === 'gradient' },
+  { id: 'rect', label: 'Rectangle', icon: Square, key: 'R', apply: (e) => e.set({ tool: 'rect' }), active: (e) => e.s.tool === 'rect', unlock: 'tool.shapes' },
+  { id: 'ellipse', label: 'Circle / ellipse', icon: Circle, key: 'O', apply: (e) => e.set({ tool: 'ellipse' }), active: (e) => e.s.tool === 'ellipse', unlock: 'tool.shapes' },
+  { id: 'gradient', label: 'Gradient', icon: Blend, key: '', apply: (e) => e.set({ tool: 'gradient' }), active: (e) => e.s.tool === 'gradient', unlock: 'tool.gradient' },
   { id: 'move', label: 'Move layer', icon: Move, key: 'V', apply: (e) => e.set({ tool: 'move' }), active: (e) => e.s.tool === 'move' },
   { id: 'hand', label: 'Pan', icon: Hand, key: 'H', apply: (e) => e.set({ tool: 'hand' }), active: (e) => e.s.tool === 'hand' },
 ];
@@ -208,10 +208,11 @@ export default function EditorScreen() {
         {/* tool rail (desktop) */}
         <nav className="hidden w-[58px] shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-line bg-bg-2/60 py-2 scroll-thin md:flex" aria-label="Tools">
           {ed && TOOLS.map((t) => (
-            <Tip key={t.id} label={`${t.label}${t.key ? ` (${t.key})` : ''}`}>
-              <button onClick={() => t.apply(ed)} aria-label={t.label} aria-pressed={t.active(ed)}
-                className={cn('flex h-10 w-10 items-center justify-center rounded-xl transition', t.active(ed) ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
+            <Tip key={t.id} label={`${t.label}${t.key ? ` (${t.key})` : ''}${ed.canUse(t.unlock) ? '' : ' — locked, buy it in the Studio'}`}>
+              <button onClick={() => t.apply(ed)} aria-label={t.label} aria-pressed={t.active(ed)} data-locked={!ed.canUse(t.unlock) || undefined}
+                className={cn('relative flex h-10 w-10 items-center justify-center rounded-xl transition', t.active(ed) ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg', !ed.canUse(t.unlock) && 'opacity-45')}>
                 <t.icon className="h-[19px] w-[19px]" />
+                {!ed.canUse(t.unlock) && <Lock className="absolute bottom-0.5 right-0.5 h-3 w-3 text-gold" />}
               </button>
             </Tip>
           ))}
@@ -260,8 +261,9 @@ export default function EditorScreen() {
             <div className="mx-1 h-6 w-px shrink-0 bg-line" />
             {TOOLS.filter((t) => t.id !== 'hand').map((t) => (
               <button key={t.id} onClick={() => t.apply(ed)} aria-label={t.label} aria-pressed={t.active(ed)}
-                className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden', t.active(ed) ? 'bg-accent text-white' : 'text-muted')}>
+                className={cn('relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:hidden', t.active(ed) ? 'bg-accent text-white' : 'text-muted', !ed.canUse(t.unlock) && 'opacity-45')}>
                 <t.icon className="h-5 w-5" />
+                {!ed.canUse(t.unlock) && <Lock className="absolute bottom-0.5 right-0.5 h-3 w-3 text-gold" />}
               </button>
             ))}
             <button onClick={() => setImportOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gold md:hidden" aria-label="Upload image"><ImagePlus className="h-5 w-5" /></button>
@@ -400,7 +402,7 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
       {!result ? (
         <div className="grid gap-5 md:grid-cols-[1fr_1.1fr]">
           <div className="grid content-start gap-2">
-            <div className="checker flex items-center justify-center rounded-2xl p-3"><canvas ref={preview} className="max-h-64 max-w-full" /></div>
+            <div className="flex items-center justify-center rounded-2xl border border-line bg-surface-2 p-3"><canvas ref={preview} className="max-h-64 max-w-full shadow-lg" /></div>
             <p className="text-xs text-muted tnum">{ed.doc.cells.length} plot{ed.doc.cells.length === 1 ? '' : 's'} · each becomes a 256×256 map tile. Hidden layers are left out.</p>
           </div>
           <div className="grid content-start gap-4">

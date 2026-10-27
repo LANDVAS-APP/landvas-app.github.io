@@ -1,6 +1,6 @@
-// Everyone playing LANDVAS: their land, their art, and a way to visit it.
+// Everyone playing LANDVAS: their land, their art, and their room to visit.
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { MapPin, Search, Users } from 'lucide-react';
+import { DoorOpen, Search, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -8,10 +8,10 @@ import type { DirectoryPlayer } from '../backend/types';
 import { Page, PageHeader } from '../app/Shell';
 import { useOnboardedMe } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
-import { Avatar, Button, Empty, Spinner, Tabs, inputCls } from '../ui';
+import { Button, Empty, Spinner, Tabs, inputCls, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { ArtThumb } from '../gallery/GalleryScreen';
-import { visitPlayer } from '../visit/visit';
+import { FriendButton } from '../social/FriendButton';
 
 const SORTS = [
   { value: 'land', label: 'Most land' },
@@ -42,7 +42,7 @@ export default function PlayersScreen() {
   return (
     <Page wide>
       <PageHeader eyebrow="The people of the map" title="Players">
-        Everyone claiming and painting the world. Open a profile to see their land and artwork, or visit their land on the map.
+        Everyone claiming and painting the world. Step into anyone’s room to see all their art and land — rooms never show where it is.
       </PageHeader>
       <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,320px)_1fr] md:items-center">
         <label className="glass flex h-11 items-center gap-2 rounded-2xl px-3">
@@ -71,7 +71,6 @@ export default function PlayersScreen() {
 function PlayerCard({ r }: { r: DirectoryPlayer }) {
   const nav = useNavigate();
   const me = useOnboardedMe();
-  const [busy, setBusy] = useState(false);
   const p = r.profile;
   const isMe = me?.profile.id === p.id;
   return (
@@ -79,10 +78,10 @@ function PlayerCard({ r }: { r: DirectoryPlayer }) {
       <Link to={`/u/${p.username}`} className="relative shrink-0" aria-label={`@${p.username}'s profile`}>
         {r.top_art ? <ArtThumb card={{ thumb_path: r.top_art.thumb_path, title: r.top_art.title }} className="h-24 w-24" /> : (
           <div className="flex h-24 w-24 items-center justify-center rounded-2xl" style={{ background: `linear-gradient(135deg, ${p.accent_color}55, transparent)` }}>
-            <Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} size={56} />
+            <PlayerAvatar p={p} size={56} />
           </div>
         )}
-        {r.top_art && <span className="absolute -bottom-1 -right-1"><Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} size={30} className="ring-2 ring-bg" /></span>}
+        {r.top_art && <span className="absolute -bottom-1 -right-1"><PlayerAvatar p={p} size={30} className="ring-2 ring-bg" /></span>}
       </Link>
       <div className="flex min-w-0 flex-1 flex-col">
         <Link to={`/u/${p.username}`} className="min-w-0 hover:underline">
@@ -96,12 +95,8 @@ function PlayerCard({ r }: { r: DirectoryPlayer }) {
           {r.best_rarity && r.best_rarity !== 'common' && <RarityBadge r={r.best_rarity} small />}
         </div>
         <div className="mt-auto flex gap-2 pt-2">
-          <Button size="sm" variant="secondary" className={cn(!r.plots && 'opacity-60')} disabled={!r.plots} loading={busy} data-testid="visit-player" onClick={async () => {
-            setBusy(true);
-            if (await visitPlayer(p.username)) nav('/');
-            setBusy(false);
-          }}><MapPin className="h-4 w-4" /> {isMe ? 'My land' : 'Visit'}</Button>
-          <Button size="sm" variant="ghost" onClick={() => nav(`/u/${p.username}`)}>Profile</Button>
+          <Button size="sm" variant="secondary" data-testid="visit-player" onClick={() => nav(`/u/${p.username}/room`)}><DoorOpen className="h-4 w-4" /> {isMe ? 'My room' : 'Visit room'}</Button>
+          {!isMe && <FriendButton playerId={p.id} username={p.username} />}
         </div>
       </div>
     </article>

@@ -2,7 +2,7 @@
 // One continuous drawing surface over a fused canvas group, rendered from
 // per-plot tiles (see doc.ts). Handles tools, pointer/touch/stylus input,
 // gestures, symmetry, layers, undo/redo, image placement and rendering.
-import { BRUSHES, brushTip, symmetryPoints, type BrushDef, type BrushId, type SymmetryMode } from './brush';
+import { BRUSHES, STARTER_MAX_SIZE, TOOL_UNLOCKS, brushTip, symmetryPoints, type BrushDef, type BrushId, type SymmetryMode } from './brush';
 import { Doc, R, makeCanvas, newLayerId, type CellInfo, type Layer } from './doc';
 import { dilate, floodFill } from './fill';
 import { History } from './history';
@@ -116,20 +116,40 @@ export class Editor {
     this.listeners.forEach((f) => f());
   }
   set(p: Partial<EditorSettings>) {
+    // art tools beyond the starter kit are bought in the Studio
+    if (p.tool && TOOL_UNLOCKS[p.tool] && !this.unlocked.has(TOOL_UNLOCKS[p.tool])) {
+      this.toast?.('That tool is locked — buy it in the Studio shop.');
+      return;
+    }
+    if (p.brush && BRUSHES[p.brush]?.unlock && !this.unlocked.has(BRUSHES[p.brush].unlock!)) {
+      this.toast?.(`${BRUSHES[p.brush].name} is locked — buy it in the Studio shop.`);
+      return;
+    }
+    if (p.symmetry && p.symmetry !== 'off' && !this.unlocked.has('tool.symmetry')) {
+      this.toast?.('Symmetry is locked — buy the Symmetry Mirror in the Studio shop.');
+      return;
+    }
     Object.assign(this.s, p);
     this.emit();
+  }
+  /** Largest size the current brush allows for this player. */
+  sizeCap(def: BrushDef = this.brushDef): number {
+    return this.unlocked.has('tool.bigbrush') ? def.maxSize : Math.min(def.maxSize, STARTER_MAX_SIZE);
+  }
+  canUse(key: string | undefined) {
+    return !key || this.unlocked.has(key);
   }
   get brushDef(): BrushDef {
     return this.s.tool === 'eraser' ? BRUSHES.eraser : BRUSHES[this.s.brush];
   }
   get size(): number {
     const id: BrushId = this.s.tool === 'eraser' ? 'eraser' : this.s.brush;
-    return this.s.sizes[id] ?? BRUSHES[id].defaultSize;
+    return Math.min(this.s.sizes[id] ?? BRUSHES[id].defaultSize, this.sizeCap(BRUSHES[id]));
   }
   setSize(v: number) {
     const id: BrushId = this.s.tool === 'eraser' ? 'eraser' : this.s.brush;
     const def = BRUSHES[id];
-    this.s.sizes[id] = Math.max(1, Math.min(def.maxSize, id === 'pixel' ? Math.round(v) : v));
+    this.s.sizes[id] = Math.max(1, Math.min(this.sizeCap(def), id === 'pixel' ? Math.round(v) : v));
     this.emit();
   }
   markChanged() {
@@ -435,7 +455,7 @@ export class Editor {
     }
     const def = this.brushDef;
     if (def.unlock && !this.unlocked.has(def.unlock)) {
-      this.toast?.(`${def.name} is locked — unlock it in the Studio with Pigments.`);
+      this.toast?.(`${def.name} is locked — buy it in the Studio shop.`);
       return;
     }
     this.stroke = {
@@ -947,7 +967,8 @@ export class Editor {
     for (const cell of this.doc.cells) {
       const x = this.ox + cell.x * s, y = this.oy + cell.y * s, w = R * s;
       if (x > this.viewW || y > this.viewH || x + w < 0 || y + w < 0) continue;
-      ctx.fillStyle = this.checker!;
+      // every plot is a sheet of white paper: what you see is exactly what gets published
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(x, y, w, w);
       if (this.doc.dirtyComposite.has(cell.key) || st?.buffer.has(cell.key) || movingLayer) {
         this.doc.compositeOf(cell.key, (layer, cctx) => {
@@ -1162,6 +1183,9 @@ export class Editor {
     const c = target.getContext('2d')!;
     c.clearRect(0, 0, target.width, target.height);
     c.imageSmoothingQuality = 'high';
+    // published plots are flattened onto white, so the preview is too
+    c.fillStyle = '#ffffff';
+    for (const cell of this.doc.cells) c.fillRect(cell.x * k, cell.y * k, R * k, R * k);
     for (const cell of this.doc.cells) c.drawImage(this.doc.compositeOf(cell.key), cell.x * k, cell.y * k, R * k, R * k);
   }
 

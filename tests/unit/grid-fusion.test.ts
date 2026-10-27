@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
-  GRID_SIZE, adjacent, cellBounds, cellCenter, lngLatToCell, mix, neighbors, plotTypeFor, tileOfCell, unwrapCells, cellsOfTile,
+  GRID_SIZE, adjacent, cellBounds, cellCenter, lngLatToCell, mix, neighbors, tileOfCell, unwrapCells, cellsOfTile,
 } from '../../src/shared/grid';
 import { canvasLayout, components, isConnected, outlineEdges } from '../../src/shared/fusion';
 import { TestDb } from '../helpers/db';
@@ -58,21 +58,33 @@ describe('grid', () => {
   });
 });
 
-describe('plot types match the database exactly', () => {
+describe('plot types and rarities are secret', () => {
   const db = new TestDb();
   beforeAll(() => db.init());
   afterAll(() => db.close());
-  it('agrees on 3000 sample cells', async () => {
+  // the formula the map used before types were salted: knowing it must not predict anything
+  const unsalted = (gx: number, gy: number) => {
+    const ids = ['graphite', 'pigment', 'mosaic', 'lumina'];
+    const weights = [30, 30, 20, 20];
+    if (mix(gx, gy) % 100 < 22) return ids[mix(gx, gy + 7) % ids.length];
+    let roll = mix(gx >> 3, gy >> 3) % 100;
+    for (let i = 0; i < ids.length; i++) { if (roll < weights[i]) return ids[i]; roll -= weights[i]; }
+    return ids[0];
+  };
+  it('the server decides with salts the client does not know', async () => {
     const cells: [number, number][] = [];
     for (let i = 0; i < 3000; i++) cells.push([(i * 7919) % GRID_SIZE, (i * 104729 + 13) % GRID_SIZE]);
-    cells.push([0, 0], [65535, 65535], [65535, 0]);
-    const rows = await db.sql<{ gx: number; gy: number; t: string }>(
-      `select (c->>0)::int gx, (c->>1)::int gy, private.plot_type_for((c->>0)::int, (c->>1)::int) t from jsonb_array_elements($1::jsonb) c`,
+    const rows = await db.sql<{ gx: number; gy: number; t: string; r: string }>(
+      `select (c->>0)::int gx, (c->>1)::int gy, private.plot_type_for((c->>0)::int, (c->>1)::int) t,
+              private.plot_rarity_for((c->>0)::int, (c->>1)::int) r from jsonb_array_elements($1::jsonb) c`,
       [JSON.stringify(cells)],
     );
-    for (const r of rows) expect(plotTypeFor(r.gx, r.gy)).toBe(r.t);
+    const matches = rows.filter((r) => unsalted(r.gx, r.gy) === r.t).length;
+    // chance agreement for four weighted types is about 26%; a leaked formula would agree on every cell
+    expect(matches / rows.length).toBeLessThan(0.45);
     const counts = rows.reduce<Record<string, number>>((m, r) => ((m[r.t] = (m[r.t] ?? 0) + 1), m), {});
     expect(Object.keys(counts).sort()).toEqual(['graphite', 'lumina', 'mosaic', 'pigment']);
+    expect(new Set(rows.map((r) => r.r)).size).toBe(5);
   });
 });
 

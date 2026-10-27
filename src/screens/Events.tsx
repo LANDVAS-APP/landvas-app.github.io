@@ -6,7 +6,7 @@ import { toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { useOnboardedMe } from '../lib/queries';
 import { fmt } from '../lib/utils';
-import { Avatar, Button, Cost, Empty, Spinner } from '../ui';
+import { Button, Cost, Empty, Spinner, PlayerAvatar } from '../ui';
 
 export default function Events() {
   const me = useOnboardedMe();
@@ -39,7 +39,7 @@ export default function Events() {
               {e.top?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {e.top.slice(0, 5).map((t: any, i: number) => (
-                    <span key={t.player.id} className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1 text-xs"><b>{i + 1}</b><Avatar seed={t.player.avatar_seed} style={t.player.avatar_style} accent={t.player.accent_color} size={16} />@{t.player.username} · {fmt(t.score)}</span>
+                    <span key={t.player.id} className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1 text-xs"><b>{i + 1}</b><PlayerAvatar p={t.player} size={16} />@{t.player.username} · {fmt(t.score)}</span>
                   ))}
                 </div>
               )}

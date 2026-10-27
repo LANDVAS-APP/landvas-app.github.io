@@ -127,8 +127,17 @@ describe('publication pipeline', () => {
     expect(px(z15, 127, 64)).toEqual([255, 214, 0, 255]);
     expect(px(z15, 128, 64)).toEqual([255, 214, 0, 255]);
     expect(px(z15, 10, 20)).toEqual([20, 30, 120, 255]);
-    expect(px(z15, 200, 20)[3]).toBe(0); // right plot background stayed transparent
+    expect(px(z15, 200, 20)).toEqual([255, 255, 255, 255]); // the right plot's unpainted paper is white, as in the editor
     expect(px(z15, 10, 200)[3]).toBe(0); // bottom half (no plots) transparent
+
+    // published plot tiles are fully opaque: the true artwork on white, nothing shows through
+    const t16r = tiles.find((t) => t.z === L && t.x === 3001)!;
+    const right16 = await decode((await store.get('public-art', tilePath(L, 3001, 3000, t16r.rev)))!);
+    let minAlpha = 255;
+    for (let i = 3; i < right16.data.length; i += 4) minAlpha = Math.min(minAlpha, right16.data[i]);
+    expect(minAlpha).toBe(255);
+    expect(Array.from(right16.data.subarray((128 * 256 + 100) * 4, (128 * 256 + 100) * 4 + 4))).toEqual([255, 214, 0, 255]);
+    expect(Array.from(right16.data.subarray((10 * 256 + 240) * 4, (10 * 256 + 240) * 4 + 4))).toEqual([255, 255, 255, 255]);
 
     // previews are public only now, and the gallery lists the mural
     const detail = await db.rpc(null, 'artwork_detail', { p_publication_id: id });
@@ -136,6 +145,29 @@ describe('publication pipeline', () => {
     expect([detail.preview_width, detail.preview_height]).toEqual([512, 256]);
     expect(await store.get('public-art', `previews/${id}.png`)).not.toBeNull();
     expect(detail.color_count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a canvas with only some plots painted publishes the untouched plots as white paper', async () => {
+    const half = await png(256, 256, (x, y) => (x < 128 ? [200, 40, 90, 128] : [0, 0, 0, 0]));
+    const empty = await png(256, 256, () => [0, 0, 0, 0]);
+    const id = await publishMural('Half painted', [[3000, 3000], [3001, 3000]], [half, empty]);
+    await db.rpc(mod, 'admin_review_publication', { p_publication_id: id, p_decision: 'approve' });
+    await drainQueue(deps, 'test');
+    expect((await db.rpc(painter, 'publication_status', { p_publication_id: id })).status).toBe('published');
+    const rows = await db.sql<{ x: number; rev: string }>(`select x, rev from art_tiles where z = $1 order by x`, [L]);
+    expect(rows.map((r) => r.x)).toEqual([3000, 3001]);
+    const left = await decode((await store.get('public-art', tilePath(L, 3000, 3000, rows[0].rev)))!);
+    const right = await decode((await store.get('public-art', tilePath(L, 3001, 3000, rows[1].rev)))!);
+    const at = (img: typeof left, x: number, y: number) => Array.from(img.data.subarray((y * 256 + x) * 4, (y * 256 + x) * 4 + 4));
+    // alpha 128 paint composited onto white: c * a + 255 * (1 - a), a = 128/255
+    expect(at(left, 10, 10)).toEqual([227, 147, 172, 255]);
+    expect(at(left, 200, 10)).toEqual([255, 255, 255, 255]);
+    expect(at(right, 128, 128)).toEqual([255, 255, 255, 255]);
+    // an entirely blank canvas is still refused
+    const id2 = await publishMural('Nothing', [[3000, 3000], [3001, 3000]], [empty, empty]);
+    const st2 = await db.rpc(painter, 'publication_status', { p_publication_id: id2 });
+    expect(st2.status).toBe('rejected');
+    expect(st2.decision_reason).toMatch(/empty/);
   });
 
   it('expanding the canvas and republishing keeps alignment and updates the pyramid', async () => {
@@ -163,7 +195,7 @@ describe('publication pipeline', () => {
     await db.rpc(mod, 'admin_remove_publication', { p_publication_id: live, p_reason: 'test removal', p_strike: false });
     await drainQueue(deps, 'test');
     const cell = (await db.sql(`select a.title from world_plots p join artwork_publications a on a.id = p.art_publication_id where p.gx = 3001 and p.gy = 3000`))[0];
-    expect(cell.title).toBe('Golden horizon');
+    expect(cell.title).toBe('Half painted');
     const z16 = await db.sql(`select x, y from art_tiles where z = $1 order by y, x`, [L]);
     expect(z16).toEqual([{ x: 3000, y: 3000 }, { x: 3001, y: 3000 }]); // 3000,3001 had no earlier art
   });
@@ -231,10 +263,11 @@ describe('worker minigame API', () => {
     const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
     await db.sql(`update minigame_sessions set started_at = now() - interval '5 minutes' where id = $1`, [s.session_id]);
     const real = solve(plot.game, Number(s.seed), 1) as any;
-    // forge: TraceCraft strokes shifted off the guides; other games replay a different level's solution
+    // forge: TraceCraft strokes shifted off the guides; other games claim a win with no moves at all
+    // (replaying another seed's solution can coincidentally solve a small level, so it is not a reliable forgery)
     const forged = plot.game === 'tracecraft'
       ? { strokes: real.strokes.map((st: any) => ({ points: st.points.map(([x, y, t]: number[]) => [x + 0.35, y, t]) })) }
-      : solve(plot.game, Number(s.seed) + 1, 1);
+      : Object.fromEntries(Object.entries(real).map(([k, v]) => [k, Array.isArray(v) ? [] : v]));
     const body: any = await (await post({ session_id: s.session_id, log: forged })).json();
     expect(body.passed).toBe(false);
     expect(body.rewards.ink).toBe(0);
@@ -242,7 +275,10 @@ describe('worker minigame API', () => {
 
   it('a log claiming more time than really passed is rejected', async () => {
     const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
-    const body: any = await (await post({ session_id: s.session_id, log: solve(plot.game, Number(s.seed), 1) })).json();
+    const log = solve(plot.game, Number(s.seed), 1);
+    // on the server clock the run "started" in the future, so any claimed duration is longer than real time
+    await db.sql(`update minigame_sessions set started_at = now() + interval '30 seconds' where id = $1`, [s.session_id]);
+    const body: any = await (await post({ session_id: s.session_id, log })).json();
     expect(body.valid).toBe(false);
     expect(body.flags).toContain('faster_than_server_clock');
   });

@@ -3,14 +3,12 @@ import { api } from '../../backend/api';
 import { getBackend } from '../../backend/backend';
 import type { Manifest, ProjectBundle, Publication } from '../../backend/types';
 import { Doc, R, tileIsEmpty } from './doc';
+import { sha256Hex } from '../../lib/utils';
 
 const toBlob = (c: HTMLCanvasElement) =>
   new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode_failed'))), 'image/png'));
 
-export async function sha256Hex(bytes: ArrayBuffer) {
-  const d = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+export { sha256Hex };
 
 async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   let i = 0;

@@ -1,17 +1,22 @@
-import { Gamepad2, Globe2, Images, LayoutGrid, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
-import { Avatar, LogoMark, ResourcePill } from '../ui';
+import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 
 const MAIN = [
   { to: '/', label: 'World', icon: Globe2, end: true },
   { to: '/canvases', label: 'Canvases', icon: LayoutGrid },
   { to: '/play', label: 'Play', icon: Gamepad2 },
+  { to: '/social', label: 'Social', icon: MessagesSquare },
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/players', label: 'Players', icon: Users },
 ];
+// the phone tab bar keeps five: Canvases and Players live in Me and Social
+const MOBILE = ['/', '/play', '/social', '/gallery'];
 const MORE = [
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
@@ -25,16 +30,18 @@ export function Shell() {
   const loc = useLocation();
   const isMap = loc.pathname === '/';
   const admin = me?.roles?.includes('owner');
+  const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 60_000, staleTime: 30_000 });
+  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
   return (
     <div className="flex h-full bg-bg">
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
-        {[...MAIN, ...MORE].map((i) => <RailItem key={i.to} {...i} />)}
+        {[...MAIN, ...MORE].map((i) => <RailItem key={i.to} {...i} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} /> : null}
         <div className="flex-1" />
         {me ? (
           <NavLink to="/me" className="rounded-2xl p-1 hover:bg-surface-2" aria-label="Your profile">
-            <Avatar seed={me.profile.avatar_seed} style={me.profile.avatar_style} accent={me.profile.accent_color} size={40} />
+            <PlayerAvatar p={me.profile} size={40} />
           </NavLink>
         ) : null}
       </nav>
@@ -42,29 +49,34 @@ export function Shell() {
         <Outlet />
       </main>
       <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
-        {MAIN.map((i) => <TabItem key={i.to} {...i} />)}
-        <TabItem to="/me" label="Me" icon={null} avatar={me ? <Avatar seed={me.profile.avatar_seed} style={me.profile.avatar_style} accent={me.profile.accent_color} size={24} /> : null} />
+        {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} badge={badge(i.to)} />)}
+        <TabItem to="/me" label="Me" icon={null} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>
     </div>
   );
 }
 
-function RailItem({ to, label, icon: Icon, end }: { to: string; label: string; icon: any; end?: boolean }) {
+function Dot({ n }: { n?: number }) {
+  if (!n) return null;
+  return <span className="absolute -right-1.5 -top-1 min-w-[16px] rounded-full bg-hot px-1 text-center text-[10px] font-bold leading-4 text-white tnum" aria-label={`${n} new`}>{n > 9 ? '9+' : n}</span>;
+}
+
+function RailItem({ to, label, icon: Icon, end, badge }: { to: string; label: string; icon: any; end?: boolean; badge?: number }) {
   return (
     <NavLink to={to} end={end}
       className={({ isActive }) => cn('flex w-[72px] flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-semibold transition',
         isActive ? 'bg-surface-2 text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]' : 'text-muted hover:bg-surface-2/60 hover:text-fg')}>
-      <Icon className="h-5 w-5" />
+      <span className="relative"><Icon className="h-5 w-5" /><Dot n={badge} /></span>
       {label}
     </NavLink>
   );
 }
 
-function TabItem({ to, label, icon: Icon, end, avatar }: { to: string; label: string; icon: any; end?: boolean; avatar?: ReactNode }) {
+function TabItem({ to, label, icon: Icon, end, avatar, badge }: { to: string; label: string; icon: any; end?: boolean; avatar?: ReactNode; badge?: number }) {
   return (
     <NavLink to={to} end={end}
       className={({ isActive }) => cn('flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-bold', isActive ? 'text-fg' : 'text-faint')}>
-      {avatar ?? (Icon ? <Icon className="h-[22px] w-[22px]" /> : <span className="h-[22px] w-[22px] rounded-full bg-surface-2" />)}
+      <span className="relative">{avatar ?? (Icon ? <Icon className="h-[22px] w-[22px]" /> : <span className="block h-[22px] w-[22px] rounded-full bg-surface-2" />)}<Dot n={badge} /></span>
       {label}
     </NavLink>
   );
