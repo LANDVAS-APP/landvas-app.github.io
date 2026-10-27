@@ -311,11 +311,11 @@ try {
   }
   check('all screens render', broken.length === 0, broken.join(', '));
   await shot('11-admin');
-  for (const tab of ['overview', 'players', 'earnings', 'world', 'plots', 'flags', 'system']) {
+  for (const tab of ['overview', 'players', 'earnings', 'world', 'plots', 'social', 'shop', 'flags', 'system']) {
     await page.evaluate((t) => { location.hash = t; }, tab);
     await page.evaluate(() => window.__landvasNav('/admin'));
     await page.waitForTimeout(300);
-    await page.getByRole('tab', { name: new RegExp(`^${{ overview: 'Dashboard', players: 'Players', earnings: 'Earnings', world: 'World', plots: 'Plots', flags: 'Switches', system: 'System' }[tab]}`) }).click().catch(() => {});
+    await page.getByRole('tab', { name: new RegExp(`^${{ overview: 'Dashboard', players: 'Players', earnings: 'Earnings', world: 'World', plots: 'Plots', social: 'Social', shop: 'Shop', flags: 'Switches', system: 'System' }[tab]}`) }).click().catch(() => {});
     await page.waitForTimeout(900);
     const t = await page.evaluate(() => document.querySelector('main')?.textContent ?? '');
     if (t.trim().length < 60 || /Something went wrong/i.test(t)) broken.push(`/admin#${tab}`);

@@ -82,6 +82,8 @@ const TABS = [
   { value: 'earnings', label: 'Earnings' },
   { value: 'world', label: 'World' },
   { value: 'plots', label: 'Plots' },
+  { value: 'social', label: 'Social' },
+  { value: 'shop', label: 'Shop' },
   { value: 'flags', label: 'Switches' },
   { value: 'cashouts', label: 'Cash-outs' },
   { value: 'system', label: 'System' },
@@ -107,6 +109,8 @@ function Hub() {
       {tab === 'earnings' && <Earnings />}
       {tab === 'world' && <World />}
       {tab === 'plots' && <Plots />}
+      {tab === 'social' && <SocialAdmin />}
+      {tab === 'shop' && <ShopAdmin />}
       {tab === 'flags' && <Flags />}
       {tab === 'cashouts' && <Cashouts />}
       {tab === 'system' && <System />}
@@ -237,6 +241,10 @@ function Reports() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {c.publication?.status === 'published' && <Button size="sm" variant="danger" onClick={() => run(() => api.admin.removePublication(c.publication.id, c.reason || 'Content policy', true), 'Removed with a strike', refresh)}>Remove + strike</Button>}
                 {c.publication?.status === 'rejected' && c.kind === 'appeal' && <Button size="sm" onClick={() => run(() => api.admin.reviewPublication(c.publication.id, 'approve'), 'Appeal granted — publishing', refresh)}>Grant appeal</Button>}
+                {c.reason === 'chat_message' && c.details?.message_id && <>
+                  <Button size="sm" variant="danger" onClick={() => run(() => api.admin.deleteChat(Number(c.details.message_id), 'Removed after a report'), 'Message removed', refresh)}>Delete message</Button>
+                  {c.subject_player_id && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.mutePlayer(c.subject_player_id, 24 * 60, 'Muted after a chat report'), 'Muted for 24 hours', refresh)}>Mute 24h</Button>}
+                </>}
                 {c.kind === 'score_review' && c.session_id && <>
                   <Button size="sm" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'clear', 'Looks legitimate'), 'Rewards released', refresh)}>Clear run</Button>
                   <Button size="sm" variant="danger" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'void', 'Automated play'), 'Run voided', refresh)}>Void run</Button>
@@ -262,6 +270,7 @@ function Overview({ onTab }: { onTab(t: string): void }) {
     ['Plots owned', d.plots_owned], ['Claimed 24h', d.plots_claimed_24h ?? 0], ['Art waiting', d.pending_review ?? 0, 'review'], ['Published 24h', d.art_published_24h ?? 0],
     ['Minigames 24h', d.minigame_sessions_24h], ['Wins 24h', d.minigame_wins_24h ?? 0], ['Ink minted 24h', d.ink_issued_24h], ['Ink spent 24h', d.ink_spent_24h],
     ['Flagged runs', d.flagged_sessions], ['GPS jumps 24h', d.gps_jumps_24h ?? 0], ['Client errors 24h', d.client_errors_24h, 'system'], ['Named plots', d.named_plots ?? 0],
+    ['Chat messages 24h', d.chat_messages_24h ?? 0, 'social'], ['Friendships', d.friendships ?? 0, 'social'], ['Invites rewarded 24h', d.referrals?.rewarded_24h ?? 0, 'social'], ['Invite Ink 24h', d.referrals?.ink_paid_24h ?? 0, 'social'],
   ];
   return (
     <div className="grid gap-4">
@@ -735,6 +744,132 @@ function System() {
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ---- social: invites, Ink conversion, chat ---------------------------------------------------
+
+function SocialAdmin() {
+  const cfg = useConfig();
+  const save = useSaveConfig();
+  const qc = useQueryClient();
+  const [ref, setRef] = useState<any>(null);
+  const [conv, setConv] = useState<any>(null);
+  useEffect(() => {
+    if (!cfg.data) return;
+    setRef(structuredClone(cfg.data.config.referrals?.value ?? {}));
+    setConv(structuredClone(cfg.data.config.rent?.value?.convert ?? { enabled: true, ink_per_usd: 100 }));
+  }, [cfg.data]);
+  const chat = useQuery({ queryKey: ['admin', 'chat'], queryFn: () => api.chatRecent(null), refetchInterval: 10_000 });
+  if (!cfg.data || !ref || !conv) return <div className="flex justify-center py-10"><Spinner /></div>;
+  const refValue = cfg.data.config.referrals?.value ?? {};
+  const rent = cfg.data.config.rent.value;
+  const chatFlag = cfg.data.flags.find((f: any) => f.key === 'global_chat');
+  const refDirty = JSON.stringify(ref) !== JSON.stringify(refValue);
+  const convDirty = JSON.stringify(conv) !== JSON.stringify(rent.convert ?? { enabled: true, ink_per_usd: 100 });
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card title="Invite rewards" actions={<Button size="sm" variant="primary" disabled={!refDirty} onClick={() => save('referrals', { ...ref, reward_ink: Math.round(ref.reward_ink), referee_reward_ink: Math.round(ref.referee_reward_ink ?? 0), daily_cap: Math.round(ref.daily_cap), redeem_window_days: Math.round(ref.redeem_window_days) }, 'Invite rewards updated')} data-testid="save-referrals">Save</Button>}>
+        <Switch id="ref-on" checked={ref.enabled !== false} label={ref.enabled !== false ? 'Invite rewards are on' : 'Invite rewards are paused'} onCheckedChange={(on) => setRef({ ...ref, enabled: on })} />
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <NumberField label="Ink for the inviter" value={Number(ref.reward_ink)} max={100000} onChange={(n) => setRef({ ...ref, reward_ink: n })} />
+          <NumberField label="Ink for the new player" value={Number(ref.referee_reward_ink ?? 0)} max={100000} onChange={(n) => setRef({ ...ref, referee_reward_ink: n })} />
+          <NumberField label="Rewarded invites per day" value={Number(ref.daily_cap)} max={10000} onChange={(n) => setRef({ ...ref, daily_cap: n })} hint="per inviter" />
+          <NumberField label="Days to enter a code" value={Number(ref.redeem_window_days)} max={3650} onChange={(n) => setRef({ ...ref, redeem_window_days: n })} hint="after joining" />
+        </div>
+        <Field label="Pay out when the new player…" htmlFor="ref-qualify">
+          <select id="ref-qualify" className={cn(inputCls, 'h-10')} value={ref.qualify} onChange={(e) => setRef({ ...ref, qualify: e.target.value })}>
+            <option value="signup">finishes signing up</option>
+            <option value="starter_plot">claims their first plot</option>
+            <option value="first_win">wins their first minigame (recommended)</option>
+          </select>
+        </Field>
+      </Card>
+      <Card title="USD rent → Ink" actions={<Button size="sm" variant="primary" disabled={!convDirty} onClick={() => save('rent', { ...rent, convert: { enabled: !!conv.enabled, ink_per_usd: Math.max(1, Math.round(conv.ink_per_usd)) } }, 'Conversion updated')}>Save</Button>}>
+        <Switch id="conv-on" checked={conv.enabled !== false} label={conv.enabled !== false ? 'Players can convert rent to Ink' : 'Conversion is off'} onCheckedChange={(on) => setConv({ ...conv, enabled: on })} />
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <NumberField label="Ink per $1" value={Number(conv.ink_per_usd)} min={1} max={1000000} onChange={(n) => setConv({ ...conv, ink_per_usd: n })} hint={`Smallest conversion: $${(1 / Math.max(1, Number(conv.ink_per_usd) || 1)).toFixed(4)} = 1 Ink`} />
+        </div>
+      </Card>
+      <Card title="Global chat" className="xl:col-span-2" actions={chatFlag && (
+        <Switch id="chat-on" checked={chatFlag.enabled} label={chatFlag.enabled ? 'Chat on' : 'Chat off'} onCheckedChange={(on) => run(() => api.admin.setFlag('global_chat', on), on ? 'Chat is on' : 'Chat is off', () => qc.invalidateQueries({ queryKey: ['admin', 'config'] }))} />
+      )}>
+        <p className="mb-3 text-xs text-muted">Messages are filtered (links blocked, blocked words masked) and rate limited. Reports land in the Review tab.</p>
+        <div className="grid max-h-[50vh] gap-1 overflow-y-auto text-sm scroll-thin">
+          {(chat.data?.messages ?? []).slice().reverse().map((m) => (
+            <div key={m.id} className={cn('flex items-start gap-2 rounded-xl px-2 py-1.5 hover:bg-surface-2', m.deleted && 'opacity-50')}>
+              <PlayerAvatar p={m.player} size={24} />
+              <div className="min-w-0 flex-1"><b>@{m.player.username}</b> <span className="text-xs text-faint">{timeAgo(m.created_at)}</span>{m.deleted && <span className="ml-1 text-xs text-bad">removed</span>}<div className="break-words">{m.body}</div></div>
+              {!m.deleted && <button className="text-xs text-bad hover:underline" onClick={() => run(() => api.admin.deleteChat(m.id, 'Removed by the operator'), 'Message removed', () => chat.refetch())}>Delete</button>}
+              <button className="text-xs text-muted hover:underline" onClick={() => run(() => api.admin.mutePlayer(m.player.id, 60, 'Muted by the operator'), `@${m.player.username} muted for 1 hour`)}>Mute 1h</button>
+            </div>
+          ))}
+          {!chat.data?.messages?.length && <p className="text-sm text-muted">No messages yet.</p>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ---- shop prices ----------------------------------------------------------------------------
+
+const COST_KEYS = ['ink', 'pigments', 'gallery_tokens'] as const;
+
+function ShopAdmin() {
+  const cfg = useConfig();
+  const save = useSaveConfig();
+  const [items, setItems] = useState<any[] | null>(null);
+  const [filter, setFilter] = useState('');
+  useEffect(() => { if (cfg.data) setItems(structuredClone(cfg.data.config.shop?.value?.items ?? [])); }, [cfg.data]);
+  if (!cfg.data || !items) return <div className="flex justify-center py-10"><Spinner /></div>;
+  const value = cfg.data.config.shop?.value?.items ?? [];
+  const dirty = JSON.stringify(items) !== JSON.stringify(value);
+  const groups = [...new Set(items.map((i) => i.group ?? 'Other'))];
+  const setItem = (key: string, patch: Record<string, unknown>) => setItems(items.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  const setCost = (key: string, res: string, n: number) => setItems(items.map((i) => {
+    if (i.key !== key) return i;
+    const cost = { ...(i.cost ?? {}) };
+    if (!Number.isFinite(n) || n <= 0) delete cost[res]; else cost[res] = Math.min(9_999_999, Math.round(n));
+    return { ...i, cost };
+  }));
+  return (
+    <div className="grid gap-4">
+      <Card title="Shop prices" actions={<div className="flex gap-2">
+        {dirty && <Button size="sm" variant="ghost" onClick={() => setItems(structuredClone(value))}>Undo</Button>}
+        <Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('shop', { ...cfg.data.config.shop.value, items }, 'Shop prices saved for everyone')} data-testid="save-shop">Save prices</Button>
+      </div>}>
+        <p className="mb-3 text-sm text-muted">Set any price to 0 to make an item free for everyone. Turning an item off hides it from the shop; players who already bought it keep it.</p>
+        <input className={cn(inputCls, 'mb-3')} placeholder="Filter items" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <div className="grid gap-5">
+          {groups.map((g) => {
+            const list = items.filter((i) => (i.group ?? 'Other') === g && (!filter || `${i.name} ${i.key}`.toLowerCase().includes(filter.toLowerCase())));
+            if (!list.length) return null;
+            return (
+              <div key={g}>
+                <div className="eyebrow mb-2">{g}</div>
+                <div className="grid gap-1.5">
+                  {list.map((i) => (
+                    <div key={i.key} className={cn('flex flex-wrap items-center gap-2 rounded-2xl border border-line px-3 py-2', i.enabled === false && 'opacity-55')}>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-bold">{i.name}</div>
+                        <div className="truncate font-mono text-[11px] text-faint">{i.key}</div>
+                      </div>
+                      {COST_KEYS.map((r) => (
+                        <label key={r} className="flex items-center gap-1 text-[11px] text-muted">
+                          {r === 'gallery_tokens' ? 'tokens' : r}
+                          <input type="number" min={0} className={cn(inputCls, 'h-8 w-20 text-xs tnum')} value={i.cost?.[r] ?? 0} onChange={(e) => setCost(i.key, r, Number(e.target.value))} />
+                        </label>
+                      ))}
+                      <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={i.enabled !== false} onChange={(e) => setItem(i.key, { enabled: e.target.checked })} /> In shop</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Mail } from 'lucide-react';
+import { ArrowRight, Gift, Mail } from 'lucide-react';
 import { getBackend, toGameError } from '../backend/backend';
 import { config } from '../env';
 import { Button, Field, Tabs, Wordmark, inputCls } from '../ui';
@@ -8,6 +8,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
+import { pendingReferral } from '../social/referralStore';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
 function LivingCanvas() {
@@ -90,7 +91,8 @@ export function Welcome() {
   const [params] = useSearchParams();
   const next = params.get('next') || '/';
   const b = getBackend();
-  const [tab, setTab] = useState<'signup' | 'signin'>(b.mode === 'local' ? 'signup' : 'signin');
+  const invite = pendingReferral();
+  const [tab, setTab] = useState<'signup' | 'signin'>(b.mode === 'local' || invite ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +149,12 @@ export function Welcome() {
           </ul>
         </section>
         <section className="glass rounded-[28px] p-6">
+          {invite && (
+            <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-sm" data-testid="welcome-invite">
+              <Gift className="h-5 w-5 shrink-0 text-gold" />
+              <span>You were invited with code <b className="font-mono">{invite}</b>. Create your account and it’s applied automatically.</span>
+            </div>
+          )}
           <Tabs value={tab} onValueChange={(v) => setTab(v as any)} items={[{ value: 'signup', label: 'Create account' }, { value: 'signin', label: 'Sign in' }]} className="mb-5" />
           <form className="grid gap-4" onSubmit={submit}>
             <Field label="Email" htmlFor="email">

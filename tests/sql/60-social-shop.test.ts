@@ -63,11 +63,46 @@ describe('mystery plots', () => {
     await expectError(asRole('authenticated', p, 'select * from private.secrets'), 'permission denied');
   });
 
-  it('nobody can look up where someone’s land or art is by reading the tables directly', async () => {
+  it('nobody can look up where someone else’s land or art is by reading the tables directly', async () => {
+    const other = await db.newPlayer('mystery2');
+    await db.placeAt(other, H.gx + 40, H.gy);
+    await db.rpc(other, 'claim_starter_plot', { p_gx: H.gx + 40, p_gy: H.gy });
     for (const t of ['world_plots', 'canvas_groups', 'canvas_group_members', 'artwork_publications']) {
       await expectError(asRole('anon', null, `select * from public.${t} limit 1`), 'permission denied');
-      await expectError(asRole('authenticated', p, `select * from public.${t} limit 1`), 'permission denied');
     }
+    // signed-in players see only their own rows (Supabase Storage's upload rules rely on that)
+    const mine = await asRole('authenticated', other, 'select owner_id from public.world_plots');
+    expect(mine.length).toBe(1);
+    expect(mine[0].owner_id).toBe(other);
+    expect(await asRole('authenticated', p, `select * from public.world_plots where owner_id = '${other}'`)).toHaveLength(0);
+    expect(await asRole('authenticated', p, `select * from public.canvas_group_members m join public.canvas_groups g on g.id = m.group_id where g.owner_id = '${other}'`)).toHaveLength(0);
+  });
+
+  it('the real Supabase storage rules let players upload pictures, drafts and artwork to their own folders', async () => {
+    // a minimal stand-in for Supabase's storage schema, then the production storage migrations on top
+    await db.sql(`
+      create schema if not exists storage;
+      create table if not exists storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+      create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text, owner uuid default auth.uid());
+      create or replace function storage.foldername(name text) returns text[] language sql immutable as $f$
+        select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $f$;
+      alter table storage.objects enable row level security;
+      grant usage on schema storage to anon, authenticated;
+      grant select, insert, update on storage.objects to authenticated;
+      grant execute on function storage.foldername(text) to anon, authenticated;`);
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    for (const f of ['20261026000009_storage.sql', '20261027000015_avatar_storage.sql']) {
+      await db.sql(fs.readFileSync(path.resolve(__dirname, '../../supabase/migrations', f), 'utf8'));
+    }
+    const name = `${p}/${'ab'.repeat(32)}.webp`;
+    await asRole('authenticated', p, `insert into storage.objects (bucket_id, name) values ('avatars', '${name}')`);
+    await asRole('authenticated', p, `insert into storage.objects (bucket_id, name) values ('drafts', '${p}/${'cd'.repeat(32)}.png')`);
+    await expectError(asRole('authenticated', p, `insert into storage.objects (bucket_id, name) values ('avatars', '00000000-0000-4000-8000-000000000000/${'ef'.repeat(32)}.webp')`), 'row-level security');
+    const listed = await asRole('authenticated', p, `select name from storage.objects where bucket_id = 'avatars'`);
+    expect(listed.map((r: any) => r.name)).toContain(name);
+    const prof = await db.rpc(p, 'set_avatar_image', { p_path: name });
+    expect(prof.avatar_path).toBe(name);
   });
 
   it('claiming reveals everything', async () => {
