@@ -29,7 +29,9 @@ export default function PlayHub() {
   const resets = records.data?.resets_at ? new Date(records.data.resets_at) : null;
   return (
     <Page>
-      <PageHeader eyebrow="Earn Ink" title="Play" description={`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} wins a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`} />
+      <PageHeader eyebrow="Earn Ink" title="Play">
+        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} wins a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
+      </PageHeader>
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/')}>Find a plot on the map</Button>}>
           Every plot type has its own minigame. Your free starter plot is waiting on the map.

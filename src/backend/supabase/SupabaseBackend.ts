@@ -3,13 +3,27 @@
 //  * Game state: Postgres RPCs (SECURITY DEFINER) through PostgREST
 //  * Storage: drafts/submissions (private, RLS by user folder), public-art (CDN)
 //  * Realtime: postgres_changes on public.map_updates, with polling fallback
-//  * Minigame validation: LANDVAS worker HTTP API (never trusts client scores)
+//  * Minigame validation + art pipeline: Supabase Edge Functions (supabase/functions-src)
+//    holding the service key; clients never submit scores, only move logs
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { MapUpdate, MinigameFinish } from '../types';
 
+const PIPELINE_RPCS = new Set(['submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot', 'publication_status']);
+
+async function functionError(error: any): Promise<GameError> {
+  try {
+    const body = await error?.context?.json?.();
+    if (body?.error) return new GameError(body.error, body.detail);
+  } catch {
+    /* not JSON */
+  }
+  return new GameError('minigame_error', error?.message);
+}
+
 export class SupabaseBackend implements Backend {
+  private lastKick = 0;
   readonly mode = 'supabase' as const;
   readonly ephemeral = false;
   private sb: SupabaseClient;
@@ -62,6 +76,7 @@ export class SupabaseBackend implements Backend {
     const clean = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined));
     const { data, error } = await this.sb.rpc(fn, clean);
     if (error) throw toGameError({ message: error.message, detail: error.details });
+    if (PIPELINE_RPCS.has(fn)) void this.kickPipeline();
     return data as T;
   }
 
@@ -97,20 +112,32 @@ export class SupabaseBackend implements Backend {
   }
 
   async finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish> {
-    if (!config.workerUrl) throw new GameError('worker_not_configured', 'VITE_WORKER_URL is not set; minigame results cannot be validated.');
-    const { data } = await this.sb.auth.getSession();
-    const res = await fetch(`${config.workerUrl}/v1/minigames/finish`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token ?? ''}` },
-      body: JSON.stringify({ session_id: sessionId, log }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new GameError(body.error ?? 'minigame_error');
-    return body as MinigameFinish;
+    if (config.workerUrl) {
+      // optional self-hosted worker (worker/main.ts)
+      const { data } = await this.sb.auth.getSession();
+      const res = await fetch(`${config.workerUrl}/v1/minigames/finish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ session_id: sessionId, log }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new GameError(body.error ?? 'minigame_error');
+      return body as MinigameFinish;
+    }
+    const { data, error } = await this.sb.functions.invoke('minigame-finish', { body: { session_id: sessionId, log } });
+    if (error) throw await functionError(error);
+    return data as MinigameFinish;
   }
 
+  /** Ask the pipeline Edge Function to process queued publications (idempotent). */
   async kickPipeline() {
-    /* the worker processes jobs server-side */
+    if (config.workerUrl || Date.now() - this.lastKick < 4000) return;
+    this.lastKick = Date.now();
+    try {
+      await this.sb.functions.invoke('pipeline', { body: {} });
+    } catch {
+      /* the next kick or the cron catches up */
+    }
   }
 
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {

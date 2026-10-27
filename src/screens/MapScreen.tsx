@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, ChevronDown, Compass, Droplets, Layers, LocateFixed, MapPinned, Palette, Search, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Compass, Crosshair, Layers, LocateFixed, MapPin, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -14,9 +14,14 @@ import { PlotPanel } from '../plot/PlotPanel';
 import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { Avatar, Button, LogoMark } from '../ui';
+import { Avatar, Button, Dialog, LogoMark } from '../ui';
 import { cellCenter } from '../shared/grid';
 import { config } from '../env';
+import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
+import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
+import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { formatRate } from '../shared/rent';
+import { RarityBadge } from '../plot/RarityBadge';
 
 const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: MapPinned, hint: 'Places, borders and every owned territory' },
@@ -32,6 +37,9 @@ export function MapScreen() {
   const session = useSession();
   const me = useOnboardedMe();
   const view = useUi((s) => s.view);
+  useRaritySync();
+  useExplorerSync();
+  const placing = useExplorer((s) => s.placing);
   return (
     <div className="absolute inset-0">
       <WorldMap />
@@ -42,8 +50,8 @@ export function MapScreen() {
             <LogoMark size={26} />
           </Link>
           <PlaceSearch />
-          <div className="pointer-events-auto ml-auto hidden md:block">
-            {me ? <div className="glass rounded-2xl p-1.5"><ResourceBar /></div> : !session ? <SignInChip /> : null}
+          <div className="pointer-events-auto ml-auto hidden items-center gap-2 md:flex">
+            {me ? <><RentHud /><BoostButton /><div className="glass rounded-2xl p-1.5"><ResourceBar /></div></> : !session ? <SignInChip /> : null}
           </div>
         </div>
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
@@ -56,16 +64,111 @@ export function MapScreen() {
               </button>
             ))}
           </div>
-          {me && <CollectButton />}
+          {me && <div className="flex min-w-0 items-center gap-2 md:hidden"><RentHud /><BoostButton compact /></div>}
           {!me && !session && <div className="md:hidden"><SignInChip /></div>}
           {me && <div className="md:hidden"><div className="glass rounded-2xl p-1"><ResourceBar compact /></div></div>}
         </div>
+        {placing && (
+          <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-gold/50 px-4 py-2.5 text-sm font-semibold" role="status">
+            <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-gold" /> Tap the map where your explorer should start</span>
+            <button onClick={() => useExplorer.getState().setPlacing(false)} className="text-muted hover:text-fg" aria-label="Cancel placing">Cancel</button>
+          </div>
+        )}
       </div>
       <ZoomHint zoom={view.zoom} />
+      {me && <ExplorerControls />}
       <Legend mode={mode} />
       <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
       {me && !selected && <Checklist />}
+      {me && <PlacementPrompt />}
     </div>
+  );
+}
+
+/** Mirror the server's explorer state; resume GPS for players who turned it on. */
+function useExplorerSync() {
+  const me = useOnboardedMe();
+  const set = useExplorer((s) => s.set);
+  useEffect(() => {
+    if (me) set(me.explorer);
+  }, [me?.explorer, set]); // eslint-disable-line react-hooks/exhaustive-deps
+  const wantGps = !!me && safeStorage('landvas.gps', false);
+  useEffect(() => {
+    if (wantGps) startGps();
+  }, [wantGps]);
+}
+
+function ExplorerControls() {
+  const ex = useExplorer();
+  const requestFly = useUi((s) => s.requestFly);
+  const has = !!ex.state;
+  const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
+  return (
+    <div className="absolute bottom-[calc(150px+env(safe-area-inset-bottom,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-end gap-2 md:bottom-20">
+      <button
+        className={cn('glass flex h-11 items-center gap-2 rounded-2xl px-3 text-xs font-bold', ex.gps === 'on' ? 'text-ok' : ex.gps === 'denied' || ex.gps === 'unavailable' ? 'text-faint' : 'text-fg')}
+        onClick={() => {
+          if (ex.gps === 'on' || ex.gps === 'asking') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer stays where it is. You can travel by tapping plots.' }); return; }
+          if (!gpsSupported()) { toast.error('This browser has no location service — tap plots to travel instead.'); return; }
+          saveStorage('landvas.gps', true);
+          startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: 15.4 }) });
+          useExplorer.getState().setFollowing(true);
+        }}
+        title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings, or travel by tapping plots.' : 'Move your explorer with your real location'}
+        data-testid="gps-toggle"
+      >
+        <Satellite className="h-4 w-4" /> <span className="hidden sm:inline">{gpsLabel}</span>
+      </button>
+      {has && (
+        <button
+          className={cn('glass flex h-11 w-11 items-center justify-center rounded-2xl', ex.following && 'text-accent-2 ring-2 ring-accent-2/60')}
+          aria-label="Center on my explorer"
+          onClick={() => {
+            const p = explorerNow(ex.state, ex.offset);
+            if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, 15.2) });
+            ex.setFollowing(!ex.following || true);
+          }}
+          data-testid="locate-me"
+        >
+          <Crosshair className="h-5 w-5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** First visit: put the explorer somewhere (GPS or a tap on the map). */
+function PlacementPrompt() {
+  const me = useOnboardedMe();
+  const ex = useExplorer();
+  const requestFly = useUi((s) => s.requestFly);
+  const [dismissed, setDismissed] = useState(false);
+  const open = !!me && !me.explorer && !ex.state && !ex.placing && !dismissed;
+  const pick = () => {
+    ex.setPlacing(true);
+    setDismissed(true);
+    if (useUi.getState().view.zoom < 10) toast('Find your spot', { description: 'Search your city above or zoom in, then tap where you are.' });
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && setDismissed(true)} title="Drop into the world"
+      description="Your explorer is you on the map. You can claim the plots right around it, so put it where you are.">
+      <div className="grid gap-3">
+        {gpsSupported() && !config.isArtifact && (
+          <Button variant="rainbow" size="lg" onClick={() => {
+            saveStorage('landvas.gps', true);
+            startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: 15.4 }) });
+            useExplorer.getState().setFollowing(true);
+            setDismissed(true);
+          }} data-testid="place-gps"><Satellite className="h-4 w-4" /> Use my location (GPS)</Button>
+        )}
+        <Button variant={gpsSupported() && !config.isArtifact ? 'secondary' : 'rainbow'} size="lg" onClick={pick} data-testid="place-pick"><MapPin className="h-4 w-4" /> Pick a spot on the map</Button>
+        <p className="text-xs text-muted">
+          {config.isArtifact
+            ? 'GPS isn’t available in this preview, so your explorer travels when you tap plots (about bike speed). On the installed app it follows your real location.'
+            : 'With GPS your explorer walks with you. Your location is never shown to other players.'}
+        </p>
+      </div>
+    </Dialog>
   );
 }
 
@@ -96,13 +199,18 @@ function Legend({ mode }: { mode: MapMode }) {
         Legend <ChevronDown className={cn('h-3.5 w-3.5 transition', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="glass absolute bottom-12 right-0 w-64 rounded-2xl p-4 text-xs">
+        <div className="glass absolute bottom-12 right-0 w-72 rounded-2xl p-4 text-xs">
           <p className="mb-3 text-muted">{MODES.find((m) => m.id === mode)?.hint}</p>
-          {(['graphite', 'pigment', 'mosaic', 'lumina'] as const).map((t) => (
-            <div key={t} className="mb-2 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span></div>
+          <div className="eyebrow mb-2">Rarity · rent per plot</div>
+          {RARITY_ORDER.map((r) => (
+            <div key={r} className="mb-1.5 flex items-center justify-between gap-2"><RarityBadge r={r} small /><span className="tnum text-muted">{formatRate(rarityInfo(r).usd_per_second)}</span></div>
           ))}
-          <div className="mt-3 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border-2 border-[#C9F6FF] shadow-[0_0_8px_#22E3FF]" /> Your canvases</div>
-          <div className="mt-2 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border-2 border-[#FFE14D]" /> Selected plot</div>
+          <div className="eyebrow mb-2 mt-3">Minigame by plot type</div>
+          {(['graphite', 'pigment', 'mosaic', 'lumina'] as const).map((t) => (
+            <div key={t} className="mb-1.5 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span><span className="text-faint">{{ graphite: 'TraceCraft', pigment: 'ColorBurst', mosaic: 'PatternShift', lumina: 'LightLines' }[t]}</span></div>
+          ))}
+          <div className="mt-3 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border-2 border-white" /> Your plots · others show their owner's colour</div>
+          <div className="mt-2 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border border-dashed border-white" /> Claimable around your explorer</div>
         </div>
       )}
     </div>
@@ -112,26 +220,6 @@ function Legend({ mode }: { mode: MapMode }) {
 export function TypeDot({ t, size = 14 }: { t: 'graphite' | 'pigment' | 'mosaic' | 'lumina'; size?: number }) {
   const c = { graphite: ['#B9C3D8', '#5C6680'], pigment: ['#FF5470', '#FFB23F'], mosaic: ['#22C7B5', '#FFD43B'], lumina: ['#8B5CFF', '#22E3FF'] }[t];
   return <span className="inline-block shrink-0 rounded-[4px]" style={{ width: size, height: size, background: `linear-gradient(135deg, ${c[0]}, ${c[1]})` }} />;
-}
-
-function CollectButton() {
-  const me = useOnboardedMe();
-  const inv = useInvalidate();
-  const [busy, setBusy] = useState(false);
-  if (!me || me.plot_count === 0) return null;
-  const pending = Number(me.pending.ink);
-  return (
-    <button disabled={busy || pending < 1} onClick={async () => {
-      setBusy(true);
-      try {
-        const r = await api.collect();
-        toast.success(`Collected ${fmt(r.ink)} Ink${r.pigments ? ` and ${fmt(r.pigments)} Pigments` : ''} from ${r.plots} plot${r.plots === 1 ? '' : 's'}`);
-        inv();
-      } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
-    }} className="glass flex h-10 items-center gap-2 rounded-2xl px-3 text-[12.5px] font-bold disabled:opacity-60" title="Collect what your plots produced (accrues up to the offline cap)">
-      <Droplets className="h-4 w-4 text-[#34C3FF]" /> {pending >= 1 ? `Collect ${fmt(pending)}` : 'Producing…'}
-    </button>
-  );
 }
 
 function PlaceSearch() {
@@ -231,8 +319,8 @@ function Checklist() {
   const guide = useRef(safeStorage<string | null>('landvas.guide', null));
   const requestFly = useUi((s) => s.requestFly);
   useEffect(() => {
-    if (guide.current === 'starter' && me && !me.player.starter_plot_claimed) {
-      toast('Pick your free starter plot', { description: 'Search for a city you love, zoom in until you see the grid, then tap a glowing square.' });
+    if (guide.current === 'starter' && me && !me.player.starter_plot_claimed && me.explorer) {
+      toast('Pick your free starter plot', { description: 'Tap any plot inside the dashed square around your explorer.' });
       saveStorage('landvas.guide', null);
       guide.current = null;
       if (useUi.getState().view.zoom < 3) requestFly({ lng: -40, lat: 30, zoom: 2.2 });
@@ -242,13 +330,13 @@ function Checklist() {
   const g = groups.data ?? [];
   const p = pubs.data ?? [];
   const steps = [
+    { label: 'Place your explorer', done: !!me.explorer },
     { label: 'Claim your free starter plot', done: me.player.starter_plot_claimed },
-    { label: 'Paint it or place an image', done: g.some((x) => (x.project?.tile_count ?? 0) > 0) },
-    { label: 'Publish it to the world map', done: p.some((x) => ['published', 'pending_review', 'approved', 'processing', 'superseded'].includes(x.status)) },
-    { label: 'Claim a neighbouring plot', done: me.plot_count >= 2 },
-    { label: 'Connect them into one canvas', done: g.some((x) => x.plot_count >= 2) },
-    { label: 'Publish a mural across both', done: p.some((x) => x.plot_count >= 2 && ['published', 'superseded'].includes(x.status)) },
-    { label: 'Play your plot’s minigame', done: Object.values(records.data?.records ?? {}).some((r: any) => r.plays > 0) },
+    { label: 'Win its minigame to earn Ink', done: Object.values(records.data?.records ?? {}).some((r: any) => r.wins > 0) },
+    { label: 'Buy a second plot with Ink', done: me.plot_count >= 2 },
+    { label: 'Hit the 20× rent boost', done: (me.rent?.boost?.used_today ?? 0) > 0 || !!me.rent?.boost?.active },
+    { label: 'Paint & publish your plot', done: p.some((x) => ['published', 'pending_review', 'approved', 'processing', 'superseded'].includes(x.status)) },
+    { label: 'Connect plots into a mural', done: g.some((x) => x.plot_count >= 2) },
   ];
   const doneCount = steps.filter((s) => s.done).length;
   if (doneCount === steps.length) return null;
@@ -277,10 +365,14 @@ function Checklist() {
             ))}
           </ol>
         )}
-        {!collapsed && nextIdx >= 1 && nextIdx !== 3 && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav(nextIdx === 6 ? '/play' : '/canvases')}>
-            {nextIdx === 6 ? 'Open the minigames' : 'Open my canvases'}
-          </Button>
+        {!collapsed && nextIdx === 0 && (
+          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => useExplorer.getState().setPlacing(true)}>Pick my spot on the map</Button>
+        )}
+        {!collapsed && nextIdx === 2 && (
+          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav('/play')}>Play my minigame</Button>
+        )}
+        {!collapsed && nextIdx >= 5 && (
+          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav('/canvases')}>Open my canvases</Button>
         )}
       </div>
     </div>

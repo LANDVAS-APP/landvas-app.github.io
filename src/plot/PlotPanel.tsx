@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { ArrowUpRight, Brush, Gamepad2, Link2, Lock, Scissors, Sparkles, Upload, X } from 'lucide-react';
+import { ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Rocket, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -14,6 +14,10 @@ import { cn, fmt, plotLabel } from '../lib/utils';
 import { PLOT_TYPES, drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { Avatar, Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm } from '../ui';
+import { RarityBadge } from './RarityBadge';
+import { formatDuration, formatRate } from '../shared/rent';
+import { cellCenter } from '../shared/grid';
+import { travelEta, travelTo, useExplorer } from '../explorer/explorer';
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -42,10 +46,13 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       aria-label="Plot details" data-testid="plot-panel">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
       <div className="flex items-start gap-3">
-        {d ? <PlotSwatch type={d.plot_type} /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
+        {d ? <PlotSwatch type={d.plot_type} className="ring-2" /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
         <div className="min-w-0 flex-1">
-          <div className="eyebrow">{d ? `${d.type_info.name} plot · ${d.type_info.minigame_name}` : 'Plot'}</div>
-          <h2 className="mt-0.5 font-display text-lg font-semibold tnum">Plot {plotLabel(selected.gx, selected.gy)}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {d && <RarityBadge r={d.rarity} />}
+            <span className="eyebrow">{d ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>
+          </div>
+          <h2 className="mt-1 font-display text-lg font-semibold tnum">Plot {plotLabel(selected.gx, selected.gy)}</h2>
           {d && <p className="text-xs text-faint tnum">{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{Math.round(611 * Math.cos((d.center.lat * Math.PI) / 180))} m square</p>}
         </div>
         <button onClick={() => select(null)} className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close plot panel"><X className="h-5 w-5" /></button>
@@ -54,7 +61,19 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       {q.error && <p className="mt-4 text-sm text-bad">{toGameError(q.error).message}</p>}
       {d && (
         <div className="mt-4 grid gap-4">
-          <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn Ink here and play <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-2xl border border-line bg-surface/50 p-3">
+              <div className="eyebrow !text-[10px]">Rent</div>
+              <div className="font-display text-[15px] font-semibold tnum" style={{ color: d.rarity_info.glow }}>{formatRate(Number(d.rent.usd_per_second))}</div>
+              <div className="flex items-center gap-1 text-[11px] text-gold tnum"><Zap className="h-3 w-3" />{formatRate(Number(d.rent.usd_per_second) * Number(d.rent.boost_multiplier))} boosted</div>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface/50 p-3">
+              <div className="eyebrow !text-[10px]">Minigame</div>
+              <div className="font-display text-[15px] font-semibold">{d.type_info.minigame_name}</div>
+              <div className="text-[11px] text-muted">×{Number(d.rarity_info.ink_reward_multiplier).toFixed(2)} Ink per win</div>
+            </div>
+          </div>
+          <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn USD rent every second and win Ink by playing <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
           {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
           {d.art && <ArtCard art={d.art} />}
           <NeighborDiagram d={d} />
@@ -136,21 +155,32 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
 }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const world = useWorld();
+  const nav = useNavigate();
+  const ex = useExplorer();
+  const [busy, setBusy] = useState<string | null>(null);
   const a = d.acquire;
   if (!signedIn || !me) {
     return (
       <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
         <div className="flex items-center justify-between"><span className="text-sm text-muted">Status</span><span className="font-bold text-ok">Available</span></div>
-        <Link to="/welcome?next=/" className="rounded-xl bg-accent py-2.5 text-center text-sm font-bold text-white">Sign in to claim this plot free</Link>
+        <Link to="/welcome?next=/" className="rounded-xl bg-accent py-2.5 text-center text-sm font-bold text-white">Sign up to claim plots</Link>
       </div>
     );
   }
   const starter = a?.starter_available;
   const cost = Number(a?.ink ?? 0);
   const canAfford = Number(me.balances.ink) >= cost;
+  const reach = d.reach;
+  const inReach = reach?.in_reach ?? false;
+  const gpsOn = ex.gps === 'on';
+  const manualOk = world.data?.explorer?.manual_travel !== false;
+  const speed = Number(world.data?.explorer?.travel_speed_kmh ?? 20);
+  const [lng, lat] = cellCenter(d.gx, d.gy);
+  const eta = travelEta(ex.state, ex.offset, { lng, lat }, speed);
+  const jumpReady = !ex.state?.jump_available_at || new Date(ex.state.jump_available_at).getTime() <= Date.now() + ex.offset;
   const run = async () => {
-    setBusy(true);
+    setBusy('claim');
     try {
       if (starter) {
         const r = await api.claimStarter(d.gx, d.gy);
@@ -160,38 +190,59 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.acquirePlot(d.gx, d.gy);
         celebrate(r.achievements);
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))];
+        toast.success(`Plot claimed — +${formatRate(Number(r.usd_per_second))} rent`, { description: `Spent ${fmt(r.cost.ink)} Ink` });
         if (mineAdjacent.length) setGrow({ newGroup: r.group_id, neighbors: mineAdjacent });
-        else {
-          toast.success(`Plot ${d.gx} · ${d.gy} is yours`, { description: `Spent ${fmt(r.cost.ink)} Ink` });
-          setClaimed({ groupId: r.group_id, first: false });
-        }
+        else setClaimed({ groupId: r.group_id, first: false });
       }
       invalidateGame(qc);
     } catch (e) {
       toast.error(toGameError(e).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
+  };
+  const go = async (jump: boolean) => {
+    setBusy(jump ? 'jump' : 'travel');
+    const r = await travelTo(lng, lat, jump);
+    if (r) {
+      void qc.invalidateQueries({ queryKey: ['plot'] });
+      if (!jump && !r.placed) toast(`Your explorer is on the way`, { description: `Arrives in ${formatDuration(eta)}. Keep playing while it travels.` });
+    }
+    setBusy(null);
   };
   return (
     <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
       <div className="flex items-center justify-between text-sm"><span className="text-muted">Status</span><span className="font-bold text-ok">{d.available === false ? 'Unavailable' : 'Available'}</span></div>
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">Production</span>
-        <span className="flex items-center gap-1 font-semibold tnum"><ResourceIcon r="ink" />{d.production_preview?.ink_per_hour}/h · <ResourceIcon r="pigments" />{d.production_preview?.pigments_per_hour}/h</span>
+        <span className="text-muted">Price</span>
+        {starter ? <span className="font-bold text-ok">Free starter plot</span> : <Cost cost={{ ink: cost }} />}
       </div>
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">Cost</span>
-        {starter ? <span className="font-bold text-ok">Free starter plot</span> : (
-          <span className="flex items-center gap-2"><Cost cost={{ ink: cost }} />{a?.adjacent && <span className="rounded-full bg-ok/15 px-2 py-0.5 text-[11px] font-bold text-ok">−25% neighbour</span>}</span>
-        )}
-      </div>
-      <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
-        <Sparkles className="h-4 w-4" />
-        {starter ? 'Claim my free starter plot' : canAfford ? `Acquire for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
-      </Button>
-      {!starter && !canAfford && <p className="text-xs text-muted">Play your plots' minigames or collect production to earn Ink.</p>}
-
+      {!reach?.explorer ? (
+        <div className="grid gap-2 rounded-xl bg-accent/10 p-3 text-sm">
+          <b>Place your explorer first</b>
+          <span className="text-xs text-muted">You can claim plots right around your explorer. Use your location, or tap “Start here”.</span>
+          <Button size="sm" variant="primary" loading={busy === 'travel'} onClick={() => go(false)}><MapPin className="h-4 w-4" /> Start here</Button>
+        </div>
+      ) : inReach ? (
+        <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy === 'claim'} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
+          <Sparkles className="h-4 w-4" />
+          {starter ? 'Claim my free starter plot' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
+        </Button>
+      ) : (
+        <div className="grid gap-2 rounded-xl border border-line-strong p-3 text-sm">
+          <div className="flex items-center gap-2 font-bold"><Footprints className="h-4 w-4 text-accent-2" /> {reach.distance} plots from your explorer</div>
+          <span className="text-xs text-muted">You can claim plots within {reach.max} plot{reach.max === 1 ? '' : 's'} of your explorer.{gpsOn ? ' Walk closer — your explorer follows your GPS.' : ''}</span>
+          {!gpsOn && manualOk && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant="primary" loading={busy === 'travel'} onClick={() => go(false)} data-testid="travel-here"><Footprints className="h-4 w-4" /> Travel ({formatDuration(eta)})</Button>
+              <Button size="sm" variant="secondary" loading={busy === 'jump'} disabled={!jumpReady} onClick={() => go(true)} title={jumpReady ? 'Instant jump (once a day)' : `Next jump ${new Date(ex.state!.jump_available_at!).toLocaleString()}`}><Rocket className="h-4 w-4" /> {jumpReady ? 'Jump now' : 'Jump used'}</Button>
+            </div>
+          )}
+        </div>
+      )}
+      {!starter && !canAfford && inReach && (
+        <Button size="sm" variant="secondary" onClick={() => nav('/play')}><Gamepad2 className="h-4 w-4" /> Win minigames to earn Ink</Button>
+      )}
     </div>
   );
 }
@@ -231,19 +282,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const eco = world.data?.economy;
-  const up = d.upgrades ?? {};
-  const levelCost = eco ? { ink: eco.upgrade.level_cost_ink[d.level], pigments: eco.upgrade.level_cost_pigments[d.level] } : null;
-  const mod = (k: 'studio' | 'reservoir') => {
-    const cur = up[k] ?? 0;
-    const m = eco?.modules?.[k];
-    return m && cur < m.max ? { ink: m.cost_ink[cur], pigments: m.cost_pigments[cur] } : null;
-  };
-  const doUpgrade = async (kind: 'level' | 'studio' | 'reservoir') => {
-    setBusy(kind);
+  const maxLevel = Number(eco?.upgrade?.max_level ?? 10);
+  const levelCost = eco && d.level < maxLevel ? { ink: eco.upgrade.level_cost_ink[d.level], pigments: eco.upgrade.level_cost_pigments[d.level] } : null;
+  const doUpgrade = async () => {
+    setBusy('level');
     try {
-      const r = await api.upgradePlot(d.gx, d.gy, kind);
+      const r = await api.upgradePlot(d.gx, d.gy);
       celebrate(r.achievements);
-      toast.success(kind === 'level' ? `Plot upgraded to level ${r.plot.level}` : `${kind === 'studio' ? 'Studio' : 'Reservoir'} installed`);
+      toast.success(`Plot upgraded to level ${r.plot.level}`);
       invalidateGame(qc);
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
@@ -269,7 +315,6 @@ function MineBlock({ d }: { d: PlotDetails }) {
       toast.success('Plot detached into its own canvas');
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
-  const p = d.production!;
   return (
     <div className="grid gap-3">
       <div className="grid grid-cols-2 gap-2">
@@ -289,16 +334,9 @@ function MineBlock({ d }: { d: PlotDetails }) {
           ))}
         </div>
       )}
-      <div className="grid gap-2 rounded-2xl border border-line bg-surface/60 p-4 text-sm">
-        <div className="flex justify-between"><span className="text-muted">Level</span><b>{d.level} / {eco?.upgrade?.max_level ?? 5}</b></div>
-        <div className="flex justify-between"><span className="text-muted">Production</span><span className="flex items-center gap-1 font-semibold tnum"><ResourceIcon r="ink" />{p.ink_per_hour}/h · <ResourceIcon r="pigments" />{p.pigments_per_hour}/h</span></div>
-        <div className="flex justify-between"><span className="text-muted">Stored (cap {p.cap_hours}h)</span><span className="font-semibold tnum">{fmt(p.pending_ink)} Ink · {fmt(p.pending_pigments)} Pigments</span></div>
-      </div>
       <div className="grid gap-2">
-        <div className="eyebrow">Develop this plot</div>
-        <UpgradeRow title={`Level ${d.level + 1}`} desc="+50% production for this plot" cost={d.level < (eco?.upgrade?.max_level ?? 5) ? levelCost : null} busy={busy === 'level'} onClick={() => doUpgrade('level')} balances={me?.balances} />
-        <UpgradeRow title={`Studio ${(up.studio ?? 0) + 1}`} desc="+25% Ink per studio level" cost={mod('studio')} busy={busy === 'studio'} onClick={() => doUpgrade('studio')} balances={me?.balances} />
-        <UpgradeRow title={`Reservoir ${(up.reservoir ?? 0) + 1}`} desc="+6 hours of offline storage" cost={mod('reservoir')} busy={busy === 'reservoir'} onClick={() => doUpgrade('reservoir')} balances={me?.balances} />
+        <div className="eyebrow">Level {d.level} / {maxLevel}</div>
+        <UpgradeRow title={d.level < maxLevel ? `Upgrade to level ${d.level + 1}` : 'Max level'} desc="+1% rent and +5% minigame Ink on this plot" cost={levelCost} busy={busy === 'level'} onClick={doUpgrade} balances={me?.balances} />
       </div>
       {d.group && d.group.plot_count > 1 && (
         <Button variant="ghost" size="sm" onClick={detach} loading={busy === 'detach'}><Scissors className="h-4 w-4" /> Detach this plot from the canvas</Button>

@@ -1,0 +1,58 @@
+# Deploys LANDVAS on every push to the `source` branch:
+#   1. database migrations  (Supabase Management API, needs secret SUPABASE_ACCESS_TOKEN)
+#   2. Edge Functions        (minigame validation + art pipeline)
+#   3. the web app           (built into the `main` branch, which GitHub Pages serves)
+name: Deploy LANDVAS
+on:
+  push:
+    branches: [source]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+env:
+  SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npx vitest run tests/unit
+      - name: Database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping database deploy"; exit 0; fi
+          node scripts/deploy-db.mjs
+      - name: Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping functions"; exit 0; fi
+          node scripts/build-functions.mjs
+          for fn in minigame-finish pipeline; do
+            npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api \
+              || npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          done
+      - name: Build web app
+        run: npx vite build --mode production
+      - name: Publish to GitHub Pages (main branch)
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+          cd dist
+          git init -q -b main
+          git config user.name "LANDVAS deploy"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" main

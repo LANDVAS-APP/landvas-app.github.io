@@ -209,9 +209,9 @@ function Results({ r, level, unlocked, onAgain, onMap }: { r: MinigameFinish; le
       )}
       <div className="mt-5 grid gap-2">
         {r.passed && level + 1 <= Math.max(unlocked, level + 1) && (
-          <Button variant="rainbow" size="lg" onClick={() => onAgain(level + 1)}><Trophy className="h-4 w-4" /> Next level ({level + 1})</Button>
+          <Button variant="rainbow" size="lg" onClick={() => onAgain(level + 1)} data-testid="game-next"><Trophy className="h-4 w-4" /> Next level ({level + 1})</Button>
         )}
-        <Button variant={r.passed ? 'secondary' : 'primary'} onClick={() => onAgain(level)}><RotateCcw className="h-4 w-4" /> {r.passed ? 'Replay' : 'Try again'}</Button>
+        <Button variant={r.passed ? 'secondary' : 'primary'} onClick={() => onAgain(level)} data-testid="game-replay"><RotateCcw className="h-4 w-4" /> {r.passed ? 'Replay' : 'Try again'}</Button>
         <Button variant="ghost" onClick={() => { onMap(); nav('/'); }}><MapIcon className="h-4 w-4" /> Back to the map — buy plots with Ink</Button>
       </div>
     </div>
