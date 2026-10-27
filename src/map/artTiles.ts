@@ -5,7 +5,7 @@
 import { addProtocol } from 'maplibre-gl';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
-import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL } from '../shared/grid';
+import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE } from '../shared/grid';
 import { config } from '../env';
 
 /** e2e/dev-only trace of art tile requests, for diagnosing refresh races. */
@@ -109,14 +109,14 @@ export class ArtIndex {
   invalidate(minGx: number, minGy: number, maxGx: number, maxGy: number) {
     trace(`invalidate ${minGx},${minGy}..${maxGx},${maxGy}`);
     if (minGx < 0) {
-      this.invalidate(minGx + 65536, minGy, 65535, maxGy);
+      this.invalidate(minGx + GRID_SIZE, minGy, GRID_SIZE - 1, maxGy);
       if (maxGx >= 0) this.invalidate(0, minGy, maxGx, maxGy);
       return;
     }
     for (let z = ART_MIN_ZOOM; z <= ART_MAX_ZOOM; z++) {
       const s = GRID_LEVEL - z + 4; // plot -> block shift at zoom z
       for (let by = minGy >> s; by <= maxGy >> s; by++)
-        for (let bx = minGx >> s; bx <= Math.min(maxGx, 65535) >> s; bx++) this.blocks.delete(`${z}/${bx}/${by}`);
+        for (let bx = minGx >> s; bx <= Math.min(maxGx, GRID_SIZE - 1) >> s; bx++) this.blocks.delete(`${z}/${bx}/${by}`);
     }
   }
 }

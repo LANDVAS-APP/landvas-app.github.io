@@ -147,7 +147,7 @@ describe('players directory and land', () => {
 
 describe('joystick tank and GPS snap-back', () => {
   let j: string;
-  const home = cellCenter(32000, 24000);
+  const home = cellCenter(793600, 1576300);
   beforeAll(async () => {
     j = await db.newPlayer('joyrider');
     await db.rpc(j, 'report_position', { p_lng: home.lng, p_lat: home.lat, p_accuracy_m: 10 });

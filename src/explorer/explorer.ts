@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { ExplorerState } from '../backend/types';
-import { lngLatToCell } from '../shared/grid';
+import { GRID_SIZE, lngLatToCell } from '../shared/grid';
 
 export type GpsStatus = 'off' | 'asking' | 'on' | 'denied' | 'unavailable';
 
@@ -85,7 +85,7 @@ export function explorerCell(): { gx: number; gy: number } | null {
 
 export function cellDistance(a: { gx: number; gy: number }, b: { gx: number; gy: number }) {
   const dx = Math.abs(a.gx - b.gx);
-  return Math.max(Math.min(dx, 65536 - dx), Math.abs(a.gy - b.gy));
+  return Math.max(Math.min(dx, GRID_SIZE - dx), Math.abs(a.gy - b.gy));
 }
 
 export function travelEta(s: ExplorerState | null, offset: number, to: { lng: number; lat: number }, speedKmh: number) {

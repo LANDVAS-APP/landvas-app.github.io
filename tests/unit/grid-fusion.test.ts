@@ -5,10 +5,17 @@ import {
 import { canvasLayout, components, isConnected, outlineEdges } from '../../src/shared/fusion';
 import { TestDb } from '../helpers/db';
 
+const SLC = { gx: 793527, gy: 1576239 };
+
 describe('grid', () => {
-  it('maps coordinates to stable z16 cells', () => {
+  it('maps coordinates to stable z22 cells (house-sized plots)', () => {
     const slc = lngLatToCell(-111.891, 40.7608);
-    expect(slc).toEqual({ gx: 12398, gy: 24628 });
+    expect(slc).toEqual({ gx: SLC.gx, gy: SLC.gy });
+    // ~7.2 m at Salt Lake City's latitude: a house takes 6-8 plots
+    const w = cellBounds(slc.gx, slc.gy);
+    const metres = (w.east - w.west) * 111320 * Math.cos((40.7608 * Math.PI) / 180);
+    expect(metres).toBeGreaterThan(6.5);
+    expect(metres).toBeLessThan(8);
     // the same point always maps to the same cell, independent of "zoom"
     const c = cellCenter(slc.gx, slc.gy);
     expect(lngLatToCell(c[0], c[1])).toEqual(slc);
@@ -22,7 +29,7 @@ describe('grid', () => {
   it('handles the poles, the antimeridian and invalid longitudes', () => {
     expect(lngLatToCell(180, 0).gx).toBe(0);
     expect(lngLatToCell(-180, 0).gx).toBe(0);
-    expect(lngLatToCell(179.9999, 0).gx).toBe(GRID_SIZE - 1);
+    expect(lngLatToCell(179.99999, 0).gx).toBe(GRID_SIZE - 1);
     expect(lngLatToCell(540, 0)).toEqual(lngLatToCell(180, 0));
     expect(lngLatToCell(0, 89.9).gy).toBe(0);
     expect(lngLatToCell(0, -89.9).gy).toBe(GRID_SIZE - 1);
@@ -38,10 +45,10 @@ describe('grid', () => {
   });
 
   it('tile math is consistent with plot cells', () => {
-    const t = tileOfCell(12399, 24672, 10);
-    const r = cellsOfTile(10, t.x, t.y);
-    expect(12399).toBeGreaterThanOrEqual(r.minGx);
-    expect(12399).toBeLessThanOrEqual(r.maxGx);
+    const t = tileOfCell(SLC.gx, SLC.gy, 16);
+    const r = cellsOfTile(16, t.x, t.y);
+    expect(SLC.gx).toBeGreaterThanOrEqual(r.minGx);
+    expect(SLC.gx).toBeLessThanOrEqual(r.maxGx);
     expect(r.maxGx - r.minGx + 1).toBe(64);
   });
 

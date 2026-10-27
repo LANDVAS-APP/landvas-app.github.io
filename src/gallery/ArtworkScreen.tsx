@@ -9,7 +9,7 @@ import { Page } from '../app/Shell';
 import { celebrate, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { fmt, timeAgo } from '../lib/utils';
-import { cellCenter } from '../shared/grid';
+import { cellCenter, Z_PLOT, Z_STREET } from '../shared/grid';
 import { Avatar, Button, Dialog, Empty, Spinner, inputCls } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
 
@@ -28,7 +28,7 @@ export default function ArtworkScreen() {
     const [lng, lat] = cellCenter(Math.floor((a.min_gx + a.max_gx) / 2), Math.floor((a.min_gy + a.max_gy) / 2));
     const span = Math.max(a.max_gx - a.min_gx + 1, a.max_gy - a.min_gy + 1);
     useUi.getState().setMode('canvas');
-    useUi.getState().requestFly({ lng, lat, zoom: Math.max(11, 16 - Math.log2(span)) });
+    useUi.getState().requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(span)) });
     nav('/');
   };
   return (

@@ -13,6 +13,7 @@ export const idemKey = (op: string) => `${op}-${Date.now().toString(36)}-${Math.
 
 export type ClaimResult = {
   gx: number; gy: number; group_id: string; plot_type: string; rarity: RarityId; usd_per_second: number; name: string | null;
+  rarity_info?: import('../shared/rarity').RarityInfo;
   balances: Balances; rent: RentState; achievements: NewAchievement[];
 };
 export type MinigameRecords = {

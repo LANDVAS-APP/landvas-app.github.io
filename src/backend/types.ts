@@ -110,7 +110,7 @@ export type CashoutStatus = {
   history: { id: string; amount_usd: number; status: string; method: string; created_at: string; decided_at: string | null }[];
 };
 
-export type Neighbor = { gx: number; gy: number; dir: 'n' | 's' | 'e' | 'w'; plot_type: PlotTypeId; rarity: RarityId; owned: boolean; is_mine: boolean; owner_username: string | null; group_id: string | null; same_group: boolean };
+export type Neighbor = { gx: number; gy: number; dir: 'n' | 's' | 'e' | 'w'; plot_type: PlotTypeId; rarity: RarityId | null; owned: boolean; is_mine: boolean; owner_username: string | null; group_id: string | null; same_group: boolean };
 
 export type PlotDetails = {
   gx: number;
@@ -119,9 +119,11 @@ export type PlotDetails = {
   name?: string | null;
   plot_type: PlotTypeId;
   type_info: PlotTypeInfo;
-  rarity: RarityId;
-  rarity_info: RarityInfo;
-  rent: { usd_per_second: number; boost_multiplier: number };
+  /** null until the plot is claimed — rarity is a surprise */
+  rarity: RarityId | null;
+  rarity_info: RarityInfo | null;
+  rarity_hidden?: boolean;
+  rent: { usd_per_second: number; boost_multiplier: number } | null;
   owned: boolean;
   is_mine: boolean;
   owner: Profile | null;

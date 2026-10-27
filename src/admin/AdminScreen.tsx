@@ -13,7 +13,7 @@ import { useUi } from '../lib/store';
 import { cn, fmt, plotLabel, timeAgo } from '../lib/utils';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
-import { cellCenter } from '../shared/grid';
+import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Avatar, Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -211,7 +211,7 @@ function ReviewTab() {
   );
 }
 
-function FlyButton({ lng, lat, zoom = 15.4, label = 'Map' }: { lng: number; lat: number; zoom?: number; label?: string }) {
+function FlyButton({ lng, lat, zoom = Z_HOUSE, label = 'Map' }: { lng: number; lat: number; zoom?: number; label?: string }) {
   const nav = useNavigate();
   return <Button size="sm" variant="ghost" onClick={() => { useUi.getState().requestFly({ lng, lat, zoom }); nav('/'); }}><MapPin className="h-4 w-4" /> {label}</Button>;
 }
@@ -360,7 +360,7 @@ function PlayerDetail({ id }: { id: string }) {
                 <RarityBadge r={r} small />
                 <span className="min-w-0 flex-1 truncate"><b>{name || `Plot ${plotLabel(gx, gy)}`}</b> <span className="text-xs text-faint">{t} · lvl {level}{art ? ' · painted' : ''}</span></span>
                 {name && <button className="text-xs text-bad hover:underline" onClick={() => run(() => api.admin.clearPlotName(gx, gy, 'Name removed by the operator'), 'Name cleared', refetch)}>Clear name</button>}
-                <button className="text-xs text-accent-2 hover:underline" onClick={() => { const [lng, lat] = cellCenter(gx, gy); useUi.getState().requestFly({ lng, lat, zoom: 16 }); useUi.getState().select({ gx, gy }); nav('/'); }}>Map</button>
+                <button className="text-xs text-accent-2 hover:underline" onClick={() => { const [lng, lat] = cellCenter(gx, gy); useUi.getState().requestFly({ lng, lat, zoom: Z_PLOT }); useUi.getState().select({ gx, gy }); nav('/'); }}>Map</button>
               </div>
             ))}
           </div>
@@ -611,7 +611,7 @@ function Plots() {
         <p className="mt-2 text-xs text-faint">Tip: open a plot on the map — its number is in the panel header.</p>
       </Card>
       {cell && (
-        <Card title={`Plot ${plotLabel(cell.gx, cell.gy)}`} actions={<Button size="sm" variant="ghost" onClick={() => { const [lng, lat] = cellCenter(cell.gx, cell.gy); useUi.getState().requestFly({ lng, lat, zoom: 16 }); useUi.getState().select(cell); nav('/'); }}><MapPin className="h-4 w-4" /> Map</Button>}>
+        <Card title={`Plot ${plotLabel(cell.gx, cell.gy)}`} actions={<Button size="sm" variant="ghost" onClick={() => { const [lng, lat] = cellCenter(cell.gx, cell.gy); useUi.getState().requestFly({ lng, lat, zoom: Z_PLOT }); useUi.getState().select(cell); nav('/'); }}><MapPin className="h-4 w-4" /> Map</Button>}>
           {!d ? <Spinner /> : (
             <div className="grid gap-2 text-sm">
               <div>{d.plot ? <>Owner <b>@{d.owner?.username ?? '—'}</b> · {d.plot.plot_type} · {d.plot.rarity} · level {d.plot.level}{d.plot.name ? ` · “${d.plot.name}”` : ''}{d.plot.locked ? ' · LOCKED' : ''}</> : <>Unclaimed · {d.computed_type}</>}</div>

@@ -1,12 +1,11 @@
 // USD rent accrual, the 20x boost, and the location rules for claiming.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb, expectError, cellCenter } from '../helpers/db';
-import { rarityFor } from '../../src/shared/rarity';
 import { liveRent } from '../../src/shared/rent';
 
 const db = new TestDb();
 let p: string;
-const HOME = { gx: 20000, gy: 25000 };
+const HOME = { gx: 793500, gy: 1576200 }; // Salt Lake City on the zoom-22 grid (~7 m plots)
 afterAll(() => db.close());
 
 const RATES: Record<string, number> = { common: 1.1e-9, rare: 1.6e-9, epic: 2.2e-9, legendary: 4.4e-9, mythic: 8.8e-9 };
@@ -166,22 +165,22 @@ describe('explorer location rules', () => {
     const t = await db.newPlayer('traveller');
     const start = cellCenter(HOME.gx + 300, HOME.gy);
     await db.rpc(t, 'travel_to', { p_lng: start.lng, p_lat: start.lat });
-    const dest = cellCenter(HOME.gx + 310, HOME.gy);
+    const dest = cellCenter(HOME.gx + 400, HOME.gy);
     const trip = await db.rpc(t, 'travel_to', { p_lng: dest.lng, p_lat: dest.lat });
     expect(trip.traveling).toBe(true);
-    await expectError(db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 310, p_gy: HOME.gy }), 'out_of_reach');
+    await expectError(db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy }), 'out_of_reach');
     // halfway there
     const secs = Number((await db.sql(`select extract(epoch from (($1::jsonb ->> 'arrives_at')::timestamptz - fixed_at)) s from explorers where player_id = $2`, [JSON.stringify(trip), t]))[0].s);
-    expect(secs).toBeGreaterThan(60); // ~10 plots at 20 km/h takes minutes, not seconds
+    expect(secs).toBeGreaterThan(60); // ~100 plots (~720 m) at 20 km/h takes minutes, not seconds
     await db.sql(`update explorers set fixed_at = now() - make_interval(secs => $2::float8 / 2) where player_id = $1`, [t, secs]);
     const mid = await db.rpc(t, 'my_explorer');
-    expect(mid.gx).toBeGreaterThanOrEqual(HOME.gx + 304);
-    expect(mid.gx).toBeLessThanOrEqual(HOME.gx + 306);
+    expect(mid.gx).toBeGreaterThanOrEqual(HOME.gx + 347);
+    expect(mid.gx).toBeLessThanOrEqual(HOME.gx + 353);
     await db.sql(`update explorers set fixed_at = now() - make_interval(secs => $2::float8 + 1) where player_id = $1`, [t, secs]);
     const there = await db.rpc(t, 'my_explorer');
     expect(there.traveling).toBe(false);
-    expect(there.gx).toBe(HOME.gx + 310);
-    await db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 310, p_gy: HOME.gy });
+    expect(there.gx).toBe(HOME.gx + 400);
+    await db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy });
   });
 
   it('an instant jump is allowed once per cooldown', async () => {
@@ -195,10 +194,10 @@ describe('explorer location rules', () => {
   });
 
   it("plot details only ever use the viewer's own position", async () => {
-    // the traveller now owns this plot and stands on it; the renter is ~310 plots away
-    const d = await db.rpc(p, 'plot_details', { p_gx: HOME.gx + 310, p_gy: HOME.gy });
+    // the traveller now owns this plot and stands on it; the renter is ~400 plots away
+    const d = await db.rpc(p, 'plot_details', { p_gx: HOME.gx + 400, p_gy: HOME.gy });
     expect(d.owner.username).toBe('traveller');
-    expect(d.reach.distance).toBe(310);
+    expect(d.reach.distance).toBe(400);
     expect(JSON.stringify(d)).not.toMatch(/explorer"?:\s*\{|"mode"|"dest"/);
   });
 });
@@ -247,10 +246,22 @@ describe('minigames are the only Ink faucet', () => {
 });
 
 describe('client mirrors of server math', () => {
-  it('rarityFor() in TypeScript matches SQL for random cells', async () => {
-    const cells = Array.from({ length: 3000 }, (_, i) => [(i * 7919 + 13) % 65536, (i * 104729 + 7) % 65536]);
-    const rows = await db.sql(`select (c->>0)::int gx, (c->>1)::int gy, private.plot_rarity_for((c->>0)::int, (c->>1)::int) r from jsonb_array_elements($1::jsonb) c`, [JSON.stringify(cells)]);
-    for (const r of rows) expect(rarityFor(r.gx, r.gy)).toBe(r.r);
+  it('unclaimed rarity is secret: salted on the server, never returned, still distributed by weight', async () => {
+    const salts = await db.sql(`select count(*)::int n from private.secrets where key like 'rarity_salt_%'`);
+    expect(salts[0].n).toBe(2);
+    const d = await db.rpc(null, 'plot_details', { p_gx: 3000123, p_gy: 1500456 });
+    expect(d.rarity).toBeNull();
+    expect(d.rarity_info).toBeNull();
+    expect(d.rent).toBeNull();
+    expect(d.rarity_hidden).toBe(true);
+    expect(JSON.stringify(d.acquire ?? {})).not.toMatch(/rarity/);
+    const rows = await db.sql(`select private.plot_rarity_for(i * 7919 + 13, i * 104729 % 4000000 + 7) r, count(*)::int n
+                               from generate_series(1, 20000) i group by 1`);
+    const share = Object.fromEntries(rows.map((r: any) => [r.r, r.n / 20000]));
+    expect(share.common).toBeGreaterThan(0.45);
+    expect(share.common).toBeLessThan(0.55);
+    expect(share.mythic).toBeGreaterThan(0.005);
+    expect(share.mythic).toBeLessThan(0.02);
   });
 
   it('liveRent() reproduces the server live balance', async () => {

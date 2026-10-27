@@ -16,9 +16,10 @@ import type { PlotTypeId } from '../shared/grid';
 import { Avatar, Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm } from '../ui';
 import { RarityBadge } from './RarityBadge';
 import { formatDuration, formatRate } from '../shared/rent';
-import { cellCenter } from '../shared/grid';
+import { cellCenter, plotMetres } from '../shared/grid';
 import { travelEta, travelTo, useExplorer } from '../explorer/explorer';
 import { endVisit, useVisit } from '../visit/visit';
+import { useCelebration } from './ClaimCelebration';
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -50,11 +51,11 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
         {d ? <PlotSwatch type={d.plot_type} className="ring-2" /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {d && <RarityBadge r={d.rarity} />}
+            {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
             <span className="eyebrow">{d ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>
           </div>
           <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>}</h2>
-          {d && <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{Math.round(611 * Math.cos((d.center.lat * Math.PI) / 180))} m square</p>}
+          {d && <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{plotMetres(d.center.lat).toFixed(1)} m square</p>}
         </div>
         <button onClick={() => select(null)} className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close plot panel"><X className="h-5 w-5" /></button>
       </div>
@@ -65,13 +66,22 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-line bg-surface/50 p-3">
               <div className="eyebrow !text-[10px]">Rent</div>
-              <div className="font-display text-[15px] font-semibold tnum" style={{ color: d.rarity_info.glow }}>{formatRate(Number(d.rent.usd_per_second))}</div>
-              <div className="flex items-center gap-1 text-[11px] text-gold tnum"><Zap className="h-3 w-3" />{formatRate(Number(d.rent.usd_per_second) * Number(d.rent.boost_multiplier))} boosted</div>
+              {d.rent && d.rarity_info ? (
+                <>
+                  <div className="font-display text-[15px] font-semibold tnum" style={{ color: d.rarity_info.glow }}>{formatRate(Number(d.rent.usd_per_second))}</div>
+                  <div className="flex items-center gap-1 text-[11px] text-gold tnum"><Zap className="h-3 w-3" />{formatRate(Number(d.rent.usd_per_second) * Number(d.rent.boost_multiplier))} boosted</div>
+                </>
+              ) : (
+                <>
+                  <div className="font-display text-[15px] font-semibold">Hidden</div>
+                  <div className="text-[11px] text-muted">Its rarity sets the rent — revealed when claimed</div>
+                </>
+              )}
             </div>
             <div className="rounded-2xl border border-line bg-surface/50 p-3">
               <div className="eyebrow !text-[10px]">Minigame</div>
               <div className="font-display text-[15px] font-semibold">{d.type_info.minigame_name}</div>
-              <div className="text-[11px] text-muted">×{Number(d.rarity_info.ink_reward_multiplier).toFixed(2)} Ink per win</div>
+              <div className="text-[11px] text-muted">{d.rarity_info ? `×${Number(d.rarity_info.ink_reward_multiplier).toFixed(2)} Ink per win` : 'Rarer plots pay more Ink'}</div>
             </div>
           </div>
           <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn USD rent every second and win Ink by playing <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
@@ -197,14 +207,15 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       if (starter) {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
-        setClaimed({ groupId: r.group_id, first: true });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))];
-        toast.success(`Plot claimed — +${formatRate(Number(r.usd_per_second))} rent`, { description: `Spent ${fmt(r.cost.ink)} Ink` });
-        if (mineAdjacent.length) setGrow({ newGroup: r.group_id, neighbors: mineAdjacent });
-        else setClaimed({ groupId: r.group_id, first: false });
+        useCelebration.getState().show({
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false,
+          onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent }) : undefined,
+        });
       }
       invalidateGame(qc);
     } catch (e) {
@@ -408,5 +419,14 @@ function RenamePlot({ d }: { d: PlotDetails }) {
       <Button size="sm" type="submit" variant="primary" loading={busy}>Save</Button>
       <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
     </form>
+  );
+}
+
+/** Unclaimed plots keep their rarity secret until someone claims them. */
+function MysteryBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-line-strong px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wider text-muted" title="Rarity is revealed when the plot is claimed" data-testid="mystery-rarity">
+      <span className="bg-[linear-gradient(90deg,#3DDC97,#2FB8FF,#A45CFF,#FFB31F,#FF3D9A)] bg-clip-text text-transparent">?</span> Mystery rarity
+    </span>
   );
 }

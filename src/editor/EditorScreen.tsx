@@ -13,7 +13,7 @@ import { config } from '../env';
 import { celebrate, invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, timeAgo } from '../lib/utils';
-import { cellCenter } from '../shared/grid';
+import { cellCenter, Z_PLOT, Z_STREET } from '../shared/grid';
 import { Button, Dialog, Field, Spinner, Tabs, Tip, inputCls, useConfirm } from '../ui';
 import { BRUSHES } from './engine/brush';
 import type { Doc } from './engine/doc';
@@ -390,7 +390,7 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
   const viewOnMap = () => {
     const c = ed.doc.cells[0];
     const [lng, lat] = cellCenter(c.gx, c.gy);
-    requestFly({ lng, lat, zoom: Math.max(13.5, 16 - Math.log2(Math.max(ed.doc.layout.cols, ed.doc.layout.rows)) - 0.6) });
+    requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(Math.max(ed.doc.layout.cols, ed.doc.layout.rows))) });
     useUi.getState().setMode('canvas');
     nav('/');
   };

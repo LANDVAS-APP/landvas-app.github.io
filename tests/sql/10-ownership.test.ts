@@ -34,10 +34,10 @@ describe('accounts and ownership', () => {
 
   it('claims need an explorer nearby', async () => {
     await expectError(db.rpc(alice, 'claim_starter_plot', { p_gx: SLC.gx, p_gy: SLC.gy }), 'explorer_required');
-    await db.placeAt(alice, SLC.gx + 5, SLC.gy);
+    await db.placeAt(alice, SLC.gx + 9, SLC.gy);
     await expectError(db.rpc(alice, 'claim_starter_plot', { p_gx: SLC.gx, p_gy: SLC.gy }), 'out_of_reach');
     const d = await db.rpc(alice, 'plot_details', { p_gx: SLC.gx, p_gy: SLC.gy });
-    expect(d.reach).toMatchObject({ explorer: true, distance: 5, max: 1, in_reach: false });
+    expect(d.reach).toMatchObject({ explorer: true, distance: 9, max: 6, in_reach: false });
   });
 
   it('claims a free starter plot exactly once; no Ink is handed out', async () => {
@@ -107,7 +107,7 @@ describe('accounts and ownership', () => {
     expect(ledger[0].n).toBe(1);
     expect(r1.balances.ink).toBe(150);
     expect(Number(r1.rent.rate_usd_per_second)).toBeGreaterThan(0);
-    await expectError(db.rpc(alice, 'acquire_plot', { p_gx: SLC.gx + 3, p_gy: SLC.gy, p_idempotency_key: 'acq-far-00001' }), 'out_of_reach');
+    await expectError(db.rpc(alice, 'acquire_plot', { p_gx: SLC.gx + 8, p_gy: SLC.gy, p_idempotency_key: 'acq-far-00001' }), 'out_of_reach');
   });
 
   it('rejects purchases the player cannot afford without side effects', async () => {
@@ -225,25 +225,25 @@ describe('accounts and ownership', () => {
 
   it('antimeridian plots are neighbours and within reach', async () => {
     const p = await db.newPlayer('wrapper');
-    await db.placeAt(p, 65535, 30000);
-    await db.rpc(p, 'claim_starter_plot', { p_gx: 65535, p_gy: 30000 });
+    await db.placeAt(p, 4194303, 30000);
+    await db.rpc(p, 'claim_starter_plot', { p_gx: 4194303, p_gy: 30000 });
     const d = await db.rpc(p, 'plot_details', { p_gx: 0, p_gy: 30000 });
     expect(d.reach.in_reach).toBe(true);
     const n = d.neighbors.find((x: any) => x.dir === 'w');
-    expect(n.gx).toBe(65535);
+    expect(n.gx).toBe(4194303);
     expect(n.is_mine).toBe(true);
   });
 
   it('viewport query returns owned plots (with rarity) including across the antimeridian', async () => {
     const rows = await db.rpc(null, 'plots_in_bbox', { p_min_gx: -10, p_min_gy: 29990, p_max_gx: 10, p_max_gy: 30010 });
-    const hit = rows.find((r: any[]) => r[0] === 65535 && r[1] === 30000);
+    const hit = rows.find((r: any[]) => r[0] === 4194303 && r[1] === 30000);
     expect(hit).toBeTruthy();
     expect(['common', 'rare', 'epic', 'legendary', 'mythic']).toContain(hit[9]);
     await expectError(db.rpc(null, 'plots_in_bbox', { p_min_gx: 0, p_min_gy: 0, p_max_gx: 5000, p_max_gy: 5000 }), 'bbox_too_large');
   });
 
   it('density aggregates follow ownership', async () => {
-    const d = await db.rpc(null, 'density_in_bbox', { p_z: 3, p_x0: 0, p_y0: 0, p_x1: 7, p_y1: 7 });
+    const d = await db.rpc(null, 'density_in_bbox', { p_z: 5, p_x0: 0, p_y0: 0, p_x1: 31, p_y1: 31 });
     const total = d.reduce((s: number, r: number[]) => s + r[2], 0);
     const owned = await db.sql(`select count(*)::int n from world_plots where owner_id is not null`);
     expect(total).toBe(owned[0].n);

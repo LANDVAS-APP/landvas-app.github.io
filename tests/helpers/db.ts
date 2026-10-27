@@ -20,9 +20,9 @@ export function migrationFiles(): string[] {
     .filter((f) => !fs.readFileSync(f, 'utf8').startsWith('-- @supabase-only'));
 }
 
-export function sqlBundle(opts: { localOverrides?: boolean } = {}): string[] {
+export function sqlBundle(opts: { localOverrides?: boolean; skip?: string[] } = {}): string[] {
   const parts = [fs.readFileSync(path.join(ROOT, 'supabase/local/shim.sql'), 'utf8')];
-  for (const f of migrationFiles()) parts.push(fs.readFileSync(f, 'utf8'));
+  for (const f of migrationFiles()) if (!opts.skip?.some((k) => f.endsWith(k))) parts.push(fs.readFileSync(f, 'utf8'));
   if (opts.localOverrides) parts.push(fs.readFileSync(path.join(ROOT, 'supabase/local/local_overrides.sql'), 'utf8'));
   return parts;
 }
@@ -53,7 +53,7 @@ export class TestDb {
    * @param opts.ungated turn off location-gated claims (for suites that test
    *   other systems and claim plots all over the grid)
    */
-  async init(opts: { localOverrides?: boolean; ungated?: boolean } = {}) {
+  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[] } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
     // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
@@ -139,9 +139,12 @@ export class TestDb {
   }
 }
 
+/** Plots per axis (Web Mercator zoom 22). */
+export const GRID = 4194304;
+
 export function cellCenter(gx: number, gy: number) {
-  const n = Math.PI * (1 - (2 * (gy + 0.5)) / 65536);
-  return { lng: ((gx + 0.5) / 65536) * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(n)) };
+  const n = Math.PI * (1 - (2 * (gy + 0.5)) / GRID);
+  return { lng: ((gx + 0.5) / GRID) * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(n)) };
 }
 
 export async function expectError(p: Promise<unknown>, code: string) {

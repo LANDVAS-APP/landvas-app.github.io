@@ -8,7 +8,7 @@ import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import type { LandPlot, Profile } from '../backend/types';
 import { useUi } from '../lib/store';
-import { GRID_SIZE, cellCenter } from '../shared/grid';
+import { GRID_SIZE, Z_HOUSE, Z_STREET, cellCenter } from '../shared/grid';
 import { explorerNow, useExplorer } from '../explorer/explorer';
 
 export type Visit = {
@@ -60,8 +60,8 @@ export async function visitPlayer(username: string): Promise<boolean> {
     // your own land is just a fly-to; visiting (spectating) is for other players' land
     if (getBackend().session()?.userId === land.player.id) useVisit.getState().end();
     else useVisit.getState().start({ player: land.player, plots: land.plots, center: { lng, lat }, gx, gy, startedAt: Date.now() });
-    const zoom = Math.max(14.6, 16.2 - Math.log2(Math.max(1, Math.sqrt(land.plots.length))));
-    useUi.getState().requestFly({ lng, lat, zoom: Math.min(zoom, 16.2) });
+    const zoom = Math.max(Z_STREET, Z_HOUSE - Math.log2(Math.max(1, Math.sqrt(land.plots.length))) / 2);
+    useUi.getState().requestFly({ lng, lat, zoom: Math.min(zoom, Z_HOUSE) });
     return true;
   } catch (e) {
     toast.error(toGameError(e).message);
@@ -74,7 +74,7 @@ export function endVisit() {
   useVisit.getState().end();
   const { state, offset } = useExplorer.getState();
   const p = explorerNow(state, offset);
-  if (p) useUi.getState().requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, 15.2) });
+  if (p) useUi.getState().requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
 }
 
 /** Refresh the visited land now and then so new claims and art show up live. */

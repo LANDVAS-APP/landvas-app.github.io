@@ -5,7 +5,7 @@ import { safeStorage, saveStorage } from './utils';
 
 export type MapMode = 'atlas' | 'canvas' | 'discovery' | 'land';
 export type Theme = 'dark' | 'light' | 'system';
-export type Settings = { theme: Theme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean };
+export type Settings = { theme: Theme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean; tilt3d: boolean };
 
 type View = { lng: number; lat: number; zoom: number };
 
@@ -25,19 +25,27 @@ type UiState = {
 
 const defaultSettings: Settings = {
   theme: config.defaultTheme,
-  crispPixels: false,
+  crispPixels: true,
   globe: true,
   reduceMotion: typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   showGrid: true,
   haptics: true,
+  tilt3d: false,
 };
+
+function loadSettings(): Settings {
+  const stored = safeStorage<Partial<Settings>>('landvas.settings', {});
+  // settings saved before v0.4 had blurry art by default: show it pixel-true now
+  if (!('tilt3d' in stored)) delete stored.crispPixels;
+  return { ...defaultSettings, ...stored };
+}
 
 export const useUi = create<UiState>((set, get) => ({
   mode: safeStorage<MapMode>('landvas.mode', 'atlas'),
   selected: null,
   view: safeStorage<View>('landvas.view', { lng: -20, lat: 25, zoom: 1.6 }),
   bbox: null,
-  settings: { ...defaultSettings, ...safeStorage<Partial<Settings>>('landvas.settings', {}) },
+  settings: loadSettings(),
   flyTo: null,
   setMode: (mode) => {
     saveStorage('landvas.mode', mode);

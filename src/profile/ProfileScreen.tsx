@@ -14,7 +14,7 @@ import { ArtGrid, ArtThumb } from '../gallery/GalleryScreen';
 import { RarityBadge } from '../plot/RarityBadge';
 import { RARITY_ORDER } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
-import { cellCenter } from '../shared/grid';
+import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, cellCenter } from '../shared/grid';
 import { useUi } from '../lib/store';
 import { visitPlayer } from '../visit/visit';
 import type { PlayerLand } from '../backend/types';
@@ -90,8 +90,8 @@ function LandSection({ land }: { land: PlayerLand }) {
   const nav = useNavigate();
   const counts = RARITY_ORDER.map((r) => [r, land.plots.filter((x) => x[2] === r).length] as const).filter(([, n]) => n > 0);
   const named = land.plots.filter((x) => x[7]);
-  const go = (gx: number, gy: number, zoom = 15.6) => {
-    const [lng, lat] = cellCenter(((gx % 65536) + 65536) % 65536, gy);
+  const go = (gx: number, gy: number, zoom = Z_HOUSE) => {
+    const [lng, lat] = cellCenter(((gx % GRID_SIZE) + GRID_SIZE) % GRID_SIZE, gy);
     useUi.getState().requestFly({ lng, lat, zoom });
     nav('/');
   };
@@ -104,7 +104,7 @@ function LandSection({ land }: { land: PlayerLand }) {
       <div className="mb-3 flex flex-wrap gap-2">{counts.map(([r, n]) => <span key={r} className="flex items-center gap-1.5"><RarityBadge r={r} small /><b className="text-sm tnum">{n}</b></span>)}</div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {land.canvases.slice(0, 24).map((c) => (
-          <button key={c.id} className="glass flex items-center gap-3 rounded-2xl p-2 text-left hover:border-line-strong" onClick={() => go(Math.floor((c.min_gx + c.max_gx) / 2), Math.floor((c.min_gy + c.max_gy) / 2), c.plot_count > 4 ? 15 : 15.8)}>
+          <button key={c.id} className="glass flex items-center gap-3 rounded-2xl p-2 text-left hover:border-line-strong" onClick={() => go(Math.floor((c.min_gx + c.max_gx) / 2), Math.floor((c.min_gy + c.max_gy) / 2), c.plot_count > 16 ? Z_STREET : Z_HOUSE)}>
             {c.art ? <ArtThumb card={c.art} className="h-16 w-16 shrink-0" /> : <div className="checker h-16 w-16 shrink-0 rounded-2xl opacity-60" />}
             <div className="min-w-0">
               <div className="truncate font-semibold">{c.art?.title ?? c.name}</div>
@@ -116,7 +116,7 @@ function LandSection({ land }: { land: PlayerLand }) {
       {named.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {named.slice(0, 30).map((x) => (
-            <button key={`${x[0]}_${x[1]}`} className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1 text-xs font-semibold hover:border-line-strong" onClick={() => go(x[0], x[1], 16)}>
+            <button key={`${x[0]}_${x[1]}`} className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1 text-xs font-semibold hover:border-line-strong" onClick={() => go(x[0], x[1], Z_PLOT)}>
               <RarityBadge r={x[2]} small /> {x[7]}
             </button>
           ))}

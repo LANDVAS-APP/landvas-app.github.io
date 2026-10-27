@@ -11,7 +11,7 @@ import { qk, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, timeAgo } from '../lib/utils';
 import { PLOT_TYPES } from '../map/plotStyle';
-import { cellCenter } from '../shared/grid';
+import { GRID_SIZE, Z_HOUSE, cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, inputCls } from '../ui';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -31,7 +31,7 @@ function Shape({ g }: { g: CanvasGroup }) {
   return (
     <svg width={w * s} height={h * s} className="shrink-0" aria-hidden>
       {g.cells.map(([gx, gy, t]) => {
-        const x = ((gx - g.min_gx) % 65536 + 65536) % 65536;
+        const x = ((gx - g.min_gx) % GRID_SIZE + GRID_SIZE) % GRID_SIZE;
         const c = PLOT_TYPES[t as keyof typeof PLOT_TYPES];
         return <rect key={`${gx}_${gy}`} x={x * s + 0.5} y={(gy - g.min_gy) * s + 0.5} width={s - 1} height={s - 1} rx={s * 0.2} fill={c?.a ?? '#888'} />;
       })}
@@ -79,7 +79,7 @@ export default function CanvasesScreen() {
                     <Button size="sm" variant="ghost" onClick={() => {
                       const [gx, gy] = g.cells[0];
                       const [lng, lat] = cellCenter(gx, gy);
-                      useUi.getState().requestFly({ lng, lat, zoom: 15.2 });
+                      useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE });
                       nav('/');
                     }}><MapPin className="h-4 w-4" /> Map</Button>
                   </div>

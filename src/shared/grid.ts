@@ -1,19 +1,27 @@
 // LANDVAS world grid — the single spatial cell identification system.
 // ---------------------------------------------------------------------------
-// Plots are the Web Mercator (EPSG:3857) XYZ tiles at zoom 16:
-//   gx = floor((lng + 180) / 360 * 2^16)
-//   gy = floor((1 - ln(tan(lat) + sec(lat)) / π) / 2 * 2^16)
+// Plots are the Web Mercator (EPSG:3857) XYZ tiles at zoom 22 — about 9.5 m
+// at the equator and ~7 m at 40°N (Atlas Earth-sized parcels, 6-8 per house):
+//   gx = floor((lng + 180) / 360 * 2^22)
+//   gy = floor((1 - ln(tan(lat) + sec(lat)) / π) / 2 * 2^22)
 // so a plot ID (gx, gy) is stable across zoom levels and devices, a plot is a
-// square on screen at every latitude, and published plot art IS the z16 map
+// square on screen at every latitude, and published plot art IS the z22 map
 // tile for that cell. x wraps at the antimeridian; y does not.
 // MUST stay in sync with private.mix / private.plot_type_for (SQL).
 // ---------------------------------------------------------------------------
 
-export const GRID_LEVEL = 16;
-export const GRID_SIZE = 1 << GRID_LEVEL; // 65,536
+export const GRID_LEVEL = 22;
+export const GRID_SIZE = 2 ** GRID_LEVEL; // 4,194,304
 export const PLOT_PX = 256; // art pixels per plot edge
-export const ART_MIN_ZOOM = 8;
-export const ART_MAX_ZOOM = 16;
+export const ART_MIN_ZOOM = GRID_LEVEL - 8;
+export const ART_MAX_ZOOM = GRID_LEVEL;
+/** Map zooms that frame one plot / a few houses / a neighbourhood / a town. */
+export const Z_PLOT = GRID_LEVEL - 1.6;
+export const Z_HOUSE = GRID_LEVEL - 2.4;
+export const Z_STREET = GRID_LEVEL - 4;
+export const Z_TOWN = GRID_LEVEL - 8;
+/** Approximate edge length of a plot in metres at a latitude. */
+export const plotMetres = (lat: number) => (40075016.7 / GRID_SIZE) * Math.cos((lat * Math.PI) / 180);
 export const MAX_LAT = 85.0511287798066;
 
 export type Cell = { gx: number; gy: number };

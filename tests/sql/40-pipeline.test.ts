@@ -8,6 +8,7 @@ import os from 'node:os';
 import pg from 'pg';
 import sharp from 'sharp';
 import { TestDb } from '../helpers/db';
+import { ART_MIN_ZOOM, GRID_LEVEL as L } from '../../src/shared/grid';
 import { drainQueue, tilePath, type PipelineDb } from '../../src/server/pipeline';
 import { sharpCodec } from '../../worker/codec-sharp';
 import { fsStore } from '../../worker/storage-fs';
@@ -108,20 +109,20 @@ describe('publication pipeline', () => {
     expect((await db.rpc(painter, 'publication_status', { p_publication_id: id })).status).toBe('published');
 
     const tiles = await db.sql<{ z: number; x: number; y: number; rev: string }>(`select z, x, y, rev from art_tiles order by z desc, x`);
-    // two z16 plot tiles + one tile per zoom level from z15 down to z8
-    expect(tiles.filter((t) => t.z === 16).map((t) => t.x)).toEqual([3000, 3001]);
-    for (let z = 15; z >= 8; z--) expect(tiles.filter((t) => t.z === z)).toHaveLength(1);
+    // two plot tiles at the grid zoom + one tile per zoom level above it, down to ART_MIN_ZOOM
+    expect(tiles.filter((t) => t.z === L).map((t) => t.x)).toEqual([3000, 3001]);
+    for (let z = L - 1; z >= ART_MIN_ZOOM; z--) expect(tiles.filter((t) => t.z === z)).toHaveLength(1);
 
-    // z16 tile == processed submission pixels (map thumbnails match the artwork)
-    const t16 = tiles.find((t) => t.z === 16 && t.x === 3000)!;
-    const z16 = await decode((await store.get('public-art', tilePath(16, 3000, 3000, t16.rev)))!);
+    // the plot tile == processed submission pixels (map thumbnails match the artwork)
+    const t16 = tiles.find((t) => t.z === L && t.x === 3000)!;
+    const z16 = await decode((await store.get('public-art', tilePath(L, 3000, 3000, t16.rev)))!);
     const src = await decode(left);
     expect(Buffer.from(z16.data).equals(Buffer.from(src.data))).toBe(true);
 
-    // z15 parent: both plots side by side in the top half; the line is continuous across x=127|128
-    const t15 = tiles.find((t) => t.z === 15)!;
+    // parent tile: both plots side by side in the top half; the line is continuous across x=127|128
+    const t15 = tiles.find((t) => t.z === L - 1)!;
     expect([t15.x, t15.y]).toEqual([1500, 1500]);
-    const z15 = await decode((await store.get('public-art', tilePath(15, t15.x, t15.y, t15.rev)))!);
+    const z15 = await decode((await store.get('public-art', tilePath(L - 1, t15.x, t15.y, t15.rev)))!);
     const px = (img: typeof z15, x: number, y: number) => Array.from(img.data.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 4));
     expect(px(z15, 127, 64)).toEqual([255, 214, 0, 255]);
     expect(px(z15, 128, 64)).toEqual([255, 214, 0, 255]);
@@ -146,8 +147,8 @@ describe('publication pipeline', () => {
       [await fill([255, 0, 0]), await fill([0, 255, 0]), await fill([0, 0, 255])]);
     await db.rpc(mod, 'admin_review_publication', { p_publication_id: id, p_decision: 'approve' });
     await drainQueue(deps, 'test');
-    const z15 = (await db.sql(`select rev from art_tiles where z = 15`))[0];
-    const img = await decode((await store.get('public-art', tilePath(15, 1500, 1500, z15.rev)))!);
+    const z15 = (await db.sql(`select rev from art_tiles where z = $1`, [L - 1]))[0];
+    const img = await decode((await store.get('public-art', tilePath(L - 1, 1500, 1500, z15.rev)))!);
     const at = (x: number, y: number) => Array.from(img.data.subarray((y * 256 + x) * 4, (y * 256 + x) * 4 + 4));
     expect(at(60, 60)).toEqual([255, 0, 0, 255]); // NW = 3000,3000
     expect(at(190, 60)).toEqual([0, 255, 0, 255]); // NE = 3001,3000
@@ -163,7 +164,7 @@ describe('publication pipeline', () => {
     await drainQueue(deps, 'test');
     const cell = (await db.sql(`select a.title from world_plots p join artwork_publications a on a.id = p.art_publication_id where p.gx = 3001 and p.gy = 3000`))[0];
     expect(cell.title).toBe('Golden horizon');
-    const z16 = await db.sql(`select x, y from art_tiles where z = 16 order by y, x`);
+    const z16 = await db.sql(`select x, y from art_tiles where z = $1 order by y, x`, [L]);
     expect(z16).toEqual([{ x: 3000, y: 3000 }, { x: 3001, y: 3000 }]); // 3000,3001 had no earlier art
   });
 });

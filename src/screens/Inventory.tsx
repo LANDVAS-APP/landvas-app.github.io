@@ -9,7 +9,7 @@ import { Page, PageHeader, ResourceBar } from '../app/Shell';
 import { invalidateGame, qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { fmt, plotLabel, timeAgo } from '../lib/utils';
-import { cellCenter } from '../shared/grid';
+import { Z_HOUSE, cellCenter } from '../shared/grid';
 import { formatRate } from '../shared/rent';
 import { Button, Cost, Empty, RESOURCE_META, Spinner, Tabs } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -39,7 +39,7 @@ export default function Inventory() {
           {(plots.data ?? []).map((p: any) => (
             <button key={`${p.gx}_${p.gy}`} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2" onClick={() => {
               const [lng, lat] = cellCenter(p.gx, p.gy);
-              useUi.getState().requestFly({ lng, lat, zoom: 15.5 });
+              useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE });
               useUi.getState().select({ gx: p.gx, gy: p.gy });
               nav('/');
             }}>

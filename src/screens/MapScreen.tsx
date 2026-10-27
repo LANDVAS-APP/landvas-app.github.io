@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, ChevronDown, Compass, Crosshair, Layers, LocateFixed, MapPin, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPin, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,7 +15,7 @@ import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { Avatar, Button, Dialog, LogoMark } from '../ui';
-import { cellCenter } from '../shared/grid';
+import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter } from '../shared/grid';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
 import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
@@ -23,6 +23,8 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { endVisit, refreshVisit, useVisit } from '../visit/visit';
+import { Joystick, fmtTank } from '../explorer/Joystick';
+import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 
 const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: MapPinned, hint: 'Places, borders and every owned territory' },
@@ -42,6 +44,8 @@ export function MapScreen() {
   useExplorerSync();
   const placing = useExplorer((s) => s.placing);
   const visit = useVisit((s) => s.visit);
+  const [joystick, setJoystick] = useState(false);
+  useEffect(() => { if (visit) setJoystick(false); }, [visit]);
   useEffect(() => {
     if (!visit) return;
     const t = setInterval(() => void refreshVisit(), 30_000);
@@ -95,11 +99,19 @@ export function MapScreen() {
         )}
       </div>
       <ZoomHint zoom={view.zoom} />
-      {me && <ExplorerControls />}
+      {me && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
+      <AnimatePresence>
+        {me && joystick && !visit && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-6">
+            <Joystick onClose={() => setJoystick(false)} />
+          </div>
+        )}
+      </AnimatePresence>
       <Legend mode={mode} />
       <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
-      {me && !selected && <Checklist />}
+      {me && !selected && !joystick && <Checklist />}
       {me && <PlacementPrompt />}
+      <ClaimCelebration />
     </div>
   );
 }
@@ -117,9 +129,13 @@ function useExplorerSync() {
   }, [wantGps]);
 }
 
-function ExplorerControls() {
+function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoystick(): void }) {
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
+  const tilt = useUi((s) => s.settings.tilt3d);
+  const updateSettings = useUi((s) => s.updateSettings);
+  const visiting = !!useVisit((s) => s.visit);
+  const joy = ex.state?.joystick;
   const has = !!ex.state;
   const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
   return (
@@ -130,7 +146,7 @@ function ExplorerControls() {
           if (ex.gps === 'on' || ex.gps === 'asking') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer stays where it is. You can travel by tapping plots.' }); return; }
           if (!gpsSupported()) { toast.error('This browser has no location service — tap plots to travel instead.'); return; }
           saveStorage('landvas.gps', true);
-          startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: 15.4 }) });
+          startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }) });
           useExplorer.getState().setFollowing(true);
         }}
         title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings, or travel by tapping plots.' : 'Move your explorer with your real location'}
@@ -138,13 +154,23 @@ function ExplorerControls() {
       >
         <Satellite className="h-4 w-4" /> <span className="hidden sm:inline">{gpsLabel}</span>
       </button>
+      <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', tilt && 'text-accent-2 ring-2 ring-accent-2/60')}
+        onClick={() => updateSettings({ tilt3d: !tilt })} aria-pressed={tilt} title="Tilt the map to see buildings in 3D" data-testid="tilt-3d">
+        <Box className="h-4 w-4" /> {tilt ? '3D' : '2D'}
+      </button>
+      {has && joy?.enabled !== false && (
+        <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', joystick && 'text-accent-2 ring-2 ring-accent-2/60')}
+          disabled={visiting} onClick={onJoystick} aria-pressed={joystick} title={visiting ? 'Leave the visit to use the joystick' : 'Steer your explorer with the joystick'} data-testid="joystick-toggle">
+          <Gamepad className="h-4 w-4" /> <span className="tnum">{joy ? fmtTank(Number(joy.seconds_left)) : 'Joystick'}</span>
+        </button>
+      )}
       {has && (
         <button
           className={cn('glass flex h-11 w-11 items-center justify-center rounded-2xl', ex.following && 'text-accent-2 ring-2 ring-accent-2/60')}
           aria-label="Center on my explorer"
           onClick={() => {
             const p = explorerNow(ex.state, ex.offset);
-            if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, 15.2) });
+            if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
             ex.setFollowing(!ex.following || true);
           }}
           data-testid="locate-me"
@@ -166,7 +192,7 @@ function PlacementPrompt() {
   const pick = () => {
     ex.setPlacing(true);
     setDismissed(true);
-    if (useUi.getState().view.zoom < 10) toast('Find your spot', { description: 'Search your city above or zoom in, then tap where you are.' });
+    if (useUi.getState().view.zoom < Z_TOWN + 2) toast('Find your spot', { description: 'Search your city above or zoom in, then tap where you are.' });
   };
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setDismissed(true)} title="Drop into the world"
@@ -175,7 +201,7 @@ function PlacementPrompt() {
         {gpsSupported() && !config.isArtifact && (
           <Button variant="rainbow" size="lg" onClick={() => {
             saveStorage('landvas.gps', true);
-            startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: 15.4 }) });
+            startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }) });
             useExplorer.getState().setFollowing(true);
             setDismissed(true);
           }} data-testid="place-gps"><Satellite className="h-4 w-4" /> Use my location (GPS)</Button>
@@ -200,11 +226,11 @@ function SignInChip() {
 }
 
 function ZoomHint({ zoom }: { zoom: number }) {
-  if (zoom >= 11.5) return null;
+  if (zoom >= Z_STREET - 1) return null;
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex justify-center md:bottom-6">
       <div className="glass rounded-full px-4 py-2 text-[12.5px] font-semibold text-muted">
-        {zoom < 8 ? 'Zoom into a city to see its plots — or search a place above' : 'Keep zooming — tap the map to dive in'}
+        {zoom < Z_TOWN - 1 ? 'Zoom into a city to see its plots — or search a place above' : 'Keep zooming in to your street — tap the map to dive in'}
       </div>
     </div>
   );
@@ -261,7 +287,7 @@ function PlaceSearch() {
     const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (!m) return null;
     const a = Number(m[1]), b = Number(m[2]);
-    if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0 && a < 65536 && b < 65536 && (a > 180 || b > 90)) return { plot: { gx: a, gy: b } };
+    if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0 && a < GRID_SIZE && b < GRID_SIZE && (a > 180 || b > 90)) return { plot: { gx: a, gy: b } };
     if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lng: b };
     return null;
   }, [q]);
@@ -284,7 +310,7 @@ function PlaceSearch() {
           {!q && myLand && (
             <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
               const [lng, lat] = cellCenter(myLand.cells[0][0], myLand.cells[0][1]);
-              go(lng, lat, 15.2);
+              go(lng, lat, Z_HOUSE);
               select({ gx: myLand.cells[0][0], gy: myLand.cells[0][1] });
             }}>
               <Layers className="h-4 w-4 text-accent-2" /><span className="text-sm font-semibold">Go to my land</span>
@@ -292,7 +318,7 @@ function PlaceSearch() {
           )}
           {!q && !config.isArtifact && 'geolocation' in navigator && (
             <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
-              navigator.geolocation.getCurrentPosition((p) => go(p.coords.longitude, p.coords.latitude, 14.5), () => toast.error('Location unavailable — search for a place instead.'), { timeout: 8000 });
+              navigator.geolocation.getCurrentPosition((p) => go(p.coords.longitude, p.coords.latitude, Z_STREET), () => toast.error('Location unavailable — search for a place instead.'), { timeout: 8000 });
             }}>
               <LocateFixed className="h-4 w-4 text-muted" />
               <span className="text-sm">Near me <span className="text-faint">(optional, never stored)</span></span>
@@ -301,14 +327,14 @@ function PlaceSearch() {
           {coords && 'plot' in coords && coords.plot && (
             <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
               const [lng, lat] = cellCenter(coords.plot!.gx, coords.plot!.gy);
-              go(lng, lat, 15.5);
+              go(lng, lat, Z_PLOT);
               select(coords.plot!);
             }}>
               <MapPinned className="h-4 w-4 text-gold" /><span className="text-sm">Plot {coords.plot.gx} · {coords.plot.gy}</span>
             </button>
           )}
           {coords && 'lat' in coords && (
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => go(coords.lng!, coords.lat!, 14)}>
+            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => go(coords.lng!, coords.lat!, Z_STREET)}>
               <MapPinned className="h-4 w-4 text-gold" /><span className="text-sm">{coords.lat}, {coords.lng}</span>
             </button>
           )}

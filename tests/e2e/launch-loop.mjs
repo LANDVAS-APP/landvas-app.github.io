@@ -27,6 +27,8 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g/.test(m.text())) errors.push(m.text()); });
 const shot = (n, p = page) => p.screenshot({ path: path.join(OUT, `${n}.png`), timeout: 90000 });
 const URL = `http://localhost:${PORT}/?e2e=1`;
+const G = 4194304; // plots per side (zoom-22 grid)
+const ZP = 20.4; // zoom that frames a few plots
 
 async function pixelAt(file, x, y) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
@@ -35,24 +37,25 @@ async function pixelAt(file, x, y) {
 }
 const near = (a, b, tol = 40) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const center = (gx, gy) => {
-  const n = Math.PI * (1 - (2 * (gy + 0.5)) / 65536);
-  return { lng: ((gx + 0.5) / 65536) * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(n)) };
+  const n = Math.PI * (1 - (2 * (gy + 0.5)) / G);
+  return { lng: ((gx + 0.5) / G) * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(n)) };
 };
-async function gotoPlot(p, gx, gy, zoom = 15.6) {
-  await p.evaluate(([gx, gy, zoom]) => {
-    const n = Math.PI * (1 - 2 * (gy + 0.5) / 65536);
-    window.__landvasMap.jumpTo({ center: [((gx + 0.5) / 65536) * 360 - 180, (180 / Math.PI) * Math.atan(Math.sinh(n))], zoom });
-  }, [gx, gy, zoom]);
+async function gotoPlot(p, gx, gy, zoom = ZP) {
+  await p.evaluate(([gx, gy, zoom, G]) => {
+    window.__landvasMap.fire('dragstart'); // stop following the explorer, like a user panning away
+    const n = Math.PI * (1 - 2 * (gy + 0.5) / G);
+    window.__landvasMap.jumpTo({ center: [((gx + 0.5) / G) * 360 - 180, (180 / Math.PI) * Math.atan(Math.sinh(n))], zoom });
+  }, [gx, gy, zoom, G]);
   await p.waitForTimeout(1200);
 }
 async function screenOf(p, gx, gy, fx = 0.5, fy = 0.5) {
-  return p.evaluate(([gx, gy, fx, fy]) => {
+  return p.evaluate(([gx, gy, fx, fy, G]) => {
     const m = window.__landvasMap;
-    const n = Math.PI * (1 - 2 * (gy + fy) / 65536);
-    const pt = m.project([((gx + fx) / 65536) * 360 - 180, (180 / Math.PI) * Math.atan(Math.sinh(n))]);
+    const n = Math.PI * (1 - 2 * (gy + fy) / G);
+    const pt = m.project([((gx + fx) / G) * 360 - 180, (180 / Math.PI) * Math.atan(Math.sinh(n))]);
     const r = m.getCanvas().getBoundingClientRect();
     return { x: r.left + pt.x, y: r.top + pt.y };
-  }, [gx, gy, fx, fy]);
+  }, [gx, gy, fx, fy, G]);
 }
 async function clickPlot(p, gx, gy) {
   const s = await screenOf(p, gx, gy);
@@ -78,7 +81,7 @@ async function winMinigame(p, game, gx, gy) {
   return p.evaluate(() => document.querySelector('[data-testid=game-results]')?.textContent ?? '');
 }
 
-const START = { gx: 12398, gy: 24628 }; // Salt Lake City
+const START = { gx: 12398 * 64 + 32, gy: 24628 * 64 + 32 }; // a house in Salt Lake City
 try {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForSelector('#email', { timeout: 60000 });
@@ -98,24 +101,36 @@ try {
   await page.waitForSelector('[data-testid=place-pick]', { timeout: 15000 });
   await shot('02-placement-prompt');
   await page.click('[data-testid=place-pick]');
-  await gotoPlot(page, START.gx, START.gy, 15.4);
+  await gotoPlot(page, START.gx, START.gy, ZP - 0.4);
   const sp = await screenOf(page, START.gx, START.gy);
   await page.mouse.click(sp.x, sp.y);
   await page.waitForFunction(() => document.querySelector('.lv-explorer') !== null, null, { timeout: 15000 });
   await page.waitForTimeout(1500);
   const ex = await page.evaluate(async () => (await window.__landvasApi.myExplorer()));
-  check('explorer placed where the player tapped', ex && ex.gx === 12398 && ex.gy === 24628, JSON.stringify(ex && { gx: ex.gx, gy: ex.gy, mode: ex.mode }));
+  check('explorer placed where the player tapped', ex && ex.gx === START.gx && ex.gy === START.gy, JSON.stringify(ex && { gx: ex.gx, gy: ex.gy, mode: ex.mode }));
   await shot('03-explorer-placed');
 
   // claim the free starter plot (inside the reach square)
-  await page.evaluate(() => window.__landvasMap.jumpTo({ zoom: 15.6 }));
+  await page.evaluate((z) => window.__landvasMap.jumpTo({ zoom: z }), ZP);
   await page.waitForTimeout(800);
   await clickPlot(page, START.gx, START.gy);
   await shot('04-plot-panel');
   const typeIcons = await page.evaluate(() => window.__landvasMap.queryRenderedFeatures({ layers: ['lv-free-icon'] }).length);
   check('unclaimed plots show their type', typeIcons > 0, `${typeIcons} badges`);
+  const hidden = await page.evaluate(async ([gx, gy]) => {
+    const d = await window.__landvasApi.plotDetails(gx, gy);
+    const feats = window.__landvasMap.querySourceFeatures('lv-rarity');
+    return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: feats.some((f) => 'r' in f.properties), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
+  }, [START.gx, START.gy]);
+  check('unclaimed plots keep their rarity secret', hidden.rarity == null && hidden.hidden === true && hidden.rent == null && hidden.acquireRarity == null && !hidden.mapRarity && hidden.panel, JSON.stringify(hidden));
   await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
   await page.click('[data-testid=claim-plot]');
+  await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 });
+  await page.waitForTimeout(900);
+  await shot('04b-claim-celebration');
+  await page.waitForFunction(() => /Incredible|solid start|Nice/.test(document.querySelector('[data-testid=claim-celebration]')?.textContent ?? ''), null, { timeout: 15000 });
+  const revealed = await page.textContent('[data-testid=claim-rarity]');
+  check('claiming plays the celebration and reveals the rarity', !!revealed, revealed);
   await page.waitForSelector('[data-testid=choose-draw]', { timeout: 15000 });
   check('starter plot claimed for free', true);
   await page.keyboard.press('Escape');
@@ -156,11 +171,14 @@ try {
   // buy the neighbouring plot with Ink
   await page.evaluate(() => window.__landvasNav('/'));
   await page.waitForSelector('[data-testid=world-map]', { timeout: 15000 });
-  await gotoPlot(page, START.gx + 1, START.gy, 15.6);
+  await gotoPlot(page, START.gx + 1, START.gy, ZP);
   await clickPlot(page, START.gx + 1, START.gy);
   const before = await ink();
   await page.click('[data-testid=claim-plot]');
+  await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 });
   await page.waitForTimeout(1500);
+  await page.evaluate(() => document.querySelector('[data-testid=celebration-close]')?.click());
+  await page.waitForTimeout(600);
   const after = await ink();
   const state = await page.evaluate(async () => window.__landvasApi.myState());
   check('bought a neighbouring plot for 100 Ink', state.plot_count === 2 && before - after === 100, `${before} → ${after}, plots ${state.plot_count}`);
@@ -168,9 +186,9 @@ try {
   await shot('07-two-plots');
 
   // a far plot is out of reach until the explorer travels there
-  const far = { gx: START.gx + 6, gy: START.gy };
+  const far = { gx: START.gx + 14, gy: START.gy };
   await page.evaluate(() => window.__landvasUi?.select?.(null));
-  await gotoPlot(page, far.gx, far.gy, 15.2);
+  await gotoPlot(page, far.gx, far.gy, ZP - 0.8);
   await clickPlot(page, far.gx, far.gy);
   const travelBtn = await page.locator('[data-testid=travel-here]').count();
   check('far plots need travel (location-gated claims)', travelBtn === 1 && (await page.locator('[data-testid=claim-plot]').count()) === 0);
@@ -180,17 +198,50 @@ try {
   check('explorer travels toward the tapped plot', moving.traveling === true && !!moving.dest, JSON.stringify({ traveling: moving.traveling }));
   await shot('08-travelling');
 
-  // map is colourful: rarity cells and the explorer are rendered
+  // every small plot in view is drawn, typed, but with no rarity
   const layers = await page.evaluate(() => {
     const m = window.__landvasMap;
     const feats = m.querySourceFeatures('lv-rarity');
-    return { rarity: feats.length, kinds: [...new Set(feats.map((f) => f.properties.r))] };
+    return { cells: feats.length, types: [...new Set(feats.map((f) => f.properties.t))], rarity: feats.filter((f) => f.properties.r).length };
   });
-  check('every plot in view is coloured by rarity', layers.rarity > 20 && layers.kinds.length >= 3, JSON.stringify(layers));
+  check('every unclaimed plot in view is drawn with its type, none with a rarity', layers.cells > 100 && layers.types.length >= 2 && layers.rarity === 0, JSON.stringify(layers));
+  const metres = (40075016.7 / G) * Math.cos((center(START.gx, START.gy).lat * Math.PI) / 180);
+  check('plots are house-sized (~7 m at Salt Lake City)', metres > 6 && metres < 8, `${metres.toFixed(2)} m`);
+
+  // the joystick steers the explorer at a capped speed and burns its tank
+  await page.evaluate(() => document.querySelector('[data-testid=plot-panel] button[aria-label="Close plot panel"]')?.click());
+  await page.waitForTimeout(600);
+  await page.click('[data-testid=joystick-toggle]', { timeout: 10000 }).catch(async (e) => { await shot('zz-joystick-failure'); throw e; });
+  await page.waitForSelector('[data-testid=joystick-pad]', { timeout: 10000 });
+  const exBefore = await page.evaluate(async () => window.__landvasApi.myExplorer());
+  const padBox = await page.locator('[data-testid=joystick-pad]').boundingBox();
+  const cx = padBox.x + padBox.width / 2, cy = padBox.y + padBox.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 50, cy - 10, { steps: 6 });
+  await page.waitForTimeout(3200);
+  await page.mouse.up();
+  await page.waitForTimeout(1500);
+  const exAfter = await page.evaluate(async () => window.__landvasApi.myExplorer());
+  const movedM = (() => {
+    const r = Math.PI / 180, a = exBefore, b = exAfter;
+    const h = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
+    return 2 * 6371008.8 * Math.asin(Math.sqrt(h));
+  })();
+  await shot('08b-joystick');
+  check('the joystick moves the explorer (server-checked) and drains the tank', exAfter.mode === 'manual' && movedM > 8 && movedM < 80 && exAfter.joystick.seconds_left < exBefore.joystick.seconds_left && exAfter.lng > exBefore.lng,
+    `${movedM.toFixed(1)} m, tank ${Number(exBefore.joystick.seconds_left).toFixed(1)} → ${Number(exAfter.joystick.seconds_left).toFixed(1)} s`);
+  await page.click('[data-testid=joystick-close]');
+  await page.click('[data-testid=tilt-3d]');
+  await page.waitForTimeout(1400);
+  const pitch = await page.evaluate(() => window.__landvasMap.getPitch());
+  check('the 3D button tilts the map', pitch > 40, pitch.toFixed(1));
+  await page.click('[data-testid=tilt-3d]');
+  await page.waitForTimeout(1200);
 
   // paint + publish the starter plot, then see it on the map
   const groups = await page.evaluate(async () => window.__landvasApi.myGroups());
-  const starterGroup = groups.find((g) => g.cells.some((c) => c[0] === 12398 && c[1] === 24628));
+  const starterGroup = groups.find((g) => g.cells.some((c) => c[0] === START.gx && c[1] === START.gy));
   await page.evaluate((id) => window.__landvasNav(`/create/${id}`), starterGroup.id);
   await page.waitForSelector('[data-testid=editor-canvas]', { timeout: 20000 });
   await page.waitForFunction(() => !!window.__landvasEditor, null, { timeout: 20000 });
@@ -211,7 +262,7 @@ try {
   // a remounted map can take a while to load in software-rendered headless Chrome
   await page.waitForFunction(() => !!window.__landvasMap?.getSource?.('lv-art'), null, { timeout: 90000 });
   await page.evaluate(() => document.querySelector('[data-testid=plot-panel] button[aria-label="Close plot panel"]')?.click());
-  await gotoPlot(page, START.gx, START.gy, 16);
+  await gotoPlot(page, START.gx, START.gy, 22);
   await page.waitForFunction(() => window.__landvasMap.areTilesLoaded(), null, { timeout: 60000 });
   await page.waitForTimeout(1500);
   const f = path.join(OUT, '09-art-on-map.png');
@@ -221,15 +272,15 @@ try {
   const artOk = near(px, [255, 61, 154], 70);
   check('published art visible on the map', artOk, JSON.stringify(px));
   if (!artOk) {
-    const diag = await page.evaluate(async () => {
+    const diag = await page.evaluate(async ([START_GX, START_GY]) => {
       const m = window.__landvasMap;
       const tm = m.style.tileManagers?.['lv-art'];
       let tiles = '';
       try { tiles = tm._inViewTiles.getAllIds().map((id) => { const t = tm._inViewTiles.getTileById(id); const c = t.tileID.canonical; return `${c.z}/${c.x}/${c.y}:${t.state}`; }).join(' '); } catch (e) { tiles = 'ERR ' + e; }
-      const idx = await window.__landvasApi.artTileIndex(16, [[12398 >> 4, 24628 >> 4]]);
+      const idx = await window.__landvasApi.artTileIndex(22, [[START_GX >> 4, START_GY >> 4]]);
       const pubs = await window.__landvasApi.myPublications();
       return { zoom: m.getZoom(), center: m.getCenter(), mode: m.getPaintProperty('lv-groups-line', 'line-opacity'), tiles, idx, pubs: pubs.map((p) => [p.status, p.plot_count, p.title]), log: (window.__lvartLog || []).slice(-30) };
-    });
+    }, [START.gx, START.gy]);
     console.log('ARTDIAG', JSON.stringify(diag, null, 1));
     await page.evaluate(() => window.__landvasMap.triggerRepaint());
     await page.waitForTimeout(800);

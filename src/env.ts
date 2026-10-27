@@ -7,6 +7,8 @@ export const config = {
   supabaseAnonKey: (e.VITE_SUPABASE_ANON_KEY as string) || '',
   workerUrl: ((e.VITE_WORKER_URL as string) || '').replace(/\/$/, ''),
   mapStyleUrl: (e.VITE_MAP_STYLE_URL as string) || '',
+  /** TileJSON of OpenMapTiles-schema vector tiles for streets & buildings (e.g. OpenFreeMap). */
+  streets: (e.VITE_STREETS as string) || '',
   router: ((e.VITE_ROUTER as string) || 'browser') as 'browser' | 'hash' | 'memory',
   defaultTheme: ((e.VITE_DEFAULT_THEME as string) || 'dark') as 'dark' | 'light' | 'system',
   fonts: ((e.VITE_FONTS as string) || 'self') as 'self' | 'google',

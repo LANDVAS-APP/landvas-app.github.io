@@ -157,9 +157,9 @@ describe('Canvas Fusion and artwork versions', () => {
 
   it('a fused canvas across the antimeridian is contiguous', async () => {
     const w = await db.newPlayer('wrapper');
-    await db.rpc(w, 'claim_starter_plot', { p_gx: 65535, p_gy: 5000 });
+    await db.rpc(w, 'claim_starter_plot', { p_gx: 4194303, p_gy: 5000 });
     await ownBlock(w, 0, 5000, 1, 1);
-    const f = await db.rpc(w, 'fuse_groups', { p_group_ids: [await groupOf(65535, 5000), await groupOf(0, 5000)] });
+    const f = await db.rpc(w, 'fuse_groups', { p_group_ids: [await groupOf(4194303, 5000), await groupOf(0, 5000)] });
     expect(f.plot_count).toBe(2);
     expect(f.min_gx).toBe(-1);
     expect(f.max_gx).toBe(0);
