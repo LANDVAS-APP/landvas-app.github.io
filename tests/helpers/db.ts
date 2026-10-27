@@ -56,7 +56,8 @@ export class TestDb {
   async init(opts: { localOverrides?: boolean; ungated?: boolean } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
-    await root.query(`create database ${this.name}`);
+    // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
+    await root.query(`create database ${this.name} template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'`);
     await root.end();
     this.admin = await this.connect();
     for (const sql of sqlBundle(opts)) await this.admin.query(sql);

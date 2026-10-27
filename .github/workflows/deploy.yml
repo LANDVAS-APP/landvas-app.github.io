@@ -44,7 +44,10 @@ jobs:
               || npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
           done
       - name: Build web app
-        run: npx vite build --mode production
+        run: |
+          export LANDVAS_BUILD_ID="${GITHUB_SHA::7}"
+          npx vite build --mode production
+          printf '{"build":"%s","at":"%s"}\n' "$LANDVAS_BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
       - name: Publish to GitHub Pages (main branch)
         run: |
           cp dist/index.html dist/404.html

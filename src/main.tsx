@@ -5,6 +5,7 @@ import { config } from './env';
 import { applyTheme, useUi } from './lib/store';
 import { initBackend } from './backend/backend';
 import { BootScreen } from './app/BootScreen';
+import { startUpdates } from './app/updates';
 
 if (config.fonts === 'self') {
   void import('@fontsource-variable/unbounded');
@@ -18,9 +19,7 @@ if (config.fonts === 'self') {
 applyTheme(useUi.getState().settings.theme);
 if (config.e2e) document.documentElement.classList.add('e2e');
 
-if (config.serviceWorker && 'serviceWorker' in navigator && import.meta.env.PROD) {
-  void import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true })).catch(() => {});
-}
+startUpdates();
 
 function Root() {
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; error?: unknown; App?: React.ComponentType }>({ status: 'loading' });

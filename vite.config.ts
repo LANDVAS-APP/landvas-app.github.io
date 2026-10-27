@@ -11,8 +11,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const artifact = mode === 'artifact';
   const pwa = !artifact && env.VITE_SW !== 'off';
+  // identifies this build; the running app compares it with /version.json to self-update
+  const buildId = process.env.LANDVAS_BUILD_ID || `dev-${Date.now().toString(36)}`;
   return {
     base: artifact ? './' : '/',
+    define: { __LANDVAS_BUILD__: JSON.stringify(buildId), __LANDVAS_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
     resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
     plugins: [
       react(),
@@ -46,6 +49,10 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
+            // a new deploy takes over open tabs right away (the app reloads itself once)
+            skipWaiting: true,
+            clientsClaim: true,
+            cleanupOutdatedCaches: true,
             globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
             globIgnores: ['**/pglite*', '**/*.wasm', '**/*.data', '**/places*.json'],
             maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
