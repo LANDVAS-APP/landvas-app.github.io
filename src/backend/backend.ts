@@ -50,7 +50,26 @@ const MESSAGES: Record<string, string> = {
   account_restricted: 'Your account is restricted. Check Settings for details.',
   plot_unavailable: 'Someone already owns this plot — try a neighbour.',
   starter_already_claimed: 'You already claimed your free starter plot.',
-  insufficient_funds: 'Not enough resources yet. Play a plot minigame or collect production to earn more.',
+  insufficient_funds: 'Not enough yet — win plot minigames to earn more Ink.',
+  out_of_reach: 'That plot is too far from your explorer. Travel closer first.',
+  explorer_required: 'Place your explorer on the map first.',
+  jump_cooldown: 'Your instant jump is used for today.',
+  invalid_plot_name: 'Plot names use up to 32 letters, numbers, spaces and simple punctuation.',
+  'invalid_plot_name:too_long': 'Plot names can be up to 32 characters.',
+  'invalid_plot_name:links': 'Plot names can’t contain links.',
+  'invalid_plot_name:language': 'Please pick a friendlier name — that one isn’t allowed.',
+  'invalid_plot_name:characters': 'Plot names can’t contain symbols like < > { } @ or invisible characters.',
+  joystick_disabled: 'The joystick is switched off right now.',
+  ads_disabled: 'Ads aren’t live yet.',
+  flag_locked: 'That switch can’t be changed from the console.',
+  legal_signoff_required: 'This feature needs legal sign-off before it can be switched on.',
+  invalid_minigame_config: 'Those minigame values are out of range.',
+  invalid_explorer_config: 'Those explorer values are out of range.',
+  invalid_economy_config: 'Those economy values are out of range.',
+  invalid_rent_config: 'Those rent values are out of range.',
+  invalid_rate: 'USD rates must be between 0 and 0.001 per second.',
+  reason_required: 'Add a short reason (it goes in the audit log).',
+  cannot_moderate_self: 'You can’t do that to your own account.',
   not_owner: 'You do not own this.',
   not_connected: 'Those canvases do not touch — plots must share an edge.',
   canvas_too_large: 'That canvas would exceed the current size limit.',
@@ -88,7 +107,7 @@ const MESSAGES: Record<string, string> = {
 };
 
 export function friendlyError(code: string, detail?: string) {
-  return MESSAGES[code] ?? (detail ? `${code.replace(/_/g, ' ')} (${detail})` : 'Something went wrong. Please try again.');
+  return (detail && MESSAGES[`${code}:${detail}`]) || MESSAGES[code] || (detail ? `${code.replace(/_/g, ' ')} (${detail})` : 'Something went wrong. Please try again.');
 }
 
 export function toGameError(e: unknown): GameError {
@@ -96,7 +115,7 @@ export function toGameError(e: unknown): GameError {
   const msg = String((e as any)?.message ?? e ?? 'error');
   const detail = (e as any)?.detail ?? (e as any)?.details;
   const code = /^[a-z_]+$/.test(msg) ? msg : msg.match(/\b([a-z]+(?:_[a-z]+)+)\b/)?.[1] ?? 'unknown_error';
-  return new GameError(code, MESSAGES[code] ?? (code === 'unknown_error' ? msg : undefined), detail);
+  return new GameError(code, (detail && MESSAGES[`${code}:${detail}`]) || MESSAGES[code] || (code === 'unknown_error' ? msg : undefined), detail);
 }
 
 let instance: Backend | null = null;

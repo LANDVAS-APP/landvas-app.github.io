@@ -112,6 +112,9 @@ try {
   await page.waitForTimeout(800);
   await clickPlot(page, START.gx, START.gy);
   await shot('04-plot-panel');
+  const typeIcons = await page.evaluate(() => window.__landvasMap.queryRenderedFeatures({ layers: ['lv-free-icon'] }).length);
+  check('unclaimed plots show their type', typeIcons > 0, `${typeIcons} badges`);
+  await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
   await page.click('[data-testid=claim-plot]');
   await page.waitForSelector('[data-testid=choose-draw]', { timeout: 15000 });
   check('starter plot claimed for free', true);
@@ -119,6 +122,10 @@ try {
   await page.waitForTimeout(400);
   const details = await page.evaluate(async ([gx, gy]) => window.__landvasApi.plotDetails(gx, gy), [START.gx, START.gy]);
   check('plot shows rarity and USD rent', !!details.rarity && Number(details.rent.usd_per_second) > 0, `${details.rarity} ${details.rent.usd_per_second}/s`);
+  check('the plot carries its custom name', details.name === "Ava's HQ", String(details.name));
+  await page.waitForTimeout(1200);
+  const nameLabel = await page.evaluate(() => [...document.querySelectorAll('.lv-plot-name')].map((e) => e.textContent));
+  check('the name floats over the plot on the map', nameLabel.includes("Ava's HQ"), JSON.stringify(nameLabel));
 
   // rent ticks every frame
   const r1 = await page.textContent('[data-testid=usd-live]');
@@ -240,7 +247,7 @@ try {
 
   // every screen renders without crashing
   await page.evaluate(async () => { await window.__landvasApi.devGrantSelfAdmin(); });
-  const screens = ['/canvases', '/play', '/gallery', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/admin'];
+  const screens = ['/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/admin'];
   const broken = [];
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
@@ -250,6 +257,23 @@ try {
   }
   check('all screens render', broken.length === 0, broken.join(', '));
   await shot('11-admin');
+  for (const tab of ['overview', 'players', 'earnings', 'world', 'plots', 'flags', 'system']) {
+    await page.evaluate((t) => { location.hash = t; }, tab);
+    await page.evaluate(() => window.__landvasNav('/admin'));
+    await page.waitForTimeout(300);
+    await page.getByRole('tab', { name: new RegExp(`^${{ overview: 'Dashboard', players: 'Players', earnings: 'Earnings', world: 'World', plots: 'Plots', flags: 'Switches', system: 'System' }[tab]}`) }).click().catch(() => {});
+    await page.waitForTimeout(900);
+    const t = await page.evaluate(() => document.querySelector('main')?.textContent ?? '');
+    if (t.trim().length < 60 || /Something went wrong/i.test(t)) broken.push(`/admin#${tab}`);
+  }
+  await page.getByRole('tab', { name: /^Earnings/ }).click();
+  await page.waitForSelector('[data-testid=save-minigames]', { timeout: 10000 });
+  await shot('11b-admin-earnings');
+  check('admin hub tabs render', broken.length === 0, broken.join(', '));
+  await page.evaluate(() => window.__landvasNav('/players'));
+  await page.waitForSelector('[data-testid=player-card]', { timeout: 15000 });
+  await shot('12-players');
+  check('players page lists real players', (await page.locator('[data-testid=player-card]').count()) >= 1);
 
   // phone layout (local mode allows one tab per device, so close the desktop one first)
   await page.close();

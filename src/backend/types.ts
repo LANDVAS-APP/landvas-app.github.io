@@ -39,7 +39,10 @@ export type WorldConfig = {
   rarities: RarityInfo[];
   economy: any;
   rent: { enabled: boolean; currency: string; level_bonus: number; max_offline_days: number; boost: { multiplier: number; minutes_per_boost: number; max_stack_hours: number; free_per_day: number; reset_hour_utc: number }; cashout: { minimum_usd: number; methods: string[] } };
-  explorer: { claim_reach: number; max_speed_kmh: number; manual_travel: boolean; travel_speed_kmh: number; jump_cooldown_hours: number };
+  explorer: {
+    claim_reach: number; max_speed_kmh: number; manual_travel: boolean; travel_speed_kmh: number; jump_cooldown_hours: number;
+    joystick?: { enabled: boolean; speed_kmh: number; tank_seconds: number; daily_refill: boolean; burst_seconds: number };
+  };
   limits: { max_canvas_side: number; max_canvas_plots: number; max_layers_base: number; max_layers_hard: number; plot_px: number };
   shop: { items: ShopItem[] };
   legal: { terms_version: string; privacy_version: string; support_email: string; abuse_email: string; copyright_email: string };
@@ -83,7 +86,19 @@ export type ExplorerState = {
   arrives_at: string | null;
   jump_available_at: string | null;
   reach: number;
+  has_gps_fix?: boolean;
+  joystick?: JoystickState;
   server_time: string;
+};
+
+export type JoystickState = {
+  enabled: boolean;
+  seconds_left: number;
+  tank_seconds: number;
+  speed_kmh: number;
+  daily_refill: boolean;
+  next_refill_at: string;
+  ads_enabled: boolean;
 };
 
 export type CashoutStatus = {
@@ -101,6 +116,7 @@ export type PlotDetails = {
   gx: number;
   gy: number;
   center: { lng: number; lat: number };
+  name?: string | null;
   plot_type: PlotTypeId;
   type_info: PlotTypeInfo;
   rarity: RarityId;
@@ -121,8 +137,29 @@ export type PlotDetails = {
   available?: boolean;
 };
 
-/** Compact row from plots_in_bbox: [gx, gy, type, level, is_mine, group_id, has_art, username, accent, rarity] */
-export type PlotRow = [number, number, PlotTypeId, number, boolean | null, string | null, boolean, string | null, string | null, RarityId];
+/** Compact row from plots_in_bbox: [gx, gy, type, level, is_mine, group_id, has_art, username, accent, rarity, name] */
+export type PlotRow = [number, number, PlotTypeId, number, boolean | null, string | null, boolean, string | null, string | null, RarityId, (string | null)?];
+
+/** One row of the public players directory. */
+export type DirectoryPlayer = {
+  profile: Profile;
+  plots: number;
+  artworks: number;
+  appreciations: number;
+  artist_level: number;
+  best_rarity: RarityId | null;
+  top_art: { id: string; title: string; thumb_path: string | null } | null;
+};
+
+/** Land row from player_land: [gx, gy, rarity, type, level, has_art, group_id, name] */
+export type LandPlot = [number, number, RarityId, PlotTypeId, number, boolean, string | null, string | null];
+export type PlayerLand = {
+  player: Profile;
+  total_plots: number;
+  usd_per_second: number;
+  plots: LandPlot[];
+  canvases: { id: string; name: string; plot_count: number; min_gx: number; min_gy: number; max_gx: number; max_gy: number; art: ArtworkCard | null }[];
+};
 
 export type GroupCell = [number, number, PlotTypeId, number, boolean];
 export type CanvasGroup = {

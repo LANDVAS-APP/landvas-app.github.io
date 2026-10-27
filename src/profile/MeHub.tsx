@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, Brush, ChevronRight, Gamepad2, LayoutGrid, LogOut, Package, Settings as SettingsIcon, Shield, Trophy, Wallet } from 'lucide-react';
+import { Award, Brush, ChevronRight, Gamepad2, LayoutGrid, LogOut, Package, Settings as SettingsIcon, Shield, Trophy, Users, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -31,7 +31,8 @@ export default function MeHub() {
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top landholders & artists' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },
     { to: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Theme, GPS, account' },
-    ...(me.roles.length ? [{ to: '/admin', label: 'Admin console', icon: Shield, hint: me.roles.join(', ') }] : []),
+    { to: '/players', label: 'Players', icon: Users, hint: 'Everyone’s land and art' },
+    ...(me.roles.includes('owner') ? [{ to: '/admin', label: 'Admin hub', icon: Shield, hint: 'Owner' }] : []),
   ];
   return (
     <Page>

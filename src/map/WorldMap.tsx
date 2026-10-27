@@ -12,13 +12,14 @@ import { config } from '../env';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { effectiveDark, useUi, type MapMode } from '../lib/store';
 import { outlineEdges } from '../shared/fusion';
-import { GRID_SIZE, cellPolygon, latToY, lngLatToCell, viewportCells, xToLng, yToLat } from '../shared/grid';
+import { GRID_SIZE, cellPolygon, latToY, lngLatToCell, plotTypeFor, viewportCells, xToLng, yToLat, type PlotTypeWeight } from '../shared/grid';
 import { rarities, rarityFor } from '../shared/rarity';
 import { explorerNow, travelTo, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
 import { recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
-import { patternImages } from './plotStyle';
+import { patternImages, typeIconImages } from './plotStyle';
+import { useVisit } from '../visit/visit';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -74,6 +75,8 @@ export function WorldMap() {
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
   const rarityKeyRef = useRef('');
   const explorerMarker = useRef<maplibregl.Marker | null>(null);
+  const nameMarkers = useRef(new Map<string, maplibregl.Marker>());
+  const typesRef = useRef<PlotTypeWeight[] | undefined>(undefined);
   const [ready, setReady] = useState(false);
   const mode = useUi((s) => s.mode);
   const selected = useUi((s) => s.selected);
@@ -86,6 +89,8 @@ export function WorldMap() {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const accent = me?.profile.accent_color ?? '#7B5CFF';
+  typesRef.current = world.data?.plot_types?.map((t) => ({ id: t.id, weight: Number(t.weight), sort: Number(t.sort) }));
+  const visit = useVisit((s) => s.visit);
 
   // ---- init -----------------------------------------------------------------
   useEffect(() => {
@@ -187,6 +192,8 @@ export function WorldMap() {
       unsub();
       explorerMarker.current?.remove();
       explorerMarker.current = null;
+      for (const m of nameMarkers.current.values()) m.remove();
+      nameMarkers.current.clear();
       map?.remove();
       mapRef.current = null;
     };
@@ -220,11 +227,13 @@ export function WorldMap() {
             poly(gx, gy, { t, level, m: mine ? 1 : 0, g: group, a: art ? 1 : 0, u: user, c: accentColor || '#7B5CFF', r: r || rarityFor(gx, gy) })),
         });
         setData(map, 'lv-density', EMPTY);
+        updateNames(map, data, z);
       } catch {
         /* transient */
       }
     } else {
       setData(map, 'lv-plots', EMPTY);
+      updateNames(map, [], z);
       const L = [3, 5, 7, 9, 11].reduce((best, l) => (Math.abs(l - (z + 3.4)) < Math.abs(best - (z + 3.4)) ? l : best), 3);
       const s = 16 - L;
       try {
@@ -251,7 +260,7 @@ export function WorldMap() {
       for (let y = v.minGy; y <= v.maxGy; y++)
         for (let x = v.minGx; x <= v.maxGx; x++) {
           const gx = ((x % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
-          if (!owned.has(`${gx}_${y}`)) feats.push(poly(x, y, { r: rarityFor(gx, y) }));
+          if (!owned.has(`${gx}_${y}`)) feats.push(poly(x, y, { r: rarityFor(gx, y), t: plotTypeFor(gx, y, typesRef.current) }));
         }
       setData(map, 'lv-rarity', { type: 'FeatureCollection', features: feats });
     } else if (rarityKeyRef.current !== 'empty') {
@@ -268,6 +277,26 @@ export function WorldMap() {
       setData(map, 'lv-grid', { type: 'FeatureCollection', features: lines });
     } else setData(map, 'lv-grid', EMPTY);
     void updateLabels(map, b, z);
+  }
+
+  /** Custom plot names float over their plots when zoomed in. */
+  function updateNames(map: MLMap, rows: PlotRow[], z: number) {
+    const markers = nameMarkers.current;
+    const show = z >= 14.4 && modeRef.current !== 'canvas';
+    const named = show ? rows.filter((r) => r[10]).slice(0, 80) : [];
+    const keep = new Set(named.map((r) => `${r[0]}_${r[1]}_${r[10]}`));
+    for (const [k, m] of markers) if (!keep.has(k)) { m.remove(); markers.delete(k); }
+    for (const r of named) {
+      const k = `${r[0]}_${r[1]}_${r[10]}`;
+      if (markers.has(k)) continue;
+      const el = document.createElement('div');
+      el.className = 'lv-plot-name';
+      el.style.setProperty('--c', rarities().find((x) => x.id === r[9])?.color ?? '#fff');
+      el.textContent = String(r[10]);
+      el.title = `${r[10]} · @${r[7] ?? ''}`;
+      const [lng, lat] = [xToLng((r[0] + 0.5) / GRID_SIZE), yToLat((r[1] + 0.5) / GRID_SIZE)];
+      markers.set(k, new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
+    }
   }
 
   async function updateLabels(map: MLMap, b: maplibregl.LngLatBounds, z: number) {
@@ -301,9 +330,14 @@ export function WorldMap() {
     let added = false;
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
+    let reachHidden = false;
     const loop = () => {
-      const { state, offset, heading, following, gps } = useExplorer.getState();
+      const { state, offset, heading, following: follow, gps } = useExplorer.getState();
+      const visiting = !!useVisit.getState().visit;
+      const following = follow && !visiting;
       const p = explorerNow(state, offset);
+      if (visiting && !reachHidden) { reachHidden = true; lastCell = ''; setData(map, 'lv-reach', EMPTY); }
+      if (!visiting && reachHidden) reachHidden = false;
       if (p) {
         if (!added) { marker.setLngLat([p.lng, p.lat]).addTo(map); added = true; }
         else marker.setLngLat([p.lng, p.lat]);
@@ -314,7 +348,7 @@ export function WorldMap() {
         el.classList.toggle('gps', gps === 'on');
         const c = lngLatToCell(p.lng, p.lat);
         const key = `${c.gx}_${c.gy}_${state?.reach ?? 1}`;
-        if (key !== lastCell) {
+        if (key !== lastCell && !visiting) {
           lastCell = key;
           const r = state?.reach ?? 1;
           const feats: GeoJSON.Feature[] = [];
@@ -352,6 +386,28 @@ export function WorldMap() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accent]);
+
+  // ---- visiting another player: their land glows, a ghost of you stands on it ---------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    if (!visit) {
+      setData(map, 'lv-visit', EMPTY);
+      return;
+    }
+    const color = visit.player.accent_color || '#FF3D9A';
+    for (const [id, prop] of [['lv-visit-fill', 'fill-color'], ['lv-visit-glow', 'line-color'], ['lv-visit-line', 'line-color']] as const) if (map.getLayer(id)) map.setPaintProperty(id, prop, color);
+    setData(map, 'lv-visit', { type: 'FeatureCollection', features: visit.plots.slice(0, 2000).map((p) => poly(p[0], p[1], {})) });
+    const el = explorerElement(accent);
+    el.classList.add('ghost');
+    const tag = document.createElement('div');
+    tag.className = 'lv-visit-tag';
+    tag.textContent = `Visiting @${visit.player.username}`;
+    el.appendChild(tag);
+    const ghost = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] }).setLngLat([visit.center.lng, visit.center.lat]).addTo(map);
+    return () => { ghost.remove(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visit, ready, accent]);
 
   // legendary & mythic plots shimmer
   useEffect(() => {
@@ -448,6 +504,7 @@ export function WorldMap() {
 
 function addLayers(map: MLMap) {
   for (const img of patternImages()) if (!map.hasImage(img.id)) map.addImage(img.id, { width: img.width, height: img.height, data: img.data }, { pixelRatio: 2 });
+  for (const img of typeIconImages()) if (!map.hasImage(img.id)) map.addImage(img.id, { width: img.width, height: img.height, data: img.data }, { pixelRatio: 2 });
   map.addSource('lv-density', { type: 'geojson', data: EMPTY });
   map.addSource('lv-rarity', { type: 'geojson', data: EMPTY });
   map.addSource('lv-plots', { type: 'geojson', data: EMPTY });
@@ -458,6 +515,7 @@ function addLayers(map: MLMap) {
   map.addSource('lv-route', { type: 'geojson', data: EMPTY });
   map.addSource('lv-hover', { type: 'geojson', data: EMPTY });
   map.addSource('lv-sel', { type: 'geojson', data: EMPTY });
+  map.addSource('lv-visit', { type: 'geojson', data: EMPTY });
 
   map.addLayer({
     id: 'lv-density', type: 'circle', source: 'lv-density', maxzoom: 10.5,
@@ -477,6 +535,19 @@ function addLayers(map: MLMap) {
         14, ['match', ['get', 'r'], 'mythic', 0.5, 'legendary', 0.42, 'epic', 0.3, 'rare', 0.22, 0.17]],
     },
   });
+  // unclaimed plots show their type (which minigame they host): a faint pattern, then a badge
+  map.addLayer({
+    id: 'lv-free-pattern', type: 'fill', source: 'lv-rarity', minzoom: 13.4,
+    paint: { 'fill-pattern': ['concat', 'pat-free-', ['get', 't']], 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13.4, 0, 14.6, 0.75] },
+  });
+  map.addLayer({
+    id: 'lv-free-icon', type: 'symbol', source: 'lv-rarity', minzoom: 14.6,
+    layout: {
+      'icon-image': ['concat', 'ico-', ['get', 't']], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 14.6, 0.45, 16, 0.8, 18, 1.15],
+    },
+    paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 14.6, 0, 15.2, 0.95] },
+  });
   map.addLayer({
     id: 'lv-rarity-glow', type: 'line', source: 'lv-rarity', minzoom: RARITY_MIN_ZOOM,
     filter: ['in', ['get', 'r'], ['literal', ['legendary', 'mythic']]],
@@ -495,6 +566,9 @@ function addLayers(map: MLMap) {
     id: 'lv-plots-line', type: 'line', source: 'lv-plots',
     paint: { 'line-color': ['case', ['==', ['get', 'm'], 1], '#FFFFFF', ['get', 'c']], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 15, ['case', ['==', ['get', 'm'], 1], 2.4, 1.6]], 'line-opacity': 0.9 },
   });
+  map.addLayer({ id: 'lv-visit-fill', type: 'fill', source: 'lv-visit', paint: { 'fill-color': '#FF3D9A', 'fill-opacity': 0.16 } });
+  map.addLayer({ id: 'lv-visit-glow', type: 'line', source: 'lv-visit', paint: { 'line-color': '#FF3D9A', 'line-width': 9, 'line-blur': 7, 'line-opacity': 0.55 } });
+  map.addLayer({ id: 'lv-visit-line', type: 'line', source: 'lv-visit', paint: { 'line-color': '#FF3D9A', 'line-width': 2, 'line-opacity': 0.95 } });
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': ['case', ['==', ['get', 'center'], 1], 0.14, 0.07] } });
@@ -563,6 +637,8 @@ export function applyMode(map: MLMap, mode: MapMode, online: boolean) {
   vis('lv-rarity-fill', mode !== 'canvas');
   vis('lv-rarity-line', mode !== 'canvas');
   vis('lv-rarity-glow', mode !== 'canvas');
+  vis('lv-free-pattern', mode !== 'canvas');
+  vis('lv-free-icon', mode !== 'canvas');
   vis('lv-grid', mode !== 'canvas');
   vis('lv-density', true);
   switch (mode) {

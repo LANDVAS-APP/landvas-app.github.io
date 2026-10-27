@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Ban, Brush } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Ban, Brush, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -9,12 +10,22 @@ import { useOnboardedMe } from '../lib/queries';
 import { fmt } from '../lib/utils';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Avatar, Button, Empty, Spinner } from '../ui';
-import { ArtGrid } from '../gallery/GalleryScreen';
+import { ArtGrid, ArtThumb } from '../gallery/GalleryScreen';
+import { RarityBadge } from '../plot/RarityBadge';
+import { RARITY_ORDER } from '../shared/rarity';
+import { formatRate } from '../shared/rent';
+import { cellCenter } from '../shared/grid';
+import { useUi } from '../lib/store';
+import { visitPlayer } from '../visit/visit';
+import type { PlayerLand } from '../backend/types';
 
 export default function ProfileScreen() {
   const { username = '' } = useParams();
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username) });
+  const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!q.data });
+  const nav = useNavigate();
+  const [visiting, setVisiting] = useState(false);
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (q.error || !q.data) return <Page><Empty title="Profile not found">This artist doesn't exist or isn't visible to you.</Empty></Page>;
   const d = q.data;
@@ -30,6 +41,13 @@ export default function ProfileScreen() {
             <p className="text-sm text-muted">@{p.username} · Artist level {d.stats.artist_level} · since {new Date(d.stats.member_since).toLocaleDateString()}</p>
             {p.bio && <p className="mt-2 max-w-xl text-sm">{p.bio}</p>}
           </div>
+          {(land.data?.total_plots ?? 0) > 0 && (
+            <Button variant="rainbow" size="sm" loading={visiting} data-testid="profile-visit" onClick={async () => {
+              setVisiting(true);
+              if (await visitPlayer(p.username)) nav('/');
+              setVisiting(false);
+            }}><MapPin className="h-4 w-4" /> {d.is_me ? 'Go to my land' : 'Visit their land'}</Button>
+          )}
           {me && !d.is_me && (
             <Button variant="ghost" size="sm" onClick={async () => {
               try { await api.blockPlayer(p.id, !d.blocked); toast.success(d.blocked ? 'Unblocked' : 'Blocked — their art is hidden from you'); void q.refetch(); } catch (e) { toast.error(toGameError(e).message); }
@@ -58,10 +76,52 @@ export default function ProfileScreen() {
           </div>
         </section>
       )}
+      {land.data && land.data.total_plots > 0 && <LandSection land={land.data} />}
       <section className="mt-5">
         <h2 className="mb-3 font-display text-lg font-semibold">Artworks</h2>
         {d.gallery?.length ? <ArtGrid cards={d.gallery} /> : <Empty icon={<Brush className="h-6 w-6" />} title="No published artworks yet" />}
       </section>
     </Page>
+  );
+}
+
+/** A player's land: rarity mix, rent rate and each canvas (with its art). */
+function LandSection({ land }: { land: PlayerLand }) {
+  const nav = useNavigate();
+  const counts = RARITY_ORDER.map((r) => [r, land.plots.filter((x) => x[2] === r).length] as const).filter(([, n]) => n > 0);
+  const named = land.plots.filter((x) => x[7]);
+  const go = (gx: number, gy: number, zoom = 15.6) => {
+    const [lng, lat] = cellCenter(((gx % 65536) + 65536) % 65536, gy);
+    useUi.getState().requestFly({ lng, lat, zoom });
+    nav('/');
+  };
+  return (
+    <section className="mt-5" data-testid="profile-land">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold">Land</h2>
+        <span className="text-xs text-muted tnum">{fmt(land.total_plots)} plots · earns {formatRate(Number(land.usd_per_second))}</span>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">{counts.map(([r, n]) => <span key={r} className="flex items-center gap-1.5"><RarityBadge r={r} small /><b className="text-sm tnum">{n}</b></span>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {land.canvases.slice(0, 24).map((c) => (
+          <button key={c.id} className="glass flex items-center gap-3 rounded-2xl p-2 text-left hover:border-line-strong" onClick={() => go(Math.floor((c.min_gx + c.max_gx) / 2), Math.floor((c.min_gy + c.max_gy) / 2), c.plot_count > 4 ? 15 : 15.8)}>
+            {c.art ? <ArtThumb card={c.art} className="h-16 w-16 shrink-0" /> : <div className="checker h-16 w-16 shrink-0 rounded-2xl opacity-60" />}
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{c.art?.title ?? c.name}</div>
+              <div className="text-xs text-muted">{c.plot_count} plot{c.plot_count === 1 ? '' : 's'} · {c.max_gx - c.min_gx + 1}×{c.max_gy - c.min_gy + 1}{c.art ? '' : ' · not painted yet'}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+      {named.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {named.slice(0, 30).map((x) => (
+            <button key={`${x[0]}_${x[1]}`} className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1 text-xs font-semibold hover:border-line-strong" onClick={() => go(x[0], x[1], 16)}>
+              <RarityBadge r={x[2]} small /> {x[7]}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

@@ -15,7 +15,10 @@ import { canvasCodec } from './codec-canvas';
 
 const migrationFiles = import.meta.glob('../../../supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const SESSION_KEY = 'landvas.local.session';
-const PIPELINE_RPCS = new Set(['submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot', 'admin_retry_job']);
+const PIPELINE_RPCS = new Set([
+  'submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot',
+  'admin_retry_job', 'admin_set_review_mode', 'admin_approve_all_pending',
+]);
 
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf as ArrayBuffer)));
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));

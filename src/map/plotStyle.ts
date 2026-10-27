@@ -109,3 +109,98 @@ export function patternImages(): { id: string; width: number; height: number; da
   }
   return out;
 }
+
+/** Small badge icons (one per plot type) shown on unclaimed plots, so players can see which minigame a plot hosts. */
+export function typeIconImages(): { id: string; width: number; height: number; data: Uint8Array }[] {
+  const size = 64;
+  const out: { id: string; width: number; height: number; data: Uint8Array }[] = [];
+  for (const type of Object.keys(PLOT_TYPES) as PlotTypeId[]) {
+    const t = PLOT_TYPES[type];
+    const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(size, size) : Object.assign(document.createElement('canvas'), { width: size, height: size });
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    // backdrop disc
+    const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 30);
+    g.addColorStop(0, 'rgba(30,22,64,0.92)');
+    g.addColorStop(1, 'rgba(10,8,30,0.86)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(32, 32, 29, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = t.a;
+    ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (type === 'graphite') {
+      // pencil
+      ctx.save();
+      ctx.translate(32, 32);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = '#E8ECF7';
+      ctx.fillRect(-5, -16, 10, 24);
+      ctx.fillStyle = t.b;
+      ctx.fillRect(-5, -19, 10, 4);
+      ctx.fillStyle = '#F3D9B1';
+      ctx.beginPath();
+      ctx.moveTo(-5, 8);
+      ctx.lineTo(5, 8);
+      ctx.lineTo(0, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#2A2F45';
+      ctx.beginPath();
+      ctx.moveTo(-1.8, 14.3);
+      ctx.lineTo(1.8, 14.3);
+      ctx.lineTo(0, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    } else if (type === 'pigment') {
+      // paint drop
+      const dg = ctx.createLinearGradient(20, 14, 44, 50);
+      dg.addColorStop(0, t.b);
+      dg.addColorStop(1, t.a);
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.moveTo(32, 12);
+      ctx.bezierCurveTo(40, 24, 46, 31, 46, 38);
+      ctx.arc(32, 38, 14, 0, Math.PI, false);
+      ctx.bezierCurveTo(18, 31, 24, 24, 32, 12);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(26.5, 37, 3, 5, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'mosaic') {
+      // four tiles
+      const cols = [t.a, t.b, '#F5F4EF', t.a];
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = cols[i];
+        const x = 18 + (i % 2) * 15, y = 18 + Math.floor(i / 2) * 15;
+        ctx.beginPath();
+        ctx.roundRect(x, y, 13, 13, 3);
+        ctx.fill();
+      }
+    } else {
+      // lightning
+      ctx.shadowColor = t.b;
+      ctx.shadowBlur = 8;
+      const lg = ctx.createLinearGradient(24, 12, 40, 52);
+      lg.addColorStop(0, t.b);
+      lg.addColorStop(1, t.a);
+      ctx.fillStyle = lg;
+      ctx.beginPath();
+      ctx.moveTo(36, 10);
+      ctx.lineTo(20, 35);
+      ctx.lineTo(31, 35);
+      ctx.lineTo(27, 54);
+      ctx.lineTo(44, 27);
+      ctx.lineTo(33, 27);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    out.push({ id: `ico-${type}`, width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data.buffer) });
+  }
+  return out;
+}

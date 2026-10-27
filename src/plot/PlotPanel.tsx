@@ -18,6 +18,7 @@ import { RarityBadge } from './RarityBadge';
 import { formatDuration, formatRate } from '../shared/rent';
 import { cellCenter } from '../shared/grid';
 import { travelEta, travelTo, useExplorer } from '../explorer/explorer';
+import { endVisit, useVisit } from '../visit/visit';
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -52,8 +53,8 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
             {d && <RarityBadge r={d.rarity} />}
             <span className="eyebrow">{d ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>
           </div>
-          <h2 className="mt-1 font-display text-lg font-semibold tnum">Plot {plotLabel(selected.gx, selected.gy)}</h2>
-          {d && <p className="text-xs text-faint tnum">{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{Math.round(611 * Math.cos((d.center.lat * Math.PI) / 180))} m square</p>}
+          <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>}</h2>
+          {d && <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{Math.round(611 * Math.cos((d.center.lat * Math.PI) / 180))} m square</p>}
         </div>
         <button onClick={() => select(null)} className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close plot panel"><X className="h-5 w-5" /></button>
       </div>
@@ -159,7 +160,18 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const nav = useNavigate();
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const visiting = useVisit((s) => s.visit);
   const a = d.acquire;
+  if (visiting) {
+    return (
+      <div className="grid gap-2 rounded-2xl border border-hot/40 bg-hot/10 p-4 text-sm" data-testid="visit-no-claim">
+        <b>You’re visiting @{visiting.player.username}</b>
+        <span className="text-xs text-muted">Claiming and buying are off while you visit. Head back to your explorer to claim plots near you.</span>
+        <Button size="sm" variant="secondary" onClick={endVisit}>Back to my explorer</Button>
+      </div>
+    );
+  }
   if (!signedIn || !me) {
     return (
       <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
@@ -183,11 +195,11 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
     setBusy('claim');
     try {
       if (starter) {
-        const r = await api.claimStarter(d.gx, d.gy);
+        const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         setClaimed({ groupId: r.group_id, first: true });
       } else {
-        const r = await api.acquirePlot(d.gx, d.gy);
+        const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))];
         toast.success(`Plot claimed — +${formatRate(Number(r.usd_per_second))} rent`, { description: `Spent ${fmt(r.cost.ink)} Ink` });
@@ -224,10 +236,16 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
           <Button size="sm" variant="primary" loading={busy === 'travel'} onClick={() => go(false)}><MapPin className="h-4 w-4" /> Start here</Button>
         </div>
       ) : inReach ? (
-        <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy === 'claim'} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
-          <Sparkles className="h-4 w-4" />
-          {starter ? 'Claim my free starter plot' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
-        </Button>
+        <>
+          {(starter || canAfford) && (
+            <input className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 text-sm placeholder:text-faint focus:border-accent focus:outline-none" maxLength={32}
+              placeholder="Name your plot (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
+          )}
+          <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy === 'claim'} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
+            <Sparkles className="h-4 w-4" />
+            {starter ? 'Claim my free starter plot' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
+          </Button>
+        </>
       ) : (
         <div className="grid gap-2 rounded-xl border border-line-strong p-3 text-sm">
           <div className="flex items-center gap-2 font-bold"><Footprints className="h-4 w-4 text-accent-2" /> {reach.distance} plots from your explorer</div>
@@ -317,6 +335,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
   };
   return (
     <div className="grid gap-3">
+      <RenamePlot d={d} />
       <div className="grid grid-cols-2 gap-2">
         <Button variant="primary" onClick={() => d.group && nav(`/create/${d.group.id}`)} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>
         <Button onClick={() => nav(`/play/${d.type_info.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info.minigame_name}</Button>
@@ -357,5 +376,37 @@ function UpgradeRow({ title, desc, cost, busy, onClick, balances }: { title: str
         <Button size="sm" variant={afford ? 'primary' : 'secondary'} disabled={!afford} loading={busy} onClick={onClick}><Cost cost={cost} /></Button>
       ) : <span className="text-xs font-bold text-faint">MAX</span>}
     </div>
+  );
+}
+
+function RenamePlot({ d }: { d: PlotDetails }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(d.name ?? '');
+  const [busy, setBusy] = useState(false);
+  if (!editing) {
+    return (
+      <button className="flex items-center justify-between gap-2 rounded-2xl border border-dashed border-line-strong px-3 py-2 text-left text-sm hover:border-accent-2" onClick={() => { setName(d.name ?? ''); setEditing(true); }} data-testid="rename-plot">
+        <span className="min-w-0 truncate">{d.name ? <><span className="text-muted">Name:</span> <b>{d.name}</b></> : <span className="text-muted">Give this plot a name</span>}</span>
+        <span className="shrink-0 text-xs font-bold text-accent-2">{d.name ? 'Rename' : 'Add'}</span>
+      </button>
+    );
+  }
+  return (
+    <form className="flex gap-2" onSubmit={async (e) => {
+      e.preventDefault();
+      setBusy(true);
+      try {
+        const r = await api.namePlot(d.gx, d.gy, name.trim() || null);
+        toast.success(r.name ? `Named “${r.name}”` : 'Name removed');
+        setEditing(false);
+        void qc.invalidateQueries({ queryKey: ['plot'] });
+        void qc.invalidateQueries({ queryKey: qk.myPlots });
+      } catch (err) { toast.error(toGameError(err).message); } finally { setBusy(false); }
+    }}>
+      <input autoFocus className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface/80 px-3 text-sm focus:border-accent focus:outline-none" maxLength={32} value={name} onChange={(e) => setName(e.target.value)} placeholder="Plot name" aria-label="Plot name" />
+      <Button size="sm" type="submit" variant="primary" loading={busy}>Save</Button>
+      <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+    </form>
   );
 }

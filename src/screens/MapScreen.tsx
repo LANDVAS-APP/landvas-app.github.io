@@ -22,6 +22,7 @@ import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../ex
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
+import { endVisit, refreshVisit, useVisit } from '../visit/visit';
 
 const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: MapPinned, hint: 'Places, borders and every owned territory' },
@@ -40,6 +41,12 @@ export function MapScreen() {
   useRaritySync();
   useExplorerSync();
   const placing = useExplorer((s) => s.placing);
+  const visit = useVisit((s) => s.visit);
+  useEffect(() => {
+    if (!visit) return;
+    const t = setInterval(() => void refreshVisit(), 30_000);
+    return () => clearInterval(t);
+  }, [visit?.player.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="absolute inset-0">
       <WorldMap />
@@ -68,6 +75,18 @@ export function MapScreen() {
           {!me && !session && <div className="md:hidden"><SignInChip /></div>}
           {me && <div className="md:hidden"><div className="glass rounded-2xl p-1"><ResourceBar compact /></div></div>}
         </div>
+        {visit && (
+          <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-hot/60 px-3 py-2 text-sm" role="status" data-testid="visit-banner">
+            <span className="flex min-w-0 items-center gap-2">
+              <Avatar seed={visit.player.avatar_seed} style={visit.player.avatar_style} accent={visit.player.accent_color} size={26} />
+              <span className="min-w-0">
+                <b className="block truncate">Visiting @{visit.player.username}</b>
+                <span className="block text-xs text-muted">Live view of their land — you can’t claim plots while visiting.</span>
+              </span>
+            </span>
+            <button onClick={endVisit} className="shrink-0 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold hover:bg-surface" data-testid="visit-end">Back to me</button>
+          </div>
+        )}
         {placing && (
           <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-gold/50 px-4 py-2.5 text-sm font-semibold" role="status">
             <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-gold" /> Tap the map where your explorer should start</span>

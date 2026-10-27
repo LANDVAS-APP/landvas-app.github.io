@@ -10,7 +10,10 @@ import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { MapUpdate, MinigameFinish } from '../types';
 
-const PIPELINE_RPCS = new Set(['submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot', 'publication_status']);
+const PIPELINE_RPCS = new Set([
+  'submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot',
+  'publication_status', 'admin_set_review_mode', 'admin_approve_all_pending', 'admin_retry_job',
+]);
 
 async function functionError(error: any): Promise<GameError> {
   try {

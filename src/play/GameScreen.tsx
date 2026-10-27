@@ -153,7 +153,7 @@ export default function GameScreen() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-sm">
               <span className="text-muted">{leftToday > 0 ? 'A win pays' : 'Practice mode until reset'}</span>
               <span className="flex items-center gap-1.5 font-bold">
-                {leftToday > 0 ? <><ResourceIcon r="ink" /> ~{fmt(estimateInk(world.data, lvl, plot))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
+                {leftToday > 0 ? <><ResourceIcon r="ink" /> ~{fmt(estimateInk(world.data, lvl, plot, game))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
               </span>
             </div>
             {rec && <p className="mt-2 text-xs text-faint tnum">Best {fmt(rec.best_score)} · {rec.wins} wins · highest level {rec.highest_level}</p>}
@@ -177,10 +177,13 @@ export default function GameScreen() {
   );
 }
 
-function estimateInk(world: any, level: number, plot: any) {
-  const rw = world?.minigames?.rewards ?? { base_ink: 20, ink_per_level: 2, score_ink_divisor: 80 };
-  const mult = (plot ? rarityInfo(plot.rarity).ink_reward_multiplier * (1 + 0.05 * ((plot.level ?? 1) - 1)) : 1);
-  return Math.floor((Number(rw.base_ink) + Number(rw.ink_per_level) * level + 600 / Number(rw.score_ink_divisor)) * mult);
+function estimateInk(world: any, level: number, plot: any, game?: string) {
+  const mg = world?.minigames ?? {};
+  const rw = mg.rewards ?? { base_ink: 20, ink_per_level: 2, score_ink_divisor: 80 };
+  const levelBonus = 1 + Number(mg.plot_level_bonus ?? 0.05) * ((plot?.level ?? 1) - 1);
+  const mult = (plot ? rarityInfo(plot.rarity).ink_reward_multiplier * levelBonus : 1)
+    * Number(mg.ink_multiplier ?? 1) * Number((game && mg.games?.[game]?.ink_multiplier) ?? 1);
+  return Math.floor((Number(rw.base_ink) + Number(rw.ink_per_level) * level + 600 / Math.max(Number(rw.score_ink_divisor), 1)) * mult);
 }
 
 function Results({ r, level, unlocked, onAgain, onMap }: { r: MinigameFinish; level: number; unlocked: number; onAgain(n: number): void; onMap(): void }) {

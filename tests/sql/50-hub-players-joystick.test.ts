@@ -259,3 +259,59 @@ describe('operator-tunable minigame earnings', () => {
     await expectError(db.rpc(g, 'admin_config_set', { p_key: 'minigames', p_value: cfg }), 'forbidden');
   });
 });
+
+describe('review switch', () => {
+  let owner: string, artist: string;
+  const H = (n: number) => n.toString(16).padStart(64, '0');
+  const A = { gx: 34000, gy: 24000 };
+  async function submit(uid: string, title: string, n: number, gi = 0) {
+    const g = (await db.rpc(uid, 'my_groups'))[gi];
+    const p = await db.rpc(uid, 'get_project', { p_project_id: g.project_id });
+    const s = await db.rpc(uid, 'save_draft', {
+      p_project_id: g.project_id, p_base_version_id: p.version.id,
+      p_manifest: { layers: [{ id: 'layer-1', name: 'L', tiles: { [`${g.cells[0][0]}_${g.cells[0][1]}`]: H(n) } }] },
+    });
+    const req = await db.rpc(uid, 'request_publication', { p_project_id: g.project_id, p_version_id: s.version_id, p_title: title, p_rights_affirmed: true });
+    await db.rpc(uid, 'submit_publication', { p_publication_id: req.publication_id });
+    const r = await db.rpc({ role: 'service_role' }, 'svc_publication_processed', { p_publication_id: req.publication_id, p_result: { ok: true, preview_path: 'p.png', thumb_path: 't.png', screening: { provider: 'none', flagged: false } } });
+    return { id: req.publication_id as string, status: r.status as string };
+  }
+  beforeAll(async () => {
+    owner = (await db.sql(`select player_id from admin_roles where role = 'owner'`))[0].player_id;
+    artist = await db.newPlayer('painter9');
+    await db.placeAt(artist, A.gx, A.gy);
+    await db.rpc(artist, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });
+    await db.giveInk(artist, 500);
+    for (const [i, [dx, dy]] of [[1, 0], [0, 1], [1, 1]].entries()) await db.rpc(artist, 'acquire_plot', { p_gx: A.gx + dx, p_gy: A.gy + dy, p_idempotency_key: `rv-${i}-acq` });
+    await db.placeAt(owner, A.gx + 5, A.gy);
+    await db.rpc(owner, 'claim_starter_plot', { p_gx: A.gx + 5, p_gy: A.gy });
+  });
+
+  it('with reviews on, art waits and the owner can approve (even their own)', async () => {
+    expect((await db.rpc(owner, 'admin_review_mode')).reviews).toBe(true);
+    const a = await submit(artist, 'Waiting one', 1);
+    expect(a.status).toBe('pending_review');
+    const mine = await submit(owner, 'Owner art', 2);
+    const list = await db.rpc(owner, 'admin_pending_publications');
+    expect(list.map((x: any) => x.title)).toEqual(['Waiting one', 'Owner art']);
+    expect(list[1].is_mine).toBe(true);
+    const r = await db.rpc(owner, 'admin_review_publication', { p_publication_id: mine.id, p_decision: 'approve' });
+    expect(r.status).toBe('approved');
+    await expectError(db.rpc(artist, 'admin_pending_publications'), 'forbidden');
+  });
+
+  it('turning reviews off publishes what is waiting and lets new art straight through', async () => {
+    const off = await db.rpc(owner, 'admin_set_review_mode', { p_reviews: false });
+    expect(off).toMatchObject({ reviews: false, mode: 'auto', approved: 1, pending: 0 });
+    const st = await db.sql(`select status from artwork_publications where title = 'Waiting one'`);
+    expect(st[0].status).toBe('approved');
+    const b = await submit(artist, 'Instant', 3, 1);
+    expect(b.status).toBe('approved');
+    const jobs = await db.sql(`select count(*)::int n from private.render_jobs where kind = 'publish_publication' and status = 'queued'`);
+    expect(jobs[0].n).toBeGreaterThanOrEqual(3);
+    const on = await db.rpc(owner, 'admin_set_review_mode', { p_reviews: true });
+    expect(on.mode).toBe('manual');
+    expect((await submit(artist, 'Back to waiting', 4, 2)).status).toBe('pending_review');
+    expect((await db.rpc(owner, 'admin_approve_all_pending')).approved).toBe(1);
+  });
+});

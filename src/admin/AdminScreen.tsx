@@ -1,17 +1,23 @@
-// Operator console. Every action is authorised and audited in SQL (admin_*).
+// The operator's admin hub. Only the owner can open it; the owner is claimed
+// once with a one-time code. Every action is authorised and audited in SQL.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Shield } from 'lucide-react';
-import { useState } from 'react';
+import { Check, CheckCheck, Eye, KeyRound, MapPin, Shield, ShieldCheck, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
-import { useOnboardedMe } from '../lib/queries';
-import { fmt, timeAgo } from '../lib/utils';
-import { RARITY_ORDER } from '../shared/rarity';
+import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
+import { useUi } from '../lib/store';
+import { cn, fmt, plotLabel, timeAgo } from '../lib/utils';
+import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
-import { Avatar, Button, Empty, Spinner, Tabs, inputCls } from '../ui';
+import { cellCenter } from '../shared/grid';
+import { GAME_INFO, type GameId } from '../shared/minigames';
+import { Avatar, Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
+import { visitPlayer } from '../visit/visit';
 
 const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
   try { await fn(); toast.success(ok); after?.(); } catch (e) { toast.error(toGameError(e).message); }
@@ -19,58 +25,264 @@ const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) =
 
 export default function AdminScreen() {
   const me = useOnboardedMe();
-  const [tab, setTab] = useState('overview');
-  if (!me) return <Page><Spinner /></Page>;
-  if (!me.roles.length) return <Page><Empty icon={<Shield className="h-6 w-6" />} title="Admins only">Ask an owner to grant you a role.</Empty></Page>;
+  if (!me) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
+  if (!me.roles.includes('owner')) return <OwnerGate />;
+  return <Hub />;
+}
+
+// ---- gate ---------------------------------------------------------------------------
+
+function OwnerGate() {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ['owner-status'], queryFn: api.ownerStatus });
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (status.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
+  if (status.data?.claimed) {
+    return <Page><Empty icon={<Shield className="h-6 w-6" />} title="This page is private">Only the LANDVAS operator can open the admin hub.</Empty></Page>;
+  }
   return (
-    <Page wide>
-      <PageHeader eyebrow={me.roles.join(' · ')} title="Admin console" />
-      <div className="mb-4 overflow-x-auto scroll-thin">
-        <Tabs value={tab} onValueChange={setTab} items={[
-          { value: 'overview', label: 'Overview' }, { value: 'moderation', label: 'Moderation' }, { value: 'cashouts', label: 'Cash-outs' },
-          { value: 'players', label: 'Players' }, { value: 'economy', label: 'Economy' }, { value: 'flags', label: 'Flags' }, { value: 'ops', label: 'Operations' },
-        ]} />
+    <Page>
+      <div className="mx-auto max-w-md pt-8">
+        <section className="glass rounded-[28px] p-6">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent-2"><KeyRound className="h-6 w-6" /></div>
+          <h1 className="font-display text-2xl font-bold">Claim the admin hub</h1>
+          <p className="mt-1 text-sm text-muted">Enter your one-time owner code. It makes this account the game's only owner and can never be used again.</p>
+          <form className="mt-5 grid gap-3" onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setErr(null);
+            try {
+              const r = await api.claimOwner(code);
+              if (!r.ok) { setErr(r.reason === 'already_claimed' ? 'The admin hub has already been claimed.' : 'That code didn’t work. Check it and try again.'); return; }
+              toast.success('You’re the owner now. Welcome to the admin hub.');
+              invalidateGame(qc);
+              void qc.invalidateQueries({ queryKey: qk.me });
+              void qc.invalidateQueries({ queryKey: ['owner-status'] });
+            } catch (e2) { setErr(toGameError(e2).message); } finally { setBusy(false); }
+          }}>
+            <Field label="Owner code" htmlFor="owner-code" error={err}>
+              <input id="owner-code" className={cn(inputCls, 'font-mono tracking-wider')} autoComplete="off" spellCheck={false} placeholder="LV-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" value={code} onChange={(e) => setCode(e.target.value)} data-testid="owner-code" />
+            </Field>
+            <Button type="submit" variant="rainbow" size="lg" loading={busy} disabled={code.replace(/[^a-z0-9]/gi, '').length < 10} data-testid="owner-claim">Claim admin hub</Button>
+          </form>
+        </section>
       </div>
-      {tab === 'overview' && <Overview />}
-      {tab === 'moderation' && <Moderation />}
-      {tab === 'cashouts' && <Cashouts />}
-      {tab === 'players' && <Players />}
-      {tab === 'economy' && <Economy />}
-      {tab === 'flags' && <Flags />}
-      {tab === 'ops' && <Ops />}
     </Page>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="glass rounded-3xl p-5"><h2 className="mb-3 font-display text-base font-semibold">{title}</h2>{children}</section>;
+// ---- hub ----------------------------------------------------------------------------
+
+const TABS = [
+  { value: 'review', label: 'Review' },
+  { value: 'overview', label: 'Dashboard' },
+  { value: 'players', label: 'Players' },
+  { value: 'earnings', label: 'Earnings' },
+  { value: 'world', label: 'World' },
+  { value: 'plots', label: 'Plots' },
+  { value: 'flags', label: 'Switches' },
+  { value: 'cashouts', label: 'Cash-outs' },
+  { value: 'system', label: 'System' },
+];
+
+function Hub() {
+  const [tab, setTab] = useState(() => (location.hash.slice(1) && TABS.some((t) => t.value === location.hash.slice(1)) ? location.hash.slice(1) : 'review'));
+  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: 20_000 });
+  const pending = mode.data?.pending ?? 0;
+  useEffect(() => { history.replaceState(null, '', `#${tab}`); }, [tab]);
+  return (
+    <Page wide>
+      <PageHeader eyebrow="Owner" title={<span className="flex items-center gap-2"><ShieldCheck className="h-7 w-7 text-accent-2" /> Admin hub</span>}>
+        Complete control of LANDVAS. Every change is applied to all players immediately and recorded in the audit log.
+      </PageHeader>
+      <Tabs value={tab} onValueChange={setTab} className="mb-5" items={TABS.map((t) => ({
+        value: t.value,
+        label: t.value === 'review' && pending > 0 ? <span className="flex items-center gap-1.5">Review <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{pending}</span></span> : t.label,
+      }))} />
+      {tab === 'review' && <ReviewTab />}
+      {tab === 'overview' && <Overview onTab={setTab} />}
+      {tab === 'players' && <Players />}
+      {tab === 'earnings' && <Earnings />}
+      {tab === 'world' && <World />}
+      {tab === 'plots' && <Plots />}
+      {tab === 'flags' && <Flags />}
+      {tab === 'cashouts' && <Cashouts />}
+      {tab === 'system' && <System />}
+    </Page>
+  );
 }
 
-function Overview() {
+function Card({ title, children, actions, className }: { title: string; children: React.ReactNode; actions?: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn('glass rounded-3xl p-5', className)}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-base font-semibold">{title}</h2>{actions}</div>
+      {children}
+    </section>
+  );
+}
+
+function PubPreview({ path, className }: { path: string | null; className?: string }) {
+  const q = useQuery({ queryKey: ['private-asset', path], queryFn: () => getBackend().privateAssetUrl(path), enabled: !!path });
+  return q.data
+    ? <img src={q.data} alt="" className={cn('checker rounded-2xl object-contain [image-rendering:pixelated]', className)} />
+    : <div className={cn('flex items-center justify-center rounded-2xl bg-surface-2 text-xs text-faint', className)}>{path ? '' : 'no preview'}</div>;
+}
+
+// ---- review ---------------------------------------------------------------------------
+
+const REJECT_REASONS = ['Not appropriate for an all-ages map', 'Copyrighted or someone else’s work', 'Personal information or a real person', 'Spam, ads or links'];
+
+function ReviewTab() {
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: 20_000 });
+  const list = useQuery({ queryKey: ['admin', 'pending'], queryFn: api.admin.pendingPublications, refetchInterval: 20_000 });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['admin'] }); };
+  const reviews = mode.data?.reviews ?? true;
+  const pending = list.data ?? [];
+  const decide = async (id: string, decision: 'approve' | 'reject', reason?: string) => {
+    setBusy(id);
+    await run(() => api.admin.reviewPublication(id, decision, reason), decision === 'approve' ? 'Approved — it goes live on the map in a moment' : 'Rejected — the artist sees your reason', refresh);
+    setBusy(null);
+    setRejecting(null);
+  };
+  return (
+    <div className="grid gap-4">
+      <Card title="Artwork reviews">
+        <Switch id="reviews-on" checked={reviews} label={reviews ? 'Reviews are ON — you approve every artwork before it goes live' : 'Reviews are OFF — every artwork goes live automatically'}
+          hint={reviews ? 'Turn off to let everyone’s artwork through without waiting for you.' : 'Automated checks still run, and you can remove anything from the map at any time.'}
+          onCheckedChange={async (on) => {
+            if (!on && !(await confirm({ title: 'Turn reviews off?', body: `Every artwork will go live right after the automated checks${pending.length ? `, including the ${pending.length} waiting now` : ''}. You can still remove anything later.`, confirm: 'Turn reviews off' }))) return;
+            await run(async () => {
+              const r = await api.admin.setReviewMode(on);
+              if (!on && r.approved) toast.success(`${r.approved} waiting artwork${r.approved === 1 ? '' : 's'} published`);
+            }, on ? 'Reviews are on' : 'Reviews are off', refresh);
+          }} />
+        {reviews && pending.length > 1 && (
+          <Button size="sm" variant="secondary" className="mt-2" loading={busy === 'all'} onClick={async () => {
+            if (!(await confirm({ title: `Approve all ${pending.length}?`, body: 'They all go live on the map.', confirm: 'Approve all' }))) return;
+            setBusy('all');
+            await run(() => api.admin.approveAllPending(), 'All approved', refresh);
+            setBusy(null);
+          }}><CheckCheck className="h-4 w-4" /> Approve all {pending.length}</Button>
+        )}
+      </Card>
+      {list.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : !pending.length ? (
+        <Empty icon={<Check className="h-6 w-6" />} title="Nothing waiting">New submissions appear here{reviews ? '' : ' only while reviews are on'}.</Empty>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {pending.map((p: any) => (
+            <article key={p.id} className="glass flex flex-col gap-3 rounded-3xl p-4 sm:flex-row" data-testid="review-item">
+              <PubPreview path={p.preview_path} className="h-40 w-full shrink-0 sm:h-36 sm:w-36" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div>
+                  <div className="truncate font-display text-lg font-semibold">{p.title}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                    <Avatar seed={p.artist.avatar_seed} style={p.artist.avatar_style} accent={p.artist.accent_color} size={18} />
+                    <b className="text-fg">@{p.artist.username}</b>{p.is_mine && <span className="rounded bg-accent/20 px-1 font-bold text-accent-2">you</span>}
+                    · {p.plot_count} plot{p.plot_count === 1 ? '' : 's'} · {timeAgo(p.submitted_at ?? p.created_at)}
+                    · {p.artist_published} published{p.artist_strikes ? ` · ${p.artist_strikes} strike${p.artist_strikes === 1 ? '' : 's'}` : ''}
+                  </div>
+                  {p.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{p.description}</p>}
+                </div>
+                {rejecting === p.id ? (
+                  <div className="grid gap-1.5">
+                    {REJECT_REASONS.map((r) => <Button key={r} size="sm" variant="ghost" className="justify-start" loading={busy === p.id} onClick={() => decide(p.id, 'reject', r)}>{r}</Button>)}
+                    <Button size="sm" variant="ghost" onClick={() => setRejecting(null)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <div className="mt-auto flex flex-wrap gap-2">
+                    <Button size="sm" variant="primary" loading={busy === p.id} onClick={() => decide(p.id, 'approve')} data-testid="review-approve"><Check className="h-4 w-4" /> Approve</Button>
+                    <Button size="sm" variant="danger" onClick={() => setRejecting(p.id)}><X className="h-4 w-4" /> Reject</Button>
+                    <FlyButton lng={p.center_lng} lat={p.center_lat} />
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <Reports />
+    </div>
+  );
+}
+
+function FlyButton({ lng, lat, zoom = 15.4, label = 'Map' }: { lng: number; lat: number; zoom?: number; label?: string }) {
+  const nav = useNavigate();
+  return <Button size="sm" variant="ghost" onClick={() => { useUi.getState().requestFly({ lng, lat, zoom }); nav('/'); }}><MapPin className="h-4 w-4" /> {label}</Button>;
+}
+
+/** Player reports, appeals, flagged minigame runs. */
+function Reports() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['admin', 'queue'], queryFn: () => api.admin.queue('open') });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['admin'] });
+  const cases = (q.data?.cases ?? []).filter((c: any) => c.kind !== 'review');
+  if (!cases.length) return null;
+  return (
+    <Card title={`Reports & flags (${cases.length})`}>
+      <div className="grid gap-3">
+        {cases.map((c: any) => (
+          <div key={c.id} className="flex flex-wrap gap-4 rounded-2xl border border-line p-3">
+            {c.publication && <PubPreview path={c.publication.preview_path} className="h-24 w-24" />}
+            <div className="min-w-0 flex-1 text-sm">
+              <div className="font-bold">{String(c.kind).replace(/_/g, ' ')} · {c.reason} <span className="text-xs font-normal text-faint">{timeAgo(c.created_at)}</span></div>
+              {c.subject && <div className="text-muted">Player @{c.subject.username} · strikes {c.subject_strikes}</div>}
+              {c.publication && <div className="text-muted">“{c.publication.title}” · {c.publication.plot_count} plots · {c.publication.status}</div>}
+              {c.details && <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-xs text-faint">{JSON.stringify(c.details)}</pre>}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {c.publication?.status === 'published' && <Button size="sm" variant="danger" onClick={() => run(() => api.admin.removePublication(c.publication.id, c.reason || 'Content policy', true), 'Removed with a strike', refresh)}>Remove + strike</Button>}
+                {c.publication?.status === 'rejected' && c.kind === 'appeal' && <Button size="sm" onClick={() => run(() => api.admin.reviewPublication(c.publication.id, 'approve'), 'Appeal granted — publishing', refresh)}>Grant appeal</Button>}
+                {c.kind === 'score_review' && c.session_id && <>
+                  <Button size="sm" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'clear', 'Looks legitimate'), 'Rewards released', refresh)}>Clear run</Button>
+                  <Button size="sm" variant="danger" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'void', 'Automated play'), 'Run voided', refresh)}>Void run</Button>
+                </>}
+                <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.resolveCase(c.id, 'dismissed', 'No action needed'), 'Dismissed', refresh)}>Dismiss</Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ---- dashboard ------------------------------------------------------------------------
+
+function Overview({ onTab }: { onTab(t: string): void }) {
   const q = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.admin.overview, refetchInterval: 30_000 });
-  if (!q.data) return <Spinner />;
+  if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   const d = q.data;
-  const tiles = [
-    ['Players', d.players_total], ['Active 24h', d.players_active_24h], ['Sign-ups 24h', d.signups_24h], ['Plots owned', d.plots_owned],
-    ['Canvases', d.groups_active], ['Minigames 24h', d.minigame_sessions_24h], ['Flagged runs', d.flagged_sessions], ['Client errors 24h', d.client_errors_24h],
-    ['Ink issued 24h', d.ink_issued_24h], ['Ink spent 24h', d.ink_spent_24h],
+  const tiles: [string, number, string?][] = [
+    ['Players', d.players_total], ['Online now', d.players_active_15m ?? 0], ['Active 24h', d.players_active_24h], ['New 24h', d.signups_24h],
+    ['Plots owned', d.plots_owned], ['Claimed 24h', d.plots_claimed_24h ?? 0], ['Art waiting', d.pending_review ?? 0, 'review'], ['Published 24h', d.art_published_24h ?? 0],
+    ['Minigames 24h', d.minigame_sessions_24h], ['Wins 24h', d.minigame_wins_24h ?? 0], ['Ink minted 24h', d.ink_issued_24h], ['Ink spent 24h', d.ink_spent_24h],
+    ['Flagged runs', d.flagged_sessions], ['GPS jumps 24h', d.gps_jumps_24h ?? 0], ['Client errors 24h', d.client_errors_24h, 'system'], ['Named plots', d.named_plots ?? 0],
   ];
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-        {tiles.map(([l, v]) => <div key={l as string} className="glass rounded-2xl p-4"><div className="font-display text-xl font-semibold tnum">{fmt(v as number)}</div><div className="eyebrow !text-[10px]">{l}</div></div>)}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {tiles.map(([l, v, tab]) => (
+          <button key={l} disabled={!tab} onClick={() => tab && onTab(tab)} className={cn('glass rounded-2xl p-4 text-left', tab && 'hover:border-line-strong')}>
+            <div className="font-display text-xl font-semibold tnum">{fmt(Number(v ?? 0))}</div>
+            <div className="eyebrow !text-[10px]">{l}</div>
+          </button>
+        ))}
       </div>
-      <Card title="USD rent liability">
+      <Card title="USD rent">
         <div className="grid gap-1 text-sm tnum">
-          <div>Settled balances (owed, incl. held): <b>${Number(d.rent.settled_liability_usd).toFixed(6)}</b></div>
+          <div>Owed to players (settled, incl. held): <b>${Number(d.rent.settled_liability_usd).toFixed(6)}</b></div>
           <div>Lifetime rent accrued: ${Number(d.rent.lifetime_usd).toFixed(6)} · paid out: ${Number(d.rent.paid_usd).toFixed(2)}</div>
-          <div>World rent rate (unboosted): {formatRate(Number(d.rent.rate_usd_per_second))} ≈ ${(Number(d.rent.rate_usd_per_second) * 86400 * 30).toFixed(4)}/month · players boosted now: {d.rent.boosted_players_now}</div>
+          <div>World rent rate (unboosted): {formatRate(Number(d.rent.rate_usd_per_second))} ≈ ${(Number(d.rent.rate_usd_per_second) * 86400 * 30).toFixed(4)}/month · boosted now: {d.rent.boosted_players_now}</div>
         </div>
       </Card>
-      <Card title="Queues">
-        <div className="flex flex-wrap gap-4 text-sm">
+      <Card title="Pipeline">
+        <div className="flex flex-wrap gap-4 text-sm text-muted">
           <span>Publications: {Object.entries(d.publications ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none'}</span>
-          <span>Open cases: {Object.entries(d.open_cases ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none'}</span>
           <span>Render jobs: {Object.entries(d.jobs ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none'} (oldest queued {d.oldest_queued_seconds}s)</span>
         </div>
       </Card>
@@ -78,40 +290,362 @@ function Overview() {
   );
 }
 
-function PubPreview({ path }: { path: string | null }) {
-  const q = useQuery({ queryKey: ['private-asset', path], queryFn: () => getBackend().privateAssetUrl(path), enabled: !!path });
-  return q.data ? <img src={q.data} alt="" className="checker h-28 w-28 rounded-xl object-contain [image-rendering:pixelated]" /> : <div className="h-28 w-28 rounded-xl bg-surface-2" />;
+// ---- players --------------------------------------------------------------------------
+
+function Players() {
+  const [query, setQuery] = useState('');
+  const [sel, setSel] = useState<string | null>(null);
+  const list = useQuery({ queryKey: ['admin', 'players', query], queryFn: () => api.admin.searchPlayers(query) });
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <Card title={`Players${list.data ? ` (${list.data.length}${list.data.length >= 60 ? '+' : ''})` : ''}`}>
+        <input className={inputCls} placeholder="Search username, email or id" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="mt-3 grid max-h-[65vh] gap-1 overflow-y-auto scroll-thin">
+          {(list.data ?? []).map((p: any) => (
+            <button key={p.id} onClick={() => setSel(p.id)} className={cn('flex items-center justify-between gap-2 rounded-xl px-2 py-2 text-left text-sm hover:bg-surface-2', sel === p.id && 'bg-surface-2')}>
+              <span className="min-w-0 truncate"><b>@{p.username}</b> <span className="text-faint">{p.email}</span></span>
+              <span className={cn('shrink-0 text-xs', p.status === 'active' ? 'text-muted' : 'font-bold text-bad')}>{p.plots} plots · {p.status}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+      {sel ? <PlayerDetail id={sel} /> : <Empty title="Pick a player">See their land, artwork, balances and history, and change anything.</Empty>}
+    </div>
+  );
 }
 
-function Moderation() {
+function PlayerDetail({ id }: { id: string }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['admin', 'queue'], queryFn: () => api.admin.queue('open') });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['admin', 'queue'] });
-  if (!q.data) return <Spinner />;
-  if (!q.data.cases.length) return <Empty title="Queue is clear">{q.data.pending_publications} publication(s) pending review.</Empty>;
+  const nav = useNavigate();
+  const confirm = useConfirm();
+  const detail = useQuery({ queryKey: ['admin', 'player', id], queryFn: () => api.admin.playerDetail(id) });
+  const username = detail.data?.profile?.username as string | undefined;
+  const land = useQuery({ queryKey: ['admin', 'land', username], queryFn: () => api.playerLand(username!), enabled: !!username });
+  const [adj, setAdj] = useState({ resource: 'ink', delta: '', reason: '' });
+  const refetch = () => { void detail.refetch(); void land.refetch(); void qc.invalidateQueries({ queryKey: ['admin', 'players'] }); };
+  if (!detail.data) return <div className="flex justify-center py-10"><Spinner /></div>;
+  const d = detail.data;
+  const pr = d.profile;
   return (
-    <div className="grid gap-3">
-      {q.data.cases.map((c: any) => (
-        <div key={c.id} className="glass flex flex-wrap gap-4 rounded-3xl p-4">
-          {c.publication && <PubPreview path={c.publication.preview_path} />}
-          <div className="min-w-0 flex-1 text-sm">
-            <div className="font-bold">{c.kind.replace('_', ' ')} · {c.reason} <span className="text-xs text-faint">{timeAgo(c.created_at)}</span></div>
-            {c.subject && <div className="text-muted">Player @{c.subject.username} · strikes {c.subject_strikes}</div>}
-            {c.publication && <div className="text-muted">“{c.publication.title}” · {c.publication.plot_count} plots · {c.publication.status}</div>}
-            {c.details && <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-xs text-faint">{JSON.stringify(c.details)}</pre>}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {c.publication?.status === 'pending_review' && <>
-                <Button size="sm" variant="primary" onClick={() => run(() => api.admin.reviewPublication(c.publication.id, 'approve'), 'Approved', refresh)}>Approve</Button>
-                <Button size="sm" variant="danger" onClick={() => run(() => api.admin.reviewPublication(c.publication.id, 'reject', 'Does not meet the content policy'), 'Rejected', refresh)}>Reject</Button>
-              </>}
-              {c.publication?.status === 'published' && <Button size="sm" variant="danger" onClick={() => run(() => api.admin.removePublication(c.publication.id, c.reason || 'Content policy', true), 'Removed with a strike', refresh)}>Remove + strike</Button>}
-              {c.kind === 'score_review' && c.session_id && <>
-                <Button size="sm" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'clear', 'Looks legitimate'), 'Rewards released', refresh)}>Clear run</Button>
-                <Button size="sm" variant="danger" onClick={() => run(() => api.admin.reviewSession(c.session_id, 'void', 'Automated play'), 'Run voided', refresh)}>Void run</Button>
-              </>}
-              <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.resolveCase(c.id, 'dismissed', 'No action needed'), 'Dismissed', refresh)}>Dismiss</Button>
-            </div>
+    <div className="grid gap-4">
+      <Card title={`@${pr.username}`} actions={<div className="flex gap-2">
+        <Button size="sm" variant="ghost" onClick={() => nav(`/u/${pr.username}`)}><Eye className="h-4 w-4" /> Profile</Button>
+        {(land.data?.total_plots ?? 0) > 0 && <Button size="sm" variant="secondary" onClick={async () => { if (await visitPlayer(pr.username)) nav('/'); }}><MapPin className="h-4 w-4" /> Visit land</Button>}
+      </div>}>
+        <div className="grid gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2"><Avatar seed={pr.avatar_seed} style={pr.avatar_style} accent={pr.accent_color} size={36} /><span>{d.email}</span> · <b className={d.player.status === 'active' ? 'text-ok' : 'text-bad'}>{d.player.status}</b> · strikes {d.player.strikes} · joined {new Date(d.player.created_at).toLocaleDateString()} · seen {timeAgo(d.player.last_active_at)}</div>
+          <div className="tnum">Ink <b>{fmt(d.balances.ink)}</b> · Pigments <b>{fmt(d.balances.pigments)}</b> · XP <b>{fmt(d.balances.brush_points)}</b> · Tokens <b>{fmt(d.balances.gallery_tokens)}</b> · USD <b>${Number(d.rent.live_usd).toFixed(9)}</b></div>
+          <div className="text-xs text-muted">{d.plots} plots · {d.groups} canvases{d.explorer ? ` · explorer ${d.explorer.mode}${d.explorer.traveling ? ', travelling' : ''} near block ${d.explorer.gx}, ${d.explorer.gy}` : ' · no explorer yet'}{d.joystick ? ` · joystick ${Math.round(d.joystick.seconds_left)}s left` : ''}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <select className={cn(inputCls, "h-9 w-auto")} value={adj.resource} onChange={(e) => setAdj({ ...adj, resource: e.target.value })} aria-label="Resource">
+              {['ink', 'pigments', 'brush_points', 'gallery_tokens', 'usd'].map((r) => <option key={r} value={r}>{r === 'brush_points' ? 'XP' : r}</option>)}
+            </select>
+            <input className={cn(inputCls, "h-9 w-28")} placeholder="± amount" inputMode="decimal" value={adj.delta} onChange={(e) => setAdj({ ...adj, delta: e.target.value })} />
+            <input className={cn(inputCls, "h-9 min-w-40 flex-1")} placeholder="Reason (audited)" value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} />
+            <Button size="sm" disabled={!Number(adj.delta)} onClick={() => run(() => adj.resource === 'usd' ? api.admin.adjustRent(id, Number(adj.delta), adj.reason) : api.admin.adjustBalance(id, adj.resource, Math.trunc(Number(adj.delta)), adj.reason), 'Balance adjusted', () => { setAdj({ ...adj, delta: '' }); refetch(); })}>Apply</Button>
           </div>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <Button size="sm" variant="danger" onClick={() => run(() => api.admin.setPlayerStatus(id, 'suspended', new Date(Date.now() + 7 * 864e5).toISOString(), 'Suspended by the operator'), 'Suspended for 7 days', refetch)}>Suspend 7 days</Button>
+            <Button size="sm" variant="danger" onClick={async () => { if (await confirm({ title: `Ban @${pr.username}?`, body: 'They can no longer play. Their art stays unless you remove it.', confirm: 'Ban' })) void run(() => api.admin.setPlayerStatus(id, 'banned', null, 'Banned by the operator'), 'Banned', refetch); }}>Ban</Button>
+            <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.setPlayerStatus(id, 'active', null, ''), 'Reactivated', refetch)}>Reactivate</Button>
+            <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.hideProfile(id, !pr.is_hidden, 'Operator decision'), pr.is_hidden ? 'Profile visible again' : 'Profile hidden', refetch)}>{pr.is_hidden ? 'Unhide profile' : 'Hide profile'}</Button>
+          </div>
+        </div>
+      </Card>
+      <Card title={`Land (${land.data?.total_plots ?? d.plots})`}>
+        {!land.data ? <Spinner /> : !land.data.plots.length ? <p className="text-sm text-muted">No plots.</p> : (
+          <div className="grid max-h-72 gap-1 overflow-y-auto text-sm scroll-thin">
+            {land.data.plots.map(([gx, gy, r, t, level, art, , name]) => (
+              <div key={`${gx}_${gy}`} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-surface-2">
+                <RarityBadge r={r} small />
+                <span className="min-w-0 flex-1 truncate"><b>{name || `Plot ${plotLabel(gx, gy)}`}</b> <span className="text-xs text-faint">{t} · lvl {level}{art ? ' · painted' : ''}</span></span>
+                {name && <button className="text-xs text-bad hover:underline" onClick={() => run(() => api.admin.clearPlotName(gx, gy, 'Name removed by the operator'), 'Name cleared', refetch)}>Clear name</button>}
+                <button className="text-xs text-accent-2 hover:underline" onClick={() => { const [lng, lat] = cellCenter(gx, gy); useUi.getState().requestFly({ lng, lat, zoom: 16 }); useUi.getState().select({ gx, gy }); nav('/'); }}>Map</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card title={`Artwork (${d.publications.length})`}>
+        {!d.publications.length ? <p className="text-sm text-muted">Nothing submitted yet.</p> : (
+          <div className="grid gap-2">
+            {d.publications.map((p: any) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-line p-2">
+                <PubPreview path={p.preview_path} className="h-14 w-14 shrink-0" />
+                <div className="min-w-0 flex-1 text-sm">
+                  <div className="truncate font-semibold">{p.title}</div>
+                  <div className="text-xs text-muted">{p.status} · {p.plot_count} plots · {timeAgo(p.created_at)}</div>
+                </div>
+                {p.status === 'published' && <Button size="sm" variant="danger" onClick={async () => { if (await confirm({ title: 'Remove this artwork from the map?', body: 'Each plot goes back to its previous artwork. No strike is given.', confirm: 'Remove' })) void run(() => api.admin.removePublication(p.id, 'Removed by the operator', false), 'Removed', refetch); }}>Remove</Button>}
+                {(p.status === 'removed' || p.status === 'rejected') && <Button size="sm" variant="ghost" onClick={() => run(() => p.status === 'removed' ? api.admin.restorePublication(p.id, 'Restored by the operator') : api.admin.reviewPublication(p.id, 'approve'), p.status === 'removed' ? 'Restored' : 'Approved', refetch)}>{p.status === 'removed' ? 'Restore' : 'Approve'}</Button>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card title="Recent ledger">
+          <div className="grid max-h-64 gap-1 overflow-y-auto text-xs scroll-thin">
+            {d.ledger.map((l: any) => <div key={l.id} className="flex justify-between gap-2"><span className="truncate">{l.resource} · {String(l.reason).replace(/_/g, ' ')}</span><span className={cn('shrink-0 tnum', l.delta > 0 ? 'text-ok' : 'text-muted')}>{l.delta > 0 ? '+' : ''}{fmt(l.delta)} · {timeAgo(l.created_at)}</span></div>)}
+          </div>
+        </Card>
+        <Card title="Security & minigames">
+          <div className="grid max-h-64 gap-1 overflow-y-auto text-xs scroll-thin">
+            {(d.security_events ?? []).map((e: any, i: number) => <div key={`e${i}`}><span className="text-faint">{timeAgo(e.created_at)}</span> <b>{String(e.kind).replace(/_/g, ' ')}</b> {e.details?.distance_m ? `${fmt(e.details.distance_m)} m in ${e.details.seconds}s` : ''}</div>)}
+            {d.sessions.map((s: any) => <div key={s.id}><span className="text-faint">{timeAgo(s.started_at)}</span> {GAME_INFO[s.game as GameId]?.name ?? s.game} L{s.level} · {s.status}{s.passed ? ' · won' : ''} · {fmt(s.score ?? 0)}{s.review_status === 'flagged' ? ' · FLAGGED' : ''}</div>)}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---- earnings ---------------------------------------------------------------------------
+
+function NumberField({ label, value, onChange, step = 1, min = 0, max, hint, suffix }: { label: string; value: number; onChange(v: number): void; step?: number; min?: number; max?: number; hint?: string; suffix?: string }) {
+  const id = useMemo(() => `nf-${label.replace(/\W+/g, '-').toLowerCase()}`, [label]);
+  return (
+    <Field label={label} hint={hint} htmlFor={id}>
+      <div className="flex items-center gap-2">
+        <input id={id} type="number" className={cn(inputCls, 'h-10 tnum')} value={Number.isFinite(value) ? value : ''} step={step} min={min} max={max} onChange={(e) => onChange(e.target.value === '' ? NaN : Number(e.target.value))} />
+        {suffix && <span className="shrink-0 text-xs text-muted">{suffix}</span>}
+      </div>
+    </Field>
+  );
+}
+
+function useConfig() {
+  return useQuery({ queryKey: ['admin', 'config'], queryFn: api.admin.configGet });
+}
+function useSaveConfig() {
+  const qc = useQueryClient();
+  return async (key: string, value: unknown, ok = 'Saved for all players') => {
+    await run(() => api.admin.configSet(key, value), ok, () => { void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); void qc.invalidateQueries({ queryKey: ['world'] }); });
+  };
+}
+
+const GAMES: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines'];
+
+function Earnings() {
+  const cfg = useConfig();
+  if (!cfg.data) return <div className="flex justify-center py-10"><Spinner /></div>;
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <MinigameEarnings value={cfg.data.config.minigames.value} rarities={cfg.data.rarities} />
+      <div className="grid content-start gap-4">
+        <RarityRates rarities={cfg.data.rarities} />
+        <PlotPrice economy={cfg.data.config.economy.value} />
+        <BoostSettings rent={cfg.data.config.rent.value} />
+      </div>
+    </div>
+  );
+}
+
+function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) {
+  const save = useSaveConfig();
+  const [v, setV] = useState<any>(() => structuredClone(value));
+  useEffect(() => setV(structuredClone(value)), [value]);
+  const rw = v.rewards ?? {};
+  const setRw = (k: string, n: number) => setV({ ...v, rewards: { ...rw, [k]: n } });
+  const setGame = (g: string, patch: Record<string, unknown>) => setV({ ...v, games: { ...v.games, [g]: { ...(v.games?.[g] ?? {}), ...patch } } });
+  const [ex, setEx] = useState({ level: 5, score: 2400, rarity: 'rare', plotLevel: 1, game: 'tracecraft' as GameId });
+  const rMult = Number(rarities.find((r) => r.id === ex.rarity)?.ink_reward_multiplier ?? 1);
+  const mult = (1 + Number(v.plot_level_bonus ?? 0.05) * (ex.plotLevel - 1)) * rMult * Number(v.ink_multiplier ?? 1) * Number(v.games?.[ex.game]?.ink_multiplier ?? 1);
+  const ink = Math.floor((Number(rw.base_ink) + Number(rw.ink_per_level) * ex.level + ex.score / Math.max(Number(rw.score_ink_divisor), 1)) * mult);
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  return (
+    <Card title="Minigame earnings (Ink)" actions={<div className="flex gap-2">
+      {dirty && <Button size="sm" variant="ghost" onClick={() => setV(structuredClone(value))}>Undo</Button>}
+      <Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('minigames', v, 'Minigame earnings updated for everyone')} data-testid="save-minigames">Save</Button>
+    </div>}>
+      <p className="mb-4 text-sm text-muted">Ink is the only way to buy plots and is earned only by winning. A win pays <b>(base + per level × level + score ÷ divisor)</b> × plot level bonus × rarity bonus × multipliers.</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <NumberField label="Base Ink per win" value={Number(rw.base_ink)} onChange={(n) => setRw('base_ink', n)} />
+        <NumberField label="Ink per level" value={Number(rw.ink_per_level)} onChange={(n) => setRw('ink_per_level', n)} />
+        <NumberField label="Score divisor" value={Number(rw.score_ink_divisor)} min={1} onChange={(n) => setRw('score_ink_divisor', n)} hint="1 Ink per this many points" />
+        <NumberField label="Everyone’s Ink multiplier" value={Number(v.ink_multiplier ?? 1)} step={0.1} max={100} onChange={(n) => setV({ ...v, ink_multiplier: n })} suffix="×" hint="Set 2 for a double-Ink weekend" />
+        <NumberField label="Plot level bonus" value={Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10} step={0.5} onChange={(n) => setV({ ...v, plot_level_bonus: n / 100 })} suffix="% / level" />
+        <NumberField label="Paid wins per game per day" value={Number(v.daily_rewarded_wins_per_game ?? 6)} max={1000} onChange={(n) => setV({ ...v, daily_rewarded_wins_per_game: Math.round(n) })} />
+      </div>
+      <div className="mt-4 grid gap-2">
+        <div className="eyebrow">Per game</div>
+        {GAMES.map((g) => (
+          <div key={g} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line px-3 py-2">
+            <span className="w-28 font-semibold">{GAME_INFO[g]?.name ?? g}</span>
+            <label className="flex items-center gap-2 text-xs text-muted">Multiplier
+              <input type="number" step={0.1} min={0} max={100} className={cn(inputCls, 'h-9 w-20 tnum')} value={Number(v.games?.[g]?.ink_multiplier ?? 1)} onChange={(e) => setGame(g, { ink_multiplier: Number(e.target.value) })} />×</label>
+            <label className="ml-auto flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={v.games?.[g]?.enabled !== false} onChange={(e) => setGame(g, { enabled: e.target.checked })} /> Playable</label>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        <NumberField label="XP per win" value={Number(rw.brush_points_base)} onChange={(n) => setRw('brush_points_base', n)} />
+        <NumberField label="XP per star" value={Number(rw.brush_points_per_star)} onChange={(n) => setRw('brush_points_per_star', n)} />
+        <NumberField label="Pigments at 3★" value={Number(rw.pigments_on_three_stars)} onChange={(n) => setRw('pigments_on_three_stars', n)} />
+        <NumberField label="XP for a loss" value={Number(rw.fail_brush_points)} onChange={(n) => setRw('fail_brush_points', n)} />
+      </div>
+      <div className="mt-4 rounded-2xl bg-accent/10 p-3 text-sm">
+        <div className="eyebrow mb-2">Preview</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select className={cn(inputCls, 'h-9 w-auto')} value={ex.game} onChange={(e) => setEx({ ...ex, game: e.target.value as GameId })} aria-label="Game">{GAMES.map((g) => <option key={g} value={g}>{GAME_INFO[g]?.name ?? g}</option>)}</select>
+          <span>level</span><input type="number" min={1} max={60} className={cn(inputCls, 'h-9 w-16')} value={ex.level} onChange={(e) => setEx({ ...ex, level: Number(e.target.value) })} />
+          <span>score</span><input type="number" min={0} className={cn(inputCls, 'h-9 w-24')} value={ex.score} onChange={(e) => setEx({ ...ex, score: Number(e.target.value) })} />
+          <span>on a</span><select className={cn(inputCls, 'h-9 w-auto')} value={ex.rarity} onChange={(e) => setEx({ ...ex, rarity: e.target.value })} aria-label="Rarity">{RARITY_ORDER.map((r) => <option key={r} value={r}>{rarityInfo(r).name}</option>)}</select>
+          <span>plot, level</span><input type="number" min={1} max={10} className={cn(inputCls, 'h-9 w-16')} value={ex.plotLevel} onChange={(e) => setEx({ ...ex, plotLevel: Number(e.target.value) })} />
+        </div>
+        <div className="mt-2 font-display text-lg font-semibold">= {fmt(Number.isFinite(ink) ? ink : 0)} Ink <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)})</span></div>
+      </div>
+    </Card>
+  );
+}
+
+function RarityRates({ rarities }: { rarities: any[] }) {
+  const qc = useQueryClient();
+  const [edit, setEdit] = useState<Record<string, { usd?: string; ink?: string }>>({});
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); void qc.invalidateQueries({ queryKey: ['world'] }); };
+  return (
+    <Card title="Rarities: USD rent & Ink bonus">
+      <div className="grid gap-2">
+        {RARITY_ORDER.map((id) => {
+          const r = rarities.find((x: any) => x.id === id);
+          if (!r) return null;
+          const e = edit[id] ?? {};
+          return (
+            <div key={id} className="flex flex-wrap items-center gap-2 text-sm">
+              <RarityBadge r={id} small />
+              <span className="w-44 text-xs tnum text-muted">{formatRate(Number(r.usd_per_second))} · ×{Number(r.ink_reward_multiplier).toFixed(2)} Ink · {(r.weight / 10).toFixed(1)}%</span>
+              <input className={cn(inputCls, "h-8 w-32 text-xs")} placeholder="USD / second" value={e.usd ?? ''} onChange={(ev) => setEdit({ ...edit, [id]: { ...e, usd: ev.target.value } })} />
+              <input className={cn(inputCls, "h-8 w-20 text-xs")} placeholder="Ink ×" value={e.ink ?? ''} onChange={(ev) => setEdit({ ...edit, [id]: { ...e, ink: ev.target.value } })} />
+              <Button size="sm" disabled={!e.usd && !e.ink} onClick={() => run(() => api.admin.updateRarity(id, { ...(e.usd ? { usd_per_second: Number(e.usd) } : {}), ...(e.ink ? { ink_reward_multiplier: Number(e.ink) } : {}) }), `${r.name} updated`, () => { setEdit({ ...edit, [id]: {} }); refresh(); })}>Set</Button>
+            </div>
+          );
+        })}
+        <p className="text-xs text-faint">Rent changes bank everyone’s rent first, so they never apply retroactively. Atlas Earth’s common rate is 0.0000000011 USD/s.</p>
+      </div>
+    </Card>
+  );
+}
+
+function PlotPrice({ economy }: { economy: any }) {
+  const save = useSaveConfig();
+  const [price, setPrice] = useState(Number(economy.acquire?.base_ink ?? 100));
+  useEffect(() => setPrice(Number(economy.acquire?.base_ink ?? 100)), [economy]);
+  return (
+    <Card title="Plot price" actions={<Button size="sm" variant="primary" disabled={price === Number(economy.acquire?.base_ink)} onClick={() => save('economy', { ...economy, acquire: { ...economy.acquire, base_ink: price } }, 'Plot price updated')}>Save</Button>}>
+      <NumberField label="Ink per plot" value={price} min={1} onChange={setPrice} hint="Rarer plots don’t cost more unless you change a rarity’s price multiplier." />
+    </Card>
+  );
+}
+
+function BoostSettings({ rent }: { rent: any }) {
+  const save = useSaveConfig();
+  const [b, setB] = useState<any>(() => ({ ...rent.boost }));
+  useEffect(() => setB({ ...rent.boost }), [rent]);
+  const dirty = JSON.stringify(b) !== JSON.stringify(rent.boost);
+  return (
+    <Card title="Rent boost" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('rent', { ...rent, boost: b }, 'Boost updated')}>Save</Button>}>
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField label="Multiplier" value={Number(b.multiplier)} min={1} max={100} onChange={(n) => setB({ ...b, multiplier: n })} suffix="×" />
+        <NumberField label="Minutes per press" value={Number(b.minutes_per_boost)} min={1} onChange={(n) => setB({ ...b, minutes_per_boost: Math.round(n) })} />
+        <NumberField label="Free presses per day" value={Number(b.free_per_day)} onChange={(n) => setB({ ...b, free_per_day: Math.round(n) })} />
+        <NumberField label="Max stacked hours" value={Number(b.max_stack_hours)} step={0.5} onChange={(n) => setB({ ...b, max_stack_hours: n })} />
+      </div>
+    </Card>
+  );
+}
+
+// ---- world ------------------------------------------------------------------------------
+
+function World() {
+  const cfg = useConfig();
+  const save = useSaveConfig();
+  const qc = useQueryClient();
+  const [v, setV] = useState<any>(null);
+  useEffect(() => { if (cfg.data) setV(structuredClone(cfg.data.config.explorer.value)); }, [cfg.data]);
+  if (!cfg.data || !v) return <div className="flex justify-center py-10"><Spinner /></div>;
+  const value = cfg.data.config.explorer.value;
+  const j = v.joystick ?? {};
+  const setJ = (patch: Record<string, unknown>) => setV({ ...v, joystick: { ...j, ...patch } });
+  const gate = cfg.data.flags.find((f: any) => f.key === 'location_gated_claims');
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card title="Explorer & claiming" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('explorer', v, 'Explorer rules updated')}>Save</Button>}>
+        {gate && <Switch id="gate" checked={gate.enabled} label="Plots can only be claimed near your explorer" hint="Off = anyone can claim any plot from anywhere." onCheckedChange={(on) => run(() => api.admin.setFlag('location_gated_claims', on), on ? 'Location rules on' : 'Location rules off', () => qc.invalidateQueries({ queryKey: ['admin', 'config'] }))} />}
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <NumberField label="Claim reach" value={Number(v.claim_reach)} max={25} onChange={(n) => setV({ ...v, claim_reach: Math.round(n) })} suffix="plots" />
+          <NumberField label="Tap-travel speed" value={Number(v.travel_speed_kmh)} min={1} onChange={(n) => setV({ ...v, travel_speed_kmh: n })} suffix="km/h" />
+          <NumberField label="Instant jump cooldown" value={Number(v.jump_cooldown_hours)} onChange={(n) => setV({ ...v, jump_cooldown_hours: Math.round(n) })} suffix="hours" />
+          <NumberField label="Max believable GPS speed" value={Number(v.max_speed_kmh)} min={10} onChange={(n) => setV({ ...v, max_speed_kmh: n })} suffix="km/h" />
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={v.manual_travel !== false} onChange={(e) => setV({ ...v, manual_travel: e.target.checked })} /> Players without GPS can tap to travel</label>
+      </Card>
+      <Card title="Joystick" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('explorer', v, 'Joystick updated')}>Save</Button>}>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.enabled !== false} onChange={(e) => setJ({ enabled: e.target.checked })} /> Joystick available</label>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <NumberField label="Speed" value={Number(j.speed_kmh ?? 40)} min={1} max={500} onChange={(n) => setJ({ speed_kmh: n })} suffix="km/h" />
+          <NumberField label="Tank" value={Math.round(Number(j.tank_seconds ?? 600) / 60)} onChange={(n) => setJ({ tank_seconds: Math.round(n * 60) })} suffix="minutes" />
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.daily_refill !== false} onChange={(e) => setJ({ daily_refill: e.target.checked })} /> Free daily refill (until rewarded ads are connected)</label>
+      </Card>
+    </div>
+  );
+}
+
+// ---- plots ------------------------------------------------------------------------------
+
+function Plots() {
+  const [q, setQ] = useState('');
+  const [cell, setCell] = useState<{ gx: number; gy: number } | null>(null);
+  const nav = useNavigate();
+  const look = useQuery({ queryKey: ['admin', 'plot', cell?.gx, cell?.gy], queryFn: () => api.admin.plotLookup(cell!.gx, cell!.gy), enabled: !!cell });
+  const [reason, setReason] = useState('');
+  const d = look.data;
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title="Find a plot">
+        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); const m = q.match(/(\d+)\D+(\d+)/); if (m) setCell({ gx: Number(m[1]), gy: Number(m[2]) }); }}>
+          <input className={inputCls} placeholder="Plot coordinates, e.g. 12398 24628" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Button type="submit">Look up</Button>
+        </form>
+        <p className="mt-2 text-xs text-faint">Tip: open a plot on the map — its number is in the panel header.</p>
+      </Card>
+      {cell && (
+        <Card title={`Plot ${plotLabel(cell.gx, cell.gy)}`} actions={<Button size="sm" variant="ghost" onClick={() => { const [lng, lat] = cellCenter(cell.gx, cell.gy); useUi.getState().requestFly({ lng, lat, zoom: 16 }); useUi.getState().select(cell); nav('/'); }}><MapPin className="h-4 w-4" /> Map</Button>}>
+          {!d ? <Spinner /> : (
+            <div className="grid gap-2 text-sm">
+              <div>{d.plot ? <>Owner <b>@{d.owner?.username ?? '—'}</b> · {d.plot.plot_type} · {d.plot.rarity} · level {d.plot.level}{d.plot.name ? ` · “${d.plot.name}”` : ''}{d.plot.locked ? ' · LOCKED' : ''}</> : <>Unclaimed · {d.computed_type}</>}</div>
+              <input className={cn(inputCls, 'h-9')} placeholder="Reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <div className="flex flex-wrap gap-2">
+                {d.plot && <Button size="sm" variant="ghost" disabled={reason.length < 4} onClick={() => run(() => api.admin.setPlotLock(cell.gx, cell.gy, !d.plot.locked, reason), d.plot.locked ? 'Unlocked' : 'Locked', () => look.refetch())}>{d.plot.locked ? 'Unlock' : 'Lock'}</Button>}
+                {d.plot?.owner_id && <Button size="sm" variant="danger" disabled={reason.length < 4} onClick={() => run(() => api.admin.releasePlot(cell.gx, cell.gy, reason), 'Released', () => look.refetch())}>Release from owner</Button>}
+                {d.plot?.name && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.clearPlotName(cell.gx, cell.gy, reason || 'Operator'), 'Name cleared', () => look.refetch())}>Clear name</Button>}
+              </div>
+              <div className="eyebrow mt-2">Ownership history</div>
+              <div className="grid gap-1 text-xs text-muted">{d.ownership_history.map((o: any, i: number) => <div key={i}>@{o.player?.username} · {o.method} · {new Date(o.acquired_at).toLocaleString()}{o.released_at ? ` → released ${new Date(o.released_at).toLocaleString()} (${o.release_reason})` : ''}</div>)}</div>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---- switches, cash-outs, system ----------------------------------------------------------
+
+function Flags() {
+  const qc = useQueryClient();
+  const q = useConfig();
+  if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
+  return (
+    <div className="glass divide-y divide-line overflow-hidden rounded-3xl">
+      {q.data.flags.filter((f: any) => f.key !== 'local_dev_mode').map((f: any) => (
+        <div key={f.key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+          <div className="min-w-0">
+            <div className="font-bold">{f.key.replace(/_/g, ' ')} {f.config?.legally_gated && <span className="ml-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-bold text-warn">NEEDS LEGAL SIGN-OFF</span>}</div>
+            <div className="text-xs text-muted">{f.description}</div>
+          </div>
+          <Button size="sm" variant={f.enabled ? 'secondary' : 'primary'} onClick={() => run(() => api.admin.setFlag(f.key, !f.enabled), `${f.key} ${f.enabled ? 'off' : 'on'}`, () => qc.invalidateQueries({ queryKey: ['admin', 'config'] }))}>{f.enabled ? 'Turn off' : 'Turn on'}</Button>
         </div>
       ))}
     </div>
@@ -122,9 +656,9 @@ function Cashouts() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'cashouts'], queryFn: () => api.admin.cashoutQueue('requested') });
   const [refs, setRefs] = useState<Record<string, string>>({});
-  if (q.error) return <Empty title="Payouts role required">{toGameError(q.error).message}</Empty>;
-  if (!q.data) return <Spinner />;
-  if (!q.data.length) return <Empty title="No cash-out requests">Cash-out is controlled by the legally gated “cashout” flag.</Empty>;
+  if (q.error) return <Empty title="Cash-outs unavailable">{toGameError(q.error).message}</Empty>;
+  if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
+  if (!q.data.length) return <Empty title="No cash-out requests">Cash-out stays off until the legally gated “cashout” switch is signed off.</Empty>;
   return (
     <div className="grid gap-3">
       {q.data.map((r: any) => (
@@ -132,7 +666,7 @@ function Cashouts() {
           <div className="flex flex-wrap items-center gap-2"><b>@{r.player.username}</b> requested <b className="tnum">${(r.payout_cents / 100).toFixed(2)}</b> via {r.method} to <code className="rounded bg-surface-2 px-1">{r.destination}</code> <span className="text-faint">{timeAgo(r.created_at)}</span></div>
           <div className="text-xs text-muted">{r.player_plots} plots · member since {new Date(r.player_since).toLocaleDateString()} {r.risk_flags?.length ? `· flags: ${r.risk_flags.join(', ')}` : ''}</div>
           <div className="flex flex-wrap gap-2">
-            <input className={`${inputCls} h-9 max-w-xs`} placeholder="Payment reference (after paying)" value={refs[r.id] ?? ''} onChange={(e) => setRefs({ ...refs, [r.id]: e.target.value })} />
+            <input className={cn(inputCls, "h-9 max-w-xs")} placeholder="Payment reference (after paying)" value={refs[r.id] ?? ''} onChange={(e) => setRefs({ ...refs, [r.id]: e.target.value })} />
             <Button size="sm" variant="primary" disabled={!refs[r.id]} onClick={() => run(() => api.admin.decideCashout(r.id, 'paid', refs[r.id]), 'Marked paid', () => qc.invalidateQueries({ queryKey: ['admin', 'cashouts'] }))}>Mark paid</Button>
             <Button size="sm" variant="danger" onClick={() => run(() => api.admin.decideCashout(r.id, 'rejected', undefined, 'Rejected by review'), 'Rejected — funds returned', () => qc.invalidateQueries({ queryKey: ['admin', 'cashouts'] }))}>Reject</Button>
           </div>
@@ -142,145 +676,55 @@ function Cashouts() {
   );
 }
 
-function Players() {
-  const [query, setQuery] = useState('');
-  const [sel, setSel] = useState<string | null>(null);
-  const list = useQuery({ queryKey: ['admin', 'players', query], queryFn: () => api.admin.searchPlayers(query) });
-  const detail = useQuery({ queryKey: ['admin', 'player', sel], queryFn: () => api.admin.playerDetail(sel!), enabled: !!sel });
-  const [adj, setAdj] = useState({ resource: 'ink', delta: '', reason: '' });
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-      <Card title="Players">
-        <input className={inputCls} placeholder="Search username, email or id" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <div className="mt-3 grid max-h-[60vh] gap-1 overflow-y-auto scroll-thin">
-          {(list.data ?? []).map((p: any) => (
-            <button key={p.id} onClick={() => setSel(p.id)} className={`flex items-center justify-between gap-2 rounded-xl px-2 py-2 text-left text-sm hover:bg-surface-2 ${sel === p.id ? 'bg-surface-2' : ''}`}>
-              <span className="min-w-0 truncate"><b>@{p.username}</b> <span className="text-faint">{p.email}</span></span>
-              <span className="shrink-0 text-xs text-muted">{p.plots} plots · {p.status}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
-      {sel && detail.data && (
-        <Card title={`@${detail.data.profile.username}`}>
-          <div className="grid gap-2 text-sm">
-            <div className="flex items-center gap-2"><Avatar seed={detail.data.profile.avatar_seed} style={detail.data.profile.avatar_style} accent={detail.data.profile.accent_color} size={32} />{detail.data.email} · {detail.data.player.status} · strikes {detail.data.player.strikes}</div>
-            <div className="tnum">Ink {fmt(detail.data.balances.ink)} · Pigments {fmt(detail.data.balances.pigments)} · USD ${Number(detail.data.rent.live_usd).toFixed(9)} · {detail.data.plots} plots</div>
-            {detail.data.explorer && <div className="text-xs text-muted">Explorer near block {detail.data.explorer.gx}, {detail.data.explorer.gy} ({detail.data.explorer.mode})</div>}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <select className={`${inputCls} h-9 w-auto`} value={adj.resource} onChange={(e) => setAdj({ ...adj, resource: e.target.value })}>
-                {['ink', 'pigments', 'brush_points', 'gallery_tokens', 'usd'].map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <input className={`${inputCls} h-9 w-28`} placeholder="± amount" value={adj.delta} onChange={(e) => setAdj({ ...adj, delta: e.target.value })} />
-              <input className={`${inputCls} h-9 min-w-40 flex-1`} placeholder="Reason (audited)" value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} />
-              <Button size="sm" onClick={() => run(() => adj.resource === 'usd' ? api.admin.adjustRent(sel, Number(adj.delta), adj.reason) : api.admin.adjustBalance(sel, adj.resource, Math.trunc(Number(adj.delta)), adj.reason), 'Adjusted', () => detail.refetch())}>Apply</Button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="danger" onClick={() => run(() => api.admin.setPlayerStatus(sel, 'suspended', new Date(Date.now() + 7 * 864e5).toISOString(), 'Suspended by admin'), 'Suspended 7 days', () => detail.refetch())}>Suspend 7 days</Button>
-              <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.setPlayerStatus(sel, 'active', null, ''), 'Reactivated', () => detail.refetch())}>Reactivate</Button>
-              {['moderator', 'economy', 'support', 'payouts'].map((role) => {
-                const has = detail.data.roles.includes(role);
-                return <Button key={role} size="sm" variant="ghost" onClick={() => run(() => api.admin.setRole(sel, role, !has), has ? `Removed ${role}` : `Granted ${role}`, () => detail.refetch())}>{has ? `− ${role}` : `+ ${role}`}</Button>;
-              })}
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function JsonConfig({ k, value, onSaved }: { k: string; value: unknown; onSaved(): void }) {
+function JsonConfig({ k, value, description }: { k: string; value: unknown; description?: string }) {
+  const save = useSaveConfig();
   const [text, setText] = useState(() => JSON.stringify(value, null, 2));
+  useEffect(() => setText(JSON.stringify(value, null, 2)), [value]);
   return (
-    <div className="grid gap-2">
-      <textarea className={`${inputCls} h-56 py-2 font-mono text-xs`} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
-      <Button size="sm" className="justify-self-start" onClick={() => run(async () => api.admin.configSet(k, JSON.parse(text)), `${k} saved`, onSaved)}>Save {k}</Button>
-    </div>
+    <details className="rounded-2xl border border-line p-3">
+      <summary className="cursor-pointer text-sm font-bold">{k}<span className="ml-2 text-xs font-normal text-muted">{description}</span></summary>
+      <textarea className={cn(inputCls, "mt-2 h-64 py-2 font-mono text-xs")} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+      <Button size="sm" className="mt-2" onClick={() => { try { void save(k, JSON.parse(text), `${k} saved`); } catch { toast.error('That isn’t valid JSON'); } }}>Save {k}</Button>
+    </details>
   );
 }
 
-function Economy() {
+function System() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['admin', 'config'], queryFn: api.admin.configGet });
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); void qc.invalidateQueries({ queryKey: ['world'] }); };
-  const [edit, setEdit] = useState<Record<string, string>>({});
-  if (!q.data) return <Spinner />;
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Rarities">
-        <div className="grid gap-2">
-          {RARITY_ORDER.map((id) => {
-            const r = q.data.rarities.find((x: any) => x.id === id);
-            if (!r) return null;
-            return (
-              <div key={id} className="flex flex-wrap items-center gap-2 text-sm">
-                <RarityBadge r={id} small />
-                <span className="w-40 tnum text-muted">{formatRate(Number(r.usd_per_second))} · {(r.weight / 10).toFixed(1)}%</span>
-                <input className={`${inputCls} h-8 w-36 text-xs`} placeholder="USD/sec" value={edit[id] ?? ''} onChange={(e) => setEdit({ ...edit, [id]: e.target.value })} />
-                <Button size="sm" disabled={!edit[id]} onClick={() => run(() => api.admin.updateRarity(id, { usd_per_second: Number(edit[id]) }), `${r.name} rate updated`, refresh)}>Set rate</Button>
-              </div>
-            );
-          })}
-          <p className="text-xs text-faint">Rate changes bank everyone's rent first, so they never apply retroactively.</p>
-        </div>
-      </Card>
-      {['rent', 'explorer', 'economy', 'minigames'].map((k) => (
-        <Card key={k} title={k}>
-          <p className="mb-2 text-xs text-muted">{q.data.config[k]?.description}</p>
-          <JsonConfig k={k} value={q.data.config[k]?.value} onSaved={refresh} />
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function Flags() {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['admin', 'config'], queryFn: api.admin.configGet });
-  if (!q.data) return <Spinner />;
-  return (
-    <div className="glass divide-y divide-line overflow-hidden rounded-3xl">
-      {q.data.flags.map((f: any) => (
-        <div key={f.key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-          <div className="min-w-0">
-            <div className="font-bold">{f.key} {f.config?.legally_gated && <span className="ml-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-bold text-warn">LEGAL SIGN-OFF REQUIRED</span>}</div>
-            <div className="text-xs text-muted">{f.description}</div>
-          </div>
-          <Button size="sm" variant={f.enabled ? 'secondary' : 'primary'} onClick={() => run(() => api.admin.setFlag(f.key, !f.enabled), `${f.key} ${f.enabled ? 'disabled' : 'enabled'}`, () => qc.invalidateQueries({ queryKey: ['admin', 'config'] }))}>{f.enabled ? 'Disable' : 'Enable'}</Button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Ops() {
-  const qc = useQueryClient();
+  const cfg = useConfig();
   const jobs = useQuery({ queryKey: ['admin', 'jobs'], queryFn: () => api.admin.jobs() });
   const errs = useQuery({ queryKey: ['admin', 'errors'], queryFn: api.admin.clientErrors });
-  const audit = useQuery({ queryKey: ['admin', 'audit'], queryFn: () => api.admin.audit(60) });
+  const audit = useQuery({ queryKey: ['admin', 'audit'], queryFn: () => api.admin.audit(80) });
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Render jobs">
-        <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
-          {(jobs.data ?? []).map((j: any) => (
-            <div key={j.id} className="flex items-center justify-between gap-2">
-              <span>#{j.id} {j.kind} · {j.status} · tries {j.attempts}{j.last_error ? ` · ${String(j.last_error).slice(0, 60)}` : ''}</span>
-              {j.status === 'failed' && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.retryJob(j.id), 'Retrying', () => qc.invalidateQueries({ queryKey: ['admin', 'jobs'] }))}>Retry</Button>}
-            </div>
-          ))}
+    <div className="grid gap-4">
+      <Card title="Every setting (advanced)">
+        <p className="mb-3 text-xs text-muted">Raw values behind the game. Changes are validated and audited; invalid ranges are refused.</p>
+        <div className="grid gap-2">
+          {cfg.data && Object.entries(cfg.data.config).map(([k, c]: [string, any]) => <JsonConfig key={k} k={k} value={c.value} description={c.description} />)}
         </div>
       </Card>
-      <Card title="Client errors">
-        <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
-          {(errs.data ?? []).map((e: any) => <div key={e.id}><span className="text-faint">{timeAgo(e.created_at)}</span> {String(e.message).slice(0, 160)}</div>)}
-        </div>
-      </Card>
-      <Card title="Audit log">
-        <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
-          {(audit.data ?? []).map((a: any) => <div key={a.id}><span className="text-faint">{timeAgo(a.created_at)}</span> {a.action} {a.target_type}:{String(a.target_id).slice(0, 12)}</div>)}
-        </div>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Render jobs">
+          <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
+            {(jobs.data ?? []).map((j: any) => (
+              <div key={j.id} className="flex items-center justify-between gap-2">
+                <span>#{j.id} {j.kind} · {j.status} · tries {j.attempts}{j.last_error ? ` · ${String(j.last_error).slice(0, 60)}` : ''}</span>
+                {j.status === 'failed' && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.retryJob(j.id), 'Retrying', () => qc.invalidateQueries({ queryKey: ['admin', 'jobs'] }))}>Retry</Button>}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Client errors">
+          <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
+            {(errs.data ?? []).map((e: any) => <div key={e.id}><span className="text-faint">{timeAgo(e.created_at)}</span> {String(e.message).slice(0, 160)}</div>)}
+          </div>
+        </Card>
+        <Card title="Audit log">
+          <div className="grid max-h-80 gap-1 overflow-y-auto text-xs scroll-thin">
+            {(audit.data ?? []).map((a: any) => <div key={a.id}><span className="text-faint">{timeAgo(a.created_at)}</span> {a.action} {a.target_type}:{String(a.target_id).slice(0, 12)}</div>)}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

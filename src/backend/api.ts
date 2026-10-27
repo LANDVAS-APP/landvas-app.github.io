@@ -3,6 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
+  DirectoryPlayer, PlayerLand,
 } from './types';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
@@ -11,7 +12,7 @@ const rpc = <T,>(fn: string, args?: Record<string, unknown>) => getBackend().rpc
 export const idemKey = (op: string) => `${op}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export type ClaimResult = {
-  gx: number; gy: number; group_id: string; plot_type: string; rarity: RarityId; usd_per_second: number;
+  gx: number; gy: number; group_id: string; plot_type: string; rarity: RarityId; usd_per_second: number; name: string | null;
   balances: Balances; rent: RentState; achievements: NewAchievement[];
 };
 export type MinigameRecords = {
@@ -46,10 +47,11 @@ export const api = {
   plotDetails: (gx: number, gy: number) => rpc<PlotDetails>('plot_details', { p_gx: gx, p_gy: gy }),
 
   // ownership & economy
-  claimStarter: (gx: number, gy: number) =>
-    rpc<ClaimResult>('claim_starter_plot', { p_gx: gx, p_gy: gy }),
-  acquirePlot: (gx: number, gy: number) =>
-    rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire') }),
+  claimStarter: (gx: number, gy: number, name?: string) =>
+    rpc<ClaimResult>('claim_starter_plot', { p_gx: gx, p_gy: gy, ...(name?.trim() ? { p_name: name.trim() } : {}) }),
+  acquirePlot: (gx: number, gy: number, name?: string) =>
+    rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
+  namePlot: (gx: number, gy: number, name: string | null) => rpc<{ gx: number; gy: number; name: string | null }>('name_plot', { p_gx: gx, p_gy: gy, p_name: name }),
   upgradePlot: (gx: number, gy: number) =>
     rpc<{ plot: PlotDetails; balances: Balances; rent: RentState; achievements: NewAchievement[] }>('upgrade_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('upgrade') }),
 
@@ -68,6 +70,17 @@ export const api = {
     rpc<ExplorerState & { accepted: boolean; rejected?: string; wait_seconds?: number; reanchored?: boolean; placed?: boolean }>('report_position', { p_lng: lng, p_lat: lat, p_accuracy_m: accuracy }),
   travelTo: (lng: number, lat: number, jump = false) =>
     rpc<ExplorerState & { placed?: boolean; jumped?: boolean }>('travel_to', { p_lng: lng, p_lat: lat, p_jump: jump }),
+  joystickStep: (lng: number, lat: number) =>
+    rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
+
+  // players
+  playersDirectory: (query: string, sort: string, limit = 30, offset = 0) =>
+    rpc<{ total: number; rows: DirectoryPlayer[]; sort: string }>('players_directory', { p_query: query, p_sort: sort, p_limit: limit, p_offset: offset }),
+  playerLand: (username: string) => rpc<PlayerLand>('player_land', { p_username: username }),
+
+  // the operator
+  ownerStatus: () => rpc<{ claimed: boolean; is_owner: boolean }>('owner_status'),
+  claimOwner: (code: string) => rpc<{ ok: boolean; reason?: string; state?: MyState }>('claim_owner', { p_code: code }),
   purchaseUnlock: (key: string) => rpc<{ balances: Balances; unlocks: string[] }>('purchase_unlock', { p_key: key, p_idempotency_key: idemKey('unlock') }),
   myPlots: () => rpc<any[]>('my_plots'),
   myLedger: (limit = 50) => rpc<any[]>('my_ledger', { p_limit: limit }),
@@ -143,6 +156,7 @@ export const api = {
     plotLookup: (gx: number, gy: number) => rpc<any>('admin_plot_lookup', { p_gx: gx, p_gy: gy }),
     setPlotLock: (gx: number, gy: number, locked: boolean, reason: string) => rpc('admin_set_plot_lock', { p_gx: gx, p_gy: gy, p_locked: locked, p_reason: reason }),
     releasePlot: (gx: number, gy: number, reason: string) => rpc('admin_release_plot', { p_gx: gx, p_gy: gy, p_reason: reason }),
+    clearPlotName: (gx: number, gy: number, reason: string) => rpc('admin_clear_plot_name', { p_gx: gx, p_gy: gy, p_reason: reason }),
     updatePlotType: (id: string, patch: Record<string, unknown>) => rpc('admin_update_plot_type', { p_id: id, p_patch: patch }),
     updateRarity: (id: RarityId, patch: Record<string, unknown>) => rpc('admin_update_rarity', { p_id: id, p_patch: patch }),
     adjustRent: (id: string, deltaUsd: number, reason: string) => rpc<RentState>('admin_adjust_rent', { p_player_id: id, p_delta_usd: deltaUsd, p_reason: reason }),
@@ -150,6 +164,10 @@ export const api = {
     decideCashout: (id: string, decision: 'paid' | 'rejected', providerRef?: string, note?: string) =>
       rpc<any[]>('admin_decide_cashout', { p_request_id: id, p_decision: decision, p_provider_ref: providerRef ?? null, p_note: note ?? null }),
     queue: (status = 'open', kind?: string) => rpc<{ cases: any[]; pending_publications: number }>('admin_moderation_queue', { p_status: status, p_kind: kind ?? null }),
+    pendingPublications: () => rpc<any[]>('admin_pending_publications', { p_limit: 100 }),
+    reviewMode: () => rpc<{ reviews: boolean; mode: string; pending: number }>('admin_review_mode'),
+    setReviewMode: (reviews: boolean) => rpc<{ reviews: boolean; mode: string; approved: number; pending: number }>('admin_set_review_mode', { p_reviews: reviews }),
+    approveAllPending: () => rpc<{ approved: number }>('admin_approve_all_pending'),
     reviewPublication: (id: string, decision: 'approve' | 'reject', reason?: string) =>
       rpc('admin_review_publication', { p_publication_id: id, p_decision: decision, p_reason: reason ?? null }),
     removePublication: (id: string, reason: string, strike: boolean) => rpc('admin_remove_publication', { p_publication_id: id, p_reason: reason, p_strike: strike }),

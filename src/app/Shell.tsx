@@ -1,4 +1,4 @@
-import { Gamepad2, Globe2, Images, LayoutGrid, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award } from 'lucide-react';
+import { Gamepad2, Globe2, Images, LayoutGrid, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useOnboardedMe } from '../lib/queries';
@@ -10,6 +10,7 @@ const MAIN = [
   { to: '/canvases', label: 'Canvases', icon: LayoutGrid },
   { to: '/play', label: 'Play', icon: Gamepad2 },
   { to: '/gallery', label: 'Gallery', icon: Images },
+  { to: '/players', label: 'Players', icon: Users },
 ];
 const MORE = [
   { to: '/events', label: 'Events', icon: CalendarDays },
@@ -23,7 +24,7 @@ export function Shell() {
   const me = useOnboardedMe();
   const loc = useLocation();
   const isMap = loc.pathname === '/';
-  const admin = me?.roles?.length;
+  const admin = me?.roles?.includes('owner');
   return (
     <div className="flex h-full bg-bg">
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">

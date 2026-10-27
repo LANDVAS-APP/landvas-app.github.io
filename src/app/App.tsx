@@ -27,6 +27,7 @@ const EventsScreen = lazy(() => import('../screens/Events'));
 const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
+const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -102,6 +103,7 @@ const routes: RouteObject[] = [
           { path: '/gallery', element: p(<GalleryScreen />) },
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },
+          { path: '/players', element: p(<PlayersScreen />) },
           { path: '/me', element: player(<MeHub />) },
           { path: '/achievements', element: player(<AchievementsScreen />) },
           { path: '/leaderboards', element: p(<LeaderboardsScreen />) },
