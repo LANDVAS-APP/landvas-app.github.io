@@ -33,7 +33,7 @@ export function validateBoards<L>(
   const passed = passedN >= roundsToPass(rounds);
   const stars = !passed ? 0 : Math.max(1, Math.min(3, Math.round(starSum / rounds))) as 1 | 2 | 3;
   return {
-    valid: true, passed, score, stars, summary: { rounds: per, passed_rounds: passedN, of: rounds },
+    valid: true, passed, score, stars, rounds_passed: passedN, rounds_total: rounds, summary: { rounds: per, passed_rounds: passedN, of: rounds },
     flags: [...flags], suspicious: flags.size > 0, min_duration_ms: end,
   };
 }

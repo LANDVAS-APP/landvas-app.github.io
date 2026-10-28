@@ -62,6 +62,23 @@ describe('minigames v2', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
 
+  it('every round cleared pays its share of Ink, but only clearing all five levels up', async () => {
+    const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, base_ink: 100, ink_per_level: 0, plot_level_bonus: 0 } } } });
+    const before = (await db.rpc(p, 'my_plot_progress'))[`${B.gx}_${B.gy}`].highest_level;
+    const s = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: before + 1, p_gx: B.gx, p_gy: B.gy });
+    const r = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
+      p_session_id: s.session_id,
+      p_result: { valid: true, passed: false, score: 400, stars: 0, flags: [], suspicious: false, min_duration_ms: 0, rounds_passed: 4, rounds_total: 5 },
+    });
+    expect(r.passed).toBe(false);
+    expect(r.rewards.rounds_cleared).toBe(4);
+    // (100 base + 400 / 80) × 4/5 rounds, times the plot's rarity bonus
+    expect(r.rewards.ink).toBe(Math.floor((105 * 4) / 5 * Number(r.rewards.multiplier)));
+    expect((await db.rpc(p, 'my_plot_progress'))[`${B.gx}_${B.gy}`].highest_level).toBe(before);
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
+  });
+
   it('a new owner of a plot starts from level 1', async () => {
     await db.rpc(owner, 'admin_release_plot', { p_gx: A.gx, p_gy: A.gy, p_reason: 'test release' });
     const q = await db.newPlayer('newowner');

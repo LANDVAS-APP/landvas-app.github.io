@@ -1,13 +1,13 @@
-// The player's explorer: a character on the map at their live GPS position (or,
-// where GPS is unavailable, travelling at a fixed speed to where they tap).
-// Plots can only be claimed near it. The server is authoritative; this module
+// The player's explorer: a character on the map at their live GPS position.
+// There is no teleporting or placing it by hand — only real GPS moves it (plus a
+// one-minute joystick nudge around the player). Plots can only be claimed near it. The server is authoritative; this module
 // mirrors its interpolation so the character moves smoothly between updates.
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
-import { toGameError } from '../backend/backend';
 import type { ExplorerState } from '../backend/types';
 import { GRID_SIZE, lngLatToCell } from '../shared/grid';
+import { saveStorage } from '../lib/utils';
 
 export type GpsStatus = 'off' | 'asking' | 'on' | 'denied' | 'unavailable';
 
@@ -16,12 +16,10 @@ type Store = {
   offset: number; // server clock - client clock (ms)
   gps: GpsStatus;
   following: boolean;
-  placing: boolean; // "tap the map to place your explorer" mode
   heading: number; // -1 facing left, 1 facing right
   set(s: ExplorerState | null | undefined): void;
   setGps(g: GpsStatus): void;
   setFollowing(f: boolean): void;
-  setPlacing(p: boolean): void;
 };
 
 export const useExplorer = create<Store>((set, get) => ({
@@ -29,7 +27,6 @@ export const useExplorer = create<Store>((set, get) => ({
   offset: 0,
   gps: 'off',
   following: false,
-  placing: false,
   heading: 1,
   set: (s) => {
     if (s === undefined) return;
@@ -44,7 +41,6 @@ export const useExplorer = create<Store>((set, get) => ({
   },
   setGps: (gps) => set({ gps }),
   setFollowing: (following) => set({ following }),
-  setPlacing: (placing) => set({ placing }),
 }));
 
 const mercY = (lat: number) => {
@@ -94,17 +90,16 @@ export function travelEta(s: ExplorerState | null, offset: number, to: { lng: nu
   return haversine(p, to) / (speedKmh / 3.6);
 }
 
-export async function travelTo(lng: number, lat: number, jump = false) {
-  try {
-    const r = await api.travelTo(lng, lat, jump);
-    useExplorer.getState().set(r);
-    if (r.placed) toast.success('Your explorer has arrived', { description: 'Plots around you are now claimable.' });
-    else if (r.jumped) toast.success('Jumped!', { description: 'Your next instant jump unlocks in 24 hours.' });
-    return r;
-  } catch (e) {
-    toast.error(toGameError(e).message);
-    return null;
+/** Turn on location: the only way to place and move the explorer. */
+export function enableGps(onFirstFix?: (lng: number, lat: number) => void) {
+  saveStorage('landvas.gps', true);
+  if (!gpsSupported()) {
+    useExplorer.getState().setGps('unavailable');
+    toast.error('This browser can’t share your location', { description: 'LANDVAS needs GPS to place your explorer. Try your phone’s browser.' });
+    return;
   }
+  startGps({ onFirstFix });
+  useExplorer.getState().setFollowing(true);
 }
 
 // ---- GPS -------------------------------------------------------------------------

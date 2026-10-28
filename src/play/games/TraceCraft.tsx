@@ -157,7 +157,7 @@ export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolve
           );
         })}
       </div>
-      <p className="max-w-sm text-center text-xs text-muted">Start at the green dot and follow the guide in one stroke. Clear {roundsToPass(L.shapes.length)} of {L.shapes.length} shapes to win.</p>
+      <p className="max-w-sm text-center text-xs text-muted">Start at the green dot and follow the guide in one stroke. Clear all {roundsToPass(L.shapes.length)} shapes to beat the level — every shape you clear pays Ink.</p>
     </div>
   );
 }

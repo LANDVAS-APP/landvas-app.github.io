@@ -158,7 +158,7 @@ describe('joystick tank and GPS snap-back', () => {
 
   it('starts with a full tank (daily refill) and reports it', async () => {
     const ex = await db.rpc(j, 'my_explorer');
-    expect(ex.joystick.seconds_left).toBe(600);
+    expect(ex.joystick.seconds_left).toBe(60); // one minute a day
     expect(ex.joystick.speed_kmh).toBe(40);
     expect(ex.has_gps_fix).toBe(true);
   });
@@ -183,8 +183,8 @@ describe('joystick tank and GPS snap-back', () => {
 
   it('charges the tank one second per second at full speed, and stops when empty', async () => {
     const ex = await db.rpc(j, 'my_explorer');
-    expect(ex.joystick.seconds_left).toBeLessThan(600);
-    expect(ex.joystick.seconds_left).toBeGreaterThan(590);
+    expect(ex.joystick.seconds_left).toBeLessThan(60);
+    expect(ex.joystick.seconds_left).toBeGreaterThan(50);
     await db.sql(`update explorers set joy_seconds = 0.5, joy_bucket_m = 1000, joy_day = now() + interval '1 day' where player_id = $1`, [j]);
     const r = await db.rpc(j, 'joystick_step', { p_lng: east(ex, 500).lng, p_lat: home.lat });
     expect(r.moved_m).toBeLessThan(6); // 0.5 s at 11.1 m/s
@@ -208,6 +208,20 @@ describe('joystick tank and GPS snap-back', () => {
     expect(again.accepted).toBe(false);
   });
 
+  it('the joystick needs a recent GPS fix and stays on a leash around it', async () => {
+    const leash = await db.newPlayer('leashed');
+    await db.rpc(leash, 'report_position', { p_lng: home.lng, p_lat: home.lat, p_accuracy_m: 10 });
+    // even with a big tank, it can't wander more than one tank (60 s at 40 km/h ≈ 667 m) from the player
+    await db.sql(`update explorers set joy_seconds = 100000, joy_day = now() + interval '1 day', lng = $2, joy_bucket_m = 1000 where player_id = $1`, [leash, east(home, 700).lng]);
+    const out = await db.rpc(leash, 'joystick_step', { p_lng: east(home, 740).lng, p_lat: home.lat });
+    expect(out.moved_m).toBe(0);
+    expect(out.leash).toBe(true);
+    const back = await db.rpc(leash, 'joystick_step', { p_lng: east(home, 690).lng, p_lat: home.lat });
+    expect(back.moved_m).toBeGreaterThan(5); // heading back toward the player is fine
+    await db.sql(`update explorers set gps_at = now() - interval '1 hour' where player_id = $1`, [leash]);
+    await expectError(db.rpc(leash, 'joystick_step', { p_lng: home.lng, p_lat: home.lat }), 'gps_required');
+  });
+
   it('rewarded-ad refills are off until an ad network is connected, then idempotent', async () => {
     await db.sql(`update explorers set joy_seconds = 0, joy_day = now() + interval '1 day' where player_id = $1`, [j]);
     await expectError(db.rpc({ role: 'service_role' }, 'svc_ad_reward', { p_player_id: j, p_reward: 'joystick_refill', p_network: 'admob', p_transaction_id: 't1' }), 'ads_disabled');
@@ -215,7 +229,7 @@ describe('joystick tank and GPS snap-back', () => {
     await db.sql(`update feature_flags set enabled = true where key = 'rewarded_ads'`);
     expect((await db.rpc({ role: 'service_role' }, 'svc_ad_reward', { p_player_id: j, p_reward: 'joystick_refill', p_network: 'admob', p_transaction_id: 't1' })).duplicate).toBe(false);
     expect((await db.rpc({ role: 'service_role' }, 'svc_ad_reward', { p_player_id: j, p_reward: 'joystick_refill', p_network: 'admob', p_transaction_id: 't1' })).duplicate).toBe(true);
-    expect((await db.rpc(j, 'my_explorer')).joystick.seconds_left).toBe(600);
+    expect((await db.rpc(j, 'my_explorer')).joystick.seconds_left).toBe(60);
     await db.sql(`update feature_flags set enabled = false where key = 'rewarded_ads'`);
   });
 });

@@ -55,7 +55,7 @@ export default function Settings() {
           <Switch id="gps" label="Move my explorer with GPS" hint={gps === 'denied' ? 'Location permission is blocked in your browser settings.' : 'Your position is only used to place your explorer and is never shown to other players.'}
             checked={gps === 'on' || gps === 'asking' || (safeStorage('landvas.gps', false) && gps !== 'denied')}
             onCheckedChange={(v) => { saveStorage('landvas.gps', v); if (v) startGps(); else stopGps(); }} />
-          <p className="flex items-center gap-2 text-xs text-muted"><Satellite className="h-4 w-4" /> Without GPS your explorer travels when you tap a plot (about bike speed), with one instant jump per day.</p>
+          <p className="flex items-center gap-2 text-xs text-muted"><Satellite className="h-4 w-4" /> LANDVAS needs GPS: your explorer always stands where you really are. Your location is never shown to other players.</p>
         </Section>
 
         {me && (

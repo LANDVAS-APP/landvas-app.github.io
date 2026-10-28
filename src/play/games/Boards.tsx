@@ -62,7 +62,7 @@ export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement |
               {results[i] === true ? <Check className="h-3.5 w-3.5" /> : results[i] === false ? <X className="h-3.5 w-3.5" /> : i + 1}
             </span>
           ))}
-          <span className="ml-1 text-xs text-muted">clear {need} of {rounds}</span>
+          <span className="ml-1 text-xs text-muted">clear all {need} to level up · every round pays Ink</span>
         </div>
         {between ? (
           <div className="grid min-h-[300px] place-items-center" aria-live="polite">

@@ -20,7 +20,9 @@ const check = (name, ok, extra = '') => {
 
 const server = await serve(DIST, PORT);
 const browser = await launch();
-const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 }, colorScheme: 'dark' });
+// the player stands on START: explorers follow real GPS only
+const START_LL = (() => { const gx = 12398 * 64 + 32, gy = 24628 * 64 + 32, G = 4194304; const n = Math.PI * (1 - (2 * (gy + 0.5)) / G); return { longitude: ((gx + 0.5) / G) * 360 - 180, latitude: (180 / Math.PI) * Math.atan(Math.sinh(n)) }; })();
+const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 }, colorScheme: 'dark', geolocation: { ...START_LL, accuracy: 8 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -101,17 +103,16 @@ try {
   check('account created and onboarded', true);
   check('no Ink at signup (Ink only comes from minigames)', (await ink()) === 0);
 
-  // place the explorer: the first-visit prompt → pick a spot → tap the map
-  await page.waitForSelector('[data-testid=place-pick]', { timeout: 15000 });
+  // place the explorer: the first-visit prompt offers GPS only (no picking a spot, no teleports)
+  await page.waitForSelector('[data-testid=place-gps]', { timeout: 15000 });
+  check('the placement prompt is GPS-only', (await page.locator('[data-testid=place-pick]').count()) === 0);
   await shot('02-placement-prompt');
-  await page.click('[data-testid=place-pick]');
-  await gotoPlot(page, START.gx, START.gy, ZP - 0.4);
-  const sp = await screenOf(page, START.gx, START.gy);
-  await page.mouse.click(sp.x, sp.y);
-  await page.waitForFunction(() => document.querySelector('.lv-explorer') !== null, null, { timeout: 15000 });
+  await page.click('[data-testid=place-gps]');
+  await page.waitForFunction(() => document.querySelector('.lv-explorer') !== null, null, { timeout: 20000 });
   await page.waitForTimeout(1500);
   const ex = await page.evaluate(async () => (await window.__landvasApi.myExplorer()));
-  check('explorer placed where the player tapped', ex && ex.gx === START.gx && ex.gy === START.gy, JSON.stringify(ex && { gx: ex.gx, gy: ex.gy, mode: ex.mode }));
+  check('explorer placed at the player’s GPS position', ex && ex.gx === START.gx && ex.gy === START.gy && ex.mode === 'gps', JSON.stringify(ex && { gx: ex.gx, gy: ex.gy, mode: ex.mode }));
+  await gotoPlot(page, START.gx, START.gy, ZP - 0.4);
   await shot('03-explorer-placed');
 
   // claim the free starter plot (inside the reach square)
@@ -192,18 +193,15 @@ try {
   await page.keyboard.press('Escape');
   await shot('07-two-plots');
 
-  // a far plot is out of reach until the explorer travels there
+  // a far plot is out of reach — and there's no travelling or jumping there
   const far = { gx: START.gx + 14, gy: START.gy };
   await page.evaluate(() => window.__landvasUi?.select?.(null));
   await gotoPlot(page, far.gx, far.gy, ZP - 0.8);
   await clickPlot(page, far.gx, far.gy);
-  const travelBtn = await page.locator('[data-testid=travel-here]').count();
-  check('far plots need travel (location-gated claims)', travelBtn === 1 && (await page.locator('[data-testid=claim-plot]').count()) === 0);
-  await page.click('[data-testid=travel-here]');
-  await page.waitForTimeout(2500);
-  const moving = await page.evaluate(async () => (await window.__landvasApi.myExplorer()));
-  check('explorer travels toward the tapped plot', moving.traveling === true && !!moving.dest, JSON.stringify({ traveling: moving.traveling }));
-  await shot('08-travelling');
+  const panelText = await page.textContent('[data-testid=plot-panel]');
+  check('far plots can only be reached by walking (no travel or jump buttons)', (await page.locator('[data-testid=claim-plot]').count()) === 0
+    && (await page.locator('[data-testid=travel-here]').count()) === 0 && !/Jump now|Travel \(/.test(panelText) && /Walk closer/.test(panelText), panelText.slice(0, 300));
+  await shot('08-out-of-reach');
 
   // every small plot in view is drawn as a plain mystery square
   const layers = await page.evaluate(() => {
@@ -310,7 +308,7 @@ try {
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
     await page.waitForTimeout(1200);
-    const txt = await page.evaluate(() => document.querySelector('main, [class*=gutter]')?.textContent ?? document.body.textContent ?? '');
+    const txt = await page.evaluate(() => (document.querySelector('[data-testid=homepage]') ?? document.querySelector('main, [class*=gutter]'))?.textContent ?? document.body.textContent ?? '');
     if (txt.trim().length < 30 || /Something went wrong/i.test(txt)) broken.push(sc);
   }
   check('all screens render', broken.length === 0, broken.join(', '));
@@ -391,6 +389,12 @@ try {
   await page.evaluate(() => window.__landvasNav('/invite'));
   await page.waitForSelector('[data-testid=invite-code]', { timeout: 15000 });
   const code = await page.textContent('[data-testid=invite-code]');
+  const artId = await page.evaluate(async () => (await window.__landvasApi.galleryList('mine', 5))[0]?.id);
+  await page.evaluate((id) => window.__landvasNav(`/art/${id}`), artId);
+  await page.waitForTimeout(2500);
+  check('artwork pages have no “view on the map” link', !!artId && !/View on the map|Live on map/i.test(await page.textContent('body') ?? ''), String(artId));
+  const regional = await page.evaluate(async () => window.__landvasApi.galleryList('regional', 10, 0, { min_gx: 0, min_gy: 0, max_gx: 4194303, max_gy: 4194303 }));
+  check('art can’t be searched by place', Array.isArray(regional) && regional.length === 0, String(regional?.length));
   check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
 
   // every minigame (incl. the four new ones) plays all 5 rounds and passes the server's validator

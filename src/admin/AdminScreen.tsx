@@ -494,7 +494,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
       </div>
       <div className="mt-4 grid gap-2">
         <div className="eyebrow">Per game</div>
-        <p className="text-xs text-faint">Leave a box empty to use the shared value above. Each plot climbs its own levels from 1 up to the game’s max level; rounds is how many boards a level has (60% must be cleared).</p>
+        <p className="text-xs text-faint">Leave a box empty to use the shared value above. Each plot climbs its own levels from 1 up to the game’s max level; rounds is how many boards a level has — all must be cleared to level up, and each cleared round pays its share of the Ink.</p>
         {GAMES.map((g) => <GameEarningsRow key={g} g={g} v={v} setGame={setGame} />)}
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-4">
@@ -628,17 +628,15 @@ function World() {
         {gate && <Switch id="gate" checked={gate.enabled} label="Plots can only be claimed near your explorer" hint="Off = anyone can claim any plot from anywhere." onCheckedChange={(on) => run(() => api.admin.setFlag('location_gated_claims', on), on ? 'Location rules on' : 'Location rules off', () => qc.invalidateQueries({ queryKey: ['admin', 'config'] }))} />}
         <div className="mt-2 grid grid-cols-2 gap-3">
           <NumberField label="Claim reach" value={Number(v.claim_reach)} max={25} onChange={(n) => setV({ ...v, claim_reach: Math.round(n) })} suffix="plots" />
-          <NumberField label="Tap-travel speed" value={Number(v.travel_speed_kmh)} min={1} onChange={(n) => setV({ ...v, travel_speed_kmh: n })} suffix="km/h" />
-          <NumberField label="Instant jump cooldown" value={Number(v.jump_cooldown_hours)} onChange={(n) => setV({ ...v, jump_cooldown_hours: Math.round(n) })} suffix="hours" />
           <NumberField label="Max believable GPS speed" value={Number(v.max_speed_kmh)} min={10} onChange={(n) => setV({ ...v, max_speed_kmh: n })} suffix="km/h" />
         </div>
-        <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={v.manual_travel !== false} onChange={(e) => setV({ ...v, manual_travel: e.target.checked })} /> Players without GPS can tap to travel</label>
+        <p className="mt-3 text-xs text-muted">Explorers follow real GPS only: no teleporting, no placing by hand, no tap-to-travel. The joystick can nudge an explorer at most one tank’s distance from the player.</p>
       </Card>
       <Card title="Joystick" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('explorer', v, 'Joystick updated')}>Save</Button>}>
         <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.enabled !== false} onChange={(e) => setJ({ enabled: e.target.checked })} /> Joystick available</label>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <NumberField label="Speed" value={Number(j.speed_kmh ?? 40)} min={1} max={500} onChange={(n) => setJ({ speed_kmh: n })} suffix="km/h" />
-          <NumberField label="Tank" value={Math.round(Number(j.tank_seconds ?? 600) / 60)} onChange={(n) => setJ({ tank_seconds: Math.round(n * 60) })} suffix="minutes" />
+          <NumberField label="Tank" value={Number(j.tank_seconds ?? 60)} min={0} max={3600} onChange={(n) => setJ({ tank_seconds: Math.round(n) })} suffix="seconds" hint="Also how far (time × speed) it can stray from the player" />
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.daily_refill !== false} onChange={(e) => setJ({ daily_refill: e.target.checked })} /> Free daily refill (until rewarded ads are connected)</label>
       </Card>

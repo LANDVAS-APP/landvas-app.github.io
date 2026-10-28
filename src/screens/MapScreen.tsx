@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPin, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotType
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
-import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
+import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -42,7 +42,6 @@ export function MapScreen() {
   const view = useUi((s) => s.view);
   useRaritySync();
   useExplorerSync();
-  const placing = useExplorer((s) => s.placing);
   const [joystick, setJoystick] = useState(false);
   return (
     <div className="absolute inset-0">
@@ -72,12 +71,6 @@ export function MapScreen() {
           {!me && !session && <div className="md:hidden"><SignInChip /></div>}
           {me && <div className="md:hidden"><div className="glass rounded-2xl p-1"><ResourceBar compact /></div></div>}
         </div>
-        {placing && (
-          <div className="pointer-events-auto glass flex items-center justify-between gap-3 rounded-2xl border-gold/50 px-4 py-2.5 text-sm font-semibold" role="status">
-            <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-gold" /> Tap the map where your explorer should start</span>
-            <button onClick={() => useExplorer.getState().setPlacing(false)} className="text-muted hover:text-fg" aria-label="Cancel placing">Cancel</button>
-          </div>
-        )}
       </div>
       <ZoomHint zoom={view.zoom} />
       {me && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
@@ -123,13 +116,10 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
       <button
         className={cn('glass flex h-11 items-center gap-2 rounded-2xl px-3 text-xs font-bold', ex.gps === 'on' ? 'text-ok' : ex.gps === 'denied' || ex.gps === 'unavailable' ? 'text-faint' : 'text-fg')}
         onClick={() => {
-          if (ex.gps === 'on' || ex.gps === 'asking') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer stays where it is. You can travel by tapping plots.' }); return; }
-          if (!gpsSupported()) { toast.error('This browser has no location service — tap plots to travel instead.'); return; }
-          saveStorage('landvas.gps', true);
-          startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }) });
-          useExplorer.getState().setFollowing(true);
+          if (ex.gps === 'on' || ex.gps === 'asking') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
+          enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
         }}
-        title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings, or travel by tapping plots.' : 'Move your explorer with your real location'}
+        title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
         data-testid="gps-toggle"
       >
         <Satellite className="h-4 w-4" /> <span className="hidden sm:inline">{gpsLabel}</span>
@@ -162,36 +152,30 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   );
 }
 
-/** First visit: put the explorer somewhere (GPS or a tap on the map). */
+/** First visit: the explorer starts where the player really is — GPS only. */
 function PlacementPrompt() {
   const me = useOnboardedMe();
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
   const [dismissed, setDismissed] = useState(false);
-  const open = !!me && !me.explorer && !ex.state && !ex.placing && !dismissed;
-  const pick = () => {
-    ex.setPlacing(true);
-    setDismissed(true);
-    if (useUi.getState().view.zoom < Z_TOWN + 2) toast('Find your spot', { description: 'Search your city above or zoom in, then tap where you are.' });
-  };
+  const open = !!me && !me.explorer && !ex.state && ex.gps !== 'on' && ex.gps !== 'asking' && !dismissed;
+  const blocked = ex.gps === 'denied' || ex.gps === 'unavailable' || !gpsSupported();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setDismissed(true)} title="Drop into the world"
-      description="Your explorer is you on the map. You can claim the plots right around it, so put it where you are.">
+      description="Your explorer is you on the map, standing where you really are. You can claim the plots right around it.">
       <div className="grid gap-3">
-        {gpsSupported() && !config.isArtifact && (
-          <Button variant="rainbow" size="lg" onClick={() => {
-            saveStorage('landvas.gps', true);
-            startGps({ onFirstFix: (lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }) });
-            useExplorer.getState().setFollowing(true);
-            setDismissed(true);
-          }} data-testid="place-gps"><Satellite className="h-4 w-4" /> Use my location (GPS)</Button>
+        <Button variant="rainbow" size="lg" disabled={!gpsSupported()} onClick={() => {
+          enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
+          setDismissed(true);
+        }} data-testid="place-gps"><Satellite className="h-4 w-4" /> Use my location</Button>
+        {blocked && (
+          <p className="rounded-xl bg-bad/10 p-3 text-xs text-fg">
+            {ex.gps === 'denied'
+              ? 'Location is blocked for LANDVAS. Allow it in your browser’s site settings (on iPhone: Settings → Safari → Location), then tap “Use my location”.'
+              : 'This browser can’t share your location. Open LANDVAS in your phone’s browser to place your explorer.'}
+          </p>
         )}
-        <Button variant={gpsSupported() && !config.isArtifact ? 'secondary' : 'rainbow'} size="lg" onClick={pick} data-testid="place-pick"><MapPin className="h-4 w-4" /> Pick a spot on the map</Button>
-        <p className="text-xs text-muted">
-          {config.isArtifact
-            ? 'GPS isn’t available in this preview, so your explorer travels when you tap plots (about bike speed). On the installed app it follows your real location.'
-            : 'With GPS your explorer walks with you. Your location is never shown to other players.'}
-        </p>
+        <p className="text-xs text-muted">LANDVAS needs GPS — explorers can’t be placed by hand or teleported. Your location is never shown to other players.</p>
       </div>
     </Dialog>
   );
@@ -392,7 +376,7 @@ function Checklist() {
           </ol>
         )}
         {!collapsed && nextIdx === 0 && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => useExplorer.getState().setPlacing(true)}>Pick my spot on the map</Button>
+          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => enableGps((lng, lat) => useUi.getState().requestFly({ lng, lat, zoom: Z_STREET + 0.5 }))}>Use my location</Button>
         )}
         {!collapsed && nextIdx === 2 && (
           <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav('/play')}>Play my minigame</Button>

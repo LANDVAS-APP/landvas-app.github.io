@@ -89,13 +89,15 @@ describe('art minigames', () => {
 });
 
 describe('rounds', () => {
-  it('a level has the configured number of rounds and needs 60% of them', () => {
+  it('a level has the configured number of rounds and needs all of them', () => {
     expect(generateTraceCraft(SEED, 3, 5).shapes).toHaveLength(5);
-    // PatternShift with 5 boards, solving only 2 → fails; solving 3 → passes
+    // PatternShift with 5 boards: 4 cleared → fails (but reports 4 paid rounds); all 5 → passes
     const solve = (s: number) => { const L = generatePatternShift(s, 2); let t = 0; return { moves: [...L.scramble].reverse().map((m) => ({ ...m, d: -m.d as 1 | -1, t: (t += 500) })), done_t: t + 200 }; };
     const some = (k: number) => boards(5, (s) => ([0, 1, 2, 3, 4].map((r) => roundSeed(SEED, r)).indexOf(s) < k ? solve(s) : { moves: [], done_t: 800 }));
-    expect(validateMinigame('patternshift', SEED, 2, some(2), 5).passed).toBe(false);
-    expect(validateMinigame('patternshift', SEED, 2, some(3), 5).passed).toBe(true);
+    const four = validateMinigame('patternshift', SEED, 2, some(4), 5);
+    expect(four.passed).toBe(false);
+    expect(four.rounds_passed).toBe(4);
+    expect(validateMinigame('patternshift', SEED, 2, some(5), 5)).toMatchObject({ passed: true, rounds_passed: 5, rounds_total: 5 });
     // legacy sessions (no rounds) still accept the single-board format
     expect(validateMinigame('patternshift', SEED, 2, solve(SEED), null).passed).toBe(true);
     void resample;

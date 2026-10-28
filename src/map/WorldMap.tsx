@@ -14,7 +14,7 @@ import { effectiveDark, useUi, type MapMode } from '../lib/store';
 import { outlineEdges } from '../shared/fusion';
 import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygon, latToY, lngLatToCell, viewportCells, xToLng, yToLat } from '../shared/grid';
 import { rarities } from '../shared/rarity';
-import { explorerNow, travelTo, useExplorer } from '../explorer/explorer';
+import { explorerNow, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
 import { STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
@@ -135,15 +135,6 @@ export function WorldMap() {
       m.on('click', (e) => {
         if (!map) return;
         const ex = useExplorer.getState();
-        if (ex.placing) {
-          ex.setPlacing(false);
-          void travelTo(e.lngLat.lng, e.lngLat.lat).then(() => {
-            void qc.invalidateQueries({ queryKey: qk.me });
-            void qc.invalidateQueries({ queryKey: ['plot'] });
-          });
-          map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), Z_STREET + 0.5), duration: 700 });
-          return;
-        }
         const z = map.getZoom();
         if (z < GRIDLINES_MIN_ZOOM) {
           map.easeTo({ center: e.lngLat, zoom: Math.min(z + 3.2, Z_STREET + 0.5), duration: 650 });
@@ -461,10 +452,9 @@ export function WorldMap() {
     };
   }, [settings.theme, ready]);
 
-  const placing = useExplorer((s) => s.placing);
   return (
     <div className="absolute inset-0">
-      <div ref={container} className={`h-full w-full ${placing ? 'cursor-crosshair' : ''}`} data-testid="world-map" aria-label="World map" role="application" />
+      <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
     </div>
   );
 }

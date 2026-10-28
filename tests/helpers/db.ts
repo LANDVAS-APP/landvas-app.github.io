@@ -65,11 +65,11 @@ export class TestDb {
     return this;
   }
 
-  /** Put a player's explorer on a plot instantly (test shortcut for walking there). */
+  /** Put a player's explorer on a plot instantly (test shortcut: a first GPS fix there). */
   async placeAt(uid: string, gx: number, gy: number) {
     await this.sql('delete from explorers where player_id = $1', [uid]);
     const { lng, lat } = cellCenter(gx, gy);
-    return this.rpc(uid, 'travel_to', { p_lng: lng, p_lat: lat });
+    return this.rpc(uid, 'report_position', { p_lng: lng, p_lat: lat, p_accuracy_m: 10 });
   }
 
   /** Credit Ink as if earned from minigame wins. */

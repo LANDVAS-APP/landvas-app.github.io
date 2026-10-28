@@ -6,7 +6,8 @@ export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 2
 /** Rounds per level when a session doesn't say (sessions started before rounds became configurable). */
 export const DEFAULT_ROUNDS = 5;
 /** Rounds a player must clear to pass a level. */
-export const roundsToPass = (rounds: number) => Math.max(1, Math.ceil(rounds * 0.6));
+/** Every round must be cleared to beat a level (each cleared round still pays its share of Ink). */
+export const roundsToPass = (rounds: number) => Math.max(1, rounds);
 
 /** Result of replaying a move log on the server (also used client-side for instant feedback). */
 export type ValidationResult = {
@@ -19,6 +20,8 @@ export type ValidationResult = {
   suspicious: boolean; // valid but implausible for a human: rewards are held for review
   min_duration_ms: number; // the server rejects logs claiming more elapsed time than really passed
   reason?: string;
+  rounds_passed?: number; // rounds cleared — the server pays Ink per cleared round
+  rounds_total?: number;
 };
 
 export const invalid = (reason: string, flags: string[] = []): ValidationResult => ({

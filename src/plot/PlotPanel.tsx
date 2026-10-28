@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Rocket, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -16,9 +16,9 @@ import type { PlotTypeId } from '../shared/grid';
 import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from './RarityBadge';
 import { GamePreview } from '../play/GamePreview';
-import { formatDuration, formatRate } from '../shared/rent';
-import { cellCenter, plotMetres } from '../shared/grid';
-import { travelEta, travelTo, useExplorer } from '../explorer/explorer';
+import { formatRate } from '../shared/rent';
+import { plotMetres } from '../shared/grid';
+import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
@@ -202,11 +202,6 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const reach = d.reach;
   const inReach = reach?.in_reach ?? false;
   const gpsOn = ex.gps === 'on';
-  const manualOk = world.data?.explorer?.manual_travel !== false;
-  const speed = Number(world.data?.explorer?.travel_speed_kmh ?? 20);
-  const [lng, lat] = cellCenter(d.gx, d.gy);
-  const eta = travelEta(ex.state, ex.offset, { lng, lat }, speed);
-  const jumpReady = !ex.state?.jump_available_at || new Date(ex.state.jump_available_at).getTime() <= Date.now() + ex.offset;
   const run = async () => {
     setBusy('claim');
     try {
@@ -230,15 +225,6 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       setBusy(null);
     }
   };
-  const go = async (jump: boolean) => {
-    setBusy(jump ? 'jump' : 'travel');
-    const r = await travelTo(lng, lat, jump);
-    if (r) {
-      void qc.invalidateQueries({ queryKey: ['plot'] });
-      if (!jump && !r.placed) toast(`Your explorer is on the way`, { description: `Arrives in ${formatDuration(eta)}. Keep playing while it travels.` });
-    }
-    setBusy(null);
-  };
   return (
     <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
       <div className="flex items-center justify-between text-sm"><span className="text-muted">Status</span><span className="font-bold text-ok">{d.available === false ? 'Unavailable' : 'Available'}</span></div>
@@ -248,9 +234,9 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       </div>
       {!reach?.explorer ? (
         <div className="grid gap-2 rounded-xl bg-accent/10 p-3 text-sm">
-          <b>Place your explorer first</b>
-          <span className="text-xs text-muted">You can claim plots right around your explorer. Use your location, or tap “Start here”.</span>
-          <Button size="sm" variant="primary" loading={busy === 'travel'} onClick={() => go(false)}><MapPin className="h-4 w-4" /> Start here</Button>
+          <b>Turn on your location first</b>
+          <span className="text-xs text-muted">Your explorer stands where you really are, and you can claim the plots right around it.</span>
+          <Button size="sm" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
         </div>
       ) : inReach ? (
         <>
@@ -266,13 +252,8 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       ) : (
         <div className="grid gap-2 rounded-xl border border-line-strong p-3 text-sm">
           <div className="flex items-center gap-2 font-bold"><Footprints className="h-4 w-4 text-accent-2" /> {reach.distance} plots from your explorer</div>
-          <span className="text-xs text-muted">You can claim plots within {reach.max} plot{reach.max === 1 ? '' : 's'} of your explorer.{gpsOn ? ' Walk closer — your explorer follows your GPS.' : ''}</span>
-          {!gpsOn && manualOk && (
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="primary" loading={busy === 'travel'} onClick={() => go(false)} data-testid="travel-here"><Footprints className="h-4 w-4" /> Travel ({formatDuration(eta)})</Button>
-              <Button size="sm" variant="secondary" loading={busy === 'jump'} disabled={!jumpReady} onClick={() => go(true)} title={jumpReady ? 'Instant jump (once a day)' : `Next jump ${new Date(ex.state!.jump_available_at!).toLocaleString()}`}><Rocket className="h-4 w-4" /> {jumpReady ? 'Jump now' : 'Jump used'}</Button>
-            </div>
-          )}
+          <span className="text-xs text-muted">You can claim plots within {reach.max} plot{reach.max === 1 ? '' : 's'} of your explorer. Walk closer in real life — your explorer follows your GPS.</span>
+          {!gpsOn && <Button size="sm" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
         </div>
       )}
       {!starter && !canAfford && inReach && (

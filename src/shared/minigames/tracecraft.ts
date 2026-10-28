@@ -173,6 +173,7 @@ export function validateTraceCraft(seed: number, levelNo: number, log: TraceCraf
   const stars = !passed ? 0 : avg >= 850 && passedShapes === level.shapes.length ? 3 : avg >= 700 ? 2 : 1;
   return {
     valid: true, passed, score: total + (passed ? levelNo * 15 : 0), stars: stars as 0 | 1 | 2 | 3,
+    rounds_passed: passedShapes, rounds_total: level.shapes.length,
     summary: { shapes: per, passed_shapes: passedShapes },
     flags: [...new Set(flags)], suspicious: flags.length > 0, min_duration_ms: times.length ? times[times.length - 1] : 0,
   };

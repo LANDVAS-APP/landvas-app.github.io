@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DoorOpen, Flag, Heart, MapPin, Share2 } from 'lucide-react';
+import { DoorOpen, Flag, Heart, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -7,9 +7,7 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { Page } from '../app/Shell';
 import { celebrate, useOnboardedMe } from '../lib/queries';
-import { useUi } from '../lib/store';
 import { fmt, timeAgo } from '../lib/utils';
-import { cellCenter, Z_PLOT, Z_STREET } from '../shared/grid';
 import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
 
@@ -24,16 +22,7 @@ export default function ArtworkScreen() {
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (!q.data) return <Page><Empty title="Artwork not found">It may have been removed or replaced by a newer version.</Empty></Page>;
   const a = q.data;
-  // only the artist (and moderators) learn where an artwork is; everyone else sees the art itself
-  const located = Number.isFinite(a.min_gx) && Number.isFinite(a.max_gx);
-  const fly = () => {
-    const [x0, x1, y0, y1] = [a.min_gx ?? 0, a.max_gx ?? 0, a.min_gy ?? 0, a.max_gy ?? 0];
-    const [lng, lat] = cellCenter(Math.floor((x0 + x1) / 2), Math.floor((y0 + y1) / 2));
-    const span = Math.max(x1 - x0 + 1, y1 - y0 + 1);
-    useUi.getState().setMode('canvas');
-    useUi.getState().requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(span)) });
-    nav('/world');
-  };
+  // privacy: an artwork page never leads to where the art (and so its artist) is
   return (
     <Page wide>
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -55,7 +44,6 @@ export default function ArtworkScreen() {
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold">{timeAgo(a.published_at)}</div><div className="eyebrow !text-[10px]">Published</div></div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {located && <Button variant="rainbow" onClick={fly}><MapPin className="h-4 w-4" /> View on the map</Button>}
             {!a.is_owner && <Button variant="secondary" onClick={() => nav(`/u/${a.artist.username}/room`)}><DoorOpen className="h-4 w-4" /> Visit @{a.artist.username}’s room</Button>}
             {me && !a.is_owner && (
               <Button variant={a.appreciated ? 'secondary' : 'primary'} onClick={async () => {

@@ -161,36 +161,19 @@ describe('explorer location rules', () => {
     expect(ev.map((x: any) => x.kind)).toEqual(['gps_reanchor', 'gps_jump_rejected']);
   });
 
-  it('manual travel moves at the configured speed and gates claims until arrival', async () => {
+  it('explorers follow GPS only: no travel, no jumps, no hand placement', async () => {
     const t = await db.newPlayer('traveller');
     const start = cellCenter(HOME.gx + 300, HOME.gy);
-    await db.rpc(t, 'travel_to', { p_lng: start.lng, p_lat: start.lat });
-    const dest = cellCenter(HOME.gx + 400, HOME.gy);
-    const trip = await db.rpc(t, 'travel_to', { p_lng: dest.lng, p_lat: dest.lat });
-    expect(trip.traveling).toBe(true);
-    await expectError(db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy }), 'out_of_reach');
-    // halfway there
-    const secs = Number((await db.sql(`select extract(epoch from (($1::jsonb ->> 'arrives_at')::timestamptz - fixed_at)) s from explorers where player_id = $2`, [JSON.stringify(trip), t]))[0].s);
-    expect(secs).toBeGreaterThan(60); // ~100 plots (~720 m) at 20 km/h takes minutes, not seconds
-    await db.sql(`update explorers set fixed_at = now() - make_interval(secs => $2::float8 / 2) where player_id = $1`, [t, secs]);
-    const mid = await db.rpc(t, 'my_explorer');
-    expect(mid.gx).toBeGreaterThanOrEqual(HOME.gx + 347);
-    expect(mid.gx).toBeLessThanOrEqual(HOME.gx + 353);
-    await db.sql(`update explorers set fixed_at = now() - make_interval(secs => $2::float8 + 1) where player_id = $1`, [t, secs]);
-    const there = await db.rpc(t, 'my_explorer');
-    expect(there.traveling).toBe(false);
-    expect(there.gx).toBe(HOME.gx + 400);
-    await db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy });
-  });
-
-  it('an instant jump is allowed once per cooldown', async () => {
-    const j = await db.newPlayer('jumper');
-    const a = cellCenter(1000, 1000);
-    await db.rpc(j, 'travel_to', { p_lng: a.lng, p_lat: a.lat });
+    await expectError(db.rpc(t, 'travel_to', { p_lng: start.lng, p_lat: start.lat }), 'gps_required');
+    expect(await db.rpc(t, 'my_explorer')).toBeNull();
+    await expectError(db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy }), 'explorer_required');
+    // a real GPS fix places the explorer; it can claim there
+    const there = cellCenter(HOME.gx + 400, HOME.gy);
+    await db.rpc(t, 'report_position', { p_lng: there.lng, p_lat: there.lat, p_accuracy_m: 10 });
     const b = cellCenter(60000, 40000);
-    const r = await db.rpc(j, 'travel_to', { p_lng: b.lng, p_lat: b.lat, p_jump: true });
-    expect(r).toMatchObject({ jumped: true, gx: 60000, gy: 40000 });
-    await expectError(db.rpc(j, 'travel_to', { p_lng: a.lng, p_lat: a.lat, p_jump: true }), 'jump_cooldown');
+    await expectError(db.rpc(t, 'travel_to', { p_lng: b.lng, p_lat: b.lat, p_jump: true }), 'gps_required');
+    expect((await db.rpc(t, 'my_explorer')).gx).toBe(HOME.gx + 400);
+    await db.rpc(t, 'claim_starter_plot', { p_gx: HOME.gx + 400, p_gy: HOME.gy });
   });
 
   it("plot details only ever use the viewer's own position", async () => {

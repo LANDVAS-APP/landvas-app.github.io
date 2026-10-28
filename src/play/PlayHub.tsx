@@ -32,7 +32,7 @@ export default function PlayHub() {
   return (
     <Page>
       <PageHeader eyebrow="Earn Ink" title="Play">
-        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} wins a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
+        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} runs a day — every round you clear pays, and clear all 5 rounds to level the plot up${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
       </PageHeader>
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>

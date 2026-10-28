@@ -309,7 +309,7 @@ export type MinigameFinish = {
   stars: number;
   flags: string[];
   new_best: boolean;
-  rewards: { ink: number; pigments: number; brush_points: number; held: boolean; multiplier: number; practice: boolean; rewarded_left: number; resets_at: string };
+  rewards: { ink: number; pigments: number; brush_points: number; held: boolean; multiplier: number; practice: boolean; rewarded_left: number; resets_at: string; rounds_cleared?: number; rounds?: number };
   record: { highest_level: number; best_score: number; plays: number; wins: number };
   balances: Balances;
   achievements: NewAchievement[];

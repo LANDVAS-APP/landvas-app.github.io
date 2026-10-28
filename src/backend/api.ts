@@ -70,8 +70,6 @@ export const api = {
   myExplorer: () => rpc<ExplorerState | null>('my_explorer'),
   reportPosition: (lng: number, lat: number, accuracy: number | null) =>
     rpc<ExplorerState & { accepted: boolean; rejected?: string; wait_seconds?: number; reanchored?: boolean; placed?: boolean }>('report_position', { p_lng: lng, p_lat: lat, p_accuracy_m: accuracy }),
-  travelTo: (lng: number, lat: number, jump = false) =>
-    rpc<ExplorerState & { placed?: boolean; jumped?: boolean }>('travel_to', { p_lng: lng, p_lat: lat, p_jump: jump }),
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 

@@ -367,7 +367,7 @@ function Minigames() {
       <div className="mx-auto max-w-2xl text-center">
         <div className="eyebrow">Eight minigames</div>
         <h2 id="games" className="mt-2 font-display text-3xl font-bold md:text-5xl">Skill pays. Literally.</h2>
-        <p className="mt-4 text-muted">Every plot hosts one game with five rounds per level, and every plot climbs its own levels. Win to earn Ink — harder levels and rarer plots pay more. Scores are checked on the server, so the leaderboards stay fair.</p>
+        <p className="mt-4 text-muted">Every plot hosts one game with five rounds per level — clear all five to level up, and every round you clear pays Ink. Every plot climbs its own levels — harder levels and rarer plots pay more. Scores are checked on the server, so the leaderboards stay fair.</p>
       </div>
       <div className="mt-12 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {GAMES.map((g) => (
