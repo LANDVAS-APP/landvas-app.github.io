@@ -495,7 +495,10 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField label="Everyone’s Ink multiplier" value={Number(v.ink_multiplier ?? 1)} step={0.1} max={100} onChange={(n) => setV({ ...v, ink_multiplier: n })} suffix="×" hint="Applies to every game" />
         <NumberField label="Plot upgrade bonus" value={Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10} step={0.5} onChange={(n) => setV({ ...v, plot_level_bonus: n / 100 })} suffix="% / level" />
-        <NumberField label="Paid runs per game per day" value={Number(v.daily_rewarded_wins_per_game ?? 6)} max={1000} onChange={(n) => setV({ ...v, daily_rewarded_wins_per_game: Math.round(n) })} />
+        <div className="grid gap-1.5">
+          <Switch id="limit-runs" checked={v.limit_paid_runs !== false} label="Limit paid runs per day" hint="Off = every run pays Ink, unlimited" onCheckedChange={(on) => setV({ ...v, limit_paid_runs: on })} />
+          {v.limit_paid_runs !== false && <NumberField label="Paid runs per game per day" value={Number(v.daily_rewarded_wins_per_game ?? 6)} max={1000} onChange={(n) => setV({ ...v, daily_rewarded_wins_per_game: Math.round(n) })} />}
+        </div>
         <NumberField label="Default max level" value={Number(v.max_level ?? 60)} min={1} max={500} onChange={(n) => setV({ ...v, max_level: Math.round(n) })} hint="Used by games without their own" />
       </div>
       <div className="mt-5 grid gap-2">
@@ -516,7 +519,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
           <span>on a</span><select className={cn(inputCls, 'h-9 w-auto')} value={ex.rarity} onChange={(e) => setEx({ ...ex, rarity: e.target.value })} aria-label="Rarity">{RARITY_ORDER.map((r) => <option key={r} value={r}>{rarityInfo(r).name}</option>)}</select>
           <span>plot, upgrade level</span><input type="number" min={1} max={10} className={cn(inputCls, 'h-9 w-16')} value={ex.plotLevel} onChange={(e) => setEx({ ...ex, plotLevel: Number(e.target.value) })} />
         </div>
-        <div className="mt-2 font-display text-lg font-semibold tnum">{fmt(Math.floor(perRound * mult))} Ink per round · {fmt(Math.floor(perRound * exRounds * mult))} for all {exRounds} <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)}{boost > 1 ? `, incl. ${boost}× boost` : ''})</span></div>
+        <div className="mt-2 font-display text-lg font-semibold tnum">{fmt(Math.floor(perRound * mult))} Ink per round · {fmt(Math.floor((perRound * exRounds + (Array.isArray(eg.round_bonus) ? eg.round_bonus.slice(0, exRounds).reduce((x: number, y: number) => x + Number(y || 0), 0) : 0)) * mult))} for all {exRounds} (with round bonuses) <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)}{boost > 1 ? `, incl. ${boost}× boost` : ''})</span></div>
       </div>
     </Card>
   );
@@ -572,6 +575,18 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
             {c.boost && <Button size="sm" variant="ghost" onClick={() => setGame(g, { boost: undefined })}>Stop boost</Button>}
           </div>
           <p className="mt-1 text-[11px] text-faint">Remember to press Save above.</p>
+        </div>
+        <div>
+          <div className="eyebrow mb-1">Round bonus — extra Ink for clearing each round</div>
+          <p className="mb-2 text-[11px] text-faint">Added on top of the level’s Ink per round, at every level (multipliers and boosts apply). E.g. make the last round pay a big bonus.</p>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: rounds }, (_, r) => (
+              <label key={r} className="grid gap-0.5 text-[11px] font-semibold text-muted">Round {r + 1}
+                <input type="number" min={0} max={100000} className="h-9 w-20 rounded-lg border border-line bg-surface px-2 text-sm text-fg tnum" data-testid={`round-bonus-${g}-${r}`}
+                  value={Number(c.round_bonus?.[r] ?? 0)} onChange={(e) => { const next = Array.from({ length: rounds }, (_, k) => Number(c.round_bonus?.[k] ?? 0)); next[r] = Math.max(0, Math.round(Number(e.target.value))); setGame(g, { round_bonus: next }); }} />
+              </label>
+            ))}
+          </div>
         </div>
         <div>
           <div className="mb-2 flex flex-wrap items-end gap-2">

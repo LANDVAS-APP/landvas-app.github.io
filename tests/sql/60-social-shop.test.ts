@@ -27,7 +27,7 @@ async function asRole(role: 'anon' | 'authenticated', uid: string | null, sql: s
 
 async function winMinigame(uid: string, gx: number, gy: number) {
   const game = (await db.rpc(uid, 'plot_details', { p_gx: gx, p_gy: gy })).type_info.minigame;
-  const sess = await db.rpc(uid, 'start_minigame', { p_game: game, p_level: 1, p_gx: gx, p_gy: gy });
+  const sess = await db.rpc(uid, 'start_minigame', { p_game: game, p_level: await db.nextLevel(uid, gx, gy), p_gx: gx, p_gy: gy });
   return db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
     p_session_id: sess.session_id,
     p_result: { valid: true, passed: true, score: 400, stars: 3, flags: [], suspicious: false, min_duration_ms: 0 },

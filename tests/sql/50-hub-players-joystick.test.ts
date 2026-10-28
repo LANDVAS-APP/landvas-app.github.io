@@ -238,7 +238,7 @@ describe('operator-tunable minigame earnings', () => {
   let g: string, owner: string, game: string;
   const P = { gx: 33000, gy: 24000 };
   const win = async () => {
-    const sess = await db.rpc(g, 'start_minigame', { p_game: game, p_level: 1, p_gx: P.gx, p_gy: P.gy });
+    const sess = await db.rpc(g, 'start_minigame', { p_game: game, p_level: await db.nextLevel(g, P.gx, P.gy), p_gx: P.gx, p_gy: P.gy });
     return db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
       p_session_id: sess.session_id,
       p_result: { valid: true, passed: true, score: 400, stars: 3, flags: [], suspicious: false, min_duration_ms: 0 },

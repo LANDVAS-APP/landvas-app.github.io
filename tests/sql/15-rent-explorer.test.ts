@@ -190,7 +190,7 @@ describe('minigames are the only Ink faucet', () => {
   let game: string;
   const PLOT = { gx: HOME.gx + 500, gy: HOME.gy };
   const win = async (score = 400) => {
-    const sess = await db.rpc(g, 'start_minigame', { p_game: game, p_level: 1, p_gx: PLOT.gx, p_gy: PLOT.gy });
+    const sess = await db.rpc(g, 'start_minigame', { p_game: game, p_level: await db.nextLevel(g, PLOT.gx, PLOT.gy), p_gx: PLOT.gx, p_gy: PLOT.gy });
     return db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
       p_session_id: sess.session_id,
       p_result: { valid: true, passed: true, score, stars: 3, flags: [], suspicious: false, min_duration_ms: 0 },

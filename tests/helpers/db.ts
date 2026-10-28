@@ -72,6 +72,12 @@ export class TestDb {
     return this.rpc(uid, 'report_position', { p_lng: lng, p_lat: lat, p_accuracy_m: 10 });
   }
 
+  /** The next level a plot can play (beaten levels can't be replayed). */
+  async nextLevel(uid: string, gx: number, gy: number) {
+    const r = await this.sql('select coalesce(max(highest_level), 0) + 1 as n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3', [gx, gy, uid]);
+    return Number(r[0].n);
+  }
+
   /** Credit Ink as if earned from minigame wins. */
   async giveInk(uid: string, amount: number) {
     await this.sql(`update resource_balances set amount = amount + $2 where player_id = $1 and resource = 'ink'`, [uid, amount]);

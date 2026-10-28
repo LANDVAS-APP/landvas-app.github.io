@@ -59,6 +59,8 @@ const MESSAGES: Record<string, string> = {
   insufficient_funds: 'Not enough yet — win plot minigames to earn more Ink.',
   out_of_reach: 'That plot is too far from your explorer. Travel closer first.',
   explorer_required: 'Turn on your location to place your explorer.',
+  level_already_beaten: 'You’ve already beaten that level on this plot — play the next one.',
+  plot_maxed: 'This plot has beaten every level of its game.',
   duels_disabled: 'Duels aren’t open yet.',
   invalid_stake: 'That stake is outside the allowed range.',
   duel_limit_reached: 'You’ve started the most duels allowed today. Try again tomorrow.',

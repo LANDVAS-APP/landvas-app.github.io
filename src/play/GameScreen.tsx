@@ -1,6 +1,6 @@
 // /play/:game?gx&gy — intro → server session → play → server-validated results.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { activeBoost, boostLeft, inkPerRound } from './rates';
+import { activeBoost, boostLeft, inkPerRound, roundBonusTotal } from './rates';
 import { Zap, ArrowLeft, Check, ChevronRight, Gamepad2, Map as MapIcon, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -75,6 +75,8 @@ export default function GameScreen() {
   const unlocked = Math.min((prog?.highest_level ?? 0) + 1, maxLevel);
   const [level, setLevel] = useState<number | null>(null);
   useEffect(() => { setLevel(null); }, [cell?.gx, cell?.gy]);
+  // beaten levels can't be replayed: a plot always plays its next level
+  const maxed = (prog?.highest_level ?? 0) >= maxLevel;
   const lvl = level ?? unlocked;
   const rounds = Math.max(1, Math.min(10, Number(gameCfg.rounds ?? 5)));
   const boost = activeBoost(world.data, game);
@@ -84,9 +86,10 @@ export default function GameScreen() {
     const n = candidates[(k + 1) % candidates.length];
     return { gx: n.gx, gy: n.gy };
   })();
+  const unlimitedRuns = world.data?.minigames?.limit_paid_runs === false;
   const limit = records.data?.daily_rewarded_wins_per_game ?? 6;
   const usedToday = records.data?.rewarded_today?.[game] ?? 0;
-  const leftToday = Math.max(0, limit - usedToday);
+  const leftToday = unlimitedRuns ? Infinity : Math.max(0, limit - usedToday);
 
   const [phase, setPhase] = useState<Phase>({ k: 'intro' });
   const solver = useRef<(() => Promise<void>) | null>(null);
@@ -134,7 +137,7 @@ export default function GameScreen() {
           <h1 className="truncate font-display text-lg font-semibold">{info.name}{phase.k === 'playing' ? ` · Level ${phase.s.level}` : ''}</h1>
         </div>
         <div className="glass flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-bold" title="Wins that pay Ink today">
-          <ResourceIcon r="ink" /> {leftToday}/{limit} left
+          <ResourceIcon r="ink" /> {unlimitedRuns ? 'Unlimited runs' : `${leftToday}/${limit} left`}
         </div>
       </header>
 
@@ -164,24 +167,19 @@ export default function GameScreen() {
             {candidates.length > 0 && (
               <PlotPicker plots={candidates} progress={plotProgress.data} maxLevel={maxLevel} cell={cell} onPick={(c) => { setCell(c); nav(`/play/${game}?gx=${c.gx}&gy=${c.gy}`, { replace: true }); }} />
             )}
-            <div className="mt-4">
-              <div className="eyebrow mb-2">Level</div>
-              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto scroll-thin">
-                {Array.from({ length: unlocked }, (_, i) => i + 1).reverse().slice(0, 30).map((n) => (
-                  <button key={n} onClick={() => setLevel(n)} className={cn('h-9 min-w-9 rounded-xl border px-2 text-sm font-bold tnum', n === lvl ? 'border-accent-2 bg-accent-2/15 text-fg' : 'border-line text-muted hover:text-fg')}>{n}</button>
-                ))}
-              </div>
-            </div>
+            {maxed && (
+              <p className="mt-4 rounded-2xl border border-ok/40 bg-ok/10 p-3 text-sm" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels of {info.name}. Beaten levels can’t be replayed — pick another plot{candidates.length > 1 ? ' above' : ''} to keep earning.</p>
+            )}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-sm">
               <span className="text-muted">{leftToday > 0 ? `Each round you clear pays` : 'Practice mode until reset'}</span>
               <span className="flex items-center gap-1.5 font-bold">
                 {leftToday > 0 ? <><ResourceIcon r="ink" /> {fmt(inkPerRound(world.data, game, lvl, plot))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
               </span>
-              <span className="w-full text-xs text-faint">Clear all {rounds} rounds ({fmt(estimateInk(world.data, lvl, plot, game))} Ink) to unlock level {Math.min(lvl + 1, maxLevel)} on this plot.</span>
+              <span className="w-full text-xs text-faint">Clear all {rounds} rounds ({fmt(estimateInk(world.data, lvl, plot, game))} Ink{roundBonusText(world.data, game, plot)}) to {lvl >= maxLevel ? 'finish the last level' : `unlock level ${lvl + 1}`} on this plot.</span>
             </div>
             <p className="mt-2 text-xs text-faint tnum">This plot: {prog ? `level ${prog.highest_level} cleared · ${prog.wins} wins` : 'fresh — starts at level 1'} · max level {maxLevel}{rec ? ` · best ever ${fmt(rec.best_score)}` : ''}</p>
-            <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={!cell || !candidates.length} onClick={() => start(lvl)} data-testid="game-start">
-              <Sparkles className="h-4 w-4" /> Play level {lvl}
+            <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={!cell || !candidates.length || maxed} onClick={() => start(lvl)} data-testid="game-start">
+              <Sparkles className="h-4 w-4" /> {maxed ? 'Every level beaten' : `Play level ${lvl}`}
             </Button>
           </div>
         )}
@@ -194,7 +192,7 @@ export default function GameScreen() {
             onDone={(log) => void finish(phase.s, log)}
             registerSolver={(fn) => { solver.current = fn; }} />
         )}
-        {phase.k === 'results' && <Results r={phase.r} level={phase.level} unlocked={unlocked} onAgain={(n) => { setLevel(n); void start(n); }} onMap={() => nav('/world')}
+        {phase.k === 'results' && <Results r={phase.r} level={phase.level} maxLevel={maxLevel} onAgain={(n) => { setLevel(n); void start(n); }} onMap={() => nav('/world')}
           onNextPlot={nextPlot ? () => { setCell(nextPlot); nav(`/play/${game}?gx=${nextPlot.gx}&gy=${nextPlot.gy}`, { replace: true }); setPhase({ k: 'intro' }); } : undefined} />}
       </main>
     </div>
@@ -243,10 +241,14 @@ function PlotPicker({ plots, progress, maxLevel, cell, onPick }: {
 }
 
 function estimateInk(world: any, level: number, plot: any, game: string) {
-  return inkPerRound(world, game, level, plot) * Math.max(1, Number(world?.minigames?.games?.[game]?.rounds ?? 5));
+  return inkPerRound(world, game, level, plot) * Math.max(1, Number(world?.minigames?.games?.[game]?.rounds ?? 5)) + roundBonusTotal(world, game, plot);
+}
+function roundBonusText(world: any, game: string, plot: any) {
+  const b = roundBonusTotal(world, game, plot);
+  return b > 0 ? `, incl. ${fmt(b)} round bonus` : '';
 }
 
-function Results({ r, level, unlocked, onAgain, onMap, onNextPlot }: { r: MinigameFinish; level: number; unlocked: number; onAgain(n: number): void; onMap(): void; onNextPlot?(): void }) {
+function Results({ r, level, maxLevel, onAgain, onMap, onNextPlot }: { r: MinigameFinish; level: number; maxLevel: number; onAgain(n: number): void; onMap(): void; onNextPlot?(): void }) {
   const nav = useNavigate();
   const cleared = r.rewards?.rounds_cleared ?? (r.passed ? 1 : 0), total = r.rewards?.rounds ?? 1;
   return (
@@ -269,14 +271,16 @@ function Results({ r, level, unlocked, onAgain, onMap, onNextPlot }: { r: Miniga
             {r.rewards.brush_points > 0 && <span className="flex items-center gap-1"><ResourceIcon r="brush_points" /> +{r.rewards.brush_points} XP</span>}
             {r.rewards.held && <span className="text-warn">Rewards held for a quick review</span>}
           </div>
-          {r.rewards.ink > 0 && <p className="text-xs text-faint">{r.rewards.rewarded_left} Ink-paying run{r.rewards.rewarded_left === 1 ? '' : 's'} left today for this game.</p>}
+          {r.rewards.ink > 0 && r.rewards.rewarded_left != null && <p className="text-xs text-faint">{r.rewards.rewarded_left} Ink-paying run{r.rewards.rewarded_left === 1 ? '' : 's'} left today for this game.</p>}
         </div>
       )}
       <div className="mt-5 grid gap-2">
-        {r.passed && level + 1 <= Math.max(unlocked, level + 1) && (
+        {r.passed && level < maxLevel && (
           <Button variant="rainbow" size="lg" onClick={() => onAgain(level + 1)} data-testid="game-next"><Trophy className="h-4 w-4" /> Next level ({level + 1})</Button>
         )}
-        <Button variant={r.passed ? 'secondary' : 'primary'} onClick={() => onAgain(level)} data-testid="game-replay"><RotateCcw className="h-4 w-4" /> {r.passed ? 'Replay' : 'Try again'}</Button>
+        {r.passed && level >= maxLevel && <p className="text-sm font-semibold text-ok">That was the last level on this plot — every level is beaten!</p>}
+        {/* a beaten level can't be replayed, so only an unbeaten level offers another try */}
+        {!r.passed && <Button variant="primary" onClick={() => onAgain(level)} data-testid="game-replay"><RotateCcw className="h-4 w-4" /> Try again</Button>}
         {onNextPlot && <Button variant="secondary" onClick={onNextPlot} data-testid="game-next-plot"><ChevronRight className="h-4 w-4" /> Level up my next plot</Button>}
         <Button variant="ghost" onClick={() => { onMap(); nav('/world'); }}><MapIcon className="h-4 w-4" /> Back to the map — buy plots with Ink</Button>
       </div>

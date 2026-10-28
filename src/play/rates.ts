@@ -24,6 +24,20 @@ export function inkPerRound(world: any, game: string, level: number, plot?: { ra
   return Math.floor(base * mult);
 }
 
+/** All per-round bonuses for clearing every round, with the same multipliers as Ink per round. */
+export function roundBonusTotal(world: any, game: string, plot?: { rarity: any; level: number } | null) {
+  const mg = world?.minigames ?? {};
+  const g = mg.games?.[game] ?? {};
+  const b: number[] = Array.isArray(g.round_bonus) ? g.round_bonus : [];
+  const rounds = Number(g.rounds ?? 5);
+  const sum = b.slice(0, rounds).reduce((s, x) => s + Number(x || 0), 0);
+  if (!sum) return 0;
+  const upgrade = 1 + Number(g.plot_level_bonus ?? mg.plot_level_bonus ?? 0.05) * ((plot?.level ?? 1) - 1);
+  const mult = (plot ? Number(rarityInfo(plot.rarity).ink_reward_multiplier) * upgrade : 1)
+    * Number(mg.ink_multiplier ?? 1) * Number(g.ink_multiplier ?? 1) * (activeBoost(world, game)?.multiplier ?? 1);
+  return Math.floor(sum * mult);
+}
+
 export function boostLeft(b: Boost) {
   if (!b.ends_at) return 'for a limited time';
   const ms = new Date(b.ends_at).getTime() - Date.now();

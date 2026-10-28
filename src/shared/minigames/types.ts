@@ -22,6 +22,7 @@ export type ValidationResult = {
   reason?: string;
   rounds_passed?: number; // rounds cleared — the server pays Ink per cleared round
   rounds_total?: number;
+  rounds_mask?: boolean[]; // which rounds were cleared, in order (round bonuses pay per position)
 };
 
 export const invalid = (reason: string, flags: string[] = []): ValidationResult => ({

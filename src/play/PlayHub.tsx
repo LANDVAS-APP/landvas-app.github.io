@@ -28,11 +28,12 @@ export default function PlayHub() {
   const cfg = world.data?.minigames?.games ?? {};
   if (!me || plots.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const limit = records.data?.daily_rewarded_wins_per_game ?? 6;
+  const unlimitedRuns = world.data?.minigames?.limit_paid_runs === false;
   const resets = records.data?.resets_at ? new Date(records.data.resets_at) : null;
   return (
     <Page>
       <PageHeader eyebrow="Earn Ink" title="Play">
-        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} runs a day — every round you clear pays, and clear all 5 rounds to level the plot up${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
+        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Every round you clear pays, and clearing all of a level's rounds levels the plot up (beaten levels can't be replayed). ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays Ink for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}
       </PageHeader>
       {world.data && (
         <Link to="/duels" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-duels">
@@ -78,7 +79,7 @@ export default function PlayHub() {
                   <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {fmt(inkPerRound(world.data, game, 1, best))}+ per round</span>
                   {rec && <span className="tnum">Best {fmt(rec.best_score)}</span>}
                   <span className="tnum">Max level {Number(cfg[game]?.max_level ?? world.data?.minigames?.max_level ?? 60)}</span>
-                  <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {Math.max(0, limit - used)}/{limit} paid runs left</span>
+                  {!unlimitedRuns && <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {Math.max(0, limit - used)}/{limit} paid runs left</span>}
                 </div>
                 {mine.length ? (
                   <div className="mt-4 flex items-center justify-between gap-2">

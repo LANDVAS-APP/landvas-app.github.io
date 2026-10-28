@@ -226,7 +226,7 @@ describe('worker minigame API', () => {
   });
 
   it('validates a genuine run server-side and grants rewards exactly once', async () => {
-    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
+    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: await db.nextLevel(player, plot.gx, plot.gy), p_gx: plot.gx, p_gy: plot.gy });
     // the client-claimed duration is checked against the server clock: backdate the session start
     await db.sql(`update minigame_sessions set started_at = now() - interval '5 minutes' where id = $1`, [s.session_id]);
     const before = (await db.rpc(player, 'my_state')).balances.ink;
@@ -241,7 +241,7 @@ describe('worker minigame API', () => {
   });
 
   it('a forged or impossible log earns nothing', async () => {
-    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
+    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: await db.nextLevel(player, plot.gx, plot.gy), p_gx: plot.gx, p_gy: plot.gy });
     await db.sql(`update minigame_sessions set started_at = now() - interval '5 minutes' where id = $1`, [s.session_id]);
     const real = solve(plot.game, Number(s.seed), 1, s.rounds) as any;
     // forge: TraceCraft strokes shifted off the guides; other games claim a win with no moves at all
@@ -255,7 +255,7 @@ describe('worker minigame API', () => {
   });
 
   it('a log claiming more time than really passed is rejected', async () => {
-    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
+    const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: await db.nextLevel(player, plot.gx, plot.gy), p_gx: plot.gx, p_gy: plot.gy });
     const log = solve(plot.game, Number(s.seed), 1, s.rounds);
     // on the server clock the run "started" in the future, so any claimed duration is longer than real time
     await db.sql(`update minigame_sessions set started_at = now() + interval '30 seconds' where id = $1`, [s.session_id]);
@@ -267,7 +267,7 @@ describe('worker minigame API', () => {
   it('cannot start a minigame on a plot you do not own or above your unlocked level', async () => {
     const other = await db.newPlayer('other');
     await expectReject(db.rpc(other, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy }), 'not_owner');
-    await expectReject(db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 9, p_gx: plot.gx, p_gy: plot.gy }), 'level_locked');
+    await expectReject(db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 40, p_gx: plot.gx, p_gy: plot.gy }), 'level_locked');
   });
 });
 
