@@ -29,6 +29,13 @@ const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
+const HomePage = lazy(() => import('../home/HomePage'));
+
+/** landvas.app: the homepage for visitors, the live map for signed-in players. */
+function RootRoute() {
+  const session = useSession();
+  return session ? <MapScreen /> : p(<HomePage />);
+}
 const VisitRoom = lazy(() => import('../visit/VisitRoom'));
 const SocialScreen = lazy(() => import('../social/SocialScreen'));
 const InviteScreen = lazy(() => import('../social/InviteScreen'));
@@ -70,6 +77,25 @@ function OnboardingGate() {
   return <Outlet />;
 }
 
+const TITLES: [RegExp, string][] = [
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest map art'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
+  [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
+  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'],
+];
+/** Per-page title and canonical address (the homepage sets its own title). */
+function RouteMeta() {
+  const loc = useLocation();
+  useEffect(() => {
+    const path = loc.pathname;
+    const t = TITLES.find(([re]) => re.test(path))?.[1];
+    if (path !== '/') document.title = t ? `${t} · LANDVAS` : 'LANDVAS — Own a piece. Paint the world.';
+    const url = `https://landvas.app${path === '/' ? '/' : path}`;
+    document.querySelector('link[rel=canonical]')?.setAttribute('href', url);
+    document.querySelector('meta[property="og:url"]')?.setAttribute('content', url);
+  }, [loc.pathname]);
+  return null;
+}
+
 function SessionSync() {
   const qc = useQueryClient();
   useReferralRedeemer();
@@ -94,7 +120,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><OnboardingGate /></>,
+    element: <><SessionSync /><RouteMeta /><OnboardingGate /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/onboarding', element: <Onboarding /> },
@@ -103,7 +129,8 @@ const routes: RouteObject[] = [
       {
         element: <Shell />,
         children: [
-          { path: '/', element: <MapScreen /> },
+          { path: '/', element: <RootRoute /> },
+          { path: '/world', element: <MapScreen /> },
           { path: '/canvases', element: player(<CanvasesScreen />) },
           { path: '/play', element: player(<PlayHub />) },
           { path: '/gallery', element: p(<GalleryScreen />) },
@@ -146,7 +173,7 @@ const router =
 
 if (config.router !== 'memory' && !getBackend().session()) {
   try {
-    if (!localStorage.getItem('landvas.welcomed') && location.pathname === '/') void router.navigate('/welcome', { replace: true });
+    // visitors land on the homepage at "/" (the public face of LANDVAS)
   } catch {
     /* storage blocked */
   }

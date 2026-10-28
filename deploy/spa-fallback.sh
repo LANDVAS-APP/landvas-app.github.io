@@ -12,7 +12,10 @@ STATIC="welcome onboarding play canvases gallery players me achievements leaderb
 DYNAMIC="create play u art legal"
 : > _redirects
 for r in $STATIC; do
-  mkdir -p "$r" && cp index.html "$r/index.html"
+  mkdir -p "$r"
+  # each page names itself as canonical (otherwise search engines fold it into the homepage)
+  sed -e "s#<link rel=\"canonical\" href=\"https://landvas.app/\" />#<link rel=\"canonical\" href=\"https://landvas.app/$r\" />#" \
+      -e "s#<meta property=\"og:url\" content=\"https://landvas.app/\" />#<meta property=\"og:url\" content=\"https://landvas.app/$r\" />#" index.html > "$r/index.html"
   echo "/$r /index.html 200" >> _redirects
 done
 for r in $DYNAMIC; do echo "/$r/* /index.html 200" >> _redirects; done

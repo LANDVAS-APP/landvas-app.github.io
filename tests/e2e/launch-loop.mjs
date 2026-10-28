@@ -236,7 +236,7 @@ try {
     `${movedM.toFixed(1)} m, tank ${Number(exBefore.joystick.seconds_left).toFixed(1)} → ${Number(exAfter.joystick.seconds_left).toFixed(1)} s`);
   await page.click('[data-testid=joystick-close]');
   await page.click('[data-testid=tilt-3d]');
-  await page.waitForTimeout(1400);
+  await page.waitForFunction(() => window.__landvasMap.getPitch() > 40, null, { timeout: 8000 }).catch(() => {});
   const pitch = await page.evaluate(() => window.__landvasMap.getPitch());
   check('the 3D button tilts the map', pitch > 40, pitch.toFixed(1));
   await page.click('[data-testid=tilt-3d]');

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /create/
+Disallow: /onboarding
+
+Sitemap: https://landvas.app/sitemap.xml

@@ -75,6 +75,8 @@ export const api = {
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
+  publicStats: () => rpc<{ players: number; artworks: number; plots: number; painted_plots: number }>('public_stats'),
+
   // players
   playersDirectory: (query: string, sort: string, limit = 30, offset = 0) =>
     rpc<{ total: number; rows: DirectoryPlayer[]; sort: string }>('players_directory', { p_query: query, p_sort: sort, p_limit: limit, p_offset: offset }),

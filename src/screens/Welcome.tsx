@@ -92,7 +92,7 @@ export function Welcome() {
   const next = params.get('next') || '/';
   const b = getBackend();
   const invite = pendingReferral();
-  const [tab, setTab] = useState<'signup' | 'signin'>(b.mode === 'local' || invite ? 'signup' : 'signin');
+  const [tab, setTab] = useState<'signup' | 'signin'>(params.get('mode') === 'signin' ? 'signin' : 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export function Welcome() {
               )}
             </div>
           )}
-          <button className="mt-5 w-full text-center text-sm font-semibold text-muted hover:text-fg" onClick={() => { saveStorage('landvas.welcomed', true); nav('/'); }}>
+          <button className="mt-5 w-full text-center text-sm font-semibold text-muted hover:text-fg" onClick={() => { saveStorage('landvas.welcomed', true); nav('/world'); }}>
             Explore the map first →
           </button>
         </section>
