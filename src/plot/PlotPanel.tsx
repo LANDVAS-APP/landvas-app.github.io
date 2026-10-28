@@ -346,7 +346,9 @@ function MineBlock({ d }: { d: PlotDetails }) {
         <div className="grid gap-2 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3">
           <div className="text-sm font-bold">Your canvas can grow</div>
           {d.connections!.map((c) => (
-            <Button key={c.group_id} size="sm" variant="rainbow" loading={busy === 'fuse'} onClick={() => fuse(c.group_id)}>
+            <Button key={c.group_id} size="sm" variant="rainbow" loading={busy === 'fuse'} onClick={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }}
+              onMouseEnter={() => useUi.getState().setMergeHover([c.group_id])} onMouseLeave={() => useUi.getState().setMergeHover(null)}
+              onFocus={() => useUi.getState().setMergeHover([c.group_id])} onBlur={() => useUi.getState().setMergeHover(null)}>
               <Link2 className="h-4 w-4" /> Connect with “{c.name}” ({c.plot_count} plot{c.plot_count === 1 ? '' : 's'})
             </Button>
           ))}

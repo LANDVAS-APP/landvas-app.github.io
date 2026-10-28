@@ -5942,6 +5942,32 @@ function composeParent(children, size = 256) {
   });
   return downsample2x(big);
 }
+function whitePaper(w = 256, h = w) {
+  return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4).fill(255) };
+}
+function flattenOnWhite(img) {
+  const s = img.data;
+  const out = new Uint8ClampedArray(s.length);
+  for (let i = 0; i < s.length; i += 4) {
+    const a = s[i + 3];
+    if (a === 255) {
+      out[i] = s[i];
+      out[i + 1] = s[i + 1];
+      out[i + 2] = s[i + 2];
+    } else if (a === 0) {
+      out[i] = 255;
+      out[i + 1] = 255;
+      out[i + 2] = 255;
+    } else {
+      const k = a / 255, w = 255 * (1 - k);
+      out[i] = Math.round(s[i] * k + w);
+      out[i + 1] = Math.round(s[i + 1] * k + w);
+      out[i + 2] = Math.round(s[i + 2] * k + w);
+    }
+    out[i + 3] = 255;
+  }
+  return { width: img.width, height: img.height, data: out };
+}
 function isTransparent(img, threshold = 0) {
   const d = img.data;
   for (let i = 3; i < d.length; i += 4) if (d[i] > threshold) return false;
@@ -6015,10 +6041,14 @@ function readPngSize(bytes) {
 }
 
 // src/shared/grid.ts
-var GRID_LEVEL = 16;
-var GRID_SIZE = 1 << GRID_LEVEL;
+var GRID_LEVEL = 22;
+var GRID_SIZE = 2 ** GRID_LEVEL;
 var PLOT_PX = 256;
-var ART_MIN_ZOOM = 8;
+var ART_MIN_ZOOM = GRID_LEVEL - 8;
+var Z_PLOT = GRID_LEVEL - 1.6;
+var Z_HOUSE = GRID_LEVEL - 2.4;
+var Z_STREET = GRID_LEVEL - 4;
+var Z_TOWN = GRID_LEVEL - 8;
 var wrapGx = (gx) => (gx % GRID_SIZE + GRID_SIZE) % GRID_SIZE;
 var cellKey = (gx, gy) => `${wrapGx(gx)}_${gy}`;
 function unwrapCells(cells) {
@@ -6078,84 +6108,139 @@ var BUCKETS = { drafts: "drafts", submissions: "submissions", processed: "proces
 var MAX_SUBMISSION_BYTES = 900 * 1024;
 var noScreening = { name: "none", screen: async () => ({ provider: "none", flagged: false, categories: [] }) };
 var tilePath = (z, x, y, rev) => `tiles/${z}/${x}/${y}/${rev}.png`;
-async function runJob(deps2, job) {
+var PipelineYield = class extends Error {
+  constructor(progress) {
+    super("yield");
+    this.progress = progress;
+  }
+  progress;
+};
+function metered(codec2, meter) {
+  return {
+    async decode(b) {
+      const t = performance.now();
+      try {
+        return await codec2.decode(b);
+      } finally {
+        meter.used += performance.now() - t;
+      }
+    },
+    async encodePng(i) {
+      const t = performance.now();
+      try {
+        return await codec2.encodePng(i);
+      } finally {
+        meter.used += performance.now() - t;
+      }
+    }
+  };
+}
+async function runJob(deps2, job, meter = { used: 0, limit: deps2.budgetMs ?? Infinity }) {
   const log = deps2.log ?? (() => {
   });
   const t0 = Date.now();
+  const d = Number.isFinite(meter.limit) ? { ...deps2, codec: metered(deps2.codec, meter) } : deps2;
+  const checkpoint = (progress2, need = 0) => {
+    if (meter.used > 0 && meter.used + need > meter.limit) throw new PipelineYield(progress2);
+  };
+  const progress = job.payload?.progress ?? null;
   try {
     switch (job.kind) {
       case "process_publication":
-        await processPublication(deps2, job.payload.publication_id);
+        await processPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case "publish_publication":
-        await publishPublication(deps2, job.payload.publication_id);
+        await publishPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case "unpublish_publication":
-        await unpublishPublication(deps2, job.payload.publication_id);
+        await unpublishPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case "clear_cells":
-        await clearCells(deps2, job.payload.cells);
+        await clearCells(d, job.payload.cells, progress, checkpoint);
         break;
       default:
         throw new Error(`unknown job kind ${job.kind}`);
     }
     await deps2.db.call("svc_complete_job", { p_job_id: job.id, p_ok: true });
     log("job.done", { id: job.id, kind: job.kind, ms: Date.now() - t0 });
+    return "done";
   } catch (e) {
+    if (e instanceof PipelineYield) {
+      await deps2.db.call("svc_yield_job", { p_job_id: job.id, p_progress: e.progress });
+      log("job.yield", { id: job.id, kind: job.kind, ms: Date.now() - t0, codec_ms: Math.round(meter.used) });
+      return "yielded";
+    }
     const message = e?.message ?? String(e);
     log("job.failed", { id: job.id, kind: job.kind, error: message });
     await deps2.db.call("svc_complete_job", { p_job_id: job.id, p_ok: false, p_error: message });
+    return "failed";
   }
 }
 async function drainQueue(deps2, workerId, max = 100) {
   let n = 0;
-  while (n < max) {
+  const meter = { used: 0, limit: deps2.budgetMs ?? Infinity };
+  while (n < max && meter.used < meter.limit * 0.7) {
     const job = await deps2.db.call("svc_claim_job", { p_worker: workerId });
     if (!job) break;
-    await runJob(deps2, job);
+    const r = await runJob(deps2, job, meter);
     n++;
+    if (r === "yielded") break;
   }
   return n;
 }
-async function processPublication(deps2, publicationId) {
+var previewCell = (cols, rows) => Math.max(4, Math.min(PLOT_PX, Math.floor(1024 / Math.max(cols, rows))));
+async function processPublication(deps2, publicationId, saved, checkpoint = () => {
+}) {
   const ctx = await deps2.db.call("svc_publication_context", { p_publication_id: publicationId });
   if (!ctx || ctx.status !== "processing") return;
   const fail = (error) => deps2.db.call("svc_publication_processed", { p_publication_id: publicationId, p_result: { ok: false, error } });
   if (!ctx.cells_owned) return fail("Plot ownership changed before the artwork could be processed.");
   const cells = ctx.cells;
   const layout = canvasLayout(cells);
-  const images = [];
-  let nonEmpty = 0;
+  const cell = previewCell(layout.cols, layout.rows);
+  const pr = saved?.stage ? { ...saved, done: [...saved.done] } : { stage: "plots", done: [], painted: 0 };
+  const doneSet = new Set(pr.done);
+  if (pr.stage === "plots") {
+    let paperPng = null;
+    for (const [gx, gy] of cells) {
+      const key = cellKey(gx, gy);
+      if (doneSet.has(key)) continue;
+      const bytes = await deps2.store.get(BUCKETS.submissions, `${ctx.owner_id}/${publicationId}/${key}.png`);
+      let img = null;
+      if (bytes) {
+        if (bytes.byteLength > MAX_SUBMISSION_BYTES) return fail(`Plot ${key}: image is larger than ${MAX_SUBMISSION_BYTES / 1024} KB.`);
+        const head2 = readPngSize(bytes);
+        if (!head2) return fail(`Plot ${key}: not a valid PNG image.`);
+        if (head2.width !== PLOT_PX || head2.height !== PLOT_PX) return fail(`Plot ${key}: expected ${PLOT_PX}x${PLOT_PX} pixels.`);
+        try {
+          img = await deps2.codec.decode(bytes);
+        } catch {
+          return fail(`Plot ${key}: the image data is corrupt.`);
+        }
+        if (img.width !== PLOT_PX || img.height !== PLOT_PX) return fail(`Plot ${key}: unexpected decoded size.`);
+        if (isTransparent(img)) img = null;
+      }
+      if (img) pr.painted++;
+      const flat = img ? flattenOnWhite(img) : whitePaper(PLOT_PX);
+      const clean = img ? await deps2.codec.encodePng(flat) : paperPng ??= await deps2.codec.encodePng(flat);
+      await deps2.store.put(BUCKETS.processed, `${publicationId}/${key}.png`, clean, "image/png");
+      await deps2.store.put(BUCKETS.processed, `${publicationId}/mini/${key}.png`, await deps2.codec.encodePng(fitWithin(flat, cell)), "image/png");
+      pr.done.push(key);
+      doneSet.add(key);
+      checkpoint(pr);
+    }
+    if (pr.painted === 0) return fail("The artwork is empty \u2014 draw or place something first.");
+    pr.stage = "preview";
+    checkpoint(pr, Number.POSITIVE_INFINITY);
+  }
+  const minis = [];
   for (const [gx, gy] of cells) {
     const key = cellKey(gx, gy);
-    const bytes = await deps2.store.get(BUCKETS.submissions, `${ctx.owner_id}/${publicationId}/${key}.png`);
     const pos = layout.byKey.get(key);
-    if (!bytes) {
-      images.push({ col: pos.col, row: pos.row, img: null });
-      continue;
-    }
-    if (bytes.byteLength > MAX_SUBMISSION_BYTES) return fail(`Plot ${key}: image is larger than ${MAX_SUBMISSION_BYTES / 1024} KB.`);
-    const head2 = readPngSize(bytes);
-    if (!head2) return fail(`Plot ${key}: not a valid PNG image.`);
-    if (head2.width !== PLOT_PX || head2.height !== PLOT_PX) return fail(`Plot ${key}: expected ${PLOT_PX}x${PLOT_PX} pixels.`);
-    let img;
-    try {
-      img = await deps2.codec.decode(bytes);
-    } catch {
-      return fail(`Plot ${key}: the image data is corrupt.`);
-    }
-    if (img.width !== PLOT_PX || img.height !== PLOT_PX) return fail(`Plot ${key}: unexpected decoded size.`);
-    if (isTransparent(img)) {
-      images.push({ col: pos.col, row: pos.row, img: null });
-      continue;
-    }
-    const clean = await deps2.codec.encodePng(img);
-    await deps2.store.put(BUCKETS.processed, `${publicationId}/${key}.png`, clean, "image/png");
-    images.push({ col: pos.col, row: pos.row, img });
-    nonEmpty++;
+    const b = await deps2.store.get(BUCKETS.processed, `${publicationId}/mini/${key}.png`);
+    minis.push({ col: pos.col, row: pos.row, img: b ? await deps2.codec.decode(b) : null });
   }
-  if (nonEmpty === 0) return fail("The artwork is empty \u2014 draw or place something first.");
-  const full = stitch(images, layout.cols, layout.rows, PLOT_PX);
+  const full = stitch(minis, layout.cols, layout.rows, cell);
   const preview = fitWithin(full, 1024);
   const thumb = fitWithin(full, 320);
   const previewPng = await deps2.codec.encodePng(preview);
@@ -6176,55 +6261,74 @@ async function processPublication(deps2, publicationId) {
     }
   });
 }
-async function publishPublication(deps2, publicationId) {
+async function publishPublication(deps2, publicationId, saved, checkpoint = () => {
+}) {
   const ctx = await deps2.db.call("svc_publication_context", { p_publication_id: publicationId });
   if (!ctx || ctx.status !== "approved") return;
   const cells = ctx.cells;
   const lock = deps2.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    const present = [];
-    for (const [gx, gy] of cells) {
-      const bytes = await deps2.store.get(BUCKETS.processed, `${publicationId}/${cellKey(gx, gy)}.png`);
-      if (bytes) present.push({ gx, gy, bytes });
-    }
-    const revs = await deps2.db.call("svc_reserve_revs", { p_count: present.length });
-    const cellRevs = {};
-    const entries = [];
-    for (const [gx, gy] of cells) cellRevs[cellKey(gx, gy)] = null;
-    const cache = /* @__PURE__ */ new Map();
-    for (let i = 0; i < present.length; i++) {
-      const { gx, gy, bytes } = present[i];
-      const rev = Number(revs[i]);
-      await deps2.store.put(BUCKETS.public, tilePath(GRID_LEVEL, gx, gy, rev), bytes, "image/png");
-      cellRevs[cellKey(gx, gy)] = rev;
-      entries.push([GRID_LEVEL, gx, gy, rev, bytes.byteLength]);
-      cache.set(`${GRID_LEVEL}/${gx}/${gy}`, await deps2.codec.decode(bytes));
-    }
-    for (const [gx, gy] of cells) {
-      if (cellRevs[cellKey(gx, gy)] === null) {
-        entries.push([GRID_LEVEL, gx, gy, null]);
-        cache.set(`${GRID_LEVEL}/${gx}/${gy}`, null);
+    let pr;
+    if (saved?.stage) pr = { ...saved, copied: [...saved.copied] };
+    else {
+      const present = [];
+      for (const [gx, gy] of cells) {
+        const key = cellKey(gx, gy);
+        if (await deps2.store.get(BUCKETS.processed, `${publicationId}/${key}.png`)) present.push(key);
       }
+      const revs = await deps2.db.call("svc_reserve_revs", { p_count: present.length });
+      const map = {};
+      for (const [gx, gy] of cells) map[cellKey(gx, gy)] = null;
+      present.forEach((k, i) => {
+        map[k] = Number(revs[i]);
+      });
+      pr = { stage: "tiles", revs: map, copied: [], sizes: {} };
     }
-    await deps2.db.call("svc_set_art_tiles", { p_tiles: entries });
-    await rebuildPyramid(deps2, cells, cache);
+    if (pr.stage === "tiles") {
+      const copied = new Set(pr.copied);
+      for (const [gx, gy] of cells) {
+        const key = cellKey(gx, gy);
+        const rev = pr.revs[key];
+        if (rev == null || copied.has(key)) continue;
+        const bytes = await deps2.store.get(BUCKETS.processed, `${publicationId}/${key}.png`);
+        if (!bytes) throw new Error(`processed image missing for ${key}`);
+        await deps2.store.put(BUCKETS.public, tilePath(GRID_LEVEL, gx, gy, rev), bytes, "image/png");
+        pr.sizes[key] = bytes.byteLength;
+        pr.copied.push(key);
+        copied.add(key);
+      }
+      await deps2.db.call("svc_set_art_tiles", {
+        p_tiles: cells.map(([gx, gy]) => {
+          const rev = pr.revs[cellKey(gx, gy)];
+          return rev == null ? [GRID_LEVEL, gx, gy, null] : [GRID_LEVEL, gx, gy, rev, pr.sizes[cellKey(gx, gy)] ?? 0];
+        })
+      });
+      pr.stage = "pyramid";
+    }
+    if (pr.stage === "pyramid") {
+      await pyramidSteps(deps2, cells, pr.pyramid ?? null, (py, need) => {
+        pr.pyramid = py;
+        checkpoint(pr, need);
+      });
+      pr.stage = "finish";
+    }
     const preview = await deps2.store.get(BUCKETS.processed, `${publicationId}/preview.png`);
     const thumb = await deps2.store.get(BUCKETS.processed, `${publicationId}/thumb.png`);
     if (preview) await deps2.store.put(BUCKETS.public, `previews/${publicationId}.png`, preview, "image/png");
     if (thumb) await deps2.store.put(BUCKETS.public, `thumbs/${publicationId}.png`, thumb, "image/png");
     await deps2.db.call("svc_mark_published", {
       p_publication_id: publicationId,
-      p_cell_revs: cellRevs,
+      p_cell_revs: pr.revs,
       p_preview_public: { preview_path: `previews/${publicationId}.png`, thumb_path: `thumbs/${publicationId}.png` }
     });
     await deps2.db.call("svc_record_assets", {
-      p_assets: present.map((p) => ({
+      p_assets: cells.filter(([gx, gy]) => pr.revs[cellKey(gx, gy)] != null).map(([gx, gy]) => ({
         owner_id: ctx.owner_id,
         publication_id: publicationId,
         kind: "art_tile",
         bucket: BUCKETS.public,
-        path: tilePath(GRID_LEVEL, p.gx, p.gy, cellRevs[cellKey(p.gx, p.gy)]),
-        bytes: p.bytes.byteLength,
+        path: tilePath(GRID_LEVEL, gx, gy, pr.revs[cellKey(gx, gy)]),
+        bytes: pr.sizes[cellKey(gx, gy)] ?? 0,
         width: PLOT_PX,
         height: PLOT_PX,
         content_type: "image/png"
@@ -6232,74 +6336,70 @@ async function publishPublication(deps2, publicationId) {
     });
   });
 }
-async function unpublishPublication(deps2, publicationId) {
-  const plan = await deps2.db.call("svc_unpublish_plan", { p_publication_id: publicationId });
+async function unpublishPublication(deps2, publicationId, saved, checkpoint = () => {
+}) {
+  const plan = saved?.plan ?? await deps2.db.call("svc_unpublish_plan", { p_publication_id: publicationId });
   if (!plan.length) return;
   const lock = deps2.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    await deps2.db.call("svc_set_art_tiles", {
-      p_tiles: plan.map((c) => c.restore_rev ? [GRID_LEVEL, c.gx, c.gy, Number(c.restore_rev), null] : [GRID_LEVEL, c.gx, c.gy, null])
-    });
-    await rebuildPyramid(deps2, plan.map((c) => [c.gx, c.gy]), /* @__PURE__ */ new Map());
+    if (!saved) {
+      await deps2.db.call("svc_set_art_tiles", {
+        p_tiles: plan.map((c) => c.restore_rev ? [GRID_LEVEL, c.gx, c.gy, Number(c.restore_rev), null] : [GRID_LEVEL, c.gx, c.gy, null])
+      });
+    }
+    await pyramidSteps(deps2, plan.map((c) => [c.gx, c.gy]), saved?.pyramid ?? null, (py, need) => checkpoint({ stage: "pyramid", plan, pyramid: py }, need));
     await deps2.db.call("svc_mark_unpublished", { p_publication_id: publicationId, p_cells: plan });
   });
 }
-async function clearCells(deps2, cells) {
+async function clearCells(deps2, cells, saved, checkpoint = () => {
+}) {
   const lock = deps2.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    await deps2.db.call("svc_set_art_tiles", { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
-    const cache = new Map(cells.map(([gx, gy]) => [`${GRID_LEVEL}/${gx}/${gy}`, null]));
-    await rebuildPyramid(deps2, cells, cache);
+    if (!saved) await deps2.db.call("svc_set_art_tiles", { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
+    await pyramidSteps(deps2, cells, saved?.pyramid ?? null, (py, need) => checkpoint({ stage: "pyramid", pyramid: py }, need));
     await deps2.db.call("svc_cells_cleared", { p_cells: cells });
   });
 }
-async function rebuildPyramid(deps2, cells, cache) {
-  let changed = /* @__PURE__ */ new Map();
-  for (const [gx, gy] of cells) changed.set(`${gx}/${gy}`, [gx, gy]);
-  for (let z = GRID_LEVEL - 1; z >= ART_MIN_ZOOM; z--) {
+async function pyramidSteps(deps2, cells, saved, checkpoint) {
+  const decoded = /* @__PURE__ */ new Map();
+  for (let z = saved?.z ?? GRID_LEVEL - 1; z >= ART_MIN_ZOOM; z--) {
+    const shift = GRID_LEVEL - z;
     const parents = /* @__PURE__ */ new Map();
-    for (const [x, y] of changed.values()) parents.set(`${x >> 1}/${y >> 1}`, [x >> 1, y >> 1]);
+    for (const [gx, gy] of cells) parents.set(`${gx >> shift}/${gy >> shift}`, [gx >> shift, gy >> shift]);
+    const done = new Set(saved && saved.z === z ? saved.done : []);
+    const todo = [...parents.entries()].filter(([k]) => !done.has(k));
+    if (!todo.length) continue;
     const childKeys = [];
-    for (const [px, py] of parents.values())
-      for (let k = 0; k < 4; k++) childKeys.push([z + 1, px * 2 + (k & 1), py * 2 + (k >> 1)]);
-    const missing = childKeys.filter(([cz, cx, cy]) => !cache.has(`${cz}/${cx}/${cy}`));
-    const existing = missing.length ? await deps2.db.call("svc_get_art_tiles", { p_tiles: missing }) : [];
+    for (const [, [px, py]] of todo) for (let k = 0; k < 4; k++) childKeys.push([z + 1, px * 2 + (k & 1), py * 2 + (k >> 1)]);
+    const existing = await deps2.db.call("svc_get_art_tiles", { p_tiles: childKeys });
     const revOf = new Map(existing.map((r) => [`${r[0]}/${r[1]}/${r[2]}`, Number(r[3])]));
     const loadChild = async (cz, cx, cy) => {
       const key = `${cz}/${cx}/${cy}`;
-      if (cache.has(key)) return cache.get(key);
+      if (decoded.has(key)) return decoded.get(key);
       const rev = revOf.get(key);
       let img = null;
       if (rev) {
         const bytes = await deps2.store.get(BUCKETS.public, tilePath(cz, cx, cy, rev));
         if (bytes) img = await deps2.codec.decode(bytes);
       }
-      cache.set(key, img);
       return img;
     };
-    const results = [];
-    for (const [px, py] of parents.values()) {
+    for (const [key, [px, py]] of todo) {
       const kids = await Promise.all([0, 1, 2, 3].map((k) => loadChild(z + 1, px * 2 + (k & 1), py * 2 + (k >> 1))));
-      const img = kids.every((k) => !k) ? null : composeParent(kids);
-      results.push({ x: px, y: py, img: img && !isTransparent(img) ? img : null });
-    }
-    const nonEmpty = results.filter((r) => r.img);
-    const revs = nonEmpty.length ? await deps2.db.call("svc_reserve_revs", { p_count: nonEmpty.length }) : [];
-    const entries = [];
-    let ri = 0;
-    for (const r of results) {
-      cache.set(`${z}/${r.x}/${r.y}`, r.img);
-      if (!r.img) {
-        entries.push([z, r.x, r.y, null]);
-        continue;
+      let img = kids.every((k) => !k) ? null : composeParent(kids);
+      if (img && isTransparent(img)) img = null;
+      if (img) {
+        const [rev] = await deps2.db.call("svc_reserve_revs", { p_count: 1 });
+        const png = await deps2.codec.encodePng(img);
+        await deps2.store.put(BUCKETS.public, tilePath(z, px, py, Number(rev)), png, "image/png");
+        await deps2.db.call("svc_set_art_tiles", { p_tiles: [[z, px, py, Number(rev), png.byteLength]] });
+      } else {
+        await deps2.db.call("svc_set_art_tiles", { p_tiles: [[z, px, py, null]] });
       }
-      const rev = Number(revs[ri++]);
-      const png = await deps2.codec.encodePng(r.img);
-      await deps2.store.put(BUCKETS.public, tilePath(z, r.x, r.y, rev), png, "image/png");
-      entries.push([z, r.x, r.y, rev, png.byteLength]);
+      decoded.set(`${z}/${px}/${py}`, img);
+      done.add(key);
+      checkpoint({ z, done: [...done] });
     }
-    await deps2.db.call("svc_set_art_tiles", { p_tiles: entries });
-    changed = parents;
   }
 }
 
@@ -27163,6 +27263,8 @@ var codec = {
   }
 };
 var deps = {
+  // Edge Functions stop at ~2 s of CPU: do about 0.9 s of image work per run, then resume on the next run
+  budgetMs: 900,
   db: {
     async call(fn, args) {
       const { data, error } = await admin.rpc(fn, args ?? {});

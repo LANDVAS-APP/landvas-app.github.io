@@ -225,7 +225,7 @@ export default function EditorScreen() {
           <canvas ref={canvasRef} className={cn('absolute inset-0 block', ed?.s.tool === 'hand' || ed?.s.tool === 'move' ? 'cursor-grab' : 'cursor-crosshair')} data-testid="editor-canvas" />
           {!ed && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-muted">
-              <Spinner />Loading canvas {progress[1] ? `${progress[0]}/${progress[1]} tiles` : ''}
+              <Spinner />Loading canvas {progress[1] ? `${Math.round((progress[0] / progress[1]) * 100)}%` : ''}
             </div>
           )}
           {ed && <ZoomControls ed={ed} />}

@@ -19,6 +19,9 @@ type UiState = {
   /** Merge mode: the canvases (group ids) picked on the map, or null when off. */
   merge: string[] | null;
   setMerge(ids: string[] | null): void;
+  /** Canvases to light up on the map while hovering a connect button or a plot in merge mode. */
+  mergeHover: string[] | null;
+  setMergeHover(ids: string[] | null): void;
   toggleMerge(id: string): void;
   setMode(m: MapMode): void;
   select(c: { gx: number; gy: number } | null): void;
@@ -52,7 +55,9 @@ export const useUi = create<UiState>((set, get) => ({
   settings: loadSettings(),
   flyTo: null,
   merge: null,
-  setMerge: (merge) => set({ merge, selected: null }),
+  setMerge: (merge) => set({ merge, selected: null, mergeHover: null }),
+  mergeHover: null,
+  setMergeHover: (mergeHover) => { if (JSON.stringify(mergeHover) !== JSON.stringify(get().mergeHover)) set({ mergeHover }); },
   toggleMerge: (id) => {
     const cur = get().merge ?? [];
     set({ merge: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });

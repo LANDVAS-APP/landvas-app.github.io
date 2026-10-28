@@ -48,56 +48,97 @@ export type PipelineDeps = {
   log?: (msg: string, extra?: Record<string, unknown>) => void;
   /** Serialise pyramid rebuilds (production: Postgres advisory lock). */
   withPyramidLock?: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** Image-work budget per run in ms (Edge Functions); the job saves its progress and resumes after it. */
+  budgetMs?: number;
 };
 
 export type Job = { id: number; kind: string; payload: any; attempts: number };
 
 export const tilePath = (z: number, x: number, y: number, rev: number | string) => `tiles/${z}/${x}/${y}/${rev}.png`;
 
-export async function runJob(deps: PipelineDeps, job: Job): Promise<void> {
+/**
+ * Hosted Edge Functions get ~2 s of CPU per request, and a big mural needs far more
+ * than that. Jobs therefore work in steps: when a run's image work passes its budget
+ * it saves its progress in the job and hands back (`svc_yield_job`); the next run
+ * picks up exactly where it stopped. Self-hosted workers and local mode have no budget.
+ */
+export class PipelineYield extends Error {
+  constructor(public progress: unknown) { super('yield'); }
+}
+type Meter = { used: number; limit: number };
+type Checkpoint = (progress: unknown, need?: number) => void;
+
+function metered(codec: ImageCodec, meter: Meter): ImageCodec {
+  return {
+    async decode(b) { const t = performance.now(); try { return await codec.decode(b); } finally { meter.used += performance.now() - t; } },
+    async encodePng(i) { const t = performance.now(); try { return await codec.encodePng(i); } finally { meter.used += performance.now() - t; } },
+  };
+}
+
+export async function runJob(deps: PipelineDeps, job: Job, meter: Meter = { used: 0, limit: deps.budgetMs ?? Infinity }): Promise<'done' | 'yielded' | 'failed'> {
   const log = deps.log ?? (() => {});
   const t0 = Date.now();
+  const d: PipelineDeps = Number.isFinite(meter.limit) ? { ...deps, codec: metered(deps.codec, meter) } : deps;
+  // yield when this run has used its budget — but always make *some* progress first
+  const checkpoint: Checkpoint = (progress, need = 0) => {
+    if (meter.used > 0 && meter.used + need > meter.limit) throw new PipelineYield(progress);
+  };
+  const progress = job.payload?.progress ?? null;
   try {
     switch (job.kind) {
       case 'process_publication':
-        await processPublication(deps, job.payload.publication_id);
+        await processPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case 'publish_publication':
-        await publishPublication(deps, job.payload.publication_id);
+        await publishPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case 'unpublish_publication':
-        await unpublishPublication(deps, job.payload.publication_id);
+        await unpublishPublication(d, job.payload.publication_id, progress, checkpoint);
         break;
       case 'clear_cells':
-        await clearCells(deps, job.payload.cells);
+        await clearCells(d, job.payload.cells, progress, checkpoint);
         break;
       default:
         throw new Error(`unknown job kind ${job.kind}`);
     }
     await deps.db.call('svc_complete_job', { p_job_id: job.id, p_ok: true });
     log('job.done', { id: job.id, kind: job.kind, ms: Date.now() - t0 });
+    return 'done';
   } catch (e) {
+    if (e instanceof PipelineYield) {
+      await deps.db.call('svc_yield_job', { p_job_id: job.id, p_progress: e.progress });
+      log('job.yield', { id: job.id, kind: job.kind, ms: Date.now() - t0, codec_ms: Math.round(meter.used) });
+      return 'yielded';
+    }
     const message = (e as Error)?.message ?? String(e);
     log('job.failed', { id: job.id, kind: job.kind, error: message });
     await deps.db.call('svc_complete_job', { p_job_id: job.id, p_ok: false, p_error: message });
+    return 'failed';
   }
 }
 
-/** Process queued jobs until the queue is empty (or `max` jobs ran). */
+/** Process queued jobs until the queue is empty (or `max` jobs ran). A yielded job ends the run. */
 export async function drainQueue(deps: PipelineDeps, workerId: string, max = 100): Promise<number> {
   let n = 0;
-  while (n < max) {
+  const meter: Meter = { used: 0, limit: deps.budgetMs ?? Infinity }; // shared by every job in this run
+  while (n < max && meter.used < meter.limit * 0.7) {
     const job = await deps.db.call<Job | null>('svc_claim_job', { p_worker: workerId });
     if (!job) break;
-    await runJob(deps, job);
+    const r = await runJob(deps, job, meter);
     n++;
+    if (r === 'yielded') break;
   }
   return n;
 }
 
 // ---- process ----------------------------------------------------------------
 
-export async function processPublication(deps: PipelineDeps, publicationId: string) {
+type ProcessProgress = { stage: 'plots' | 'preview'; done: string[]; painted: number };
+
+/** Size each plot takes in the stitched preview (so the preview never needs full-size plots). */
+const previewCell = (cols: number, rows: number) => Math.max(4, Math.min(PLOT_PX, Math.floor(1024 / Math.max(cols, rows))));
+
+export async function processPublication(deps: PipelineDeps, publicationId: string, saved?: ProcessProgress | null, checkpoint: Checkpoint = () => {}) {
   const ctx = await deps.db.call<any>('svc_publication_context', { p_publication_id: publicationId });
   if (!ctx || ctx.status !== 'processing') return;
   const fail = (error: string) =>
@@ -106,47 +147,57 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
 
   const cells = ctx.cells as CellTuple[];
   const layout = canvasLayout(cells);
-  // validate and decode everything first, so a bad plot fails the whole publication
-  const decoded: { key: string; col: number; row: number; img: RGBA | null }[] = [];
-  let nonEmpty = 0;
-  for (const [gx, gy] of cells) {
-    const key = cellKey(gx, gy);
-    const bytes = await deps.store.get(BUCKETS.submissions, `${ctx.owner_id}/${publicationId}/${key}.png`);
-    const pos = layout.byKey.get(key)!;
-    if (!bytes) {
-      decoded.push({ key, col: pos.col, row: pos.row, img: null });
-      continue;
-    }
-    if (bytes.byteLength > MAX_SUBMISSION_BYTES) return fail(`Plot ${key}: image is larger than ${MAX_SUBMISSION_BYTES / 1024} KB.`);
-    const head = readPngSize(bytes);
-    if (!head) return fail(`Plot ${key}: not a valid PNG image.`);
-    if (head.width !== PLOT_PX || head.height !== PLOT_PX) return fail(`Plot ${key}: expected ${PLOT_PX}x${PLOT_PX} pixels.`);
-    let img: RGBA;
-    try {
-      img = await deps.codec.decode(bytes);
-    } catch {
-      return fail(`Plot ${key}: the image data is corrupt.`);
-    }
-    if (img.width !== PLOT_PX || img.height !== PLOT_PX) return fail(`Plot ${key}: unexpected decoded size.`);
-    const painted = !isTransparent(img);
-    if (painted) nonEmpty++;
-    decoded.push({ key, col: pos.col, row: pos.row, img: painted ? img : null });
-  }
-  if (nonEmpty === 0) return fail('The artwork is empty — draw or place something first.');
+  const cell = previewCell(layout.cols, layout.rows);
+  const pr: ProcessProgress = saved?.stage ? { ...saved, done: [...saved.done] } : { stage: 'plots', done: [], painted: 0 };
+  const doneSet = new Set(pr.done);
 
   // Every plot of the canvas is published as the editor shows it: the artwork on
   // white paper (untouched plots are plain white). Re-encoding from raw pixels
-  // also drops every ancillary chunk / metadata.
-  const images: { col: number; row: number; img: RGBA | null }[] = [];
-  let paperPng: Uint8Array | null = null;
-  for (const d of decoded) {
-    const img = d.img ? flattenOnWhite(d.img) : whitePaper(PLOT_PX);
-    const clean = d.img ? await deps.codec.encodePng(img) : (paperPng ??= await deps.codec.encodePng(img));
-    await deps.store.put(BUCKETS.processed, `${publicationId}/${d.key}.png`, clean, 'image/png');
-    images.push({ col: d.col, row: d.row, img });
+  // also drops every ancillary chunk / metadata. Each plot is checked and stored
+  // on its own, so a big mural can be processed over several runs.
+  if (pr.stage === 'plots') {
+    let paperPng: Uint8Array | null = null;
+    for (const [gx, gy] of cells) {
+      const key = cellKey(gx, gy);
+      if (doneSet.has(key)) continue;
+      const bytes = await deps.store.get(BUCKETS.submissions, `${ctx.owner_id}/${publicationId}/${key}.png`);
+      let img: RGBA | null = null;
+      if (bytes) {
+        if (bytes.byteLength > MAX_SUBMISSION_BYTES) return fail(`Plot ${key}: image is larger than ${MAX_SUBMISSION_BYTES / 1024} KB.`);
+        const head = readPngSize(bytes);
+        if (!head) return fail(`Plot ${key}: not a valid PNG image.`);
+        if (head.width !== PLOT_PX || head.height !== PLOT_PX) return fail(`Plot ${key}: expected ${PLOT_PX}x${PLOT_PX} pixels.`);
+        try {
+          img = await deps.codec.decode(bytes);
+        } catch {
+          return fail(`Plot ${key}: the image data is corrupt.`);
+        }
+        if (img.width !== PLOT_PX || img.height !== PLOT_PX) return fail(`Plot ${key}: unexpected decoded size.`);
+        if (isTransparent(img)) img = null;
+      }
+      if (img) pr.painted++;
+      const flat = img ? flattenOnWhite(img) : whitePaper(PLOT_PX);
+      const clean = img ? await deps.codec.encodePng(flat) : (paperPng ??= await deps.codec.encodePng(flat));
+      await deps.store.put(BUCKETS.processed, `${publicationId}/${key}.png`, clean, 'image/png');
+      await deps.store.put(BUCKETS.processed, `${publicationId}/mini/${key}.png`, await deps.codec.encodePng(fitWithin(flat, cell)), 'image/png');
+      pr.done.push(key);
+      doneSet.add(key);
+      checkpoint(pr);
+    }
+    if (pr.painted === 0) return fail('The artwork is empty — draw or place something first.');
+    pr.stage = 'preview';
+    checkpoint(pr, Number.POSITIVE_INFINITY); // start the preview with a fresh budget
   }
 
-  const full = stitch(images, layout.cols, layout.rows, PLOT_PX);
+  // preview + thumbnail, stitched from the small per-plot copies
+  const minis: { col: number; row: number; img: RGBA | null }[] = [];
+  for (const [gx, gy] of cells) {
+    const key = cellKey(gx, gy);
+    const pos = layout.byKey.get(key)!;
+    const b = await deps.store.get(BUCKETS.processed, `${publicationId}/mini/${key}.png`);
+    minis.push({ col: pos.col, row: pos.row, img: b ? await deps.codec.decode(b) : null });
+  }
+  const full = stitch(minis, layout.cols, layout.rows, cell);
   const preview = fitWithin(full, 1024);
   const thumb = fitWithin(full, 320);
   const previewPng = await deps.codec.encodePng(preview);
@@ -170,51 +221,67 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
 
 // ---- publish --------------------------------------------------------------------
 
-export async function publishPublication(deps: PipelineDeps, publicationId: string) {
+type PublishProgress = { stage: 'tiles' | 'pyramid' | 'finish'; revs: Record<string, number | null>; copied: string[]; sizes: Record<string, number>; pyramid?: PyramidProgress };
+
+export async function publishPublication(deps: PipelineDeps, publicationId: string, saved?: PublishProgress | null, checkpoint: Checkpoint = () => {}) {
   const ctx = await deps.db.call<any>('svc_publication_context', { p_publication_id: publicationId });
   if (!ctx || ctx.status !== 'approved') return;
   const cells = ctx.cells as CellTuple[];
   const lock = deps.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    const present: { gx: number; gy: number; bytes: Uint8Array }[] = [];
-    for (const [gx, gy] of cells) {
-      const bytes = await deps.store.get(BUCKETS.processed, `${publicationId}/${cellKey(gx, gy)}.png`);
-      if (bytes) present.push({ gx, gy, bytes });
-    }
-    const revs = await deps.db.call<number[]>('svc_reserve_revs', { p_count: present.length });
-    const cellRevs: Record<string, number | null> = {};
-    const entries: unknown[][] = [];
-    for (const [gx, gy] of cells) cellRevs[cellKey(gx, gy)] = null;
-    const cache = new Map<string, RGBA | null>();
-    for (let i = 0; i < present.length; i++) {
-      const { gx, gy, bytes } = present[i];
-      const rev = Number(revs[i]);
-      await deps.store.put(BUCKETS.public, tilePath(GRID_LEVEL, gx, gy, rev), bytes, 'image/png');
-      cellRevs[cellKey(gx, gy)] = rev;
-      entries.push([GRID_LEVEL, gx, gy, rev, bytes.byteLength]);
-      cache.set(`${GRID_LEVEL}/${gx}/${gy}`, await deps.codec.decode(bytes));
-    }
-    for (const [gx, gy] of cells) {
-      if (cellRevs[cellKey(gx, gy)] === null) {
-        entries.push([GRID_LEVEL, gx, gy, null]);
-        cache.set(`${GRID_LEVEL}/${gx}/${gy}`, null);
+    let pr: PublishProgress;
+    if (saved?.stage) pr = { ...saved, copied: [...saved.copied] };
+    else {
+      // which plots have art, and a fresh immutable revision for each
+      const present: string[] = [];
+      for (const [gx, gy] of cells) {
+        const key = cellKey(gx, gy);
+        if (await deps.store.get(BUCKETS.processed, `${publicationId}/${key}.png`)) present.push(key);
       }
+      const revs = await deps.db.call<number[]>('svc_reserve_revs', { p_count: present.length });
+      const map: Record<string, number | null> = {};
+      for (const [gx, gy] of cells) map[cellKey(gx, gy)] = null;
+      present.forEach((k, i) => { map[k] = Number(revs[i]); });
+      pr = { stage: 'tiles', revs: map, copied: [], sizes: {} };
     }
-    await deps.db.call('svc_set_art_tiles', { p_tiles: entries });
-    await rebuildPyramid(deps, cells, cache);
+    if (pr.stage === 'tiles') {
+      const copied = new Set(pr.copied);
+      for (const [gx, gy] of cells) {
+        const key = cellKey(gx, gy);
+        const rev = pr.revs[key];
+        if (rev == null || copied.has(key)) continue;
+        const bytes = await deps.store.get(BUCKETS.processed, `${publicationId}/${key}.png`);
+        if (!bytes) throw new Error(`processed image missing for ${key}`);
+        await deps.store.put(BUCKETS.public, tilePath(GRID_LEVEL, gx, gy, rev), bytes, 'image/png');
+        pr.sizes[key] = bytes.byteLength;
+        pr.copied.push(key);
+        copied.add(key);
+      }
+      await deps.db.call('svc_set_art_tiles', {
+        p_tiles: cells.map(([gx, gy]) => {
+          const rev = pr.revs[cellKey(gx, gy)];
+          return rev == null ? [GRID_LEVEL, gx, gy, null] : [GRID_LEVEL, gx, gy, rev, pr.sizes[cellKey(gx, gy)] ?? 0];
+        }),
+      });
+      pr.stage = 'pyramid';
+    }
+    if (pr.stage === 'pyramid') {
+      await pyramidSteps(deps, cells, pr.pyramid ?? null, (py, need) => { pr.pyramid = py; checkpoint(pr, need); });
+      pr.stage = 'finish';
+    }
     const preview = await deps.store.get(BUCKETS.processed, `${publicationId}/preview.png`);
     const thumb = await deps.store.get(BUCKETS.processed, `${publicationId}/thumb.png`);
     if (preview) await deps.store.put(BUCKETS.public, `previews/${publicationId}.png`, preview, 'image/png');
     if (thumb) await deps.store.put(BUCKETS.public, `thumbs/${publicationId}.png`, thumb, 'image/png');
     await deps.db.call('svc_mark_published', {
       p_publication_id: publicationId,
-      p_cell_revs: cellRevs,
+      p_cell_revs: pr.revs,
       p_preview_public: { preview_path: `previews/${publicationId}.png`, thumb_path: `thumbs/${publicationId}.png` },
     });
     await deps.db.call('svc_record_assets', {
-      p_assets: present.map((p) => ({
+      p_assets: cells.filter(([gx, gy]) => pr.revs[cellKey(gx, gy)] != null).map(([gx, gy]) => ({
         owner_id: ctx.owner_id, publication_id: publicationId, kind: 'art_tile', bucket: BUCKETS.public,
-        path: tilePath(GRID_LEVEL, p.gx, p.gy, cellRevs[cellKey(p.gx, p.gy)]!), bytes: p.bytes.byteLength,
+        path: tilePath(GRID_LEVEL, gx, gy, pr.revs[cellKey(gx, gy)]!), bytes: pr.sizes[cellKey(gx, gy)] ?? 0,
         width: PLOT_PX, height: PLOT_PX, content_type: 'image/png',
       })),
     });
@@ -223,83 +290,87 @@ export async function publishPublication(deps: PipelineDeps, publicationId: stri
 
 // ---- unpublish / clear ---------------------------------------------------------
 
-export async function unpublishPublication(deps: PipelineDeps, publicationId: string) {
-  const plan = await deps.db.call<any[]>('svc_unpublish_plan', { p_publication_id: publicationId });
+type CellsProgress = { stage: 'pyramid'; pyramid?: PyramidProgress };
+
+export async function unpublishPublication(deps: PipelineDeps, publicationId: string, saved?: (CellsProgress & { plan: any[] }) | null, checkpoint: Checkpoint = () => {}) {
+  const plan = saved?.plan ?? await deps.db.call<any[]>('svc_unpublish_plan', { p_publication_id: publicationId });
   if (!plan.length) return;
   const lock = deps.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    await deps.db.call('svc_set_art_tiles', {
-      p_tiles: plan.map((c) => (c.restore_rev ? [GRID_LEVEL, c.gx, c.gy, Number(c.restore_rev), null] : [GRID_LEVEL, c.gx, c.gy, null])),
-    });
-    await rebuildPyramid(deps, plan.map((c) => [c.gx, c.gy] as CellTuple), new Map());
+    if (!saved) {
+      await deps.db.call('svc_set_art_tiles', {
+        p_tiles: plan.map((c) => (c.restore_rev ? [GRID_LEVEL, c.gx, c.gy, Number(c.restore_rev), null] : [GRID_LEVEL, c.gx, c.gy, null])),
+      });
+    }
+    await pyramidSteps(deps, plan.map((c) => [c.gx, c.gy] as CellTuple), saved?.pyramid ?? null, (py, need) => checkpoint({ stage: 'pyramid', plan, pyramid: py }, need));
     await deps.db.call('svc_mark_unpublished', { p_publication_id: publicationId, p_cells: plan });
   });
 }
 
-export async function clearCells(deps: PipelineDeps, cells: CellTuple[]) {
+export async function clearCells(deps: PipelineDeps, cells: CellTuple[], saved?: CellsProgress | null, checkpoint: Checkpoint = () => {}) {
   const lock = deps.withPyramidLock ?? ((fn) => fn());
   await lock(async () => {
-    await deps.db.call('svc_set_art_tiles', { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
-    const cache = new Map<string, RGBA | null>(cells.map(([gx, gy]) => [`${GRID_LEVEL}/${gx}/${gy}`, null] as const));
-    await rebuildPyramid(deps, cells, cache);
+    if (!saved) await deps.db.call('svc_set_art_tiles', { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
+    await pyramidSteps(deps, cells, saved?.pyramid ?? null, (py, need) => checkpoint({ stage: 'pyramid', pyramid: py }, need));
     await deps.db.call('svc_cells_cleared', { p_cells: cells });
   });
 }
 
 // ---- pyramid ------------------------------------------------------------------------
 
+type PyramidProgress = { z: number; done: string[] };
+
 /**
- * Rebuild every ancestor tile (z15 … ART_MIN_ZOOM) of the changed z16 cells.
- * Each parent is the 2x box-filtered composite of its four children, so murals
- * stay continuous at every zoom level and a mobile client only ever downloads
- * ~one 256px image per screen tile, however large the artwork is.
+ * Rebuild every ancestor tile (z21 … ART_MIN_ZOOM) of the changed plots, one parent
+ * at a time so the work can stop and resume between any two parents. Each parent is
+ * the 2x box-filtered composite of its four children, read back from storage, so
+ * murals stay continuous at every zoom and a phone only ever downloads ~one 256px
+ * image per screen tile however large the artwork is.
  */
-export async function rebuildPyramid(deps: PipelineDeps, cells: CellTuple[], cache: Map<string, RGBA | null>) {
-  let changed = new Map<string, [number, number]>();
-  for (const [gx, gy] of cells) changed.set(`${gx}/${gy}`, [gx, gy]);
-  for (let z = GRID_LEVEL - 1; z >= ART_MIN_ZOOM; z--) {
+export async function pyramidSteps(deps: PipelineDeps, cells: CellTuple[], saved: PyramidProgress | null, checkpoint: (p: PyramidProgress, need?: number) => void) {
+  const decoded = new Map<string, RGBA | null>();
+  for (let z = saved?.z ?? GRID_LEVEL - 1; z >= ART_MIN_ZOOM; z--) {
+    const shift = GRID_LEVEL - z;
     const parents = new Map<string, [number, number]>();
-    for (const [x, y] of changed.values()) parents.set(`${x >> 1}/${y >> 1}`, [x >> 1, y >> 1]);
+    for (const [gx, gy] of cells) parents.set(`${gx >> shift}/${gy >> shift}`, [gx >> shift, gy >> shift]);
+    const done = new Set(saved && saved.z === z ? saved.done : []);
+    const todo = [...parents.entries()].filter(([k]) => !done.has(k));
+    if (!todo.length) continue;
     const childKeys: [number, number, number][] = [];
-    for (const [px, py] of parents.values())
-      for (let k = 0; k < 4; k++) childKeys.push([z + 1, px * 2 + (k & 1), py * 2 + (k >> 1)]);
-    const missing = childKeys.filter(([cz, cx, cy]) => !cache.has(`${cz}/${cx}/${cy}`));
-    const existing = missing.length ? await deps.db.call<number[][]>('svc_get_art_tiles', { p_tiles: missing }) : [];
+    for (const [, [px, py]] of todo) for (let k = 0; k < 4; k++) childKeys.push([z + 1, px * 2 + (k & 1), py * 2 + (k >> 1)]);
+    const existing = await deps.db.call<number[][]>('svc_get_art_tiles', { p_tiles: childKeys });
     const revOf = new Map(existing.map((r) => [`${r[0]}/${r[1]}/${r[2]}`, Number(r[3])]));
     const loadChild = async (cz: number, cx: number, cy: number): Promise<RGBA | null> => {
       const key = `${cz}/${cx}/${cy}`;
-      if (cache.has(key)) return cache.get(key)!;
+      if (decoded.has(key)) return decoded.get(key)!;
       const rev = revOf.get(key);
       let img: RGBA | null = null;
       if (rev) {
         const bytes = await deps.store.get(BUCKETS.public, tilePath(cz, cx, cy, rev));
         if (bytes) img = await deps.codec.decode(bytes);
       }
-      cache.set(key, img);
       return img;
     };
-    const results: { x: number; y: number; img: RGBA | null }[] = [];
-    for (const [px, py] of parents.values()) {
+    for (const [key, [px, py]] of todo) {
       const kids = await Promise.all([0, 1, 2, 3].map((k) => loadChild(z + 1, px * 2 + (k & 1), py * 2 + (k >> 1))));
-      const img = kids.every((k) => !k) ? null : composeParent(kids);
-      results.push({ x: px, y: py, img: img && !isTransparent(img) ? img : null });
-    }
-    const nonEmpty = results.filter((r) => r.img);
-    const revs = nonEmpty.length ? await deps.db.call<number[]>('svc_reserve_revs', { p_count: nonEmpty.length }) : [];
-    const entries: unknown[][] = [];
-    let ri = 0;
-    for (const r of results) {
-      cache.set(`${z}/${r.x}/${r.y}`, r.img);
-      if (!r.img) {
-        entries.push([z, r.x, r.y, null]);
-        continue;
+      let img = kids.every((k) => !k) ? null : composeParent(kids);
+      if (img && isTransparent(img)) img = null;
+      if (img) {
+        const [rev] = await deps.db.call<number[]>('svc_reserve_revs', { p_count: 1 });
+        const png = await deps.codec.encodePng(img);
+        await deps.store.put(BUCKETS.public, tilePath(z, px, py, Number(rev)), png, 'image/png');
+        await deps.db.call('svc_set_art_tiles', { p_tiles: [[z, px, py, Number(rev), png.byteLength]] });
+      } else {
+        await deps.db.call('svc_set_art_tiles', { p_tiles: [[z, px, py, null]] });
       }
-      const rev = Number(revs[ri++]);
-      const png = await deps.codec.encodePng(r.img);
-      await deps.store.put(BUCKETS.public, tilePath(z, r.x, r.y, rev), png, 'image/png');
-      entries.push([z, r.x, r.y, rev, png.byteLength]);
+      decoded.set(`${z}/${px}/${py}`, img);
+      done.add(key);
+      checkpoint({ z, done: [...done] });
     }
-    await deps.db.call('svc_set_art_tiles', { p_tiles: entries });
-    changed = parents;
   }
+}
+
+/** Rebuild the whole pyramid for some plots in one go (no budget). */
+export async function rebuildPyramid(deps: PipelineDeps, cells: CellTuple[], _cache?: Map<string, RGBA | null>) {
+  await pyramidSteps(deps, cells, null, () => {});
 }

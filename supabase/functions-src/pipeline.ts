@@ -52,6 +52,8 @@ const codec: ImageCodec = {
 };
 
 const deps: PipelineDeps = {
+  // Edge Functions stop at ~2 s of CPU: do about 0.9 s of image work per run, then resume on the next run
+  budgetMs: 900,
   db: {
     async call(fn, args) {
       const { data, error } = await admin.rpc(fn, args ?? {});

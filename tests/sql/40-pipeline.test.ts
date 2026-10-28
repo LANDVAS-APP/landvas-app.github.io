@@ -196,6 +196,34 @@ describe('publication pipeline', () => {
     const z16 = await db.sql(`select x, y from art_tiles where z = $1 order by y, x`, [L]);
     expect(z16).toEqual([{ x: 3000, y: 3000 }, { x: 3001, y: 3000 }]); // 3000,3001 had no earlier art
   });
+  it('under a tiny CPU budget, a job pauses and resumes step by step until the art is live', async () => {
+    const tight = { ...deps, budgetMs: 1 };
+    const a = await png(256, 256, (x, y) => ((x >> 4) % 2 === (y >> 4) % 2 ? [200, 30, 60, 255] : [20, 30, 120, 255]));
+    const b = await png(256, 256, (x) => (x < 128 ? [255, 214, 0, 255] : [0, 0, 0, 0]));
+    const group = (await db.rpc(painter, 'my_groups')).find((g: any) => g.cells.some((c: number[]) => c[0] === 3000 && c[1] === 3000));
+    const cells: [number, number][] = group.cells.map((c: number[]) => [c[0], c[1]]);
+    const proj = await db.rpc(painter, 'get_project', { p_project_id: group.project_id });
+    const saved = await db.rpc(painter, 'save_draft', { p_project_id: group.project_id, p_base_version_id: proj.version.id,
+      p_manifest: { layers: [{ id: 'layer-1', name: 'Paint', tiles: Object.fromEntries(cells.map(([x, y], i) => [`${x}_${y}`, String(i + 7).padStart(64, 'c')])) }] } });
+    const req = await db.rpc(painter, 'request_publication', { p_project_id: group.project_id, p_version_id: saved.version_id, p_title: 'Stepwise', p_rights_affirmed: true });
+    for (const [i, [x, y]] of cells.entries()) await store.put('submissions', `${painter}/${req.publication_id}/${x}_${y}.png`, i === 0 ? a : b, 'image/png');
+    await db.rpc(painter, 'submit_publication', { p_publication_id: req.publication_id });
+    let runs = 0;
+    for (; runs < 200; runs++) {
+      const st = (await db.rpc(painter, 'publication_status', { p_publication_id: req.publication_id })).status;
+      if (st === 'pending_review') await db.rpc(mod, 'admin_review_publication', { p_publication_id: req.publication_id, p_decision: 'approve' });
+      if (st === 'published' || st === 'rejected' || st === 'failed') break;
+      await drainQueue(tight, 'tight');
+    }
+    expect((await db.rpc(painter, 'publication_status', { p_publication_id: req.publication_id })).status).toBe('published');
+    expect(runs).toBeGreaterThan(4); // it really did stop and resume
+    const yields = await db.sql(`select count(*)::int n from private.render_jobs where payload ? 'progress'`);
+    expect(yields[0].n).toBeGreaterThan(0);
+    // every zoom level got its tile
+    const levels = await db.sql<{ z: number }>(`select distinct z from art_tiles where x = 3000 >> (${L} - z) and y = 3000 >> (${L} - z) and rev is not null order by z`);
+    expect(levels.length).toBe(L - ART_MIN_ZOOM + 1);
+  });
+
 });
 
 describe('worker minigame API', () => {

@@ -154,6 +154,12 @@ export function WorldMap() {
       m.on('mousemove', (e) => {
         if (!map || map.getZoom() < GRIDLINES_MIN_ZOOM) return setData(map!, 'lv-hover', EMPTY);
         const c = lngLatToCell(e.lngLat.lng, e.lngLat.lat);
+        // merge mode: light up the whole canvas under the pointer
+        const ui = useUi.getState();
+        if (ui.merge) {
+          const g = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined)?.find((x) => x.status === 'active' && x.cells.some((k) => k[0] === c.gx && k[1] === c.gy));
+          ui.setMergeHover(g ? [g.id] : null);
+        }
         setData(map, 'lv-hover', { type: 'FeatureCollection', features: [poly(c.gx, c.gy, {})] });
       });
       m.getCanvas().addEventListener('mouseleave', () => setData(m, 'lv-hover', EMPTY));
@@ -408,15 +414,18 @@ export function WorldMap() {
   }, [selected, ready]);
 
   const merge = useUi((s) => s.merge);
+  const mergeHover = useUi((s) => s.mergeHover);
   const rolling = useCelebration((s) => s.hidden);
   useEffect(() => { if (ready) refresh(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    if (!merge || !groups.data) { setData(map, 'lv-merge', EMPTY); return; }
-    const feats: GeoJSON.Feature[] = groups.data.filter((g) => g.status === 'active').flatMap((g) => g.cells.map((c) => poly(c[0], c[1], { s: merge.includes(g.id) ? 1 : 0 })));
+    if ((!merge && !mergeHover?.length) || !groups.data) { setData(map, 'lv-merge', EMPTY); return; }
+    // s: 0 = your other canvases (merge mode), 1 = picked, 2 = the canvas you're pointing at / about to connect
+    const feats: GeoJSON.Feature[] = groups.data.filter((g) => g.status === 'active' && (merge || mergeHover?.includes(g.id)))
+      .flatMap((g) => g.cells.map((c) => poly(c[0], c[1], { s: mergeHover?.includes(g.id) && !merge?.includes(g.id) ? 2 : merge?.includes(g.id) ? 1 : merge ? 0 : 1 })));
     setData(map, 'lv-merge', { type: 'FeatureCollection', features: feats });
-  }, [merge, groups.data, ready]);
+  }, [merge, mergeHover, groups.data, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -531,8 +540,8 @@ function addLayers(map: MLMap) {
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
   // merge mode: your canvases (dim) and the ones you've picked (bright)
-  map.addLayer({ id: 'lv-merge-fill', type: 'fill', source: 'lv-merge', paint: { 'fill-color': ['case', ['==', ['get', 's'], 1], '#22E3FF', '#FFFFFF'], 'fill-opacity': ['case', ['==', ['get', 's'], 1], 0.42, 0.08] } });
-  map.addLayer({ id: 'lv-merge-line', type: 'line', source: 'lv-merge', paint: { 'line-color': ['case', ['==', ['get', 's'], 1], '#22E3FF', '#C9F6FF'], 'line-width': ['case', ['==', ['get', 's'], 1], 3, 1.2], 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 } });
+  map.addLayer({ id: 'lv-merge-fill', type: 'fill', source: 'lv-merge', paint: { 'fill-color': ['match', ['get', 's'], 1, '#22E3FF', 2, '#FFC93D', '#FFFFFF'], 'fill-opacity': ['match', ['get', 's'], 1, 0.42, 2, 0.5, 0.08] } });
+  map.addLayer({ id: 'lv-merge-line', type: 'line', source: 'lv-merge', paint: { 'line-color': ['match', ['get', 's'], 1, '#22E3FF', 2, '#FFC93D', '#C9F6FF'], 'line-width': ['match', ['get', 's'], 0, 1.2, 3], 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 } });
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.06 } });
   // published art sits above every territory overlay: it is shown exactly as it was painted
   map.addLayer({ id: 'lv-art', type: 'raster', source: 'lv-art', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest', 'raster-opacity': 1 } });

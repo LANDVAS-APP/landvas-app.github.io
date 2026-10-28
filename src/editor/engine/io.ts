@@ -108,7 +108,9 @@ export async function publish(
       onStep('done');
       return st;
     }
-    if (Date.now() - started > 120_000) {
+    // big murals are rendered in several short server runs; keep nudging the pipeline
+    void getBackend().kickPipeline();
+    if (Date.now() - started > 8 * 60_000) {
       onStep('done');
       return st;
     }

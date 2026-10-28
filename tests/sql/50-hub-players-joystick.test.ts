@@ -305,16 +305,14 @@ describe('review switch', () => {
     await db.rpc(owner, 'claim_starter_plot', { p_gx: A.gx + 5, p_gy: A.gy });
   });
 
-  it('with reviews on, art waits and the owner can approve (even their own)', async () => {
+  it('with reviews on, players’ art waits for review; the owner’s own art goes straight through', async () => {
     expect((await db.rpc(owner, 'admin_review_mode')).reviews).toBe(true);
     const a = await submit(artist, 'Waiting one', 1);
     expect(a.status).toBe('pending_review');
     const mine = await submit(owner, 'Owner art', 2);
+    expect(mine.status).toBe('approved');
     const list = await db.rpc(owner, 'admin_pending_publications');
-    expect(list.map((x: any) => x.title)).toEqual(['Waiting one', 'Owner art']);
-    expect(list[1].is_mine).toBe(true);
-    const r = await db.rpc(owner, 'admin_review_publication', { p_publication_id: mine.id, p_decision: 'approve' });
-    expect(r.status).toBe('approved');
+    expect(list.map((x: any) => x.title)).toEqual(['Waiting one']);
     await expectError(db.rpc(artist, 'admin_pending_publications'), 'forbidden');
   });
 

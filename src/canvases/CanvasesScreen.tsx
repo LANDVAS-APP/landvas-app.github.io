@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brush, Combine, LayoutGrid, MapPin, Pencil } from 'lucide-react';
 import { touchingGroups } from '../plot/MergeBar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
+import { getBackend } from '../backend/backend';
 import { toGameError } from '../backend/backend';
 import type { CanvasGroup } from '../backend/types';
 import { Page, PageHeader } from '../app/Shell';
@@ -53,7 +54,14 @@ export default function CanvasesScreen() {
     nav('/world');
   };
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
+  const q = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me, refetchInterval: (query) => ((query.state.data ?? []).some((g: any) => ['processing', 'approved'].includes(g.latest_publication?.status ?? '')) ? 5000 : false) });
+  // while art is still being rendered, keep the server pipeline moving
+  useEffect(() => {
+    if (!(q.data ?? []).some((g) => ['processing', 'approved'].includes(g.latest_publication?.status ?? ''))) return;
+    const t = setInterval(() => void getBackend().kickPipeline(), 5000);
+    void getBackend().kickPipeline();
+    return () => clearInterval(t);
+  }, [q.data]);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   if (!me || q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const groups = q.data ?? [];
