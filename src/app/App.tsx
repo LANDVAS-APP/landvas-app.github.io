@@ -32,8 +32,8 @@ const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));
-const DuelsScreen = lazy(() => import('../duels/DuelsScreen'));
-const DuelSandbox = lazy(() => import('../duels/DuelsScreen').then((m) => ({ default: m.DuelSandbox })));
+const PvpScreen = lazy(() => import('../pvp/PvpScreen'));
+const PvpSandbox = lazy(() => import('../pvp/PvpScreen').then((m) => ({ default: m.PvpSandbox })));
 
 /** landvas.app: the public homepage (the live map lives at /world). */
 function RootRoute() {
@@ -83,7 +83,7 @@ function OnboardingGate() {
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest map art'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
   [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
-  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/duels/, 'Duels'],
+  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -130,7 +130,7 @@ const routes: RouteObject[] = [
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
-      { path: '/duel-sandbox/:game', element: <DuelSandbox /> },
+      { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },
       {
         element: <Shell />,
         children: [
@@ -153,7 +153,8 @@ const routes: RouteObject[] = [
           { path: '/events', element: p(<EventsScreen />) },
           { path: '/settings', element: p(<SettingsScreen />) },
           { path: '/support', element: player(<SupportScreen />) },
-          { path: '/duels', element: player(<DuelsScreen />) },
+          { path: '/pvp', element: player(<PvpScreen />) },
+          { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           { path: '/admin', element: player(<AdminScreen />) },
           { path: '*', element: <Navigate to="/world" replace /> },

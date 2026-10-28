@@ -18,7 +18,7 @@ const CASES = [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['ligh
 // the artifact build uses relative asset paths, so boot at / and navigate in-app
 await page.goto('http://localhost:4183/?e2e=1', { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
-for (const [g, lv] of CASES) {
+for (const [g, lv] of CASES.filter(([g]) => !process.env.ONLY || process.env.ONLY.includes(g))) {
   await page.evaluate(([g, lv]) => window.__landvasNav(`/play-sandbox/${g}?level=${lv}&rounds=5`), [g, lv]);
   await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 30000 });
   await page.waitForTimeout(800);
@@ -31,17 +31,18 @@ for (const [g, lv] of CASES) {
   const s = res.summary ?? {};
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${g} L${lv} — rounds ${s.passed_rounds ?? s.passed_shapes ?? '?'}/${s.of ?? 5} score ${res.score} flags ${JSON.stringify(res.flags)} ${res.reason ?? ''}`);
 }
-for (const g of ['turfwars', 'paletteclash', 'forgery', 'pixelrecall']) {
-  await page.evaluate((g) => window.__landvasNav(`/duel-sandbox/${g}`), g);
+for (const g of ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'].filter((x) => !process.env.ONLY || process.env.ONLY.includes(x))) {
+  // a PvP match: every round on its own board, solved round after round
+  await page.evaluate((g) => window.__landvasNav(`/pvp-sandbox/${g}?rounds=3`), g);
   await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 30000 });
   await page.waitForTimeout(800);
-  await page.screenshot({ path: path.join(OUT, `duel-${g}.png`) });
+  await page.screenshot({ path: path.join(OUT, `pvp-${g}.png`) });
   await page.evaluate(() => window.__landvasGame.autoSolve());
-  await page.waitForSelector(`[data-testid=sandbox-result][data-game=${g}]`, { timeout: 120000 });
+  await page.waitForSelector(`[data-testid=sandbox-result][data-game=${g}]`, { timeout: 240000 });
   const res = JSON.parse(await page.textContent('[data-testid=sandbox-result]'));
-  const ok = res.valid && res.score > 0;
+  const ok = res.valid && res.rounds.length === 3 && res.rounds.every((r) => r.score > 0) && res.avg_quality > 0;
   if (!ok) fails++;
-  console.log(`${ok ? 'PASS' : 'FAIL'}  duel ${g} — score ${res.score} ${JSON.stringify(res.summary)} ${res.reason ?? ''}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'}  pvp ${g} — rounds ${res.rounds?.map((r) => `${r.score} (${r.quality}%)`).join(', ')} ${res.reason ?? ''}`);
 }
 const relevant = errors.filter((e) => !/ErrnoError/.test(e));
 if (relevant.length) { fails++; console.log('FAIL  page errors:', relevant.slice(0, 3).join(' | ')); }

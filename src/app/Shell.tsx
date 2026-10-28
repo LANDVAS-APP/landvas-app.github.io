@@ -19,7 +19,7 @@ const MAIN = [
 // the phone tab bar keeps five: Canvases and Players live in Me and Social
 const MOBILE = ['/world', '/play', '/social', '/gallery'];
 const MORE = [
-  { to: '/duels', label: 'Duels', icon: Swords },
+  { to: '/pvp', label: 'PvP', icon: Swords },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },

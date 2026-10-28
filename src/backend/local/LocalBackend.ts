@@ -7,10 +7,10 @@ import shimSql from '../../../supabase/local/shim.sql?raw';
 import overridesSql from '../../../supabase/local/local_overrides.sql?raw';
 import { drainQueue, type BlobStore, type PipelineDeps } from '../../server/pipeline';
 import { validateMinigame } from '../../shared/minigames';
-import { validateDuel, type DuelGame } from '../../shared/pvp';
+import { validatePvp, type PvpGame } from '../../shared/pvp';
 import type { GameId } from '../../shared/minigames/types';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
-import type { DuelFinish, MapUpdate, MinigameFinish } from '../types';
+import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { BlobDb } from './blobs';
 import { canvasCodec } from './codec-canvas';
 
@@ -260,15 +260,14 @@ export class LocalBackend implements Backend {
     return this.draining;
   }
 
-  async finishDuel(duelId: string, log: unknown): Promise<DuelFinish> {
+  async finishPvp(matchId: string, log: unknown): Promise<PvpFinish> {
     const uid = this.current?.userId ?? '';
-    const run = await this.svc<any>('svc_duel_run', { p_duel_id: duelId, p_player_id: uid });
-    if (!run) throw new GameError('duel_unavailable');
+    const run = await this.svc<any>('svc_pvp_run', { p_match_id: matchId, p_player_id: uid });
+    if (!run) throw new GameError('match_unavailable');
     if (run.finished) throw new GameError('run_finished');
-    const verdict = validateDuel(run.game as DuelGame, Number(run.seed), log);
+    const verdict = validatePvp(run.game as PvpGame, Number(run.seed), Number(run.rounds), log);
     try {
-      const res = await this.svc<DuelFinish>('svc_duel_finish', { p_duel_id: duelId, p_player_id: uid, p_result: verdict });
-      return { ...res, summary: verdict.summary };
+      return await this.svc<PvpFinish>('svc_pvp_finish', { p_match_id: matchId, p_player_id: uid, p_result: verdict });
     } catch (e) {
       throw toGameError(e);
     }

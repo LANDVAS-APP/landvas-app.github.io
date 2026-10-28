@@ -12,7 +12,7 @@ import { rarityInfo } from '../shared/rarity';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
-import { activeBoost, boostLeft, fullClearInk } from './rates';
+import { activeBoost, bonusText, boostLeft, fullClearInk } from './rates';
 import { Swords, Zap } from 'lucide-react';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
@@ -36,9 +36,9 @@ export default function PlayHub() {
         {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Every round you clear pays, and clearing all of a level's rounds levels the plot up (beaten levels can't be replayed). ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays Ink for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}
       </PageHeader>
       {world.data && (
-        <Link to="/duels" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-duels">
+        <Link to="/pvp" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-pvp">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-hot/15 text-hot"><Swords className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><span className="block font-display font-semibold">Duels</span><span className="block text-xs text-muted">Stake Ink against another player on the same challenge — winner takes the pot.</span></span>
+          <span className="min-w-0 flex-1"><span className="block font-display font-semibold">PvP minigames</span><span className="block text-xs text-muted">Free head-to-head games in rounds against an anonymous rival. Win more rounds, win Ink.</span></span>
           <span className="text-sm font-bold text-hot">Enter →</span>
         </Link>
       )}
@@ -81,6 +81,11 @@ export default function PlayHub() {
                   <span className="tnum">Max level {Number(cfg[game]?.max_level ?? world.data?.minigames?.max_level ?? 60)}</span>
                   {!unlimitedRuns && <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {Math.max(0, limit - used)}/{limit} paid runs left</span>}
                 </div>
+                {(cfg[game]?.bonuses ?? []).length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`bonuses-${game}`}>
+                    {(cfg[game].bonuses as Parameters<typeof bonusText>[0][]).map((b, i) => <span key={i} className="rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold">Bonus · {bonusText(b)}</span>)}
+                  </div>
+                )}
                 {mine.length ? (
                   <div className="mt-4 flex items-center justify-between gap-2">
                     {best && <RarityBadge r={best.rarity} small />}

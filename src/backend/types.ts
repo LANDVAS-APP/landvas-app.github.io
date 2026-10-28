@@ -186,7 +186,7 @@ export type FriendsList = {
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
 export type FeedEvent = {
   id: number;
-  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level';
+  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -311,7 +311,7 @@ export type MinigameFinish = {
   stars: number;
   flags: string[];
   new_best: boolean;
-  rewards: { ink: number; pigments: number; brush_points: number; held: boolean; multiplier: number; practice: boolean; rewarded_left: number; resets_at: string; rounds_cleared?: number; rounds?: number };
+  rewards: { ink: number; pigments: number; brush_points: number; held: boolean; multiplier: number; practice: boolean; rewarded_left: number; resets_at: string; rounds_cleared?: number; rounds?: number; level_ink?: number; round_ink?: number; bonus_ink?: number; bonuses?: BonusHit[]; quality?: number[] };
   record: { highest_level: number; best_score: number; plays: number; wins: number };
   balances: Balances;
   achievements: NewAchievement[];
@@ -328,15 +328,25 @@ export type SupportTicket = {
 };
 export type SupportMessage = { id: number; body: string; is_staff: boolean; created_at: string; author: Partial<Profile> & { display_name?: string } };
 
-export type DuelRun = { role: 'challenger' | 'opponent'; score: number | null; time_ms: number | null; summary: Record<string, unknown> | null };
-export type Duel = {
-  id: string; game: import('../shared/pvp').DuelGame; stake: number; status: 'challenger_playing' | 'open' | 'opponent_playing' | 'done' | 'cancelled' | 'expired';
-  created_at: string; open_until: string | null; finished_at: string | null; payout: number; fee: number;
-  challenger: Profile; opponent: Profile | null; invited: Profile | null; mine: boolean; result: 'won' | 'lost' | 'draw' | null; runs: DuelRun[] | null;
+/** One bonus rule (minigames and PvP): see the admin's Earnings tab. */
+export type BonusRule = { type: 'round' | 'all' | 'count' | 'average'; min_pct: number; ink: number; count?: number };
+export type BonusHit = { type: BonusRule['type']; ink: number; round?: number; quality?: number; min_pct?: number; count?: number; average?: number };
+export type PvpRoundRun = { score: number; time_ms: number; quality: number; summary?: Record<string, unknown> };
+/** A PvP match as its player sees it: never who the rival is. */
+export type PvpMatch = {
+  match_id: string; game: import('../shared/pvp').PvpGame; rounds: number; created_at: string; finished_at: string | null;
+  status: 'playing' | 'waiting' | 'done' | 'expired';
+  you: { rounds: PvpRoundRun[] | null; total_score: number | null; avg_quality: number | null; valid: boolean | null; ink: number;
+         bonus: { ink: number; paid: number; hits: BonusHit[]; withheld?: string | null } | null;
+         reward: { result: 'won' | 'lost' | 'draw'; ink: number; rounds_won: number; withheld?: string | null } | null };
+  rival: { name: string; rounds: { score: string; time_ms: string; quality: string }[] | null; total_score: number | null } | null;
+  per_round: ('you' | 'rival' | 'tie')[] | null;
+  result: 'won' | 'lost' | 'draw' | null;
 };
-export type DuelStart = { duel_id: string; game: import('../shared/pvp').DuelGame; seed: number; stake: number; role: 'challenger' | 'opponent'; started_at: string; expires_at: string; server_time: string; balances: Balances };
-export type DuelFinish = Duel & { valid: boolean; score: number; time_ms: number; balances: Balances; summary?: Record<string, unknown> };
-export type DuelLobby = {
-  config: { enabled: boolean; min_stake: number; max_stake: number; fee_pct: number; daily_limit: number; play_seconds: number; games: Record<string, boolean> };
-  open: Duel[]; mine: Duel[]; record: { won: number; lost: number; draws: number; net_ink: number } | null;
+export type PvpStart = { match_id: string; game: import('../shared/pvp').PvpGame; seed: number; rounds: number; started_at: string; expires_at: string; round_seconds: number; matched: boolean; server_time: string };
+export type PvpFinish = PvpMatch & { balances: Balances };
+export type PvpGameConfig = { enabled: boolean; rounds: number; win_ink: number; draw_ink: number; round_win_ink: number[]; bonuses: BonusRule[]; waiting: number };
+export type PvpLobby = {
+  config: { enabled: boolean; round_seconds: number; daily_rewarded_matches: number; min_quality_pct: number; min_account_hours: number; games: Record<string, PvpGameConfig> };
+  matches: PvpMatch[]; record: { won: number; lost: number; draws: number; ink: number; paid_today: number } | null; resets_at: string;
 };

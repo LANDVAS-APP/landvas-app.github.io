@@ -53,6 +53,6 @@ export function validateMirrorline(seed: number, levelNo: number, log: Mirrorlin
   const speed = clamp01(1 - log.done_t / Math.max(10000, L.timeLimitMs));
   const score = Math.round(accuracy * 600 + (passed ? 150 + speed * 150 + levelNo * 15 : 0));
   const stars = !passed ? 0 : accuracy === 1 && speed > 0.35 ? 3 : accuracy === 1 ? 2 : 1;
-  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, summary: { accuracy: Math.round(accuracy * 100), mode: L.mode },
+  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, quality: Math.round(accuracy * 100), summary: { accuracy: Math.round(accuracy * 100), mode: L.mode },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }

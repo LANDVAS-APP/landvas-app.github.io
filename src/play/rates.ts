@@ -56,3 +56,14 @@ export function boostLeft(b: Boost) {
   const h = Math.floor(ms / 3600_000), m = Math.max(1, Math.round((ms % 3600_000) / 60_000));
   return h >= 48 ? `for ${Math.round(h / 24)} more days` : h >= 1 ? `for ${h}h ${m}m more` : `for ${m} more min`;
 }
+
+type Rule = { type: 'round' | 'all' | 'count' | 'average'; min_pct: number; ink: number; count?: number };
+/** A bonus rule in a few words ("every round 90%+: +5"). */
+export function bonusText(b: Rule) {
+  switch (b.type) {
+    case 'round': return `${b.min_pct}%+ round: +${b.ink}`;
+    case 'all': return `every round ${b.min_pct}%+: +${b.ink}`;
+    case 'count': return `${b.count ?? 1} round${(b.count ?? 1) > 1 ? 's' : ''} ${b.min_pct}%+: +${b.ink}`;
+    case 'average': return `average ${b.min_pct}%+: +${b.ink}`;
+  }
+}

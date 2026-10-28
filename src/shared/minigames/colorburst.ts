@@ -143,6 +143,8 @@ export function validateColorBurst(seed: number, levelNo: number, log: ColorBurs
   const stars = !passed ? 0 : ratio === 1 && avgDe <= level.threshold * 0.5 ? 3 : ratio >= 0.8 ? 2 : 1;
   return {
     rounds_passed: matched, rounds_total: level.rounds.length, rounds_mask: perRound.map((r) => !!r.matched),
+    // exact colour 100%, right at the ΔE threshold 50%; misses score below that
+    rounds_quality: perRound.map((r) => Math.round(r.matched ? 50 + 50 * clamp01(1 - r.dE / level.threshold) : 45 * clamp01(1 - r.dE / 40))),
     valid: true, passed, score: total + (passed ? levelNo * 20 : 0), stars: stars as 0 | 1 | 2 | 3,
     summary: { rounds: perRound, matched, of: level.rounds.length },
     flags, suspicious: flags.length > 0, min_duration_ms: times.length ? times[times.length - 1] : 0,

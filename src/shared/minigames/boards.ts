@@ -8,6 +8,9 @@ export type BoardsLog<L = unknown> = { boards: { t0: number; log: L }[] };
 
 export const roundSeed = (seed: number, round: number) => (Math.imul((seed ^ 0x2545f491) >>> 0, 0x9e3779b1) + round * 0x7f4a7c15) >>> 0;
 
+/** A board's quality 0-100 (falls back to its stars when a game doesn't report one). */
+const q = (v: ValidationResult) => Math.max(0, Math.min(100, Math.round(v.quality ?? (v.passed ? 40 + v.stars * 20 : 0))));
+
 export function validateBoards<L>(
   rounds: number, seed: number, level: number, log: BoardsLog<L>,
   one: (seed: number, level: number, log: L) => ValidationResult,
@@ -28,12 +31,12 @@ export function validateBoards<L>(
     starSum += v.passed ? v.stars : 0;
     v.flags.forEach((f) => flags.add(f));
     end = b.t0 + v.min_duration_ms;
-    per.push({ round: r + 1, passed: v.passed, score: v.score, stars: v.stars, ...v.summary });
+    per.push({ round: r + 1, passed: v.passed, score: v.score, stars: v.stars, quality: q(v), ...v.summary });
   }
   const passed = passedN >= roundsToPass(rounds);
   const stars = !passed ? 0 : Math.max(1, Math.min(3, Math.round(starSum / rounds))) as 1 | 2 | 3;
   return {
-    valid: true, passed, score, stars, rounds_passed: passedN, rounds_total: rounds, rounds_mask: per.map((p) => !!p.passed), summary: { rounds: per, passed_rounds: passedN, of: rounds },
+    valid: true, passed, score, stars, rounds_passed: passedN, rounds_total: rounds, rounds_mask: per.map((p) => !!p.passed), rounds_quality: per.map((p) => p.quality as number), summary: { rounds: per, passed_rounds: passedN, of: rounds },
     flags: [...flags], suspicious: flags.size > 0, min_duration_ms: end,
   };
 }

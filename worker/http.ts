@@ -3,7 +3,7 @@
 // regenerates the level from the session's server-side seed, replays the log
 // with the shared validator, and only then records rewards in the database.
 import http from 'node:http';
-import { validateDuel } from '../src/shared/pvp';
+import { validatePvp } from '../src/shared/pvp';
 import { validateMinigame } from '../src/shared/minigames';
 import type { PipelineDb } from '../src/server/pipeline';
 
@@ -50,13 +50,13 @@ export function createApi(opts: { db: PipelineDb; verify: AuthVerifier; allowedO
         if (raw.length > 512 * 1024) return send(413, { error: 'payload_too_large' });
       }
       const body = JSON.parse(raw || '{}');
-      if (typeof body.duel_id === 'string') {
-        const run = await opts.db.call<any>('svc_duel_run', { p_duel_id: body.duel_id, p_player_id: userId });
-        if (!run) return send(404, { error: 'duel_unavailable' });
+      if (typeof body.match_id === 'string') {
+        const run = await opts.db.call<any>('svc_pvp_run', { p_match_id: body.match_id, p_player_id: userId });
+        if (!run) return send(404, { error: 'match_unavailable' });
         if (run.finished) return send(409, { error: 'run_finished' });
-        const verdict = validateDuel(run.game, Number(run.seed), body.log);
-        const result = await opts.db.call('svc_duel_finish', { p_duel_id: body.duel_id, p_player_id: userId, p_result: verdict });
-        return send(200, { ...(result as object), summary: verdict.summary });
+        const verdict = validatePvp(run.game, Number(run.seed), Number(run.rounds), body.log);
+        const result = await opts.db.call('svc_pvp_finish', { p_match_id: body.match_id, p_player_id: userId, p_result: verdict });
+        return send(200, result);
       }
       if (typeof body.session_id !== 'string') return send(400, { error: 'session_id_required' });
       const session = await opts.db.call<any>('svc_get_session', { p_session_id: body.session_id });

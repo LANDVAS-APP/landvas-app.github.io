@@ -220,13 +220,13 @@ export function validateLightLines(seed: number, levelNo: number, log: LightLine
     if (gaps.reduce((s, g) => s + g, 0) / gaps.length < 70) flags.push('superhuman_speed');
   }
   if (!res.solved) {
-    return { valid: true, passed: false, score: Math.round((res.litTargets / Math.max(1, res.targets)) * 100), stars: 0,
+    return { valid: true, passed: false, score: Math.round((res.litTargets / Math.max(1, res.targets)) * 100), stars: 0, quality: Math.round((res.litTargets / Math.max(1, res.targets)) * 50),
       summary: { moves, par: level.par, lit: res.litTargets, targets: res.targets }, flags, suspicious: false, min_duration_ms: log.done_t };
   }
   const efficiency = clamp01(level.par / Math.max(moves, level.par));
   const speed = clamp01(1 - log.done_t / (level.parTimeMs * 3));
   const score = Math.round(400 + levelNo * 25 + efficiency * 400 + speed * 200);
   const stars = moves <= level.par + 1 ? 3 : moves <= level.par * 2 + 2 ? 2 : 1;
-  return { valid: true, passed: true, score, stars, summary: { moves, par: level.par, ms: log.done_t, targets: res.targets },
+  return { valid: true, passed: true, score, stars, quality: Math.round(clamp01((level.par + 1) / Math.max(moves, 1)) * 100), summary: { moves, par: level.par, ms: log.done_t, targets: res.targets },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }

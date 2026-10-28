@@ -74,7 +74,7 @@ export function validateRollerMural(seed: number, levelNo: number, log: RollerLo
   const speed = clamp01(1 - log.done_t / L.timeLimitMs);
   const score = Math.round((correct / grid.length) * 400 + (passed ? 200 + efficiency * 250 + speed * 150 + levelNo * 15 : 0));
   const stars = !passed ? 0 : log.strokes.length <= L.par ? 3 : log.strokes.length <= L.par + 2 ? 2 : 1;
-  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, summary: { strokes: log.strokes.length, par: L.par, correct, cells: grid.length },
+  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, quality: Math.round(passed ? efficiency * 100 : (correct / grid.length) * 60), summary: { strokes: log.strokes.length, par: L.par, correct, cells: grid.length },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }
 

@@ -95,7 +95,7 @@ export function validatePatternShift(seed: number, levelNo: number, log: Pattern
     if (gaps.reduce((s, g) => s + g, 0) / gaps.length < 60) flags.push('superhuman_speed');
   }
   if (!solved) {
-    return { valid: true, passed: false, score: Math.round((correct / board.length) * 100), stars: 0,
+    return { valid: true, passed: false, score: Math.round((correct / board.length) * 100), stars: 0, quality: Math.round((correct / board.length) * 50),
       summary: { moves: log.moves.length, par: level.par, correct, tiles: board.length }, flags, suspicious: false, min_duration_ms: log.done_t };
   }
   const moves = log.moves.length;
@@ -103,6 +103,6 @@ export function validatePatternShift(seed: number, levelNo: number, log: Pattern
   const speed = clamp01(1 - log.done_t / (level.par * 9000 + 20000));
   const score = Math.round(400 + levelNo * 25 + efficiency * 450 + speed * 200);
   const stars = moves <= level.par ? 3 : moves <= level.par * 2 ? 2 : 1;
-  return { valid: true, passed: true, score, stars, summary: { moves, par: level.par, ms: log.done_t },
+  return { valid: true, passed: true, score, stars, quality: Math.round(efficiency * 100), summary: { moves, par: level.par, ms: log.done_t },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }

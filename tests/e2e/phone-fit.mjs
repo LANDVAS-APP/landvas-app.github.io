@@ -19,7 +19,7 @@ const PHONES = [
   ['Pixel 7', 412, 839],
   ['Galaxy fold (closed)', 320, 653],
 ];
-const ROUTES = (process.env.ROUTES ?? '/world,/play,/social,/gallery,/me,/canvases,/players,/duels,/events,/leaderboards,/achievements,/inventory,/support,/settings,/play/tracecraft').split(',');
+const ROUTES = (process.env.ROUTES ?? '/world,/play,/social,/gallery,/me,/canvases,/players,/pvp,/events,/leaderboards,/achievements,/inventory,/support,/settings,/play/tracecraft').split(',');
 const server = await serve(DIST, 4192);
 const problems = [];
 const only = process.env.PHONE;

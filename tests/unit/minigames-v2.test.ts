@@ -82,6 +82,8 @@ describe('art minigames', () => {
 
   it('Mirrorline: an exact reflection passes; painting the given half is illegal', () => {
     for (const level of [1, 6, 14]) expect(validateMinigame('mirrorline', SEED, level, boards(5, (s) => mirrorLog(s, level)), 5).passed).toBe(true);
+    // every round reports how well it went (perfect reflections are 100%)
+    expect(validateMinigame('mirrorline', SEED, 1, boards(5, (s) => mirrorLog(s, 1)), 5).rounds_quality).toEqual([100, 100, 100, 100, 100]);
     const L = generateMirrorline(roundSeed(SEED, 0), 1);
     const bad = boards(5, () => ({ paints: [{ t: 500, i: L.given.indexOf(true), c: L.colors[0] }], done_t: 900 }));
     expect(validateMinigame('mirrorline', SEED, 1, bad, 5).reason).toBe('illegal_paint');

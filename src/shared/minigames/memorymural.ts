@@ -85,6 +85,6 @@ export function validateMemoryMural(seed: number, levelNo: number, log: MemoryMu
   const speed = clamp01(1 - used / L.timeLimitMs);
   const score = Math.round(accuracy * 600 + (passed ? 150 + speed * 150 + levelNo * 15 : 0));
   const stars = !passed ? 0 : accuracy === 1 ? 3 : accuracy >= (1 + L.threshold) / 2 ? 2 : 1;
-  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, summary: { accuracy: Math.round(accuracy * 100), correct, cells: rel.length },
+  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, quality: Math.round(accuracy * 100), summary: { accuracy: Math.round(accuracy * 100), correct, cells: rel.length },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }

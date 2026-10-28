@@ -16,6 +16,7 @@ import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
+import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
 import { useNotifications } from '../updates/Notifications';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
@@ -418,13 +419,14 @@ function PlayerDetail({ id }: { id: string }) {
             {d.ledger.map((l: any) => <div key={l.id} className="flex justify-between gap-2"><span className="truncate">{l.resource} · {String(l.reason).replace(/_/g, ' ')}</span><span className={cn('shrink-0 tnum', l.delta > 0 ? 'text-ok' : 'text-muted')}>{l.delta > 0 ? '+' : ''}{fmt(l.delta)} · {timeAgo(l.created_at)}</span></div>)}
           </div>
         </Card>
-        <Card title="Security & minigames">
+        <Card title="Security">
           <div className="grid max-h-64 gap-1 overflow-y-auto text-xs scroll-thin">
             {(d.security_events ?? []).map((e: any, i: number) => <div key={`e${i}`}><span className="text-faint">{timeAgo(e.created_at)}</span> <b>{String(e.kind).replace(/_/g, ' ')}</b> {e.details?.distance_m ? `${fmt(e.details.distance_m)} m in ${e.details.seconds}s` : ''}</div>)}
-            {d.sessions.map((s: any) => <div key={s.id}><span className="text-faint">{timeAgo(s.started_at)}</span> {GAME_INFO[s.game as GameId]?.name ?? s.game} L{s.level} · {s.status}{s.passed ? ' · won' : ''} · {fmt(s.score ?? 0)}{s.review_status === 'flagged' ? ' · FLAGGED' : ''}</div>)}
+            {!(d.security_events ?? []).length && <p className="text-muted">Nothing unusual.</p>}
           </div>
         </Card>
       </div>
+      <PlayerMinigameStats id={id} />
     </div>
   );
 }
@@ -457,6 +459,7 @@ const GAMES: GameId[] = [...GAME_IDS];
 
 function Earnings() {
   const cfg = useConfig();
+  const save = useSaveConfig();
   if (!cfg.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -465,7 +468,7 @@ function Earnings() {
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
-        {cfg.data.config.duels && <DuelSettings value={cfg.data.config.duels.value} />}
+        {cfg.data.config.pvp && <PvpSettings value={cfg.data.config.pvp.value} onSave={(v) => save('pvp', v, 'PvP settings saved for everyone')} />}
       </div>
     </div>
   );
@@ -491,7 +494,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
       {dirty && <Button size="sm" variant="ghost" onClick={() => setV(structuredClone(value))}>Undo</Button>}
       <Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('minigames', v, 'Minigame earnings updated for everyone')} data-testid="save-minigames">Save</Button>
     </div>}>
-      <p className="mb-4 text-sm text-muted">Two kinds of Ink, per game: <b>level Ink</b> is paid once when a player completes a level (clears every round), and <b>round Ink</b> is paid for each round they clear (set it to 0 for none). Both × plot upgrade bonus × rarity bonus × multipliers × boost.</p>
+      <p className="mb-4 text-sm text-muted">Three kinds of Ink, per game: <b>level Ink</b> is paid once when a player completes a level (clears every round), <b>round Ink</b> is paid for each round they clear (0 = none), and <b>performance bonuses</b> pay extra for playing rounds well (e.g. every round 90%+). All × plot upgrade bonus × rarity bonus × multipliers × boost.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField label="Everyone’s Ink multiplier" value={Number(v.ink_multiplier ?? 1)} step={0.1} max={100} onChange={(n) => setV({ ...v, ink_multiplier: n })} suffix="×" hint="Applies to every game" />
         <NumberField label="Plot upgrade bonus" value={Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10} step={0.5} onChange={(n) => setV({ ...v, plot_level_bonus: n / 100 })} suffix="% / level" />
@@ -553,7 +556,7 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
     <details className={cn('group rounded-2xl border p-3', live ? 'border-gold/60 bg-gold/5' : 'border-line')} data-testid={`game-earn-${g}`}>
       <summary className="flex cursor-pointer list-none items-center gap-2">
         <span className="font-semibold">{GAME_INFO[g]?.name ?? g}</span>
-        <span className="text-xs text-faint tnum">{max} levels · {rounds} rounds · Lv 1 {fmt(table[0] ?? 0)} → Lv {max} {fmt(table[max - 1] ?? 0)} per level · rounds {(Array.isArray(c.round_ink) ? c.round_ink : []).slice(0, rounds).map((x: number) => fmt(Number(x || 0))).join('/') || '0'}</span>
+        <span className="text-xs text-faint tnum">{max} levels · {rounds} rounds · Lv 1 {fmt(table[0] ?? 0)} → Lv {max} {fmt(table[max - 1] ?? 0)} per level · rounds {(Array.isArray(c.round_ink) ? c.round_ink : []).slice(0, rounds).map((x: number) => fmt(Number(x || 0))).join('/') || '0'}{(c.bonuses ?? []).length ? ` · ${(c.bonuses ?? []).length} bonus${(c.bonuses ?? []).length > 1 ? 'es' : ''}` : ''}</span>
         {live && <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-extrabold text-bg">{c.boost.multiplier}× BOOST</span>}
         {c.enabled === false && <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-bold text-faint">OFF</span>}
         <ChevronDown className="ml-auto h-4 w-4 text-muted transition group-open:rotate-180" />
@@ -588,6 +591,9 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
             ))}
           </div>
         </div>
+        <div className="rounded-2xl border border-line p-3">
+          <BonusRulesEditor rules={c.bonuses} rounds={rounds} onChange={(b) => setGame(g, { bonuses: b })} testid={`bonus-${g}`} />
+        </div>
         <div>
           <div className="mb-2 flex flex-wrap items-end gap-2">
             <div className="eyebrow mr-auto">Level Ink — paid once for completing each level</div>
@@ -606,31 +612,6 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
         </div>
       </div>
     </details>
-  );
-}
-
-function DuelSettings({ value }: { value: any }) {
-  const save = useSaveConfig();
-  const [v, setV] = useState<any>(() => structuredClone(value));
-  useEffect(() => setV(structuredClone(value)), [value]);
-  const stats = useQuery({ queryKey: ['admin', 'duels'], queryFn: api.admin.duels, refetchInterval: 30_000 });
-  const dirty = JSON.stringify(v) !== JSON.stringify(value);
-  const NAMES: Record<string, string> = { turfwars: 'Turf Wars', paletteclash: 'Palette Clash', forgery: 'Spot the Forgery', pixelrecall: 'Pixel Recall' };
-  return (
-    <Card title="Duels (player vs player)" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('duels', v, 'Duel settings saved')} data-testid="save-duels">Save</Button>}>
-      <Switch id="duels-on" checked={!!v.enabled} label="Duels are open" hint="Players stake Ink against each other on the same skill challenge; the higher score takes the pot." onCheckedChange={(on) => setV({ ...v, enabled: on })} />
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <NumberField label="Smallest stake" value={Number(v.min_stake ?? 10)} min={1} onChange={(n) => setV({ ...v, min_stake: Math.round(n) })} suffix="Ink" />
-        <NumberField label="Biggest stake" value={Number(v.max_stake ?? 500)} min={1} onChange={(n) => setV({ ...v, max_stake: Math.round(n) })} suffix="Ink" />
-        <NumberField label="Arena fee" value={Number(v.fee_pct ?? 0)} min={0} max={50} step={0.5} onChange={(n) => setV({ ...v, fee_pct: n })} suffix="% of pot" hint="Removed from the game (an Ink sink)" />
-        <NumberField label="Duels per player per day" value={Number(v.daily_limit ?? 20)} min={1} max={1000} onChange={(n) => setV({ ...v, daily_limit: Math.round(n) })} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold">
-        {Object.keys(NAMES).map((g) => <label key={g} className="flex items-center gap-2"><input type="checkbox" checked={v.games?.[g] !== false} onChange={(e) => setV({ ...v, games: { ...v.games, [g]: e.target.checked } })} /> {NAMES[g]}</label>)}
-      </div>
-      {stats.data && <p className="mt-3 text-xs text-muted tnum">Today: {stats.data.today.duels} duels · {stats.data.today.done} finished · {fmt(stats.data.today.ink_staked)} Ink staked · {fmt(stats.data.today.fees)} Ink in fees</p>}
-      <p className="mt-2 text-xs text-faint">Heads-up before switching this on: players can turn USD rent into Ink, and plots bought with Ink earn USD rent that’s meant to become cashable. Together that can make an Ink duel a paid-entry contest for something with money value, which some places regulate or ban. Get legal advice for where your players are before opening duels.</p>
-    </Card>
   );
 }
 

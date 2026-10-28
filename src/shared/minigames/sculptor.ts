@@ -106,6 +106,6 @@ export function validateSculptor(seed: number, levelNo: number, log: SculptorLog
   const speed = clamp01(1 - log.done_t / L.timeLimitMs);
   const score = Math.round(match * 600 + (passed ? 150 + speed * 150 + levelNo * 15 : 0));
   const stars = !passed ? 0 : match >= 0.96 ? 3 : match >= (L.threshold + 0.96) / 2 ? 2 : 1;
-  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, summary: { match: Math.round(match * 100), shape: L.name },
+  return { valid: true, passed, score, stars: stars as 0 | 1 | 2 | 3, quality: Math.round(match * 100), summary: { match: Math.round(match * 100), shape: L.name },
     flags, suspicious: flags.length > 0, min_duration_ms: log.done_t };
 }

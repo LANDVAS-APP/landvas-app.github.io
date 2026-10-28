@@ -449,6 +449,19 @@ try {
   check('a boosted game shows first with its rate', playOrder[0] === boostGame && /3× Ink/.test(boostTxt), `${playOrder.join(',')} | ${boostTxt}`);
   check('the Play page doesn’t list every plot', (await page.locator('[data-testid^=game-card-] a[href*="gx="]').count()) === 0);
 
+  // PvP minigames: free, anonymous, in rounds — play a match and wait for a rival
+  await page.click('[data-testid=play-pvp]');
+  await page.waitForSelector('[data-testid=pvp-play-forgery]', { timeout: 20000 });
+  const inkBeforePvp = await ink();
+  await page.click('[data-testid=pvp-play-forgery]');
+  await page.waitForFunction(() => !!window.__landvasGame, null, { timeout: 20000 });
+  check('a PvP match is free to start', (await ink()) === inkBeforePvp);
+  await page.evaluate(() => window.__landvasGame.autoSolve());
+  await page.waitForSelector('[data-testid=pvp-result]', { timeout: 240000 });
+  const pvpText = await page.textContent('[data-testid=pvp-result]');
+  check('a PvP run is checked round by round and waits for an anonymous rival', /Waiting for your rival/.test(pvpText) && /Round/.test(pvpText) && !/@/.test(pvpText), pvpText.slice(0, 200));
+  await shot('09b-pvp');
+
   // site-wide updates: staff send one, players get the popup and the bell
   await page.evaluate(async () => window.__landvasApi.admin.saveAnnouncement({ title: 'Eight minigames!', body: 'Memory Mural, Sculptor, HueFlow and Mirrorline are live.', kind: 'update', link: '/play', popup: true, active: true }));
   await page.waitForTimeout(4000);

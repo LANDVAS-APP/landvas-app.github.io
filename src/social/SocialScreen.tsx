@@ -1,7 +1,7 @@
 // Social: the live feed of what everyone is doing, the global chat, and friends.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX } from 'lucide-react';
+import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -13,6 +13,8 @@ import { Page, PageHeader } from '../app/Shell';
 import { useOnboardedMe } from '../lib/queries';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { ArtThumb } from '../gallery/GalleryScreen';
+import { GAME_INFO, type GameId } from '../shared/minigames';
+import { PVP_INFO, type PvpGame } from '../shared/pvp';
 import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
@@ -136,6 +138,13 @@ function FeedRow({ e }: { e: FeedEvent }) {
     case 'level':
       icon = <Sparkles className="h-4 w-4 text-accent-2" />;
       body = <>{who} reached artist level <b>{e.data.level}</b></>;
+      break;    case 'minigame':
+      icon = <Gamepad2 className="h-4 w-4 text-ok" />;
+      body = <>{who} cleared <b>{GAME_INFO[e.data.game as GameId]?.name ?? e.data.game}</b> level {e.data.level}{Number(e.data.stars) > 0 ? <span className="text-gold"> {'★'.repeat(Math.min(3, Number(e.data.stars)))}</span> : null}</>;
+      break;
+    case 'pvp':
+      icon = <Swords className="h-4 w-4 text-hot" />;
+      body = <>{who} won a <b>{PVP_INFO[e.data.game as PvpGame]?.name ?? e.data.game}</b> PvP match{e.data.rounds ? <span className="text-muted"> · {e.data.rounds_won}/{e.data.rounds} rounds</span> : null}</>;
       break;
   }
   return (

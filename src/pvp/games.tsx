@@ -1,14 +1,14 @@
-// The four duel games. Each takes the duel's shared seed, records a move log and
-// hands it back; the server replays it to score the run.
+// The four PvP minigames. Each round takes its own board seed, records a move log and
+// hands it back; the server replays every round to score the run.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MURAL_COLORS } from '../shared/minigames/memorymural';
-import { generateClash, generateForgery, generateRecall, generateTurf, solveTurf, turfNeighbors, type DuelGame } from '../shared/pvp';
+import { generateClash, generateForgery, generateRecall, generateTurf, solveTurf, turfNeighbors, type PvpGame } from '../shared/pvp';
 import { cn, sleep } from '../lib/utils';
 import { Button } from '../ui';
 import { Hud, fmtClock, haptic, useBoardSize, useLatest, useTicker } from '../play/common';
 import { Palette, PaintGridBoard } from '../play/games/PaintGrid';
 
-export type DuelProps = { seed: number; now(): number; onDone(log: unknown): void; registerSolver(fn: () => Promise<void>): void };
+export type PvpBoardProps = { seed: number; now(): number; onDone(log: unknown): void; registerSolver(fn: () => Promise<void>): void };
 
 function useFinish(now: () => number, onDone: (log: unknown) => void) {
   const done = useRef(false);
@@ -20,7 +20,7 @@ function useFinish(now: () => number, onDone: (log: unknown) => void) {
 }
 
 // ----------------------------------------------------------------- Turf Wars
-function TurfWars({ seed, now, onDone, registerSolver }: DuelProps) {
+function TurfWars({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   const L = useMemo(() => generateTurf(seed), [seed]);
   const [owned, setOwned] = useState<number[]>([L.start]);
   const ref = useLatest(owned);
@@ -66,7 +66,7 @@ function TurfWars({ seed, now, onDone, registerSolver }: DuelProps) {
 }
 
 // ------------------------------------------------------------- Palette Clash
-function PaletteClash({ seed, now, onDone, registerSolver }: DuelProps) {
+function PaletteClash({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   const L = useMemo(() => generateClash(seed), [seed]);
   const [k, setK] = useState(0);
   const [sel, setSel] = useState<number[]>([]);
@@ -113,7 +113,7 @@ function PaletteClash({ seed, now, onDone, registerSolver }: DuelProps) {
 }
 
 // --------------------------------------------------------- Spot the Forgery
-function Forgery({ seed, now, onDone, registerSolver }: DuelProps) {
+function Forgery({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   const L = useMemo(() => generateForgery(seed), [seed]);
   const [hits, setHits] = useState<number[]>([]);
   const [misses, setMisses] = useState<number[]>([]);
@@ -149,7 +149,7 @@ function Forgery({ seed, now, onDone, registerSolver }: DuelProps) {
 }
 
 // ------------------------------------------------------------- Pixel Recall
-function PixelRecall({ seed, now, onDone, registerSolver }: DuelProps) {
+function PixelRecall({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   const L = useMemo(() => generateRecall(seed), [seed]);
   const [grid, setGrid] = useState<number[]>(() => new Array(L.n * L.n).fill(0));
   const [color, setColor] = useState(L.colors[1]);
@@ -183,6 +183,6 @@ function PixelRecall({ seed, now, onDone, registerSolver }: DuelProps) {
   );
 }
 
-export const DUEL_COMPONENTS: Record<DuelGame, (p: DuelProps) => React.ReactElement> = {
+export const PVP_COMPONENTS: Record<PvpGame, (p: PvpBoardProps) => React.ReactElement> = {
   turfwars: TurfWars, paletteclash: PaletteClash, forgery: Forgery, pixelrecall: PixelRecall,
 };

@@ -4,7 +4,7 @@
 //  * LocalBackend   — the same SQL migrations running in-browser on PGlite,
 //    with IndexedDB storage and the shared pipeline. Zero setup, single device.
 import { config } from '../env';
-import type { MapUpdate, MinigameFinish, DuelFinish } from './types';
+import type { MapUpdate, MinigameFinish, PvpFinish } from './types';
 
 export type Session = { userId: string; email: string | null };
 
@@ -35,8 +35,8 @@ export interface Backend {
   /** Encoded PNG bytes of a published map art tile. */
   artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal): Promise<ArrayBuffer | null>;
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
-  /** Submit a duel run's move log; the server replays it against the duel's seed. */
-  finishDuel(duelId: string, log: unknown): Promise<DuelFinish>;
+  /** Submit a PvP run's move log (every round); the server replays it against the match's boards. */
+  finishPvp(matchId: string, log: unknown): Promise<PvpFinish>;
   /** Local mode runs the pipeline in-page after submission/admin actions. */
   kickPipeline(): Promise<void>;
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;
@@ -61,12 +61,11 @@ const MESSAGES: Record<string, string> = {
   explorer_required: 'Turn on your location to place your explorer.',
   level_already_beaten: 'You’ve already beaten that level on this plot — play the next one.',
   plot_maxed: 'This plot has beaten every level of its game.',
-  duels_disabled: 'Duels aren’t open yet.',
-  invalid_stake: 'That stake is outside the allowed range.',
-  duel_limit_reached: 'You’ve started the most duels allowed today. Try again tomorrow.',
-  duel_in_progress: 'Finish the duel you’re already playing first.',
-  duel_unavailable: 'That duel isn’t available any more.',
-  own_duel: 'You can’t accept your own duel.',
+  pvp_disabled: 'PvP minigames aren’t open right now.',
+  pvp_in_progress: 'Finish the PvP match you’re already playing first.',
+  match_unavailable: 'That match isn’t available any more.',
+  invalid_pvp_config: 'Those PvP settings aren’t valid.',
+  invalid_bonus_rules: 'One of the bonus rules isn’t valid (percent 0–100, Ink 0 or more; “N rounds” rules need a count of 1–10).',
   run_finished: 'That run is already recorded.',
   player_not_found: 'No player with that username.',
   refill_limit_reached: 'No Ink refills left today. Your tank refills for free tomorrow.',

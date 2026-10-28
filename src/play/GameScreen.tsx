@@ -254,12 +254,21 @@ function Results({ r, level, maxLevel, onAgain, onMap, onNextPlot }: { r: Miniga
       </div>
       <h2 className="mt-3 font-display text-2xl font-semibold">{r.passed ? `Level ${level} cleared!` : r.status === 'expired' ? 'Session expired' : 'Not quite'}</h2>
       <p className="mt-1 text-sm text-muted tnum">{total > 1 ? `${cleared} of ${total} rounds cleared · ` : ''}Score {fmt(r.score)}{r.new_best ? ' · new best!' : ''}</p>
+      {(r.rewards?.quality?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap justify-center gap-1" data-testid="round-quality">
+          {r.rewards!.quality!.map((q, i) => <span key={i} className={cn('rounded-lg px-2 py-0.5 text-xs font-bold tnum', q >= 90 ? 'bg-ok/20 text-ok' : q >= 70 ? 'bg-accent-2/15 text-accent-2' : 'bg-surface-2 text-muted')} title={`Round ${i + 1}`}>R{i + 1} {q}%</span>)}
+        </div>
+      )}
       {!r.passed && r.status !== 'expired' && total > 1 && <p className="mt-1 text-xs text-faint">Clear all {total} rounds to unlock the next level{cleared > 0 ? ' — the rounds you cleared still paid Ink.' : '.'}</p>}
       {(r.passed || cleared > 0) && r.rewards && (
         <div className="mt-4 grid gap-2 rounded-2xl border border-line bg-surface/50 p-4">
           {r.rewards.ink > 0 ? (
             <div className="flex items-center justify-center gap-2 font-display text-xl font-semibold"><ResourceIcon r="ink" className="h-6 w-6" /> +{fmt(r.rewards.ink)} Ink</div>
-          ) : r.rewards.practice ? (
+          ) : null}
+          {r.rewards.ink > 0 && (r.rewards.bonus_ink ?? 0) > 0 ? (
+            <p className="text-sm font-semibold text-gold" data-testid="bonus-ink">incl. +{fmt(r.rewards.bonus_ink!)} bonus for playing {(r.rewards.bonuses ?? []).some((h) => h.type === 'all') ? 'every round' : 'so'} well</p>
+          ) : null}
+          {r.rewards.ink > 0 ? null : r.rewards.practice ? (
             <p className="text-sm text-muted">Practice run — today's Ink-paying runs for this game are used up. They reset daily.</p>
           ) : null}
           <div className="flex flex-wrap justify-center gap-3 text-sm text-muted">

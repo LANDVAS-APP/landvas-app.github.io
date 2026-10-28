@@ -2,7 +2,7 @@
 // same validators the game uses, then records the verified result. Clients never
 // submit scores: the server regenerates the level from the session seed.
 import { validateMinigame, type GameId } from '../../src/shared/minigames';
-import { validateDuel, type DuelGame } from '../../src/shared/pvp';
+import { validatePvp, type PvpGame } from '../../src/shared/pvp';
 import { adminClient, callerId, cors, json, serve } from './shared';
 
 const recent = new Map<string, number[]>();
@@ -23,15 +23,15 @@ serve(async (req) => {
     if (!uid) return json({ error: 'not_authenticated' }, 401);
     if (limited(uid)) return json({ error: 'rate_limited' }, 429);
     const body = await req.json().catch(() => null);
-    // duels: {duel_id, log} — replay the run against the duel's shared seed
-    if (typeof body?.duel_id === 'string') {
-      const { data: run, error: de } = await admin.rpc('svc_duel_run', { p_duel_id: body.duel_id, p_player_id: uid });
-      if (de || !run) return json({ error: 'duel_unavailable' }, 404);
+    // PvP: {match_id, log} — replay every round against the match's shared boards
+    if (typeof body?.match_id === 'string') {
+      const { data: run, error: de } = await admin.rpc('svc_pvp_run', { p_match_id: body.match_id, p_player_id: uid });
+      if (de || !run) return json({ error: 'match_unavailable' }, 404);
       if (run.finished) return json({ error: 'run_finished' }, 409);
-      const verdict = validateDuel(run.game as DuelGame, Number(run.seed), body.log);
-      const { data: r, error: re } = await admin.rpc('svc_duel_finish', { p_duel_id: body.duel_id, p_player_id: uid, p_result: verdict });
+      const verdict = validatePvp(run.game as PvpGame, Number(run.seed), Number(run.rounds), body.log);
+      const { data: r, error: re } = await admin.rpc('svc_pvp_finish', { p_match_id: body.match_id, p_player_id: uid, p_result: verdict });
       if (re) return json({ error: re.message }, 400);
-      return json({ ...r, summary: verdict.summary });
+      return json(r);
     }
     if (!body?.session_id || typeof body.session_id !== 'string') return json({ error: 'bad_request' }, 400);
     const { data: s, error: se } = await admin.rpc('svc_get_session', { p_session_id: body.session_id });

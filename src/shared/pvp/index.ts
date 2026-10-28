@@ -1,26 +1,31 @@
-// LANDVAS Duels: four head-to-head skill games. Both players get the exact same
-// challenge (same seed); the server replays each run's move log and compares
-// scores — higher score wins, a tie goes to the faster finish, a dead heat is a draw.
+// LANDVAS PvP minigames: four head-to-head skill games, played over several rounds.
+// Both players get the exact same boards (same seed); the server replays each run's
+// move log. Each round goes to the higher score (a tie goes to the faster round),
+// and the match goes to whoever wins more rounds. Entry is free; the operator sets
+// the Ink a win pays. Rivals are anonymous and matched at random.
 import { hexToRgb } from '../color';
+import { roundSeed } from '../minigames/boards';
 import { MURAL_COLORS } from '../minigames/memorymural';
 import { mulberry32 } from '../minigames/rng';
 import { checkTimes } from '../minigames/types';
 
-export type DuelGame = 'turfwars' | 'paletteclash' | 'forgery' | 'pixelrecall';
-export const DUEL_GAMES: DuelGame[] = ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'];
+export type PvpGame = 'turfwars' | 'paletteclash' | 'forgery' | 'pixelrecall';
+export const PVP_GAMES: PvpGame[] = ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'];
 
-export type DuelResult = { valid: boolean; score: number; time_ms: number; summary: Record<string, unknown>; flags: string[]; reason?: string };
-const bad = (reason: string): DuelResult => ({ valid: false, score: 0, time_ms: 0, summary: { reason }, flags: [reason], reason });
+/** One board's verdict. quality is 0-100: how close to a perfect round it was. */
+export type BoardResult = { valid: boolean; score: number; time_ms: number; quality: number; summary: Record<string, unknown>; flags: string[]; reason?: string };
+const bad = (reason: string): BoardResult => ({ valid: false, score: 0, time_ms: 0, quality: 0, summary: { reason }, flags: [reason], reason });
+const pct = (x: number) => Math.max(0, Math.min(100, Math.round(x * 100)));
 const seeded = (seed: number, salt: number) => mulberry32((Math.imul(seed ^ 0x2c1b3c6d, 2654435761) + salt * 97531) >>> 0);
 
-export const DUEL_INFO: Record<DuelGame, { name: string; tagline: string; howTo: string[]; color: string }> = {
+export const PVP_INFO: Record<PvpGame, { name: string; tagline: string; howTo: string[]; color: string }> = {
   turfwars: {
     name: 'Turf Wars', tagline: 'Claim the most valuable land in 16 brush strokes.', color: '#3DDC97',
-    howTo: ['You start on the glowing plot. Every tap paints a plot next to your land.', 'Each plot is worth its number. You get 16 strokes.', 'Plan a route through the rich plots. The higher land value wins.'],
+    howTo: ['You start on the glowing plot. Every tap paints a plot next to your land.', 'Each plot is worth its number. You get 16 strokes.', 'Plan a route through the rich plots. The higher land value wins the round.'],
   },
   paletteclash: {
     name: 'Palette Clash', tagline: 'Mix the exact colour, faster than them.', color: '#FF4D6D',
-    howTo: ['Each swatch is an even mix of two pigments from the palette.', 'Tap the two pigments that make it. Exact mixes score 100.', '8 swatches. Accuracy first, then speed.'],
+    howTo: ['Each swatch is an even mix of two pigments from the palette.', 'Tap the two pigments that make it. Exact mixes score 100.', '8 swatches a round. Accuracy first, then speed.'],
   },
   forgery: {
     name: 'Spot the Forgery', tagline: 'Find what the forger changed.', color: '#FFB23F',
@@ -47,7 +52,7 @@ export function generateTurf(seed: number): TurfLevel {
   return { n, values, start, strokes: 16, timeLimitMs: 60_000 };
 }
 export const turfNeighbors = (n: number, i: number) => [i - n, i + n, i % n ? i - 1 : -1, i % n < n - 1 ? i + 1 : -1].filter((x) => x >= 0 && x < n * n);
-export function validateTurf(seed: number, log: TurfLog): DuelResult {
+export function validateTurf(seed: number, log: TurfLog): BoardResult {
   const L = generateTurf(seed);
   if (!log || !Array.isArray(log.taps) || log.taps.length > L.strokes) return bad('bad_taps');
   const t = checkTimes([...log.taps.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
@@ -59,7 +64,8 @@ export function validateTurf(seed: number, log: TurfLog): DuelResult {
     owned.add(tap.i);
     score += L.values[tap.i];
   }
-  return { valid: true, score: score * 10, time_ms: log.done_t, summary: { land: score, strokes: log.taps.length }, flags: [] };
+  const best = solveTurf(L).reduce((a, i) => a + L.values[i], 0);
+  return { valid: true, score: score * 10, time_ms: log.done_t, quality: pct(score / Math.max(1, best)), summary: { land: score, best, strokes: log.taps.length }, flags: [] };
 }
 /** Greedy-plus-lookahead route (the e2e solver; also used to rate a board's best score). */
 export function solveTurf(L: TurfLevel): number[] {
@@ -97,7 +103,7 @@ export function generateClash(seed: number): ClashLevel {
   const pick = rng.shuffle(pairs).slice(0, 8);
   return { pigments, targets: pick.map(([a, b]) => ({ a, b, hex: mixHex(pigments[a], pigments[b]) })), timeLimitMs: 60_000 };
 }
-export function validateClash(seed: number, log: ClashLog): DuelResult {
+export function validateClash(seed: number, log: ClashLog): BoardResult {
   const L = generateClash(seed);
   if (!log || !Array.isArray(log.picks) || log.picks.length > L.targets.length) return bad('bad_picks');
   const t = checkTimes([...log.picks.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
@@ -110,7 +116,7 @@ export function validateClash(seed: number, log: ClashLog): DuelResult {
     score += Math.max(0, Math.round(100 - d * 0.9));
   });
   if (score < 0) return bad('bad_pigment');
-  return { valid: true, score, time_ms: log.done_t, summary: { exact, swatches: log.picks.length }, flags: [] };
+  return { valid: true, score, time_ms: log.done_t, quality: pct(score / (100 * L.targets.length)), summary: { exact, swatches: log.picks.length }, flags: [] };
 }
 
 // --------------------------------------------------------- Spot the Forgery
@@ -127,7 +133,7 @@ export function generateForgery(seed: number): ForgeryLevel {
   for (const i of cells) forgery[i] = pal[(pal.indexOf(original[i]) + rng.int(1, pal.length - 1)) % pal.length];
   return { n, original, forgery, changed: cells.sort((a, b) => a - b), timeLimitMs: 45_000 };
 }
-export function validateForgery(seed: number, log: ForgeryLog): DuelResult {
+export function validateForgery(seed: number, log: ForgeryLog): BoardResult {
   const L = generateForgery(seed);
   if (!log || !Array.isArray(log.taps) || log.taps.length > 40) return bad('bad_taps');
   const t = checkTimes([...log.taps.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
@@ -137,7 +143,7 @@ export function validateForgery(seed: number, log: ForgeryLog): DuelResult {
     if (L.changed.includes(tap.i)) found.add(tap.i); else wrong++;
   }
   const score = Math.max(0, found.size * 100 - wrong * 40);
-  return { valid: true, score, time_ms: log.done_t, summary: { found: found.size, of: L.changed.length, wrong }, flags: [] };
+  return { valid: true, score, time_ms: log.done_t, quality: pct(score / (100 * L.changed.length)), summary: { found: found.size, of: L.changed.length, wrong }, flags: [] };
 }
 
 // ------------------------------------------------------------- Pixel Recall
@@ -159,7 +165,7 @@ export function generateRecall(seed: number): RecallLevel {
   }
   return { n, colors, target, previewMs: 4000, timeLimitMs: 40_000 };
 }
-export function validateRecall(seed: number, log: RecallLog): DuelResult {
+export function validateRecall(seed: number, log: RecallLog): BoardResult {
   const L = generateRecall(seed);
   if (!log || !Array.isArray(log.paints) || log.paints.length > 400) return bad('bad_paints');
   const t = checkTimes([...log.paints.map((x) => x.t), log.done_t], L.previewMs + L.timeLimitMs + 2000);
@@ -174,12 +180,14 @@ export function validateRecall(seed: number, log: RecallLog): DuelResult {
   const rel = grid.map((c, i) => (c !== 0 || L.target[i] !== 0 ? i : -1)).filter((i) => i >= 0);
   const correct = rel.filter((i) => grid[i] === L.target[i]).length;
   const wrong = rel.length - correct;
-  return { valid: true, score: Math.max(0, correct * 20 - wrong * 10), time_ms: log.done_t, summary: { correct, cells: rel.length }, flags: [] };
+  const score = Math.max(0, correct * 20 - wrong * 10);
+  const painted = L.target.filter((c) => c !== 0).length;
+  return { valid: true, score, time_ms: log.done_t, quality: pct(score / (20 * Math.max(1, painted))), summary: { correct, cells: rel.length }, flags: [] };
 }
 
-export function validateDuel(game: DuelGame, seed: number, log: unknown): DuelResult {
+/** One board of a PvP game, by its own seed. */
+export function validateBoard(game: PvpGame, seed: number, log: unknown): BoardResult {
   try {
-    if (JSON.stringify(log ?? null).length > 200_000) return bad('log_too_large');
     switch (game) {
       case 'turfwars': return validateTurf(seed, log as TurfLog);
       case 'paletteclash': return validateClash(seed, log as ClashLog);
@@ -190,4 +198,54 @@ export function validateDuel(game: DuelGame, seed: number, log: unknown): DuelRe
   } catch {
     return bad('malformed_log');
   }
+}
+
+/** Round r of a match is generated from its own sub-seed. */
+export const pvpRoundSeed = (seed: number, round: number) => roundSeed(seed, round);
+
+export type PvpLog = { boards: { t0: number; log: unknown }[] };
+export type PvpRound = { score: number; time_ms: number; quality: number; summary: Record<string, unknown> };
+export type PvpResult = { valid: boolean; rounds: PvpRound[]; total_score: number; total_ms: number; avg_quality: number; flags: string[]; reason?: string };
+
+/** Replay a whole PvP run (every round). The server stores the rounds and compares them with the rival's. */
+export function validatePvp(game: PvpGame, seed: number, rounds: number, log: unknown): PvpResult {
+  const fail = (reason: string): PvpResult => ({ valid: false, rounds: [], total_score: 0, total_ms: 0, avg_quality: 0, flags: [reason], reason });
+  try {
+    if (JSON.stringify(log ?? null).length > 400_000) return fail('log_too_large');
+    const l = log as PvpLog;
+    if (!l || !Array.isArray(l.boards) || l.boards.length !== rounds) return fail('round_count_mismatch');
+    let end = 0;
+    const out: PvpRound[] = [];
+    for (let r = 0; r < rounds; r++) {
+      const b = l.boards[r];
+      if (!b || typeof b.t0 !== 'number' || !Number.isFinite(b.t0) || b.t0 < 0 || b.t0 + 250 < end) return fail('overlapping_rounds');
+      const v = validateBoard(game, pvpRoundSeed(seed, r), b.log);
+      if (!v.valid) return fail(`${v.reason ?? 'invalid'}_round_${r + 1}`);
+      end = b.t0 + v.time_ms;
+      out.push({ score: v.score, time_ms: Math.round(v.time_ms), quality: v.quality, summary: v.summary });
+    }
+    return {
+      valid: true, rounds: out, flags: [],
+      total_score: out.reduce((a, x) => a + x.score, 0), total_ms: out.reduce((a, x) => a + x.time_ms, 0),
+      avg_quality: Math.round(out.reduce((a, x) => a + x.quality, 0) / Math.max(1, out.length)),
+    };
+  } catch {
+    return fail('malformed_log');
+  }
+}
+
+/** Who takes each round and the match (mirrors the server: higher score, then the faster round). */
+export function decide(a: PvpRound[], b: PvpRound[]) {
+  const per = a.map((x, i) => {
+    const y = b[i];
+    if (!y) return 'a';
+    if (x.score !== y.score) return x.score > y.score ? 'a' : 'b';
+    if (x.time_ms !== y.time_ms) return x.time_ms < y.time_ms ? 'a' : 'b';
+    return 'tie';
+  });
+  const wa = per.filter((w) => w === 'a').length, wb = per.filter((w) => w === 'b').length;
+  const ta = a.reduce((s, x) => s + x.score, 0), tb = b.reduce((s, x) => s + x.score, 0);
+  const ma = a.reduce((s, x) => s + x.time_ms, 0), mb = b.reduce((s, x) => s + x.time_ms, 0);
+  const winner = wa !== wb ? (wa > wb ? 'a' : 'b') : ta !== tb ? (ta > tb ? 'a' : 'b') : ma !== mb ? (ma < mb ? 'a' : 'b') : 'draw';
+  return { per, wa, wb, winner };
 }
