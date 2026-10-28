@@ -1,0 +1,19 @@
+# Manual, read-only publishing health check. Results appear as run annotations.
+name: Diagnose publishing
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Check publishing
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
+        run: node scripts/diag-publish.mjs
