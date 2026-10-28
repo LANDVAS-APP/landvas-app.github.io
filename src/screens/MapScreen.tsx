@@ -19,6 +19,7 @@ import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotType
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
+import { NotificationBell } from '../updates/Notifications';
 import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
@@ -53,6 +54,7 @@ export function MapScreen() {
             <LogoMark size={26} />
           </Link>
           <PlaceSearch />
+          <NotificationBell className="pointer-events-auto shrink-0 md:hidden" />
           <div className="pointer-events-auto ml-auto hidden items-center gap-2 md:flex">
             {me ? <><RentHud /><BoostButton /><div className="glass rounded-2xl p-1.5"><ResourceBar /></div></> : !session ? <SignInChip /> : null}
           </div>

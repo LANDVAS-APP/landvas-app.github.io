@@ -51,7 +51,7 @@ export type WorldConfig = {
   };
   limits: { max_canvas_side: number; max_canvas_plots: number; max_layers_base: number; max_layers_hard: number; plot_px: number };
   shop: { items: ShopItem[] };
-  legal: { terms_version: string; privacy_version: string; support_email: string; abuse_email: string; copyright_email: string };
+  legal: { terms_version: string; privacy_version: string; support?: string };
   minigames: any;
   flags: Record<string, { enabled: boolean; config: any }>;
   server_time: string;
@@ -317,3 +317,11 @@ export type MinigameFinish = {
 };
 
 export type MapUpdate = { id: number; kind: 'art' | 'ownership'; min_gx: number; min_gy: number; max_gx: number; max_gy: number; publication_id: string | null };
+
+export type Announcement = { id: string; title: string; body: string; kind: 'update' | 'event' | 'maintenance' | 'news'; link: string | null; popup: boolean; published_at: string; unread: boolean };
+export type Notifications = { announcements: Announcement[]; unread_announcements: number; support_replies: number; open_tickets_staff: number | null };
+export type SupportTicket = {
+  id: string; subject: string; category: string; status: 'open' | 'answered' | 'closed'; created_at: string; last_message_at: string;
+  unread: boolean; messages: number; player?: Profile;
+};
+export type SupportMessage = { id: number; body: string; is_staff: boolean; created_at: string; author: Partial<Profile> & { display_name?: string } };

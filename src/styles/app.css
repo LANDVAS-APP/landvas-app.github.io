@@ -836,3 +836,11 @@ h1, h2, h3 {
 .lv-final { background: linear-gradient(120deg, #ff3d9a, #7b5cff 50%, #22b8ff); background-size: 200% 200%; animation: lv-cta 10s ease-in-out infinite; box-shadow: 0 40px 100px -40px rgba(123, 92, 255, 0.9); }
 .lv-final::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(closest-side, #000, transparent); -webkit-mask-image: radial-gradient(closest-side, #000, transparent); }
 .lv-faq summary::-webkit-details-marker { display: none; }
+
+@keyframes lv-ring {
+  0%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(14deg); }
+  20%, 40% { transform: rotate(-14deg); }
+  50% { transform: rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) { [class*='lv-ring'] { animation: none !important; } }

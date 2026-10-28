@@ -3,7 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
 } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
@@ -73,6 +73,15 @@ export const api = {
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
+  // updates & support
+  notifications: () => rpc<Notifications>('my_notifications'),
+  announcements: () => rpc<{ items: Announcement[]; unread: number }>('announcements_list', { p_limit: 30 }),
+  markAnnouncementsSeen: () => rpc<{ ok: boolean }>('mark_announcements_seen'),
+  supportCreate: (subject: string, category: string, body: string) => rpc<SupportTicket>('support_create', { p_subject: subject, p_category: category, p_body: body }),
+  supportMine: () => rpc<SupportTicket[]>('support_my_tickets'),
+  supportTicket: (id: string) => rpc<SupportTicket & { thread: SupportMessage[] }>('support_ticket', { p_id: id }),
+  supportReply: (id: string, body: string) => rpc<SupportTicket>('support_reply', { p_id: id, p_body: body }),
+  supportSetStatus: (id: string, status: 'open' | 'closed') => rpc<SupportTicket>('support_set_status', { p_id: id, p_status: status }),
   publicStats: () => rpc<{ players: number; artworks: number; plots: number; painted_plots: number }>('public_stats'),
 
   // players
@@ -173,6 +182,11 @@ export const api = {
   // admin
   admin: {
     overview: () => rpc<any>('admin_overview'),
+    announcements: () => rpc<(Announcement & { active: boolean; author?: any })[]>('admin_announcements'),
+    saveAnnouncement: (a: { id?: string | null; title: string; body: string; kind: string; link?: string | null; popup: boolean; active: boolean }) =>
+      rpc<Announcement>('admin_announcement_save', { p_id: a.id ?? null, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup, p_active: a.active }),
+    deleteAnnouncement: (id: string) => rpc<{ ok: boolean }>('admin_announcement_delete', { p_id: id }),
+    supportTickets: (status?: string | null) => rpc<{ tickets: SupportTicket[]; counts: { open: number; answered: number; closed: number } }>('admin_support_tickets', { p_status: status ?? null }),
     searchPlayers: (q: string) => rpc<any[]>('admin_search_players', { p_query: q, p_limit: 60 }),
     playerDetail: (id: string) => rpc<any>('admin_player_detail', { p_player_id: id }),
     setPlayerStatus: (id: string, status: string, until: string | null, reason: string) =>

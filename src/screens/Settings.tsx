@@ -7,7 +7,6 @@ import { getBackend, toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { useSession } from '../app/App';
 import { BUILD, hardRefresh } from '../app/updates';
-import { config } from '../env';
 import { useOnboardedMe } from '../lib/queries';
 import { useUi, type Theme } from '../lib/store';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
@@ -98,7 +97,7 @@ export default function Settings() {
             <Link to="/legal/copyright" className="text-accent-2 hover:underline">Copyright</Link>
             <Link to="/legal/rent" className="text-accent-2 hover:underline">USD rent rules</Link>
           </div>
-          <p className="text-xs text-faint">Support: {config.supportEmail} · {backend.mode === 'local' ? 'Local mode — this world lives on this device.' : 'Online world.'}</p>
+          <p className="text-xs text-faint"><Link to="/support" className="font-semibold text-accent-2 hover:underline">Get help</Link> · {backend.mode === 'local' ? 'Local mode — this world lives on this device.' : 'Online world.'}</p>
           <div className="flex flex-wrap items-center gap-3 text-xs text-faint" data-testid="app-version">
             <span>Version <b className="font-mono text-muted">{BUILD.id}</b> · built {new Date(BUILD.at).toLocaleString()}</span>
             {backend.mode !== 'local' && <button className="font-semibold text-accent-2 hover:underline" onClick={() => void hardRefresh(`manual-${Date.now()}`)}>Check for updates</button>}

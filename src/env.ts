@@ -13,7 +13,6 @@ export const config = {
   defaultTheme: ((e.VITE_DEFAULT_THEME as string) || 'dark') as 'dark' | 'light' | 'system',
   fonts: ((e.VITE_FONTS as string) || 'self') as 'self' | 'google',
   serviceWorker: e.VITE_SW !== 'off' && e.MODE !== 'artifact',
-  supportEmail: (e.VITE_SUPPORT_EMAIL as string) || 'support@example.com',
   isArtifact: e.MODE === 'artifact',
   e2e: typeof location !== 'undefined' && /[?&]e2e=1/.test(location.search),
 };

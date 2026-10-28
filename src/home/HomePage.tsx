@@ -9,6 +9,7 @@ import { getBackend } from '../backend/backend';
 import type { ArtworkCard } from '../backend/types';
 import { useWorld } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
+import { NotificationBell } from '../updates/Notifications';
 import { GamePreview } from '../play/GamePreview';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
@@ -80,6 +81,7 @@ function TopBar() {
         <div className="ml-auto flex items-center gap-2">
           <a href={DISCORD} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Discord"><DiscordIcon className="h-5 w-5" /></a>
           <a href={REDDIT} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Reddit"><RedditIcon className="h-5 w-5" /></a>
+          <NotificationBell size="sm" className="!bg-transparent !shadow-none hover:!bg-surface-2" />
           {!signedIn() && <Link to="/welcome?mode=signin" className="hidden rounded-xl px-3 py-2 text-sm font-bold text-muted hover:text-fg sm:block">Sign in</Link>}
           <Link to={playHref()} className="lv-cta rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">{signedIn() ? 'Play' : 'Play free'}</Link>
         </div>

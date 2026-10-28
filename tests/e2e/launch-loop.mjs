@@ -308,6 +308,7 @@ try {
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
     await page.waitForTimeout(1200);
+    if (sc === '/') await page.waitForSelector('[data-testid=homepage]', { timeout: 15000 }).catch(() => {}); // a bigger lazy chunk
     const txt = await page.evaluate(() => (document.querySelector('[data-testid=homepage]') ?? document.querySelector('main, [class*=gutter]'))?.textContent ?? document.body.textContent ?? '');
     if (txt.trim().length < 30 || /Something went wrong/i.test(txt)) broken.push(sc);
   }
@@ -396,6 +397,38 @@ try {
   const regional = await page.evaluate(async () => window.__landvasApi.galleryList('regional', 10, 0, { min_gx: 0, min_gy: 0, max_gx: 4194303, max_gy: 4194303 }));
   check('art can’t be searched by place', Array.isArray(regional) && regional.length === 0, String(regional?.length));
   check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
+
+  // site-wide updates: staff send one, players get the popup and the bell
+  await page.evaluate(async () => window.__landvasApi.admin.saveAnnouncement({ title: 'Eight minigames!', body: 'Memory Mural, Sculptor, HueFlow and Mirrorline are live.', kind: 'update', link: '/play', popup: true, active: true }));
+  await page.evaluate(() => window.__landvasNav('/gallery'));
+  await page.reload({ waitUntil: 'load' });
+  const popped = await page.waitForSelector('[data-testid=announcement-popup]', { timeout: 30000 }).then(() => true).catch(() => false);
+  const popupText = popped ? await page.textContent('[data-testid=announcement-popup]') : '';
+  if (popped) await page.click('[data-testid=announcement-dismiss]');
+  await page.waitForTimeout(1500);
+  const after = await page.evaluate(async () => window.__landvasApi.notifications());
+  check('updates pop up once and land on the bell', popped && /Memory Mural/.test(popupText) && after.unread_announcements === 0 && after.announcements[0]?.title === 'Eight minigames!', JSON.stringify({ popped, unread: after.unread_announcements }));
+  await page.click('[data-testid=notification-bell]');
+  const panel = await page.waitForSelector('[data-testid=updates-panel]', { timeout: 10000 }).then(() => page.textContent('[data-testid=updates-panel]')).catch(() => '');
+  check('the bell lists the update', /Eight minigames!/.test(panel));
+  await page.keyboard.press('Escape');
+
+  // support tickets replace public emails
+  await page.evaluate(() => window.__landvasNav('/support'));
+  await page.click('[data-testid=support-new]');
+  await page.fill('#st-subject', 'My Ink went missing');
+  await page.fill('#st-body', 'After winning Sculptor my Ink did not go up.');
+  await page.click('[data-testid=support-send]');
+  await page.waitForSelector('[data-testid=support-thread]', { timeout: 15000 });
+  const mine = await page.evaluate(async () => window.__landvasApi.supportMine());
+  check('players can open a support ticket in the app', mine.length === 1 && mine[0].subject === 'My Ink went missing' && mine[0].status === 'open');
+  await page.evaluate(() => window.__landvasNav('/legal/terms'));
+  await page.waitForTimeout(1500);
+  const legalTxt = await page.textContent('body');
+  await page.evaluate(() => window.__landvasNav('/settings'));
+  await page.waitForTimeout(1500);
+  const settingsTxt = await page.textContent('body');
+  check('no email addresses are shown anywhere public', !/[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test((legalTxt + settingsTxt).replaceAll('ava@example.test', ''))); // (your own sign-in email shows only to you, in Settings)
 
   // every minigame (incl. the four new ones) plays all 5 rounds and passes the server's validator
   for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['hueflow', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['hueflow', 10], ['mirrorline', 10]]) {

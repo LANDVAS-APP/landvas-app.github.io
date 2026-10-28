@@ -15,6 +15,8 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
+import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
+import { useNotifications } from '../updates/Notifications';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -83,6 +85,8 @@ const TABS = [
   { value: 'earnings', label: 'Earnings' },
   { value: 'world', label: 'World' },
   { value: 'plots', label: 'Plots' },
+  { value: 'updates', label: 'Updates' },
+  { value: 'support', label: 'Support' },
   { value: 'social', label: 'Social' },
   { value: 'shop', label: 'Shop' },
   { value: 'flags', label: 'Switches' },
@@ -94,6 +98,8 @@ function Hub() {
   const [tab, setTab] = useState(() => (location.hash.slice(1) && TABS.some((t) => t.value === location.hash.slice(1)) ? location.hash.slice(1) : 'review'));
   const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: 20_000 });
   const pending = mode.data?.pending ?? 0;
+  const notes = useNotifications();
+  const openTickets = notes.data?.open_tickets_staff ?? 0;
   useEffect(() => { history.replaceState(null, '', `#${tab}`); }, [tab]);
   return (
     <Page wide>
@@ -102,7 +108,8 @@ function Hub() {
       </PageHeader>
       <Tabs value={tab} onValueChange={setTab} className="mb-5" items={TABS.map((t) => ({
         value: t.value,
-        label: t.value === 'review' && pending > 0 ? <span className="flex items-center gap-1.5">Review <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{pending}</span></span> : t.label,
+        label: t.value === 'review' && pending > 0 ? <span className="flex items-center gap-1.5">Review <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{pending}</span></span>
+          : t.value === 'support' && openTickets > 0 ? <span className="flex items-center gap-1.5">Support <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{openTickets}</span></span> : t.label,
       }))} />
       {tab === 'review' && <ReviewTab />}
       {tab === 'overview' && <Overview onTab={setTab} />}
@@ -110,6 +117,8 @@ function Hub() {
       {tab === 'earnings' && <Earnings />}
       {tab === 'world' && <World />}
       {tab === 'plots' && <Plots />}
+      {tab === 'updates' && <UpdatesAdmin />}
+      {tab === 'support' && <SupportAdmin />}
       {tab === 'social' && <SocialAdmin />}
       {tab === 'shop' && <ShopAdmin />}
       {tab === 'flags' && <Flags />}

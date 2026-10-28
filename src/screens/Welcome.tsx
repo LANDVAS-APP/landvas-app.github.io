@@ -158,7 +158,7 @@ export function Welcome() {
           <Tabs value={tab} onValueChange={(v) => setTab(v as any)} items={[{ value: 'signup', label: 'Create account' }, { value: 'signin', label: 'Sign in' }]} className="mb-5" />
           <form className="grid gap-4" onSubmit={submit}>
             <Field label="Email" htmlFor="email">
-              <input id="email" className={inputCls} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.art" />
+              <input id="email" className={inputCls} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email address" />
             </Field>
             <Field label="Password" htmlFor="password" hint={tab === 'signup' ? 'At least 8 characters.' : undefined} error={error}>
               <input id="password" className={inputCls} type="password" autoComplete={tab === 'signup' ? 'new-password' : 'current-password'} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />

@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
-import { config } from '../env';
 import { useWorld } from '../lib/queries';
 import { formatRate } from '../shared/rent';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
@@ -25,7 +24,6 @@ export default function Legal() {
   const { doc = 'terms' } = useParams();
   const world = useWorld();
   const legal = world.data?.legal;
-  const support = legal?.support_email ?? config.supportEmail;
   return (
     <Page>
       <PageHeader eyebrow="LANDVAS" title={DOCS[doc] ?? 'Legal'} />
@@ -55,7 +53,7 @@ export default function Legal() {
             <H>No warranty</H>
             <p>LANDVAS is provided as is. We may change or end features, including rent rates. To the extent the law allows, our liability is limited to the amount you paid us in the previous 12 months.</p>
             <H>Contact</H>
-            <p>{support}</p>
+            <p>Message the team from <Link to="/support" className="text-accent-2">Support</Link> in the app. We don’t publish email addresses.</p>
           </>
         )}
         {doc === 'privacy' && (
@@ -63,13 +61,13 @@ export default function Legal() {
             <H>What we collect</H>
             <ul>
               <li>Your email address and password (stored by our authentication provider) and the profile you choose.</li>
-              <li><b>Location:</b> if you turn on GPS, your device's position is sent to place your explorer. We keep only your latest position, use it to decide which plots you can claim, and to detect impossible jumps. <b>It is never shown to other players.</b> You can play without GPS.</li>
+              <li><b>Location:</b> if you turn on GPS, your device's position is sent to place your explorer. We keep only your latest position, use it to decide which plots you can claim, and to detect impossible jumps. <b>It is never shown to other players.</b> LANDVAS needs GPS to place and move your explorer; there is no teleporting.</li>
               <li>Game activity: plots, minigame results, artwork, rent ledger, reports and support requests.</li>
             </ul>
             <H>What others can see</H>
-            <p>Your username, avatar, the plots you own, your published artwork and leaderboard positions. Plots you own reveal roughly where you have been, so choose your starting spot accordingly.</p>
+            <p>Your username, avatar, the plots you own, your published artwork and leaderboard positions. Your plots are visible on the shared map, but your profile, artwork pages, visit room, the gallery and the feed never show where they are.</p>
             <H>How long we keep it</H>
-            <p>While your account exists, plus the time needed for legal, tax or fraud-prevention reasons. Ask us to delete your account at {support}.</p>
+            <p>While your account exists, plus the time needed for legal, tax or fraud-prevention reasons. Ask us to delete your account with a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link>.</p>
             <H>Artwork metadata</H>
             <p>We re-encode every uploaded image and strip metadata such as camera location before it is published.</p>
           </>
@@ -89,7 +87,7 @@ export default function Legal() {
             <p>We can remove art, restore a plot's previous artwork, issue strikes, suspend or ban accounts. Repeat infringers lose their accounts. You can appeal a decision from your canvas page.</p>
           </>
         )}
-        {doc === 'copyright' && <CopyrightPage email={legal?.copyright_email ?? support} />}
+        {doc === 'copyright' && <CopyrightPage />}
         {doc === 'rent' && (
           <>
             <p>Every plot you own earns <b>USD rent</b> for every second you own it, at its rarity's current rate:</p>
@@ -111,13 +109,13 @@ export default function Legal() {
   );
 }
 
-function CopyrightPage({ email }: { email: string }) {
+function CopyrightPage() {
   const [f, setF] = useState({ publicationId: '', name: '', email: '', work: '', signature: '' });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <>
-      <p>If a LANDVAS artwork copies work you own, send us a notice and we will review it promptly. You can also email {email}.</p>
+      <p>If a LANDVAS artwork copies work you own, send us a notice below and we will review it promptly. Signed in? You can also open a <Link to="/support?new=1&category=copyright" className="text-accent-2">copyright support ticket</Link>.</p>
       <form className="mt-4 grid gap-3" onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);

@@ -507,7 +507,7 @@ function addLayers(map: MLMap) {
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.06 } });
   // published art sits above every territory overlay: it is shown exactly as it was painted
-  map.addLayer({ id: 'lv-art', type: 'raster', source: 'lv-art', paint: { 'raster-fade-duration': 200, 'raster-resampling': 'nearest', 'raster-opacity': 1 } });
+  map.addLayer({ id: 'lv-art', type: 'raster', source: 'lv-art', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest', 'raster-opacity': 1 } });
   map.addLayer({ id: 'lv-reach-line', type: 'line', source: 'lv-reach', paint: { 'line-color': '#FFFFFF', 'line-width': 1.6, 'line-opacity': 0.7, 'line-dasharray': [2, 2] } });
   map.addLayer({ id: 'lv-route', type: 'line', source: 'lv-route', paint: { 'line-color': '#FFE14D', 'line-width': 3, 'line-opacity': 0.85, 'line-dasharray': [1, 1.6] } });
   map.addLayer({ id: 'lv-hover', type: 'line', source: 'lv-hover', paint: { 'line-color': '#ffffff', 'line-width': 1.5, 'line-opacity': 0.75 } });

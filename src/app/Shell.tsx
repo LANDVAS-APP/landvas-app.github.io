@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
+import { LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
+import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 
 const MAIN = [
   { to: '/world', label: 'World', icon: Globe2, end: true },
@@ -22,6 +23,7 @@ const MORE = [
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },
   { to: '/inventory', label: 'Studio', icon: Package },
+  { to: '/support', label: 'Help', icon: LifeBuoy },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
@@ -34,7 +36,7 @@ export function Shell() {
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 60_000, staleTime: 30_000 });
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
   // the public homepage is full-bleed, without the game's navigation
-  if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /></main>;
+  if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
     <div className="flex h-full bg-bg">
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
@@ -42,6 +44,7 @@ export function Shell() {
         {[...MAIN, ...MORE].map((i) => <RailItem key={i.to} {...i} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} /> : null}
         <div className="flex-1" />
+        <NotificationBell className="mb-2 !bg-transparent !shadow-none hover:!bg-surface-2" />
         {me ? (
           <NavLink to="/me" className="rounded-2xl p-1 hover:bg-surface-2" aria-label="Your profile">
             <PlayerAvatar p={me.profile} size={40} />
@@ -51,6 +54,7 @@ export function Shell() {
       <main className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin')}>
         <Outlet />
       </main>
+      <AnnouncementPopup />
       <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
         {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
@@ -96,7 +100,7 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
     <header className="mb-6 grid gap-4">
       <div className="flex items-center justify-between gap-3 md:hidden">
         <LogoMark size={30} />
-        {me && <ResourceBar compact />}
+        <div className="flex items-center gap-2">{me && <ResourceBar compact />}<NotificationBell size="sm" /></div>
       </div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
