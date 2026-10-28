@@ -58,7 +58,7 @@ jobs:
           printf '{"build":"%s","at":"%s"}\n' "$LANDVAS_BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
       - name: Publish to GitHub Pages (main branch)
         run: |
-          cp dist/index.html dist/404.html
+          bash deploy/spa-fallback.sh dist
           touch dist/.nojekyll
           # custom domain (GitHub Pages reads the CNAME file from the published branch)
           if [ -f deploy/CNAME ]; then cp deploy/CNAME dist/CNAME; fi
