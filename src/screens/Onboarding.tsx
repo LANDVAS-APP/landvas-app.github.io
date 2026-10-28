@@ -28,7 +28,7 @@ export function Onboarding() {
 
   if (!session) return <Navigate to="/welcome" replace />;
   if (me.isLoading || !me.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
-  if (me.data.onboarded) return <Navigate to="/" replace />;
+  if (me.data.onboarded) return <Navigate to="/world" replace />;
   const terms = me.data.terms_current;
 
   const submit = async (e: React.FormEvent) => {
@@ -40,7 +40,7 @@ export function Onboarding() {
       await qc.invalidateQueries({ queryKey: qk.me });
       saveStorage('landvas.guide', 'starter');
       saveStorage('landvas.welcomed', true);
-      nav('/', { replace: true });
+      nav('/world', { replace: true });
     } catch (err) {
       setError(toGameError(err).message);
     } finally {

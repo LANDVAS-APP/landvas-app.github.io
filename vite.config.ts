@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
+import { transform } from 'esbuild';
+
+/** Browsers we support: iOS/Safari 15+, Chrome/Edge 90+, Firefox 90+. */
+const LEGACY_TARGET = ['es2020', 'safari15', 'chrome90', 'firefox90', 'edge90'];
 
 // Modes:
 //   (default)  production web app / PWA (Supabase backend when configured)
@@ -18,6 +22,19 @@ export default defineConfig(({ mode }) => {
     define: { __LANDVAS_BUILD__: JSON.stringify(buildId), __LANDVAS_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
     resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
     plugins: [
+      // the map's web worker is copied as a ready-made file, so lower its syntax too
+      // (class static blocks break Safari before 16.4, e.g. iOS 16.1)
+      {
+        name: 'landvas-legacy-worker',
+        async generateBundle(_: unknown, bundle: Record<string, any>) {
+          for (const f of Object.values(bundle)) {
+            if (f.type === 'asset' && /maplibre-gl-worker.*\.m?js$/.test(f.fileName)) {
+              const code = typeof f.source === 'string' ? f.source : Buffer.from(f.source).toString('utf8');
+              f.source = (await transform(code, { target: LEGACY_TARGET, format: 'esm', loader: 'js' })).code;
+            }
+          }
+        },
+      },
       react(),
       tailwindcss(),
       // without the PWA plugin, provide an inert service-worker registration module
@@ -39,7 +56,7 @@ export default defineConfig(({ mode }) => {
             background_color: '#070B1C',
             display: 'standalone',
             orientation: 'any',
-            start_url: '/',
+            start_url: '/world',
             scope: '/',
             categories: ['games', 'entertainment', 'art'],
             icons: [
@@ -68,7 +85,8 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: { exclude: ['@electric-sql/pglite'] },
     worker: { format: 'es' },
     build: {
-      target: 'es2022',
+      // iOS 15+ Safari, older Android Chrome: modern syntax (class static blocks, etc.) is lowered
+      target: LEGACY_TARGET,
       outDir: artifact ? 'dist-artifact' : 'dist',
       assetsInlineLimit: 0,
       chunkSizeWarningLimit: 2500,

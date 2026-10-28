@@ -178,7 +178,7 @@ export default function EditorScreen() {
     ed.emit();
   };
 
-  if (loadErr) return <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center"><p className="text-bad">{loadErr}</p><Button onClick={() => nav('/')}>Back to the map</Button></div>;
+  if (loadErr) return <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center"><p className="text-bad">{loadErr}</p><Button onClick={() => nav('/world')}>Back to the map</Button></div>;
   const cols = doc?.layout.cols ?? 1, rows = doc?.layout.rows ?? 1;
 
   return (
@@ -394,7 +394,7 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
     const [lng, lat] = cellCenter(c.gx, c.gy);
     requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(Math.max(ed.doc.layout.cols, ed.doc.layout.rows))) });
     useUi.getState().setMode('canvas');
-    nav('/');
+    nav('/world');
   };
   const busy = !!step && !result;
   return (

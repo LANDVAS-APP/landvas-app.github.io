@@ -101,7 +101,7 @@ export function patternImages(): { id: string; width: number; height: number; da
   for (const type of Object.keys(PLOT_TYPES) as PlotTypeId[]) {
     for (const [variant, alpha] of [['owned', 1], ['free', 0.38]] as const) {
       const size = 64;
-      const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(size, size) : Object.assign(document.createElement('canvas'), { width: size, height: size });
+      const c = Object.assign(document.createElement('canvas'), { width: size, height: size }); // plain canvas: OffscreenCanvas 2D needs Safari 16.4+
       const ctx = c.getContext('2d') as CanvasRenderingContext2D;
       drawPlotDesign(ctx, type, size, 11, alpha);
       out.push({ id: `pat-${variant}-${type}`, width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data.buffer) });
@@ -116,7 +116,7 @@ export function typeIconImages(): { id: string; width: number; height: number; d
   const out: { id: string; width: number; height: number; data: Uint8Array }[] = [];
   for (const type of Object.keys(PLOT_TYPES) as PlotTypeId[]) {
     const t = PLOT_TYPES[type];
-    const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(size, size) : Object.assign(document.createElement('canvas'), { width: size, height: size });
+    const c = Object.assign(document.createElement('canvas'), { width: size, height: size }); // plain canvas: OffscreenCanvas 2D needs Safari 16.4+
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     // backdrop disc
     const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 30);

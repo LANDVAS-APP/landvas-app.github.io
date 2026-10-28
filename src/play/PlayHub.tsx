@@ -34,7 +34,7 @@ export default function PlayHub() {
         {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} wins a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
       </PageHeader>
       {!(plots.data ?? []).length ? (
-        <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/')}>Find a plot on the map</Button>}>
+        <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>
           Every plot type has its own minigame. Your free starter plot is waiting on the map.
         </Empty>
       ) : (
@@ -67,7 +67,7 @@ export default function PlayHub() {
                     <Button variant="primary" onClick={() => nav(`/play/${game}?gx=${best.gx}&gy=${best.gy}`)}>Play</Button>
                   </div>
                 ) : (
-                  <p className="mt-4 text-xs text-faint">You don’t own a <span style={{ color: t.a }}>{t.name}</span> plot yet. Every plot’s type stays hidden until it’s claimed, so keep claiming on the <Link to="/" className="underline">map</Link> to discover one.</p>
+                  <p className="mt-4 text-xs text-faint">You don’t own a <span style={{ color: t.a }}>{t.name}</span> plot yet. Every plot’s type stays hidden until it’s claimed, so keep claiming on the <Link to="/world" className="underline">map</Link> to discover one.</p>
                 )}
               </div>
             );

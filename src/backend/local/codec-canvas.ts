@@ -3,7 +3,11 @@ import type { ImageCodec } from '../../server/pipeline';
 import type { RGBA } from '../../shared/art';
 
 function makeCanvas(w: number, h: number): OffscreenCanvas | HTMLCanvasElement {
-  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  // OffscreenCanvas without a 2D context exists on Safari before 16.4
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const o = new OffscreenCanvas(w, h);
+    try { if (o.getContext('2d')) return new OffscreenCanvas(w, h); } catch { /* fall back */ }
+  }
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;

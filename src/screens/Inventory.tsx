@@ -42,7 +42,7 @@ export default function Inventory() {
       <Tabs value={tab} onValueChange={setTab} items={[{ value: 'shop', label: 'Shop' }, { value: 'plots', label: 'My plots' }, { value: 'history', label: 'History' }]} className="mb-4" />
       {tab === 'shop' && <Shop />}
       {tab === 'plots' && (plots.isLoading ? <Spinner /> : !(plots.data ?? []).length ? (
-        <Empty icon={<MapPin className="h-6 w-6" />} title="No plots yet" action={<Button variant="rainbow" onClick={() => nav('/')}>Find one near you</Button>} />
+        <Empty icon={<MapPin className="h-6 w-6" />} title="No plots yet" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find one near you</Button>} />
       ) : (
         <div className="glass divide-y divide-line overflow-hidden rounded-3xl">
           {(plots.data ?? []).map((p: any) => (
@@ -50,7 +50,7 @@ export default function Inventory() {
               const [lng, lat] = cellCenter(p.gx, p.gy);
               useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE });
               useUi.getState().select({ gx: p.gx, gy: p.gy });
-              nav('/');
+              nav('/world');
             }}>
               <RarityBadge r={p.rarity} small />
               <div className="min-w-0 flex-1">

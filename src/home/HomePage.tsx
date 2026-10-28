@@ -5,6 +5,7 @@ import { ArrowRight, Brush, ChevronDown, DoorOpen, Gamepad2, Gift, Globe2, MapPi
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
+import { getBackend } from '../backend/backend';
 import type { ArtworkCard } from '../backend/types';
 import { useWorld } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
@@ -16,6 +17,9 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { LogoMark } from '../ui';
 import { FAQ } from './faq';
+
+const signedIn = () => !!getBackend().session();
+const playHref = () => (signedIn() ? '/world' : '/welcome');
 
 export const DISCORD = 'https://discord.gg/EsEQB9Zw3';
 export const REDDIT = 'https://www.reddit.com/r/LANDVAS/';
@@ -76,8 +80,8 @@ function TopBar() {
         <div className="ml-auto flex items-center gap-2">
           <a href={DISCORD} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Discord"><DiscordIcon className="h-5 w-5" /></a>
           <a href={REDDIT} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Reddit"><RedditIcon className="h-5 w-5" /></a>
-          <Link to="/welcome?mode=signin" className="hidden rounded-xl px-3 py-2 text-sm font-bold text-muted hover:text-fg sm:block">Sign in</Link>
-          <Link to="/welcome" className="lv-cta rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">Play free</Link>
+          {!signedIn() && <Link to="/welcome?mode=signin" className="hidden rounded-xl px-3 py-2 text-sm font-bold text-muted hover:text-fg sm:block">Sign in</Link>}
+          <Link to={playHref()} className="lv-cta rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">{signedIn() ? 'Play' : 'Play free'}</Link>
         </div>
       </div>
     </header>
@@ -103,8 +107,8 @@ function Hero({ stats, cards }: { stats?: { players: number; artworks: number; p
             LANDVAS splits the real world into house-sized plots. Claim the ones around you, paint them into murals everyone sees on the live map, win minigames for Ink — and watch your land earn <b className="text-fg">USD rent every second</b>.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/welcome" className="lv-cta group inline-flex h-14 items-center gap-2 rounded-2xl px-7 text-base font-extrabold text-white">
-              Claim your free plot <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
+            <Link to={playHref()} className="lv-cta group inline-flex h-14 items-center gap-2 rounded-2xl px-7 text-base font-extrabold text-white">
+              {signedIn() ? 'Back to my land' : 'Claim your free plot'} <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
             </Link>
             <Link to="/world" className="glass inline-flex h-14 items-center gap-2 rounded-2xl px-6 text-base font-bold hover:border-line-strong">
               <Globe2 className="h-5 w-5 text-accent-2" /> Explore the live map
@@ -451,7 +455,7 @@ function FinalCta() {
       <div className="lv-final relative mx-auto max-w-6xl overflow-hidden rounded-[40px] px-6 py-16 text-center md:py-20">
         <h2 className="relative font-display text-[clamp(2rem,5vw,3.6rem)] font-bold leading-tight text-white">Your corner of the world<br />is waiting.</h2>
         <p className="relative mx-auto mt-4 max-w-lg text-white/80">Free to play on any phone or computer. No download needed.</p>
-        <Link to="/welcome" className="relative mt-8 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.6)] transition hover:scale-[1.03]">Claim your free plot <ArrowRight className="h-5 w-5" /></Link>
+        <Link to={playHref()} className="relative mt-8 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.6)] transition hover:scale-[1.03]">Claim your free plot <ArrowRight className="h-5 w-5" /></Link>
       </div>
     </section>
   );

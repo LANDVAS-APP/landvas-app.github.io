@@ -4,12 +4,11 @@ import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
-import { useSession } from './App';
 import { cn } from '../lib/utils';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 
 const MAIN = [
-  { to: '/', label: 'World', icon: Globe2, end: true },
+  { to: '/world', label: 'World', icon: Globe2, end: true },
   { to: '/canvases', label: 'Canvases', icon: LayoutGrid },
   { to: '/play', label: 'Play', icon: Gamepad2 },
   { to: '/social', label: 'Social', icon: MessagesSquare },
@@ -17,7 +16,7 @@ const MAIN = [
   { to: '/players', label: 'Players', icon: Users },
 ];
 // the phone tab bar keeps five: Canvases and Players live in Me and Social
-const MOBILE = ['/', '/play', '/social', '/gallery'];
+const MOBILE = ['/world', '/play', '/social', '/gallery'];
 const MORE = [
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
@@ -29,9 +28,8 @@ const MORE = [
 export function Shell() {
   const me = useOnboardedMe();
   const loc = useLocation();
-  const session = useSession();
-  const isHome = loc.pathname === '/' && !session;
-  const isMap = (loc.pathname === '/' && !!session) || loc.pathname === '/world';
+  const isHome = loc.pathname === '/';
+  const isMap = loc.pathname === '/world';
   const admin = me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 60_000, staleTime: 30_000 });
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
@@ -41,7 +39,7 @@ export function Shell() {
     <div className="flex h-full bg-bg">
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
-        {[...MAIN, ...MORE].map((i) => <RailItem key={i.to} {...i} to={i.to === '/' && !session ? '/world' : i.to} badge={badge(i.to)} />)}
+        {[...MAIN, ...MORE].map((i) => <RailItem key={i.to} {...i} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} /> : null}
         <div className="flex-1" />
         {me ? (
@@ -54,7 +52,7 @@ export function Shell() {
         <Outlet />
       </main>
       <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
-        {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} to={i.to === '/' && !session ? '/world' : i.to} badge={badge(i.to)} />)}
+        {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>
     </div>

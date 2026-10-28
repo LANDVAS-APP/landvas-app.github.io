@@ -31,10 +31,9 @@ const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
 
-/** landvas.app: the homepage for visitors, the live map for signed-in players. */
+/** landvas.app: the public homepage (the live map lives at /world). */
 function RootRoute() {
-  const session = useSession();
-  return session ? <MapScreen /> : p(<HomePage />);
+  return p(<HomePage />);
 }
 const VisitRoom = lazy(() => import('../visit/VisitRoom'));
 const SocialScreen = lazy(() => import('../social/SocialScreen'));
@@ -149,7 +148,7 @@ const routes: RouteObject[] = [
           { path: '/settings', element: p(<SettingsScreen />) },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           { path: '/admin', element: player(<AdminScreen />) },
-          { path: '*', element: <Navigate to="/" replace /> },
+          { path: '*', element: <Navigate to="/world" replace /> },
         ],
       },
     ],
@@ -163,7 +162,7 @@ const initial = () => {
   } catch {
     if (!s) return '/welcome';
   }
-  return '/';
+  return '/world';
 };
 
 const router =

@@ -173,7 +173,7 @@ export default function GameScreen() {
             onDone={(log) => void finish(phase.s, log)}
             registerSolver={(fn) => { solver.current = fn; }} />
         )}
-        {phase.k === 'results' && <Results r={phase.r} level={phase.level} unlocked={unlocked} onAgain={(n) => { setLevel(n); void start(n); }} onMap={() => nav('/')} />}
+        {phase.k === 'results' && <Results r={phase.r} level={phase.level} unlocked={unlocked} onAgain={(n) => { setLevel(n); void start(n); }} onMap={() => nav('/world')} />}
       </main>
     </div>
   );
@@ -217,7 +217,7 @@ function Results({ r, level, unlocked, onAgain, onMap }: { r: MinigameFinish; le
           <Button variant="rainbow" size="lg" onClick={() => onAgain(level + 1)} data-testid="game-next"><Trophy className="h-4 w-4" /> Next level ({level + 1})</Button>
         )}
         <Button variant={r.passed ? 'secondary' : 'primary'} onClick={() => onAgain(level)} data-testid="game-replay"><RotateCcw className="h-4 w-4" /> {r.passed ? 'Replay' : 'Try again'}</Button>
-        <Button variant="ghost" onClick={() => { onMap(); nav('/'); }}><MapIcon className="h-4 w-4" /> Back to the map — buy plots with Ink</Button>
+        <Button variant="ghost" onClick={() => { onMap(); nav('/world'); }}><MapIcon className="h-4 w-4" /> Back to the map — buy plots with Ink</Button>
       </div>
     </div>
   );

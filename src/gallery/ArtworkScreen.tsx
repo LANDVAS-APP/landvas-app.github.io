@@ -32,7 +32,7 @@ export default function ArtworkScreen() {
     const span = Math.max(x1 - x0 + 1, y1 - y0 + 1);
     useUi.getState().setMode('canvas');
     useUi.getState().requestFly({ lng, lat, zoom: Math.max(Z_STREET - 1, Z_PLOT - Math.log2(span)) });
-    nav('/');
+    nav('/world');
   };
   return (
     <Page wide>

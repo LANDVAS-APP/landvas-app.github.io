@@ -89,7 +89,7 @@ function LivingCanvas() {
 export function Welcome() {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const next = params.get('next') || '/';
+  const next = params.get('next') || '/world';
   const b = getBackend();
   const invite = pendingReferral();
   const [tab, setTab] = useState<'signup' | 'signin'>(params.get('mode') === 'signin' ? 'signin' : 'signup');
@@ -119,7 +119,7 @@ export function Welcome() {
         }
       } else await b.signIn(email, password);
       saveStorage('landvas.welcomed', true);
-      nav(next === '/welcome' ? '/' : next, { replace: true });
+      nav(next === '/welcome' || next === '/' ? '/world' : next, { replace: true });
     } catch (err) {
       setError(toGameError(err).message);
     } finally {

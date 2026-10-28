@@ -172,7 +172,7 @@ try {
   check('every Ink credit came from a minigame win', sources.length > 0 && sources.every((r) => r === 'minigame'), [...new Set(sources)].join(','));
 
   // buy the neighbouring plot with Ink
-  await page.evaluate(() => window.__landvasNav('/'));
+  await page.evaluate(() => window.__landvasNav('/world'));
   await page.waitForSelector('[data-testid=world-map]', { timeout: 15000 });
   await gotoPlot(page, START.gx + 1, START.gy, ZP);
   await clickPlot(page, START.gx + 1, START.gy);
@@ -301,7 +301,7 @@ try {
 
   // every screen renders without crashing
   await page.evaluate(async () => { await window.__landvasApi.devGrantSelfAdmin(); });
-  const screens = ['/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/u/ava_explorer/room', '/social', '/social?tab=chat', '/social?tab=friends', '/invite', '/explorer', '/admin'];
+  const screens = ['/', '/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/u/ava_explorer/room', '/social', '/social?tab=chat', '/social?tab=friends', '/invite', '/explorer', '/admin'];
   const broken = [];
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
