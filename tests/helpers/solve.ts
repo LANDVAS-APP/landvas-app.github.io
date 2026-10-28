@@ -1,0 +1,63 @@
+// Produce a human-paced winning move log for any minigame level (tests only).
+import { roundSeed } from '../../src/shared/minigames/boards';
+import { generateColorBurst } from '../../src/shared/minigames/colorburst';
+import { generateHueFlow } from '../../src/shared/minigames/hueflow';
+import { generateLightLines } from '../../src/shared/minigames/lightlines';
+import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
+import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
+import { generatePatternShift } from '../../src/shared/minigames/patternshift';
+import { generateSculptor, sculpt } from '../../src/shared/minigames/sculptor';
+import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
+
+function board(game: string, seed: number, level: number): { done_t: number } & Record<string, unknown> {
+  let t = 0;
+  if (game === 'lightlines') {
+    const L = generateLightLines(seed, level);
+    const moves = L.cells.map((c, i) => ({ c, i })).filter(({ c, i }) => c.k === 'mirror' && L.solution[i] && c.m !== L.solution[i]).map(({ i }) => ({ t: (t += 500), i }));
+    return { moves, done_t: t + 100 };
+  }
+  if (game === 'patternshift') {
+    const L = generatePatternShift(seed, level);
+    return { moves: [...L.scramble].reverse().map((m) => ({ t: (t += 500), k: m.k, i: m.i, d: -m.d })), done_t: t + 100 };
+  }
+  if (game === 'memorymural') {
+    const L = generateMemoryMural(seed, level);
+    t = L.previewMs + 300;
+    return { paints: L.target.map((c, i) => ({ t: (t += 110), i, c })), done_t: t + 100 };
+  }
+  if (game === 'mirrorline') {
+    const L = generateMirrorline(seed, level);
+    return { paints: L.target.map((c, i) => ({ c, i })).filter(({ i }) => !L.given[i]).map(({ c, i }) => ({ t: (t += 110), i, c })), done_t: t + 100 };
+  }
+  if (game === 'hueflow') {
+    const L = generateHueFlow(seed, level);
+    const b = L.board.slice();
+    const swaps: { t: number; a: number; b: number }[] = [];
+    for (let i = 0; i < b.length; i++) while (b[i] !== i) { const j = b.indexOf(i); swaps.push({ t: (t += 400), a: i, b: j }); [b[i], b[j]] = [b[j], b[i]]; }
+    return { swaps, done_t: t + 100 };
+  }
+  if (game === 'sculptor') {
+    const L = generateSculptor(seed, level);
+    let r = L.start;
+    const moves: { t: number; v: number; r: number }[] = [];
+    for (let pass = 0; pass < 6; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.falloff, v, L.target[v]); moves.push({ t: (t += 45 + ((v * 7) % 13)), v, r: L.target[v] }); }
+    return { moves, done_t: t + 100 };
+  }
+  throw new Error(`no board solver for ${game}`);
+}
+
+export function solveMinigame(game: string, seed: number, level: number, rounds: number | null): unknown {
+  let t = 0;
+  if (game === 'tracecraft') {
+    const L = generateTraceCraft(seed, level, rounds ?? 3);
+    // human-like: slightly irregular timing and a little tremor (perfectly regular input is flagged as robotic)
+    return { strokes: L.shapes.map((s) => ({ points: resample(s.points, 100).map(([x, y], k) => [x + Math.sin(k * 1.7) * 0.002, y + Math.cos(k * 2.3) * 0.002, (t += 12 + ((k * 7) % 11))]) })) };
+  }
+  if (game === 'colorburst') {
+    const L = generateColorBurst(seed, level, rounds ?? undefined);
+    return { rounds: L.rounds.map((r) => { const actions = r.recipe.flatMap((n, p) => Array.from({ length: n }, () => ({ t: (t += 250), a: 'add', p }))); return { actions, submit_t: (t += 400) }; }) };
+  }
+  if (rounds == null) return board(game, seed, level);
+  let t0 = 0;
+  return { boards: Array.from({ length: rounds }, (_, r) => { const log = board(game, roundSeed(seed, r), level); const b = { t0, log }; t0 += log.done_t + 300; return b; }) };
+}

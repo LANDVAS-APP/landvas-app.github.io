@@ -1,7 +1,7 @@
 // ColorBurst (Pigment plots): mix paint drops to hit target colours before time runs out.
 import { deltaE, hexToRgb, mixPigments, rgbToHex, type RGB } from '../color';
 import { levelSeed, mulberry32 } from './rng';
-import { GAME_SALT, checkTimes, clamp01, invalid, type ValidationResult } from './types';
+import { GAME_SALT, checkTimes, clamp01, invalid, roundsToPass, type ValidationResult } from './types';
 
 export type Pigment = { id: string; name: string; hex: string };
 
@@ -42,12 +42,12 @@ const POOLS = [
   ['magenta', 'orange', 'cyan', 'violet', 'white', 'ochre'],
 ];
 
-export function generateColorBurst(seed: number, level: number): ColorBurstLevel {
+export function generateColorBurst(seed: number, level: number, roundsWanted?: number): ColorBurstLevel {
   const rng = mulberry32(levelSeed(seed, level, GAME_SALT.colorburst));
   const tier = Math.min(POOLS.length - 1, Math.floor((level - 1) / 3));
   const pigments = POOLS[tier].map((id) => PIGMENTS.find((p) => p.id === id)!);
   const maxRecipe = Math.min(3 + Math.floor(level / 3), 9);
-  const roundsN = level <= 4 ? 3 : level <= 14 ? 4 : 5;
+  const roundsN = roundsWanted ?? (level <= 4 ? 3 : level <= 14 ? 4 : 5);
   const timeLimitMs = Math.max(16000, 42000 - level * 1100);
   const threshold = Math.max(4, 11 - level * 0.35);
   const rgbs = pigments.map((p) => hexToRgb(p.hex));
@@ -73,7 +73,7 @@ export function generateColorBurst(seed: number, level: number): ColorBurstLevel
     if (rounds.some((r) => deltaE(hexToRgb(r.target), target) < 12)) continue;
     rounds.push({ target: rgbToHex(target), recipe, parDrops: total, timeLimitMs });
   }
-  return { level, pigments, rounds, maxDrops: maxRecipe + 6, threshold, passRounds: Math.ceil(rounds.length * 0.6) };
+  return { level, pigments, rounds, maxDrops: maxRecipe + 6, threshold, passRounds: roundsToPass(rounds.length) };
 }
 
 export function replayDrops(actions: ColorBurstAction[], pigmentCount: number, maxDrops: number): number[] | null {
@@ -109,8 +109,8 @@ export function scoreRound(level: ColorBurstLevel, round: ColorBurstRound, count
   return { matched, dE, score: Math.round(120 + accuracy * 120 + speed * 100 + exact) };
 }
 
-export function validateColorBurst(seed: number, levelNo: number, log: ColorBurstLog): ValidationResult {
-  const level = generateColorBurst(seed, levelNo);
+export function validateColorBurst(seed: number, levelNo: number, log: ColorBurstLog, rounds?: number): ValidationResult {
+  const level = generateColorBurst(seed, levelNo, rounds);
   if (!log || !Array.isArray(log.rounds) || log.rounds.length !== level.rounds.length) return invalid('round_count_mismatch');
   const times: number[] = [];
   for (const r of log.rounds) {

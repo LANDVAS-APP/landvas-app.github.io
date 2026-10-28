@@ -1,6 +1,12 @@
-export type GameId = 'tracecraft' | 'colorburst' | 'patternshift' | 'lightlines';
+export type GameId = 'tracecraft' | 'colorburst' | 'patternshift' | 'lightlines' | 'memorymural' | 'sculptor' | 'hueflow' | 'mirrorline';
+export const GAME_IDS: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'];
 
-export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 23, patternshift: 37, lightlines: 53 };
+export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 23, patternshift: 37, lightlines: 53, memorymural: 67, sculptor: 79, hueflow: 97, mirrorline: 113 };
+
+/** Rounds per level when a session doesn't say (sessions started before rounds became configurable). */
+export const DEFAULT_ROUNDS = 5;
+/** Rounds a player must clear to pass a level. */
+export const roundsToPass = (rounds: number) => Math.max(1, Math.ceil(rounds * 0.6));
 
 /** Result of replaying a move log on the server (also used client-side for instant feedback). */
 export type ValidationResult = {

@@ -263,7 +263,7 @@ export class LocalBackend implements Backend {
     const s = await this.svc<any>('svc_get_session', { p_session_id: sessionId });
     if (!s || s.player_id !== this.current?.userId) throw new GameError('session_not_found');
     if (s.status !== 'active') throw new GameError('session_closed');
-    const verdict = validateMinigame(s.game as GameId, Number(s.seed), s.level, log);
+    const verdict = validateMinigame(s.game as GameId, Number(s.seed), s.level, log, s.rounds ?? null);
     try {
       const res = await this.svc<MinigameFinish>('svc_finish_minigame', { p_session_id: sessionId, p_result: verdict });
       void this.pollUpdates();

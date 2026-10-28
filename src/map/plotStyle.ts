@@ -7,6 +7,10 @@ export const PLOT_TYPES: Record<PlotTypeId, { name: string; game: string; a: str
   pigment: { name: 'Pigment', game: 'ColorBurst', a: '#FF5470', b: '#FFB23F', base: '#3A1B2A', blurb: 'Saturated paint and watercolor blooms' },
   mosaic: { name: 'Mosaic', game: 'PatternShift', a: '#22C7B5', b: '#FFD43B', base: '#10343A', blurb: 'Geometric tiles and bright patterns' },
   lumina: { name: 'Lumina', game: 'LightLines', a: '#8B5CFF', b: '#22E3FF', base: '#170F3D', blurb: 'Neon light and glowing gradients' },
+  fresco: { name: 'Fresco', game: 'Memory Mural', a: '#FF8A5B', b: '#FFD6A5', base: '#3A2219', blurb: 'Plaster walls that remember every stroke' },
+  clay: { name: 'Clay', game: 'Sculptor', a: '#C8794A', b: '#F2C49B', base: '#2E1B12', blurb: 'Soft earth waiting to be shaped' },
+  prism: { name: 'Prism', game: 'HueFlow', a: '#5EE6C7', b: '#B49BFF', base: '#14253A', blurb: 'Light split into every shade' },
+  glass: { name: 'Glass', game: 'Mirrorline', a: '#8FD8FF', b: '#E3F6FF', base: '#102838', blurb: 'Mirrored panes and perfect reflections' },
 };
 
 function rng(seed: number) {
@@ -76,6 +80,62 @@ export function drawPlotDesign(ctx: CanvasRenderingContext2D | OffscreenCanvasRe
           ctx.fill();
         }
       }
+  } else if (type === 'fresco') {
+    // plaster cracks with soft painted blooms
+    for (let i = 0; i < 5; i++) {
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.fillStyle = i % 2 ? t.a : t.b;
+      ctx.beginPath();
+      ctx.arc(r() * size, r() * size, (8 + r() * 14) * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#00000055';
+    ctx.lineWidth = 0.8 * s;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      let x = r() * size, y = r() * size;
+      ctx.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 18 * s; y += (r() - 0.5) * 18 * s; ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+  } else if (type === 'clay') {
+    // thumb-pressed ridges
+    for (let i = 0; i < 7; i++) {
+      ctx.globalAlpha = alpha * (0.35 + r() * 0.4);
+      ctx.strokeStyle = i % 2 ? t.a : t.b;
+      ctx.lineWidth = (3 + r() * 3) * s;
+      ctx.beginPath();
+      ctx.ellipse(size / 2, size / 2, (8 + i * 4.5) * s, (6 + i * 3.6) * s, r() * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else if (type === 'prism') {
+    const n = 4, c = size / n;
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        const k = (x + y) / (2 * n - 2);
+        ctx.globalAlpha = alpha * 0.92;
+        ctx.fillStyle = `hsl(${(165 + k * 110 + r() * 8) % 360} 70% ${55 + k * 10}%)`;
+        ctx.fillRect(x * c + c * 0.06, y * c + c * 0.06, c * 0.88, c * 0.88);
+      }
+  } else if (type === 'glass') {
+    ctx.globalAlpha = alpha * 0.85;
+    const g = ctx.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, t.a);
+    g.addColorStop(0.5, t.base);
+    g.addColorStop(1, t.b);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#ffffffaa';
+    ctx.lineWidth = 1.4 * s;
+    ctx.beginPath();
+    ctx.moveTo(size / 2, 0);
+    ctx.lineTo(size / 2, size);
+    ctx.stroke();
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(size * 0.1, 0); ctx.lineTo(size * 0.3, 0); ctx.lineTo(0, size * 0.3); ctx.lineTo(0, size * 0.1);
+    ctx.fill();
   } else {
     ctx.lineWidth = 2.2 * s;
     for (let i = 0; i < 5; i++) {

@@ -8,15 +8,12 @@ import os from 'node:os';
 import pg from 'pg';
 import sharp from 'sharp';
 import { TestDb } from '../helpers/db';
+import { solveMinigame } from '../helpers/solve';
 import { ART_MIN_ZOOM, GRID_LEVEL as L } from '../../src/shared/grid';
 import { drainQueue, tilePath, type PipelineDb } from '../../src/server/pipeline';
 import { sharpCodec } from '../../worker/codec-sharp';
 import { fsStore } from '../../worker/storage-fs';
 import { createApi } from '../../worker/http';
-import { generateLightLines } from '../../src/shared/minigames/lightlines';
-import { generatePatternShift } from '../../src/shared/minigames/patternshift';
-import { generateColorBurst } from '../../src/shared/minigames/colorburst';
-import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
 
 const db = new TestDb();
 let store: ReturnType<typeof fsStore>;
@@ -218,24 +215,8 @@ describe('worker minigame API', () => {
   });
   afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-  function solve(game: string, seed: number, level: number): unknown {
-    let t = 0;
-    if (game === 'lightlines') {
-      const L = generateLightLines(seed, level);
-      const moves = L.cells.map((c, i) => ({ c, i })).filter(({ c, i }) => c.k === 'mirror' && L.solution[i] && c.m !== L.solution[i]).map(({ i }) => ({ t: (t += 500), i }));
-      return { moves, done_t: t };
-    }
-    if (game === 'patternshift') {
-      const L = generatePatternShift(seed, level);
-      return { moves: [...L.scramble].reverse().map((m) => ({ t: (t += 500), k: m.k, i: m.i, d: -m.d })), done_t: t };
-    }
-    if (game === 'colorburst') {
-      const L = generateColorBurst(seed, level);
-      return { rounds: L.rounds.map((r) => { const actions = r.recipe.flatMap((n, p) => Array.from({ length: n }, () => ({ t: (t += 250), a: 'add', p }))); return { actions, submit_t: (t += 400) }; }) };
-    }
-    const L = generateTraceCraft(seed, level);
-    // human-like: slightly irregular timing and a little tremor (perfectly regular input is flagged as robotic)
-    return { strokes: L.shapes.map((s) => ({ points: resample(s.points, 100).map(([x, y], k) => [x + Math.sin(k * 1.7) * 0.002, y + Math.cos(k * 2.3) * 0.002, (t += 12 + ((k * 7) % 11))]) })) };
+  function solve(game: string, seed: number, level: number, rounds: number | null = 5): unknown {
+    return solveMinigame(game, seed, level, rounds);
   }
   const post = (body: unknown, token = 'good-token') =>
     fetch(`${base}/v1/minigames/finish`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -249,20 +230,20 @@ describe('worker minigame API', () => {
     // the client-claimed duration is checked against the server clock: backdate the session start
     await db.sql(`update minigame_sessions set started_at = now() - interval '5 minutes' where id = $1`, [s.session_id]);
     const before = (await db.rpc(player, 'my_state')).balances.ink;
-    const res = await post({ session_id: s.session_id, log: solve(plot.game, Number(s.seed), 1) });
+    const res = await post({ session_id: s.session_id, log: solve(plot.game, Number(s.seed), 1, s.rounds) });
     const body: any = await res.json();
     expect(res.status).toBe(200);
     expect(body.passed).toBe(true);
     expect(body.rewards.ink).toBeGreaterThan(0);
     expect(Number(body.balances.ink)).toBe(Number(before) + body.rewards.ink);
-    const replay = await post({ session_id: s.session_id, log: solve(plot.game, Number(s.seed), 1) });
+    const replay = await post({ session_id: s.session_id, log: solve(plot.game, Number(s.seed), 1, s.rounds) });
     expect(replay.status).toBe(409);
   });
 
   it('a forged or impossible log earns nothing', async () => {
     const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
     await db.sql(`update minigame_sessions set started_at = now() - interval '5 minutes' where id = $1`, [s.session_id]);
-    const real = solve(plot.game, Number(s.seed), 1) as any;
+    const real = solve(plot.game, Number(s.seed), 1, s.rounds) as any;
     // forge: TraceCraft strokes shifted off the guides; other games claim a win with no moves at all
     // (replaying another seed's solution can coincidentally solve a small level, so it is not a reliable forgery)
     const forged = plot.game === 'tracecraft'
@@ -275,7 +256,7 @@ describe('worker minigame API', () => {
 
   it('a log claiming more time than really passed is rejected', async () => {
     const s = await db.rpc(player, 'start_minigame', { p_game: plot.game, p_level: 1, p_gx: plot.gx, p_gy: plot.gy });
-    const log = solve(plot.game, Number(s.seed), 1);
+    const log = solve(plot.game, Number(s.seed), 1, s.rounds);
     // on the server clock the run "started" in the future, so any claimed duration is longer than real time
     await db.sql(`update minigame_sessions set started_at = now() + interval '30 seconds' where id = $1`, [s.session_id]);
     const body: any = await (await post({ session_id: s.session_id, log })).json();

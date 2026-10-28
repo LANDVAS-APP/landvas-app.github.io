@@ -5,6 +5,8 @@ import { useUi } from '../lib/store';
 export type GameProps = {
   seed: number;
   level: number;
+  /** rounds in this level (from the server session) */
+  rounds?: number;
   /** ms since the server started the session (monotonic). */
   now(): number;
   /** Called once with the move log; the server replays it to score the run. */

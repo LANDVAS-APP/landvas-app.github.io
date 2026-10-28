@@ -4,7 +4,8 @@ import { MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
-import { qk, useOnboardedMe } from '../lib/queries';
+import { qk, useOnboardedMe, useWorld } from '../lib/queries';
+import { plotLabel } from '../lib/utils';
 import { fmt } from '../lib/utils';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { GAME_INFO, type GameId } from '../shared/minigames';
@@ -13,18 +14,18 @@ import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
 
-const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = [
-  { game: 'lightlines', type: 'lumina' },
-  { game: 'patternshift', type: 'mosaic' },
-  { game: 'colorburst', type: 'pigment' },
-  { game: 'tracecraft', type: 'graphite' },
-];
+const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
+  ['lightlines', 'patternshift', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'] as GameId[]
+).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 
 export default function PlayHub() {
   const me = useOnboardedMe();
   const nav = useNavigate();
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
   const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me });
+  const progress = useQuery({ queryKey: qk.plotProgress, queryFn: api.myPlotProgress, enabled: !!me });
+  const world = useWorld();
+  const cfg = world.data?.minigames?.games ?? {};
   if (!me || plots.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const limit = records.data?.daily_rewarded_wins_per_game ?? 6;
   const resets = records.data?.resets_at ? new Date(records.data.resets_at) : null;
@@ -35,11 +36,11 @@ export default function PlayHub() {
       </PageHeader>
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>
-          Every plot type has its own minigame. Your free starter plot is waiting on the map.
+          Every plot type has its own minigame, and every plot climbs its own levels. Your free starter plot is waiting on the map.
         </Empty>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {ORDER.map(({ game, type }) => {
+          {ORDER.filter(({ game }) => cfg[game]?.enabled !== false).map(({ game, type }) => {
             const t = PLOT_TYPES[type];
             const mine = (plots.data ?? []).filter((p: any) => p.plot_type === type);
             const best = [...mine].sort((a: any, b: any) => rarityInfo(b.rarity).ink_reward_multiplier - rarityInfo(a.rarity).ink_reward_multiplier)[0];
@@ -58,9 +59,22 @@ export default function PlayHub() {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
                   <span>{mine.length} plot{mine.length === 1 ? '' : 's'}</span>
-                  {rec && <span className="tnum">Level {rec.highest_level} · best {fmt(rec.best_score)}</span>}
+                  {rec && <span className="tnum">Best {fmt(rec.best_score)}</span>}
+                  <span className="tnum">Max level {Number(cfg[game]?.max_level ?? world.data?.minigames?.max_level ?? 60)}</span>
                   <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {Math.max(0, limit - used)}/{limit} paying wins left</span>
                 </div>
+                {mine.length > 1 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Your plots and their levels">
+                    {mine.slice(0, 12).map((p: any) => {
+                      const lv = progress.data?.[`${p.gx}_${p.gy}`]?.highest_level ?? 0;
+                      return (
+                        <Link key={`${p.gx}_${p.gy}`} to={`/play/${game}?gx=${p.gx}&gy=${p.gy}`} className="rounded-full border border-line px-2.5 py-1 text-[11px] font-bold tnum text-muted hover:border-accent-2 hover:text-fg">
+                          {plotLabel(p.gx, p.gy)} · Lv {lv + 1}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
                 {mine.length ? (
                   <div className="mt-4 flex items-center justify-between gap-2">
                     {best && <RarityBadge r={best.rarity} small />}

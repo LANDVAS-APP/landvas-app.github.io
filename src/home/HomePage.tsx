@@ -23,7 +23,7 @@ const playHref = () => (signedIn() ? '/world' : '/welcome');
 
 export const DISCORD = 'https://discord.gg/EsEQB9Zw3';
 export const REDDIT = 'https://www.reddit.com/r/LANDVAS/';
-const GAMES: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines'];
+const GAMES: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'];
 const FALLBACK = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#22C7B5'];
 
 export default function HomePage() {
@@ -291,7 +291,7 @@ function MarqueeCard({ c }: { c: ArtworkCard }) {
 const STEPS = [
   { icon: MapPinned, title: 'Claim real-world plots', body: 'The planet is a grid of 4.3 billion house-sized plots. Your first one is free. Every plot is a mystery until you claim it — Common to Mythic.', color: '#3DDC97' },
   { icon: Brush, title: 'Paint what everyone sees', body: 'Draw or upload art on a real editor with brushes, layers and symmetry. Publish it and it appears on the live world map for every player.', color: '#FF4D6D' },
-  { icon: Gamepad2, title: 'Win Ink in minigames', body: 'Each plot hosts one of four skill games. Wins pay Ink — the currency that buys more land, brushes, colours and explorer looks.', color: '#34C3FF' },
+  { icon: Gamepad2, title: 'Win Ink in minigames', body: 'Each plot hosts one of eight skill games. Wins pay Ink — the currency that buys more land, brushes, colours and explorer looks.', color: '#34C3FF' },
   { icon: Sparkles, title: 'Grow murals & earn rent', body: 'Connect neighbouring plots into one continuous canvas. Every plot you own earns USD rent each second, by its rarity.', color: '#FFB31F' },
 ];
 
@@ -365,9 +365,9 @@ function Minigames() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="games">
       <div className="mx-auto max-w-2xl text-center">
-        <div className="eyebrow">Four minigames</div>
+        <div className="eyebrow">Eight minigames</div>
         <h2 id="games" className="mt-2 font-display text-3xl font-bold md:text-5xl">Skill pays. Literally.</h2>
-        <p className="mt-4 text-muted">Every plot hosts one game. Win to earn Ink — harder levels and rarer plots pay more. Scores are checked on the server, so the leaderboards stay fair.</p>
+        <p className="mt-4 text-muted">Every plot hosts one game with five rounds per level, and every plot climbs its own levels. Win to earn Ink — harder levels and rarer plots pay more. Scores are checked on the server, so the leaderboards stay fair.</p>
       </div>
       <div className="mt-12 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {GAMES.map((g) => (

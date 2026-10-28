@@ -13,6 +13,6 @@ describe('migrations', () => {
   it('world_config is readable anonymously', async () => {
     const cfg = await db.rpc(null, 'world_config');
     expect(cfg.grid.level).toBe(22);
-    expect(cfg.plot_types).toHaveLength(4);
+    expect(cfg.plot_types).toHaveLength(8);
   });
 });

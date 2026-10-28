@@ -7,8 +7,8 @@ import { cn, sleep } from '../../lib/utils';
 import { Button } from '../../ui';
 import { Hud, fmtClock, haptic, useLatest, useTicker, type GameProps } from '../common';
 
-export function ColorBurstGame({ seed, level, now, onDone, registerSolver }: GameProps) {
-  const L = useMemo(() => generateColorBurst(seed, level), [seed, level]);
+export function ColorBurstGame({ seed, level, rounds, now, onDone, registerSolver }: GameProps) {
+  const L = useMemo(() => generateColorBurst(seed, level, rounds), [seed, level, rounds]);
   const [round, setRound] = useState(0);
   const [actions, setActions] = useState<ColorBurstAction[]>([]);
   const [feedback, setFeedback] = useState<{ matched: boolean; dE: number } | null>(null);

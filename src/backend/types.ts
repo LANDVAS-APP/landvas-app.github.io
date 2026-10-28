@@ -300,7 +300,7 @@ export type ArtworkDetail = ArtworkCard & {
 export type Achievement = { key: string; name: string; description: string; icon: string; category: string; threshold: number; reward: Partial<Balances>; progress: number; unlocked_at: string | null; unlocked_by: number };
 export type NewAchievement = { key: string; name: string; description: string; icon: string; reward: Partial<Balances> };
 
-export type MinigameStart = { session_id: string; game: GameId; level: number; seed: number; plot_level: number; started_at: string; expires_at: string; server_time: string };
+export type MinigameStart = { session_id: string; game: GameId; level: number; seed: number; plot_level: number; rounds?: number | null; plot_highest_level?: number; max_level?: number; started_at: string; expires_at: string; server_time: string };
 export type MinigameFinish = {
   status: 'validated' | 'rejected' | 'expired';
   valid: boolean;

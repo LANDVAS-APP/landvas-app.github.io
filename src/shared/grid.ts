@@ -26,7 +26,7 @@ export const MAX_LAT = 85.0511287798066;
 
 export type Cell = { gx: number; gy: number };
 export type CellTuple = [number, number];
-export type PlotTypeId = 'graphite' | 'pigment' | 'mosaic' | 'lumina';
+export type PlotTypeId = 'graphite' | 'pigment' | 'mosaic' | 'lumina' | 'fresco' | 'clay' | 'prism' | 'glass';
 
 export const clampLat = (lat: number) => Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
 export const wrapLng = (lng: number) => ((((lng + 180) % 360) + 360) % 360) - 180;

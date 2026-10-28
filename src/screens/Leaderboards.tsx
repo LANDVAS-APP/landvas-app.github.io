@@ -16,6 +16,10 @@ const KINDS = [
   { value: 'minigame:patternshift', label: 'PatternShift', unit: 'pts' },
   { value: 'minigame:colorburst', label: 'ColorBurst', unit: 'pts' },
   { value: 'minigame:tracecraft', label: 'TraceCraft', unit: 'pts' },
+  { value: 'minigame:memorymural', label: 'Memory Mural', unit: 'pts' },
+  { value: 'minigame:sculptor', label: 'Sculptor', unit: 'pts' },
+  { value: 'minigame:hueflow', label: 'HueFlow', unit: 'pts' },
+  { value: 'minigame:mirrorline', label: 'Mirrorline', unit: 'pts' },
 ];
 
 export default function Leaderboards() {

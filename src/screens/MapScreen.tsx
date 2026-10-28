@@ -15,7 +15,8 @@ import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
-import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter } from '../shared/grid';
+import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotTypeId } from '../shared/grid';
+import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
 import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
@@ -231,8 +232,8 @@ function Legend({ mode }: { mode: MapMode }) {
           ))}
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-dashed border-line-strong p-2 text-muted"><span className="font-display text-base font-bold text-fg">?</span> Unclaimed plots are a mystery — type, minigame and rarity are revealed when claimed.</div>
           <div className="eyebrow mb-2 mt-3">Minigame by plot type (owned plots)</div>
-          {(['graphite', 'pigment', 'mosaic', 'lumina'] as const).map((t) => (
-            <div key={t} className="mb-1.5 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span><span className="text-faint">{{ graphite: 'TraceCraft', pigment: 'ColorBurst', mosaic: 'PatternShift', lumina: 'LightLines' }[t]}</span></div>
+          {(['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'clay', 'prism', 'glass'] as const).map((t) => (
+            <div key={t} className="mb-1.5 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span><span className="text-faint">{PLOT_TYPES[t].game}</span></div>
           ))}
           <div className="mt-3 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border-2 border-white" /> Your plots · others show their owner's colour</div>
           <div className="mt-2 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border border-dashed border-white" /> Claimable around your explorer</div>
@@ -242,8 +243,8 @@ function Legend({ mode }: { mode: MapMode }) {
   );
 }
 
-export function TypeDot({ t, size = 14 }: { t: 'graphite' | 'pigment' | 'mosaic' | 'lumina'; size?: number }) {
-  const c = { graphite: ['#B9C3D8', '#5C6680'], pigment: ['#FF5470', '#FFB23F'], mosaic: ['#22C7B5', '#FFD43B'], lumina: ['#8B5CFF', '#22E3FF'] }[t];
+export function TypeDot({ t, size = 14 }: { t: PlotTypeId; size?: number }) {
+  const c = [PLOT_TYPES[t].a, PLOT_TYPES[t].b];
   return <span className="inline-block shrink-0 rounded-[4px]" style={{ width: size, height: size, background: `linear-gradient(135deg, ${c[0]}, ${c[1]})` }} />;
 }
 

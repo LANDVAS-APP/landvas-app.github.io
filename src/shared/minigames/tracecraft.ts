@@ -2,7 +2,7 @@
 // Scoring = line accuracy (distance to the guide), completion (how much of the
 // guide was covered) and movement quality (no wobble, sensible path length).
 import { levelSeed, mulberry32, type Rng } from './rng';
-import { GAME_SALT, checkTimes, clamp01, invalid, type ValidationResult } from './types';
+import { GAME_SALT, checkTimes, clamp01, invalid, roundsToPass, type ValidationResult } from './types';
 
 export type Pt = [number, number]; // normalised 0..1 canvas coordinates
 export type TraceShape = { name: string; points: Pt[]; closed: boolean };
@@ -42,13 +42,13 @@ const SHAPES: { name: string; min: number; closed: boolean; make: (rng: Rng) => 
   { name: 'Lissajous', min: 15, closed: true, make: (r) => { const a = r.pick([1, 2, 3]); const b = a + r.pick([1, 2]); return sample((u) => [0.5 + 0.38 * Math.sin(a * u * TAU + Math.PI / 2), 0.5 + 0.38 * Math.sin(b * u * TAU)], 280); } },
 ];
 
-export function generateTraceCraft(seed: number, levelNo: number): TraceCraftLevel {
+export function generateTraceCraft(seed: number, levelNo: number, rounds = 3): TraceCraftLevel {
   const rng = mulberry32(levelSeed(seed, levelNo, GAME_SALT.tracecraft));
   const pool = SHAPES.filter((s) => s.min <= levelNo);
   const recent = pool.slice(-4);
   const shapes: TraceShape[] = [];
-  for (let k = 0; k < 3; k++) {
-    const def = k === 2 && levelNo > 2 ? rng.pick(recent) : rng.pick(pool);
+  for (let k = 0; k < rounds; k++) {
+    const def = k >= 2 && levelNo > 2 ? rng.pick(recent) : rng.pick(pool);
     shapes.push({ name: def.name, closed: def.closed, points: transform(def.make(rng), rng, levelNo > 2) });
   }
   return { level: levelNo, shapes, tolerance: Math.max(0.026, 0.06 - levelNo * 0.0012) };
@@ -133,8 +133,8 @@ export function scoreStroke(shape: TraceShape, tolerance: number, raw: Pt[]) {
   return { accuracy, coverage: covered, quality, score, passed, lenRatio };
 }
 
-export function validateTraceCraft(seed: number, levelNo: number, log: TraceCraftLog): ValidationResult {
-  const level = generateTraceCraft(seed, levelNo);
+export function validateTraceCraft(seed: number, levelNo: number, log: TraceCraftLog, rounds = 3): ValidationResult {
+  const level = generateTraceCraft(seed, levelNo, rounds);
   if (!log || !Array.isArray(log.strokes) || log.strokes.length !== level.shapes.length) return invalid('stroke_count_mismatch');
   const times: number[] = [];
   for (const s of log.strokes) {
@@ -168,9 +168,9 @@ export function validateTraceCraft(seed: number, levelNo: number, log: TraceCraf
     total += r.score;
     per.push({ shape: shape.name, score: r.score, accuracy: Math.round(r.accuracy * 100), coverage: Math.round(r.coverage * 100), quality: Math.round(r.quality * 100), passed: r.passed });
   });
-  const passed = passedShapes >= 2;
+  const passed = passedShapes >= roundsToPass(level.shapes.length);
   const avg = total / level.shapes.length;
-  const stars = !passed ? 0 : avg >= 850 && passedShapes === 3 ? 3 : avg >= 700 ? 2 : 1;
+  const stars = !passed ? 0 : avg >= 850 && passedShapes === level.shapes.length ? 3 : avg >= 700 ? 2 : 1;
   return {
     valid: true, passed, score: total + (passed ? levelNo * 15 : 0), stars: stars as 0 | 1 | 2 | 3,
     summary: { shapes: per, passed_shapes: passedShapes },

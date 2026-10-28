@@ -54,7 +54,7 @@ export function createApi(opts: { db: PipelineDb; verify: AuthVerifier; allowedO
       if (!session || session.player_id !== userId) return send(404, { error: 'session_not_found' });
       if (session.status !== 'active') return send(409, { error: 'session_closed', status: session.status });
 
-      const verdict = validateMinigame(session.game, Number(session.seed), session.level, body.log);
+      const verdict = validateMinigame(session.game, Number(session.seed), session.level, body.log, session.rounds ?? null);
       const result = await opts.db.call('svc_finish_minigame', { p_session_id: body.session_id, p_result: verdict });
       return send(200, { ...(result as object), summary: verdict.summary });
     } catch (e) {

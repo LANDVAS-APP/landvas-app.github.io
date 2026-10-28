@@ -17,6 +17,7 @@ const EditorScreen = lazy(() => import('../editor/EditorScreen'));
 const CanvasesScreen = lazy(() => import('../canvases/CanvasesScreen'));
 const PlayHub = lazy(() => import('../play/PlayHub'));
 const GameScreen = lazy(() => import('../play/GameScreen'));
+const GameSandbox = lazy(() => import('../play/GameScreen').then((m) => ({ default: m.GameSandbox })));
 const GalleryScreen = lazy(() => import('../gallery/GalleryScreen'));
 const ArtworkScreen = lazy(() => import('../gallery/ArtworkScreen'));
 const ProfileScreen = lazy(() => import('../profile/ProfileScreen'));
@@ -125,6 +126,7 @@ const routes: RouteObject[] = [
       { path: '/onboarding', element: <Onboarding /> },
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },
+      { path: '/play-sandbox/:game', element: <GameSandbox /> },
       {
         element: <Shell />,
         children: [

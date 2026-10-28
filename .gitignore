@@ -10,3 +10,5 @@ dist-*
 *.log
 coverage
 test-results
+tsconfig.tsbuildinfo
+.wrangler/

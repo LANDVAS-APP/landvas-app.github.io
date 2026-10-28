@@ -62,6 +62,15 @@ jobs:
           touch dist/.nojekyll
           # custom domain (GitHub Pages reads the CNAME file from the published branch)
           if [ -f deploy/CNAME ]; then cp deploy/CNAME dist/CNAME; fi
+          # landvas.app: Cloudflare Workers Builds deploys this branch as static assets
+          cat > dist/wrangler.jsonc <<'JSON'
+          {
+            "name": "landvas-app-github-io",
+            "compatibility_date": "2025-09-01",
+            "assets": { "directory": ".", "not_found_handling": "single-page-application", "html_handling": "auto-trailing-slash" }
+          }
+          JSON
+          printf 'wrangler.jsonc\n.assetsignore\n_redirects\n.nojekyll\n.git\n' > dist/.assetsignore
           cd dist
           git init -q -b main
           git config user.name "LANDVAS deploy"

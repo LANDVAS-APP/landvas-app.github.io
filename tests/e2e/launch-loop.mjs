@@ -389,6 +389,18 @@ try {
   const code = await page.textContent('[data-testid=invite-code]');
   check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
 
+  // every minigame (incl. the four new ones) plays all 5 rounds and passes the server's validator
+  for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['hueflow', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['hueflow', 10], ['mirrorline', 10]]) {
+    await page.evaluate(([g, lv]) => window.__landvasNav(`/play-sandbox/${g}?level=${lv}&rounds=5`), [g, lv]);
+    await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 20000 });
+    await page.waitForTimeout(600);
+    if (lv === 1 && ['memorymural', 'sculptor', 'hueflow', 'mirrorline'].includes(g)) { await page.waitForTimeout(400); await shot(`12-${g}`); }
+    await page.evaluate(() => window.__landvasGame.autoSolve());
+    await page.waitForSelector(`[data-testid=sandbox-result][data-game=${g}]`, { timeout: 150000 });
+    const res = JSON.parse(await page.textContent('[data-testid=sandbox-result]'));
+    check(`${g} level ${lv}: 5 rounds played and validated`, res.valid && res.passed, JSON.stringify({ v: res.valid, p: res.passed, s: res.summary?.passed_rounds ?? res.summary?.passed_shapes ?? res.summary?.passed_rounds, r: res.reason, f: res.flags }));
+  }
+
   // phone layout (local mode allows one tab per device, so close the desktop one first)
   await page.close();
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' });

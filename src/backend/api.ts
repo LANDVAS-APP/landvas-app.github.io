@@ -143,6 +143,7 @@ export const api = {
   myPublications: () => rpc<Publication[]>('my_publications'),
 
   // minigames
+  myPlotProgress: () => rpc<Record<string, { game: string; highest_level: number; best_score: number; plays: number; wins: number }>>('my_plot_progress'),
   startMinigame: (game: string, level: number, gx: number, gy: number) => rpc<MinigameStart>('start_minigame', { p_game: game, p_level: level, p_gx: gx, p_gy: gy }),
   finishMinigame: (sessionId: string, log: unknown) => getBackend().finishMinigame(sessionId, log) as Promise<MinigameFinish>,
   myMinigameRecords: () => rpc<MinigameRecords>('my_minigame_records'),

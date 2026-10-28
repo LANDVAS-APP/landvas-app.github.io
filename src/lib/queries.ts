@@ -14,6 +14,7 @@ export const qk = {
   versions: (id: string) => ['versions', id] as const,
   pubs: ['publications'] as const,
   records: ['records'] as const,
+  plotProgress: ['plot-progress'] as const,
   myPlots: ['my-plots'] as const,
 };
 
@@ -26,7 +27,7 @@ export const useOnboardedMe = () => {
 };
 
 export function invalidateGame(qc: QueryClient) {
-  for (const key of [qk.me, qk.groups, qk.myPlots, qk.pubs, qk.records]) void qc.invalidateQueries({ queryKey: key });
+  for (const key of [qk.me, qk.groups, qk.myPlots, qk.pubs, qk.records, qk.plotProgress]) void qc.invalidateQueries({ queryKey: key });
   void qc.invalidateQueries({ queryKey: ['plot'] });
 }
 

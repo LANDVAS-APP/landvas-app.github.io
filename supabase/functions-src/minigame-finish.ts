@@ -26,7 +26,7 @@ serve(async (req) => {
     const { data: s, error: se } = await admin.rpc('svc_get_session', { p_session_id: body.session_id });
     if (se || !s || s.player_id !== uid) return json({ error: 'session_not_found' }, 404);
     if (s.status !== 'active') return json({ error: 'session_closed' }, 409);
-    const verdict = validateMinigame(s.game as GameId, Number(s.seed), s.level, body.log);
+    const verdict = validateMinigame(s.game as GameId, Number(s.seed), s.level, body.log, s.rounds ?? null);
     const { data: r, error: re } = await admin.rpc('svc_finish_minigame', { p_session_id: body.session_id, p_result: verdict });
     if (re) return json({ error: re.message }, 400);
     return json({ ...r, summary: verdict.summary });

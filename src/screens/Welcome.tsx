@@ -143,7 +143,7 @@ export function Welcome() {
             The planet is divided into 4.3 billion square plots. Claim one for free, paint it, then buy the plots next door and fuse them into one continuous mural the whole world can see on the map.
           </p>
           <ul className="mt-6 grid gap-2 text-sm text-muted">
-            <li>· Every plot is a canvas, a home for one of four minigames, and a source of Ink.</li>
+            <li>· Every plot is a canvas, a home for one of eight minigames, and a source of Ink.</li>
             <li>· Connect neighbouring plots to draw across their borders in one stroke.</li>
             <li>· Plots are virtual — owning one never means owning real land.</li>
           </ul>

@@ -83,7 +83,7 @@ describe('plot types and rarities are secret', () => {
     // chance agreement for four weighted types is about 26%; a leaked formula would agree on every cell
     expect(matches / rows.length).toBeLessThan(0.45);
     const counts = rows.reduce<Record<string, number>>((m, r) => ((m[r.t] = (m[r.t] ?? 0) + 1), m), {});
-    expect(Object.keys(counts).sort()).toEqual(['graphite', 'lumina', 'mosaic', 'pigment']);
+    expect(Object.keys(counts).sort()).toEqual(['clay', 'fresco', 'glass', 'graphite', 'lumina', 'mosaic', 'pigment', 'prism']);
     expect(new Set(rows.map((r) => r.r)).size).toBe(5);
   });
 });

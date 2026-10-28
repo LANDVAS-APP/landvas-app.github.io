@@ -14,6 +14,7 @@ import { cn, fmt, plotLabel, timeAgo } from '../lib/utils';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
+import { GAME_IDS } from '../shared/minigames/types';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -443,7 +444,7 @@ function useSaveConfig() {
   };
 }
 
-const GAMES: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines'];
+const GAMES: GameId[] = [...GAME_IDS];
 
 function Earnings() {
   const cfg = useConfig();
@@ -469,8 +470,12 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
   const setGame = (g: string, patch: Record<string, unknown>) => setV({ ...v, games: { ...v.games, [g]: { ...(v.games?.[g] ?? {}), ...patch } } });
   const [ex, setEx] = useState({ level: 5, score: 2400, rarity: 'rare', plotLevel: 1, game: 'tracecraft' as GameId });
   const rMult = Number(rarities.find((r) => r.id === ex.rarity)?.ink_reward_multiplier ?? 1);
-  const mult = (1 + Number(v.plot_level_bonus ?? 0.05) * (ex.plotLevel - 1)) * rMult * Number(v.ink_multiplier ?? 1) * Number(v.games?.[ex.game]?.ink_multiplier ?? 1);
-  const ink = Math.floor((Number(rw.base_ink) + Number(rw.ink_per_level) * ex.level + ex.score / Math.max(Number(rw.score_ink_divisor), 1)) * mult);
+  const eg = v.games?.[ex.game] ?? {};
+  const mult = (1 + Number(eg.plot_level_bonus ?? v.plot_level_bonus ?? 0.05) * (ex.plotLevel - 1)) * rMult * Number(v.ink_multiplier ?? 1) * Number(eg.ink_multiplier ?? 1);
+  const inkAt = (level: number) => Math.floor((Number(eg.base_ink ?? rw.base_ink) + Number(eg.ink_per_level ?? rw.ink_per_level) * level + ex.score / Math.max(Number(rw.score_ink_divisor), 1)) * mult);
+  const ink = inkAt(ex.level);
+  const exMax = Number(eg.max_level ?? v.max_level ?? 60);
+  const ladder = [...new Set([1, 5, 10, 25, 50, 100, exMax].filter((n) => n <= exMax))];
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
   return (
     <Card title="Minigame earnings (Ink)" actions={<div className="flex gap-2">
@@ -485,17 +490,12 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
         <NumberField label="Everyone’s Ink multiplier" value={Number(v.ink_multiplier ?? 1)} step={0.1} max={100} onChange={(n) => setV({ ...v, ink_multiplier: n })} suffix="×" hint="Set 2 for a double-Ink weekend" />
         <NumberField label="Plot level bonus" value={Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10} step={0.5} onChange={(n) => setV({ ...v, plot_level_bonus: n / 100 })} suffix="% / level" />
         <NumberField label="Paid wins per game per day" value={Number(v.daily_rewarded_wins_per_game ?? 6)} max={1000} onChange={(n) => setV({ ...v, daily_rewarded_wins_per_game: Math.round(n) })} />
+        <NumberField label="Default max level" value={Number(v.max_level ?? 60)} min={1} max={500} onChange={(n) => setV({ ...v, max_level: Math.round(n) })} hint="Per game below overrides" />
       </div>
       <div className="mt-4 grid gap-2">
         <div className="eyebrow">Per game</div>
-        {GAMES.map((g) => (
-          <div key={g} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line px-3 py-2">
-            <span className="w-28 font-semibold">{GAME_INFO[g]?.name ?? g}</span>
-            <label className="flex items-center gap-2 text-xs text-muted">Multiplier
-              <input type="number" step={0.1} min={0} max={100} className={cn(inputCls, 'h-9 w-20 tnum')} value={Number(v.games?.[g]?.ink_multiplier ?? 1)} onChange={(e) => setGame(g, { ink_multiplier: Number(e.target.value) })} />×</label>
-            <label className="ml-auto flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={v.games?.[g]?.enabled !== false} onChange={(e) => setGame(g, { enabled: e.target.checked })} /> Playable</label>
-          </div>
-        ))}
+        <p className="text-xs text-faint">Leave a box empty to use the shared value above. Each plot climbs its own levels from 1 up to the game’s max level; rounds is how many boards a level has (60% must be cleared).</p>
+        {GAMES.map((g) => <GameEarningsRow key={g} g={g} v={v} setGame={setGame} />)}
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-4">
         <NumberField label="XP per win" value={Number(rw.brush_points_base)} onChange={(n) => setRw('brush_points_base', n)} />
@@ -507,14 +507,49 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
         <div className="eyebrow mb-2">Preview</div>
         <div className="flex flex-wrap items-center gap-2">
           <select className={cn(inputCls, 'h-9 w-auto')} value={ex.game} onChange={(e) => setEx({ ...ex, game: e.target.value as GameId })} aria-label="Game">{GAMES.map((g) => <option key={g} value={g}>{GAME_INFO[g]?.name ?? g}</option>)}</select>
-          <span>level</span><input type="number" min={1} max={60} className={cn(inputCls, 'h-9 w-16')} value={ex.level} onChange={(e) => setEx({ ...ex, level: Number(e.target.value) })} />
+          <span>level</span><input type="number" min={1} max={exMax} className={cn(inputCls, 'h-9 w-16')} value={ex.level} onChange={(e) => setEx({ ...ex, level: Number(e.target.value) })} />
           <span>score</span><input type="number" min={0} className={cn(inputCls, 'h-9 w-24')} value={ex.score} onChange={(e) => setEx({ ...ex, score: Number(e.target.value) })} />
           <span>on a</span><select className={cn(inputCls, 'h-9 w-auto')} value={ex.rarity} onChange={(e) => setEx({ ...ex, rarity: e.target.value })} aria-label="Rarity">{RARITY_ORDER.map((r) => <option key={r} value={r}>{rarityInfo(r).name}</option>)}</select>
           <span>plot, level</span><input type="number" min={1} max={10} className={cn(inputCls, 'h-9 w-16')} value={ex.plotLevel} onChange={(e) => setEx({ ...ex, plotLevel: Number(e.target.value) })} />
         </div>
         <div className="mt-2 font-display text-lg font-semibold">= {fmt(Number.isFinite(ink) ? ink : 0)} Ink <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)})</span></div>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs" aria-label="Ink by level">
+          {ladder.map((n) => <span key={n} className="rounded-full border border-line px-2 py-0.5 tnum">Lv {n}: <b>{fmt(Number.isFinite(inkAt(n)) ? inkAt(n) : 0)}</b></span>)}
+        </div>
       </div>
     </Card>
+  );
+}
+
+function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: string, patch: Record<string, unknown>): void }) {
+  const c = v.games?.[g] ?? {};
+  const opt = (k: string, n: string, scale = 1) => setGame(g, { [k]: n === '' ? undefined : Number(n) / scale });
+  const field = (label: string, k: string, o: { step?: number; min?: number; max?: number; scale?: number; suffix?: string; placeholder?: string } = {}) => (
+    <label className="grid gap-1 text-[11px] font-semibold text-muted">{label}
+      <span className="flex items-center gap-1">
+        <input type="number" step={o.step ?? 1} min={o.min ?? 0} max={o.max} placeholder={o.placeholder} className={cn(inputCls, 'h-9 w-[5.5rem] tnum')}
+          value={c[k] === undefined || c[k] === null ? '' : Math.round(Number(c[k]) * (o.scale ?? 1) * 1000) / 1000}
+          onChange={(e) => opt(k, e.target.value, o.scale ?? 1)} data-testid={`game-${g}-${k}`} />
+        {o.suffix && <span className="text-faint">{o.suffix}</span>}
+      </span>
+    </label>
+  );
+  return (
+    <div className="rounded-2xl border border-line p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="font-semibold">{GAME_INFO[g]?.name ?? g}</span>
+        <span className="text-xs text-faint">{GAME_INFO[g]?.plotType}</span>
+        <label className="ml-auto flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={c.enabled !== false} onChange={(e) => setGame(g, { enabled: e.target.checked })} /> Playable</label>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {field('Ink multiplier', 'ink_multiplier', { step: 0.1, max: 100, suffix: '×', placeholder: '1' })}
+        {field('Max level', 'max_level', { min: 1, max: 500, placeholder: String(v.max_level ?? 60) })}
+        {field('Rounds', 'rounds', { min: 1, max: 10, placeholder: '5' })}
+        {field('Base Ink', 'base_ink', { max: 100000, placeholder: String(v.rewards?.base_ink ?? '') })}
+        {field('Ink per level', 'ink_per_level', { step: 0.5, max: 10000, placeholder: String(v.rewards?.ink_per_level ?? '') })}
+        {field('Upgrade bonus', 'plot_level_bonus', { step: 0.5, max: 1000, scale: 100, suffix: '%/lv', placeholder: String(Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10) })}
+      </div>
+    </div>
   );
 }
 

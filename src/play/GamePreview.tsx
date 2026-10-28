@@ -1,4 +1,4 @@
-// Animated previews of the four minigames — a looping glimpse of how each one
+// Animated previews of the minigames — a looping glimpse of how each one
 // plays. Pure SVG (SMIL), no assets; a still frame when motion is reduced.
 import { useId } from 'react';
 import type { GameId } from '../shared/minigames';
@@ -13,6 +13,10 @@ export function GamePreview({ game, size, className }: { game: GameId; size?: nu
   if (game === 'tracecraft') return <TraceCraftPreview {...common} id={id} still={still} />;
   if (game === 'colorburst') return <ColorBurstPreview {...common} id={id} still={still} />;
   if (game === 'patternshift') return <PatternShiftPreview {...common} id={id} still={still} />;
+  if (game === 'memorymural') return <MemoryMuralPreview {...common} id={id} still={still} />;
+  if (game === 'sculptor') return <SculptorPreview {...common} id={id} still={still} />;
+  if (game === 'hueflow') return <HueFlowPreview {...common} id={id} still={still} />;
+  if (game === 'mirrorline') return <MirrorlinePreview {...common} id={id} still={still} />;
   return <LightLinesPreview {...common} id={id} still={still} />;
 }
 
@@ -137,6 +141,85 @@ function LightLinesPreview({ id, still, ...svg }: P) {
       </g>
       <rect x="30" y="56" width="16" height="16" rx="3" fill="#1b1440" stroke="#ffffff" strokeOpacity="0.2" />
       <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#B9A6FF" letterSpacing="1.5">FLIPS 1 · ★★★</text>
+    </svg>
+  );
+}
+
+function MemoryMuralPreview({ id, still, ...svg }: P) {
+  const pal = ['#F5F4EF', '#FF4D6D', '#FFB23F', '#34C3FF'];
+  const pic = [0, 1, 1, 0, 1, 2, 2, 1, 1, 2, 2, 1, 0, 3, 3, 0];
+  return (
+    <svg {...svg} aria-label="Memory Mural: memorise the painting, then repaint it from memory">
+      <defs><linearGradient id={`${id}bg`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3a1f2c" /><stop offset="1" stopColor="#150c16" /></linearGradient></defs>
+      <rect width="120" height="120" fill={`url(#${id}bg)`} />
+      {pic.map((c, i) => {
+        const x = 24 + (i % 4) * 18, y = 16 + Math.floor(i / 4) * 18;
+        return (
+          <rect key={i} x={x} y={y} width="17" height="17" rx="2" fill={pal[c]}>
+            {!still && c !== 0 && <animate attributeName="fill" values={`${pal[c]};${pal[c]};#F5F4EF;#F5F4EF;${pal[c]};${pal[c]}`} keyTimes={`0;0.3;0.34;${(0.42 + i * 0.025).toFixed(3)};${(0.44 + i * 0.025).toFixed(3)};1`} dur="5s" repeatCount="indefinite" />}
+          </rect>
+        );
+      })}
+      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#FFB0C0" letterSpacing="1.5">REMEMBER · REPAINT</text>
+    </svg>
+  );
+}
+
+function SculptorPreview({ id, still, ...svg }: P) {
+  const shape = (k: number[]) => k.map((r, i) => { const a = (i / k.length) * Math.PI * 2 - Math.PI / 2; return `${i ? 'L' : 'M'}${(60 + Math.cos(a) * r).toFixed(1)} ${(54 + Math.sin(a) * r).toFixed(1)}`; }).join(' ') + 'Z';
+  const target = shape([30, 26, 34, 26, 30, 26, 34, 26]);
+  const a = shape([24, 24, 24, 24, 24, 24, 24, 24]);
+  return (
+    <svg {...svg} aria-label="Sculptor: push and pull the clay until it matches the outline">
+      <defs>
+        <radialGradient id={`${id}bg`} cx="0.5" cy="0.4" r="0.8"><stop offset="0" stopColor="#3a2a20" /><stop offset="1" stopColor="#120c08" /></radialGradient>
+        <radialGradient id={`${id}clay`} cx="0.4" cy="0.35" r="0.75"><stop offset="0" stopColor="#F2C49B" /><stop offset="0.6" stopColor="#C8794A" /><stop offset="1" stopColor="#8A4B2A" /></radialGradient>
+      </defs>
+      <rect width="120" height="120" fill={`url(#${id}bg)`} />
+      <path d={target} fill="none" stroke="#22E3FF" strokeWidth="1.6" strokeDasharray="4 3" />
+      <path d={still ? target : a} fill={`url(#${id}clay)`} stroke="#5a2f19" strokeWidth="1.2">
+        {!still && <animate attributeName="d" values={`${a};${target};${target};${a}`} keyTimes="0;0.6;0.9;1" dur="4s" repeatCount="indefinite" />}
+      </path>
+      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#F2C49B" letterSpacing="1.5">MATCH · 94%</text>
+    </svg>
+  );
+}
+
+function HueFlowPreview({ id, still, ...svg }: P) {
+  const cols = ['#5EE6C7', '#78CFD9', '#93B8EB', '#B49BFF', '#7EDDB9', '#94C6CB', '#AAAEDD', '#C493F0', '#9ED3AB', '#B0BDBD', '#C2A5CF', '#D48BE2'];
+  return (
+    <svg {...svg} aria-label="HueFlow: swap tiles until the colour gradient flows">
+      <rect width="120" height="120" fill="#0b1226" />
+      {cols.map((c, i) => {
+        const x = 14 + (i % 4) * 23.5, y = 14 + Math.floor(i / 4) * 27;
+        const swapA = i === 1, swapB = i === 6;
+        return (
+          <rect key={i} x={x} y={y} width="21" height="25" rx="4" fill={c}>
+            {!still && (swapA || swapB) && <animate attributeName="fill" values={swapA ? `${cols[6]};${cols[6]};${c};${c}` : `${cols[1]};${cols[1]};${c};${c}`} keyTimes="0;0.45;0.55;1" dur="3.2s" repeatCount="indefinite" />}
+          </rect>
+        );
+      })}
+      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#B4F5E5" letterSpacing="1.5">SWAPS 4 · PAR 4</text>
+    </svg>
+  );
+}
+
+function MirrorlinePreview({ id, still, ...svg }: P) {
+  const pal = ['#F5F4EF', '#34C3FF', '#7B5CFF', '#FF4FD8'];
+  const half = [[0, 1, 2], [1, 3, 2], [2, 2, 1], [0, 1, 3]];
+  return (
+    <svg {...svg} aria-label="Mirrorline: paint the missing half as a perfect reflection">
+      <rect width="120" height="120" fill="#0a1830" />
+      {half.map((row, y) => row.map((c, x) => (
+        <g key={`${x}${y}`}>
+          <rect x={14 + x * 15} y={18 + y * 18} width="14" height="17" rx="2" fill={pal[c]} opacity="0.95" />
+          <rect x={92 - x * 15} y={18 + y * 18} width="14" height="17" rx="2" fill={still ? pal[c] : '#F5F4EF'}>
+            {!still && <animate attributeName="fill" values={`#F5F4EF;#F5F4EF;${pal[c]};${pal[c]};#F5F4EF`} keyTimes={`0;${(0.15 + (y * 3 + x) * 0.05).toFixed(2)};${(0.17 + (y * 3 + x) * 0.05).toFixed(2)};0.92;1`} dur="4.2s" repeatCount="indefinite" />}
+          </rect>
+        </g>
+      )))}
+      <line x1="60" y1="12" x2="60" y2="96" stroke="#22E3FF" strokeWidth="2" strokeDasharray="4 3" />
+      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#BFE9FF" letterSpacing="1.5">MIRROR · 100%</text>
     </svg>
   );
 }

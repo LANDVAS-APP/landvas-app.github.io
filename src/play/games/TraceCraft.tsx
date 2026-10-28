@@ -1,13 +1,14 @@
 // TraceCraft (Graphite plots): trace each glowing guide in one steady stroke.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { generateTraceCraft, resample, scoreStroke, type Pt } from '../../shared/minigames/tracecraft';
+import { roundsToPass } from '../../shared/minigames/types';
 import { cn, sleep } from '../../lib/utils';
 import { Hud, haptic, useBoardSize, useLatest, type GameProps } from '../common';
 
 type Stroke = [number, number, number][];
 
-export function TraceCraftGame({ seed, level, now, onDone, registerSolver }: GameProps) {
-  const L = useMemo(() => generateTraceCraft(seed, level), [seed, level]);
+export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolver }: GameProps) {
+  const L = useMemo(() => generateTraceCraft(seed, level, rounds), [seed, level, rounds]);
   const [idx, setIdx] = useState(0);
   const [results, setResults] = useState<{ score: number; passed: boolean; accuracy: number; coverage: number }[]>([]);
   const idxRef = useLatest(idx);
@@ -156,7 +157,7 @@ export function TraceCraftGame({ seed, level, now, onDone, registerSolver }: Gam
           );
         })}
       </div>
-      <p className="max-w-sm text-center text-xs text-muted">Start at the green dot and follow the guide in one stroke. Clear 2 of 3 shapes to win.</p>
+      <p className="max-w-sm text-center text-xs text-muted">Start at the green dot and follow the guide in one stroke. Clear {roundsToPass(L.shapes.length)} of {L.shapes.length} shapes to win.</p>
     </div>
   );
 }
