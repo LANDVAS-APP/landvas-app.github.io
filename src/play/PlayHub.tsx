@@ -12,7 +12,7 @@ import { rarityInfo } from '../shared/rarity';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
-import { activeBoost, boostLeft, inkPerRound } from './rates';
+import { activeBoost, boostLeft, fullClearInk } from './rates';
 import { Swords, Zap } from 'lucide-react';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
@@ -76,7 +76,7 @@ export default function PlayHub() {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
                   <span>{mine.length} plot{mine.length === 1 ? '' : 's'}</span>
-                  <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {fmt(inkPerRound(world.data, game, 1, best))}+ per round</span>
+                  <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {fmt(fullClearInk(world.data, game, 1, best))} for level 1</span>
                   {rec && <span className="tnum">Best {fmt(rec.best_score)}</span>}
                   <span className="tnum">Max level {Number(cfg[game]?.max_level ?? world.data?.minigames?.max_level ?? 60)}</span>
                   {!unlimitedRuns && <span className="flex items-center gap-1 tnum"><ResourceIcon r="ink" /> {Math.max(0, limit - used)}/{limit} paid runs left</span>}

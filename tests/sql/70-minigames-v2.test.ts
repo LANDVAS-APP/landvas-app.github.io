@@ -54,9 +54,9 @@ describe('minigames v2', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: next });
     await expectError(db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: 2, p_gx: A.gx, p_gy: A.gy }), 'plot_maxed'); // A beat the only level
     const r = await win(p, B.gx, B.gy, 'sculptor', 1);
-    // 35 Ink per round × 3 rounds (the score doesn't add Ink), times the plot's rarity bonus
+    // 35 Ink for completing the level (rounds pay nothing unless set; the score doesn't add Ink), times the rarity bonus
     const mult = Number(r.rewards.multiplier);
-    expect(r.rewards.ink).toBe(Math.floor(35 * 3 * mult));
+    expect(r.rewards.ink).toBe(Math.floor(35 * mult));
     expect(r.rewards.rounds).toBe(3);
     // a beaten level can't be replayed
     await expectError(db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: 1, p_gx: B.gx, p_gy: B.gy }), 'plot_maxed');
@@ -64,9 +64,9 @@ describe('minigames v2', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
 
-  it('every round cleared pays its share of Ink, but only clearing all five levels up', async () => {
+  it('rounds pay their own Ink; the level Ink only comes with clearing every round', async () => {
     const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
-    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [20, 30, 40], plot_level_bonus: 0 } } } });
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [20, 30, 40], round_ink: [1, 2, 3, 4, 5], plot_level_bonus: 0 } } } });
     const before = (await db.rpc(p, 'my_plot_progress'))[`${B.gx}_${B.gy}`].highest_level;
     const s = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: before + 1, p_gx: B.gx, p_gy: B.gy });
     const r = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
@@ -75,9 +75,8 @@ describe('minigames v2', () => {
     });
     expect(r.passed).toBe(false);
     expect(r.rewards.rounds_cleared).toBe(4);
-    // the level's Ink per round × 4 cleared rounds, times the plot's rarity bonus
-    const perRound = [20, 30, 40][Math.min(before + 1, 3) - 1];
-    expect(r.rewards.ink).toBe(Math.floor(perRound * 4 * Number(r.rewards.multiplier)));
+    // 4 of 5 rounds cleared (no mask → rounds 1–4): 1+2+3+4 round Ink, and no level Ink
+    expect(r.rewards.ink).toBe(Math.floor(10 * Number(r.rewards.multiplier)));
     expect((await db.rpc(p, 'my_plot_progress'))[`${B.gx}_${B.gy}`].highest_level).toBe(before);
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
@@ -87,10 +86,10 @@ describe('minigames v2', () => {
     expect(cfg.games.tracecraft.level_ink.length).toBe(60);
     expect(cfg.games.tracecraft.level_ink[0]).toBeGreaterThan(0);
     const until = new Date(Date.now() + 3600_000).toISOString();
-    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [10], plot_level_bonus: 0, boost: { multiplier: 3, ends_at: until } } } } });
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [10], round_ink: [0, 0, 0, 0, 0], plot_level_bonus: 0, boost: { multiplier: 3, ends_at: until } } } } });
     const r = await win(p, B.gx, B.gy, 'sculptor', await db.nextLevel(p, B.gx, B.gy));
     expect(Number(r.rewards.boost)).toBe(3);
-    expect(r.rewards.ink).toBe(Math.floor(10 * 5 * Number(r.rewards.multiplier)));
+    expect(r.rewards.ink).toBe(Math.floor(10 * Number(r.rewards.multiplier)));
     expect(Number(r.rewards.multiplier)).toBeGreaterThanOrEqual(3);
     await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, boost: { multiplier: 99 } } } } }), 'invalid_minigame_config');
     await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [5, 'x'] } } } }), 'invalid_minigame_config');
@@ -100,21 +99,38 @@ describe('minigames v2', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
 
-  it('round bonuses pay per cleared round position, and paid runs can be unlimited', async () => {
+  it('each round position pays its own Ink, and paid runs can be unlimited', async () => {
     const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, limit_paid_runs: false, daily_rewarded_wins_per_game: 0,
-      games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [10], plot_level_bonus: 0, round_bonus: [0, 0, 5, 10, 100] } } } });
+      games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, level_ink: [10], plot_level_bonus: 0, round_ink: [0, 0, 5, 10, 100] } } } });
     const lv = (await db.rpc(p, 'my_plot_progress'))[`${B.gx}_${B.gy}`].highest_level + 1;
     const s = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: Math.min(lv, 60), p_gx: B.gx, p_gy: B.gy });
-    // rounds 1, 2 and 5 cleared: 3 × 10 Ink + bonus 0 + 0 + 100
+    // rounds 1, 2 and 5 cleared: round Ink 0 + 0 + 100, no level Ink (the level isn't complete)
     const r = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', {
       p_session_id: s.session_id,
       p_result: { valid: true, passed: false, score: 300, stars: 0, flags: [], suspicious: false, min_duration_ms: 0, rounds_passed: 3, rounds_total: 5, rounds_mask: [true, true, false, false, true] },
     });
     expect(r.rewards.unlimited).toBe(true);
     expect(r.rewards.rewarded_left).toBeNull();
-    expect(r.rewards.ink).toBe(Math.floor((30 + 100) * Number(r.rewards.multiplier))); // paid even with a daily cap of 0
-    await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, round_bonus: [-1] } } } }), 'invalid_minigame_config');
+    expect(Math.abs(r.rewards.ink - 100 * Number(r.rewards.multiplier))).toBeLessThanOrEqual(1); // paid even with a daily cap of 0
+    await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, round_ink: [-1] } } } }), 'invalid_minigame_config');
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
+  });
+
+  it('level Ink 1 with 3 rounds at 0 Ink each: rounds pay nothing, completing the level pays 1', async () => {
+    const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, limit_paid_runs: false,
+      games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, rounds: 3, level_ink: [1], round_ink: [0, 0, 0], plot_level_bonus: 0, ink_multiplier: 1, boost: undefined } } } });
+    await db.sql(`update world_plots set rarity = 'common', level = 1 where gx = $1 and gy = $2`, [B.gx, B.gy]);
+    const lv = await db.nextLevel(p, B.gx, B.gy);
+    const s = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: lv, p_gx: B.gx, p_gy: B.gy });
+    const part = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', { p_session_id: s.session_id,
+      p_result: { valid: true, passed: false, score: 100, stars: 0, flags: [], suspicious: false, min_duration_ms: 0, rounds_passed: 2, rounds_total: 3, rounds_mask: [true, true, false] } });
+    expect(part.rewards.ink).toBe(0);
+    const s2 = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: lv, p_gx: B.gx, p_gy: B.gy });
+    const full = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', { p_session_id: s2.session_id,
+      p_result: { valid: true, passed: true, score: 300, stars: 3, flags: [], suspicious: false, min_duration_ms: 0, rounds_passed: 3, rounds_total: 3, rounds_mask: [true, true, true] } });
+    expect(full.rewards.ink).toBe(Math.floor(1 * Number(full.rewards.multiplier)));
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
 

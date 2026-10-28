@@ -491,7 +491,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
       {dirty && <Button size="sm" variant="ghost" onClick={() => setV(structuredClone(value))}>Undo</Button>}
       <Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('minigames', v, 'Minigame earnings updated for everyone')} data-testid="save-minigames">Save</Button>
     </div>}>
-      <p className="mb-4 text-sm text-muted">You set the Ink for every round of every level, per game. A cleared round pays <b>that level’s Ink per round</b> × plot upgrade bonus × rarity bonus × multipliers × boost. Clearing every round levels the plot up.</p>
+      <p className="mb-4 text-sm text-muted">Two kinds of Ink, per game: <b>level Ink</b> is paid once when a player completes a level (clears every round), and <b>round Ink</b> is paid for each round they clear (set it to 0 for none). Both × plot upgrade bonus × rarity bonus × multipliers × boost.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField label="Everyone’s Ink multiplier" value={Number(v.ink_multiplier ?? 1)} step={0.1} max={100} onChange={(n) => setV({ ...v, ink_multiplier: n })} suffix="×" hint="Applies to every game" />
         <NumberField label="Plot upgrade bonus" value={Math.round(Number(v.plot_level_bonus ?? 0.05) * 1000) / 10} step={0.5} onChange={(n) => setV({ ...v, plot_level_bonus: n / 100 })} suffix="% / level" />
@@ -519,7 +519,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
           <span>on a</span><select className={cn(inputCls, 'h-9 w-auto')} value={ex.rarity} onChange={(e) => setEx({ ...ex, rarity: e.target.value })} aria-label="Rarity">{RARITY_ORDER.map((r) => <option key={r} value={r}>{rarityInfo(r).name}</option>)}</select>
           <span>plot, upgrade level</span><input type="number" min={1} max={10} className={cn(inputCls, 'h-9 w-16')} value={ex.plotLevel} onChange={(e) => setEx({ ...ex, plotLevel: Number(e.target.value) })} />
         </div>
-        <div className="mt-2 font-display text-lg font-semibold tnum">{fmt(Math.floor(perRound * mult))} Ink per round · {fmt(Math.floor((perRound * exRounds + (Array.isArray(eg.round_bonus) ? eg.round_bonus.slice(0, exRounds).reduce((x: number, y: number) => x + Number(y || 0), 0) : 0)) * mult))} for all {exRounds} (with round bonuses) <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)}{boost > 1 ? `, incl. ${boost}× boost` : ''})</span></div>
+        <div className="mt-2 font-display text-lg font-semibold tnum">{fmt(Math.floor(perRound * mult))} for completing the level + {fmt(Math.floor((Array.isArray(eg.round_ink) ? eg.round_ink.slice(0, exRounds).reduce((x: number, y: number) => x + Number(y || 0), 0) : 0) * mult))} from its {exRounds} rounds <span className="text-sm font-normal text-muted">(×{mult.toFixed(2)}{boost > 1 ? `, incl. ${boost}× boost` : ''})</span></div>
       </div>
     </Card>
   );
@@ -527,7 +527,7 @@ function MinigameEarnings({ value, rarities }: { value: any; rarities: any[] }) 
 
 const boostActive = (b: any) => !!b && Number(b.multiplier) > 1 && (!b.ends_at || new Date(b.ends_at).getTime() > Date.now());
 const maxLevelOf = (gc: any, v: any) => Math.max(1, Math.min(500, Number(gc?.max_level ?? v?.max_level ?? 60)));
-/** Ink per cleared round at a level (the last table value carries on past the table's end). */
+/** Ink for completing a level (the last table value carries on past the table's end). */
 function levelInk(gc: any, level: number) {
   const t: number[] = Array.isArray(gc?.level_ink) ? gc.level_ink : [];
   if (!t.length) return 0;
@@ -553,7 +553,7 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
     <details className={cn('group rounded-2xl border p-3', live ? 'border-gold/60 bg-gold/5' : 'border-line')} data-testid={`game-earn-${g}`}>
       <summary className="flex cursor-pointer list-none items-center gap-2">
         <span className="font-semibold">{GAME_INFO[g]?.name ?? g}</span>
-        <span className="text-xs text-faint tnum">{max} levels · {rounds} rounds · Lv 1 {fmt(table[0] ?? 0)}/round → Lv {max} {fmt(table[max - 1] ?? 0)}/round</span>
+        <span className="text-xs text-faint tnum">{max} levels · {rounds} rounds · Lv 1 {fmt(table[0] ?? 0)} → Lv {max} {fmt(table[max - 1] ?? 0)} per level · rounds {(Array.isArray(c.round_ink) ? c.round_ink : []).slice(0, rounds).map((x: number) => fmt(Number(x || 0))).join('/') || '0'}</span>
         {live && <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-extrabold text-bg">{c.boost.multiplier}× BOOST</span>}
         {c.enabled === false && <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-bold text-faint">OFF</span>}
         <ChevronDown className="ml-auto h-4 w-4 text-muted transition group-open:rotate-180" />
@@ -577,20 +577,20 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
           <p className="mt-1 text-[11px] text-faint">Remember to press Save above.</p>
         </div>
         <div>
-          <div className="eyebrow mb-1">Round bonus — extra Ink for clearing each round</div>
-          <p className="mb-2 text-[11px] text-faint">Added on top of the level’s Ink per round, at every level (multipliers and boosts apply). E.g. make the last round pay a big bonus.</p>
+          <div className="eyebrow mb-1">Round Ink — paid for each round cleared</div>
+          <p className="mb-2 text-[11px] text-faint">The same at every level. 0 = that round pays nothing. Paid even if the player doesn’t complete the level.</p>
           <div className="flex flex-wrap gap-2">
             {Array.from({ length: rounds }, (_, r) => (
               <label key={r} className="grid gap-0.5 text-[11px] font-semibold text-muted">Round {r + 1}
-                <input type="number" min={0} max={100000} className="h-9 w-20 rounded-lg border border-line bg-surface px-2 text-sm text-fg tnum" data-testid={`round-bonus-${g}-${r}`}
-                  value={Number(c.round_bonus?.[r] ?? 0)} onChange={(e) => { const next = Array.from({ length: rounds }, (_, k) => Number(c.round_bonus?.[k] ?? 0)); next[r] = Math.max(0, Math.round(Number(e.target.value))); setGame(g, { round_bonus: next }); }} />
+                <input type="number" min={0} max={100000} className="h-9 w-20 rounded-lg border border-line bg-surface px-2 text-sm text-fg tnum" data-testid={`round-ink-${g}-${r}`}
+                  value={Number(c.round_ink?.[r] ?? 0)} onChange={(e) => { const next = Array.from({ length: rounds }, (_, k) => Number(c.round_ink?.[k] ?? 0)); next[r] = Math.max(0, Math.round(Number(e.target.value))); setGame(g, { round_ink: next }); }} />
               </label>
             ))}
           </div>
         </div>
         <div>
           <div className="mb-2 flex flex-wrap items-end gap-2">
-            <div className="eyebrow mr-auto">Ink per cleared round, by level</div>
+            <div className="eyebrow mr-auto">Level Ink — paid once for completing each level</div>
             <NumberField label="Level 1" value={fill.start} min={0} onChange={(n) => setFill({ ...fill, start: n })} suffix="Ink" />
             <NumberField label="Then add" value={fill.step} min={0} step={0.5} onChange={(n) => setFill({ ...fill, step: n })} suffix="per level" />
             <Button size="sm" variant="secondary" onClick={() => setGame(g, { level_ink: Array.from({ length: max }, (_, i) => Math.round(fill.start + fill.step * i)) })} data-testid={`fill-${g}`}>Fill all {max} levels</Button>
@@ -598,8 +598,8 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
           <div className="grid max-h-64 grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-1.5 overflow-y-auto scroll-thin pr-1">
             {table.map((n, i) => (
               <label key={i} className="grid gap-0.5 rounded-xl border border-line bg-surface/40 p-1.5 text-[10px] font-semibold text-muted">
-                Lv {i + 1} <span className="font-normal text-faint">= {fmt(n * rounds)}/level</span>
-                <input type="number" min={0} max={100000} className="h-8 w-full rounded-lg border border-line bg-surface px-1.5 text-sm text-fg tnum" value={n} onChange={(e) => setCell(i, Number(e.target.value))} aria-label={`Level ${i + 1} Ink per round`} />
+                Lv {i + 1}
+                <input type="number" min={0} max={100000} className="h-8 w-full rounded-lg border border-line bg-surface px-1.5 text-sm text-fg tnum" value={n} onChange={(e) => setCell(i, Number(e.target.value))} aria-label={`Ink for completing level ${i + 1}`} />
               </label>
             ))}
           </div>

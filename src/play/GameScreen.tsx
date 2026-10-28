@@ -1,6 +1,6 @@
 // /play/:game?gx&gy — intro → server session → play → server-validated results.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { activeBoost, boostLeft, inkPerRound, roundBonusTotal } from './rates';
+import { activeBoost, boostLeft, fullClearInk, levelInk, roundInk } from './rates';
 import { Zap, ArrowLeft, Check, ChevronRight, Gamepad2, Map as MapIcon, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -171,11 +171,15 @@ export default function GameScreen() {
               <p className="mt-4 rounded-2xl border border-ok/40 bg-ok/10 p-3 text-sm" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels of {info.name}. Beaten levels can’t be replayed — pick another plot{candidates.length > 1 ? ' above' : ''} to keep earning.</p>
             )}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-sm">
-              <span className="text-muted">{leftToday > 0 ? `Each round you clear pays` : 'Practice mode until reset'}</span>
-              <span className="flex items-center gap-1.5 font-bold">
-                {leftToday > 0 ? <><ResourceIcon r="ink" /> {fmt(inkPerRound(world.data, game, lvl, plot))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
+              <span className="text-muted">{leftToday > 0 ? `Completing level ${lvl} pays` : 'Practice mode until reset'}</span>
+              <span className="flex items-center gap-1.5 font-bold" data-testid="level-ink">
+                {leftToday > 0 ? <><ResourceIcon r="ink" /> {fmt(fullClearInk(world.data, game, lvl, plot))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
               </span>
-              <span className="w-full text-xs text-faint">Clear all {rounds} rounds ({fmt(estimateInk(world.data, lvl, plot, game))} Ink{roundBonusText(world.data, game, plot)}) to {lvl >= maxLevel ? 'finish the last level' : `unlock level ${lvl + 1}`} on this plot.</span>
+              {leftToday > 0 && (
+                <span className="w-full text-xs text-faint tnum">
+                  {fmt(levelInk(world.data, game, lvl, plot))} for the level{roundInk(world.data, game, plot).some((x) => x > 0) ? ` + rounds ${roundInk(world.data, game, plot).map((x, i) => `${i + 1}: ${fmt(x)}`).join(' · ')}` : ''}. Clear all {rounds} rounds to {lvl >= maxLevel ? 'finish the last level' : `unlock level ${lvl + 1}`}.
+                </span>
+              )}
             </div>
             <p className="mt-2 text-xs text-faint tnum">This plot: {prog ? `level ${prog.highest_level} cleared · ${prog.wins} wins` : 'fresh — starts at level 1'} · max level {maxLevel}{rec ? ` · best ever ${fmt(rec.best_score)}` : ''}</p>
             <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={!cell || !candidates.length || maxed} onClick={() => start(lvl)} data-testid="game-start">
@@ -238,14 +242,6 @@ function PlotPicker({ plots, progress, maxLevel, cell, onPick }: {
       {plots.length > 6 && <button className="mt-1.5 text-xs font-semibold text-accent-2" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${plots.length} plots`}</button>}
     </div>
   );
-}
-
-function estimateInk(world: any, level: number, plot: any, game: string) {
-  return inkPerRound(world, game, level, plot) * Math.max(1, Number(world?.minigames?.games?.[game]?.rounds ?? 5)) + roundBonusTotal(world, game, plot);
-}
-function roundBonusText(world: any, game: string, plot: any) {
-  const b = roundBonusTotal(world, game, plot);
-  return b > 0 ? `, incl. ${fmt(b)} round bonus` : '';
 }
 
 function Results({ r, level, maxLevel, onAgain, onMap, onNextPlot }: { r: MinigameFinish; level: number; maxLevel: number; onAgain(n: number): void; onMap(): void; onNextPlot?(): void }) {
