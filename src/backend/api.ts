@@ -41,6 +41,7 @@ export const api = {
     }),
 
   // map
+  plotBlocks: (blocks: [number, number][]) => rpc<Record<string, PlotRow[]>>('plot_blocks', { p_blocks: blocks }),
   plotsInBbox: (minGx: number, minGy: number, maxGx: number, maxGy: number) =>
     rpc<PlotRow[]>('plots_in_bbox', { p_min_gx: minGx, p_min_gy: minGy, p_max_gx: maxGx, p_max_gy: maxGy }),
   densityInBbox: (z: number, x0: number, y0: number, x1: number, y1: number) =>

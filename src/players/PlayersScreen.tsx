@@ -44,7 +44,7 @@ export default function PlayersScreen() {
       <PageHeader eyebrow="The people of the map" title="Players">
         Everyone claiming and painting the world. Step into anyone’s room to see all their art and land — rooms never show where it is.
       </PageHeader>
-      <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,320px)_1fr] md:items-center">
+      <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)] md:items-center">
         <label className="glass flex h-11 items-center gap-2 rounded-2xl px-3">
           <Search className="h-4 w-4 shrink-0 text-muted" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search players" aria-label="Search players" className="h-full min-w-0 flex-1 bg-transparent text-[14px] focus:outline-none" data-testid="players-search" />

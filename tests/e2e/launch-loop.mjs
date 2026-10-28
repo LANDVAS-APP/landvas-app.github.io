@@ -127,8 +127,9 @@ try {
   check('unclaimed plots show neither type nor minigame', !mystery.typeLayer && mystery.note, JSON.stringify(mystery));
   const hidden = await page.evaluate(async ([gx, gy]) => {
     const d = await window.__landvasApi.plotDetails(gx, gy);
-    const feats = window.__landvasMap.querySourceFeatures('lv-rarity');
-    return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: feats.some((f) => 'r' in f.properties), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
+    // unclaimed plots are one identical grid image: there is nothing per plot to read
+    const src = window.__landvasMap.getSource('lv-gridtiles');
+    return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: !src || src.type !== 'raster' || !/^lvgrid:/.test(src.tiles[0]), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
   }, [START.gx, START.gy]);
   check('unclaimed plots keep their rarity secret', hidden.rarity == null && hidden.hidden === true && hidden.rent == null && hidden.acquireRarity == null && !hidden.mapRarity && hidden.panel, JSON.stringify(hidden));
   await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
@@ -172,11 +173,19 @@ try {
     if (i === 0) await shot('06-game-results');
   }
   const inkNow = await ink();
-  check(`won ${game} and earned Ink (server-validated)`, wins > 0 && inkNow >= 100, `${wins} wins → ${inkNow} Ink`);
+  check(`won ${game} and earned Ink (server-validated)`, wins > 0 && inkNow > 0, `${wins} wins → ${inkNow} Ink`);
   const sources = await page.evaluate(async () => (await window.__landvasApi.myLedger(100)).filter((l) => l.resource === 'ink' && l.delta > 0).map((l) => l.reason));
   check('every Ink credit came from a minigame win', sources.length > 0 && sources.every((r) => r === 'minigame'), [...new Set(sources)].join(','));
 
-  // buy the neighbouring plot with Ink
+  // buy the neighbouring plot with Ink (level Ink is tuned by the admin: top up what the wins didn't cover)
+  await page.evaluate(async () => {
+    const api = window.__landvasApi;
+    const s = await api.myState();
+    if (Number(s.balances.ink) < 100) { await api.devGrantSelfAdmin(); await api.admin.adjustBalance(s.user_id, 'ink', 100 - Number(s.balances.ink), 'e2e test top-up'); }
+  });
+  await page.waitForTimeout(4000); // let the local database flush before reloading
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
   await page.evaluate(() => window.__landvasNav('/world'));
   await page.waitForSelector('[data-testid=world-map]', { timeout: 15000 });
   await gotoPlot(page, START.gx + 1, START.gy, ZP);
@@ -210,10 +219,9 @@ try {
   // every small plot in view is drawn as a plain mystery square
   const layers = await page.evaluate(() => {
     const m = window.__landvasMap;
-    const feats = m.querySourceFeatures('lv-rarity');
-    return { cells: feats.length, typed: feats.filter((f) => 't' in f.properties).length, rarity: feats.filter((f) => 'r' in f.properties).length };
+    return { gridLayer: !!m.getLayer('lv-grid'), visible: m.getLayoutProperty('lv-grid', 'visibility') !== 'none', loaded: m.isSourceLoaded('lv-gridtiles'), zoomOk: m.getZoom() >= m.getLayer('lv-grid').minzoom };
   });
-  check('every unclaimed plot in view is drawn, with no type or rarity', layers.cells > 100 && layers.typed === 0 && layers.rarity === 0, JSON.stringify(layers));
+  check('every unclaimed plot in view is drawn as the same plain square', layers.gridLayer && layers.visible && layers.loaded && layers.zoomOk, JSON.stringify(layers));
   const metres = (40075016.7 / G) * Math.cos((center(START.gx, START.gy).lat * Math.PI) / 180);
   check('plots are house-sized (~7 m at Salt Lake City)', metres > 6 && metres < 8, `${metres.toFixed(2)} m`);
 
@@ -428,7 +436,14 @@ try {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
   await page.evaluate(() => window.__landvasNav('/play'));
-  await page.waitForSelector(`[data-testid=boost-${boostGame}]`, { timeout: 30000 }).catch(() => {});
+  for (let i = 0; i < 3; i++) {
+    if (await page.waitForSelector(`[data-testid=boost-${boostGame}]`, { timeout: 15000 }).then(() => true, () => false)) break;
+    // the local database may not have reached disk before the reload: wait and look again
+    await page.waitForTimeout(5000);
+    await page.goto(URL, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
+    await page.evaluate(() => window.__landvasNav('/play'));
+  }
   const playOrder = await page.evaluate(() => [...document.querySelectorAll('[data-testid^=game-card-]')].map((e) => e.getAttribute('data-testid').replace('game-card-', '')));
   const boostTxt = await page.textContent(`[data-testid=boost-${boostGame}]`).catch(() => '');
   check('a boosted game shows first with its rate', playOrder[0] === boostGame && /3× Ink/.test(boostTxt), `${playOrder.join(',')} | ${boostTxt}`);

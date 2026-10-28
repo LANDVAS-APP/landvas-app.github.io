@@ -92,7 +92,7 @@ function TabItem({ to, label, icon: Icon, end, avatar, badge }: { to: string; la
 
 /** Scrollable page wrapper used by every non-map screen. */
 export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={cn('gutter mx-auto w-full pb-28 pt-5 md:pb-12', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
+  return <div className={cn('gutter mx-auto w-full pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))] md:pb-12', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
 }
 
 export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: string; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {

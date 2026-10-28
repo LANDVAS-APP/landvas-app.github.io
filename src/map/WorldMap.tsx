@@ -16,10 +16,10 @@ import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygo
 import { rarities } from '../shared/rarity';
 import { explorerNow, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
+import { CELLS_MIN_ZOOM, GRIDLINES_MIN_ZOOM, PLOTS_MIN_ZOOM, PlotBlocks, registerPlotProtocols } from './plotTiles';
 import { useCelebration } from '../plot/ClaimCelebration';
-import { STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
+import { BUILDING_LAYERS, STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
-import { patternImages } from './plotStyle';
 import { mapHandle } from './mapHandle';
 import { explorerElement } from '../explorer/character';
 
@@ -27,23 +27,18 @@ maplibregl.setWorkerUrl(workerUrl);
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 const ART_TILES = (gen: number) => [`lvart://{z}/{x}/{y}?g=${gen}`];
-// zooms at which each layer of the plot grid appears (a plot is 256 px at GRID_LEVEL)
-const PLOTS_MIN_ZOOM = GRID_LEVEL - 6.5; // owned plots load (~3 px each)
-const CELLS_MIN_ZOOM = GRID_LEVEL - 3.8; // every plot drawn (~18 px)
-const GRIDLINES_MIN_ZOOM = GRID_LEVEL - 4.8;
+const PLOT_TILES = (gen: number) => [`lvplots://{z}/{x}/{y}?g=${gen}`];
 const NAMES_MIN_ZOOM = GRID_LEVEL - 1.8;
-const MAX_CELLS = 5200;
+// phones with 3x screens draw at 2x: a third of the pixels to fill, the same look
+const PIXEL_RATIO = Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2);
 
-function rarityColor(prop = 'r', key: 'color' | 'glow' = 'color') {
-  const list = rarities();
-  return ['match', ['get', prop], ...list.flatMap((r) => [r.id, r[key]]), '#888'] as any;
-}
 function poly(gx: number, gy: number, props: Record<string, unknown>): GeoJSON.Feature {
   return { type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [cellPolygon(gx, gy)] } };
 }
 const setData = (map: MLMap, id: string, data: GeoJSON.GeoJSON) => (map.getSource(id) as GeoJSONSource | undefined)?.setData(data);
 
 export const artIndex = new ArtIndex();
+export const plotBlocks = new PlotBlocks();
 
 export function WorldMap() {
   const container = useRef<HTMLDivElement>(null);
@@ -51,10 +46,9 @@ export function WorldMap() {
   const onlineRef = useRef(false);
   const streetsRef = useRef(false);
   const genRef = useRef(1);
+  const plotGenRef = useRef(1);
   const seqRef = useRef(0);
-  const rowsRef = useRef<PlotRow[]>([]);
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
-  const rarityKeyRef = useRef('');
   const explorerMarker = useRef<maplibregl.Marker | null>(null);
   const nameMarkers = useRef(new Map<string, maplibregl.Marker>());
   const [ready, setReady] = useState(false);
@@ -76,7 +70,9 @@ export function WorldMap() {
     let map: MLMap | null = null;
     let disposed = false;
     registerArtProtocol(artIndex);
+    registerPlotProtocols(plotBlocks, () => ({ mode: modeRef.current, hidden: useCelebration.getState().hidden }));
     artIndex.reset();
+    plotBlocks.reset();
     (async () => {
       const { style, online, streets } = await resolveStyle(themeColors());
       if (disposed || !container.current) return;
@@ -98,6 +94,7 @@ export function WorldMap() {
         pitch: useUi.getState().settings.tilt3d ? 55 : 0,
         renderWorldCopies: true,
         fadeDuration: 180,
+        pixelRatio: PIXEL_RATIO,
       });
       map = m;
       m.touchZoomRotate.disableRotation();
@@ -111,7 +108,7 @@ export function WorldMap() {
         // a fly-to requested before this map existed (e.g. "View on map" from the editor)
         const pending = useUi.getState().flyTo;
         if (pending && Date.now() - pending.at < 15000) map.jumpTo({ center: [pending.lng, pending.lat], zoom: pending.zoom });
-        addLayers(map);
+        addLayers(map, streetsRef.current);
         // street names and place labels stay readable above the plots
         if (streetsRef.current) for (const id of STREET_LABEL_LAYERS) if (map.getLayer(id)) map.moveLayer(id);
         applyProjection(map, useUi.getState().settings.globe);
@@ -128,6 +125,9 @@ export function WorldMap() {
         refresh();
       });
       m.on('dragstart', () => useExplorer.getState().following && useExplorer.getState().setFollowing(false));
+      // markers hold their little animations still while the map moves (see app.css)
+      m.on('movestart', () => container.current?.classList.add('lv-map-moving'));
+      m.on('moveend', () => container.current?.classList.remove('lv-map-moving'));
       // raster fades only animate while frames keep coming: make sure a frame
       // follows every freshly loaded art tile so it always reaches full opacity
       m.on('sourcedata', (e: any) => {
@@ -166,13 +166,16 @@ export function WorldMap() {
     })();
     const unsub = getBackend().subscribeMapUpdates((u) => {
       artIndex.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
+      plotBlocks.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
       const bbox = useUi.getState().bbox;
       const inView = !bbox || (u.max_gx >= bbox.min_gx - 1 && u.min_gx <= bbox.max_gx + 1 && u.max_gy >= bbox.min_gy - 1 && u.min_gy <= bbox.max_gy + 1);
       const m = mapRef.current;
       if (inView && m?.getSource('lv-art')) {
         genRef.current++;
         (m.getSource('lv-art') as RasterTileSource).setTiles(ART_TILES(genRef.current));
+        redrawPlots();
       }
+      densityKey.current = '';
       void qc.invalidateQueries({ queryKey: ['plot'] });
       refresh();
     });
@@ -197,87 +200,66 @@ export function WorldMap() {
     refreshTimer.current = setTimeout(() => void loadViewport(), 120);
   }
 
+  /** Redraw the owned-plot tiles (after the data or the look changed). */
+  function redrawPlots() {
+    const m = mapRef.current;
+    if (!m?.getSource('lv-plots')) return;
+    plotGenRef.current++;
+    (m.getSource('lv-plots') as RasterTileSource).setTiles(PLOT_TILES(plotGenRef.current));
+  }
+
+  // Plots, their outlines and the grid are image tiles (see plotTiles.ts) that MapLibre
+  // loads on its own as you pan; all that's left here are the cheap extras.
   async function loadViewport() {
     const map = mapRef.current;
-    if (!map || !map.getSource('lv-plots')) return;
+    if (!map || !map.getSource('lv-density')) return;
     const seq = ++seqRef.current;
     const z = map.getZoom();
     const b = map.getBounds();
     const v = viewportCells(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
-    const cols = v.maxGx - v.minGx + 1;
-    const rows = v.maxGy - v.minGy + 1;
-    if (z >= PLOTS_MIN_ZOOM && cols <= 1024 && rows <= 1024) {
-      try {
-        const data = await api.plotsInBbox(v.minGx, v.minGy, v.maxGx, v.maxGy);
-        if (seq !== seqRef.current) return;
-        rowsRef.current = data;
-        setData(map, 'lv-plots', {
-          type: 'FeatureCollection',
-          features: data.map(([gx, gy, t, level, mine, group, art, user, accentColor, r]) => {
-            // a plot whose rarity is still rolling in the claim celebration stays neutral
-            const h = useCelebration.getState().hidden;
-            const rolling = !!h && h.gx === gx && h.gy === gy;
-            return poly(gx, gy, { t, level, m: mine ? 1 : 0, g: group, a: art ? 1 : 0, u: user, c: accentColor || '#7B5CFF', r: rolling ? 'common' : r || 'common' });
-          }),
-        });
-        setData(map, 'lv-density', EMPTY);
-        updateNames(map, data, z);
-      } catch {
-        /* transient */
-      }
-    } else {
-      setData(map, 'lv-plots', EMPTY);
-      updateNames(map, [], z);
-      const L = [5, 7, 9, 11, 13, 15, 17].reduce((best, l) => (Math.abs(l - (z + 3.4)) < Math.abs(best - (z + 3.4)) ? l : best), 5);
-      const s = GRID_LEVEL - L;
-      try {
-        const pts = await api.densityInBbox(L, Math.max(0, v.minGx >> s), Math.max(0, v.minGy >> s), Math.min((1 << L) - 1, v.maxGx >> s), Math.min((1 << L) - 1, v.maxGy >> s));
-        if (seq !== seqRef.current) return;
-        setData(map, 'lv-density', {
-          type: 'FeatureCollection',
-          features: pts.map(([x, y, n]) => ({
-            type: 'Feature', properties: { n },
-            geometry: { type: 'Point', coordinates: [xToLng((x + 0.5) / (1 << L)), yToLat((y + 0.5) / (1 << L))] },
-          })),
-        });
-      } catch {
-        /* transient */
-      }
-    }
-    // every unclaimed plot in view as a plain square: its type and rarity stay a surprise until claimed
-    const rarityKey = `${v.minGx}_${v.minGy}_${v.maxGx}_${v.maxGy}_${rowsRef.current.length}_${rowsRef.current[0]?.[0] ?? ''}`;
-    if (z >= CELLS_MIN_ZOOM && cols * rows <= MAX_CELLS) {
-      if (rarityKeyRef.current === rarityKey) return void updateLabels(map, b, z);
-      rarityKeyRef.current = rarityKey;
-      const owned = new Set(rowsRef.current.map((r) => `${r[0]}_${r[1]}`));
-      const feats: GeoJSON.Feature[] = [];
-      for (let y = v.minGy; y <= v.maxGy; y++)
-        for (let x = v.minGx; x <= v.maxGx; x++) {
-          const gx = ((x % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
-          if (!owned.has(`${gx}_${y}`)) feats.push(poly(x, y, {}));
-        }
-      setData(map, 'lv-rarity', { type: 'FeatureCollection', features: feats });
-    } else if (rarityKeyRef.current !== 'empty') {
-      rarityKeyRef.current = 'empty';
-      setData(map, 'lv-rarity', EMPTY);
-    }
-    // grid lines when zoomed out a little further than the rarity layer
-    if (z >= GRIDLINES_MIN_ZOOM && z < CELLS_MIN_ZOOM && cols <= 400 && rows <= 400) {
-      const lines: GeoJSON.Feature[] = [];
-      const north = yToLat(v.minGy / GRID_SIZE), south = yToLat((v.maxGy + 1) / GRID_SIZE);
-      const west = xToLng(v.minGx / GRID_SIZE), east = xToLng((v.maxGx + 1) / GRID_SIZE);
-      for (let x = v.minGx; x <= v.maxGx + 1; x++) lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[xToLng(x / GRID_SIZE), north], [xToLng(x / GRID_SIZE), south]] } });
-      for (let y = v.minGy; y <= v.maxGy + 1; y++) lines.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[west, yToLat(y / GRID_SIZE)], [east, yToLat(y / GRID_SIZE)]] } });
-      setData(map, 'lv-grid', { type: 'FeatureCollection', features: lines });
-    } else setData(map, 'lv-grid', EMPTY);
     void updateLabels(map, b, z);
+    if (z >= PLOTS_MIN_ZOOM) {
+      if (lastDensity.current) { lastDensity.current = false; densityKey.current = ''; setData(map, 'lv-density', EMPTY); }
+      if (z >= NAMES_MIN_ZOOM && modeRef.current !== 'canvas') {
+        try {
+          const rows = await plotBlocks.rowsIn(v.minGx, v.minGy, v.maxGx, v.maxGy, 16);
+          if (seq !== seqRef.current) return;
+          updateNames(map, rows, z);
+        } catch {
+          /* transient */
+        }
+      } else updateNames(map, [], z);
+      return;
+    }
+    updateNames(map, [], z);
+    const L = [5, 7, 9, 11, 13, 15, 17].reduce((best, l) => (Math.abs(l - (z + 3.4)) < Math.abs(best - (z + 3.4)) ? l : best), 5);
+    const s = GRID_LEVEL - L;
+    const key = `${L}_${v.minGx >> s}_${v.minGy >> s}_${v.maxGx >> s}_${v.maxGy >> s}`;
+    if (key === densityKey.current) return;
+    try {
+      const pts = await api.densityInBbox(L, Math.max(0, v.minGx >> s), Math.max(0, v.minGy >> s), Math.min((1 << L) - 1, v.maxGx >> s), Math.min((1 << L) - 1, v.maxGy >> s));
+      if (seq !== seqRef.current) return;
+      densityKey.current = key;
+      lastDensity.current = true;
+      setData(map, 'lv-density', {
+        type: 'FeatureCollection',
+        features: pts.map(([x, y, n]) => ({
+          type: 'Feature', properties: { n },
+          geometry: { type: 'Point', coordinates: [xToLng((x + 0.5) / (1 << L)), yToLat((y + 0.5) / (1 << L))] },
+        })),
+      });
+    } catch {
+      /* transient */
+    }
   }
+  const densityKey = useRef('');
+  const lastDensity = useRef(false);
 
   /** Custom plot names float over their plots when zoomed in. */
   function updateNames(map: MLMap, rows: PlotRow[], z: number) {
     const markers = nameMarkers.current;
     const show = z >= NAMES_MIN_ZOOM && modeRef.current !== 'canvas';
-    const named = show ? rows.filter((r) => r[10]).slice(0, 80) : [];
+    const named = show ? rows.filter((r) => r[10]).slice(0, 40) : [];
     const keep = new Set(named.map((r) => `${r[0]}_${r[1]}_${r[10]}`));
     for (const [k, m] of markers) if (!keep.has(k)) { m.remove(); markers.delete(k); }
     for (const r of named) {
@@ -297,6 +279,11 @@ export function WorldMap() {
     const markers = markersRef.current;
     const show = !onlineRef.current && modeRef.current !== 'canvas' && z >= 2.2 && (!streetsRef.current || z < 9.5);
     const list = show ? await citiesInView(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), z) : [];
+    // with map fonts available the labels are drawn by the map itself (no page elements to move every frame)
+    if (map.getSource('lv-cities')) {
+      setData(map, 'lv-cities', { type: 'FeatureCollection', features: list.map((c) => ({ type: 'Feature', properties: { name: c.name }, geometry: { type: 'Point', coordinates: [c.lng, c.lat] } })) });
+      return;
+    }
     const keep = new Set(list.map((c) => c.name + c.lng));
     for (const [k, m] of markers) if (!keep.has(k)) { m.remove(); markers.delete(k); }
     for (const c of list) {
@@ -324,17 +311,20 @@ export function WorldMap() {
     let added = false;
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
+    let lastLng = NaN, lastLat = NaN;
+    const cls = { walking: false, left: false, gps: false };
+    const toggle = (k: keyof typeof cls, on: boolean) => { if (cls[k] !== on) { cls[k] = on; el.classList.toggle(k, on); } };
     const loop = () => {
       const { state, offset, heading, following, gps } = useExplorer.getState();
       const p = explorerNow(state, offset);
       if (p) {
-        if (!added) { marker.setLngLat([p.lng, p.lat]).addTo(map); added = true; }
-        else marker.setLngLat([p.lng, p.lat]);
+        if (!added) { marker.setLngLat([p.lng, p.lat]).addTo(map); added = true; lastLng = p.lng; lastLat = p.lat; }
+        else if (p.lng !== lastLng || p.lat !== lastLat) { marker.setLngLat([p.lng, p.lat]); lastLng = p.lng; lastLat = p.lat; }
         if (prev && (Math.abs(prev.lng - p.lng) > 1e-9 || Math.abs(prev.lat - p.lat) > 1e-9)) movingUntil = performance.now() + 900;
         prev = p;
-        el.classList.toggle('walking', p.traveling || performance.now() < movingUntil);
-        el.classList.toggle('left', heading < 0);
-        el.classList.toggle('gps', gps === 'on');
+        toggle('walking', p.traveling || performance.now() < movingUntil);
+        toggle('left', heading < 0);
+        toggle('gps', gps === 'on');
         const c = lngLatToCell(p.lng, p.lat);
         const key = `${c.gx}_${c.gy}_${state?.reach ?? 1}`;
         if (key !== lastCell) {
@@ -367,6 +357,7 @@ export function WorldMap() {
       } else if (added) {
         marker.remove();
         added = false;
+        lastCell = '';
         setData(map, 'lv-reach', EMPTY);
       }
       raf = requestAnimationFrame(loop);
@@ -379,30 +370,29 @@ export function WorldMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accent, styleKey]);
 
-  // legendary & mythic plots shimmer
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map || settings.reduceMotion) return;
-    const id = setInterval(() => {
-      const t = performance.now() / 1000;
-      if (map.getLayer('lv-owned-glow')) map.setPaintProperty('lv-owned-glow', 'line-opacity', 0.45 + 0.35 * Math.sin(t * 2.4));
-    }, 90);
-    return () => clearInterval(id);
-  }, [ready, settings.reduceMotion]);
-
   // ---- reactive updates ------------------------------------------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
     applyMode(map, mode, onlineRef.current);
+    redrawPlots();
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, ready]);
 
+  // a different player sees different "mine" highlights
+  const uid = me?.user_id;
+  useEffect(() => {
+    if (!ready) return;
+    plotBlocks.reset();
+    redrawPlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, ready]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !world.data) return;
-    if (map.getLayer('lv-owned-glow')) map.setPaintProperty('lv-owned-glow', 'line-color', rarityColor('r', 'glow'));
+    redrawPlots(); // rarity colours come from the world config
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.data, ready]);
@@ -416,7 +406,7 @@ export function WorldMap() {
   const merge = useUi((s) => s.merge);
   const mergeHover = useUi((s) => s.mergeHover);
   const rolling = useCelebration((s) => s.hidden);
-  useEffect(() => { if (ready) refresh(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready) redrawPlots(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
@@ -426,6 +416,19 @@ export function WorldMap() {
       .flatMap((g) => g.cells.map((c) => poly(c[0], c[1], { s: mergeHover?.includes(g.id) && !merge?.includes(g.id) ? 2 : merge?.includes(g.id) ? 1 : merge ? 0 : 1 })));
     setData(map, 'lv-merge', { type: 'FeatureCollection', features: feats });
   }, [merge, mergeHover, groups.data, ready]);
+
+  // your own land changed (a claim, purchase, merge or new art): redraw those blocks at once
+  const ownKey = useRef('');
+  useEffect(() => {
+    if (!ready || !groups.data) return;
+    const k = groups.data.map((g) => `${g.id}:${g.status}:${g.plot_count}:${g.cells.length}`).sort().join('|');
+    if (ownKey.current && ownKey.current !== k) {
+      for (const g of groups.data) for (const [gx, gy] of g.cells) plotBlocks.invalidate(gx, gy, gx, gy);
+      redrawPlots();
+    }
+    ownKey.current = k;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups.data, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -463,6 +466,10 @@ export function WorldMap() {
     const map = mapRef.current;
     if (!ready || !map) return;
     const pitch = settings.tilt3d ? 55 : 0;
+    if (map.getLayer(BUILDING_LAYERS.tall)) {
+      map.setLayoutProperty(BUILDING_LAYERS.tall, 'visibility', settings.tilt3d ? 'visible' : 'none');
+      map.setLayoutProperty(BUILDING_LAYERS.flat, 'visibility', settings.tilt3d ? 'none' : 'visible');
+    }
     if (Math.abs(map.getPitch() - pitch) > 0.5) map.easeTo({ pitch, duration: settings.reduceMotion ? 0 : 900 });
   }, [settings.tilt3d, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -473,6 +480,10 @@ export function WorldMap() {
       if (!onlineRef.current) recolorOffline(map, themeColors(), streetsRef.current);
       applySky(map);
       if (map.getLayer('lv-veil')) map.setPaintProperty('lv-veil', 'background-color', themeColors().bg || '#0b0820');
+      if (map.getLayer('lv-cities')) {
+        map.setPaintProperty('lv-cities', 'text-color', cssVar('--muted', '#a1abd6'));
+        map.setPaintProperty('lv-cities', 'text-halo-color', cssVar('--bg', '#070b1c'));
+      }
     };
     recolor();
     const mq = matchMedia('(prefers-color-scheme: light)');
@@ -494,15 +505,14 @@ export function WorldMap() {
 
 // ---- layers & modes ----------------------------------------------------------------
 
-function addLayers(map: MLMap) {
-  for (const img of patternImages()) if (!map.hasImage(img.id)) map.addImage(img.id, { width: img.width, height: img.height, data: img.data }, { pixelRatio: 2 });
+function addLayers(map: MLMap, glyphs: boolean) {
   // Canvas mode lays a veil over the base map so the art leads
   map.addLayer({ id: 'lv-veil', type: 'background', paint: { 'background-color': themeColors().bg || '#0b0820', 'background-opacity': 0 } });
   map.addSource('lv-density', { type: 'geojson', data: EMPTY });
-  map.addSource('lv-rarity', { type: 'geojson', data: EMPTY }); // unclaimed cells in view (no type or rarity)
-  map.addSource('lv-plots', { type: 'geojson', data: EMPTY });
+  // the plot grid and owned plots are image tiles drawn on the device (plotTiles.ts)
+  map.addSource('lv-gridtiles', { type: 'raster', tiles: ['lvgrid://{z}/{x}/{y}'], tileSize: 256, minzoom: Math.floor(GRIDLINES_MIN_ZOOM), maxzoom: GRID_LEVEL });
+  map.addSource('lv-plots', { type: 'raster', tiles: PLOT_TILES(1), tileSize: 256, minzoom: Math.floor(PLOTS_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-art', { type: 'raster', tiles: ART_TILES(1), tileSize: 256, minzoom: ART_MIN_ZOOM, maxzoom: ART_MAX_ZOOM });
-  map.addSource('lv-grid', { type: 'geojson', data: EMPTY });
   map.addSource('lv-groups', { type: 'geojson', data: EMPTY });
   map.addSource('lv-reach', { type: 'geojson', data: EMPTY });
   map.addSource('lv-route', { type: 'geojson', data: EMPTY });
@@ -520,23 +530,9 @@ function addLayers(map: MLMap) {
     },
   });
   // unclaimed plots: a faint, identical square each — what's inside is a surprise until it's claimed
-  map.addLayer({ id: 'lv-cells-fill', type: 'fill', source: 'lv-rarity', minzoom: CELLS_MIN_ZOOM, paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.035 } });
-  map.addLayer({
-    id: 'lv-cells-line', type: 'line', source: 'lv-rarity', minzoom: CELLS_MIN_ZOOM,
-    paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], CELLS_MIN_ZOOM, 0.5, GRID_LEVEL, 1.4], 'line-opacity': ['interpolate', ['linear'], ['zoom'], CELLS_MIN_ZOOM, 0.12, GRID_LEVEL - 2, 0.3] },
-  });
-  map.addLayer({ id: 'lv-grid', type: 'line', source: 'lv-grid', minzoom: GRIDLINES_MIN_ZOOM, paint: { 'line-color': '#c7b8ff', 'line-width': 0.6, 'line-opacity': 0.25 } });
-  // claimed plots without art: owner colour + plot-type pattern; plots with art show nothing but the art
-  map.addLayer({ id: 'lv-plots-fill', type: 'fill', source: 'lv-plots', filter: ['==', ['get', 'a'], 0], paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['==', ['get', 'm'], 1], 0.55, 0.38] } });
-  map.addLayer({ id: 'lv-plots-pattern', type: 'fill', source: 'lv-plots', filter: ['==', ['get', 'a'], 0], paint: { 'fill-pattern': ['concat', 'pat-owned-', ['get', 't']], 'fill-opacity': 0.55 } });
-  map.addLayer({
-    id: 'lv-owned-glow', type: 'line', source: 'lv-plots', filter: ['all', ['==', ['get', 'a'], 0], ['in', ['get', 'r'], ['literal', ['legendary', 'mythic']]]],
-    paint: { 'line-color': rarityColor('r', 'glow'), 'line-width': ['interpolate', ['linear'], ['zoom'], GRID_LEVEL - 3, 3, GRID_LEVEL, 9], 'line-blur': 5, 'line-opacity': 0.6 },
-  });
-  map.addLayer({
-    id: 'lv-plots-line', type: 'line', source: 'lv-plots',
-    paint: { 'line-color': ['case', ['==', ['get', 'm'], 1], '#FFFFFF', ['get', 'c']], 'line-width': ['interpolate', ['linear'], ['zoom'], PLOTS_MIN_ZOOM, 0.5, GRID_LEVEL - 1, ['case', ['==', ['get', 'm'], 1], 2.4, 1.6]], 'line-opacity': 0.9 },
-  });
+  map.addLayer({ id: 'lv-grid', type: 'raster', source: 'lv-gridtiles', minzoom: GRIDLINES_MIN_ZOOM, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
+  // claimed plots: owner colour + plot-type pattern; plots with art show nothing but the art
+  map.addLayer({ id: 'lv-plots', type: 'raster', source: 'lv-plots', minzoom: PLOTS_MIN_ZOOM, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
   // merge mode: your canvases (dim) and the ones you've picked (bright)
@@ -550,8 +546,18 @@ function addLayers(map: MLMap) {
   map.addLayer({ id: 'lv-hover', type: 'line', source: 'lv-hover', paint: { 'line-color': '#ffffff', 'line-width': 1.5, 'line-opacity': 0.75 } });
   map.addLayer({ id: 'lv-sel-glow', type: 'line', source: 'lv-sel', paint: { 'line-color': '#FFE14D', 'line-width': 10, 'line-blur': 7, 'line-opacity': 0.6 } });
   map.addLayer({ id: 'lv-sel-line', type: 'line', source: 'lv-sel', paint: { 'line-color': '#FFE14D', 'line-width': 2.4 } });
+  if (glyphs) {
+    map.addSource('lv-cities', { type: 'geojson', data: EMPTY });
+    map.addLayer({
+      id: 'lv-cities', type: 'symbol', source: 'lv-cities',
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-letter-spacing': 0.04, 'text-anchor': 'top', 'text-offset': [0, 0.35], 'text-allow-overlap': false },
+      paint: { 'text-color': cssVar('--muted', '#a1abd6'), 'text-halo-color': cssVar('--bg', '#070b1c'), 'text-halo-width': 1.6, 'text-halo-blur': 0.6 },
+    });
+  }
   applySky(map);
 }
+
+const cssVar = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
 
 function applySky(map: MLMap) {
   const dark = effectiveDark(useUi.getState().settings.theme);
@@ -586,38 +592,25 @@ function dimBase(map: MLMap, dim: boolean, _online: boolean) {
 export function applyMode(map: MLMap, mode: MapMode, online: boolean) {
   const vis = (id: string, on: boolean) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   const p = (id: string, prop: string, v: unknown) => map.getLayer(id) && map.setPaintProperty(id, prop as any, v as any);
-  const mine = (a: number, b: number) => ['case', ['==', ['get', 'm'], 1], a, b];
   dimBase(map, mode === 'canvas', online);
-  for (const id of ['lv-cells-fill', 'lv-cells-line', 'lv-grid', 'lv-owned-glow']) vis(id, mode !== 'canvas');
+  vis('lv-grid', mode !== 'canvas');
   vis('lv-density', true);
   // the art itself is never tinted or faded: modes only change the overlays around it
   p('lv-art', 'raster-opacity', 1);
   switch (mode) {
     case 'atlas':
-      p('lv-plots-pattern', 'fill-opacity', 0.55);
-      p('lv-plots-fill', 'fill-opacity', mine(0.55, 0.38));
-      p('lv-plots-line', 'line-opacity', 0.9);
       p('lv-groups-glow', 'line-opacity', 0.35);
       p('lv-groups-line', 'line-opacity', 0.7);
       break;
     case 'canvas':
-      p('lv-plots-pattern', 'fill-opacity', 0.2);
-      p('lv-plots-fill', 'fill-opacity', 0.15);
-      p('lv-plots-line', 'line-opacity', 0);
       p('lv-groups-glow', 'line-opacity', 0);
       p('lv-groups-line', 'line-opacity', 0);
       break;
     case 'discovery':
-      p('lv-plots-pattern', 'fill-opacity', 0.7);
-      p('lv-plots-fill', 'fill-opacity', 0.5);
-      p('lv-plots-line', 'line-opacity', 1);
       p('lv-groups-glow', 'line-opacity', 0.25);
       p('lv-groups-line', 'line-opacity', 0.5);
       break;
     case 'land':
-      p('lv-plots-pattern', 'fill-opacity', mine(0.8, 0.1));
-      p('lv-plots-fill', 'fill-opacity', mine(0.7, 0.1));
-      p('lv-plots-line', 'line-opacity', mine(1, 0.15));
       p('lv-groups-glow', 'line-opacity', 0.75);
       p('lv-groups-line', 'line-opacity', 1);
       break;

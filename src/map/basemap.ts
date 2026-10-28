@@ -95,6 +95,11 @@ const DAY: StreetPalette = {
 };
 
 const STREETS_MIN = 8;
+// touch devices skip the blurred road glows: wide blurred lines are the most expensive
+// thing a phone GPU draws, and the roads read just as well without them
+const LITE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+/** 3D buildings only stand up while the map is tilted; flat roofs draw far cheaper. */
+export const BUILDING_LAYERS = { flat: 'st-buildings-flat', tall: 'st-buildings' };
 const fadeIn = (from: number, to: number, max = 1) => ['interpolate', ['linear'], ['zoom'], from, 0, to, max] as any;
 const widths = (stops: [number, number][]) => ['interpolate', ['exponential', 1.6], ['zoom'], ...stops.flat()] as any;
 const cls = (...c: string[]) => ['in', ['get', 'class'], ['literal', c]] as any;
@@ -136,7 +141,7 @@ export function streetLayers(p: StreetPalette): { base: LayerSpecification[]; la
     { id: 'st-aeroway', type: 'line', ...src, 'source-layer': 'aeroway', minzoom: 11, filter: cls('runway', 'taxiway'),
       paint: { 'line-color': p.runway, 'line-width': widths([[11, 1], [14, 8], [17, 40]]) } },
     // roads: dark casing, coloured core, glow on the big ones
-    ...ROADS.filter((r) => r.glow).map((r): LayerSpecification => ({
+    ...ROADS.filter((r) => r.glow && !LITE).map((r): LayerSpecification => ({
       id: `st-road-${r.id}-glow`, type: 'line', ...src, 'source-layer': 'transportation', minzoom: r.min,
       filter: ['all', cls(...r.classes), ['!=', ['get', 'brunnel'], 'tunnel']] as any,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -158,8 +163,10 @@ export function streetLayers(p: StreetPalette): { base: LayerSpecification[]; la
       paint: { 'line-color': p.path, 'line-width': widths([[14, 0.6], [17, 2], [19, 4]]), 'line-dasharray': [2, 1.5], 'line-opacity': 0.85 } },
     { id: 'st-rail', type: 'line', ...src, 'source-layer': 'transportation', minzoom: 11, filter: cls('rail', 'transit'),
       paint: { 'line-color': p.rail, 'line-width': widths([[11, 0.6], [15, 1.6], [18, 3]]), 'line-dasharray': [3, 2], 'line-opacity': 0.85 } },
-    // 3D buildings: flat roofs from above, towers when the map is tilted
-    { id: 'st-buildings', type: 'fill-extrusion', ...src, 'source-layer': 'building', minzoom: 13.5,
+    // buildings: flat roofs from above, 3D towers when the map is tilted
+    { id: 'st-buildings-flat', type: 'fill', ...src, 'source-layer': 'building', minzoom: 13.5,
+      paint: { 'fill-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], ...p.bld.flat()] as any, 'fill-opacity': fadeIn(13.5, 14.5, 0.88) } },
+    { id: 'st-buildings', type: 'fill-extrusion', ...src, 'source-layer': 'building', minzoom: 13.5, layout: { visibility: 'none' },
       filter: ['!=', ['get', 'hide_3d'], true] as any,
       paint: {
         'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], ...p.bld.flat()] as any,
@@ -202,10 +209,10 @@ function atlasLayers(c: ThemeColors, streets: boolean): LayerSpecification[] {
   const out = (from: number, to: number, v: number) => (streets ? ['interpolate', ['linear'], ['zoom'], from, v, to, 0] as any : v);
   return [
     { id: 'lv-bg', type: 'background', paint: { 'background-color': streets ? ['interpolate', ['linear'], ['zoom'], STREETS_MIN - 0.5, c.ocean, STREETS_MIN + 0.8, p.land] as any : c.ocean } },
-    { id: 'lv-grat', type: 'line', source: 'grat', paint: { 'line-color': c.grat, 'line-width': 1, 'line-opacity': out(7, 9, 1) } },
-    { id: 'lv-land', type: 'fill', source: 'land', paint: { 'fill-color': landColor(c.palette), 'fill-opacity': out(STREETS_MIN + 0.3, STREETS_MIN + 1.8, 0.92), 'fill-antialias': true } },
-    { id: 'lv-coast', type: 'line', source: 'land', paint: { 'line-color': c.coast, 'line-opacity': out(STREETS_MIN, STREETS_MIN + 1.5, 0.7), 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.7, 8, 2] } },
-    { id: 'lv-borders', type: 'line', source: 'borders', paint: { 'line-color': c.border, 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.6, 8, 1.4], 'line-dasharray': [3, 2], 'line-opacity': out(9, 11, 1) } },
+    { id: 'lv-grat', type: 'line', source: 'grat', ...(streets ? { maxzoom: 9 } : {}), paint: { 'line-color': c.grat, 'line-width': 1, 'line-opacity': out(7, 9, 1) } },
+    { id: 'lv-land', type: 'fill', source: 'land', ...(streets ? { maxzoom: STREETS_MIN + 1.8 } : {}), paint: { 'fill-color': landColor(c.palette), 'fill-opacity': out(STREETS_MIN + 0.3, STREETS_MIN + 1.8, 0.92), 'fill-antialias': true } },
+    { id: 'lv-coast', type: 'line', source: 'land', ...(streets ? { maxzoom: STREETS_MIN + 1.5 } : {}), paint: { 'line-color': c.coast, 'line-opacity': out(STREETS_MIN, STREETS_MIN + 1.5, 0.7), 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.7, 8, 2] } },
+    { id: 'lv-borders', type: 'line', source: 'borders', ...(streets ? { maxzoom: 11 } : {}), paint: { 'line-color': c.border, 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.6, 8, 1.4], 'line-dasharray': [3, 2], 'line-opacity': out(9, 11, 1) } },
   ];
 }
 
