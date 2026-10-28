@@ -264,8 +264,9 @@ describe('operator-tunable minigame earnings', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, ink_multiplier: 1, games: { ...cfg.games, [game]: { ...cfg.games[game], ink_multiplier: 3 } } } });
     const tripled = (await win()).rewards.ink;
     expect(tripled).toBeGreaterThanOrEqual(base * 3 - 1);
-    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, rewards: { ...cfg.rewards, base_ink: 100 } } });
-    expect((await win()).rewards.ink).toBeGreaterThan(base + 70);
+    // the operator's per-level table sets Ink per cleared round
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, [game]: { ...cfg.games[game], level_ink: [100] } } } });
+    expect((await win()).rewards.ink).toBeGreaterThanOrEqual(100);
     await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: cfg });
   });
 

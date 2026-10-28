@@ -20,6 +20,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
 import { NotificationBell } from '../updates/Notifications';
+import { MergeBar } from '../plot/MergeBar';
 import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
@@ -44,6 +45,8 @@ export function MapScreen() {
   useRaritySync();
   useExplorerSync();
   const [joystick, setJoystick] = useState(false);
+  const merging = useUi((s) => s.merge !== null);
+  useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className="absolute inset-0">
       <WorldMap />
@@ -85,7 +88,8 @@ export function MapScreen() {
       </AnimatePresence>
       <Legend mode={mode} />
       <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
-      {me && !selected && !joystick && <Checklist />}
+      {me && !selected && !joystick && !merging && <Checklist />}
+      {me && <MergeBar />}
       {me && <PlacementPrompt />}
       <ClaimCelebration />
     </div>

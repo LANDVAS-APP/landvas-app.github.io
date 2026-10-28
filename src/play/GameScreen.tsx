@@ -1,6 +1,7 @@
 // /play/:game?gx&gy — intro → server session → play → server-validated results.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, ChevronRight, Gamepad2, Map as MapIcon, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react';
+import { activeBoost, boostLeft, inkPerRound } from './rates';
+import { Zap, ArrowLeft, Check, ChevronRight, Gamepad2, Map as MapIcon, RotateCcw, Sparkles, Star, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { GamePreview } from './GamePreview';
@@ -76,6 +77,7 @@ export default function GameScreen() {
   useEffect(() => { setLevel(null); }, [cell?.gx, cell?.gy]);
   const lvl = level ?? unlocked;
   const rounds = Math.max(1, Math.min(10, Number(gameCfg.rounds ?? 5)));
+  const boost = activeBoost(world.data, game);
   const nextPlot = (() => {
     if (candidates.length < 2 || !cell) return null;
     const k = candidates.findIndex((p: any) => p.gx === cell.gx && p.gy === cell.gy);
@@ -147,6 +149,12 @@ export default function GameScreen() {
                 <p className="text-sm text-muted">{info.tagline}</p>
               </div>
             </div>
+            {boost && (
+              <div className="mt-4 flex items-center gap-2 rounded-2xl border border-gold/60 bg-gold/10 p-3 text-sm" data-testid="game-boost">
+                <Zap className="h-5 w-5 shrink-0 text-gold" />
+                <span><b className="text-gold">{boost.multiplier}× Ink boost</b> on {info.name} {boostLeft(boost)}.</span>
+              </div>
+            )}
             <ol className="mt-4 grid gap-2 text-sm text-muted">
               {info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}
             </ol>
@@ -167,9 +175,9 @@ export default function GameScreen() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-sm">
               <span className="text-muted">{leftToday > 0 ? `Each round you clear pays` : 'Practice mode until reset'}</span>
               <span className="flex items-center gap-1.5 font-bold">
-                {leftToday > 0 ? <><ResourceIcon r="ink" /> ~{fmt(Math.floor(estimateInk(world.data, lvl, plot, game) / rounds))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
+                {leftToday > 0 ? <><ResourceIcon r="ink" /> {fmt(inkPerRound(world.data, game, lvl, plot))} Ink {plot && <RarityBadge r={plot.rarity} small />}</> : <span className="text-faint">resets {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}</span>}
               </span>
-              <span className="w-full text-xs text-faint">Clear all {rounds} rounds (~{fmt(estimateInk(world.data, lvl, plot, game))} Ink) to unlock level {Math.min(lvl + 1, maxLevel)} on this plot.</span>
+              <span className="w-full text-xs text-faint">Clear all {rounds} rounds ({fmt(estimateInk(world.data, lvl, plot, game))} Ink) to unlock level {Math.min(lvl + 1, maxLevel)} on this plot.</span>
             </div>
             <p className="mt-2 text-xs text-faint tnum">This plot: {prog ? `level ${prog.highest_level} cleared · ${prog.wins} wins` : 'fresh — starts at level 1'} · max level {maxLevel}{rec ? ` · best ever ${fmt(rec.best_score)}` : ''}</p>
             <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={!cell || !candidates.length} onClick={() => start(lvl)} data-testid="game-start">
@@ -234,15 +242,8 @@ function PlotPicker({ plots, progress, maxLevel, cell, onPick }: {
   );
 }
 
-function estimateInk(world: any, level: number, plot: any, game?: string) {
-  const mg = world?.minigames ?? {};
-  const rw = mg.rewards ?? { base_ink: 20, ink_per_level: 2, score_ink_divisor: 80 };
-  const g = (game && mg.games?.[game]) ?? {};
-  const base = Number(g.base_ink ?? rw.base_ink), perLevel = Number(g.ink_per_level ?? rw.ink_per_level);
-  const levelBonus = 1 + Number(g.plot_level_bonus ?? mg.plot_level_bonus ?? 0.05) * ((plot?.level ?? 1) - 1);
-  const mult = (plot ? rarityInfo(plot.rarity).ink_reward_multiplier * levelBonus : 1)
-    * Number(mg.ink_multiplier ?? 1) * Number((game && mg.games?.[game]?.ink_multiplier) ?? 1);
-  return Math.floor((base + perLevel * level + 600 / Math.max(Number(rw.score_ink_divisor), 1)) * mult);
+function estimateInk(world: any, level: number, plot: any, game: string) {
+  return inkPerRound(world, game, level, plot) * Math.max(1, Number(world?.minigames?.games?.[game]?.rounds ?? 5));
 }
 
 function Results({ r, level, unlocked, onAgain, onMap, onNextPlot }: { r: MinigameFinish; level: number; unlocked: number; onAgain(n: number): void; onMap(): void; onNextPlot?(): void }) {

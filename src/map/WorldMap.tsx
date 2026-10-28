@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
-import type { PlotRow } from '../backend/types';
+import type { CanvasGroup, PlotRow } from '../backend/types';
 import { config } from '../env';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { effectiveDark, useUi, type MapMode } from '../lib/store';
@@ -140,7 +140,15 @@ export function WorldMap() {
           map.easeTo({ center: e.lngLat, zoom: Math.min(z + 3.2, Z_STREET + 0.5), duration: 650 });
           return;
         }
-        useUi.getState().select(lngLatToCell(e.lngLat.lng, e.lngLat.lat));
+        const cell = lngLatToCell(e.lngLat.lng, e.lngLat.lat);
+        const ui = useUi.getState();
+        if (ui.merge) {
+          // merge mode: tapping one of your plots adds or removes its canvas
+          const g = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined)?.find((x) => x.cells.some((c) => c[0] === cell.gx && c[1] === cell.gy));
+          if (g) ui.toggleMerge(g.id);
+          return;
+        }
+        ui.select(cell);
       });
       m.on('mousemove', (e) => {
         if (!map || map.getZoom() < GRIDLINES_MIN_ZOOM) return setData(map!, 'lv-hover', EMPTY);
@@ -394,6 +402,15 @@ export function WorldMap() {
     setData(map, 'lv-sel', selected ? { type: 'FeatureCollection', features: [poly(selected.gx, selected.gy, {})] } : EMPTY);
   }, [selected, ready]);
 
+  const merge = useUi((s) => s.merge);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    if (!merge || !groups.data) { setData(map, 'lv-merge', EMPTY); return; }
+    const feats: GeoJSON.Feature[] = groups.data.filter((g) => g.status === 'active').flatMap((g) => g.cells.map((c) => poly(c[0], c[1], { s: merge.includes(g.id) ? 1 : 0 })));
+    setData(map, 'lv-merge', { type: 'FeatureCollection', features: feats });
+  }, [merge, groups.data, ready]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !groups.data) return;
@@ -475,6 +492,7 @@ function addLayers(map: MLMap) {
   map.addSource('lv-route', { type: 'geojson', data: EMPTY });
   map.addSource('lv-hover', { type: 'geojson', data: EMPTY });
   map.addSource('lv-sel', { type: 'geojson', data: EMPTY });
+  map.addSource('lv-merge', { type: 'geojson', data: EMPTY });
 
   map.addLayer({
     id: 'lv-density', type: 'circle', source: 'lv-density', maxzoom: PLOTS_MIN_ZOOM + 1,
@@ -505,6 +523,9 @@ function addLayers(map: MLMap) {
   });
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
+  // merge mode: your canvases (dim) and the ones you've picked (bright)
+  map.addLayer({ id: 'lv-merge-fill', type: 'fill', source: 'lv-merge', paint: { 'fill-color': ['case', ['==', ['get', 's'], 1], '#22E3FF', '#FFFFFF'], 'fill-opacity': ['case', ['==', ['get', 's'], 1], 0.42, 0.08] } });
+  map.addLayer({ id: 'lv-merge-line', type: 'line', source: 'lv-merge', paint: { 'line-color': ['case', ['==', ['get', 's'], 1], '#22E3FF', '#C9F6FF'], 'line-width': ['case', ['==', ['get', 's'], 1], 3, 1.2], 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 } });
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.06 } });
   // published art sits above every territory overlay: it is shown exactly as it was painted
   map.addLayer({ id: 'lv-art', type: 'raster', source: 'lv-art', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest', 'raster-opacity': 1 } });

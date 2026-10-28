@@ -197,7 +197,11 @@ try {
   const far = { gx: START.gx + 14, gy: START.gy };
   await page.evaluate(() => window.__landvasUi?.select?.(null));
   await gotoPlot(page, far.gx, far.gy, ZP - 0.8);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
   await clickPlot(page, far.gx, far.gy);
+  // make sure the panel shows the far (unclaimed) plot, not the one that was open before
+  await page.waitForFunction(() => !/Rent\$/.test(document.querySelector('[data-testid=plot-panel]')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
   const panelText = await page.textContent('[data-testid=plot-panel]');
   check('far plots can only be reached by walking (no travel or jump buttons)', (await page.locator('[data-testid=claim-plot]').count()) === 0
     && (await page.locator('[data-testid=travel-here]').count()) === 0 && !/Jump now|Travel \(/.test(panelText) && /Walk closer/.test(panelText), panelText.slice(0, 300));
@@ -398,16 +402,50 @@ try {
   check('art can’t be searched by place', Array.isArray(regional) && regional.length === 0, String(regional?.length));
   check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
 
+  // merge several plots at once: Canvases → "merge with the ones touching it" → one tap on the map bar
+  const groupsBefore = await page.evaluate(async () => (await window.__landvasApi.myGroups()).filter((g) => g.status === 'active').length);
+  await page.evaluate(() => window.__landvasNav('/canvases'));
+  await page.waitForSelector('[data-testid=merge-touching]', { timeout: 15000 });
+  await page.click('[data-testid=merge-touching]');
+  await page.waitForSelector('[data-testid=merge-bar]', { timeout: 20000 });
+  await page.waitForSelector('[data-testid=merge-go]:not([disabled])', { timeout: 15000 });
+  await page.click('[data-testid=merge-go]');
+  await page.waitForFunction(() => !document.querySelector('[data-testid=merge-bar]'), null, { timeout: 20000 });
+  const groupsAfter = await page.evaluate(async () => (await window.__landvasApi.myGroups()).filter((g) => g.status === 'active'));
+  check('several plots merge in one go', groupsBefore >= 2 && groupsAfter.length === 1 && groupsAfter[0].plot_count === 2, `${groupsBefore} → ${groupsAfter.length} canvases`);
+
+  // boost a game: it jumps to the top of Play with its rate
+  const boostGame = await page.evaluate(async () => {
+    const api = window.__landvasApi;
+    const cfg = (await api.admin.configGet()).config.minigames.value;
+    const g = 'hueflow';
+    await api.admin.configSet('minigames', { ...cfg, games: { ...cfg.games, [g]: { ...cfg.games[g], boost: { multiplier: 3, ends_at: new Date(Date.now() + 7200_000).toISOString() } } } });
+    return g;
+  });
+  // (the local test build can't serve deep links on reload: reload at / and navigate in-app;
+  //  its in-browser database also saves to disk in the background, so give it a moment first)
+  await page.waitForTimeout(4000);
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
+  await page.evaluate(() => window.__landvasNav('/play'));
+  await page.waitForSelector(`[data-testid=boost-${boostGame}]`, { timeout: 30000 }).catch(() => {});
+  const playOrder = await page.evaluate(() => [...document.querySelectorAll('[data-testid^=game-card-]')].map((e) => e.getAttribute('data-testid').replace('game-card-', '')));
+  const boostTxt = await page.textContent(`[data-testid=boost-${boostGame}]`).catch(() => '');
+  check('a boosted game shows first with its rate', playOrder[0] === boostGame && /3× Ink/.test(boostTxt), `${playOrder.join(',')} | ${boostTxt}`);
+  check('the Play page doesn’t list every plot', (await page.locator('[data-testid^=game-card-] a[href*="gx="]').count()) === 0);
+
   // site-wide updates: staff send one, players get the popup and the bell
   await page.evaluate(async () => window.__landvasApi.admin.saveAnnouncement({ title: 'Eight minigames!', body: 'Memory Mural, Sculptor, HueFlow and Mirrorline are live.', kind: 'update', link: '/play', popup: true, active: true }));
+  await page.waitForTimeout(4000);
+  await page.goto(URL, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
   await page.evaluate(() => window.__landvasNav('/gallery'));
-  await page.reload({ waitUntil: 'load' });
   const popped = await page.waitForSelector('[data-testid=announcement-popup]', { timeout: 30000 }).then(() => true).catch(() => false);
   const popupText = popped ? await page.textContent('[data-testid=announcement-popup]') : '';
   if (popped) await page.click('[data-testid=announcement-dismiss]');
   await page.waitForTimeout(1500);
-  const after = await page.evaluate(async () => window.__landvasApi.notifications());
-  check('updates pop up once and land on the bell', popped && /Memory Mural/.test(popupText) && after.unread_announcements === 0 && after.announcements[0]?.title === 'Eight minigames!', JSON.stringify({ popped, unread: after.unread_announcements }));
+  const notes = await page.evaluate(async () => window.__landvasApi.notifications());
+  check('updates pop up once and land on the bell', popped && /Memory Mural/.test(popupText) && notes.unread_announcements === 0 && notes.announcements[0]?.title === 'Eight minigames!', JSON.stringify({ popped, unread: notes.unread_announcements }));
   await page.click('[data-testid=notification-bell]');
   const panel = await page.waitForSelector('[data-testid=updates-panel]', { timeout: 10000 }).then(() => page.textContent('[data-testid=updates-panel]')).catch(() => '');
   check('the bell lists the update', /Eight minigames!/.test(panel));

@@ -16,6 +16,10 @@ type UiState = {
   bbox: { min_gx: number; min_gy: number; max_gx: number; max_gy: number } | null;
   settings: Settings;
   flyTo: (View & { at: number }) | null;
+  /** Merge mode: the canvases (group ids) picked on the map, or null when off. */
+  merge: string[] | null;
+  setMerge(ids: string[] | null): void;
+  toggleMerge(id: string): void;
   setMode(m: MapMode): void;
   select(c: { gx: number; gy: number } | null): void;
   setView(v: View, bbox: UiState['bbox']): void;
@@ -47,6 +51,12 @@ export const useUi = create<UiState>((set, get) => ({
   bbox: null,
   settings: loadSettings(),
   flyTo: null,
+  merge: null,
+  setMerge: (merge) => set({ merge, selected: null }),
+  toggleMerge: (id) => {
+    const cur = get().merge ?? [];
+    set({ merge: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+  },
   setMode: (mode) => {
     saveStorage('landvas.mode', mode);
     set({ mode });

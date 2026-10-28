@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
+import { startMerge } from './MergeBar';
+import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -351,6 +352,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
           ))}
         </div>
       )}
+      <Button variant="secondary" size="sm" onClick={() => startMerge(d.group?.id)} data-testid="start-merge"><Combine className="h-4 w-4" /> Merge several plots at once</Button>
       <div className="grid gap-2">
         <div className="eyebrow">Level {d.level} / {maxLevel}</div>
         <UpgradeRow title={d.level < maxLevel ? `Upgrade to level ${d.level + 1}` : 'Max level'} desc="+1% rent and +5% minigame Ink on this plot" cost={levelCost} busy={busy === 'level'} onClick={doUpgrade} balances={me?.balances} />

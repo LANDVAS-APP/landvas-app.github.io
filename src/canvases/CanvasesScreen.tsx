@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brush, LayoutGrid, MapPin, Pencil } from 'lucide-react';
+import { Brush, Combine, LayoutGrid, MapPin, Pencil } from 'lucide-react';
+import { touchingGroups } from '../plot/MergeBar';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -42,6 +43,15 @@ function Shape({ g }: { g: CanvasGroup }) {
 export default function CanvasesScreen() {
   const me = useOnboardedMe();
   const nav = useNavigate();
+  /** Open the map in merge mode around a canvas, with some canvases already picked. */
+  const openMerge = (g: CanvasGroup, picked: string[]) => {
+    const [gx, gy] = g.cells[0];
+    const [lng, lat] = cellCenter(gx, gy);
+    useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE });
+    useUi.getState().setMode('land');
+    useUi.getState().setMerge(picked);
+    nav('/world');
+  };
   const qc = useQueryClient();
   const q = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -49,7 +59,8 @@ export default function CanvasesScreen() {
   const groups = q.data ?? [];
   return (
     <Page>
-      <PageHeader eyebrow="Canvas Fusion" title="My canvases">Each canvas is one artwork. Connect neighbouring plots you own to paint one continuous mural across them.</PageHeader>
+      <PageHeader eyebrow="Canvas Fusion" title="My canvases"
+        actions={groups.length > 1 && <Button variant="secondary" onClick={() => openMerge(groups[0], [])} data-testid="canvases-merge"><Combine className="h-4 w-4" /> Merge plots</Button>}>Each canvas is one artwork. Connect neighbouring plots you own to paint one continuous mural across them.</PageHeader>
       {!groups.length ? (
         <Empty icon={<LayoutGrid className="h-6 w-6" />} title="No canvases yet" action={<Button variant="rainbow" onClick={() => nav('/world')}>Claim your first plot</Button>}>Every plot you claim starts as its own canvas.</Empty>
       ) : (
@@ -83,7 +94,11 @@ export default function CanvasesScreen() {
                       nav('/world');
                     }}><MapPin className="h-4 w-4" /> Map</Button>
                   </div>
-                  {g.adjacent_groups.length > 0 && <p className="mt-2 text-xs text-accent-2">Touches {g.adjacent_groups.length} of your other canvases — connect them from a plot's panel on the map.</p>}
+                  {g.adjacent_groups.length > 0 && (
+                    <button className="mt-2 flex items-center gap-1.5 text-left text-xs font-semibold text-accent-2 hover:underline" onClick={() => openMerge(g, touchingGroups(groups, [g.id]))} data-testid="merge-touching">
+                      <Combine className="h-3.5 w-3.5" /> Merge with the {touchingGroups(groups, [g.id]).length - 1} canvas{touchingGroups(groups, [g.id]).length - 1 === 1 ? '' : 'es'} touching it
+                    </button>
+                  )}
                 </div>
               </div>
             );
