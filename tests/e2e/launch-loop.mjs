@@ -25,7 +25,11 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g/.test(m.text())) errors.push(m.text()); });
-const shot = (n, p = page) => p.screenshot({ path: path.join(OUT, `${n}.png`), timeout: 90000 });
+// screenshots are a visual record, not a check: a slow WebGL frame must not fail the run
+const shot = async (n, p = page) => {
+  try { await p.screenshot({ path: path.join(OUT, `${n}.png`), timeout: 45000 }); }
+  catch (e) { console.log(`note  screenshot ${n} skipped (${String(e.message).split('\n')[0]})`); }
+};
 const URL = `http://localhost:${PORT}/?e2e=1`;
 const G = 4194304; // plots per side (zoom-22 grid)
 const ZP = 20.4; // zoom that frames a few plots
