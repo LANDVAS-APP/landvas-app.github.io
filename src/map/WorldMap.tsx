@@ -16,6 +16,7 @@ import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygo
 import { rarities } from '../shared/rarity';
 import { explorerNow, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
+import { useCelebration } from '../plot/ClaimCelebration';
 import { STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
 import { patternImages } from './plotStyle';
@@ -206,8 +207,12 @@ export function WorldMap() {
         rowsRef.current = data;
         setData(map, 'lv-plots', {
           type: 'FeatureCollection',
-          features: data.map(([gx, gy, t, level, mine, group, art, user, accentColor, r]) =>
-            poly(gx, gy, { t, level, m: mine ? 1 : 0, g: group, a: art ? 1 : 0, u: user, c: accentColor || '#7B5CFF', r: r || 'common' })),
+          features: data.map(([gx, gy, t, level, mine, group, art, user, accentColor, r]) => {
+            // a plot whose rarity is still rolling in the claim celebration stays neutral
+            const h = useCelebration.getState().hidden;
+            const rolling = !!h && h.gx === gx && h.gy === gy;
+            return poly(gx, gy, { t, level, m: mine ? 1 : 0, g: group, a: art ? 1 : 0, u: user, c: accentColor || '#7B5CFF', r: rolling ? 'common' : r || 'common' });
+          }),
         });
         setData(map, 'lv-density', EMPTY);
         updateNames(map, data, z);
@@ -403,6 +408,8 @@ export function WorldMap() {
   }, [selected, ready]);
 
   const merge = useUi((s) => s.merge);
+  const rolling = useCelebration((s) => s.hidden);
+  useEffect(() => { if (ready) refresh(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;

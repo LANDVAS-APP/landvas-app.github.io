@@ -1,0 +1,193 @@
+// LANDVAS Duels: four head-to-head skill games. Both players get the exact same
+// challenge (same seed); the server replays each run's move log and compares
+// scores — higher score wins, a tie goes to the faster finish, a dead heat is a draw.
+import { hexToRgb } from '../color';
+import { MURAL_COLORS } from '../minigames/memorymural';
+import { mulberry32 } from '../minigames/rng';
+import { checkTimes } from '../minigames/types';
+
+export type DuelGame = 'turfwars' | 'paletteclash' | 'forgery' | 'pixelrecall';
+export const DUEL_GAMES: DuelGame[] = ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'];
+
+export type DuelResult = { valid: boolean; score: number; time_ms: number; summary: Record<string, unknown>; flags: string[]; reason?: string };
+const bad = (reason: string): DuelResult => ({ valid: false, score: 0, time_ms: 0, summary: { reason }, flags: [reason], reason });
+const seeded = (seed: number, salt: number) => mulberry32((Math.imul(seed ^ 0x2c1b3c6d, 2654435761) + salt * 97531) >>> 0);
+
+export const DUEL_INFO: Record<DuelGame, { name: string; tagline: string; howTo: string[]; color: string }> = {
+  turfwars: {
+    name: 'Turf Wars', tagline: 'Claim the most valuable land in 16 brush strokes.', color: '#3DDC97',
+    howTo: ['You start on the glowing plot. Every tap paints a plot next to your land.', 'Each plot is worth its number. You get 16 strokes.', 'Plan a route through the rich plots. The higher land value wins.'],
+  },
+  paletteclash: {
+    name: 'Palette Clash', tagline: 'Mix the exact colour, faster than them.', color: '#FF4D6D',
+    howTo: ['Each swatch is an even mix of two pigments from the palette.', 'Tap the two pigments that make it. Exact mixes score 100.', '8 swatches. Accuracy first, then speed.'],
+  },
+  forgery: {
+    name: 'Spot the Forgery', tagline: 'Find what the forger changed.', color: '#FFB23F',
+    howTo: ['The original mural is on top; the forgery below has 6 changed pixels.', 'Tap the changed pixels on the forgery. Wrong taps cost points.', 'Find all 6 fast — time is the tiebreaker.'],
+  },
+  pixelrecall: {
+    name: 'Pixel Recall', tagline: 'Remember it. Repaint it. Beat them.', color: '#34C3FF',
+    howTo: ['A mural shows for 4 seconds, then hides.', 'Repaint it from memory with the palette.', 'Every correct pixel scores — finish sooner to win ties.'],
+  },
+};
+
+// ---------------------------------------------------------------- Turf Wars
+export type TurfLevel = { n: number; values: number[]; start: number; strokes: number; timeLimitMs: number };
+export type TurfLog = { taps: { t: number; i: number }[]; done_t: number };
+export function generateTurf(seed: number): TurfLevel {
+  const rng = seeded(seed, 1);
+  const n = 9;
+  const values = Array.from({ length: n * n }, () => {
+    const r = rng.next();
+    return r < 0.12 ? 0 : r < 0.55 ? rng.int(1, 3) : r < 0.88 ? rng.int(4, 6) : rng.int(7, 9);
+  });
+  const start = Math.floor(n / 2) * n + Math.floor(n / 2);
+  values[start] = 0;
+  return { n, values, start, strokes: 16, timeLimitMs: 60_000 };
+}
+export const turfNeighbors = (n: number, i: number) => [i - n, i + n, i % n ? i - 1 : -1, i % n < n - 1 ? i + 1 : -1].filter((x) => x >= 0 && x < n * n);
+export function validateTurf(seed: number, log: TurfLog): DuelResult {
+  const L = generateTurf(seed);
+  if (!log || !Array.isArray(log.taps) || log.taps.length > L.strokes) return bad('bad_taps');
+  const t = checkTimes([...log.taps.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
+  if (t) return bad(t);
+  const owned = new Set([L.start]);
+  let score = 0;
+  for (const tap of log.taps) {
+    if (!Number.isInteger(tap.i) || owned.has(tap.i) || !turfNeighbors(L.n, tap.i).some((x) => owned.has(x))) return bad('not_adjacent');
+    owned.add(tap.i);
+    score += L.values[tap.i];
+  }
+  return { valid: true, score: score * 10, time_ms: log.done_t, summary: { land: score, strokes: log.taps.length }, flags: [] };
+}
+/** Greedy-plus-lookahead route (the e2e solver; also used to rate a board's best score). */
+export function solveTurf(L: TurfLevel): number[] {
+  const owned = new Set([L.start]);
+  const out: number[] = [];
+  for (let k = 0; k < L.strokes; k++) {
+    let best = -1, bestV = -1;
+    for (const o of owned) for (const nb of turfNeighbors(L.n, o)) {
+      if (owned.has(nb)) continue;
+      const look = Math.max(0, ...turfNeighbors(L.n, nb).filter((x) => !owned.has(x) && x !== nb).map((x) => L.values[x]));
+      const v = L.values[nb] * 2 + look;
+      if (v > bestV) { bestV = v; best = nb; }
+    }
+    if (best < 0) break;
+    owned.add(best); out.push(best);
+  }
+  return out;
+}
+
+// ------------------------------------------------------------ Palette Clash
+export type ClashLevel = { pigments: string[]; targets: { a: number; b: number; hex: string }[]; timeLimitMs: number };
+export type ClashLog = { picks: { t: number; a: number; b: number }[]; done_t: number };
+const PIGMENTS = ['#FF2E4D', '#FF8A00', '#FFE14D', '#2BD96B', '#14B8FF', '#5B3BFF', '#F5F4EF', '#1E1A2E', '#FF4FD8'];
+export const mixHex = (a: string, b: string) => {
+  const x = hexToRgb(a), y = hexToRgb(b);
+  const m = (u: number, v: number) => Math.round((u + v) / 2).toString(16).padStart(2, '0');
+  return `#${m(x[0], y[0])}${m(x[1], y[1])}${m(x[2], y[2])}`;
+};
+const dist = (a: string, b: string) => { const x = hexToRgb(a), y = hexToRgb(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+export function generateClash(seed: number): ClashLevel {
+  const rng = seeded(seed, 2);
+  const pigments = rng.shuffle(PIGMENTS.slice()).slice(0, 6);
+  const pairs: [number, number][] = [];
+  for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) pairs.push([a, b]);
+  const pick = rng.shuffle(pairs).slice(0, 8);
+  return { pigments, targets: pick.map(([a, b]) => ({ a, b, hex: mixHex(pigments[a], pigments[b]) })), timeLimitMs: 60_000 };
+}
+export function validateClash(seed: number, log: ClashLog): DuelResult {
+  const L = generateClash(seed);
+  if (!log || !Array.isArray(log.picks) || log.picks.length > L.targets.length) return bad('bad_picks');
+  const t = checkTimes([...log.picks.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
+  if (t) return bad(t);
+  let score = 0, exact = 0;
+  log.picks.forEach((p, k) => {
+    if (![p.a, p.b].every((x) => Number.isInteger(x) && x >= 0 && x < 6)) { score -= 1000; return; }
+    const d = dist(mixHex(L.pigments[p.a], L.pigments[p.b]), L.targets[k].hex);
+    if (d < 1) exact++;
+    score += Math.max(0, Math.round(100 - d * 0.9));
+  });
+  if (score < 0) return bad('bad_pigment');
+  return { valid: true, score, time_ms: log.done_t, summary: { exact, swatches: log.picks.length }, flags: [] };
+}
+
+// --------------------------------------------------------- Spot the Forgery
+export type ForgeryLevel = { n: number; original: number[]; forgery: number[]; changed: number[]; timeLimitMs: number };
+export type ForgeryLog = { taps: { t: number; i: number }[]; done_t: number };
+export function generateForgery(seed: number): ForgeryLevel {
+  const rng = seeded(seed, 3);
+  const n = 10;
+  const pal = rng.shuffle(MURAL_COLORS.map((_, i) => i).slice(1, 8)).slice(0, 5);
+  const original: number[] = [];
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) original.push(pal[(Math.floor((x + rng.int(0, 1)) / 3) + Math.floor(y / 3) + (rng.chance(0.18) ? 1 : 0)) % pal.length]);
+  const cells = rng.shuffle(Array.from({ length: n * n }, (_, i) => i)).slice(0, 6);
+  const forgery = original.slice();
+  for (const i of cells) forgery[i] = pal[(pal.indexOf(original[i]) + rng.int(1, pal.length - 1)) % pal.length];
+  return { n, original, forgery, changed: cells.sort((a, b) => a - b), timeLimitMs: 45_000 };
+}
+export function validateForgery(seed: number, log: ForgeryLog): DuelResult {
+  const L = generateForgery(seed);
+  if (!log || !Array.isArray(log.taps) || log.taps.length > 40) return bad('bad_taps');
+  const t = checkTimes([...log.taps.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
+  if (t) return bad(t);
+  const found = new Set<number>(); let wrong = 0;
+  for (const tap of log.taps) {
+    if (L.changed.includes(tap.i)) found.add(tap.i); else wrong++;
+  }
+  const score = Math.max(0, found.size * 100 - wrong * 40);
+  return { valid: true, score, time_ms: log.done_t, summary: { found: found.size, of: L.changed.length, wrong }, flags: [] };
+}
+
+// ------------------------------------------------------------- Pixel Recall
+export type RecallLevel = { n: number; colors: number[]; target: number[]; previewMs: number; timeLimitMs: number };
+export type RecallLog = { paints: { t: number; i: number; c: number }[]; done_t: number };
+export function generateRecall(seed: number): RecallLevel {
+  const rng = seeded(seed, 4);
+  const n = 6;
+  const colors = [0, ...rng.shuffle(MURAL_COLORS.map((_, i) => i).slice(1)).slice(0, 3)];
+  const target = new Array(n * n).fill(0);
+  for (let s = 0; s < 7; s++) {
+    const c = colors[rng.int(1, 3)];
+    let x = rng.int(0, n - 1), y = rng.int(0, n - 1);
+    for (let k = 0; k < rng.int(2, 5); k++) {
+      target[y * n + x] = c;
+      if (rng.chance(0.5)) x = Math.max(0, Math.min(n - 1, x + (rng.chance(0.5) ? 1 : -1)));
+      else y = Math.max(0, Math.min(n - 1, y + (rng.chance(0.5) ? 1 : -1)));
+    }
+  }
+  return { n, colors, target, previewMs: 4000, timeLimitMs: 40_000 };
+}
+export function validateRecall(seed: number, log: RecallLog): DuelResult {
+  const L = generateRecall(seed);
+  if (!log || !Array.isArray(log.paints) || log.paints.length > 400) return bad('bad_paints');
+  const t = checkTimes([...log.paints.map((x) => x.t), log.done_t], L.previewMs + L.timeLimitMs + 2000);
+  if (t) return bad(t);
+  if (log.paints.some((p) => p.t < L.previewMs - 150)) return bad('painted_during_preview');
+  const grid = new Array(L.n * L.n).fill(0);
+  for (const p of log.paints) {
+    if (!Number.isInteger(p.i) || p.i < 0 || p.i >= grid.length || !L.colors.includes(p.c)) return bad('illegal_paint');
+    grid[p.i] = p.c;
+  }
+  // only the cells that matter count, so a blank canvas scores nothing
+  const rel = grid.map((c, i) => (c !== 0 || L.target[i] !== 0 ? i : -1)).filter((i) => i >= 0);
+  const correct = rel.filter((i) => grid[i] === L.target[i]).length;
+  const wrong = rel.length - correct;
+  return { valid: true, score: Math.max(0, correct * 20 - wrong * 10), time_ms: log.done_t, summary: { correct, cells: rel.length }, flags: [] };
+}
+
+export function validateDuel(game: DuelGame, seed: number, log: unknown): DuelResult {
+  try {
+    if (JSON.stringify(log ?? null).length > 200_000) return bad('log_too_large');
+    switch (game) {
+      case 'turfwars': return validateTurf(seed, log as TurfLog);
+      case 'paletteclash': return validateClash(seed, log as ClashLog);
+      case 'forgery': return validateForgery(seed, log as ForgeryLog);
+      case 'pixelrecall': return validateRecall(seed, log as RecallLog);
+      default: return bad('unknown_game');
+    }
+  } catch {
+    return bad('malformed_log');
+  }
+}

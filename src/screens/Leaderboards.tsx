@@ -18,7 +18,7 @@ const KINDS = [
   { value: 'minigame:tracecraft', label: 'TraceCraft', unit: 'pts' },
   { value: 'minigame:memorymural', label: 'Memory Mural', unit: 'pts' },
   { value: 'minigame:sculptor', label: 'Sculptor', unit: 'pts' },
-  { value: 'minigame:hueflow', label: 'HueFlow', unit: 'pts' },
+  { value: 'minigame:rollermural', label: 'Roller Mural', unit: 'pts' },
   { value: 'minigame:mirrorline', label: 'Mirrorline', unit: 'pts' },
 ];
 

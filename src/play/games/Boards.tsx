@@ -4,7 +4,7 @@
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { roundSeed } from '../../shared/minigames/boards';
-import { validateHueFlow } from '../../shared/minigames/hueflow';
+import { validateRollerMural } from '../../shared/minigames/rollermural';
 import { validateLightLines } from '../../shared/minigames/lightlines';
 import { validateMemoryMural } from '../../shared/minigames/memorymural';
 import { validateMirrorline } from '../../shared/minigames/mirrorline';
@@ -16,7 +16,7 @@ import type { GameProps } from '../common';
 
 const CHECK: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
   patternshift: validatePatternShift, lightlines: validateLightLines, memorymural: validateMemoryMural,
-  sculptor: validateSculptor, hueflow: validateHueFlow, mirrorline: validateMirrorline,
+  sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 
 export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement | null) {

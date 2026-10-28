@@ -5,7 +5,7 @@ import { roundSeed, type BoardsLog } from '../../src/shared/minigames/boards';
 import { validateMinigame } from '../../src/shared/minigames';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
 import { generateSculptor, iou, sculpt } from '../../src/shared/minigames/sculptor';
-import { generateHueFlow } from '../../src/shared/minigames/hueflow';
+import { generateRollerMural, rollGrid, solveRoller } from '../../src/shared/minigames/rollermural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
 import { generatePatternShift } from '../../src/shared/minigames/patternshift';
 import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
@@ -25,15 +25,10 @@ function sculptLog(seed: number, level: number) {
   for (let pass = 0; pass < 6; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.falloff, v, L.target[v]); moves.push({ t: (t += 60), v, r: L.target[v] }); }
   return { log: { moves, done_t: t + 200 }, match: iou(r, L.target) };
 }
-function hueLog(seed: number, level: number) {
-  const L = generateHueFlow(seed, level);
-  const b = L.board.slice();
-  const swaps: { t: number; a: number; b: number }[] = [];
+function rollerLog(seed: number, level: number) {
+  const L = generateRollerMural(seed, level);
   let t = 0;
-  for (let i = 0; i < b.length; i++) {
-    while (b[i] !== i) { const j = b.indexOf(i); swaps.push({ t: (t += 400), a: i, b: j }); [b[i], b[j]] = [b[j], b[i]]; }
-  }
-  return { swaps, done_t: t + 300, par: L.par };
+  return { strokes: solveRoller(L.n, L.base, L.target).map((x) => ({ ...x, t: (t += 300) })), done_t: t + 300 };
 }
 function mirrorLog(seed: number, level: number) {
   const L = generateMirrorline(seed, level);
@@ -71,13 +66,18 @@ describe('art minigames', () => {
     expect(idle.passed).toBe(false);
   });
 
-  it('HueFlow: restoring the gradient passes, swapping a pinned tile is illegal', () => {
-    const v = validateMinigame('hueflow', SEED, 4, boards(5, (s) => hueLog(s, 4)), 5);
-    expect(v.valid && v.passed).toBe(true);
-    const L = generateHueFlow(roundSeed(SEED, 0), 4);
-    const pinned = L.locked.indexOf(true), free = L.locked.indexOf(false);
-    const bad = boards(5, (s) => (s === roundSeed(SEED, 0) ? { swaps: [{ t: 500, a: pinned, b: free }], done_t: 900 } : hueLog(s, 4)));
-    expect(validateMinigame('hueflow', SEED, 4, bad, 5).reason).toBe('illegal_swap');
+  it('Roller Mural: every mural can be peeled back into strokes; a wrong colour is illegal', () => {
+    for (const level of [1, 5, 12, 30, 60]) {
+      for (let k = 0; k < 20; k++) {
+        const L = generateRollerMural(SEED + k, level);
+        const sol = solveRoller(L.n, L.base, L.target);
+        expect(rollGrid(L.n, L.base, sol)).toEqual(L.target);
+        expect(sol.length).toBeLessThanOrEqual(L.maxStrokes);
+      }
+      expect(validateMinigame('rollermural', SEED, level, boards(5, (s) => rollerLog(s, level)), 5).passed).toBe(true);
+    }
+    const bad = boards(5, (s) => (s === roundSeed(SEED, 0) ? { strokes: [{ t: 500, axis: 'r', i: 0, c: 0 }], done_t: 900 } : rollerLog(s, 3)));
+    expect(validateMinigame('rollermural', SEED, 3, bad, 5).reason).toBe('illegal_stroke');
   });
 
   it('Mirrorline: an exact reflection passes; painting the given half is illegal', () => {

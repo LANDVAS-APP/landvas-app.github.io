@@ -3,7 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, Duel, DuelLobby, DuelStart, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
 } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
@@ -73,6 +73,13 @@ export const api = {
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
+  // duels & joystick refills
+  duelsLobby: () => rpc<DuelLobby>('duels_lobby'),
+  duelCreate: (game: string, stake: number, invite?: string | null) => rpc<DuelStart>('duel_create', { p_game: game, p_stake: stake, p_invite: invite || null, p_idempotency_key: idemKey('duel') }),
+  duelAccept: (id: string) => rpc<DuelStart>('duel_accept', { p_duel_id: id, p_idempotency_key: idemKey('duel-accept') }),
+  duelCancel: (id: string) => rpc<Duel>('duel_cancel', { p_duel_id: id }),
+  duelFinish: (id: string, log: unknown) => getBackend().finishDuel(id, log),
+  refillJoystickWithInk: () => rpc<ExplorerState & { balances: Balances; cost: number }>('refill_joystick_with_ink', { p_idempotency_key: idemKey('refill') }),
   // updates & support
   notifications: () => rpc<Notifications>('my_notifications'),
   announcements: () => rpc<{ items: Announcement[]; unread: number }>('announcements_list', { p_limit: 30 }),
@@ -186,6 +193,7 @@ export const api = {
     saveAnnouncement: (a: { id?: string | null; title: string; body: string; kind: string; link?: string | null; popup: boolean; active: boolean }) =>
       rpc<Announcement>('admin_announcement_save', { p_id: a.id ?? null, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup, p_active: a.active }),
     deleteAnnouncement: (id: string) => rpc<{ ok: boolean }>('admin_announcement_delete', { p_id: id }),
+    duels: () => rpc<any>('admin_duels'),
     supportTickets: (status?: string | null) => rpc<{ tickets: SupportTicket[]; counts: { open: number; answered: number; closed: number } }>('admin_support_tickets', { p_status: status ?? null }),
     searchPlayers: (q: string) => rpc<any[]>('admin_search_players', { p_query: q, p_limit: 60 }),
     playerDetail: (id: string) => rpc<any>('admin_player_detail', { p_player_id: id }),

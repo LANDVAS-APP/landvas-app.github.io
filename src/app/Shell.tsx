@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
+import { Swords, LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -19,6 +19,7 @@ const MAIN = [
 // the phone tab bar keeps five: Canvases and Players live in Me and Social
 const MOBILE = ['/world', '/play', '/social', '/gallery'];
 const MORE = [
+  { to: '/duels', label: 'Duels', icon: Swords },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },

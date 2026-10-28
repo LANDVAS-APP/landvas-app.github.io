@@ -9,7 +9,7 @@ export const PLOT_TYPES: Record<PlotTypeId, { name: string; game: string; a: str
   lumina: { name: 'Lumina', game: 'LightLines', a: '#8B5CFF', b: '#22E3FF', base: '#170F3D', blurb: 'Neon light and glowing gradients' },
   fresco: { name: 'Fresco', game: 'Memory Mural', a: '#FF8A5B', b: '#FFD6A5', base: '#3A2219', blurb: 'Plaster walls that remember every stroke' },
   clay: { name: 'Clay', game: 'Sculptor', a: '#C8794A', b: '#F2C49B', base: '#2E1B12', blurb: 'Soft earth waiting to be shaped' },
-  prism: { name: 'Prism', game: 'HueFlow', a: '#5EE6C7', b: '#B49BFF', base: '#14253A', blurb: 'Light split into every shade' },
+  prism: { name: 'Prism', game: 'Roller Mural', a: '#5EE6C7', b: '#B49BFF', base: '#14253A', blurb: 'Light split into every shade' },
   glass: { name: 'Glass', game: 'Mirrorline', a: '#8FD8FF', b: '#E3F6FF', base: '#102838', blurb: 'Mirrored panes and perfect reflections' },
 };
 

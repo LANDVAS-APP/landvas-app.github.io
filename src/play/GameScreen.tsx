@@ -21,7 +21,7 @@ import { LightLinesGame } from './games/LightLines';
 import { PatternShiftGame } from './games/PatternShift';
 import { TraceCraftGame } from './games/TraceCraft';
 import { boardsGame } from './games/Boards';
-import { HueFlowBoard } from './games/HueFlow';
+import { RollerMuralBoard } from './games/RollerMural';
 import { MemoryMuralBoard } from './games/MemoryMural';
 import { MirrorlineBoard } from './games/Mirrorline';
 import { SculptorBoard } from './games/Sculptor';
@@ -35,7 +35,7 @@ const GAMES: Record<GameId, (p: GameProps) => React.ReactElement | null> = {
   tracecraft: TraceCraftGame,
   memorymural: boardsGame('memorymural', MemoryMuralBoard),
   sculptor: boardsGame('sculptor', SculptorBoard),
-  hueflow: boardsGame('hueflow', HueFlowBoard),
+  rollermural: boardsGame('rollermural', RollerMuralBoard),
   mirrorline: boardsGame('mirrorline', MirrorlineBoard),
 };
 const TYPE_OF = Object.fromEntries(Object.entries(GAME_INFO).map(([g, i]) => [g, i.plotType])) as Record<GameId, keyof typeof PLOT_TYPES>;

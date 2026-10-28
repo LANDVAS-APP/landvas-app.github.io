@@ -465,6 +465,7 @@ function Earnings() {
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
+        {cfg.data.config.duels && <DuelSettings value={cfg.data.config.duels.value} />}
       </div>
     </div>
   );
@@ -593,6 +594,31 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
   );
 }
 
+function DuelSettings({ value }: { value: any }) {
+  const save = useSaveConfig();
+  const [v, setV] = useState<any>(() => structuredClone(value));
+  useEffect(() => setV(structuredClone(value)), [value]);
+  const stats = useQuery({ queryKey: ['admin', 'duels'], queryFn: api.admin.duels, refetchInterval: 30_000 });
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const NAMES: Record<string, string> = { turfwars: 'Turf Wars', paletteclash: 'Palette Clash', forgery: 'Spot the Forgery', pixelrecall: 'Pixel Recall' };
+  return (
+    <Card title="Duels (player vs player)" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => save('duels', v, 'Duel settings saved')} data-testid="save-duels">Save</Button>}>
+      <Switch id="duels-on" checked={!!v.enabled} label="Duels are open" hint="Players stake Ink against each other on the same skill challenge; the higher score takes the pot." onCheckedChange={(on) => setV({ ...v, enabled: on })} />
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <NumberField label="Smallest stake" value={Number(v.min_stake ?? 10)} min={1} onChange={(n) => setV({ ...v, min_stake: Math.round(n) })} suffix="Ink" />
+        <NumberField label="Biggest stake" value={Number(v.max_stake ?? 500)} min={1} onChange={(n) => setV({ ...v, max_stake: Math.round(n) })} suffix="Ink" />
+        <NumberField label="Arena fee" value={Number(v.fee_pct ?? 0)} min={0} max={50} step={0.5} onChange={(n) => setV({ ...v, fee_pct: n })} suffix="% of pot" hint="Removed from the game (an Ink sink)" />
+        <NumberField label="Duels per player per day" value={Number(v.daily_limit ?? 20)} min={1} max={1000} onChange={(n) => setV({ ...v, daily_limit: Math.round(n) })} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold">
+        {Object.keys(NAMES).map((g) => <label key={g} className="flex items-center gap-2"><input type="checkbox" checked={v.games?.[g] !== false} onChange={(e) => setV({ ...v, games: { ...v.games, [g]: e.target.checked } })} /> {NAMES[g]}</label>)}
+      </div>
+      {stats.data && <p className="mt-3 text-xs text-muted tnum">Today: {stats.data.today.duels} duels · {stats.data.today.done} finished · {fmt(stats.data.today.ink_staked)} Ink staked · {fmt(stats.data.today.fees)} Ink in fees</p>}
+      <p className="mt-2 text-xs text-faint">Heads-up before switching this on: players can turn USD rent into Ink, and plots bought with Ink earn USD rent that’s meant to become cashable. Together that can make an Ink duel a paid-entry contest for something with money value, which some places regulate or ban. Get legal advice for where your players are before opening duels.</p>
+    </Card>
+  );
+}
+
 function RarityRates({ rarities }: { rarities: any[] }) {
   const qc = useQueryClient();
   const [edit, setEdit] = useState<Record<string, { usd?: string; ink?: string }>>({});
@@ -678,7 +704,11 @@ function World() {
           <NumberField label="Speed" value={Number(j.speed_kmh ?? 40)} min={1} max={500} onChange={(n) => setJ({ speed_kmh: n })} suffix="km/h" />
           <NumberField label="Tank" value={Number(j.tank_seconds ?? 60)} min={0} max={3600} onChange={(n) => setJ({ tank_seconds: Math.round(n) })} suffix="seconds" hint="Also how far (time × speed) it can stray from the player" />
         </div>
-        <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.daily_refill !== false} onChange={(e) => setJ({ daily_refill: e.target.checked })} /> Free daily refill (until rewarded ads are connected)</label>
+        <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={j.daily_refill !== false} onChange={(e) => setJ({ daily_refill: e.target.checked })} /> Free daily refill</label>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <NumberField label="Ink refill price" value={Number(j.refill_ink ?? 50)} min={0} max={100000} onChange={(n) => setJ({ refill_ink: Math.round(n) })} suffix="Ink" />
+          <NumberField label="Ink refills per day" value={Number(j.ink_refills_per_day ?? 3)} min={0} max={100} onChange={(n) => setJ({ ink_refills_per_day: Math.round(n) })} />
+        </div>
       </Card>
     </div>
   );

@@ -8,7 +8,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
-import type { MapUpdate, MinigameFinish } from '../types';
+import type { DuelFinish, MapUpdate, MinigameFinish } from '../types';
 
 const PIPELINE_RPCS = new Set([
   'submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot',
@@ -138,6 +138,23 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.sb.functions.invoke('minigame-finish', { body: { session_id: sessionId, log } });
     if (error) throw await functionError(error);
     return data as MinigameFinish;
+  }
+
+  async finishDuel(duelId: string, log: unknown): Promise<DuelFinish> {
+    if (config.workerUrl) {
+      const { data } = await this.sb.auth.getSession();
+      const res = await fetch(`${config.workerUrl}/v1/minigames/finish`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ duel_id: duelId, log }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new GameError(body.error ?? 'duel_error');
+      return body as DuelFinish;
+    }
+    const { data, error } = await this.sb.functions.invoke('minigame-finish', { body: { duel_id: duelId, log } });
+    if (error) throw await functionError(error);
+    return data as DuelFinish;
   }
 
   /** Ask the pipeline Edge Function to process queued publications (idempotent). */

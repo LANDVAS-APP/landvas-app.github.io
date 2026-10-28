@@ -13,10 +13,10 @@ import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
 import { activeBoost, boostLeft, inkPerRound } from './rates';
-import { Zap } from 'lucide-react';
+import { Swords, Zap } from 'lucide-react';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
-  ['lightlines', 'patternshift', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'] as GameId[]
+  ['lightlines', 'patternshift', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
 ).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 
 export default function PlayHub() {
@@ -34,6 +34,13 @@ export default function PlayHub() {
       <PageHeader eyebrow="Earn Ink" title="Play">
         {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Each game pays Ink for ${limit} runs a day — every round you clear pays, and clear all 5 rounds to level the plot up${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}. Rarer plots pay more.`}
       </PageHeader>
+      {world.data && (
+        <Link to="/duels" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-duels">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-hot/15 text-hot"><Swords className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-display font-semibold">Duels</span><span className="block text-xs text-muted">Stake Ink against another player on the same challenge — winner takes the pot.</span></span>
+          <span className="text-sm font-bold text-hot">Enter →</span>
+        </Link>
+      )}
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>
           Every plot type has its own minigame, and every plot climbs its own levels. Your free starter plot is waiting on the map.

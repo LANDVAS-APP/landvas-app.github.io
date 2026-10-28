@@ -4,7 +4,7 @@
 //  * LocalBackend   — the same SQL migrations running in-browser on PGlite,
 //    with IndexedDB storage and the shared pipeline. Zero setup, single device.
 import { config } from '../env';
-import type { MapUpdate, MinigameFinish } from './types';
+import type { MapUpdate, MinigameFinish, DuelFinish } from './types';
 
 export type Session = { userId: string; email: string | null };
 
@@ -35,6 +35,8 @@ export interface Backend {
   /** Encoded PNG bytes of a published map art tile. */
   artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal): Promise<ArrayBuffer | null>;
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
+  /** Submit a duel run's move log; the server replays it against the duel's seed. */
+  finishDuel(duelId: string, log: unknown): Promise<DuelFinish>;
   /** Local mode runs the pipeline in-page after submission/admin actions. */
   kickPipeline(): Promise<void>;
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;
@@ -57,6 +59,16 @@ const MESSAGES: Record<string, string> = {
   insufficient_funds: 'Not enough yet — win plot minigames to earn more Ink.',
   out_of_reach: 'That plot is too far from your explorer. Travel closer first.',
   explorer_required: 'Turn on your location to place your explorer.',
+  duels_disabled: 'Duels aren’t open yet.',
+  invalid_stake: 'That stake is outside the allowed range.',
+  duel_limit_reached: 'You’ve started the most duels allowed today. Try again tomorrow.',
+  duel_in_progress: 'Finish the duel you’re already playing first.',
+  duel_unavailable: 'That duel isn’t available any more.',
+  own_duel: 'You can’t accept your own duel.',
+  run_finished: 'That run is already recorded.',
+  player_not_found: 'No player with that username.',
+  refill_limit_reached: 'No Ink refills left today. Your tank refills for free tomorrow.',
+  tank_full: 'Your joystick tank is already full.',
   gps_required: 'Turn on your location — your explorer follows your real GPS position.',
   jump_cooldown: 'Teleporting is turned off — your explorer follows your GPS.',
   invalid_plot_name: 'Plot names use up to 32 letters, numbers, spaces and simple punctuation.',

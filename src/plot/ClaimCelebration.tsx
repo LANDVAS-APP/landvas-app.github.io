@@ -20,12 +20,15 @@ export type Celebration = {
   groupId: string; first: boolean; onDone?: () => void;
 };
 
-export const useCelebration = create<{ c: Celebration | null; show(c: Celebration): void; close(): void }>((set, get) => ({
+/** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
+export const useCelebration = create<{ c: Celebration | null; hidden: { gx: number; gy: number } | null; show(c: Celebration): void; reveal(): void; close(): void }>((set, get) => ({
   c: null,
-  show: (c) => set({ c }),
+  hidden: null,
+  show: (c) => set({ c, hidden: { gx: c.gx, gy: c.gy } }),
+  reveal: () => set({ hidden: null }),
   close: () => {
     const done = get().c?.onDone;
-    set({ c: null });
+    set({ c: null, hidden: null });
     done?.();
   },
 }));
@@ -64,15 +67,28 @@ function Show({ c }: { c: Celebration }) {
   const epic = EPIC.has(c.rarity);
   const pt = usePlotPoint(c.gx, c.gy);
   const [revealed, setRevealed] = useState(reduce);
+  // nothing hints at the rarity until the roll lands: no colours, no rays, no special buzz
   useEffect(() => {
+    if (!revealed) { if (haptics) navigator.vibrate?.([8, 40, 8]); return; }
+    useCelebration.getState().reveal();
     if (haptics) navigator.vibrate?.(epic ? [12, 40, 18, 60, 30, 90, 60] : [10, 30, 25]);
+  }, [revealed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && useCelebration.getState().close();
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }} data-testid="claim-celebration">
-      {!reduce && pt && (
+      {!reduce && pt && !revealed && (
+        <>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="pointer-events-none absolute rounded-full lv-claim-ring" style={{ left: pt.x, top: pt.y, borderColor: '#ffffff', animationDelay: `${i * 0.22}s`, boxShadow: '0 0 18px rgba(255,255,255,0.6)' }} />
+          ))}
+          <PlotSquare x={pt.x} y={pt.y} size={pt.size} color="#C9D4F2" glow="#ffffff" />
+        </>
+      )}
+      {!reduce && pt && revealed && (
         <>
           <div className="pointer-events-none absolute inset-0 lv-claim-flash" style={{ background: `radial-gradient(circle at ${pt.x}px ${pt.y}px, ${info.glow}cc, ${info.color}55 18%, transparent 55%)` }} />
           {[0, 1, 2].map((i) => (
@@ -189,7 +205,7 @@ function Card({ c, reduce, revealed, onRevealed }: { c: Celebration; reduce: boo
     <div className="pointer-events-none absolute inset-x-0 bottom-[calc(88px+env(safe-area-inset-bottom,0px))] flex justify-center px-4 md:bottom-12">
       <motion.div initial={{ y: 80, opacity: 0, scale: 0.85 }} animate={{ y: 0, opacity: 1, scale: 1, transition: { delay: reduce ? 0 : 0.35, type: 'spring', stiffness: 260, damping: 20 } }}
         className="glass pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-[30px] p-5 text-center"
-        style={{ boxShadow: `0 0 0 1.5px ${info.color}66, 0 20px 60px ${info.color}44` }}>
+        style={{ boxShadow: `0 0 0 1.5px ${shown.color}66, 0 20px 60px ${shown.color}44`, transition: 'box-shadow 0.15s' }}>
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 opacity-50" style={{ background: `radial-gradient(ellipse at 50% 0%, ${shown.color}, transparent 70%)` }} />
         <div className="relative">
           <div className="eyebrow flex items-center justify-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-gold" /> {c.first ? 'Your first piece of the world' : 'Plot claimed'}</div>

@@ -31,7 +31,7 @@ afterAll(() => db.close());
 describe('minigames v2', () => {
   it('there are eight games on eight plot types', async () => {
     const w = await db.rpc(null, 'world_config');
-    expect(w.plot_types.map((t: any) => t.minigame).sort()).toEqual(['colorburst', 'hueflow', 'lightlines', 'memorymural', 'mirrorline', 'patternshift', 'sculptor', 'tracecraft']);
+    expect(w.plot_types.map((t: any) => t.minigame).sort()).toEqual(['colorburst', 'lightlines', 'memorymural', 'mirrorline', 'patternshift', 'rollermural', 'sculptor', 'tracecraft']);
   });
 
   it('levels have five rounds and every plot climbs its own levels', async () => {

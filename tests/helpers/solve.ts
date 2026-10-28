@@ -1,7 +1,7 @@
 // Produce a human-paced winning move log for any minigame level (tests only).
 import { roundSeed } from '../../src/shared/minigames/boards';
 import { generateColorBurst } from '../../src/shared/minigames/colorburst';
-import { generateHueFlow } from '../../src/shared/minigames/hueflow';
+import { generateRollerMural, solveRoller } from '../../src/shared/minigames/rollermural';
 import { generateLightLines } from '../../src/shared/minigames/lightlines';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
@@ -29,12 +29,9 @@ function board(game: string, seed: number, level: number): { done_t: number } & 
     const L = generateMirrorline(seed, level);
     return { paints: L.target.map((c, i) => ({ c, i })).filter(({ i }) => !L.given[i]).map(({ c, i }) => ({ t: (t += 110), i, c })), done_t: t + 100 };
   }
-  if (game === 'hueflow') {
-    const L = generateHueFlow(seed, level);
-    const b = L.board.slice();
-    const swaps: { t: number; a: number; b: number }[] = [];
-    for (let i = 0; i < b.length; i++) while (b[i] !== i) { const j = b.indexOf(i); swaps.push({ t: (t += 400), a: i, b: j }); [b[i], b[j]] = [b[j], b[i]]; }
-    return { swaps, done_t: t + 100 };
+  if (game === 'rollermural') {
+    const L = generateRollerMural(seed, level);
+    return { strokes: solveRoller(L.n, L.base, L.target).map((x) => ({ ...x, t: (t += 300) })), done_t: t + 100 };
   }
   if (game === 'sculptor') {
     const L = generateSculptor(seed, level);

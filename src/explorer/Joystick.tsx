@@ -5,7 +5,8 @@
 // The server checks every step (speed limit + tank), so this is only the
 // smooth local preview of what it allows.
 import { motion } from 'motion/react';
-import { Fuel, Satellite, X } from 'lucide-react';
+import { Clapperboard, Fuel, Satellite, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -13,7 +14,7 @@ import { toGameError } from '../backend/backend';
 import type { ExplorerState } from '../backend/types';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
-import { useWorld } from '../lib/queries';
+import { qk, useWorld } from '../lib/queries';
 import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from './explorer';
 import { saveStorage } from '../lib/utils';
 
@@ -39,6 +40,8 @@ export function Joystick({ onClose }: { onClose(): void }) {
   const ex = useExplorer();
   const settings = useUi((s) => s.settings);
   const joy = ex.state?.joystick;
+  const qc = useQueryClient();
+  const [refilling, setRefilling] = useState(false);
   const speed = Number(joy?.speed_kmh ?? world.data?.explorer?.joystick?.speed_kmh ?? 40) / 3.6;
   const tank = Number(joy?.tank_seconds ?? 600);
   const [secs, setSecs] = useState(Number(joy?.seconds_left ?? tank));
@@ -183,10 +186,22 @@ export function Joystick({ onClose }: { onClose(): void }) {
           <div className={cn('font-display text-2xl font-semibold tnum', empty && 'text-bad')} data-testid="joystick-tank">{fmtTank(secs)}</div>
           <div className="text-[11px] text-muted">{Math.round(speed * 3.6)} km/h at full push</div>
         </div>
+        <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold hover:bg-surface disabled:opacity-40" disabled={refilling || (joy?.ink_refills_left ?? 0) <= 0 || secs >= Number(joy?.tank_seconds ?? 60)}
+          title={(joy?.ink_refills_left ?? 0) <= 0 ? 'No Ink refills left today' : `Refill the tank for ${joy?.refill_ink ?? 50} Ink`}
+          onClick={async () => {
+            setRefilling(true);
+            try {
+              const r = await api.refillJoystickWithInk();
+              useExplorer.getState().set(r);
+              const full = Number(r.joystick?.seconds_left ?? 0); setSecs(full); secsRef.current = full;
+              qc.invalidateQueries({ queryKey: qk.me });
+              toast.success('Tank refilled', { description: `−${r.cost} Ink · ${r.joystick?.ink_refills_left ?? 0} Ink refill${r.joystick?.ink_refills_left === 1 ? "" : "s"} left today` });
+            } catch (e) { toast.error(toGameError(e).message); } finally { setRefilling(false); }
+          }} data-testid="joystick-refill-ink"><Fuel className="h-3.5 w-3.5 text-gold" /> Refill · {joy?.refill_ink ?? 50} Ink</button>
         <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold hover:bg-surface" onClick={() => {
           if (joy?.ads_enabled) toast('Ads are on their way', { description: 'The ad player will appear here once the ad network is connected.' });
-          else toast('Refill with an ad — coming soon', { description: `Ads aren’t live yet. Your tank refills for free at ${new Date(joy?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
-        }} data-testid="joystick-refill"><Fuel className="h-3.5 w-3.5 text-gold" /> Refill</button>
+          else toast('Refill with an ad — coming soon', { description: `Ads aren’t live yet. Your tank also refills for free at ${new Date(joy?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
+        }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>
         {gpsWasOn && gpsSupported() && (
           <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ok hover:bg-surface" onClick={() => {
             saveStorage('landvas.gps', true);

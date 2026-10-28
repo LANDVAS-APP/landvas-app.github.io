@@ -15,7 +15,7 @@ export function GamePreview({ game, size, className }: { game: GameId; size?: nu
   if (game === 'patternshift') return <PatternShiftPreview {...common} id={id} still={still} />;
   if (game === 'memorymural') return <MemoryMuralPreview {...common} id={id} still={still} />;
   if (game === 'sculptor') return <SculptorPreview {...common} id={id} still={still} />;
-  if (game === 'hueflow') return <HueFlowPreview {...common} id={id} still={still} />;
+  if (game === 'rollermural') return <RollerMuralPreview {...common} id={id} still={still} />;
   if (game === 'mirrorline') return <MirrorlinePreview {...common} id={id} still={still} />;
   return <LightLinesPreview {...common} id={id} still={still} />;
 }
@@ -185,21 +185,30 @@ function SculptorPreview({ id, still, ...svg }: P) {
   );
 }
 
-function HueFlowPreview({ id, still, ...svg }: P) {
-  const cols = ['#5EE6C7', '#78CFD9', '#93B8EB', '#B49BFF', '#7EDDB9', '#94C6CB', '#AAAEDD', '#C493F0', '#9ED3AB', '#B0BDBD', '#C2A5CF', '#D48BE2'];
+function RollerMuralPreview({ id, still, ...svg }: P) {
+  const W = '#F5F4EF', A = '#7B5CFF', B = '#FFB23F';
+  // final mural after: column 1 in A, then row 2 in B
+  const final = (r: number, c: number) => (r === 2 ? B : c === 1 ? A : W);
   return (
-    <svg {...svg} aria-label="HueFlow: swap tiles until the colour gradient flows">
-      <rect width="120" height="120" fill="#0b1226" />
-      {cols.map((c, i) => {
-        const x = 14 + (i % 4) * 23.5, y = 14 + Math.floor(i / 4) * 27;
-        const swapA = i === 1, swapB = i === 6;
+    <svg {...svg} aria-label="Roller Mural: roll whole rows and columns to recreate the mural">
+      <rect width="120" height="120" fill="#14253A" />
+      {Array.from({ length: 16 }, (_, k) => {
+        const r = Math.floor(k / 4), c = k % 4;
+        const x = 30 + c * 19, y = 18 + r * 19;
+        const f = final(r, c);
+        const mid = c === 1 ? A : W;
         return (
-          <rect key={i} x={x} y={y} width="21" height="25" rx="4" fill={c}>
-            {!still && (swapA || swapB) && <animate attributeName="fill" values={swapA ? `${cols[6]};${cols[6]};${c};${c}` : `${cols[1]};${cols[1]};${c};${c}`} keyTimes="0;0.45;0.55;1" dur="3.2s" repeatCount="indefinite" />}
+          <rect key={k} x={x} y={y} width="17" height="17" rx="3" fill={still ? f : W}>
+            {!still && <animate attributeName="fill" values={`${W};${W};${mid};${mid};${f};${f};${W}`} keyTimes="0;0.2;0.25;0.5;0.55;0.92;1" dur="4s" repeatCount="indefinite" />}
           </rect>
         );
       })}
-      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#B4F5E5" letterSpacing="1.5">SWAPS 4 · PAR 4</text>
+      {!still && (
+        <rect x="30" y="14" width="17" height="6" rx="3" fill={A}>
+          <animate attributeName="y" values="14;14;90;90;14" keyTimes="0;0.2;0.25;0.95;1" dur="4s" repeatCount="indefinite" />
+        </rect>
+      )}
+      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#B4F5E5" letterSpacing="1.5">STROKES 2 · PAR 2</text>
     </svg>
   );
 }

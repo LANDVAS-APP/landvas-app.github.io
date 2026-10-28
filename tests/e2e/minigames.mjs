@@ -13,8 +13,8 @@ const page = await (await browser.newContext({ viewport: { width: 430, height: 9
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 let fails = 0;
-const CASES = [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['hueflow', 1], ['mirrorline', 1],
-  ['memorymural', 10], ['sculptor', 10], ['hueflow', 10], ['mirrorline', 10], ['sculptor', 30], ['mirrorline', 20]];
+const CASES = [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1],
+  ['memorymural', 10], ['sculptor', 10], ['rollermural', 10], ['mirrorline', 10], ['sculptor', 30], ['mirrorline', 20]];
 // the artifact build uses relative asset paths, so boot at / and navigate in-app
 await page.goto('http://localhost:4183/?e2e=1', { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__landvasNav, null, { timeout: 60000 });
@@ -30,6 +30,18 @@ for (const [g, lv] of CASES) {
   if (!ok) fails++;
   const s = res.summary ?? {};
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${g} L${lv} — rounds ${s.passed_rounds ?? s.passed_shapes ?? '?'}/${s.of ?? 5} score ${res.score} flags ${JSON.stringify(res.flags)} ${res.reason ?? ''}`);
+}
+for (const g of ['turfwars', 'paletteclash', 'forgery', 'pixelrecall']) {
+  await page.evaluate((g) => window.__landvasNav(`/duel-sandbox/${g}`), g);
+  await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 30000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(OUT, `duel-${g}.png`) });
+  await page.evaluate(() => window.__landvasGame.autoSolve());
+  await page.waitForSelector(`[data-testid=sandbox-result][data-game=${g}]`, { timeout: 120000 });
+  const res = JSON.parse(await page.textContent('[data-testid=sandbox-result]'));
+  const ok = res.valid && res.score > 0;
+  if (!ok) fails++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  duel ${g} — score ${res.score} ${JSON.stringify(res.summary)} ${res.reason ?? ''}`);
 }
 const relevant = errors.filter((e) => !/ErrnoError/.test(e));
 if (relevant.length) { fails++; console.log('FAIL  page errors:', relevant.slice(0, 3).join(' | ')); }

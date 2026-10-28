@@ -7,9 +7,10 @@ import shimSql from '../../../supabase/local/shim.sql?raw';
 import overridesSql from '../../../supabase/local/local_overrides.sql?raw';
 import { drainQueue, type BlobStore, type PipelineDeps } from '../../server/pipeline';
 import { validateMinigame } from '../../shared/minigames';
+import { validateDuel, type DuelGame } from '../../shared/pvp';
 import type { GameId } from '../../shared/minigames/types';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
-import type { MapUpdate, MinigameFinish } from '../types';
+import type { DuelFinish, MapUpdate, MinigameFinish } from '../types';
 import { BlobDb } from './blobs';
 import { canvasCodec } from './codec-canvas';
 
@@ -257,6 +258,20 @@ export class LocalBackend implements Backend {
       })();
     }
     return this.draining;
+  }
+
+  async finishDuel(duelId: string, log: unknown): Promise<DuelFinish> {
+    const uid = this.current?.userId ?? '';
+    const run = await this.svc<any>('svc_duel_run', { p_duel_id: duelId, p_player_id: uid });
+    if (!run) throw new GameError('duel_unavailable');
+    if (run.finished) throw new GameError('run_finished');
+    const verdict = validateDuel(run.game as DuelGame, Number(run.seed), log);
+    try {
+      const res = await this.svc<DuelFinish>('svc_duel_finish', { p_duel_id: duelId, p_player_id: uid, p_result: verdict });
+      return { ...res, summary: verdict.summary };
+    } catch (e) {
+      throw toGameError(e);
+    }
   }
 
   async finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish> {

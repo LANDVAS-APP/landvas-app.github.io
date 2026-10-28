@@ -46,6 +46,7 @@ export function MapScreen() {
   useExplorerSync();
   const [joystick, setJoystick] = useState(false);
   const merging = useUi((s) => s.merge !== null);
+  const celebrating = useCelebration((s) => s.hidden !== null);
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className="absolute inset-0">
@@ -87,7 +88,10 @@ export function MapScreen() {
         )}
       </AnimatePresence>
       <Legend mode={mode} />
-      <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
+      {/* the panel would give the rarity away while the claim roll is still spinning */}
+      <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
+        <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
+      </div>
       {me && !selected && !joystick && !merging && <Checklist />}
       {me && <MergeBar />}
       {me && <PlacementPrompt />}

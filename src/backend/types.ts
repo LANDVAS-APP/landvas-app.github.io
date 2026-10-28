@@ -105,6 +105,8 @@ export type JoystickState = {
   daily_refill: boolean;
   next_refill_at: string;
   ads_enabled: boolean;
+  refill_ink?: number;
+  ink_refills_left?: number;
 };
 
 export type CashoutStatus = {
@@ -325,3 +327,16 @@ export type SupportTicket = {
   unread: boolean; messages: number; player?: Profile;
 };
 export type SupportMessage = { id: number; body: string; is_staff: boolean; created_at: string; author: Partial<Profile> & { display_name?: string } };
+
+export type DuelRun = { role: 'challenger' | 'opponent'; score: number | null; time_ms: number | null; summary: Record<string, unknown> | null };
+export type Duel = {
+  id: string; game: import('../shared/pvp').DuelGame; stake: number; status: 'challenger_playing' | 'open' | 'opponent_playing' | 'done' | 'cancelled' | 'expired';
+  created_at: string; open_until: string | null; finished_at: string | null; payout: number; fee: number;
+  challenger: Profile; opponent: Profile | null; invited: Profile | null; mine: boolean; result: 'won' | 'lost' | 'draw' | null; runs: DuelRun[] | null;
+};
+export type DuelStart = { duel_id: string; game: import('../shared/pvp').DuelGame; seed: number; stake: number; role: 'challenger' | 'opponent'; started_at: string; expires_at: string; server_time: string; balances: Balances };
+export type DuelFinish = Duel & { valid: boolean; score: number; time_ms: number; balances: Balances; summary?: Record<string, unknown> };
+export type DuelLobby = {
+  config: { enabled: boolean; min_stake: number; max_stake: number; fee_pct: number; daily_limit: number; play_seconds: number; games: Record<string, boolean> };
+  open: Duel[]; mine: Duel[]; record: { won: number; lost: number; draws: number; net_ink: number } | null;
+};

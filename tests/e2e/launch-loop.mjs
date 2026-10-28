@@ -418,7 +418,7 @@ try {
   const boostGame = await page.evaluate(async () => {
     const api = window.__landvasApi;
     const cfg = (await api.admin.configGet()).config.minigames.value;
-    const g = 'hueflow';
+    const g = 'rollermural';
     await api.admin.configSet('minigames', { ...cfg, games: { ...cfg.games, [g]: { ...cfg.games[g], boost: { multiplier: 3, ends_at: new Date(Date.now() + 7200_000).toISOString() } } } });
     return g;
   });
@@ -469,11 +469,11 @@ try {
   check('no email addresses are shown anywhere public', !/[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test((legalTxt + settingsTxt).replaceAll('ava@example.test', ''))); // (your own sign-in email shows only to you, in Settings)
 
   // every minigame (incl. the four new ones) plays all 5 rounds and passes the server's validator
-  for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['hueflow', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['hueflow', 10], ['mirrorline', 10]]) {
+  for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['rollermural', 10], ['mirrorline', 10]]) {
     await page.evaluate(([g, lv]) => window.__landvasNav(`/play-sandbox/${g}?level=${lv}&rounds=5`), [g, lv]);
     await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 20000 });
     await page.waitForTimeout(600);
-    if (lv === 1 && ['memorymural', 'sculptor', 'hueflow', 'mirrorline'].includes(g)) { await page.waitForTimeout(400); await shot(`12-${g}`); }
+    if (lv === 1 && ['memorymural', 'sculptor', 'rollermural', 'mirrorline'].includes(g)) { await page.waitForTimeout(400); await shot(`12-${g}`); }
     await page.evaluate(() => window.__landvasGame.autoSolve());
     await page.waitForSelector(`[data-testid=sandbox-result][data-game=${g}]`, { timeout: 150000 });
     const res = JSON.parse(await page.textContent('[data-testid=sandbox-result]'));

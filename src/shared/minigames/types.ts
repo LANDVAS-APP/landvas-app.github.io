@@ -1,7 +1,7 @@
-export type GameId = 'tracecraft' | 'colorburst' | 'patternshift' | 'lightlines' | 'memorymural' | 'sculptor' | 'hueflow' | 'mirrorline';
-export const GAME_IDS: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'];
+export type GameId = 'tracecraft' | 'colorburst' | 'patternshift' | 'lightlines' | 'memorymural' | 'sculptor' | 'rollermural' | 'mirrorline';
+export const GAME_IDS: GameId[] = ['tracecraft', 'colorburst', 'patternshift', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
 
-export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 23, patternshift: 37, lightlines: 53, memorymural: 67, sculptor: 79, hueflow: 97, mirrorline: 113 };
+export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 23, patternshift: 37, lightlines: 53, memorymural: 67, sculptor: 79, rollermural: 131, mirrorline: 113 };
 
 /** Rounds per level when a session doesn't say (sessions started before rounds became configurable). */
 export const DEFAULT_ROUNDS = 5;

@@ -1,6 +1,6 @@
 import { validateBoards, type BoardsLog } from './boards';
 import { validateColorBurst, type ColorBurstLog } from './colorburst';
-import { validateHueFlow } from './hueflow';
+import { validateRollerMural } from './rollermural';
 import { validateLightLines, type LightLinesLog } from './lightlines';
 import { validateMemoryMural } from './memorymural';
 import { validateMirrorline } from './mirrorline';
@@ -14,10 +14,10 @@ export * from './types';
 export type AnyLog = TraceCraftLog | ColorBurstLog | PatternShiftLog | LightLinesLog | BoardsLog;
 
 /** Games whose level is a sequence of independent boards (one per round). */
-export const BOARD_GAMES: GameId[] = ['patternshift', 'lightlines', 'memorymural', 'sculptor', 'hueflow', 'mirrorline'];
+export const BOARD_GAMES: GameId[] = ['patternshift', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
 const ONE: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
   patternshift: validatePatternShift, lightlines: validateLightLines, memorymural: validateMemoryMural,
-  sculptor: validateSculptor, hueflow: validateHueFlow, mirrorline: validateMirrorline,
+  sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 
 /**
@@ -92,12 +92,12 @@ export const GAME_INFO: Record<GameId, { name: string; plotType: string; tagline
       'Press Done when it matches. The closer the overlap, the higher the score.',
     ],
   },
-  hueflow: {
-    name: 'HueFlow', plotType: 'prism', tagline: 'Put every shade in its place.',
+  rollermural: {
+    name: 'Roller Mural', plotType: 'prism', tagline: 'Peel the mural apart, stroke by stroke.',
     howTo: [
-      'A smooth colour gradient has been shuffled. Tap two tiles to swap them.',
-      'Tiles with a dot are pinned in the right place — use them as guides.',
-      'Restore the whole gradient. Fewer swaps earn more stars.',
+      'This mural was painted with rollers: each stroke paints a whole row or column one colour.',
+      'Pick a colour, then tap a row or column handle to roll it. Later strokes cover earlier ones.',
+      'Recreate the mural exactly. Matching the painter’s stroke count earns three stars.',
     ],
   },
   mirrorline: {
