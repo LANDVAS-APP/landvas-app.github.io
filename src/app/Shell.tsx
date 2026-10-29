@@ -7,6 +7,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
+import { Tour } from '../tour/Tour';
 
 const MAIN = [
   { to: '/world', label: 'World', icon: Globe2, end: true },
@@ -57,6 +58,7 @@ export function Shell() {
         <Outlet />
       </main>
       <AnnouncementPopup />
+      <Tour />
       <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
         {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />

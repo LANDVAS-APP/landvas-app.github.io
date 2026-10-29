@@ -1,7 +1,7 @@
 // "More ways to earn" on the Play page: the daily wheel, weekly challenges, room
 // check-ins, inspiring art and the craft bonus, with what's left today.
 import { useQuery } from '@tanstack/react-query';
-import { Brush, DoorOpen, RotateCw, Sparkles, Trophy } from 'lucide-react';
+import { Brush, DoorOpen, Gift, RotateCw, Sparkles, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -20,6 +20,7 @@ export function EarnHub() {
     d.rooms.enabled && { key: 'rooms', icon: DoorOpen, tone: 'text-accent-2 bg-accent-2/15', title: 'Check into rooms', text: `+${d.rooms.visitor_ink} Ink per room · ${d.rooms.paid_today}/${d.rooms.visitor_daily} today. Hosts earn too.`, to: '/players' },
     d.inspire.enabled && { key: 'inspire', icon: Sparkles, tone: 'text-ok bg-ok/15', title: 'Inspire artists', text: `Each piece you inspire pays its artist ${d.inspire.artist_ink} Ink${d.inspire.giver_ink ? ` (and you ${d.inspire.giver_ink}, ${d.inspire.given_today}/${d.inspire.giver_daily} today)` : ''}.`, to: '/gallery' },
     d.craft.enabled && tiers.length > 0 && { key: 'craft', icon: Brush, tone: 'text-accent bg-accent/15', title: 'Craft bonus', text: `Rich, original, carefully painted art pays: craft ${tiers.map((t) => `${t.min}+ → ${t.ink}`).join(', ')} Ink${d.craft.best != null ? ` · your best ${d.craft.best}` : ''}. Bigger murals earn more.`, to: '/canvases' },
+    { key: 'invite', icon: Gift, tone: 'text-gold bg-gold/15', title: 'Invite friends', text: 'Ink when they start playing — plus a share of what they earn.', hot: true, to: '/invite' },
   ].filter(Boolean) as { key: string; icon: any; tone: string; title: string; text: string; hot?: boolean; to?: string; onClick?(): void }[];
   if (!items.length) return null;
   return (

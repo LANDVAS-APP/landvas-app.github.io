@@ -12,6 +12,7 @@ import { useUi, type Theme } from '../lib/store';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
 import { startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { Button, Switch, useConfirm, PlayerAvatar } from '../ui';
+import { replayTour } from '../tour/Tour';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -48,6 +49,13 @@ export default function Settings() {
           <Switch id="crisp" label="Crisp pixel art on the map" hint="Nearest-neighbour scaling for pixel murals" checked={settings.crispPixels} onCheckedChange={(v) => update({ crispPixels: v })} />
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />
           <Switch id="haptics" label="Haptic feedback" hint="Vibration on supported phones" checked={settings.haptics} onCheckedChange={(v) => update({ haptics: v })} />
+        </Section>
+
+        <Section title="Tutorial">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span className="text-muted">A one-minute walk through everything you can do.</span>
+            <Button size="sm" variant="secondary" onClick={() => { replayTour(); nav('/world'); }} data-testid="replay-tour">Replay the tutorial</Button>
+          </div>
         </Section>
 
         <Section title="Location">

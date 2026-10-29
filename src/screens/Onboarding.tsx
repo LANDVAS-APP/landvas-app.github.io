@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Shuffle } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Check, Shuffle } from 'lucide-react';
+import { confetti, confettiCannons } from '../ui/confetti';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -30,6 +32,8 @@ export function Onboarding() {
   if (me.isLoading || !me.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
   if (me.data.onboarded) return <Navigate to="/world" replace />;
   const terms = me.data.terms_current;
+  const nameOk = /^[A-Za-z0-9_]{3,20}$/.test(username);
+  const progress = (nameOk ? 1 : 0) + (agree ? 1 : 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +44,8 @@ export function Onboarding() {
       await qc.invalidateQueries({ queryKey: qk.me });
       saveStorage('landvas.guide', 'starter');
       saveStorage('landvas.welcomed', true);
+      saveStorage('landvas.tour', 'pending');
+      confettiCannons();
       nav('/world', { replace: true });
     } catch (err) {
       setError(toGameError(err).message);
@@ -52,21 +58,29 @@ export function Onboarding() {
     <div className="h-full overflow-y-auto bg-bg">
       <form onSubmit={submit} className="gutter mx-auto grid max-w-2xl gap-8 py-10">
         <Wordmark />
-        <div>
+        <div className="h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+          <motion.div className="h-full rounded-full bg-gradient-to-r from-accent via-gold to-accent-2" animate={{ width: `${10 + progress * 45}%` }} transition={{ type: 'spring', stiffness: 120, damping: 18 }} />
+        </div>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div className="eyebrow">Step 1 of 2 · Your artist identity</div>
           <h1 className="mt-2 font-display text-3xl font-bold">Sign your work</h1>
           <p className="mt-2 text-muted">This name appears beside every plot you own and every mural you publish.</p>
-        </div>
-        <div className="glass grid gap-6 rounded-[28px] p-6 md:grid-cols-[auto_1fr]">
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass grid gap-6 rounded-[28px] p-6 md:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center gap-3">
-            <Avatar seed={seed} style={style} accent={accent} size={112} />
-            <Button type="button" size="sm" variant="ghost" onClick={() => setSeed(Math.random().toString(36).slice(2, 10))}>
+            <motion.div key={seed + style + accent} initial={{ scale: 0.6, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15 }}>
+              <Avatar seed={seed} style={style} accent={accent} size={112} />
+            </motion.div>
+            <Button type="button" size="sm" variant="ghost" onClick={(e) => { setSeed(Math.random().toString(36).slice(2, 10)); confetti({ x: e.clientX, y: e.clientY, count: 24, power: 0.5 }); }}>
               <Shuffle className="h-4 w-4" /> Remix
             </Button>
           </div>
           <div className="grid gap-4">
             <Field label="Username" htmlFor="username" hint="3–20 letters, numbers or underscores. Public." error={error}>
+              <div className="relative">
+              {nameOk && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-ok"><Check className="h-4 w-4" /></motion.span>}
               <input id="username" className={inputCls} required pattern="[A-Za-z0-9_]{3,20}" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ultramarine_ana" autoComplete="nickname" />
+              </div>
             </Field>
             <Field label="Display name (optional)" htmlFor="display">
               <input id="display" className={inputCls} maxLength={40} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Ana Ribeiro" />
@@ -88,7 +102,7 @@ export function Onboarding() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
         <div>
           <div className="eyebrow">Step 2 of 2 · The ground rules</div>
           <ul className="mt-3 grid gap-2 text-sm text-muted">

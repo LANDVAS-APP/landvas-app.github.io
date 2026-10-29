@@ -244,7 +244,7 @@ function RentTicker() {
 
 // ---- newest art marquee ---------------------------------------------------------------
 
-function ArtMarquee({ cards, loading }: { cards: ArtworkCard[]; loading: boolean }) {
+export function ArtMarquee({ cards, loading }: { cards: ArtworkCard[]; loading: boolean }) {
   if (!loading && !cards.length) return null;
   const a = cards.slice(0, 18), b = cards.slice(18, 36).length ? cards.slice(18, 36) : [...a].reverse();
   return (
@@ -297,7 +297,7 @@ const STEPS = [
   { icon: Sparkles, title: 'Grow murals & earn rent', body: 'Connect neighbouring plots into one continuous canvas. Every plot you own earns USD rent each second, by its rarity.', color: '#FFB31F' },
 ];
 
-function HowItWorks() {
+export function HowItWorks() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="how">
       <div className="mx-auto max-w-2xl text-center">
@@ -320,7 +320,7 @@ function HowItWorks() {
 
 // ---- earnings -------------------------------------------------------------------------
 
-function Earnings() {
+export function Earnings() {
   const world = useWorld();
   const rents = world.data?.rarities;
   const boost = Number(world.data?.rent?.boost?.multiplier ?? 20);
@@ -363,7 +363,7 @@ function Earnings() {
 
 // ---- minigames ------------------------------------------------------------------------
 
-function Minigames() {
+export function Minigames() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="games">
       <div className="mx-auto max-w-2xl text-center">
@@ -388,7 +388,7 @@ function Minigames() {
 
 // ---- social ---------------------------------------------------------------------------
 
-function Social() {
+export function Social() {
   const items = [
     { icon: DoorOpen, title: 'Visit rooms', body: 'Step into any artist’s room to see their art and land — locations stay private.' },
     { icon: MessagesSquare, title: 'Global chat & friends', body: 'Talk with players everywhere, add friends and follow the live feed.' },
@@ -425,7 +425,7 @@ function Social() {
 
 // ---- community ------------------------------------------------------------------------
 
-function Community() {
+export function Community() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="community">
       <div className="mx-auto max-w-2xl text-center">
@@ -463,7 +463,7 @@ function FinalCta() {
   );
 }
 
-function Footer() {
+export function Footer() {
   return (
     <footer className="gutter mx-auto max-w-7xl pb-[calc(32px+env(safe-area-inset-bottom,0px))] pt-10">
       <div className="flex flex-wrap items-center justify-between gap-6 border-t border-line pt-8">
