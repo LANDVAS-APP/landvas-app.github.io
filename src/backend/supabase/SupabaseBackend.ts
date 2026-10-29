@@ -65,7 +65,7 @@ export class SupabaseBackend implements Backend {
   }
   async signIn(email: string, password: string) {
     const { error } = await this.sb.auth.signInWithPassword({ email, password });
-    if (error) throw new GameError('invalid_credentials', error.message);
+    if (error) throw /not confirmed/i.test(error.message) ? new GameError('email_not_confirmed') : new GameError('invalid_credentials', error.message);
   }
   async sendMagicLink(email: string) {
     const { error } = await this.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
@@ -73,6 +73,22 @@ export class SupabaseBackend implements Backend {
   }
   async signOut() {
     await this.sb.auth.signOut();
+  }
+  async resetPassword(email: string) {
+    const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/reset-password` });
+    if (error) throw new GameError(/rate/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
+  }
+  async updatePassword(password: string) {
+    const { error } = await this.sb.auth.updateUser({ password });
+    if (error) throw new GameError('auth_error', error.message);
+  }
+  async resendConfirmation(email: string) {
+    const { error } = await this.sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: location.origin } });
+    if (error) throw new GameError(/rate/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
+  }
+  onPasswordRecovery(cb: () => void) {
+    const { data } = this.sb.auth.onAuthStateChange((e) => { if (e === 'PASSWORD_RECOVERY') cb(); });
+    return () => data.subscription.unsubscribe();
   }
 
   async rpc<T = any>(fn: string, args: Record<string, unknown> = {}): Promise<T> {

@@ -12,6 +12,14 @@ if (!token || !ref) {
   console.error('SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF are required');
   process.exit(1);
 }
+// report (never change) how email is set up, so the deploy log shows whether players get
+// confirmation and password-reset emails. No secrets are printed.
+try {
+  const cur = await (await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, { headers: { authorization: `Bearer ${token}` } })).json();
+  console.log(`email: confirm_required=${cur.mailer_autoconfirm === false} custom_smtp=${!!cur.smtp_host} sender=${cur.smtp_sender_name ?? '-'} emails_per_hour=${cur.rate_limit_email_sent ?? '?'} email_signups=${cur.external_email_enabled}`);
+} catch (e) {
+  console.log(`email: could not read auth settings (${e.message})`);
+}
 const site = (process.env.SITE_URL || 'https://landvas-app.github.io').replace(/\/$/, '');
 const origins = [site, ...(process.env.EXTRA_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean), 'http://localhost:5173'];
 const body = {

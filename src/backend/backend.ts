@@ -18,6 +18,14 @@ export interface Backend {
   signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }>;
   signIn(email: string, password: string): Promise<void>;
   sendMagicLink?(email: string): Promise<void>;
+  /** email a password-reset link (to /reset-password) */
+  resetPassword?(email: string): Promise<void>;
+  /** set a new password for the signed-in account (after a reset link) */
+  updatePassword?(password: string): Promise<void>;
+  /** send the sign-up confirmation email again */
+  resendConfirmation?(email: string): Promise<void>;
+  /** fires when a password-reset link was opened */
+  onPasswordRecovery?(cb: () => void): () => void;
   signOut(): Promise<void>;
   localAccounts?(): Promise<{ email: string }[]>;
   rpc<T = any>(fn: string, args?: Record<string, unknown>): Promise<T>;
@@ -71,6 +79,8 @@ const MESSAGES: Record<string, string> = {
   already_checked_in: 'You’ve already checked in here today.',
   challenge_closed: 'That challenge isn’t taking entries or votes right now.',
   not_your_artwork: 'Pick one of your own published artworks.',
+  email_not_confirmed: 'Please confirm your email first — tap the link we sent you (check spam too).',
+  email_rate_limited: 'Too many emails just now — wait a minute and try again.',
   feature_disabled: 'That’s taking a break right now.',
   invalid_drawing: 'Draw a little more first.',
   sketch_time_up: 'Time’s up for today’s sketch.',

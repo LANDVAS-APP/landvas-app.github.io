@@ -128,6 +128,20 @@ export function Welcome() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [inbox, setInbox] = useState<string | null>(null);
+  const [forgot, setForgot] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  useEffect(() => { if (cooldown <= 0) return; const t = setTimeout(() => setCooldown((c) => c - 1), 1000); return () => clearTimeout(t); }, [cooldown]);
+  const resend = async () => {
+    if (!inbox || !b.resendConfirmation) return;
+    try { await b.resendConfirmation(inbox); setCooldown(60); setNotice(`Sent again to ${inbox}. Check spam or promotions too.`); } catch (err) { setError(toGameError(err).message); }
+  };
+  const sendReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!b.resetPassword) return;
+    setBusy(true); setError(null);
+    try { await b.resetPassword(email); setCooldown(60); setNotice(`If ${email} has an account, a reset link is on its way. It opens a page where you choose a new password.`); confetti({ count: 30, power: 0.5 }); }
+    catch (err) { setError(toGameError(err).message); } finally { setBusy(false); }
+  };
   const [joined, setJoined] = useState(false);
   const [accounts, setAccounts] = useState<{ email: string }[]>([]);
   const formRef = useRef<HTMLElement>(null);
@@ -165,7 +179,9 @@ export function Welcome() {
       saveStorage('landvas.welcomed', true);
       go();
     } catch (err) {
-      setError(toGameError(err).message);
+      const ge = toGameError(err);
+      if (ge.code === 'email_not_confirmed') setInbox(email);
+      setError(ge.message);
     } finally {
       setBusy(false);
     }
@@ -220,10 +236,22 @@ export function Welcome() {
             {inbox && (
               <motion.div initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-4 flex items-start gap-3 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3 text-sm" data-testid="welcome-inbox">
                 <motion.span animate={{ rotate: [0, -12, 12, 0] }} transition={{ repeat: Infinity, duration: 2, repeatDelay: 1 }}><Mail className="h-6 w-6 shrink-0 text-accent-2" /></motion.span>
-                <span><b>Almost there!</b> We sent a link to <b>{inbox}</b>. Tap it to confirm, then sign in below.</span>
+                <span className="grid gap-1.5"><span><b>Almost there!</b> We sent a confirmation link to <b>{inbox}</b>. Tap it to verify your email — you’ll come straight back here, signed in.</span>
+                  {b.resendConfirmation && <button type="button" disabled={cooldown > 0} onClick={() => void resend()} className="justify-self-start text-xs font-bold text-accent-2 underline disabled:no-underline disabled:opacity-60" data-testid="resend-confirmation">{cooldown > 0 ? `Resend in ${cooldown}s` : 'Didn’t get it? Send it again'}</button>}</span>
               </motion.div>
             )}
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} items={[{ value: 'signup', label: 'Create account' }, { value: 'signin', label: 'Sign in' }]} className="mb-5" />
+            <Tabs value={tab} onValueChange={(v) => { setTab(v as any); setForgot(false); setError(null); setNotice(null); }} items={[{ value: 'signup', label: 'Create account' }, { value: 'signin', label: 'Sign in' }]} className="mb-5" />
+            {forgot ? (
+              <motion.form initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} className="grid gap-4" onSubmit={sendReset} data-testid="forgot-form">
+                <div><div className="font-display text-lg font-semibold">Reset your password</div><p className="text-sm text-muted">Enter your email and we’ll send you a link to choose a new one.</p></div>
+                <Field label="Email" htmlFor="reset-email" error={error}>
+                  <input id="reset-email" className={inputCls} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email address" />
+                </Field>
+                {notice && <p className="rounded-xl border border-ok/40 bg-ok/10 p-3 text-sm">{notice}</p>}
+                <Button variant="primary" size="lg" loading={busy} disabled={cooldown > 0 || !emailOk} type="submit" data-testid="send-reset"><Mail className="h-4 w-4" /> {cooldown > 0 ? `Sent · again in ${cooldown}s` : 'Email me a reset link'}</Button>
+                <button type="button" className="text-sm font-semibold text-muted hover:text-fg" onClick={() => { setForgot(false); setNotice(null); setError(null); }}>← Back to sign in</button>
+              </motion.form>
+            ) : (
             <form className="grid gap-4" onSubmit={submit}>
               <Field label="Email" htmlFor="email">
                 <div className="relative">
@@ -256,7 +284,11 @@ export function Welcome() {
                   <Mail className="h-4 w-4" /> Email me a sign-in link
                 </Button>
               )}
+              {tab === 'signin' && b.resetPassword && (
+                <button type="button" className="text-sm font-semibold text-accent-2 hover:underline" onClick={() => { setForgot(true); setNotice(null); setError(null); }} data-testid="forgot-password">Forgot your password?</button>
+              )}
             </form>
+            )}
             {b.mode === 'local' && (
               <div className="mt-5 grid gap-2 rounded-2xl border border-line bg-surface/50 p-4 text-[13px] text-muted">
                 <p><b className="text-fg">Local mode.</b> Your world, accounts and art are saved in this browser only{b.ephemeral ? ' — and this browser will not keep them after you close it' : ''}. Deploy with Supabase for the shared multiplayer world.</p>

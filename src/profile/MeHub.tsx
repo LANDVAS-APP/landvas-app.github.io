@@ -17,6 +17,7 @@ const ACCENTS = ['#7B5CFF', '#FF3D9A', '#3DDC97', '#2FB8FF', '#FFB31F', '#FF5A3D
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
 
 import { NavCustomizer } from '../app/NavCustomizer';
+import { preparePicture } from '../lib/picture';
 
 export default function MeHub() {
   const me = useOnboardedMe();
@@ -156,28 +157,6 @@ function EditProfile({ onDone }: { onDone(): void }) {
 }
 
 /** Crop to a centred square, scale to 256 px and re-encode — which also drops hidden data such as where a photo was taken. */
-async function preparePicture(file: File): Promise<Blob> {
-  if (file.size > 20 * 1024 * 1024) throw new Error('That picture is over 20 MB — pick a smaller one.');
-  let bmp: ImageBitmap;
-  try {
-    bmp = await createImageBitmap(file);
-  } catch {
-    throw new Error('That file isn’t a picture this browser can open. Try a JPG, PNG or WebP.');
-  }
-  const side = Math.min(bmp.width, bmp.height);
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const ctx = c.getContext('2d')!;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 256, 256);
-  bmp.close?.();
-  const encode = (type: string, q: number) => new Promise<Blob | null>((r) => c.toBlob(r, type, q));
-  const webp = await encode('image/webp', 0.86);
-  if (webp && webp.type === 'image/webp') return webp;
-  const jpg = await encode('image/jpeg', 0.88);
-  if (!jpg) throw new Error('Couldn’t process that picture.');
-  return jpg;
-}
 
 function ProfilePicture() {
   const me = useOnboardedMe()!;

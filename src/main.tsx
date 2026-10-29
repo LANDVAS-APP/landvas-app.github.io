@@ -2,7 +2,7 @@ import './styles/app.css';
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { config } from './env';
-import { applyTheme, useUi } from './lib/store';
+import { applyMotion, applyTheme, useUi } from './lib/store';
 import { initBackend } from './backend/backend';
 import { BootScreen } from './app/BootScreen';
 import { setAvatarResolver } from './ui';
@@ -19,6 +19,7 @@ if (config.fonts === 'self') {
   document.head.appendChild(link);
 }
 applyTheme(useUi.getState().settings.theme);
+applyMotion(useUi.getState().settings.reduceMotion);
 if (config.e2e) document.documentElement.classList.add('e2e');
 
 startUpdates();

@@ -1,8 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { Check, Shuffle } from 'lucide-react';
+import { Camera, Check, Shuffle, X } from 'lucide-react';
+import { getBackend } from '../backend/backend';
+import { preparePicture } from '../lib/picture';
+import { sha256Hex } from '../lib/utils';
 import { confetti, confettiCannons } from '../ui/confetti';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -27,6 +30,9 @@ export function Onboarding() {
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pic, setPic] = useState<{ blob: Blob; url: string } | null>(null);
+  const picInput = useRef<HTMLInputElement>(null);
+  useEffect(() => () => { if (pic) URL.revokeObjectURL(pic.url); }, [pic]);
 
   if (!session) return <Navigate to="/welcome" replace />;
   if (me.isLoading || !me.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
@@ -41,6 +47,15 @@ export function Onboarding() {
     setError(null);
     try {
       await api.completeOnboarding({ username, displayName, avatarSeed: seed, avatarStyle: style, accentColor: accent, termsVersion: terms });
+      if (pic) {
+        // the picture goes up once the profile exists; if it fails, the drawn avatar stays
+        try {
+          const uid = getBackend().session()!.userId;
+          const name = `${await sha256Hex(await pic.blob.arrayBuffer())}.${pic.blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
+          await getBackend().uploadAvatar(uid, name, pic.blob);
+          await api.setAvatarImage(`${uid}/${name}`);
+        } catch { /* keep the drawn avatar */ }
+      }
       await qc.invalidateQueries({ queryKey: qk.me });
       saveStorage('landvas.guide', 'starter');
       saveStorage('landvas.welcomed', true);
@@ -68,11 +83,20 @@ export function Onboarding() {
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass grid gap-6 rounded-[28px] p-6 md:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center gap-3">
-            <motion.div key={seed + style + accent} initial={{ scale: 0.6, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15 }}>
-              <Avatar seed={seed} style={style} accent={accent} size={112} />
+            <motion.div key={pic?.url ?? seed + style + accent} initial={{ scale: 0.6, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15 }} className="relative">
+              {pic ? <img src={pic.url} alt="Your profile picture" className="h-28 w-28 rounded-full object-cover ring-4 ring-accent/50" data-testid="onboarding-pic" /> : <Avatar seed={seed} style={style} accent={accent} size={112} />}
+              {pic && <button type="button" onClick={() => setPic(null)} className="absolute -right-1 -top-1 rounded-full bg-bg p-1 text-muted shadow hover:text-fg" aria-label="Remove picture"><X className="h-4 w-4" /></button>}
             </motion.div>
+            <input ref={picInput} type="file" accept="image/*" className="hidden" data-testid="onboarding-pic-file" onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              try { const blob = await preparePicture(f); setPic({ blob, url: URL.createObjectURL(blob) }); confetti({ count: 30, power: 0.5 }); }
+              catch (err) { setError(err instanceof Error ? err.message : 'Couldn’t use that picture.'); }
+            }} />
+            <Button type="button" size="sm" variant="secondary" onClick={() => picInput.current?.click()} data-testid="onboarding-upload"><Camera className="h-4 w-4" /> {pic ? 'Change photo' : 'Upload a photo'}</Button>
             <Button type="button" size="sm" variant="ghost" onClick={(e) => { setSeed(Math.random().toString(36).slice(2, 10)); confetti({ x: e.clientX, y: e.clientY, count: 24, power: 0.5 }); }}>
-              <Shuffle className="h-4 w-4" /> Remix
+              <Shuffle className="h-4 w-4" /> {pic ? 'Remix drawn avatar' : 'Remix'}
             </Button>
           </div>
           <div className="grid gap-4">

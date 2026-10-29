@@ -77,8 +77,13 @@ export const useUi = create<UiState>((set, get) => ({
     saveStorage('landvas.settings', settings);
     set({ settings });
     applyTheme(settings.theme);
+    applyMotion(settings.reduceMotion);
   },
 }));
+
+export function applyMotion(reduce: boolean) {
+  document.documentElement.dataset.reduceMotion = reduce ? 'true' : 'false';
+}
 
 export function applyTheme(theme: Theme) {
   const root = document.documentElement;

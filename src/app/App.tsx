@@ -10,6 +10,7 @@ import { ConfirmProvider, Spinner, TipProvider } from '../ui';
 import { Shell } from './Shell';
 import { MapScreen } from '../screens/MapScreen';
 import { Welcome } from '../screens/Welcome';
+import { ResetPassword } from '../screens/ResetPassword';
 import { Onboarding } from '../screens/Onboarding';
 import { useReferralRedeemer } from '../social/referral';
 
@@ -130,6 +131,7 @@ const routes: RouteObject[] = [
     element: <><SessionSync /><RouteMeta /><OnboardingGate /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
+      { path: '/reset-password', element: <ResetPassword /> },
       { path: '/onboarding', element: <Onboarding /> },
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },
