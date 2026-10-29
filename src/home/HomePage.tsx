@@ -112,7 +112,7 @@ function Hero({ stats, cards }: { stats?: { players: number; artworks: number; p
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to={playHref()} className="lv-cta group inline-flex h-14 items-center gap-2 rounded-2xl px-7 text-base font-extrabold text-white">
-              {signedIn() ? 'Back to my land' : 'Claim your free plot'} <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
+              {signedIn() ? 'Back to my land' : 'Claim 4 free plots'} <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
             </Link>
             <Link to="/world" className="glass inline-flex h-14 items-center gap-2 rounded-2xl px-6 text-base font-bold hover:border-line-strong">
               <Globe2 className="h-5 w-5 text-accent-2" /> Explore the live map
@@ -293,7 +293,7 @@ function MarqueeCard({ c }: { c: ArtworkCard }) {
 // ---- how it works ---------------------------------------------------------------------
 
 const STEPS = [
-  { icon: MapPinned, title: 'Claim real-world plots', body: 'The planet is a grid of 4.3 billion house-sized plots. Your first one is free. Every plot is a mystery until you claim it — Common to Mythic.', color: '#3DDC97' },
+  { icon: MapPinned, title: 'Claim real-world plots', body: 'The planet is a grid of 4.3 billion house-sized plots. Your first 4 are free. Every plot is a mystery until you claim it — Common to Mythic.', color: '#3DDC97' },
   { icon: Brush, title: 'Paint what everyone sees', body: 'Draw or upload art on a real editor with brushes, layers and symmetry. Publish it and it appears on the live world map for every player.', color: '#FF4D6D' },
   { icon: Gamepad2, title: 'Win Ink in minigames', body: 'Each plot hosts one of eight skill games. Wins pay Ink — the currency that buys more land, brushes, colours and explorer looks.', color: '#34C3FF' },
   { icon: Sparkles, title: 'Grow murals & earn rent', body: 'Connect neighbouring plots into one continuous canvas. Every plot you own earns USD rent each second, by its rarity.', color: '#FFB31F' },
@@ -459,7 +459,7 @@ function FinalCta() {
       <div className="lv-final relative mx-auto max-w-6xl overflow-hidden rounded-[40px] px-6 py-16 text-center md:py-20">
         <h2 className="relative font-display text-[clamp(2rem,5vw,3.6rem)] font-bold leading-tight text-white">Your corner of the world<br />is waiting.</h2>
         <p className="relative mx-auto mt-4 max-w-lg text-white/80">Free to play on any phone or computer. No download needed.</p>
-        <Link to={playHref()} className="relative mt-8 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.6)] transition hover:scale-[1.03]">Claim your free plot <ArrowRight className="h-5 w-5" /></Link>
+        <Link to={playHref()} className="relative mt-8 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.6)] transition hover:scale-[1.03]">Claim 4 free plots <ArrowRight className="h-5 w-5" /></Link>
       </div>
     </section>
   );

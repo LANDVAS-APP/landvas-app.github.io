@@ -5,7 +5,7 @@ import { safeStorage, saveStorage } from './utils';
 
 export type MapMode = 'atlas' | 'canvas' | 'discovery' | 'land';
 export type Theme = 'dark' | 'light' | 'system';
-export type Settings = { theme: Theme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean; tilt3d: boolean };
+export type Settings = { theme: Theme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean; tilt3d: boolean; mobileTabs?: string[] };
 
 type View = { lng: number; lat: number; zoom: number };
 

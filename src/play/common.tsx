@@ -34,12 +34,20 @@ export function useTicker(ms = 250) {
 
 /** Size of a square board that fits the viewport (phones first). */
 export function useBoardSize(max = 560, reserve = 300) {
-  const calc = () => Math.max(220, Math.min(max, window.innerWidth - 32, window.innerHeight - reserve));
+  // the visible screen (not the area behind the browser's toolbars), minus the game's header
+  // and, on phones, the tab bar; never wider than the screen
+  const calc = () => {
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+    const chrome = vw < 768 ? 70 : 40;
+    return Math.max(180, Math.min(max, vw - 32, vh - reserve - chrome));
+  };
   const [size, setSize] = useState(calc);
   useEffect(() => {
     const on = () => setSize(calc());
     window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
+    window.visualViewport?.addEventListener('resize', on);
+    return () => { window.removeEventListener('resize', on); window.visualViewport?.removeEventListener('resize', on); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return size;

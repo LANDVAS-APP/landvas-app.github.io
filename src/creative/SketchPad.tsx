@@ -4,6 +4,7 @@ import { Eraser, Paintbrush, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { SKETCH_COLORS, drawStrokes, type Stroke } from '../shared/strokes';
 import { cn } from '../lib/utils';
+import { holdUpdates } from '../app/updates';
 
 const SIZES = [6, 14, 28, 60];
 
@@ -29,6 +30,8 @@ export function SketchPad({ strokes, onChange, t0, disabled, clip, underlay, siz
   const cur = useRef<Stroke | null>(null);
   const latest = useRef(strokes);
   latest.current = strokes;
+  // an app update never reloads the page under someone's drawing
+  useEffect(() => holdUpdates(), []);
 
   useEffect(() => {
     const el = wrap.current;

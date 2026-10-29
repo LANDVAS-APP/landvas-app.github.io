@@ -94,7 +94,7 @@ function LivingCanvas() {
 }
 
 const FEATURES = [
-  { icon: MapPinned, color: '#34C3FF', title: 'Claim real places', text: 'Your first plot is free. Every plot is a square of the real world map — house-sized, rare or legendary.' },
+  { icon: MapPinned, color: '#34C3FF', title: 'Claim real places', text: 'Your first 4 plots are free. Every plot is a square of the real world map — house-sized, rare or legendary.' },
   { icon: Brush, color: '#FF4D6D', title: 'Paint with helpers', text: 'Brushes, layers and mirror mode, plus idea prompts, ready-made palettes, shade ramps and trace guides.' },
   { icon: Gamepad2, color: '#3DDC97', title: 'Eight minigames', text: 'Each plot hides a game. Clear rounds to earn Ink — the currency that buys the plots next door.' },
   { icon: Swords, color: '#FF9F1C', title: 'PvP minigames', text: 'Free head-to-head rounds against anonymous rivals for bonus Ink.' },
@@ -194,7 +194,7 @@ export function Welcome() {
               ))}
             </div>
             <ul className="mt-6 grid gap-2 text-sm text-muted">
-              {['Free to play on any phone or computer — no download', 'Your first plot is on us', 'Plots are virtual — owning one never means owning real land'].map((t, i) => (
+              {['Free to play on any phone or computer — no download', 'Your first 4 plots are on us', 'Plots are virtual — owning one never means owning real land'].map((t, i) => (
                 <motion.li key={t} className="flex items-center gap-2" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.12 }}><Check className="h-4 w-4 text-ok" /> {t}</motion.li>
               ))}
             </ul>
@@ -312,7 +312,7 @@ export function Welcome() {
       <section className="gutter py-10">
         <div className="lv-final relative mx-auto max-w-6xl overflow-hidden rounded-[40px] px-6 py-14 text-center">
           <Lightbulb className="relative mx-auto h-10 w-10 text-white/90" />
-          <h2 className="relative mt-3 font-display text-[clamp(1.8rem,5vw,3.2rem)] font-bold leading-tight text-white">Your first plot is waiting.</h2>
+          <h2 className="relative mt-3 font-display text-[clamp(1.8rem,5vw,3.2rem)] font-bold leading-tight text-white">Your first 4 plots are waiting.</h2>
           <p className="relative mx-auto mt-3 max-w-lg text-white/80">It takes a few seconds to join — then the tutorial shows you around.</p>
           <button onClick={toForm} className="relative mt-7 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] transition hover:scale-[1.03]">Create my free account <ArrowRight className="h-5 w-5" /></button>
         </div>

@@ -231,8 +231,11 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       <div className="flex items-center justify-between text-sm"><span className="text-muted">Status</span><span className="font-bold text-ok">{d.available === false ? 'Unavailable' : 'Available'}</span></div>
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted">Price</span>
-        {starter ? <span className="font-bold text-ok">Free starter plot</span> : <Cost cost={{ ink: cost }} />}
+        {starter ? <span className="font-bold text-ok">Free starter plot</span> : cost === 0 ? <span className="font-bold text-ok">Free</span> : <Cost cost={{ ink: cost }} />}
       </div>
+      {Number((a as any)?.free_left ?? 0) > 0 && (
+        <div className="rounded-xl bg-ok/10 px-3 py-2 text-xs font-semibold text-ok" data-testid="free-plots-left">🎁 {(a as any).free_left} free plot{(a as any).free_left === 1 ? '' : 's'} left for new players</div>
+      )}
       {!reach?.explorer ? (
         <div className="grid gap-2 rounded-xl bg-accent/10 p-3 text-sm">
           <b>Turn on your location first</b>
@@ -247,7 +250,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
           )}
           <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy === 'claim'} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
             <Sparkles className="h-4 w-4" />
-            {starter ? 'Claim my free starter plot' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
+            {starter ? 'Claim my free starter plot' : cost === 0 ? 'Claim this plot free' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
           </Button>
         </>
       ) : (

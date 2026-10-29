@@ -127,7 +127,7 @@ export default function GameScreen() {
   if (!me) return <div className="flex h-dvh items-center justify-center"><Spinner /></div>;
   const Game = GAMES[game];
   return (
-    <div className="flex min-h-dvh flex-col bg-bg" style={{ backgroundImage: `radial-gradient(1200px 600px at 50% -10%, ${t.a}22, transparent 60%), radial-gradient(900px 500px at 100% 100%, ${t.b}18, transparent 60%)` }}>
+    <div className="no-scrollbar flex h-dvh flex-col overflow-y-auto overflow-x-hidden bg-bg" style={{ backgroundImage: `radial-gradient(1200px 600px at 50% -10%, ${t.a}22, transparent 60%), radial-gradient(900px 500px at 100% 100%, ${t.b}18, transparent 60%)` }}>
       <header className="gutter flex items-center gap-3 pb-2 pt-[max(12px,env(safe-area-inset-top,0px))]">
         <button onClick={() => (phase.k === 'playing' ? setPhase({ k: 'intro' }) : nav(-1))} className="glass flex h-10 w-10 items-center justify-center rounded-2xl" aria-label="Back">
           <ArrowLeft className="h-5 w-5" />
@@ -141,7 +141,7 @@ export default function GameScreen() {
         </div>
       </header>
 
-      <main className="gutter flex flex-1 flex-col items-center justify-center pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+      <main className="gutter flex flex-1 flex-col items-center pb-[max(20px,env(safe-area-inset-bottom,0px))] [&>*]:my-auto">
         {phase.k === 'intro' && (
           <div className="glass w-full max-w-lg rounded-[28px] p-5 sm:p-6">
             <div className="flex items-center gap-4">

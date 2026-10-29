@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => {
       },
       pwa &&
         VitePWA({
-          registerType: 'autoUpdate',
+          registerType: 'prompt',
           injectRegister: false,
           includeAssets: ['favicon.svg', 'favicon.ico', 'favicon-*.png', 'icons/*.png'],
           manifest: {
@@ -75,8 +75,8 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
-            // a new deploy takes over open tabs right away (the app reloads itself once)
-            skipWaiting: true,
+            // a new deploy takes over once the app says so (it waits while someone is drawing)
+            skipWaiting: false,
             clientsClaim: true,
             cleanupOutdatedCaches: true,
             globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],

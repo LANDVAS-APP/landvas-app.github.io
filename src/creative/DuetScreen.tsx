@@ -12,7 +12,7 @@ import { toGameError } from '../backend/backend';
 import type { Duet, DuetPublic } from '../backend/types';
 import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
-import { cn, timeAgo } from '../lib/utils';
+import { cn, safeStorage, saveStorage, timeAgo } from '../lib/utils';
 import { drawStrokes, type Stroke } from '../shared/strokes';
 import { Button, Empty, PlayerAvatar, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
@@ -104,7 +104,9 @@ function DuetHome() {
 }
 
 function Painting({ d, onDone }: { d: Duet; onDone(d: Duet): void }) {
-  const [strokes, setStrokes] = useState<Stroke[]>((d.half === 'top' ? d.top : d.bottom) ?? []);
+  const key = `landvas.duet.${d.id}`;
+  const [strokes, setStrokesRaw] = useState<Stroke[]>(() => safeStorage<Stroke[] | null>(key, null) ?? (d.half === 'top' ? d.top : d.bottom) ?? []);
+  const setStrokes = (s: Stroke[]) => { setStrokesRaw(s); saveStorage(key, s); };
   const [busy, setBusy] = useState(false);
   const t0 = useRef(performance.now());
   const top = d.half === 'top';
@@ -123,7 +125,7 @@ function Painting({ d, onDone }: { d: Duet; onDone(d: Duet): void }) {
   const send = async () => {
     if (strokes.length < 2) { toast('Paint a little more first.'); return; }
     setBusy(true);
-    try { onDone(await api.duetSubmit(d.id, strokes)); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+    try { const r = await api.duetSubmit(d.id, strokes); saveStorage(key, null); onDone(r); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
   return (
     <section className="glass mb-6 grid justify-items-center gap-3 rounded-3xl p-4" data-testid="duet-painting">

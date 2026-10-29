@@ -9,12 +9,14 @@ import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, sha256Hex } from '../lib/utils';
 import { LiveUsd, WalletDialog, useRent } from '../rent/RentHud';
-import { Avatar, Button, Field, Spinner, inputCls, PlayerAvatar } from '../ui';
+import { Avatar, Button, Dialog, Field, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 
 
 const ACCENTS = ['#7B5CFF', '#FF3D9A', '#3DDC97', '#2FB8FF', '#FFB31F', '#FF5A3D', '#22E3FF', '#B8F04A'];
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
+
+import { NavCustomizer } from '../app/NavCustomizer';
 
 export default function MeHub() {
   const me = useOnboardedMe();
@@ -23,6 +25,7 @@ export default function MeHub() {
   const { rent, offset } = useRent();
   const [wallet, setWallet] = useState(false);
   const [edit, setEdit] = useState(false);
+  const [tabs, setTabs] = useState(false);
   if (!me) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const p = me.profile;
   const links = [
@@ -36,13 +39,16 @@ export default function MeHub() {
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top landholders & artists' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },
-    { to: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Theme, GPS, account' },
+    { to: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Theme, GPS, tabs, account' },
+    { to: '/pvp', label: 'PvP minigames', icon: Gamepad2, hint: 'Free head-to-head games' },
+    { to: '/challenges', label: 'Challenges', icon: Trophy, hint: 'Weekly painting themes' },
     { to: '/players', label: 'Players', icon: Users, hint: 'Everyone’s land and art' },
     ...(me.roles.includes('owner') ? [{ to: '/admin', label: 'Admin hub', icon: Shield, hint: 'Owner' }] : []),
   ];
   return (
     <Page>
-      <PageHeader eyebrow="Your corner of the world" title="Me" />
+      <PageHeader eyebrow="Your corner of the world" title="Me" actions={<Button size="sm" variant="secondary" className="md:hidden" onClick={() => setTabs(true)} data-testid="customize-tabs">Customize tabs</Button>} />
+      <Dialog open={tabs} onOpenChange={setTabs} title="Your tab bar" description="Choose the four tabs at the bottom of the screen and their order."><NavCustomizer /></Dialog>
       <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
         <section className="glass rounded-3xl p-5">
           <div className="flex items-center gap-4">

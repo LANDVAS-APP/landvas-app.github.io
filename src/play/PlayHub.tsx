@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
-import { Page, PageHeader } from '../app/Shell';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
 import { PLOT_TYPES } from '../map/plotStyle';
@@ -12,38 +11,28 @@ import { rarityInfo } from '../shared/rarity';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
-import { EarnHub } from '../earn/EarnHub';
 import { activeBoost, bonusText, boostLeft, fullClearInk } from './rates';
-import { Swords, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
   ['lightlines', 'paintpop', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
 ).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 
-export default function PlayHub() {
+/** Your plots' minigames: one card per game, boosted ones first. */
+export function MinigameGrid() {
   const me = useOnboardedMe();
   const nav = useNavigate();
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
   const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me });
   const world = useWorld();
   const cfg = world.data?.minigames?.games ?? {};
-  if (!me || plots.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
+  if (!me || plots.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;
   const limit = records.data?.daily_rewarded_wins_per_game ?? 6;
   const unlimitedRuns = world.data?.minigames?.limit_paid_runs === false;
   const resets = records.data?.resets_at ? new Date(records.data.resets_at) : null;
   return (
-    <Page>
-      <PageHeader eyebrow="Earn Ink" title="Play">
-        {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Every round you clear pays, and clearing all of a level's rounds levels the plot up (beaten levels can't be replayed). ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays Ink for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}
-      </PageHeader>
-      {me && <EarnHub />}
-      {world.data && (
-        <Link to="/pvp" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-pvp">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-hot/15 text-hot"><Swords className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><span className="block font-display font-semibold">PvP minigames</span><span className="block text-xs text-muted">Free head-to-head games in rounds against an anonymous rival. Win more rounds, win Ink.</span></span>
-          <span className="text-sm font-bold text-hot">Enter →</span>
-        </Link>
-      )}
+    <>
+      <p className="mb-3 text-sm text-muted">{`Every round you clear pays Ink, and clearing all of a level's rounds levels the plot up. ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}</p>
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>
           Every plot type has its own minigame, and every plot climbs its own levels. Your free starter plot is waiting on the map.
@@ -101,6 +90,6 @@ export default function PlayHub() {
           })}
         </div>
       )}
-    </Page>
+    </>
   );
 }

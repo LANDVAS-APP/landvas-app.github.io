@@ -15,7 +15,7 @@ type Step = { icon: typeof Map; color: string; title: string; body: string; to?:
 
 const STEPS: Step[] = [
   { icon: Sparkles, color: '#7B5CFF', title: 'Welcome to LANDVAS!', body: 'Here’s a one-minute tour of everything you can do. Skip it any time — you can replay it from Settings.' },
-  { icon: MapPinned, color: '#34C3FF', title: 'Claim your free plot', body: 'Your explorer stands on the real map. Tap any plot inside the dashed square around it to claim your first one — free. Its rarity is a surprise!', to: '/world', cta: 'Show me the map' },
+  { icon: MapPinned, color: '#34C3FF', title: 'Claim 4 free plots', body: 'Your explorer stands on the real map. Tap plots inside the dashed square around it — your first 4 are free. Each one’s rarity is a surprise!', to: '/world', cta: 'Show me the map' },
   { icon: Gamepad2, color: '#3DDC97', title: 'Win Ink with minigames', body: 'Every plot hides one of eight minigames. Clear its rounds to earn Ink — the currency that buys the plots next door. Rarer plots pay more.', to: '/play', cta: 'Show me the games' },
   { icon: Brush, color: '#FF4D6D', title: 'Paint it your way', body: 'Open a canvas and use the Create tab: idea prompts, ready-made palettes, shade ramps, trace guides and a free mirror. Careful, original work earns a craft bonus.', to: '/canvases', cta: 'Show me my canvases' },
   { icon: Wand2, color: '#FF9F1C', title: 'Grow a mural', body: 'Buy neighbouring plots and merge them into one canvas you can paint across. Bigger murals earn bigger craft bonuses — merging costs a little Ink per plot.' },

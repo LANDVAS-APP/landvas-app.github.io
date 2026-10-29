@@ -143,6 +143,10 @@ export const api = {
   myGroups: () => rpc<CanvasGroup[]>('my_groups'),
   // creative games
   myStreak: () => rpc<import('./types').Streak>('my_streak'),
+  myEarningsToday: () => rpc<{ total: number; resets_at: string; by_reason: Record<string, number> }>('my_earnings_today'),
+  mySketches: (limit = 60) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; votes: number; place: number | null; prize: number; day: string; live: boolean }[]>('my_sketches', { p_limit: limit }),
+  sketchPublic: (id: string) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; place: number | null; day: string; voting: boolean; artist: import('./types').Profile | null } | null>('sketch_public', { p_id: id }),
+  myDoodles: (limit = 60) => rpc<import('./types').DoodleMine['drawings']>('my_doodles', { p_limit: limit }),
   sketchToday: () => rpc<import('./types').SketchToday>('sketch_today'),
   sketchStart: () => rpc<import('./types').SketchToday>('sketch_start'),
   sketchSubmit: (strokes: unknown) => rpc<import('./types').SketchToday>('sketch_submit', { p_strokes: strokes }),

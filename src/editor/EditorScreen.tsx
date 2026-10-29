@@ -22,6 +22,7 @@ import { Editor, type ToolId } from './engine/Editor';
 import { loadDoc, publish, saveTiles, type PublishStep } from './engine/io';
 import { CreatePanel } from './ui/CreatePanel';
 import { EDITOR_MAX_PLOTS, HugeMural } from './HugeMural';
+import { holdUpdates } from '../app/updates';
 import { analyzeCraft, type Craft } from '../shared/craft';
 import { fingerprint, mostSimilar } from '../shared/originality';
 import { ImportDialog } from './ui/ImportDialog';
@@ -54,6 +55,7 @@ export default function EditorScreen() {
 }
 
 function PaintEditor() {
+  useEffect(() => holdUpdates(), []);
   const { groupId } = useParams();
   const [search] = useSearchParams();
   const nav = useNavigate();

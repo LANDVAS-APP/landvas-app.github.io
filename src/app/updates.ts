@@ -11,6 +11,20 @@ declare const __LANDVAS_BUILT_AT__: string;
 export const BUILD = { id: __LANDVAS_BUILD__, at: __LANDVAS_BUILT_AT__ };
 
 let registration: ServiceWorkerRegistration | undefined;
+// while someone is drawing, a new build waits (a reload would lose their strokes)
+let holds = 0;
+let pending: string | null = null;
+let swPending = false;
+let updateSW: ((reload?: boolean) => Promise<void>) | undefined;
+export function holdUpdates() {
+  holds++;
+  return () => {
+    holds = Math.max(0, holds - 1);
+    if (!holds && swPending) { swPending = false; setTimeout(() => { if (!holds) void updateSW?.(true); }, 3000); }
+    if (!holds && pending) { const b = pending; pending = null; setTimeout(() => { if (!holds) void hardRefresh(b); }, 4000); }
+  };
+}
+export const updatesHeld = () => holds > 0;
 const TRIED = 'landvas.update.tried';
 
 function triedFor(build: string) {
@@ -30,6 +44,7 @@ function markTried(build: string) {
 
 /** Drop every cached copy of the app and load the live one (once per build per tab). */
 export async function hardRefresh(build = 'unknown') {
+  if (holds) { pending = build; return; }
   if (triedFor(build)) return;
   markTried(build);
   try {
@@ -50,9 +65,10 @@ async function checkVersion() {
     if (!res.ok) return;
     const live = (await res.json()) as { build?: string };
     if (!live.build || live.build === BUILD.id) return;
+    if (holds) { pending = live.build; return; }
     await registration?.update().catch(() => {});
     // the new service worker normally reloads the page within a few seconds
-    setTimeout(() => void hardRefresh(live.build), 12_000);
+    setTimeout(() => { if (holds) pending = live.build!; else void hardRefresh(live.build); }, 12_000);
   } catch {
     /* offline */
   }
@@ -62,12 +78,16 @@ export function startUpdates() {
   if (config.serviceWorker && 'serviceWorker' in navigator && import.meta.env.PROD) {
     void import('virtual:pwa-register')
       .then(({ registerSW }) =>
-        registerSW({
+        (updateSW = registerSW({
           immediate: true,
           onRegisteredSW(_url, r) {
             registration = r;
           },
-        }),
+          onNeedRefresh() {
+            if (holds) swPending = true;
+            else void updateSW?.(true);
+          },
+        })),
       )
       .catch(() => {});
   }

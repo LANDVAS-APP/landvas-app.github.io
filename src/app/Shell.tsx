@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Swords, PenLine, Lightbulb, Users2, LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
+import { useUi } from '../lib/store';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
@@ -12,19 +13,17 @@ import { Tour } from '../tour/Tour';
 const MAIN = [
   { to: '/world', label: 'World', icon: Globe2, end: true },
   { to: '/canvases', label: 'Canvases', icon: LayoutGrid },
-  { to: '/play', label: 'Play', icon: Gamepad2 },
+  { to: '/play', label: 'Play & Earn', icon: Gamepad2 },
   { to: '/social', label: 'Social', icon: MessagesSquare },
   { to: '/gallery', label: 'Gallery', icon: Images },
   { to: '/players', label: 'Players', icon: Users },
 ];
-// the phone tab bar keeps five: Canvases and Players live in Me and Social
-const MOBILE = ['/world', '/play', '/social', '/gallery'];
+// the phone tab bar: four tabs the player picks (Settings → Navigation), then Me
+export const DEFAULT_TABS = ['/world', '/play', '/social', '/gallery'];
+export const MAX_TABS = 4;
 const MORE = [
   { to: '/pvp', label: 'PvP', icon: Swords },
   { to: '/challenges', label: 'Challenges', icon: Trophy },
-  { to: '/sketch', label: 'Sketch of the Day', icon: PenLine },
-  { to: '/doodle', label: 'Draw & Guess', icon: Lightbulb },
-  { to: '/duet', label: 'Duets', icon: Users2 },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },
@@ -32,6 +31,8 @@ const MORE = [
   { to: '/support', label: 'Help', icon: LifeBuoy },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
+/** Everything that can sit in the phone tab bar. */
+export const TAB_CHOICES = [...MAIN, { to: '/invite', label: 'Invite', icon: Gift }, ...MORE.filter((i) => i.to !== '/settings')];
 
 export function Shell() {
   const me = useOnboardedMe();
@@ -41,6 +42,8 @@ export function Shell() {
   const admin = me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 60_000, staleTime: 30_000 });
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
+  const chosen = useUi((s) => s.settings.mobileTabs);
+  const tabs = (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
   // the public homepage is full-bleed, without the game's navigation
   if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
@@ -63,7 +66,7 @@ export function Shell() {
       <AnnouncementPopup />
       <Tour />
       <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
-        {MAIN.filter((i) => MOBILE.includes(i.to)).map((i) => <TabItem key={i.to} {...i} badge={badge(i.to)} />)}
+        {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>
     </div>

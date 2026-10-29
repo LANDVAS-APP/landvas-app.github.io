@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { Clock, Crown, Heart, PenLine, Send, Sparkles, Trophy } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { SketchToday } from '../backend/types';
@@ -28,6 +29,31 @@ export function useNow(every = 500) {
 }
 
 export default function SketchScreen() {
+  const { id } = useParams();
+  if (id) return <PublicSketch id={id} />;
+  return <SketchToday />;
+}
+
+function PublicSketch({ id }: { id: string }) {
+  const q = useQuery({ queryKey: ['sketch-public', id], queryFn: () => api.sketchPublic(id) });
+  if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
+  const s = q.data;
+  if (!s) return <Page><Empty title="Sketch not found">It may have been removed.</Empty></Page>;
+  return (
+    <Page>
+      <div className="grid justify-items-center gap-4 py-4 text-center" data-testid="sketch-public">
+        <div className="eyebrow">Sketch of the Day</div>
+        <h1 className="font-display text-3xl font-bold capitalize">“{s.word}”</h1>
+        <StrokeView strokes={s.strokes} size={Math.min(420, Math.round(innerWidth - 32))} replay speed={6} />
+        {s.place && <div className="flex items-center gap-1 font-bold text-gold"><Crown className="h-4 w-4" /> #{s.place} of the day</div>}
+        {s.artist ? <Link to={`/u/${s.artist.username}`} className="flex items-center gap-2 text-sm font-semibold"><PlayerAvatar p={s.artist} size={28} />@{s.artist.username}</Link> : <p className="text-sm text-muted">The artist is revealed when voting closes.</p>}
+        <Link to="/sketch" className="lv-cta inline-flex h-11 items-center rounded-xl px-5 text-sm font-extrabold text-white">{s.voting ? 'Vote on today’s sketches' : 'Sketch today’s word'}</Link>
+      </div>
+    </Page>
+  );
+}
+
+function SketchToday() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
   const confirm = useConfirm();

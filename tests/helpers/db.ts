@@ -53,7 +53,7 @@ export class TestDb {
    * @param opts.ungated turn off location-gated claims (for suites that test
    *   other systems and claim plots all over the grid)
    */
-  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[] } = {}) {
+  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
     // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
@@ -62,6 +62,8 @@ export class TestDb {
     this.admin = await this.connect();
     for (const sql of sqlBundle(opts)) await this.admin.query(sql);
     if (opts.ungated) await this.admin.query(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
+    // most suites test paid plots; the free-plot allowance is tested on its own
+    await this.admin.query(`update game_config set value = value || jsonb_build_object('free_plots', $1::int) where key = 'economy'`, [opts.freePlots ?? 1]).catch(() => {});
     return this;
   }
 

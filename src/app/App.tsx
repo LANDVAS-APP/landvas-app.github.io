@@ -15,7 +15,7 @@ import { useReferralRedeemer } from '../social/referral';
 
 const EditorScreen = lazy(() => import('../editor/EditorScreen'));
 const CanvasesScreen = lazy(() => import('../canvases/CanvasesScreen'));
-const PlayHub = lazy(() => import('../play/PlayHub'));
+const PlayHub = lazy(() => import('../play/PlayEarn'));
 const GameScreen = lazy(() => import('../play/GameScreen'));
 const GameSandbox = lazy(() => import('../play/GameScreen').then((m) => ({ default: m.GameSandbox })));
 const GalleryScreen = lazy(() => import('../gallery/GalleryScreen'));
@@ -160,6 +160,7 @@ const routes: RouteObject[] = [
           { path: '/pvp', element: player(<PvpScreen />) },
           { path: '/challenges', element: p(<ChallengesScreen />) },
           { path: '/sketch', element: p(<SketchScreen />) },
+          { path: '/sketch/:id', element: p(<SketchScreen />) },
           { path: '/doodle', element: player(<DoodleScreen />) },
           { path: '/duet', element: player(<DuetScreen />) },
           { path: '/duet/:id', element: p(<DuetScreen />) },

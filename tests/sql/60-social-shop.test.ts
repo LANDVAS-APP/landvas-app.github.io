@@ -46,7 +46,7 @@ describe('mystery plots', () => {
     const d = await db.rpc(p, 'plot_details', { p_gx: H.gx, p_gy: H.gy });
     expect(d.mystery).toBe(true);
     for (const k of ['plot_type', 'type_info', 'rarity', 'rarity_info', 'rent']) expect(d[k] ?? null).toBeNull();
-    expect(Object.keys(d.acquire).sort()).toEqual(['ink', 'owned', 'starter_available']);
+    expect(Object.keys(d.acquire).sort()).toEqual(['free_left', 'ink', 'owned', 'starter_available']);
     for (const n of d.neighbors) { expect(n.plot_type).toBeNull(); expect(n.rarity).toBeNull(); }
   });
 

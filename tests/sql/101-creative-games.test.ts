@@ -122,3 +122,26 @@ describe('Stamps', () => {
     await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'creative', p_value: { ...v, stamps: { ...v.stamps, artist_pct: 300 } } }), 'invalid_creative_config');
   });
 });
+
+describe('free plots and history', () => {
+  it('a new player’s first four plots are free', async () => {
+    const t = new TestDb();
+    await t.init({ ungated: true, freePlots: 4 });
+    const p = await t.newPlayer('four_free');
+    await t.rpc(p, 'claim_starter_plot', { p_gx: 2_800_000, p_gy: 1_700_000 });
+    for (let k = 1; k <= 3; k++) {
+      const r = await t.rpc(p, 'acquire_plot', { p_gx: 2_800_000 + k, p_gy: 1_700_000, p_idempotency_key: `free-plot-${k}-000001` });
+      expect(Number(r.cost.ink)).toBe(0);
+    }
+    await expectError(t.rpc(p, 'acquire_plot', { p_gx: 2_800_004, p_gy: 1_700_000, p_idempotency_key: 'free-plot-5-0000001' }), 'insufficient_funds');
+    await t.close();
+  });
+  it('keeps a history of sketches and drawings; today’s earnings by source', async () => {
+    const mine = await db.rpc(ann, 'my_sketches');
+    expect(mine.length).toBeGreaterThan(0);
+    expect((await db.rpc({ role: 'anon' }, 'sketch_public', { p_id: mine[0].id })).artist.username).toBe('ann_sketches');
+    expect((await db.rpc(ann, 'my_doodles')).length).toBeGreaterThan(0);
+    const e = await db.rpc(ann, 'my_earnings_today');
+    expect(Number(e.total)).toBeGreaterThan(0);
+  });
+});

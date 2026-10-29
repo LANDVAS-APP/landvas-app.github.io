@@ -183,7 +183,7 @@ function Match({ s, onDone }: { s: PvpStart; onDone(log: unknown): void }) {
     }, 1200);
   };
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="flex min-h-full flex-col overflow-x-hidden bg-bg">
       <header className="gutter flex items-center gap-3 pb-2 pt-[max(12px,env(safe-area-inset-top,0px))]">
         <div className="min-w-0 flex-1">
           <div className="eyebrow" style={{ color: info.color }}>PvP · {s.matched ? 'rival found' : 'your rival plays the same boards'}</div>
@@ -191,7 +191,7 @@ function Match({ s, onDone }: { s: PvpStart; onDone(log: unknown): void }) {
         </div>
         <span className="glass flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-bold tnum" data-testid="pvp-round">Round {Math.min(round + 1, s.rounds)} of {s.rounds}</span>
       </header>
-      <main className="gutter flex flex-1 flex-col items-center justify-center pb-8">
+      <main className="gutter flex flex-1 flex-col items-center pb-[calc(100px+env(safe-area-inset-bottom,0px))] md:pb-8 [&>*]:my-auto">
         {between ? (
           <div className="grid justify-items-center gap-2 text-center">
             <Timer className="h-8 w-8 text-accent-2" />

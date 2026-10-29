@@ -193,7 +193,12 @@ function CopyCat({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   const paints = useRef<{ t: number; i: number; c: number; f?: 1 }[]>([]);
   const finish = useFinish(now, onDone);
   useTicker(250);
-  const size = useBoardSize(340, 300);
+  const full = useBoardSize(340, 300);
+  // phones: the example sits beside the canvas, so everything fits on one screen
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+  const side = vw < 600;
+  const ex = side ? Math.max(84, Math.min(130, Math.round((vw - 32) * 0.3))) : Math.round(full * 0.42);
+  const size = side ? Math.min(full, vw - 32 - ex - 10) : full;
   const left = L.timeLimitMs - now();
   useEffect(() => { if (left <= 0) finish({ paints: paints.current }); }); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = (i: number, c = color, f = fill) => {
@@ -210,11 +215,11 @@ function CopyCat({ seed, now, onDone, registerSolver }: PvpBoardProps) {
     finish({ paints: paints.current });
   });
   const close = Math.round(copyCloseness(grid, L.target) * 100);
-  const ex = Math.round(size * 0.42), es = ex / L.n;
+  const es = ex / L.n;
   return (
     <div className="grid justify-items-center gap-3">
       <Hud items={[{ label: 'Draw', value: L.motif }, { label: 'Match', value: `${close}%`, tone: close >= 80 ? 'ok' : undefined }, { label: 'Time', value: fmtClock(left), tone: left < 10000 ? 'warn' : undefined }]} />
-      <div className="flex flex-wrap items-start justify-center gap-3">
+      <div className={cn('flex items-start justify-center gap-2.5', !side && 'flex-wrap gap-3')}>
         <div className="grid gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-gold">Example
           <svg width={ex} height={ex} className="rounded-xl shadow-[0_0_0_2px_rgba(255,79,216,0.5)]" data-testid="copy-example" aria-hidden>
             {L.target.map((c, i) => <rect key={i} x={(i % L.n) * es} y={Math.floor(i / L.n) * es} width={es + 0.3} height={es + 0.3} fill={MURAL_COLORS[c]} />)}

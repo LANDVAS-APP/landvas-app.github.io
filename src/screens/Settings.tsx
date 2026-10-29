@@ -13,6 +13,7 @@ import { cn, safeStorage, saveStorage } from '../lib/utils';
 import { startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { Button, Switch, useConfirm, PlayerAvatar } from '../ui';
 import { replayTour } from '../tour/Tour';
+import { NavCustomizer } from '../app/NavCustomizer';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -49,6 +50,10 @@ export default function Settings() {
           <Switch id="crisp" label="Crisp pixel art on the map" hint="Nearest-neighbour scaling for pixel murals" checked={settings.crispPixels} onCheckedChange={(v) => update({ crispPixels: v })} />
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />
           <Switch id="haptics" label="Haptic feedback" hint="Vibration on supported phones" checked={settings.haptics} onCheckedChange={(v) => update({ haptics: v })} />
+        </Section>
+
+        <Section title="Phone navigation">
+          <NavCustomizer />
         </Section>
 
         <Section title="Tutorial">
