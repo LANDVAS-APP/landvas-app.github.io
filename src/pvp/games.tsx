@@ -2,7 +2,7 @@
 // hands it back; the server replays every round to score the run.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MURAL_COLORS } from '../shared/minigames/memorymural';
-import { generateClash, generateForgery, generateRecall, generateTurf, solveTurf, turfNeighbors, type PvpGame } from '../shared/pvp';
+import { copyCloseness, copyFill, generateClash, generateCopycat, generateForgery, generateRecall, generateTurf, solveTurf, turfNeighbors, type PvpGame } from '../shared/pvp';
 import { cn, sleep } from '../lib/utils';
 import { Button } from '../ui';
 import { Hud, fmtClock, haptic, useBoardSize, useLatest, useTicker } from '../play/common';
@@ -183,6 +183,56 @@ function PixelRecall({ seed, now, onDone, registerSolver }: PvpBoardProps) {
   );
 }
 
+// ----------------------------------------------------------------- Copy Cat
+function CopyCat({ seed, now, onDone, registerSolver }: PvpBoardProps) {
+  const L = useMemo(() => generateCopycat(seed), [seed]);
+  const [grid, setGrid] = useState<number[]>(() => new Array(L.n * L.n).fill(0));
+  const ref = useLatest(grid);
+  const [color, setColor] = useState(L.colors[1]);
+  const [fill, setFill] = useState(false);
+  const paints = useRef<{ t: number; i: number; c: number; f?: 1 }[]>([]);
+  const finish = useFinish(now, onDone);
+  useTicker(250);
+  const size = useBoardSize(340, 300);
+  const left = L.timeLimitMs - now();
+  useEffect(() => { if (left <= 0) finish({ paints: paints.current }); }); // eslint-disable-line react-hooks/exhaustive-deps
+  const paint = (i: number, c = color, f = fill) => {
+    if (f && ref.current[i] === c) return;
+    paints.current.push({ t: Math.round(now()), i, c, ...(f ? { f: 1 as const } : {}) });
+    const next = f ? copyFill(ref.current, L.n, i, c) : (() => { const g = ref.current.slice(); g[i] = c; return g; })();
+    ref.current = next;
+    setGrid(next);
+    haptic(4);
+  };
+  registerSolver(async () => {
+    for (let i = 0; i < L.target.length; i++) if (L.target[i] !== 0) { await sleep(70 + Math.random() * 40); paint(i, L.target[i], false); }
+    await sleep(300);
+    finish({ paints: paints.current });
+  });
+  const close = Math.round(copyCloseness(grid, L.target) * 100);
+  const ex = Math.round(size * 0.42), es = ex / L.n;
+  return (
+    <div className="grid justify-items-center gap-3">
+      <Hud items={[{ label: 'Draw', value: L.motif }, { label: 'Match', value: `${close}%`, tone: close >= 80 ? 'ok' : undefined }, { label: 'Time', value: fmtClock(left), tone: left < 10000 ? 'warn' : undefined }]} />
+      <div className="flex flex-wrap items-start justify-center gap-3">
+        <div className="grid gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-gold">Example
+          <svg width={ex} height={ex} className="rounded-xl shadow-[0_0_0_2px_rgba(255,79,216,0.5)]" data-testid="copy-example" aria-hidden>
+            {L.target.map((c, i) => <rect key={i} x={(i % L.n) * es} y={Math.floor(i / L.n) * es} width={es + 0.3} height={es + 0.3} fill={MURAL_COLORS[c]} />)}
+          </svg>
+        </div>
+        <div className="grid gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-muted">Your copy
+          <PaintGridBoard n={L.n} grid={grid} size={size} onPaint={(i) => paint(i)} />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Palette colors={L.colors} value={color} onChange={setColor} />
+        <Button size="sm" variant={fill ? 'primary' : 'secondary'} onClick={() => setFill((f) => !f)} data-testid="copy-fill">{fill ? 'Fill: on' : 'Fill'}</Button>
+      </div>
+      <Button variant="primary" onClick={() => finish({ paints: paints.current })} data-testid="copy-done">Done · {close}%</Button>
+    </div>
+  );
+}
+
 export const PVP_COMPONENTS: Record<PvpGame, (p: PvpBoardProps) => React.ReactElement> = {
-  turfwars: TurfWars, paletteclash: PaletteClash, forgery: Forgery, pixelrecall: PixelRecall,
+  copycat: CopyCat, turfwars: TurfWars, paletteclash: PaletteClash, forgery: Forgery, pixelrecall: PixelRecall,
 };

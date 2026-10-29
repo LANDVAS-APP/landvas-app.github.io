@@ -173,6 +173,7 @@ export const api = {
   myMinigameRecords: () => rpc<MinigameRecords>('my_minigame_records'),
 
   // social
+  featuredToday: (limit = 12) => rpc<(ArtworkCard & { pick: 'staff' | 'community'; note?: string | null })[]>('featured_today', { p_limit: limit }),
   galleryList: (section: string, limit = 24, offset = 0, bbox?: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) =>
     rpc<ArtworkCard[]>('gallery_list', { p_section: section, p_limit: limit, p_offset: offset, p_bbox: bbox ?? null }),
   trendingArtists: () => rpc<{ artist: Profile; appreciations: number; top_artwork: ArtworkCard | null }[]>('trending_artists', { p_days: 7, p_limit: 12 }),

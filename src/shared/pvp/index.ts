@@ -9,8 +9,8 @@ import { MURAL_COLORS } from '../minigames/memorymural';
 import { mulberry32 } from '../minigames/rng';
 import { checkTimes } from '../minigames/types';
 
-export type PvpGame = 'turfwars' | 'paletteclash' | 'forgery' | 'pixelrecall';
-export const PVP_GAMES: PvpGame[] = ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'];
+export type PvpGame = 'turfwars' | 'paletteclash' | 'forgery' | 'pixelrecall' | 'copycat';
+export const PVP_GAMES: PvpGame[] = ['copycat', 'turfwars', 'paletteclash', 'forgery', 'pixelrecall'];
 
 /** One board's verdict. quality is 0-100: how close to a perfect round it was. */
 export type BoardResult = { valid: boolean; score: number; time_ms: number; quality: number; summary: Record<string, unknown>; flags: string[]; reason?: string };
@@ -30,6 +30,10 @@ export const PVP_INFO: Record<PvpGame, { name: string; tagline: string; howTo: s
   forgery: {
     name: 'Spot the Forgery', tagline: 'Find what the forger changed.', color: '#FFB23F',
     howTo: ['The original mural is on top; the forgery below has 6 changed pixels.', 'Tap the changed pixels on the forgery. Wrong taps cost points.', 'Find all 6 fast — time is the tiebreaker.'],
+  },
+  copycat: {
+    name: 'Copy Cat', tagline: 'Paint the example. Closest copy wins.', color: '#FF4FD8',
+    howTo: ['An example drawing appears beside your blank canvas.', 'Pick colours and paint it — drag to draw, or use Fill for big areas.', 'The copy closest to the example wins the round; speed breaks ties.'],
   },
   pixelrecall: {
     name: 'Pixel Recall', tagline: 'Remember it. Repaint it. Beat them.', color: '#34C3FF',
@@ -185,6 +189,88 @@ export function validateRecall(seed: number, log: RecallLog): BoardResult {
   return { valid: true, score, time_ms: log.done_t, quality: pct(score / (20 * Math.max(1, painted))), summary: { correct, cells: rel.length }, flags: [] };
 }
 
+// ----------------------------------------------------------------- Copy Cat
+// A little generated drawing (a house, tree, fish, rocket…) on a 12×12 grid; both players
+// paint it as closely as they can. Colours that are close but not exact get partial credit.
+export type CopyLevel = { n: number; colors: number[]; target: number[]; motif: string; timeLimitMs: number };
+export type CopyLog = { paints: { t: number; i: number; c: number; f?: 1 }[]; done_t: number };
+type Painter = { set(x: number, y: number, c: number): void; rect(x0: number, y0: number, x1: number, y1: number, c: number): void; disc(cx: number, cy: number, r: number, c: number): void };
+// colour roles: 1 main, 2 accent, 3 dark, 4 light
+const MOTIFS: { name: string; draw(p: Painter, rng: ReturnType<typeof mulberry32>, c: number[]): void }[] = [
+  { name: 'House', draw: (p, rng, c) => { p.rect(2, 6, 9, 11, c[1]); for (let k = 0; k < 4; k++) p.rect(1 + k, 5 - k, 10 - k, 5 - k, c[2]); p.rect(5, 8, 6, 11, c[3]); p.rect(3, 7, 3, 8, c[4]); p.rect(8, 7, 8, 8, c[4]); if (rng.chance(0.5)) p.disc(10, 1, 1, c[4]); } },
+  { name: 'Tree', draw: (p, _r, c) => { p.rect(5, 7, 6, 11, c[3]); p.disc(5.5, 4.5, 3.6, c[1]); p.disc(4, 3.5, 1, c[4]); p.rect(2, 11, 9, 11, c[2]); } },
+  { name: 'Flower', draw: (p, _r, c) => { p.rect(5, 6, 6, 11, c[2]); p.rect(3, 9, 4, 9, c[2]); p.rect(7, 8, 8, 8, c[2]); for (const [dx, dy] of [[0, -2], [2, 0], [0, 2], [-2, 0]]) p.disc(5.5 + dx, 3.5 + dy, 1.3, c[1]); p.disc(5.5, 3.5, 1.1, c[4]); } },
+  { name: 'Fish', draw: (p, _r, c) => { p.disc(5, 6, 3.4, c[1]); for (let k = 0; k < 3; k++) p.rect(8 + k, 5 - k, 8 + k, 7 + k, c[2]); p.set(3, 5, c[3]); p.rect(4, 7, 6, 7, c[4]); } },
+  { name: 'Mushroom', draw: (p, _r, c) => { p.rect(4, 7, 7, 11, c[4]); p.disc(5.5, 5, 4.2, c[1]); p.rect(1, 6, 10, 7, c[1]); p.disc(3.5, 3.8, 0.9, c[4]); p.disc(7.5, 4, 0.9, c[4]); p.rect(5, 8, 6, 9, c[3]); } },
+  { name: 'Rocket', draw: (p, _r, c) => { p.rect(4, 3, 7, 9, c[4]); p.rect(5, 1, 6, 2, c[1]); p.disc(5.5, 5, 1, c[2]); p.rect(2, 7, 3, 10, c[1]); p.rect(8, 7, 9, 10, c[1]); p.rect(5, 10, 6, 11, c[2]); } },
+  { name: 'Heart', draw: (p, _r, c) => { p.disc(3.8, 4, 2.4, c[1]); p.disc(7.2, 4, 2.4, c[1]); for (let k = 0; k < 5; k++) p.rect(1 + k, 5 + k, 10 - k, 5 + k, c[1]); p.set(3, 3, c[4]); p.set(4, 3, c[4]); } },
+  { name: 'Sailboat', draw: (p, _r, c) => { for (let k = 0; k < 6; k++) p.rect(6 - Math.floor(k / 1.4), 1 + k, 6, 1 + k, c[4]); p.rect(7, 2, 7, 7, c[3]); p.rect(2, 8, 10, 9, c[1]); p.rect(3, 10, 9, 10, c[1]); p.rect(0, 11, 11, 11, c[2]); } },
+  { name: 'Ice cream', draw: (p, _r, c) => { p.disc(5.5, 3.5, 2.8, c[1]); p.disc(4.5, 2.5, 0.8, c[4]); for (let k = 0; k < 6; k++) p.rect(3 + Math.floor(k / 2), 6 + k, 8 - Math.floor(k / 2), 6 + k, c[2]); p.set(6, 1, c[3]); } },
+  { name: 'Cat', draw: (p, _r, c) => { p.disc(5.5, 6.5, 4, c[1]); p.rect(2, 1, 3, 3, c[1]); p.rect(8, 1, 9, 3, c[1]); p.set(4, 5, c[3]); p.set(7, 5, c[3]); p.set(5, 7, c[2]); p.set(6, 7, c[2]); p.rect(4, 8, 7, 8, c[3]); } },
+];
+export function generateCopycat(seed: number): CopyLevel {
+  const rng = seeded(seed, 5);
+  const n = 12;
+  const pal = rng.shuffle(MURAL_COLORS.map((_, i) => i).slice(1, 8)).slice(0, 3);
+  const colors = [0, pal[0], pal[1], 8, pal[2]]; // blank, main, accent, dark, light
+  const target = new Array(n * n).fill(0);
+  const m = rng.pick(MOTIFS);
+  const ox = 0, oy = 0;
+  const set = (x: number, y: number, c: number) => { x = Math.round(x) + ox; y = Math.round(y) + oy; if (x >= 0 && y >= 0 && x < n && y < n) target[y * n + x] = c; };
+  const flip = rng.chance(0.5);
+  const P: Painter = {
+    set: (x, y, c) => set(flip ? n - 1 - x : x, y, c),
+    rect: (x0, y0, x1, y1, c) => { for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) P.set(x, y, c); },
+    disc: (cx, cy, r, c) => { for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r + 0.3) P.set(x, y, c); },
+  };
+  m.draw(P, rng, colors);
+  return { n, colors, target, motif: m.name, timeLimitMs: 75_000 };
+}
+/** Flood fill from i with colour c (4-neighbour, same colour region) — shared by the board and the validator. */
+export function copyFill(grid: number[], n: number, i: number, c: number) {
+  const from = grid[i];
+  if (from === c) return grid;
+  const out = grid.slice();
+  const st = [i];
+  while (st.length) {
+    const k = st.pop()!;
+    if (out[k] !== from) continue;
+    out[k] = c;
+    const x = k % n;
+    if (x > 0) st.push(k - 1);
+    if (x < n - 1) st.push(k + 1);
+    if (k >= n) st.push(k - n);
+    if (k < n * n - n) st.push(k + n);
+  }
+  return out;
+}
+/** How close a painting is to the example, 0-1 (exact colours 1, near colours partial, blank-on-blank ignored). */
+export function copyCloseness(grid: number[], target: number[]) {
+  let sum = 0, rel = 0;
+  for (let i = 0; i < target.length; i++) {
+    if (grid[i] === 0 && target[i] === 0) continue;
+    rel++;
+    if (grid[i] === target[i]) { sum += 1; continue; }
+    if (grid[i] === 0 || target[i] === 0) continue;
+    const d = dist(MURAL_COLORS[grid[i]], MURAL_COLORS[target[i]]);
+    sum += Math.max(0, 0.5 - d / 400);
+  }
+  return rel ? sum / rel : 0;
+}
+export function validateCopycat(seed: number, log: CopyLog): BoardResult {
+  const L = generateCopycat(seed);
+  if (!log || !Array.isArray(log.paints) || log.paints.length > 800) return bad('bad_paints');
+  const t = checkTimes([...log.paints.map((x) => x.t), log.done_t], L.timeLimitMs + 2000);
+  if (t) return bad(t);
+  let grid = new Array(L.n * L.n).fill(0);
+  for (const p of log.paints) {
+    if (!Number.isInteger(p.i) || p.i < 0 || p.i >= grid.length || !L.colors.includes(p.c)) return bad('illegal_paint');
+    if (p.f) grid = copyFill(grid, L.n, p.i, p.c); else grid[p.i] = p.c;
+  }
+  const close = copyCloseness(grid, L.target);
+  return { valid: true, score: Math.round(close * 1000), time_ms: log.done_t, quality: pct(close), summary: { closeness: pct(close), motif: L.motif }, flags: [] };
+}
+
 /** One board of a PvP game, by its own seed. */
 export function validateBoard(game: PvpGame, seed: number, log: unknown): BoardResult {
   try {
@@ -193,6 +279,7 @@ export function validateBoard(game: PvpGame, seed: number, log: unknown): BoardR
       case 'paletteclash': return validateClash(seed, log as ClashLog);
       case 'forgery': return validateForgery(seed, log as ForgeryLog);
       case 'pixelrecall': return validateRecall(seed, log as RecallLog);
+      case 'copycat': return validateCopycat(seed, log as CopyLog);
       default: return bad('unknown_game');
     }
   } catch {

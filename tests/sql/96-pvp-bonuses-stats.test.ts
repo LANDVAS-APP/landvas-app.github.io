@@ -257,7 +257,7 @@ describe('retiring staked duels', () => {
   const old = new TestDb();
   afterAll(() => old.close());
   it('hands every unsettled stake back', async () => {
-    await old.init({ ungated: true, skip: ['20261028000028_pvp_bonuses_stats.sql'] });
+    await old.init({ ungated: true, skip: ['20261028000028_pvp_bonuses_stats.sql', '20261028000034_copycat_featured_today.sql'] });
     const x = await old.newPlayer('old_dueler');
     await old.giveInk(x, 500);
     await old.sql(`update game_config set value = value || '{"enabled": true}' where key = 'duels'`);

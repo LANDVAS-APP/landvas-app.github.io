@@ -16,6 +16,7 @@ import { cn, fmt, sleep, timeAgo } from '../lib/utils';
 import { PVP_GAMES, PVP_INFO, pvpRoundSeed, type PvpGame } from '../shared/pvp';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { PVP_COMPONENTS } from './games';
+import { PvpPreview } from './PvpPreview';
 import { bonusText } from '../play/rates';
 
 type Phase = { k: 'lobby' } | { k: 'playing'; s: PvpStart } | { k: 'checking' } | { k: 'result'; r: PvpFinish };
@@ -75,8 +76,19 @@ export default function PvpScreen() {
               <span className="glass rounded-full px-3 py-1.5 text-muted tnum">{rec.paid_today}/{cfg.daily_rewarded_matches} paid today</span>
             </div>
           )}
+          {(() => {
+            const ready = PVP_GAMES.filter((g) => cfg.games?.[g]?.enabled !== false && (cfg.games?.[g]?.waiting ?? 0) > 0);
+            return ready.length > 0 ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-ok/40 bg-ok/10 p-3 text-sm" data-testid="pvp-ready">
+                <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ok" /></span>
+                <b>Ready now:</b> {ready.map((g) => PVP_INFO[g].name).join(', ')} — a rival already played, so you’ll get your result right after you finish.
+              </div>
+            ) : (
+              <p className="mb-3 text-xs text-muted">No rivals waiting right now — start a match and the next player to pick that game takes you on.</p>
+            );
+          })()}
           <div className="grid gap-3 sm:grid-cols-2" data-testid="pvp-games">
-            {PVP_GAMES.filter((g) => cfg.games?.[g]?.enabled !== false).map((g) => (
+            {PVP_GAMES.filter((g) => cfg.games?.[g]?.enabled !== false).sort((a, b) => Number((cfg.games?.[b]?.waiting ?? 0) > 0) - Number((cfg.games?.[a]?.waiting ?? 0) > 0)).map((g) => (
               <GameCard key={g} g={g} c={cfg.games[g]} busy={busy === g} onPlay={() => void play(g)} />
             ))}
           </div>
@@ -99,8 +111,12 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
   const info = PVP_INFO[g];
   const perRound = (c.round_win_ink ?? []).slice(0, c.rounds).filter((x) => x > 0);
   return (
-    <div className="glass grid gap-3 rounded-[22px] p-4" data-testid={`pvp-game-${g}`}>
+    <div className={cn('glass grid gap-3 rounded-[22px] p-4', c.waiting > 0 && 'ring-2 ring-ok/60')} data-testid={`pvp-game-${g}`}>
       <div className="flex items-start gap-3">
+        <div className="relative w-20 shrink-0">
+          <PvpPreview game={g} />
+          {c.waiting > 0 && <span className="absolute -right-1.5 -top-1.5 rounded-full bg-ok px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-bg shadow-[0_0_12px_var(--ok)]">Ready</span>}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-lg font-semibold" style={{ color: info.color }}>{info.name}</div>
           <div className="text-xs text-muted">{info.tagline}</div>
@@ -115,10 +131,12 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
         {perRound.length > 0 && <span className="rounded-full bg-surface-2 px-2 py-0.5">+{perRound.join('/')} per round won</span>}
         {c.draw_ink > 0 && <span className="rounded-full bg-surface-2 px-2 py-0.5">draw +{c.draw_ink}</span>}
         {(c.bonuses ?? []).map((b, i) => <span key={i} className="rounded-full bg-gold/15 px-2 py-0.5 text-gold">{bonusText(b)}</span>)}
-        {c.waiting > 0 && <span className="flex items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-ok"><Users className="h-3 w-3" /> rival waiting</span>}
+        {c.waiting > 0
+          ? <span className="flex items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-ok"><Users className="h-3 w-3" /> {c.waiting === 1 ? 'a rival is' : `${fmt(c.waiting)} rivals are`} waiting</span>
+          : <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">be the first — a rival takes you on later</span>}
       </div>
       <ol className="grid gap-1 text-xs text-muted">{info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}</ol>
-      <Button variant="rainbow" loading={busy} onClick={onPlay} data-testid={`pvp-play-${g}`}><Swords className="h-4 w-4" /> Find a rival</Button>
+      <Button variant="rainbow" loading={busy} onClick={onPlay} data-testid={`pvp-play-${g}`}><Swords className="h-4 w-4" /> {c.waiting > 0 ? 'Play now' : 'Start a match'}</Button>
     </div>
   );
 }

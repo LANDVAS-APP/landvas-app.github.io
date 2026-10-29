@@ -35,8 +35,8 @@ function board(game: string, seed: number, level: number): { done_t: number } & 
   if (game === 'sculptor') {
     const L = generateSculptor(seed, level);
     let r = L.start;
-    const moves: { t: number; v: number; r: number }[] = [];
-    for (let pass = 0; pass < 6; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.falloff, v, L.target[v]); moves.push({ t: (t += 45 + ((v * 7) % 13)), v, r: L.target[v] }); }
+    const moves: { t: number; v: number; x: number; y: number }[] = [];
+    for (let pass = 0; pass < 8; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.weights, v, L.target[v][0], L.target[v][1]); moves.push({ t: (t += 45 + ((v * 7) % 13)), v, x: L.target[v][0], y: L.target[v][1] }); }
     return { moves, done_t: t + 100 };
   }
   throw new Error(`no board solver for ${game}`);

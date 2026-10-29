@@ -31,7 +31,7 @@ for (const [g, lv] of CASES.filter(([g]) => !process.env.ONLY || process.env.ONL
   const s = res.summary ?? {};
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${g} L${lv} — rounds ${s.passed_rounds ?? s.passed_shapes ?? '?'}/${s.of ?? 5} score ${res.score} flags ${JSON.stringify(res.flags)} ${res.reason ?? ''}`);
 }
-for (const g of ['turfwars', 'paletteclash', 'forgery', 'pixelrecall'].filter((x) => !process.env.ONLY || process.env.ONLY.includes(x))) {
+for (const g of ['copycat', 'turfwars', 'paletteclash', 'forgery', 'pixelrecall'].filter((x) => !process.env.ONLY || process.env.ONLY.includes(x))) {
   // a PvP match: every round on its own board, solved round after round
   await page.evaluate((g) => window.__landvasNav(`/pvp-sandbox/${g}?rounds=3`), g);
   await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 30000 });

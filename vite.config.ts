@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
 import { transform } from 'esbuild';
+import { FAQ } from './src/home/faq';
 
 /** Browsers we support: iOS/Safari 15+, Chrome/Edge 90+, Firefox 90+. */
 const LEGACY_TARGET = ['es2020', 'safari15', 'chrome90', 'firefox90', 'edge90'];
@@ -22,6 +23,14 @@ export default defineConfig(({ mode }) => {
     define: { __LANDVAS_BUILD__: JSON.stringify(buildId), __LANDVAS_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
     resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
     plugins: [
+      // the FAQ rich result is generated from the same answers the homepage shows
+      {
+        name: 'landvas-faq-jsonld',
+        transformIndexHtml(html: string) {
+          const ld = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: FAQ.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
+          return html.replace(/<script type="application\/ld\+json">\{"@context": "https:\/\/schema.org", "@type": "FAQPage"[\s\S]*?<\/script>/, `<script type="application/ld+json">${JSON.stringify(ld)}</script>`);
+        },
+      },
       // the map's web worker is copied as a ready-made file, so lower its syntax too
       // (class static blocks break Safari before 16.4, e.g. iOS 16.1)
       {
@@ -47,7 +56,7 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: 'autoUpdate',
           injectRegister: false,
-          includeAssets: ['favicon.svg', 'icons/*.png'],
+          includeAssets: ['favicon.svg', 'favicon.ico', 'favicon-*.png', 'icons/*.png'],
           manifest: {
             name: 'LANDVAS — Own a piece. Paint the world.',
             short_name: 'LANDVAS',

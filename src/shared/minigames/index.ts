@@ -85,11 +85,11 @@ export const GAME_INFO: Record<GameId, { name: string; plotType: string; tagline
     ],
   },
   sculptor: {
-    name: 'Sculptor', plotType: 'clay', tagline: 'Shape the clay to match.',
+    name: 'Sculptor', plotType: 'clay', tagline: 'Stretch the funny face back into shape.',
     howTo: [
-      'Drag the handles around the clay in and out — neighbouring clay follows a little, just like the real thing.',
-      'Match the glowing outline of the target sculpture as closely as you can.',
-      'Press Done when it matches. The closer the overlap, the higher the score.',
+      'A clay face has been squashed out of shape. Its portrait is in the gold frame.',
+      'Grab an eye, the nose, the mouth, the chin or an ear and pull it back where it belongs. On later levels the clay is stretchy — nearby features get dragged along too.',
+      'Press Done when it matches. The closer every feature is to the portrait, the higher the score.',
     ],
   },
   rollermural: {

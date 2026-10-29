@@ -159,21 +159,26 @@ function MemoryMuralPreview({ id, still, ...svg }: P) {
 }
 
 function SculptorPreview({ id, still, ...svg }: P) {
-  const shape = (k: number[]) => k.map((r, i) => { const a = (i / k.length) * Math.PI * 2 - Math.PI / 2; return `${i ? 'L' : 'M'}${(60 + Math.cos(a) * r).toFixed(1)} ${(54 + Math.sin(a) * r).toFixed(1)}`; }).join(' ') + 'Z';
-  const target = shape([30, 26, 34, 26, 30, 26, 34, 26]);
-  const a = shape([24, 24, 24, 24, 24, 24, 24, 24]);
+  // a scrambled face: the nose and an eye get pulled back into place
+  const skin = '#F6C9A8', shade = '#D9987A';
+  const mv = (from: string, to: string) => (still ? undefined : <animateTransform attributeName="transform" type="translate" values={`${from};${to};${to};${from}`} keyTimes="0;0.55;0.9;1" dur="4s" repeatCount="indefinite" />);
   return (
-    <svg {...svg} aria-label="Sculptor: push and pull the clay until it matches the outline">
+    <svg {...svg} aria-label="Sculptor: stretch the scrambled clay face back to match the portrait">
       <defs>
         <radialGradient id={`${id}bg`} cx="0.5" cy="0.4" r="0.8"><stop offset="0" stopColor="#3a2a20" /><stop offset="1" stopColor="#120c08" /></radialGradient>
-        <radialGradient id={`${id}clay`} cx="0.4" cy="0.35" r="0.75"><stop offset="0" stopColor="#F2C49B" /><stop offset="0.6" stopColor="#C8794A" /><stop offset="1" stopColor="#8A4B2A" /></radialGradient>
+        <radialGradient id={`${id}sk`} cx="0.45" cy="0.38" r="0.7"><stop offset="0" stopColor={skin} /><stop offset="1" stopColor={shade} /></radialGradient>
       </defs>
       <rect width="120" height="120" fill={`url(#${id}bg)`} />
-      <path d={target} fill="none" stroke="#22E3FF" strokeWidth="1.6" strokeDasharray="4 3" />
-      <path d={still ? target : a} fill={`url(#${id}clay)`} stroke="#5a2f19" strokeWidth="1.2">
-        {!still && <animate attributeName="d" values={`${a};${target};${target};${a}`} keyTimes="0;0.6;0.9;1" dur="4s" repeatCount="indefinite" />}
-      </path>
-      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#F2C49B" letterSpacing="1.5">MATCH · 94%</text>
+      <ellipse cx="60" cy="60" rx="32" ry="38" fill={`url(#${id}sk)`} stroke="rgba(60,30,15,0.5)" />
+      <path d="M30 46 Q32 14 60 16 Q88 14 90 46 Q60 30 30 46Z" fill="#5A3A22" />
+      <g transform={still ? undefined : 'translate(-9 8)'}>{mv('-9 8', '0 0')}<ellipse cx="48" cy="56" rx="6" ry="4.6" fill="#fff" /><circle cx="48" cy="56" r="2.8" fill="#2E6BD6" /></g>
+      <g><ellipse cx="72" cy="56" rx="6" ry="4.6" fill="#fff" /><circle cx="72" cy="56" r="2.8" fill="#2E6BD6" /></g>
+      <g transform={still ? undefined : 'translate(12 -6)'}>{mv('12 -6', '0 0')}<path d="M60 62 Q55 72 60 73 Q64 73 63 70" fill={shade} stroke="rgba(60,30,15,0.5)" /></g>
+      <g transform={still ? undefined : 'translate(-6 9)'}>{mv('-6 9', '0 0')}<path d="M50 82 Q60 90 70 82 Q60 85 50 82Z" fill="#8E2A3A" /></g>
+      {!still && <circle r="4" fill="#fff" opacity="0.9"><animateMotion dur="4s" repeatCount="indefinite" path="M51 64 L60 56 L72 66 L60 67 L54 91 L60 82" /></circle>}
+      <rect x="86" y="6" width="28" height="28" rx="6" fill="#f4e8d8" stroke="#FFE14D" strokeWidth="1.5" />
+      <ellipse cx="100" cy="21" rx="8" ry="10" fill={skin} /><circle cx="97" cy="19" r="1.3" fill="#2E6BD6" /><circle cx="103" cy="19" r="1.3" fill="#2E6BD6" /><path d="M97 25 Q100 27 103 25" stroke="#8E2A3A" fill="none" />
+      <text x="60" y="114" textAnchor="middle" fontSize="8" fontWeight="800" fill="#F2C49B" letterSpacing="1.5">MATCH · 94%</text>
     </svg>
   );
 }

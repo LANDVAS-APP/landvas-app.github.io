@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { roundSeed, type BoardsLog } from '../../src/shared/minigames/boards';
 import { validateMinigame } from '../../src/shared/minigames';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
-import { generateSculptor, iou, sculpt } from '../../src/shared/minigames/sculptor';
+import { closeness, generateSculptor, sculpt } from '../../src/shared/minigames/sculptor';
 import { generateRollerMural, rollGrid, solveRoller } from '../../src/shared/minigames/rollermural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
 import { solvePaintPop } from '../../src/shared/minigames/paintpop';
@@ -21,9 +21,9 @@ function muralLog(seed: number, level: number, correct = true) {
 function sculptLog(seed: number, level: number) {
   const L = generateSculptor(seed, level);
   let r = L.start, t = 0;
-  const moves: { t: number; v: number; r: number }[] = [];
-  for (let pass = 0; pass < 6; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.falloff, v, L.target[v]); moves.push({ t: (t += 60), v, r: L.target[v] }); }
-  return { log: { moves, done_t: t + 200 }, match: iou(r, L.target) };
+  const moves: { t: number; v: number; x: number; y: number }[] = [];
+  for (let pass = 0; pass < 8; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.weights, v, L.target[v][0], L.target[v][1]); moves.push({ t: (t += 60), v, x: L.target[v][0], y: L.target[v][1] }); }
+  return { log: { moves, done_t: t + 200 }, match: closeness(r, L.target) };
 }
 function rollerLog(seed: number, level: number) {
   const L = generateRollerMural(seed, level);

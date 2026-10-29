@@ -18,6 +18,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { LogoMark } from '../ui';
 import { FAQ } from './faq';
+import { FeaturedToday } from '../gallery/FeaturedToday';
 
 const signedIn = () => !!getBackend().session();
 const playHref = () => (signedIn() ? '/world' : '/welcome');
@@ -38,6 +39,7 @@ export default function HomePage() {
     <div className="lv-home min-h-full overflow-x-hidden bg-bg text-fg" data-testid="homepage">
       <TopBar />
       <Hero stats={stats.data} cards={cards} />
+      <div className="gutter mx-auto max-w-7xl pt-12"><FeaturedToday /></div>
       <ArtMarquee cards={cards} loading={art.isLoading} />
       <HowItWorks />
       <Earnings />
