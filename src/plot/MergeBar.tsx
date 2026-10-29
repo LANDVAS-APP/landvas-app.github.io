@@ -54,13 +54,15 @@ export function MergeBar() {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
-  if (!merge) return null;
   const all = (groups.data ?? []).filter((g) => g.status === 'active');
-  const picked = all.filter((g) => merge.includes(g.id));
+  const picked = merge ? all.filter((g) => merge.includes(g.id)) : [];
+  const pickedConnected = picked.length >= 2 && isConnected(cellsOf(picked));
+  // hooks run before any early return
+  const cost = useFuseCost(picked.map((x) => x.id), pickedConnected);
+  if (!merge) return null;
   const plots = picked.reduce((n, g) => n + g.plot_count, 0);
   const connected = picked.length >= 2 && isConnected(cellsOf(picked));
   const pieces = picked.length >= 2 ? components(cellsOf(picked)).length : 0;
-  const cost = useFuseCost(picked.map((x) => x.id), connected);
   const price = cost.data?.ink ?? 0;
   const short = !!cost.data && price > cost.data.balance;
   const more = touchingGroups(all, merge.length ? merge : all.slice(0, 1).map((g) => g.id)).length - merge.length;
