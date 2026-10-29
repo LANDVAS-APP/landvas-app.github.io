@@ -186,7 +186,7 @@ export type FriendsList = {
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
 export type FeedEvent = {
   id: number;
-  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured';
+  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -375,3 +375,20 @@ export type Challenge = {
   entries: ChallengeEntry[]; my_votes_left: number; my_entry: string | null;
 };
 export type ChallengesNow = { enabled: boolean; votes_per_player: number; active: Challenge[]; upcoming: Pick<Challenge, 'id' | 'title' | 'theme' | 'starts_at' | 'ends_at' | 'prizes'>[]; past: Challenge[] };
+
+// ---- creative games ----
+import type { Stroke } from '../shared/strokes';
+export type Streak = { enabled: boolean; days: number; today: boolean; bonus_pct: number; step_pct: number; max_pct: number; resets_at: string };
+export type SketchEntry = { id: string; word: string; strokes: Stroke[]; votes: number | null; place: number | null; prize: number; mine: boolean; voted: boolean; artist: Profile | null };
+export type SketchToday = {
+  enabled: boolean; word: string; day: string; ends_at: string; minutes: number; prizes: number[]; votes_per_player: number; votes_left: number;
+  mine: { id: string; started_at: string; submitted: boolean; deadline: string; strokes: Stroke[] | null; votes: number } | null;
+  entries: SketchEntry[]; yesterday: SketchEntry[]; yesterday_word: string; server_time: string;
+};
+export type DoodleMine = { enabled: boolean; guesser_ink: number; drawer_ink: number; draw_seconds: number; guess_seconds: number; open: number;
+  drawings: { id: string; word: string; strokes: Stroke[]; guesses: number; solved: number; ink: number; created_at: string }[]; stats: { guessed: number; tried: number; ink: number } };
+export type DoodleGuess = { doodle_id: string; strokes: Stroke[]; letters: number; shape: string; tries: number; started_at: string; guess_seconds: number; server_time: string };
+export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bottom' | 'done' | 'expired'; created_at: string; done_at: string | null; half: 'top' | 'bottom' | null; ink: number;
+  top: Stroke[] | null; bottom: Stroke[] | null; edge: Stroke[] | null; partner: Profile | null };
+export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
+export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };

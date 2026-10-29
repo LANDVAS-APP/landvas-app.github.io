@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Swords, LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
+import { Swords, PenLine, Lightbulb, Users2, LifeBuoy, Gamepad2, Globe2, Images, LayoutGrid, MessagesSquare, Shield, Trophy, Settings as SettingsIcon, Package, CalendarDays, Award, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -22,6 +22,9 @@ const MOBILE = ['/world', '/play', '/social', '/gallery'];
 const MORE = [
   { to: '/pvp', label: 'PvP', icon: Swords },
   { to: '/challenges', label: 'Challenges', icon: Trophy },
+  { to: '/sketch', label: 'Sketch of the Day', icon: PenLine },
+  { to: '/doodle', label: 'Draw & Guess', icon: Lightbulb },
+  { to: '/duet', label: 'Duets', icon: Users2 },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },

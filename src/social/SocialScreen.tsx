@@ -154,6 +154,18 @@ function FeedRow({ e }: { e: FeedEvent }) {
       icon = <Swords className="h-4 w-4 text-hot" />;
       body = <>{who} won a <b>{PVP_INFO[e.data.game as PvpGame]?.name ?? e.data.game}</b> PvP match{e.data.rounds ? <span className="text-muted"> · {e.data.rounds_won}/{e.data.rounds} rounds</span> : null}</>;
       break;
+    case 'sketch':
+      icon = <Trophy className="h-4 w-4 text-accent-2" />;
+      body = <>{who} placed <b>{['1st', '2nd', '3rd'][Number(e.data.place) - 1] ?? `#${e.data.place}`}</b> in <Link to="/sketch" className="font-semibold hover:underline">Sketch of the Day</Link> · “{e.data.word}”</>;
+      break;
+    case 'duet':
+      icon = <Star className="h-4 w-4 text-hot" />;
+      body = <>{who} finished a <Link to={`/duet/${e.data.duet_id}`} className="font-semibold hover:underline">duet: {e.data.prompt}</Link></>;
+      break;
+    case 'stamp':
+      icon = <Star className="h-4 w-4 text-gold" />;
+      body = <>{who} collected stamp <b>#{e.data.serial}</b> of <Link to={`/art/${e.data.publication_id}`} className="font-semibold hover:underline">“{e.data.title}”</Link></>;
+      break;
   }
   return (
     <div className="glass flex items-center gap-3 rounded-2xl p-3" data-testid="feed-row" data-kind={e.kind}>

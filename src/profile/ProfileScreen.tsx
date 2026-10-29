@@ -9,7 +9,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { fmt } from '../lib/utils';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Spinner, PlayerAvatar } from '../ui';
-import { ArtGrid } from '../gallery/GalleryScreen';
+import { ArtGrid, ArtThumb } from '../gallery/GalleryScreen';
 import { RarityBadge } from '../plot/RarityBadge';
 import { RARITY_ORDER } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
@@ -79,7 +79,26 @@ export default function ProfileScreen() {
         <h2 className="mb-3 font-display text-lg font-semibold">Artworks</h2>
         {d.gallery?.length ? <ArtGrid cards={d.gallery} /> : <Empty icon={<Brush className="h-6 w-6" />} title="No published artworks yet" />}
       </section>
+      <StampBook username={p.username} />
     </Page>
+  );
+}
+
+function StampBook({ username }: { username: string }) {
+  const q = useQuery({ queryKey: ['stamp-book', username], queryFn: () => api.stampBook(username) });
+  if (!q.data?.length) return null;
+  return (
+    <section className="mt-5" data-testid="stamp-book">
+      <h2 className="mb-3 font-display text-lg font-semibold">Stamp book · {q.data.length}</h2>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
+        {q.data.map((c, i) => (
+          <Link key={c.id} to={`/art/${c.id}`} className="relative block rounded-xl border-2 border-dashed border-gold/50 bg-surface-2 p-1.5" style={{ transform: `rotate(${((i * 37) % 7) - 3}deg)` }}>
+            <ArtThumb card={c} className="!rounded-md" />
+            <span className="absolute -right-1.5 -top-1.5 rounded-full bg-gold px-1.5 text-[10px] font-extrabold text-bg tnum">#{c.serial}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

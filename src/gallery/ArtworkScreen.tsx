@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DoorOpen, Flag, Share2, Sparkles, Star } from 'lucide-react';
+import { DoorOpen, Flag, Share2, Sparkles, Stamp, Star } from 'lucide-react';
+import { confetti } from '../ui/confetti';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -74,6 +75,7 @@ export default function ArtworkScreen() {
               }}><Star className="h-4 w-4" /> {a.featured ? 'Unfeature' : 'Feature'}</Button>
             )}
           </div>
+          <StampCard id={a.id} owner={!!a.is_owner} signedIn={!!me} artist={a.artist.username} />
           {a.is_owner && a.craft && <CraftCard craft={a.craft} />}
           {a.more_by_artist?.length > 0 && (
             <div>
@@ -85,6 +87,43 @@ export default function ArtworkScreen() {
       </div>
       <ReportDialog open={report} onClose={() => setReport(false)} id={a.id} />
     </Page>
+  );
+}
+
+function StampCard({ id, owner, signedIn, artist }: { id: string; owner: boolean; signedIn: boolean; artist: string }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['stamp', id], queryFn: () => api.stampInfo(id) });
+  const [busy, setBusy] = useState(false);
+  const s = q.data;
+  if (!s?.enabled) return null;
+  const left = Math.max(0, s.supply - s.collected);
+  return (
+    <div className="glass relative grid gap-3 overflow-hidden rounded-2xl p-4" data-testid="stamp-card">
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-gold/70 bg-gold/10 font-display text-lg font-bold text-gold [transform:rotate(-6deg)]">
+          {s.mine ? `#${s.mine}` : <Stamp className="h-6 w-6" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-display font-semibold">{s.mine ? `You own stamp #${s.mine} of ${fmt(s.supply)}` : 'Collectible stamp'}</div>
+          <div className="text-xs text-muted">{left > 0 ? `${fmt(left)} of ${fmt(s.supply)} left` : 'Sold out'} · {owner ? `you earn ${s.artist_pct}% of every stamp` : `@${artist} gets ${s.artist_pct}%`}</div>
+        </div>
+        {!owner && signedIn && !s.mine && left > 0 && (
+          <Button variant="rainbow" size="sm" loading={busy} data-testid="stamp-collect" onClick={async (e) => {
+            const at = { x: e.clientX, y: e.clientY };
+            setBusy(true);
+            try {
+              const r = await api.stampCollect(id);
+              qc.setQueryData(['stamp', id], r);
+              confetti({ ...at, count: 60, power: 0.8, colors: ['#FFE14D', '#FF9F1C', '#FF4FD8'] });
+              toast.success(`Stamp #${r.serial} is yours!`, { description: `@${artist} earned Ink from your collect.` });
+              invalidateGame(qc);
+            } catch (err) { toast.error(toGameError(err).message); } finally { setBusy(false); }
+          }}>Collect · {s.price} Ink</Button>
+        )}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-gradient-to-r from-gold to-hot" style={{ width: `${Math.min(100, (s.collected / s.supply) * 100)}%` }} /></div>
+      {s.recent.length > 0 && <div className="flex items-center gap-1">{s.recent.map((p) => <PlayerAvatar key={p.id} p={p} size={22} />)}<span className="ml-1 text-[11px] text-muted">recent collectors</span></div>}
+    </div>
   );
 }
 
@@ -123,6 +162,7 @@ export function CraftCard({ craft }: { craft: NonNullable<ArtworkCard['craft']> 
     <div className="glass grid gap-3 rounded-2xl p-4" data-testid="craft-card">
       <div className="flex items-center justify-between"><div className="font-display font-semibold">Craft score <span className="tnum">{craft.score}</span></div>{(craft.paid ?? 0) > 0 && <span className="text-sm font-bold text-ok tnum">+{craft.paid} Ink craft bonus</span>}</div>
       <div className="grid gap-2 sm:grid-cols-2">{bar('Coverage', craft.coverage)}{bar('Shading', craft.shading)}{bar('Detail', craft.detail)}{bar(`Palette (${craft.colors} colours)`, Math.min(100, Math.round(((craft.colors - 1) / 9) * 100)))}</div>
+      {(craft as any).streak_pct > 0 && <p className="text-xs font-semibold text-hot">🔥 Painting streak: +{(craft as any).streak_pct}% on this bonus</p>}
       {craft.imported && <p className="text-xs text-warn">An uploaded image was placed in this art, so it earns no craft bonus.</p>}
       {!craft.imported && craft.originality != null && craft.originality < 100 && (
         <p className="text-xs text-warn">Very like {craft.similar?.own ? 'your' : 'an earlier'} piece{craft.similar?.title ? ` “${craft.similar.title}”` : ''} — repeats earn {craft.originality}% of the bonus. Paint something new for the full bonus.</p>

@@ -1,7 +1,7 @@
 // "More ways to earn" on the Play page: the daily wheel, weekly challenges, room
 // check-ins, inspiring art and the craft bonus, with what's left today.
 import { useQuery } from '@tanstack/react-query';
-import { Brush, DoorOpen, Gift, RotateCw, Sparkles, Trophy } from 'lucide-react';
+import { Brush, DoorOpen, Flame, Gift, Lightbulb, PenLine, RotateCw, Sparkles, Trophy, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -11,10 +11,18 @@ import { DailyWheel } from './DailyWheel';
 export function EarnHub() {
   const q = useQuery({ queryKey: ['earn'], queryFn: api.earnOverview, staleTime: 30_000 });
   const [wheel, setWheel] = useState(false);
+  const streak = useQuery({ queryKey: ['streak'], queryFn: api.myStreak, staleTime: 60_000 });
+  const sketch = useQuery({ queryKey: ['sketch'], queryFn: api.sketchToday, staleTime: 60_000 });
   const d = q.data;
+  const st = streak.data, sk = sketch.data;
   if (!d) return null;
   const tiers = [...(d.craft.tiers ?? [])].sort((a, b) => a.min - b.min);
   const items = [
+    st?.enabled && { key: 'streak', icon: Flame, tone: 'text-hot bg-hot/15', title: st.days > 0 ? `${st.days}-day painting streak` : 'Start a painting streak',
+      text: `${st.bonus_pct > 0 ? `+${st.bonus_pct}% craft bonus now. ` : ''}${st.today ? 'Painted today ✓ — come back tomorrow.' : `Paint today to ${st.days > 0 ? 'keep it going' : 'start it'} — every day in a row adds +${st.step_pct}% (up to +${st.max_pct}%).`}`, hot: !st.today, to: '/canvases' },
+    sk?.enabled && { key: 'sketch', icon: PenLine, tone: 'text-accent-2 bg-accent-2/15', title: `Sketch of the Day: “${sk.word}”`, text: sk.mine?.submitted ? `Sketched! Vote for the best (${sk.votes_left} votes left).` : `10 minutes, one word — top ${sk.prizes.filter((x) => x > 0).length} win up to ${sk.prizes[0] ?? 0} Ink.`, hot: !sk.mine, to: '/sketch' },
+    { key: 'doodle', icon: Lightbulb, tone: 'text-gold bg-gold/15', title: 'Draw & Guess', text: 'Guess drawings fast for Ink — or draw words for others to guess.', to: '/doodle' },
+    { key: 'duet', icon: Users, tone: 'text-hot bg-hot/15', title: 'Duets', text: 'Paint half a picture blind with a random partner — then the big reveal.', to: '/duet' },
     d.wheel.enabled && { key: 'wheel', icon: RotateCw, tone: 'text-gold bg-gold/15', title: 'Daily wheel', text: d.wheel.spins_left > 0 ? 'Your free spin is ready!' : 'Spun today — back tomorrow', hot: d.wheel.spins_left > 0, onClick: () => setWheel(true) },
     d.challenges > 0 && { key: 'challenge', icon: Trophy, tone: 'text-hot bg-hot/15', title: 'Weekly challenge', text: `${d.challenges} theme${d.challenges > 1 ? 's' : ''} open — paint it, vote, win Ink`, hot: true, to: '/challenges' },
     d.rooms.enabled && { key: 'rooms', icon: DoorOpen, tone: 'text-accent-2 bg-accent-2/15', title: 'Check into rooms', text: `+${d.rooms.visitor_ink} Ink per room · ${d.rooms.paid_today}/${d.rooms.visitor_daily} today. Hosts earn too.`, to: '/players' },

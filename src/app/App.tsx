@@ -44,6 +44,9 @@ const VisitRoom = lazy(() => import('../visit/VisitRoom'));
 const SocialScreen = lazy(() => import('../social/SocialScreen'));
 const InviteScreen = lazy(() => import('../social/InviteScreen'));
 const ExplorerScreen = lazy(() => import('../explorer/ExplorerScreen'));
+const SketchScreen = lazy(() => import('../creative/SketchScreen'));
+const DoodleScreen = lazy(() => import('../creative/DoodleScreen'));
+const DuetScreen = lazy(() => import('../creative/DuetScreen'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -156,6 +159,10 @@ const routes: RouteObject[] = [
           { path: '/support', element: player(<SupportScreen />) },
           { path: '/pvp', element: player(<PvpScreen />) },
           { path: '/challenges', element: p(<ChallengesScreen />) },
+          { path: '/sketch', element: p(<SketchScreen />) },
+          { path: '/doodle', element: player(<DoodleScreen />) },
+          { path: '/duet', element: player(<DuetScreen />) },
+          { path: '/duet/:id', element: p(<DuetScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           { path: '/admin', element: player(<AdminScreen />) },

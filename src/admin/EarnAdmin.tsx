@@ -237,3 +237,58 @@ export function ChallengesAdmin() {
     </div>
   );
 }
+
+// ---- creative games: Sketch of the Day, painting streaks, Draw & Guess, Duets, Stamps ----
+type Field = [key: string, label: string, suffix?: string, max?: number];
+const CREATIVE: { part: string; title: string; note: string; fields: Field[] }[] = [
+  { part: 'sketch', title: 'Sketch of the Day', note: 'One word a day for everyone; players get a few minutes to sketch it once a day. Votes are anonymous; the top sketches are paid when the day resets (prizes in order, 1st first).',
+    fields: [['minutes', 'Time to sketch', 'minutes', 120], ['votes_per_player', 'Votes per player', 'a day', 200], ['min_account_hours', 'Voters’ account age', 'hours', 8760]] },
+  { part: 'streak', title: 'Painting streaks', note: 'Each day a player paints at least the minimum (verified painting time) extends their streak. Every day after the first adds to their craft bonus, up to the cap.',
+    fields: [['min_minutes', 'Painting needed per day', 'minutes', 600], ['step_pct', 'Bonus per streak day', '%', 100], ['max_pct', 'Bonus cap', '%', 1000]] },
+  { part: 'doodle', title: 'Draw & Guess', note: 'Guessers earn more the faster they guess (at least a quarter); drawers earn for each of the first paid guessers. Anonymous both ways.',
+    fields: [['draw_seconds', 'Time to draw', 'seconds', 300], ['guess_seconds', 'Time to guess', 'seconds', 300], ['guesser_ink', 'Guesser earns up to', 'Ink', 10000], ['drawer_ink', 'Drawer earns per guesser', 'Ink', 10000], ['max_paid_guessers', 'Paid guessers per drawing', '', 100], ['daily_paid_guesses', 'Paid guesses per player', 'a day', 1000], ['daily_paid_drawings', 'Paid drawings per player', 'a day', 1000], ['min_account_hours', 'Account age to earn', 'hours', 8760]] },
+  { part: 'duet', title: 'Duets', note: 'Both painters earn when a duet is finished.',
+    fields: [['complete_ink', 'Each painter earns', 'Ink', 10000], ['daily_paid', 'Paid duets per player', 'a day', 1000], ['open_hours', 'A half waits up to', 'hours', 720], ['min_account_hours', 'Account age to earn', 'hours', 8760]] },
+  { part: 'stamps', title: 'Stamps', note: 'Collectors pay Ink for a numbered stamp; the artist receives their share (the rest is removed from the game).',
+    fields: [['price_ink', 'Price', 'Ink', 100000], ['artist_pct', 'Artist’s share', '%', 100], ['supply', 'Stamps per artwork', '', 100000], ['daily_collects', 'Collects per player', 'a day', 1000], ['artist_daily_cap', 'Artist earns at most', 'Ink a day', 1000000], ['min_account_hours', 'Collectors’ account age', 'hours', 8760]] },
+];
+
+export function CreativeSettings({ value, onSave }: { value: any; onSave(v: any): Promise<void> }) {
+  const [v, setV] = useState<any>(() => structuredClone(value));
+  useEffect(() => setV(structuredClone(value)), [value]);
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const part = (k: string, patch: Record<string, unknown>) => setV({ ...v, [k]: { ...(v[k] ?? {}), ...patch } });
+  const prizes: number[] = v.sketch?.prizes ?? [];
+  return (
+    <Box title="Creative games" actions={<div className="flex gap-2">
+      {dirty && <Button size="sm" variant="ghost" onClick={() => setV(structuredClone(value))}>Undo</Button>}
+      <Button size="sm" variant="primary" disabled={!dirty} onClick={() => void onSave(v)} data-testid="save-creative">Save</Button>
+    </div>}>
+      <div className="grid gap-4">
+        {CREATIVE.map((c) => (
+          <details key={c.part} className="rounded-2xl border border-line p-3">
+            <summary className="cursor-pointer font-semibold">{c.title}</summary>
+            <div className="mt-3 grid gap-3">
+              <Switch id={`cr-${c.part}`} checked={!!v[c.part]?.enabled} label={v[c.part]?.enabled ? 'On' : 'Off'} onCheckedChange={(on) => part(c.part, { enabled: on })} />
+              <div className="flex flex-wrap items-end gap-3">
+                {c.fields.map(([k, label, suffix, max]) => <Num key={k} label={label} value={Number(v[c.part]?.[k] ?? 0)} max={max} onChange={(n) => part(c.part, { [k]: Math.max(0, n) })} suffix={suffix} />)}
+              </div>
+              {c.part === 'sketch' && (
+                <div className="flex flex-wrap items-end gap-2">
+                  {prizes.map((p, i) => (
+                    <div key={i} className="flex items-end gap-1 rounded-xl border border-line p-1.5">
+                      <Num label={`#${i + 1}`} value={Number(p)} max={1000000} onChange={(n) => part('sketch', { prizes: prizes.map((x, k) => (k === i ? Math.max(0, Math.round(n)) : x)) })} suffix="Ink" />
+                      <button className="mb-1.5 rounded-lg p-1 text-bad hover:bg-bad/10" onClick={() => part('sketch', { prizes: prizes.filter((_, k) => k !== i) })} aria-label="Remove prize"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                  <Button size="sm" variant="secondary" disabled={prizes.length >= 25} onClick={() => part('sketch', { prizes: [...prizes, 5] })}><Plus className="h-4 w-4" /> Prize</Button>
+                </div>
+              )}
+              <p className="text-[11px] text-faint">{c.note}</p>
+            </div>
+          </details>
+        ))}
+      </div>
+    </Box>
+  );
+}

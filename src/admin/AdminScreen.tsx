@@ -17,7 +17,7 @@ import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
-import { ChallengesAdmin, EarnSettings } from './EarnAdmin';
+import { ChallengesAdmin, CreativeSettings, EarnSettings } from './EarnAdmin';
 import { useNotifications } from '../updates/Notifications';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
@@ -472,6 +472,7 @@ function Earnings() {
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
         {cfg.data.config.earn && <EarnSettings value={cfg.data.config.earn.value} onSave={(v) => save('earn', v, 'Earning settings saved for everyone')} />}
+        {cfg.data.config.creative && <CreativeSettings value={cfg.data.config.creative.value} onSave={(v) => save('creative', v, 'Creative games saved for everyone')} />}
         {cfg.data.config.pvp && <PvpSettings value={cfg.data.config.pvp.value} onSave={(v) => save('pvp', v, 'PvP settings saved for everyone')} />}
       </div>
     </div>
