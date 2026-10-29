@@ -187,9 +187,30 @@ describe('referrals', () => {
     const after = await db.rpc(a, 'my_referrals');
     expect(after.stats.rewarded).toBe(1);
     expect(after.stats.earned_ink).toBe(500);
-    expect((await db.rpc(a, 'my_state')).balances.ink).toBe(before + 500);
+    // …plus the earnings share: 10% of the Ink the new player won
+    const won = Number((await db.sql(`select coalesce(sum(delta), 0) s from resource_ledger where player_id = $1 and resource = 'ink' and reason = 'minigame'`, [b]))[0].s);
+    expect(after.stats.share_ink).toBe(Math.floor(won * 0.1));
+    expect((await db.rpc(a, 'my_state')).balances.ink).toBe(before + 500 + Math.floor(won * 0.1));
     const ledger = await db.sql(`select reason from resource_ledger where player_id = $1 and resource = 'ink' and delta > 0`, [a]);
-    expect(ledger.map((l: any) => l.reason)).toEqual(['referral']);
+    expect(new Set(ledger.map((l: any) => l.reason))).toEqual(new Set(won >= 10 ? ['referral', 'referral_share'] : ['referral']));
+  });
+
+  it('the earnings share stops at its cap and can be switched off', async () => {
+    const cap = async (n: number, enabled = true) => {
+      const v = (await db.sql(`select value from game_config where key = 'referrals'`))[0].value;
+      await db.sql(`update game_config set value = $1 where key = 'referrals'`, [{ ...v, share: { enabled, pct: 10, cap_ink: n } }]);
+    };
+    await cap(1000);
+    const before = (await db.rpc(a, 'my_referrals')).stats.share_ink;
+    await db.sql(`select private.grant($1, '{"ink": 25000}'::jsonb, 'minigame', null, null, null)`, [b]);
+    expect((await db.rpc(a, 'my_referrals')).stats.share_ink).toBe(1000); // 10% of 25,000 is 2,500, capped at 1,000
+    await db.sql(`select private.grant($1, '{"ink": 5000}'::jsonb, 'minigame', null, null, null)`, [b]);
+    expect((await db.rpc(a, 'my_referrals')).stats.share_ink).toBe(1000);
+    await cap(5000, false);
+    await db.sql(`select private.grant($1, '{"ink": 5000}'::jsonb, 'minigame', null, null, null)`, [b]);
+    expect((await db.rpc(a, 'my_referrals')).stats.share_ink).toBe(1000); // switched off: nothing more
+    expect(before).toBeGreaterThanOrEqual(0);
+    await cap(1000);
   });
 
   it('usernames work as codes too, and the window closes after a week', async () => {

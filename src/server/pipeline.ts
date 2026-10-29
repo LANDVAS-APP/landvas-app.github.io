@@ -15,6 +15,7 @@
 // Tiles are immutable: tiles/<z>/<x>/<y>/<rev>.png, so a CDN can cache forever.
 // ---------------------------------------------------------------------------
 import { analyzeCraft } from '../shared/craft';
+import { fingerprint, mostSimilar, type SimilarRef } from '../shared/originality';
 import { composeParent, countColors, fitWithin, flattenOnWhite, isTransparent, readPngSize, stitch, whitePaper, type RGBA } from '../shared/art';
 import { canvasLayout } from '../shared/fusion';
 import { ART_MIN_ZOOM, GRID_LEVEL, PLOT_PX, cellKey, type CellTuple } from '../shared/grid';
@@ -220,7 +221,14 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
   });
   // how much craft went into it (paid as a bonus once the art goes live; never blocks publishing)
   try {
-    await deps.db.call('svc_record_craft', { p_publication_id: publicationId, p_craft: analyzeCraft(full) });
+    // …and how new it is: compared with the artist's other canvases and recent art by others
+    const fp = fingerprint(full);
+    const refs = await deps.db.call<SimilarRef[]>('svc_art_fingerprints', { p_publication_id: publicationId }).catch(() => [] as SimilarRef[]);
+    const near = mostSimilar(fp, refs ?? []);
+    await deps.db.call('svc_record_craft', {
+      p_publication_id: publicationId,
+      p_craft: { ...analyzeCraft(full), fingerprint: fp, similar: near && near.sim >= 0.5 ? near : null },
+    });
   } catch {
     /* the bonus is optional */
   }

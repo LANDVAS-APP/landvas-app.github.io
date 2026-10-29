@@ -411,6 +411,8 @@ try {
   check('every player has an invite code', code?.trim() === 'AVA_EXPLORER', String(code));
 
   // merge several plots at once: Canvases → "merge with the ones touching it" → one tap on the map bar
+  // merging costs Ink per joining plot: top up so the merge is affordable
+  await page.evaluate(async () => { const api = window.__landvasApi; const s = await api.myState(); await api.devGrantSelfAdmin(); await api.admin.adjustBalance(s.user_id, 'ink', 100, 'e2e merge top-up'); });
   const groupsBefore = await page.evaluate(async () => (await window.__landvasApi.myGroups()).filter((g) => g.status === 'active').length);
   await page.evaluate(() => window.__landvasNav('/canvases'));
   await page.waitForSelector('[data-testid=merge-touching]', { timeout: 15000 });
@@ -421,6 +423,8 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-testid=merge-bar]'), null, { timeout: 20000 });
   const groupsAfter = await page.evaluate(async () => (await window.__landvasApi.myGroups()).filter((g) => g.status === 'active'));
   check('several plots merge in one go', groupsBefore >= 2 && groupsAfter.length === 1 && groupsAfter[0].plot_count === 2, `${groupsBefore} → ${groupsAfter.length} canvases`);
+  const mergeSpend = await page.evaluate(async () => (await window.__landvasApi.myLedger(20)).filter((l) => l.reason === 'merge').map((l) => l.delta));
+  check('merging plots costs Ink', mergeSpend.length === 1 && mergeSpend[0] < 0, JSON.stringify(mergeSpend));
 
   // boost a game: it jumps to the top of Play with its rate
   const boostGame = await page.evaluate(async () => {

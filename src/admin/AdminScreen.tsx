@@ -888,7 +888,16 @@ function SocialAdmin() {
             <option value="first_win">wins their first minigame (recommended)</option>
           </select>
         </Field>
+        <div className="mt-3 grid gap-3 rounded-2xl border border-line p-3">
+          <Switch id="ref-share" checked={!!ref.share?.enabled} label={ref.share?.enabled ? 'Earnings share is stacked on top' : 'Earnings share is off'} onCheckedChange={(on) => setRef({ ...ref, share: { pct: 10, cap_ink: 1000, ...(ref.share ?? {}), enabled: on } })} />
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField label="Share of their Ink earnings" value={Number(ref.share?.pct ?? 10)} max={100} onChange={(n) => setRef({ ...ref, share: { enabled: false, cap_ink: 1000, ...(ref.share ?? {}), pct: Math.max(0, Math.min(100, n)) } })} hint="% of every Ink they earn" />
+            <NumberField label="Up to (per invited player)" value={Number(ref.share?.cap_ink ?? 1000)} max={10000000} onChange={(n) => setRef({ ...ref, share: { enabled: false, pct: 10, ...(ref.share ?? {}), cap_ink: Math.max(0, Math.round(n)) } })} hint="Ink in total" />
+          </div>
+          <p className="text-[11px] text-faint">Paid on top of the invite reward, from Ink the invited player earns by playing (minigames, PvP, craft, wheel…). It never reduces their earnings.</p>
+        </div>
       </Card>
+      <ResetTimeCard rent={rent} onSave={(v) => save('rent', v, 'Daily reset time updated')} />
       <Card title="USD rent → Ink" actions={<Button size="sm" variant="primary" disabled={!convDirty} onClick={() => save('rent', { ...rent, convert: { enabled: !!conv.enabled, ink_per_usd: Math.max(1, Math.round(conv.ink_per_usd)) } }, 'Conversion updated')}>Save</Button>}>
         <Switch id="conv-on" checked={conv.enabled !== false} label={conv.enabled !== false ? 'Players can convert rent to Ink' : 'Conversion is off'} onCheckedChange={(on) => setConv({ ...conv, enabled: on })} />
         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -974,5 +983,31 @@ function ShopAdmin() {
         </div>
       </Card>
     </div>
+  );
+}
+
+const TZS = ['America/Denver', 'America/Los_Angeles', 'America/Chicago', 'America/New_York', 'America/Phoenix', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Australia/Sydney', 'UTC'];
+function ResetTimeCard({ rent, onSave }: { rent: any; onSave(v: any): void }) {
+  const [hour, setHour] = useState<number>(Number(rent.boost?.reset_hour ?? 18));
+  const [tz, setTz] = useState<string>(rent.boost?.reset_tz ?? 'America/Denver');
+  useEffect(() => { setHour(Number(rent.boost?.reset_hour ?? 18)); setTz(rent.boost?.reset_tz ?? 'America/Denver'); }, [rent]);
+  const dirty = hour !== Number(rent.boost?.reset_hour ?? 18) || tz !== (rent.boost?.reset_tz ?? 'America/Denver');
+  const label = (h: number) => `${((h + 11) % 12) + 1} ${h < 12 ? 'am' : 'pm'}`;
+  return (
+    <Card title="Daily reset" actions={<Button size="sm" variant="primary" disabled={!dirty} onClick={() => onSave({ ...rent, boost: { ...rent.boost, reset_hour: hour, reset_tz: tz } })} data-testid="save-reset">Save</Button>}>
+      <p className="mb-3 text-xs text-muted">When every daily limit starts over — free boosts, minigame Ink caps, the wheel, check-ins, Inspire, craft caps and invite caps.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Time" htmlFor="reset-hour">
+          <select id="reset-hour" className={cn(inputCls, 'h-10')} value={hour} onChange={(e) => setHour(Number(e.target.value))}>
+            {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{label(h)}</option>)}
+          </select>
+        </Field>
+        <Field label="Time zone" htmlFor="reset-tz">
+          <select id="reset-tz" className={cn(inputCls, 'h-10')} value={tz} onChange={(e) => setTz(e.target.value)}>
+            {(TZS.includes(tz) ? TZS : [tz, ...TZS]).map((z) => <option key={z} value={z}>{z.replace('_', ' ')}</option>)}
+          </select>
+        </Field>
+      </div>
+    </Card>
   );
 }

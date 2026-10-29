@@ -42,6 +42,10 @@ export function EarnSettings({ value, onSave }: { value: any; onSave(v: any): Pr
   const total = slices.reduce((s, x) => s + Math.max(0, Number(x.weight) || 0), 0);
   const setSlice = (i: number, patch: Partial<WheelSlice & { weight: number }>) => part('wheel', { slices: slices.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
   const tiers: { min: number; ink: number }[] = v.craft?.tiers ?? [];
+  const effort: { full_minutes?: number; per_plot_pct?: number; floor?: number } = v.craft?.effort ?? {};
+  const setEffort = (patch: Record<string, number>) => part('craft', { effort: { ...effort, ...patch } });
+  const bands: { sim: number; factor: number }[] = v.craft?.originality ?? [];
+  const setBands = (b: { sim: number; factor: number }[]) => part('craft', { originality: b });
   return (
     <Box title="More ways to earn Ink" actions={<div className="flex gap-2">
       {dirty && <Button size="sm" variant="ghost" onClick={() => setV(structuredClone(value))}>Undo</Button>}
@@ -114,7 +118,38 @@ export function EarnSettings({ value, onSave }: { value: any; onSave(v: any): Pr
               ))}
               <Button size="sm" variant="secondary" disabled={tiers.length >= 10} onClick={() => part('craft', { tiers: [...tiers, { min: 90, ink: 40 }] })}><Plus className="h-4 w-4" /> Tier</Button>
             </div>
-            <p className="text-[11px] text-faint">The craft score (0–100) reads palette, shading, detail and coverage, and marks down random-pixel noise. Each canvas earns its best tier once; republishing only pays the difference when it reaches a higher tier.</p>
+            <p className="text-[11px] text-faint">The craft score (0–100) is the picture’s quality (palette, shading, shapes, filled areas — squiggles, lines and noise score low) multiplied by how long it took to paint. Each canvas earns its best tier once; republishing only pays the difference when it reaches a higher tier.</p>
+            <div className="grid gap-2 rounded-xl border border-line p-2">
+              <div className="text-xs font-bold">Painting time <span className="font-normal text-faint">(the biggest factor — players never see it)</span></div>
+              <div className="flex flex-wrap items-end gap-3">
+                <Num label="Full score after" value={Number(effort.full_minutes ?? 40)} min={1} max={1440} onChange={(n) => setEffort({ full_minutes: Math.max(1, Math.round(n)) })} suffix="minutes (one plot)" />
+                <Num label="+ per extra plot" value={Number(effort.per_plot_pct ?? 35)} max={500} onChange={(n) => setEffort({ per_plot_pct: Math.max(0, n) })} suffix="% more time" />
+                <Num label="A rushed piece keeps" value={Math.round(Number(effort.floor ?? 0.15) * 100)} max={100} onChange={(n) => setEffort({ floor: Math.max(0, Math.min(100, n)) / 100 })} suffix="% of its picture score" />
+              </div>
+              <p className="text-[11px] text-faint">Only time spent actually painting counts (short pauses included), verified against real time between saves — at most 5 minutes per autosave. The score grows with the square root of the time, so the first minutes matter most.</p>
+            </div>
+            <div className="grid gap-2 rounded-xl border border-line p-2">
+              <div className="text-xs font-bold">Originality — repeats earn less</div>
+              <div className="flex flex-wrap items-end gap-2">
+                {bands.map((b, i) => (
+                  <div key={i} className="flex items-end gap-1.5 rounded-xl border border-line p-2" data-testid="originality-band">
+                    <Num label="Similarity" value={Math.round(Number(b.sim) * 100)} max={100} onChange={(n) => setBands(bands.map((x, k) => (k === i ? { ...x, sim: Math.max(0, Math.min(100, n)) / 100 } : x)))} suffix="%+" />
+                    <Num label="Earns" value={Math.round(Number(b.factor) * 100)} max={100} onChange={(n) => setBands(bands.map((x, k) => (k === i ? { ...x, factor: Math.max(0, Math.min(100, n)) / 100 } : x)))} suffix="% of bonus" />
+                    <button className="mb-1.5 rounded-lg p-1.5 text-bad hover:bg-bad/10" onClick={() => setBands(bands.filter((_, k) => k !== i))} aria-label="Remove band"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                ))}
+                <Button size="sm" variant="secondary" disabled={bands.length >= 8} onClick={() => setBands([...bands, { sim: 0.7, factor: 0.8 }])}><Plus className="h-4 w-4" /> Band</Button>
+              </div>
+              <Num label="Art with an uploaded image earns" value={Math.round(Number(v.craft?.imported_factor ?? 0) * 100)} max={100} onChange={(n) => part('craft', { imported_factor: Math.max(0, Math.min(100, n)) / 100 })} suffix="% of the bonus" />
+              <p className="text-[11px] text-faint">Every piece is compared with the artist’s other canvases and recent art by others (moved, resized, mirrored and recoloured copies all count as repeats). The highest band reached sets the share paid. Challenge entries at 85%+ similarity are refused.</p>
+            </div>
+          </div>
+        </details>
+        <details className="rounded-2xl border border-line p-3">
+          <summary className="cursor-pointer font-semibold">Merging plots</summary>
+          <div className="mt-3 grid gap-2">
+            <Num label="Merging costs" value={Number(v.merge?.ink_per_plot ?? 15)} max={100000} onChange={(n) => part('merge', { ink_per_plot: Math.max(0, Math.round(n)) })} suffix="Ink per plot that joins (0 = free)" />
+            <p className="text-[11px] text-faint">Bigger murals earn bigger craft bonuses, so growing a canvas costs Ink for every plot that joins the largest canvas being merged.</p>
           </div>
         </details>
         <details className="rounded-2xl border border-line p-3">

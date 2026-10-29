@@ -71,6 +71,7 @@ const MESSAGES: Record<string, string> = {
   already_checked_in: 'You’ve already checked in here today.',
   challenge_closed: 'That challenge isn’t taking entries or votes right now.',
   not_your_artwork: 'Pick one of your own published artworks.',
+  too_similar: 'This is very similar to one of your earlier pieces — paint something new for the challenge.',
   made_before_challenge: 'Enter something you published after the challenge started — make it for the theme!',
   cannot_vote_own: 'You can’t vote for your own entry.',
   account_too_new_to_vote: 'New accounts can vote after their first day, once they own a plot.',

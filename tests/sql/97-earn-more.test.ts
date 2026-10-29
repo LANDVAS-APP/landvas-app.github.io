@@ -21,6 +21,7 @@ async function publish(uid: string, title: string, craft?: number) {
   const g = (await db.rpc(uid, 'my_groups'))[0];
   const p = await db.rpc(uid, 'get_project', { p_project_id: g.project_id });
   const s = await db.rpc(uid, 'save_draft', { p_project_id: g.project_id, p_base_version_id: p.version.id, p_manifest: { layers: [{ id: 'layer-1', name: 'L', tiles: { [`${gx}_${gy}`]: H(++n) } }] } });
+  await db.sql(`update private.version_effort set effort_ms = 36000000 where version_id = $1`, [s.version_id]); // plenty of painting time
   const req = await db.rpc(uid, 'request_publication', { p_project_id: g.project_id, p_version_id: s.version_id, p_title: title, p_rights_affirmed: true });
   await db.rpc(uid, 'submit_publication', { p_publication_id: req.publication_id });
   await db.rpc(svc, 'svc_publication_processed', { p_publication_id: req.publication_id, p_result: { ok: true, screening: { provider: 'none' } } });

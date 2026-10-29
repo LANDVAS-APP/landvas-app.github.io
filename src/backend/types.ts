@@ -44,7 +44,7 @@ export type WorldConfig = {
   plot_types: PlotTypeInfo[];
   rarities: RarityInfo[];
   economy: any;
-  rent: { enabled: boolean; currency: string; level_bonus: number; max_offline_days: number; boost: { multiplier: number; minutes_per_boost: number; max_stack_hours: number; free_per_day: number; reset_hour_utc: number }; cashout: { minimum_usd: number; methods: string[] }; convert?: { enabled: boolean; ink_per_usd: number } };
+  rent: { enabled: boolean; currency: string; level_bonus: number; max_offline_days: number; boost: { multiplier: number; minutes_per_boost: number; max_stack_hours: number; free_per_day: number; reset_hour_utc: number; reset_hour?: number; reset_tz?: string }; cashout: { minimum_usd: number; methods: string[] }; convert?: { enabled: boolean; ink_per_usd: number } };
   explorer: {
     claim_reach: number; max_speed_kmh: number; manual_travel: boolean; travel_speed_kmh: number; jump_cooldown_hours: number;
     joystick?: { enabled: boolean; speed_kmh: number; tank_seconds: number; daily_refill: boolean; burst_seconds: number };
@@ -199,8 +199,10 @@ export type Referrals = {
   daily_cap: number;
   default_code: string;
   custom_code: string | null;
-  stats: { total: number; pending: number; rewarded: number; earned_ink: number };
-  recent: { player: Profile; status: string; reward_ink: number; created_at: string; qualified_at: string | null }[];
+  share?: { enabled: boolean; pct: number; cap_ink: number };
+  stats: { total: number; pending: number; rewarded: number; earned_ink: number; share_ink?: number; share_today?: number };
+  recent: { player: Profile; status: string; reward_ink: number; share_ink?: number; created_at: string; qualified_at: string | null }[];
+  resets_at?: string;
   referred_by: { player: Profile; status: string; code: string } | null;
   can_redeem: boolean;
 };
@@ -225,7 +227,7 @@ export type CanvasGroup = {
 };
 
 export type ManifestLayer = { id: string; name: string; opacity: number; visible: boolean; tiles: Record<string, string> };
-export type Manifest = { layers: ManifestLayer[] };
+export type Manifest = { layers: ManifestLayer[]; imported?: boolean; active_ms?: number };
 
 export type ProjectBundle = {
   project: { id: string; title: string; description: string | null; status: string; group_id: string; owner_id: string; current_version_id: string; version_count: number; updated_at: string };
@@ -276,7 +278,7 @@ export type ArtworkCard = {
   appreciation_count: number;
   /** craft score 0-100 (palette, shading, detail) and the full breakdown for the artist */
   craft_score?: number | null;
-  craft?: { score: number; coverage: number; colors: number; shading: number; detail: number; noise: number; tips: string[]; paid?: number; tier_ink?: number } | null;
+  craft?: { score: number; coverage: number; colors: number; shading: number; detail: number; noise: number; tips: string[]; paid?: number; tier_ink?: number; picture?: number; originality?: number; imported?: boolean; similar?: { sim: number; title: string; own: boolean } | null } | null;
   featured?: boolean;
   /** map position — only for the artist and moderators */
   center_lng?: number;

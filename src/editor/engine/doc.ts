@@ -45,6 +45,10 @@ export class Doc {
   dirtyComposite = new Set<string>();
   composite = new Map<string, HTMLCanvasElement>();
   revision = 0;
+  /** an uploaded image was placed into the art (imported art doesn't earn the craft bonus) */
+  imported = false;
+  /** time spent actually painting on this canvas, across sessions (ms) */
+  activeMs = 0;
 
   constructor(cells: CellTuple[]) {
     this.layout = canvasLayout(cells, R);

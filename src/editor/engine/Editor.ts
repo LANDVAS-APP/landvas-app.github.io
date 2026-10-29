@@ -45,6 +45,8 @@ export class Editor {
   maxLayers = 6;
   placement: Placement | null = null;
   compare: { tiles: Map<string, ImageBitmap>; split: number } | null = null;
+  /** a trace guide: a reference picture shown faintly over the canvas to paint over (never saved or published) */
+  guide: { src: CanvasImageSource & { width: number; height: number }; opacity: number; visible: boolean } | null = null;
   unlocked = new Set<string>();
 
   private canvas: HTMLCanvasElement;
@@ -125,8 +127,9 @@ export class Editor {
       this.toast?.(`${BRUSHES[p.brush].name} is locked — buy it in the Studio shop.`);
       return;
     }
-    if (p.symmetry && p.symmetry !== 'off' && !this.unlocked.has('tool.symmetry')) {
-      this.toast?.('Symmetry is locked — buy the Symmetry Mirror in the Studio shop.');
+    // the left↔right mirror is free for everyone; flip, quad and radial come with the Symmetry Mirror
+    if (p.symmetry && p.symmetry !== 'off' && p.symmetry !== 'vertical' && !this.unlocked.has('tool.symmetry')) {
+      this.toast?.('Flip, quad and radial symmetry come with the Symmetry Mirror in the Studio shop.');
       return;
     }
     Object.assign(this.s, p);
@@ -151,6 +154,13 @@ export class Editor {
     const def = BRUSHES[id];
     this.s.sizes[id] = Math.max(1, Math.min(this.sizeCap(def), id === 'pixel' ? Math.round(v) : v));
     this.emit();
+  }
+  private lastWorkAt = 0;
+  /** Count painting time: the gap since the last mark, up to a few seconds of thinking. */
+  private work() {
+    const now = performance.now();
+    if (this.lastWorkAt) this.doc.activeMs += Math.min(Math.max(now - this.lastWorkAt, 0), 8000);
+    this.lastWorkAt = now;
   }
   markChanged() {
     this.dirty = true;
@@ -496,6 +506,7 @@ export class Editor {
   }
 
   private dab(x: number, y: number, pressure: number) {
+    this.work();
     const st = this.stroke!;
     const def = st.def;
     const size = Math.max(0.6, st.size * (def.pressureSize ? 0.15 + 0.85 * pressure : 1));
@@ -588,6 +599,7 @@ export class Editor {
   }
 
   private applyFill(x: number, y: number) {
+    this.work();
     const layer = this.doc.active;
     if (!layer?.visible) return;
     const res = floodFill(this.doc, layer, x, y, this.s.tolerance, this.s.sampleAll);
@@ -873,6 +885,7 @@ export class Editor {
     }
     this.history.commit();
     this.placement = null;
+    this.doc.imported = true;
     this.doc.touchAll();
     this.markChanged();
   }
@@ -1006,6 +1019,20 @@ export class Editor {
         const c = this.doc.byKey.get(k);
         if (c) ctx.drawImage(t.canvas, this.ox + (c.x + this.moveOffset.dx) * s, this.oy + (c.y + this.moveOffset.dy) * s, R * s, R * s);
       }
+      ctx.restore();
+    }
+    // trace guide: fitted inside the canvas, faint, on top so you can paint over it
+    if (this.guide?.visible) {
+      const g = this.guide, W = this.doc.width * s, Hh = this.doc.height * s;
+      const k = Math.min(W / g.src.width, Hh / g.src.height);
+      const gw = g.src.width * k, gh = g.src.height * k;
+      ctx.save();
+      ctx.beginPath();
+      for (const c of this.doc.cells) ctx.rect(this.ox + c.x * s, this.oy + c.y * s, R * s, R * s);
+      ctx.clip();
+      ctx.globalAlpha = g.opacity;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(g.src, this.ox + (W - gw) / 2, this.oy + (Hh - gh) / 2, gw, gh);
       ctx.restore();
     }
     // before / after

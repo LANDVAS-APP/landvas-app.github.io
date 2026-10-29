@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Brush, Circle, Columns2, Eraser, Expand, Grid2X2, Hand, History as HistoryIcon, ImagePlus, Minus, Move, PaintBucket,
   Pencil, Pipette, Plus, Redo2, RotateCw, Send, Slash, Square, Undo2, Blend, FlipHorizontal2, Check, X, Layers3, SlidersHorizontal, Maximize, Lock,
+  Lightbulb,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -19,8 +20,10 @@ import { BRUSHES } from './engine/brush';
 import type { Doc } from './engine/doc';
 import { Editor, type ToolId } from './engine/Editor';
 import { loadDoc, publish, saveTiles, type PublishStep } from './engine/io';
+import { CreatePanel } from './ui/CreatePanel';
+import { EDITOR_MAX_PLOTS, HugeMural } from './HugeMural';
 import { analyzeCraft, type Craft } from '../shared/craft';
-import type { CraftTier } from '../backend/types';
+import { fingerprint, mostSimilar } from '../shared/originality';
 import { ImportDialog } from './ui/ImportDialog';
 import { BrushPanel, ColorPanel, LayersPanel } from './ui/panels';
 
@@ -42,6 +45,16 @@ const TOOLS: ToolDef[] = [
 
 export default function EditorScreen() {
   const { groupId } = useParams();
+  const group = useQuery({ queryKey: ['group', groupId], queryFn: () => api.getGroup(groupId!), enabled: !!groupId });
+  const huge = (group.data?.plot_count ?? 0) > EDITOR_MAX_PLOTS;
+  const bundle = useQuery({ queryKey: ['huge-bundle', group.data?.project_id], queryFn: () => api.getProject(group.data!.project_id!), enabled: huge && !!group.data?.project_id });
+  if (!group.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
+  if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
+  return <PaintEditor />;
+}
+
+function PaintEditor() {
+  const { groupId } = useParams();
   const [search] = useSearchParams();
   const nav = useNavigate();
   const me = useOnboardedMe();
@@ -59,8 +72,8 @@ export default function EditorScreen() {
   const [title, setTitle] = useState('Untitled');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'color' | 'brush' | 'layers'>('color');
-  const [mobileSheet, setMobileSheet] = useState<null | 'color' | 'brush' | 'layers'>(null);
+  const [panel, setPanel] = useState<'create' | 'color' | 'brush' | 'layers'>('create');
+  const [mobileSheet, setMobileSheet] = useState<null | 'create' | 'color' | 'brush' | 'layers'>(null);
   const [importOpen, setImportOpen] = useState(search.get('start') === 'upload');
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -244,8 +257,9 @@ export default function EditorScreen() {
         {/* inspector (desktop) */}
         <aside className="hidden w-[312px] shrink-0 flex-col border-l border-line bg-bg-2/60 lg:flex">
           {ed && <PreviewMini ed={ed} />}
-          <div className="px-4 pb-2"><Tabs value={panel} onValueChange={(v) => setPanel(v as any)} items={[{ value: 'color', label: 'Colour' }, { value: 'brush', label: 'Tool' }, { value: 'layers', label: 'Layers' }]} /></div>
+          <div className="px-4 pb-2"><Tabs value={panel} onValueChange={(v) => setPanel(v as any)} items={[{ value: 'create', label: 'Create' }, { value: 'color', label: 'Colour' }, { value: 'brush', label: 'Tool' }, { value: 'layers', label: 'Layers' }]} /></div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scroll-thin">
+            {ed && panel === 'create' && <CreatePanel ed={ed} />}
             {ed && panel === 'color' && <ColorPanel ed={ed} unlocks={ed.unlocked} />}
             {ed && panel === 'brush' && <BrushPanel ed={ed} unlocks={ed.unlocked} />}
             {ed && panel === 'layers' && <LayersPanel ed={ed} />}
@@ -257,6 +271,7 @@ export default function EditorScreen() {
       {ed && (
         <div className="border-t border-line bg-bg-2/90 pb-[env(safe-area-inset-bottom,0px)] lg:hidden">
           <div className="gutter flex items-center gap-1 overflow-x-auto py-2 scroll-thin">
+            <button onClick={() => setMobileSheet('create')} className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-gold/15 px-2 text-xs font-bold text-gold" aria-label="Ideas and helpers" data-testid="mobile-create"><Lightbulb className="h-5 w-5" /></button>
             <button onClick={() => setMobileSheet('color')} className="mr-1 h-10 w-10 shrink-0 rounded-xl border-2 border-line" style={{ background: ed.s.color }} aria-label="Colour" />
             <button onClick={() => ed.undo()} disabled={!ed.history.canUndo} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted disabled:opacity-30" aria-label="Undo"><Undo2 className="h-5 w-5" /></button>
             <button onClick={() => ed.redo()} disabled={!ed.history.canRedo} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted disabled:opacity-30" aria-label="Redo"><Redo2 className="h-5 w-5" /></button>
@@ -277,7 +292,8 @@ export default function EditorScreen() {
       )}
 
       {ed && (
-        <Dialog open={!!mobileSheet} onOpenChange={(o) => !o && setMobileSheet(null)} title={mobileSheet === 'color' ? 'Colour' : mobileSheet === 'brush' ? `${ed.s.tool === 'brush' ? BRUSHES[ed.s.brush].name : TOOLS.find((t) => t.active(ed))?.label ?? 'Tool'} settings` : 'Layers'}>
+        <Dialog open={!!mobileSheet} onOpenChange={(o) => !o && setMobileSheet(null)} title={mobileSheet === 'create' ? 'Create' : mobileSheet === 'color' ? 'Colour' : mobileSheet === 'brush' ? `${ed.s.tool === 'brush' ? BRUSHES[ed.s.brush].name : TOOLS.find((t) => t.active(ed))?.label ?? 'Tool'} settings` : 'Layers'}>
+          {mobileSheet === 'create' && <CreatePanel ed={ed} />}
           {mobileSheet === 'color' && <ColorPanel ed={ed} unlocks={ed.unlocked} />}
           {mobileSheet === 'brush' && <BrushPanel ed={ed} unlocks={ed.unlocked} />}
           {mobileSheet === 'layers' && <LayersPanel ed={ed} />}
@@ -365,7 +381,11 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
   const [result, setResult] = useState<Publication | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [craft, setCraft] = useState<Craft | null>(null);
+  const [fp, setFp] = useState<string | null>(null);
   const earn = useQuery({ queryKey: ['earn'], queryFn: api.earnOverview, enabled: open, staleTime: 60_000 });
+  const mine = useQuery({ queryKey: ['my-art-fingerprints'], queryFn: api.myArtFingerprints, enabled: open, staleTime: 60_000 });
+  // repeats of your earlier pieces (on other canvases) earn little — warn before publishing
+  const near = fp && mine.data ? mostSimilar(fp, mine.data.filter((r) => r.group_id !== bundle.project.group_id)) : null;
   const preview = useRef<HTMLCanvasElement>(null);
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -381,7 +401,11 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
         // an estimate of the craft score the server will give (the bonus pays on what the server measures)
         try {
           const c = preview.current, g = c.getContext('2d');
-          if (g && c.width && c.height) setCraft(analyzeCraft({ width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data }));
+          if (g && c.width && c.height) {
+            const im = { width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data };
+            setCraft(analyzeCraft(im));
+            setFp(fingerprint(im));
+          }
         } catch { /* preview not readable */ }
       }, 30);
     }
@@ -416,7 +440,7 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
           <div className="grid content-start gap-2">
             <div className="flex items-center justify-center rounded-2xl border border-line bg-surface-2 p-3"><canvas ref={preview} className="max-h-64 max-w-full shadow-lg" /></div>
             <p className="text-xs text-muted tnum">{ed.doc.cells.length} plot{ed.doc.cells.length === 1 ? '' : 's'} · each becomes a 256×256 map tile. Hidden layers are left out.</p>
-            {craft && earn.data?.craft.enabled && <CraftMeter craft={craft} tiers={earn.data.craft.tiers} plots={ed.doc.cells.length} pct={earn.data.craft.plot_bonus_pct} />}
+            {craft && earn.data?.craft.enabled && <CraftMeter craft={craft} similar={near && near.sim >= 0.75 ? near : null} imported={ed.doc.imported} />}
           </div>
           <div className="grid content-start gap-4">
             <Field label="Title" htmlFor="pub-title"><input id="pub-title" className={inputCls} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} disabled={busy} /></Field>
@@ -495,23 +519,27 @@ function VersionsDialog({ open, onOpenChange, projectId, onRestored }: { open: b
 export type { ToolId };
 
 /** Before publishing: roughly how the craft bonus will see this piece, and what would lift it. */
-function CraftMeter({ craft, tiers, plots, pct }: { craft: Craft; tiers: CraftTier[]; plots: number; pct: number }) {
-  const sorted = [...tiers].sort((a, b) => a.min - b.min);
-  const hit = [...sorted].reverse().find((t) => craft.score >= t.min);
-  const next = sorted.find((t) => craft.score < t.min);
-  const scale = 1 + (Number(pct) / 100) * Math.min(Math.max(plots - 1, 0), 8);
+function CraftMeter({ craft, similar, imported }: { craft: Craft; similar: { sim: number; title: string } | null; imported: boolean }) {
+  // the picture's part of the craft score (the bonus itself is worked out on the server)
+  const v = craft.score;
+  const label = v >= 75 ? 'Rich' : v >= 50 ? 'Good' : v >= 25 ? 'Getting there' : 'Simple';
   return (
     <div className="grid gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-xs" data-testid="craft-meter">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-bold">Craft score ≈ <span className="font-display text-base tnum">{craft.score}</span></span>
-        <span className={cn('font-bold tnum', hit ? 'text-ok' : 'text-muted')}>{hit ? `≈ +${Math.floor(hit.ink * scale)} Ink bonus` : 'no bonus yet'}</span>
+        <span className="font-bold">Craft</span>
+        <span className={cn('font-bold', v >= 50 ? 'text-ok' : 'text-muted')}>{label}</span>
       </div>
-      <div className="relative h-2 overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${craft.score}%` }} />
-        {sorted.map((t) => <span key={t.min} className="absolute top-0 h-full w-0.5 bg-white/60" style={{ left: `${t.min}%` }} />)}
+      <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.max(4, v)}%` }} />
       </div>
-      {next && <p className="text-muted">Reach {next.min} for {Math.floor(next.ink * scale)} Ink.</p>}
+      {imported && <p className="font-semibold text-warn">An uploaded image is placed in this art, so it won’t earn a craft bonus. Use a trace guide (Create tab) and paint it yourself instead.</p>}
+      {!imported && similar && (
+        <p className="font-semibold text-warn" data-testid="similar-warning">
+          ≈{Math.round(similar.sim * 100)}% like your “{similar.title}” — repeats earn only a small part of the bonus. Try a new subject, colours or composition.
+        </p>
+      )}
       {craft.tips.slice(0, 2).map((t) => <p key={t} className="text-faint">• {t}</p>)}
+      <p className="text-faint">Careful, original work earns the most.</p>
     </div>
   );
 }

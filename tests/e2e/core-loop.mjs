@@ -187,6 +187,9 @@ try {
   await shot('07-grow-prompt');
 
   // 9-10: connect both plots and open the larger canvas
+  // connecting costs Ink per joining plot
+  await page.evaluate(async () => { const api = window.__landvasApi; const s = await api.myState(); await api.devGrantSelfAdmin(); await api.admin.adjustBalance(s.user_id, 'ink', 100, 'e2e merge top-up'); });
+  await page.waitForSelector('[data-testid=connect-plots]:not([disabled])', { timeout: 20000 });
   await page.click('[data-testid=connect-plots]');
   await page.waitForSelector('[data-testid=editor-canvas]', { timeout: 20000 });
   await page.waitForFunction(() => window.__landvasEditor && window.__landvasEditor.doc.cells.length === 2, null, { timeout: 20000 });

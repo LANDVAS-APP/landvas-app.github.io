@@ -29,6 +29,8 @@ export async function loadDoc(bundle: ProjectBundle, onProgress?: (done: number,
     for (const [key, hash] of Object.entries(ml.tiles ?? {})) if (doc.byKey.has(key)) jobs.push({ layerId: l.id, key, hash });
   }
   if (!doc.layers.length) doc.addLayer('Layer 1');
+  doc.imported = !!(bundle.version.manifest as { imported?: boolean }).imported;
+  doc.activeMs = Math.max(0, Number((bundle.version.manifest as { active_ms?: number }).active_ms) || 0);
   let done = 0;
   let missing = 0;
   await pool(jobs, 6, async (j) => {
@@ -68,6 +70,8 @@ export async function saveTiles(doc: Doc, ownerId: string, onProgress?: (done: n
     onProgress?.(++done, work.length);
   });
   return {
+    ...(doc.imported ? { imported: true } : {}),
+    active_ms: Math.round(doc.activeMs),
     layers: doc.layers.map((l) => ({
       id: l.id, name: l.name, opacity: Math.round(l.opacity * 100) / 100, visible: l.visible,
       tiles: Object.fromEntries([...l.tiles].filter(([, t]) => t.hash).map(([k, t]) => [k, t.hash!])),

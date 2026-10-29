@@ -111,10 +111,10 @@ export function BrushPanel({ ed, unlocks }: { ed: Editor; unlocks: Set<string> }
       {isBrush && <Slider id="smooth" label="Stabilizer" min={0} max={0.9} step={0.01} value={ed.s.smoothing} onChange={(v) => ed.set({ smoothing: v })} format={(v) => `${Math.round(v * 100)}%`} />}
       {isBrush && (
         <div>
-          <div className="eyebrow mb-1.5 flex items-center gap-1">Symmetry{!unlocks.has('tool.symmetry') && <><Lock className="h-3 w-3 text-gold" /><span className="normal-case tracking-normal text-faint">buy the Symmetry Mirror in the Studio</span></>}</div>
-          <div className={cn('grid grid-cols-5 gap-1', !unlocks.has('tool.symmetry') && 'opacity-45')}>
+          <div className="eyebrow mb-1.5 flex items-center gap-1">Symmetry{!unlocks.has('tool.symmetry') && <><Lock className="h-3 w-3 text-gold" /><span className="normal-case tracking-normal text-faint">Mirror is free · more in the Studio</span></>}</div>
+          <div className="grid grid-cols-5 gap-1">
             {(['off', 'vertical', 'horizontal', 'quad', 'radial'] as const).map((m) => (
-              <button key={m} onClick={() => ed.set({ symmetry: m })} disabled={m !== 'off' && !unlocks.has('tool.symmetry')} className={cn('rounded-lg border py-1.5 text-[11px] font-bold capitalize', ed.s.symmetry === m ? 'border-[#FF4FD8] bg-[#FF4FD8]/15' : 'border-line text-muted')}>
+              <button key={m} onClick={() => ed.set({ symmetry: m })} disabled={m !== 'off' && m !== 'vertical' && !unlocks.has('tool.symmetry')} className={cn('rounded-lg border py-1.5 text-[11px] font-bold capitalize disabled:opacity-45', ed.s.symmetry === m ? 'border-[#FF4FD8] bg-[#FF4FD8]/15' : 'border-line text-muted')}>
                 {m === 'vertical' ? 'Mirror' : m === 'horizontal' ? 'Flip' : m}
               </button>
             ))}

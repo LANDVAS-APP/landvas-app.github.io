@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { startMerge } from './MergeBar';
+import { startMerge, useFuseCost } from './MergeBar';
 import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -268,12 +268,16 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
   const qc = useQueryClient();
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
+  const cost = useFuseCost(grow ? [grow.newGroup, ...grow.neighbors] : [], !!grow);
+  const price = cost.data?.ink ?? 0;
+  const short = !!cost.data && price > cost.data.balance;
   return (
     <Dialog open={!!grow} onOpenChange={(o) => !o && onClose()} title="Your canvas can grow"
       description="Connect these plots to create a larger masterpiece. Existing art keeps its exact position — you will draw across the old border as one surface.">
       <div className="mt-2 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Not now</Button>
-        <Button variant="rainbow" loading={busy} data-testid="connect-plots" onClick={async () => {
+        {price > 0 && <p className="mr-auto self-center text-xs text-muted">Connecting costs <b className="text-fg tnum">{price} Ink</b>{short ? ' — you need more Ink first' : ''}. Bigger murals earn bigger craft bonuses.</p>}
+        <Button variant="rainbow" loading={busy} disabled={short} data-testid="connect-plots" onClick={async () => {
           if (!grow) return;
           setBusy(true);
           try {
@@ -288,6 +292,19 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+function ConnectButton({ c, mine, busy, onGo }: { c: { group_id: string; name: string; plot_count: number }; mine: string | null; busy: boolean; onGo(): void }) {
+  const cost = useFuseCost(mine ? [mine, c.group_id] : [], !!mine);
+  const price = cost.data?.ink ?? 0;
+  const short = !!cost.data && price > cost.data.balance;
+  return (
+    <Button size="sm" variant="rainbow" loading={busy} disabled={short} onClick={onGo}
+      onMouseEnter={() => useUi.getState().setMergeHover([c.group_id])} onMouseLeave={() => useUi.getState().setMergeHover(null)}
+      onFocus={() => useUi.getState().setMergeHover([c.group_id])} onBlur={() => useUi.getState().setMergeHover(null)}>
+      <Link2 className="h-4 w-4" /> Connect with “{c.name}” ({c.plot_count} plot{c.plot_count === 1 ? '' : 's'}){price > 0 ? ` · ${price} Ink` : ''}{short ? ' — not enough Ink' : ''}
+    </Button>
   );
 }
 
@@ -345,13 +362,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
       {(d.connections?.length ?? 0) > 0 && (
         <div className="grid gap-2 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3">
           <div className="text-sm font-bold">Your canvas can grow</div>
-          {d.connections!.map((c) => (
-            <Button key={c.group_id} size="sm" variant="rainbow" loading={busy === 'fuse'} onClick={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }}
-              onMouseEnter={() => useUi.getState().setMergeHover([c.group_id])} onMouseLeave={() => useUi.getState().setMergeHover(null)}
-              onFocus={() => useUi.getState().setMergeHover([c.group_id])} onBlur={() => useUi.getState().setMergeHover(null)}>
-              <Link2 className="h-4 w-4" /> Connect with “{c.name}” ({c.plot_count} plot{c.plot_count === 1 ? '' : 's'})
-            </Button>
-          ))}
+          {d.connections!.map((c) => <ConnectButton key={c.group_id} c={c} mine={d.group?.id ?? null} busy={busy === 'fuse'} onGo={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }} />)}
+          <p className="text-[11px] text-muted">Bigger murals earn bigger craft bonuses — merging costs Ink for each plot that joins.</p>
         </div>
       )}
       <Button variant="secondary" size="sm" onClick={() => startMerge(d.group?.id)} data-testid="start-merge"><Combine className="h-4 w-4" /> Merge several plots at once</Button>

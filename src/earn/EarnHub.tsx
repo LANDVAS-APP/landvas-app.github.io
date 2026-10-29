@@ -19,7 +19,7 @@ export function EarnHub() {
     d.challenges > 0 && { key: 'challenge', icon: Trophy, tone: 'text-hot bg-hot/15', title: 'Weekly challenge', text: `${d.challenges} theme${d.challenges > 1 ? 's' : ''} open — paint it, vote, win Ink`, hot: true, to: '/challenges' },
     d.rooms.enabled && { key: 'rooms', icon: DoorOpen, tone: 'text-accent-2 bg-accent-2/15', title: 'Check into rooms', text: `+${d.rooms.visitor_ink} Ink per room · ${d.rooms.paid_today}/${d.rooms.visitor_daily} today. Hosts earn too.`, to: '/players' },
     d.inspire.enabled && { key: 'inspire', icon: Sparkles, tone: 'text-ok bg-ok/15', title: 'Inspire artists', text: `Each piece you inspire pays its artist ${d.inspire.artist_ink} Ink${d.inspire.giver_ink ? ` (and you ${d.inspire.giver_ink}, ${d.inspire.given_today}/${d.inspire.giver_daily} today)` : ''}.`, to: '/gallery' },
-    d.craft.enabled && tiers.length > 0 && { key: 'craft', icon: Brush, tone: 'text-accent bg-accent/15', title: 'Craft bonus', text: `Rich art pays: craft ${tiers.map((t) => `${t.min}+ → ${t.ink}`).join(', ')} Ink${d.craft.best != null ? ` · your best ${d.craft.best}` : ''}. Bigger murals earn more.`, to: '/canvases' },
+    d.craft.enabled && tiers.length > 0 && { key: 'craft', icon: Brush, tone: 'text-accent bg-accent/15', title: 'Craft bonus', text: `Rich, original, carefully painted art pays: craft ${tiers.map((t) => `${t.min}+ → ${t.ink}`).join(', ')} Ink${d.craft.best != null ? ` · your best ${d.craft.best}` : ''}. Bigger murals earn more.`, to: '/canvases' },
   ].filter(Boolean) as { key: string; icon: any; tone: string; title: string; text: string; hot?: boolean; to?: string; onClick?(): void }[];
   if (!items.length) return null;
   return (

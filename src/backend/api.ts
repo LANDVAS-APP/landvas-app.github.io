@@ -141,6 +141,8 @@ export const api = {
 
   // canvas fusion
   myGroups: () => rpc<CanvasGroup[]>('my_groups'),
+  fuseCost: (ids: string[]) => rpc<{ added_plots: number; ink: number; balance: number }>('fuse_cost', { p_group_ids: ids }),
+  myArtFingerprints: () => rpc<{ id: string; title: string; fp: string; group_id: string; own: boolean }[]>('my_art_fingerprints'),
   getGroup: (id: string) => rpc<CanvasGroup>('get_group', { p_group_id: id }),
   fuseGroups: (ids: string[], name?: string) => rpc<CanvasGroup & { achievements: NewAchievement[] }>('fuse_groups', { p_group_ids: ids, p_name: name ?? null }),
   detachPlots: (groupId: string, cells: [number, number][]) => rpc<{ group: CanvasGroup; new_groups: CanvasGroup[] }>('detach_plots', { p_group_id: groupId, p_cells: cells }),

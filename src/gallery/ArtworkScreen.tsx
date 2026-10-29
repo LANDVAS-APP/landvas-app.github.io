@@ -122,7 +122,11 @@ export function CraftCard({ craft }: { craft: NonNullable<ArtworkCard['craft']> 
   return (
     <div className="glass grid gap-3 rounded-2xl p-4" data-testid="craft-card">
       <div className="flex items-center justify-between"><div className="font-display font-semibold">Craft score <span className="tnum">{craft.score}</span></div>{(craft.paid ?? 0) > 0 && <span className="text-sm font-bold text-ok tnum">+{craft.paid} Ink craft bonus</span>}</div>
-      <div className="grid gap-2 sm:grid-cols-2">{bar('Coverage', craft.coverage)}{bar('Shading', craft.shading)}{bar('Detail', craft.detail)}{bar(`Palette (${craft.colors} colours)`, Math.min(100, Math.round(((craft.colors - 1) / 7) * 100)))}</div>
+      <div className="grid gap-2 sm:grid-cols-2">{bar('Coverage', craft.coverage)}{bar('Shading', craft.shading)}{bar('Detail', craft.detail)}{bar(`Palette (${craft.colors} colours)`, Math.min(100, Math.round(((craft.colors - 1) / 9) * 100)))}</div>
+      {craft.imported && <p className="text-xs text-warn">An uploaded image was placed in this art, so it earns no craft bonus.</p>}
+      {!craft.imported && craft.originality != null && craft.originality < 100 && (
+        <p className="text-xs text-warn">Very like {craft.similar?.own ? 'your' : 'an earlier'} piece{craft.similar?.title ? ` “${craft.similar.title}”` : ''} — repeats earn {craft.originality}% of the bonus. Paint something new for the full bonus.</p>
+      )}
       {craft.tips?.length > 0 && <ul className="grid gap-1 text-xs text-muted">{craft.tips.map((t) => <li key={t}>• {t}</li>)}</ul>}
     </div>
   );

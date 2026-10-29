@@ -36,6 +36,12 @@ export function touchingGroups(all: CanvasGroup[], picked: string[]): string[] {
   return [...out];
 }
 
+/** What merging these canvases costs (Ink for every plot that joins the largest one). */
+export function useFuseCost(ids: string[], enabled = true) {
+  const key = [...ids].sort();
+  return useQuery({ queryKey: ['fuse-cost', ...key], queryFn: () => api.fuseCost(key), enabled: enabled && key.length >= 2, staleTime: 15_000 });
+}
+
 export function startMerge(groupId?: string | null) {
   useUi.getState().setMerge(groupId ? [groupId] : []);
 }
@@ -54,6 +60,9 @@ export function MergeBar() {
   const plots = picked.reduce((n, g) => n + g.plot_count, 0);
   const connected = picked.length >= 2 && isConnected(cellsOf(picked));
   const pieces = picked.length >= 2 ? components(cellsOf(picked)).length : 0;
+  const cost = useFuseCost(picked.map((x) => x.id), connected);
+  const price = cost.data?.ink ?? 0;
+  const short = !!cost.data && price > cost.data.balance;
   const more = touchingGroups(all, merge.length ? merge : all.slice(0, 1).map((g) => g.id)).length - merge.length;
   const go = async () => {
     setBusy(true);
@@ -77,7 +86,7 @@ export function MergeBar() {
             <p className="text-xs text-muted">
               {picked.length === 0 ? <><MousePointerClick className="mr-1 inline h-3.5 w-3.5" />Tap your plots on the map to pick them.</>
                 : picked.length === 1 ? 'Now tap the plots next to it — or select everything touching.'
-                : connected ? <><b className="text-fg">{picked.length} canvases · {plots} plots</b> ready to become one.</>
+                : connected ? <><b className="text-fg">{picked.length} canvases · {plots} plots</b> ready to become one{price > 0 ? <> for <b className="text-fg tnum">{price} Ink</b></> : ''}.{short && <span className="text-warn"> You need {price - (cost.data?.balance ?? 0)} more Ink.</span>}</>
                 : <span className="text-warn">These are in {pieces} separate groups — merged plots must touch.</span>}
             </p>
           </div>
@@ -88,7 +97,7 @@ export function MergeBar() {
             <Sparkles className="h-4 w-4" /> Select all touching{more > 0 ? ` (+${more})` : ''}
           </Button>
           {picked.length > 0 && <Button size="sm" variant="ghost" onClick={() => setMerge([])}>Clear</Button>}
-          <Button size="sm" variant="rainbow" className="ml-auto" disabled={!connected} loading={busy} onClick={go} data-testid="merge-go">
+          <Button size="sm" variant="rainbow" className="ml-auto" disabled={!connected || short} loading={busy} onClick={go} data-testid="merge-go">
             <Combine className="h-4 w-4" /> Merge {picked.length >= 2 ? `${plots} plots` : ''}
           </Button>
         </div>
