@@ -33,6 +33,7 @@ const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));
 const PvpScreen = lazy(() => import('../pvp/PvpScreen'));
+const ChallengesScreen = lazy(() => import('../earn/ChallengesScreen'));
 const PvpSandbox = lazy(() => import('../pvp/PvpScreen').then((m) => ({ default: m.PvpSandbox })));
 
 /** landvas.app: the public homepage (the live map lives at /world). */
@@ -83,7 +84,7 @@ function OnboardingGate() {
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest map art'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
   [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
-  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'],
+  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -154,6 +155,7 @@ const routes: RouteObject[] = [
           { path: '/settings', element: p(<SettingsScreen />) },
           { path: '/support', element: player(<SupportScreen />) },
           { path: '/pvp', element: player(<PvpScreen />) },
+          { path: '/challenges', element: p(<ChallengesScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           { path: '/admin', element: player(<AdminScreen />) },

@@ -18,7 +18,7 @@ import { rarityInfo } from '../shared/rarity';
 import { Button, ResourceIcon, Spinner } from '../ui';
 import { ColorBurstGame } from './games/ColorBurst';
 import { LightLinesGame } from './games/LightLines';
-import { PatternShiftGame } from './games/PatternShift';
+import { PaintPopGame } from './games/PaintPop';
 import { TraceCraftGame } from './games/TraceCraft';
 import { boardsGame } from './games/Boards';
 import { RollerMuralBoard } from './games/RollerMural';
@@ -30,7 +30,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 
 const GAMES: Record<GameId, (p: GameProps) => React.ReactElement | null> = {
   lightlines: boardsGame('lightlines', LightLinesGame),
-  patternshift: boardsGame('patternshift', PatternShiftGame),
+  paintpop: boardsGame('paintpop', PaintPopGame),
   colorburst: ColorBurstGame,
   tracecraft: TraceCraftGame,
   memorymural: boardsGame('memorymural', MemoryMuralBoard),

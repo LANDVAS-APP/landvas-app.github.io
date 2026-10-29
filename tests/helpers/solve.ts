@@ -5,7 +5,7 @@ import { generateRollerMural, solveRoller } from '../../src/shared/minigames/rol
 import { generateLightLines } from '../../src/shared/minigames/lightlines';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
-import { generatePatternShift } from '../../src/shared/minigames/patternshift';
+import { solvePaintPop } from '../../src/shared/minigames/paintpop';
 import { generateSculptor, sculpt } from '../../src/shared/minigames/sculptor';
 import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
 
@@ -16,9 +16,8 @@ function board(game: string, seed: number, level: number): { done_t: number } & 
     const moves = L.cells.map((c, i) => ({ c, i })).filter(({ c, i }) => c.k === 'mirror' && L.solution[i] && c.m !== L.solution[i]).map(({ i }) => ({ t: (t += 500), i }));
     return { moves, done_t: t + 100 };
   }
-  if (game === 'patternshift') {
-    const L = generatePatternShift(seed, level);
-    return { moves: [...L.scramble].reverse().map((m) => ({ t: (t += 500), k: m.k, i: m.i, d: -m.d })), done_t: t + 100 };
+  if (game === 'paintpop') {
+    return { moves: solvePaintPop(seed, level).map((m) => ({ t: (t += 600), ...m })), done_t: t + 100 };
   }
   if (game === 'memorymural') {
     const L = generateMemoryMural(seed, level);

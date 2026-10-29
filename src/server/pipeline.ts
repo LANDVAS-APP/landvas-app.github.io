@@ -14,6 +14,7 @@
 //              rebuild the pyramid.
 // Tiles are immutable: tiles/<z>/<x>/<y>/<rev>.png, so a CDN can cache forever.
 // ---------------------------------------------------------------------------
+import { analyzeCraft } from '../shared/craft';
 import { composeParent, countColors, fitWithin, flattenOnWhite, isTransparent, readPngSize, stitch, whitePaper, type RGBA } from '../shared/art';
 import { canvasLayout } from '../shared/fusion';
 import { ART_MIN_ZOOM, GRID_LEVEL, PLOT_PX, cellKey, type CellTuple } from '../shared/grid';
@@ -217,6 +218,12 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
       screening,
     },
   });
+  // how much craft went into it (paid as a bonus once the art goes live; never blocks publishing)
+  try {
+    await deps.db.call('svc_record_craft', { p_publication_id: publicationId, p_craft: analyzeCraft(full) });
+  } catch {
+    /* the bonus is optional */
+  }
 }
 
 // ---- publish --------------------------------------------------------------------

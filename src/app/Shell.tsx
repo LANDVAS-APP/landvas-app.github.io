@@ -20,6 +20,7 @@ const MAIN = [
 const MOBILE = ['/world', '/play', '/social', '/gallery'];
 const MORE = [
   { to: '/pvp', label: 'PvP', icon: Swords },
+  { to: '/challenges', label: 'Challenges', icon: Trophy },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/leaderboards', label: 'Ranks', icon: Trophy },
   { to: '/achievements', label: 'Badges', icon: Award },

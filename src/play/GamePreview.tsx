@@ -12,7 +12,7 @@ export function GamePreview({ game, size, className }: { game: GameId; size?: nu
   const common = { viewBox: '0 0 120 120', className: cn('block rounded-2xl', !size && 'aspect-square w-full', className), style, role: 'img' as const };
   if (game === 'tracecraft') return <TraceCraftPreview {...common} id={id} still={still} />;
   if (game === 'colorburst') return <ColorBurstPreview {...common} id={id} still={still} />;
-  if (game === 'patternshift') return <PatternShiftPreview {...common} id={id} still={still} />;
+  if (game === 'paintpop') return <PaintPopPreview {...common} id={id} still={still} />;
   if (game === 'memorymural') return <MemoryMuralPreview {...common} id={id} still={still} />;
   if (game === 'sculptor') return <SculptorPreview {...common} id={id} still={still} />;
   if (game === 'rollermural') return <RollerMuralPreview {...common} id={id} still={still} />;
@@ -86,31 +86,24 @@ function ColorBurstPreview({ id, still, ...svg }: P) {
   );
 }
 
-function PatternShiftPreview({ id, still, ...svg }: P) {
-  const colors = ['#22C7B5', '#FFD43B', '#F5F4EF'];
-  const grid = [[0, 1, 2], [1, 2, 0], [2, 0, 1]];
-  const cell = 26, x0 = 21, y0 = 18;
+function PaintPopPreview({ id, still, ...svg }: P) {
+  const cols = ['#FF4D6D', '#34C3FF', '#FFE14D', '#3DDC97'];
+  const grid = [[0, 1, 2, 1], [3, 0, 0, 2], [1, 3, 2, 3], [2, 1, 3, 0]];
+  const cell = 19, x0 = 10, y0 = 16;
   return (
-    <svg {...svg} aria-label="PatternShift: slide rows and columns to rebuild the mosaic">
-      <defs><clipPath id={`${id}clip`}><rect x={x0} y={y0} width={cell * 3} height={cell * 3} rx="6" /></clipPath></defs>
+    <svg {...svg} aria-label="Paint Pop: swap paint blobs to match three and paint the picture">
       <rect width="120" height="120" fill="#10343A" />
-      <g clipPath={`url(#${id}clip)`}>
-        {grid.map((row, r) => (
-          <g key={r}>
-            {!still && r === 1 && <animateTransform attributeName="transform" type="translate" values={`0 0;0 0;${-cell} 0;${-cell} 0`} keyTimes="0;0.35;0.55;1" dur="3.2s" repeatCount="indefinite" />}
-            {[...row, row[0]].map((c, i) => (
-              <rect key={i} x={x0 + i * cell + 2} y={y0 + r * cell + 2} width={cell - 4} height={cell - 4} rx="5" fill={colors[c]} />
-            ))}
-          </g>
-        ))}
-      </g>
-      <rect x={x0} y={y0} width={cell * 3} height={cell * 3} rx="6" fill="none" stroke="#ffffff" strokeOpacity="0.25" />
-      <g>
-        {!still && <animate attributeName="opacity" values="0.4;0.4;1;0.4" keyTimes="0;0.35;0.5;1" dur="3.2s" repeatCount="indefinite" />}
-        <path d={`M${x0 - 9} ${y0 + cell * 1.5} l6 -5 v10 z`} fill="#FFD43B" />
-        <path d={`M${x0 + cell * 3 + 9} ${y0 + cell * 1.5} l-6 -5 v10 z`} fill="#FFD43B" />
-      </g>
-      <text x="60" y="112" textAnchor="middle" fontSize="8" fontWeight="800" fill="#22C7B5" letterSpacing="1.5">SLIDE · PAR 4</text>
+      {grid.map((row, r) => row.map((c, k) => (
+        <circle key={`${r}${k}`} cx={x0 + k * cell + cell / 2} cy={y0 + r * cell + cell / 2} r={cell * 0.4} fill={cols[c]}>
+          {!still && r === 1 && k >= 0 && k <= 2 && c === 0 && <animate attributeName="r" values={`${cell * 0.4};${cell * 0.4};0;${cell * 0.4}`} keyTimes="0;0.4;0.55;1" dur="2.6s" repeatCount="indefinite" />}
+          {!still && r === 0 && k === 0 && <animate attributeName="r" values={`${cell * 0.4};${cell * 0.4};0;${cell * 0.4}`} keyTimes="0;0.4;0.55;1" dur="2.6s" repeatCount="indefinite" />}
+        </circle>
+      )))}
+      <rect x="88" y="22" width="26" height="26" rx="4" fill="#F5F4EF" />
+      <rect x="92" y="26" width="9" height="9" fill="#FF4D6D">{!still && <animate attributeName="opacity" values="0.15;0.15;1;1" keyTimes="0;0.5;0.6;1" dur="2.6s" repeatCount="indefinite" />}</rect>
+      <rect x="101" y="35" width="9" height="9" fill="#34C3FF" opacity="0.9" />
+      <text x="60" y="110" textAnchor="middle" fontSize="8" fontWeight="800" fill="#22C7B5" letterSpacing="1.5">POP · PAINT</text>
+      <defs><clipPath id={`${id}clip`}><rect width="120" height="120" /></clipPath></defs>
     </svg>
   );
 }

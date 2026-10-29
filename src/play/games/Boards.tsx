@@ -8,14 +8,14 @@ import { validateRollerMural } from '../../shared/minigames/rollermural';
 import { validateLightLines } from '../../shared/minigames/lightlines';
 import { validateMemoryMural } from '../../shared/minigames/memorymural';
 import { validateMirrorline } from '../../shared/minigames/mirrorline';
-import { validatePatternShift } from '../../shared/minigames/patternshift';
+import { validatePaintPop } from '../../shared/minigames/paintpop';
 import { validateSculptor } from '../../shared/minigames/sculptor';
 import { roundsToPass, type GameId, type ValidationResult } from '../../shared/minigames/types';
 import { cn, sleep } from '../../lib/utils';
 import type { GameProps } from '../common';
 
 const CHECK: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
-  patternshift: validatePatternShift, lightlines: validateLightLines, memorymural: validateMemoryMural,
+  paintpop: validatePaintPop, lightlines: validateLightLines, memorymural: validateMemoryMural,
   sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 

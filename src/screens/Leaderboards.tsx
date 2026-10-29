@@ -13,7 +13,7 @@ const KINDS = [
   { value: 'appreciated', label: 'Most loved', unit: '♥' },
   { value: 'level', label: 'Artist level', unit: 'level' },
   { value: 'minigame:lightlines', label: 'LightLines', unit: 'pts' },
-  { value: 'minigame:patternshift', label: 'PatternShift', unit: 'pts' },
+  { value: 'minigame:paintpop', label: 'Paint Pop', unit: 'pts' },
   { value: 'minigame:colorburst', label: 'ColorBurst', unit: 'pts' },
   { value: 'minigame:tracecraft', label: 'TraceCraft', unit: 'pts' },
   { value: 'minigame:memorymural', label: 'Memory Mural', unit: 'pts' },

@@ -3,7 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
 } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
@@ -74,6 +74,15 @@ export const api = {
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
+  // more ways to earn
+  earnOverview: () => rpc<EarnOverview>('earn_overview'),
+  wheelStatus: () => rpc<WheelStatus>('wheel_status'),
+  wheelSpin: () => rpc<{ slice: number; prize: WheelSlice; spins_left: number; balances: Balances; resets_at: string }>('wheel_spin', { p_idempotency_key: idemKey('wheel') }),
+  roomEnter: (username: string) => rpc<RoomStatus>('room_enter', { p_username: username }),
+  roomCheckin: (username: string) => rpc<RoomStatus & { earned: number; host_earned: number; balances: Balances }>('room_checkin', { p_username: username }),
+  challenges: () => rpc<ChallengesNow>('challenges_current'),
+  challengeEnter: (challengeId: string, publicationId: string) => rpc<Challenge & { earned: number }>('challenge_enter', { p_challenge_id: challengeId, p_publication_id: publicationId }),
+  challengeVote: (challengeId: string, publicationId: string, on: boolean) => rpc<Challenge>('challenge_vote', { p_challenge_id: challengeId, p_publication_id: publicationId, p_on: on }),
   // PvP minigames (free, anonymous)
   pvpLobby: () => rpc<PvpLobby>('pvp_lobby'),
   pvpPlay: (game: string) => rpc<PvpStart>('pvp_play', { p_game: game, p_idempotency_key: idemKey('pvp-play') }),
@@ -166,7 +175,7 @@ export const api = {
     rpc<ArtworkCard[]>('gallery_list', { p_section: section, p_limit: limit, p_offset: offset, p_bbox: bbox ?? null }),
   trendingArtists: () => rpc<{ artist: Profile; appreciations: number; top_artwork: ArtworkCard | null }[]>('trending_artists', { p_days: 7, p_limit: 12 }),
   artworkDetail: (id: string) => rpc<ArtworkDetail>('artwork_detail', { p_publication_id: id }),
-  appreciate: (id: string, on: boolean) => rpc<{ appreciated: boolean; appreciation_count: number; achievements: NewAchievement[] }>('appreciate', { p_publication_id: id, p_on: on }),
+  appreciate: (id: string, on: boolean) => rpc<{ appreciated: boolean; appreciation_count: number; artist_ink?: number; earned?: number; first?: boolean; achievements: NewAchievement[] }>('appreciate', { p_publication_id: id, p_on: on }),
   profileByUsername: (u: string) => rpc<any>('profile_by_username', { p_username: u }),
   leaderboard: (kind: string, game?: string) => rpc<{ kind: string; rows: any[] }>('leaderboard', { p_kind: kind, p_game: game ?? null }),
   achievements: () => rpc<Achievement[]>('achievements_catalog'),
@@ -193,6 +202,10 @@ export const api = {
       rpc<Announcement>('admin_announcement_save', { p_id: a.id ?? null, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup, p_active: a.active }),
     deleteAnnouncement: (id: string) => rpc<{ ok: boolean }>('admin_announcement_delete', { p_id: id }),
     pvp: () => rpc<any>('admin_pvp'),
+    challenges: () => rpc<any[]>('admin_challenges'),
+    saveChallenge: (c: { id?: string | null; title: string; theme: string; starts_at: string; ends_at: string; prizes: number[]; entry_ink: number }) =>
+      rpc<any[]>('admin_challenge_save', { p_id: c.id ?? null, p_title: c.title, p_theme: c.theme, p_starts_at: c.starts_at, p_ends_at: c.ends_at, p_prizes: c.prizes, p_entry_ink: c.entry_ink }),
+    cancelChallenge: (id: string) => rpc<any[]>('admin_challenge_cancel', { p_id: id }),
     playerMinigames: (id: string) => rpc<any>('admin_player_minigames', { p_player_id: id }),
     supportTickets: (status?: string | null) => rpc<{ tickets: SupportTicket[]; counts: { open: number; answered: number; closed: number } }>('admin_support_tickets', { p_status: status ?? null }),
     searchPlayers: (q: string) => rpc<any[]>('admin_search_players', { p_query: q, p_limit: 60 }),

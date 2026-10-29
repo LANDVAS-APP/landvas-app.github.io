@@ -462,6 +462,19 @@ try {
   check('a PvP run is checked round by round and waits for an anonymous rival', /Waiting for your rival/.test(pvpText) && /Round/.test(pvpText) && !/@/.test(pvpText), pvpText.slice(0, 200));
   await shot('09b-pvp');
 
+  // more ways to earn: the daily wheel spins once a day for a prize
+  await page.evaluate(() => window.__landvasNav('/play'));
+  await page.waitForSelector('[data-testid=earn-wheel]', { timeout: 20000 });
+  await page.click('[data-testid=earn-wheel]');
+  await page.waitForSelector('[data-testid=wheel-spin]:not([disabled])', { timeout: 20000 });
+  await page.click('[data-testid=wheel-spin]');
+  await page.waitForSelector('[data-testid=wheel-won]', { timeout: 20000 });
+  const won = await page.textContent('[data-testid=wheel-won]');
+  const again = await page.locator('[data-testid=wheel-spin]').isDisabled();
+  check('the daily wheel pays a prize once a day', /You won/.test(won) && again, won);
+  await shot('09c-wheel');
+  await page.keyboard.press('Escape');
+
   // site-wide updates: staff send one, players get the popup and the bell
   await page.evaluate(async () => window.__landvasApi.admin.saveAnnouncement({ title: 'Eight minigames!', body: 'Memory Mural, Sculptor, HueFlow and Mirrorline are live.', kind: 'update', link: '/play', popup: true, active: true }));
   await page.waitForTimeout(4000);
@@ -497,7 +510,7 @@ try {
   check('no email addresses are shown anywhere public', !/[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test((legalTxt + settingsTxt).replaceAll('ava@example.test', ''))); // (your own sign-in email shows only to you, in Settings)
 
   // every minigame (incl. the four new ones) plays all 5 rounds and passes the server's validator
-  for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['rollermural', 10], ['mirrorline', 10]]) {
+  for (const [g, lv] of [['tracecraft', 1], ['colorburst', 1], ['paintpop', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1], ['memorymural', 10], ['sculptor', 10], ['rollermural', 10], ['mirrorline', 10]]) {
     await page.evaluate(([g, lv]) => window.__landvasNav(`/play-sandbox/${g}?level=${lv}&rounds=5`), [g, lv]);
     await page.waitForFunction(() => !!window.__landvasGame && !document.querySelector('[data-testid=sandbox-result]'), null, { timeout: 20000 });
     await page.waitForTimeout(600);

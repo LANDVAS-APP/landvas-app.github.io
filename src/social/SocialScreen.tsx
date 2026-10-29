@@ -1,7 +1,7 @@
 // Social: the live feed of what everyone is doing, the global chat, and friends.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords } from 'lucide-react';
+import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -141,6 +141,14 @@ function FeedRow({ e }: { e: FeedEvent }) {
       break;    case 'minigame':
       icon = <Gamepad2 className="h-4 w-4 text-ok" />;
       body = <>{who} cleared <b>{GAME_INFO[e.data.game as GameId]?.name ?? e.data.game}</b> level {e.data.level}{Number(e.data.stars) > 0 ? <span className="text-gold"> {'★'.repeat(Math.min(3, Number(e.data.stars)))}</span> : null}</>;
+      break;
+    case 'challenge':
+      icon = <Trophy className="h-4 w-4 text-gold" />;
+      body = <>{who} placed <b>{['1st', '2nd', '3rd'][Number(e.data.place) - 1] ?? `#${e.data.place}`}</b> in the <Link to="/challenges" className="font-semibold hover:underline">“{e.data.title}”</Link> challenge</>;
+      break;
+    case 'featured':
+      icon = <Star className="h-4 w-4 text-gold" />;
+      body = <>{who}’s <Link to={`/art/${e.data.publication_id}`} className="font-semibold hover:underline">“{e.data.title}”</Link> was Featured by the LANDVAS team</>;
       break;
     case 'pvp':
       icon = <Swords className="h-4 w-4 text-hot" />;

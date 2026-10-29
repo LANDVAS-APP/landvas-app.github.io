@@ -104,6 +104,10 @@ describe('publication pipeline', () => {
     await db.rpc(mod, 'admin_review_publication', { p_publication_id: id, p_decision: 'approve' });
     await drainQueue(deps, 'test');
     expect((await db.rpc(painter, 'publication_status', { p_publication_id: id })).status).toBe('published');
+    // the pipeline scored its craft (palette, shading, detail) for the craft bonus
+    const craft = (await db.sql(`select craft_score, craft from artwork_publications where id = $1`, [id]))[0];
+    expect(craft.craft_score).toBeGreaterThanOrEqual(0);
+    expect(craft.craft.colors).toBeGreaterThanOrEqual(1);
 
     const tiles = await db.sql<{ z: number; x: number; y: number; rev: string }>(`select z, x, y, rev from art_tiles order by z desc, x`);
     // two plot tiles at the grid zoom + one tile per zoom level above it, down to ART_MIN_ZOOM

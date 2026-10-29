@@ -19,6 +19,8 @@ import { BRUSHES } from './engine/brush';
 import type { Doc } from './engine/doc';
 import { Editor, type ToolId } from './engine/Editor';
 import { loadDoc, publish, saveTiles, type PublishStep } from './engine/io';
+import { analyzeCraft, type Craft } from '../shared/craft';
+import type { CraftTier } from '../backend/types';
 import { ImportDialog } from './ui/ImportDialog';
 import { BrushPanel, ColorPanel, LayersPanel } from './ui/panels';
 
@@ -362,6 +364,8 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
   const [step, setStep] = useState<{ s: PublishStep; d?: string } | null>(null);
   const [result, setResult] = useState<Publication | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [craft, setCraft] = useState<Craft | null>(null);
+  const earn = useQuery({ queryKey: ['earn'], queryFn: api.earnOverview, enabled: open, staleTime: 60_000 });
   const preview = useRef<HTMLCanvasElement>(null);
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -371,7 +375,15 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
       setResult(null);
       setError(null);
       setStep(null);
-      setTimeout(() => preview.current && ed.renderPreview(preview.current, 360), 30);
+      setTimeout(() => {
+        if (!preview.current) return;
+        ed.renderPreview(preview.current, 360);
+        // an estimate of the craft score the server will give (the bonus pays on what the server measures)
+        try {
+          const c = preview.current, g = c.getContext('2d');
+          if (g && c.width && c.height) setCraft(analyzeCraft({ width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data }));
+        } catch { /* preview not readable */ }
+      }, 30);
     }
   }, [open, ed]);
   const go = async () => {
@@ -404,6 +416,7 @@ function PublishDialog({ open, onOpenChange, ed, bundle, title, setTitle, ensure
           <div className="grid content-start gap-2">
             <div className="flex items-center justify-center rounded-2xl border border-line bg-surface-2 p-3"><canvas ref={preview} className="max-h-64 max-w-full shadow-lg" /></div>
             <p className="text-xs text-muted tnum">{ed.doc.cells.length} plot{ed.doc.cells.length === 1 ? '' : 's'} · each becomes a 256×256 map tile. Hidden layers are left out.</p>
+            {craft && earn.data?.craft.enabled && <CraftMeter craft={craft} tiers={earn.data.craft.tiers} plots={ed.doc.cells.length} pct={earn.data.craft.plot_bonus_pct} />}
           </div>
           <div className="grid content-start gap-4">
             <Field label="Title" htmlFor="pub-title"><input id="pub-title" className={inputCls} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} disabled={busy} /></Field>
@@ -480,3 +493,25 @@ function VersionsDialog({ open, onOpenChange, projectId, onRestored }: { open: b
 }
 
 export type { ToolId };
+
+/** Before publishing: roughly how the craft bonus will see this piece, and what would lift it. */
+function CraftMeter({ craft, tiers, plots, pct }: { craft: Craft; tiers: CraftTier[]; plots: number; pct: number }) {
+  const sorted = [...tiers].sort((a, b) => a.min - b.min);
+  const hit = [...sorted].reverse().find((t) => craft.score >= t.min);
+  const next = sorted.find((t) => craft.score < t.min);
+  const scale = 1 + (Number(pct) / 100) * Math.min(Math.max(plots - 1, 0), 8);
+  return (
+    <div className="grid gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-xs" data-testid="craft-meter">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold">Craft score ≈ <span className="font-display text-base tnum">{craft.score}</span></span>
+        <span className={cn('font-bold tnum', hit ? 'text-ok' : 'text-muted')}>{hit ? `≈ +${Math.floor(hit.ink * scale)} Ink bonus` : 'no bonus yet'}</span>
+      </div>
+      <div className="relative h-2 overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${craft.score}%` }} />
+        {sorted.map((t) => <span key={t.min} className="absolute top-0 h-full w-0.5 bg-white/60" style={{ left: `${t.min}%` }} />)}
+      </div>
+      {next && <p className="text-muted">Reach {next.min} for {Math.floor(next.ink * scale)} Ink.</p>}
+      {craft.tips.slice(0, 2).map((t) => <p key={t} className="text-faint">• {t}</p>)}
+    </div>
+  );
+}

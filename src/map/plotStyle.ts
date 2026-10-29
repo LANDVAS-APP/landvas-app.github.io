@@ -5,7 +5,7 @@ import type { PlotTypeId } from '../shared/grid';
 export const PLOT_TYPES: Record<PlotTypeId, { name: string; game: string; a: string; b: string; base: string; blurb: string }> = {
   graphite: { name: 'Graphite', game: 'TraceCraft', a: '#B9C3D8', b: '#5C6680', base: '#232838', blurb: 'Charcoal, silver and pencil grain' },
   pigment: { name: 'Pigment', game: 'ColorBurst', a: '#FF5470', b: '#FFB23F', base: '#3A1B2A', blurb: 'Saturated paint and watercolor blooms' },
-  mosaic: { name: 'Mosaic', game: 'PatternShift', a: '#22C7B5', b: '#FFD43B', base: '#10343A', blurb: 'Geometric tiles and bright patterns' },
+  mosaic: { name: 'Mosaic', game: 'Paint Pop', a: '#22C7B5', b: '#FFD43B', base: '#10343A', blurb: 'Geometric tiles and bright patterns' },
   lumina: { name: 'Lumina', game: 'LightLines', a: '#8B5CFF', b: '#22E3FF', base: '#170F3D', blurb: 'Neon light and glowing gradients' },
   fresco: { name: 'Fresco', game: 'Memory Mural', a: '#FF8A5B', b: '#FFD6A5', base: '#3A2219', blurb: 'Plaster walls that remember every stroke' },
   clay: { name: 'Clay', game: 'Sculptor', a: '#C8794A', b: '#F2C49B', base: '#2E1B12', blurb: 'Soft earth waiting to be shaped' },

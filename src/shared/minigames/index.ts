@@ -4,19 +4,19 @@ import { validateRollerMural } from './rollermural';
 import { validateLightLines, type LightLinesLog } from './lightlines';
 import { validateMemoryMural } from './memorymural';
 import { validateMirrorline } from './mirrorline';
-import { validatePatternShift, type PatternShiftLog } from './patternshift';
+import { validatePaintPop, type PaintPopLog } from './paintpop';
 import { validateSculptor } from './sculptor';
 import { validateTraceCraft, type TraceCraftLog } from './tracecraft';
 import { invalid, type GameId, type ValidationResult } from './types';
 
 export * from './types';
 
-export type AnyLog = TraceCraftLog | ColorBurstLog | PatternShiftLog | LightLinesLog | BoardsLog;
+export type AnyLog = TraceCraftLog | ColorBurstLog | PaintPopLog | LightLinesLog | BoardsLog;
 
 /** Games whose level is a sequence of independent boards (one per round). */
-export const BOARD_GAMES: GameId[] = ['patternshift', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
+export const BOARD_GAMES: GameId[] = ['paintpop', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
 const ONE: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
-  patternshift: validatePatternShift, lightlines: validateLightLines, memorymural: validateMemoryMural,
+  paintpop: validatePaintPop, lightlines: validateLightLines, memorymural: validateMemoryMural,
   sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 
@@ -36,7 +36,7 @@ export function validateMinigame(game: GameId, seed: number, level: number, log:
     const one = ONE[game];
     if (!one) return invalid('unknown_game');
     // legacy single-board sessions of the original puzzle games
-    if (r == null && (game === 'patternshift' || game === 'lightlines')) return one(seed, level, log);
+    if (r == null && game === 'lightlines') return one(seed, level, log);
     return validateBoards(r ?? 5, seed, level, log as BoardsLog, one);
   } catch (e) {
     return invalid('validation_error', [String((e as Error)?.message ?? e).slice(0, 80)]);
@@ -60,12 +60,12 @@ export const GAME_INFO: Record<GameId, { name: string; plotType: string; tagline
       'Match the target within the ΔE threshold before the timer ends. Exact recipes and speed earn bonus points.',
     ],
   },
-  patternshift: {
-    name: 'PatternShift', plotType: 'mosaic', tagline: 'Slide the world into order.',
+  paintpop: {
+    name: 'Paint Pop', plotType: 'mosaic', tagline: 'Pop the paint. Fill the picture.',
     howTo: [
-      'Drag a row sideways or a column up/down (or use the arrows) to shift its tiles; tiles wrap around the edge.',
-      'Rebuild the target mosaic shown in the corner.',
-      'Finish at or under par for three stars.',
+      'Swipe (or tap two) neighbouring paint blobs to swap them and line up 3 or more of a colour.',
+      'Every popped blob splashes its colour onto the painting. Collect the colours it needs before your moves run out.',
+      '4 in a row makes a Roller, an L or T makes a Spray, 5 makes a Colour Bomb. Moves left over earn stars.',
     ],
   },
   lightlines: {

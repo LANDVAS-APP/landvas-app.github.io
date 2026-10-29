@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Heart, Images } from 'lucide-react';
+import { Heart, Images, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -57,7 +57,7 @@ export default function GalleryScreen() {
   const artists = useQuery({ queryKey: ['trending'], queryFn: api.trendingArtists });
   return (
     <Page wide>
-      <PageHeader eyebrow="The world's walls" title="Gallery">Every mural published on the map, by every artist. Tap one to fly to it.</PageHeader>
+      <PageHeader eyebrow="The world's walls" title="Gallery" actions={<Link to="/challenges" className="glass flex h-10 items-center gap-1.5 rounded-2xl px-3 text-sm font-bold text-gold hover:ring-1 hover:ring-gold/60" data-testid="gallery-challenges"><Trophy className="h-4 w-4" /> Weekly challenge</Link>}>Every mural published on the map, by every artist. Inspire the pieces you love — each one pays its artist Ink.</PageHeader>
       <Tabs value={section} onValueChange={setSection} items={SECTIONS} className="mb-4" />
       {q.isLoading ? <div className="flex justify-center py-16"><Spinner /></div> : !(q.data ?? []).length ? (
         <Empty icon={<Images className="h-6 w-6" />} title={section === 'mine' ? 'You have not published yet' : 'Nothing here yet'}>

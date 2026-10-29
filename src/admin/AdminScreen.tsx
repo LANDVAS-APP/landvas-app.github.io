@@ -17,6 +17,7 @@ import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
+import { ChallengesAdmin, EarnSettings } from './EarnAdmin';
 import { useNotifications } from '../updates/Notifications';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
@@ -86,6 +87,7 @@ const TABS = [
   { value: 'earnings', label: 'Earnings' },
   { value: 'world', label: 'World' },
   { value: 'plots', label: 'Plots' },
+  { value: 'challenges', label: 'Challenges' },
   { value: 'updates', label: 'Updates' },
   { value: 'support', label: 'Support' },
   { value: 'social', label: 'Social' },
@@ -118,6 +120,7 @@ function Hub() {
       {tab === 'earnings' && <Earnings />}
       {tab === 'world' && <World />}
       {tab === 'plots' && <Plots />}
+      {tab === 'challenges' && <ChallengesAdmin />}
       {tab === 'updates' && <UpdatesAdmin />}
       {tab === 'support' && <SupportAdmin />}
       {tab === 'social' && <SocialAdmin />}
@@ -468,6 +471,7 @@ function Earnings() {
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
+        {cfg.data.config.earn && <EarnSettings value={cfg.data.config.earn.value} onSave={(v) => save('earn', v, 'Earning settings saved for everyone')} />}
         {cfg.data.config.pvp && <PvpSettings value={cfg.data.config.pvp.value} onSave={(v) => save('pvp', v, 'PvP settings saved for everyone')} />}
       </div>
     </div>

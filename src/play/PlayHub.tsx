@@ -12,11 +12,12 @@ import { rarityInfo } from '../shared/rarity';
 import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { GamePreview } from './GamePreview';
+import { EarnHub } from '../earn/EarnHub';
 import { activeBoost, bonusText, boostLeft, fullClearInk } from './rates';
 import { Swords, Zap } from 'lucide-react';
 
 const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
-  ['lightlines', 'patternshift', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
+  ['lightlines', 'paintpop', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
 ).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 
 export default function PlayHub() {
@@ -35,6 +36,7 @@ export default function PlayHub() {
       <PageHeader eyebrow="Earn Ink" title="Play">
         {`Win your plots' minigames to earn Ink — the only currency that buys new plots. Every round you clear pays, and clearing all of a level's rounds levels the plot up (beaten levels can't be replayed). ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays Ink for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}
       </PageHeader>
+      {me && <EarnHub />}
       {world.data && (
         <Link to="/pvp" className="glass mb-4 flex items-center gap-3 rounded-[22px] p-4 transition hover:ring-1 hover:ring-hot/60" data-testid="play-pvp">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-hot/15 text-hot"><Swords className="h-5 w-5" /></span>

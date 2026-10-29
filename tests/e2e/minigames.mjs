@@ -13,7 +13,7 @@ const page = await (await browser.newContext({ viewport: { width: 430, height: 9
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 let fails = 0;
-const CASES = [['tracecraft', 1], ['colorburst', 1], ['patternshift', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1],
+const CASES = [['tracecraft', 1], ['colorburst', 1], ['paintpop', 1], ['lightlines', 1], ['memorymural', 1], ['sculptor', 1], ['rollermural', 1], ['mirrorline', 1],
   ['memorymural', 10], ['sculptor', 10], ['rollermural', 10], ['mirrorline', 10], ['sculptor', 30], ['mirrorline', 20]];
 // the artifact build uses relative asset paths, so boot at / and navigate in-app
 await page.goto('http://localhost:4183/?e2e=1', { waitUntil: 'load' });

@@ -7,7 +7,7 @@ import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
 import { generateSculptor, iou, sculpt } from '../../src/shared/minigames/sculptor';
 import { generateRollerMural, rollGrid, solveRoller } from '../../src/shared/minigames/rollermural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
-import { generatePatternShift } from '../../src/shared/minigames/patternshift';
+import { solvePaintPop } from '../../src/shared/minigames/paintpop';
 import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
 
 const SEED = 123456789;
@@ -93,15 +93,15 @@ describe('art minigames', () => {
 describe('rounds', () => {
   it('a level has the configured number of rounds and needs all of them', () => {
     expect(generateTraceCraft(SEED, 3, 5).shapes).toHaveLength(5);
-    // PatternShift with 5 boards: 4 cleared → fails (but reports 4 paid rounds); all 5 → passes
-    const solve = (s: number) => { const L = generatePatternShift(s, 2); let t = 0; return { moves: [...L.scramble].reverse().map((m) => ({ ...m, d: -m.d as 1 | -1, t: (t += 500) })), done_t: t + 200 }; };
+    // Paint Pop with 5 boards: 4 cleared → fails (but reports 4 paid rounds); all 5 → passes
+    const solve = (s: number) => { let t = 0; const moves = solvePaintPop(s, 2).map((m) => ({ ...m, t: (t += 700) })); return { moves, done_t: t + 200 }; };
     const some = (k: number) => boards(5, (s) => ([0, 1, 2, 3, 4].map((r) => roundSeed(SEED, r)).indexOf(s) < k ? solve(s) : { moves: [], done_t: 800 }));
-    const four = validateMinigame('patternshift', SEED, 2, some(4), 5);
+    const four = validateMinigame('paintpop', SEED, 2, some(4), 5);
     expect(four.passed).toBe(false);
     expect(four.rounds_passed).toBe(4);
-    expect(validateMinigame('patternshift', SEED, 2, some(5), 5)).toMatchObject({ passed: true, rounds_passed: 5, rounds_total: 5 });
-    // legacy sessions (no rounds) still accept the single-board format
-    expect(validateMinigame('patternshift', SEED, 2, solve(SEED), null).passed).toBe(true);
+    expect(validateMinigame('paintpop', SEED, 2, some(5), 5)).toMatchObject({ passed: true, rounds_passed: 5, rounds_total: 5 });
+    // legacy LightLines sessions (no rounds) still accept the single-board format
+    expect(validateMinigame('lightlines', SEED, 2, { moves: [], done_t: 100 }, null).valid).toBe(true);
     void resample;
   });
 

@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DoorOpen, Flag, Heart, Share2 } from 'lucide-react';
+import { DoorOpen, Flag, Share2, Sparkles, Star } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { Page } from '../app/Shell';
-import { celebrate, useOnboardedMe } from '../lib/queries';
+import { celebrate, invalidateGame, useOnboardedMe } from '../lib/queries';
+import type { ArtworkCard } from '../backend/types';
 import { fmt, timeAgo } from '../lib/utils';
 import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
@@ -38,24 +39,42 @@ export default function ArtworkScreen() {
             </Link>
           </div>
           {a.description && <p className="text-sm text-muted">{a.description}</p>}
-          <div className="grid grid-cols-3 gap-2 text-center">
+          {a.featured && <div className="flex items-center gap-2 rounded-2xl border border-gold/50 bg-gold/10 px-3 py-2 text-sm font-bold text-gold"><Star className="h-4 w-4 fill-gold" /> Featured by the LANDVAS team</div>}
+          <div className="grid grid-cols-4 gap-2 text-center">
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold tnum">{a.plot_count}</div><div className="eyebrow !text-[10px]">Plots</div></div>
-            <div className="glass rounded-2xl p-3"><div className="font-display font-semibold tnum">{fmt(a.appreciation_count)}</div><div className="eyebrow !text-[10px]">Loves</div></div>
+            <div className="glass rounded-2xl p-3"><div className="font-display font-semibold tnum">{fmt(a.appreciation_count)}</div><div className="eyebrow !text-[10px]">Inspired</div></div>
+            <div className="glass rounded-2xl p-3" title="Craft score: palette, shading, detail and coverage"><div className="font-display font-semibold tnum" data-testid="craft-score">{a.craft_score ?? '—'}</div><div className="eyebrow !text-[10px]">Craft</div></div>
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold">{timeAgo(a.published_at)}</div><div className="eyebrow !text-[10px]">Published</div></div>
           </div>
           <div className="flex flex-wrap gap-2">
             {!a.is_owner && <Button variant="secondary" onClick={() => nav(`/u/${a.artist.username}/room`)}><DoorOpen className="h-4 w-4" /> Visit @{a.artist.username}’s room</Button>}
             {me && !a.is_owner && (
               <Button variant={a.appreciated ? 'secondary' : 'primary'} onClick={async () => {
-                try { const r = await api.appreciate(a.id, !a.appreciated); celebrate(r.achievements); void qc.invalidateQueries({ queryKey: ['artwork', id] }); } catch (e) { toast.error(toGameError(e).message); }
-              }}><Heart className={a.appreciated ? 'h-4 w-4 fill-hot text-hot' : 'h-4 w-4'} /> {a.appreciated ? 'Loved' : 'Love it'}</Button>
+                try {
+                  const r = await api.appreciate(a.id, !a.appreciated);
+                  celebrate(r.achievements);
+                  if (r.first && (r.artist_ink || r.earned)) toast.success(r.earned ? `Inspired · +${r.earned} Ink for you` : 'Inspired', { description: r.artist_ink ? `@${a.artist.username} earned ${r.artist_ink} Ink from your inspiration.` : undefined });
+                  void qc.invalidateQueries({ queryKey: ['artwork', id] });
+                  invalidateGame(qc);
+                } catch (e) { toast.error(toGameError(e).message); }
+              }} data-testid="inspire"><Sparkles className={a.appreciated ? 'h-4 w-4 text-gold' : 'h-4 w-4'} /> {a.appreciated ? 'Inspired' : 'Inspire'}</Button>
             )}
             <Button variant="ghost" onClick={async () => {
               const url = location.href;
               try { if (navigator.share) await navigator.share({ title: a.title, text: `“${a.title}” on LANDVAS`, url }); else { await navigator.clipboard.writeText(url); toast.success('Link copied'); } } catch { /* cancelled */ }
             }}><Share2 className="h-4 w-4" /> Share</Button>
             {me && !a.is_owner && <Button variant="ghost" onClick={() => setReport(true)}><Flag className="h-4 w-4" /> Report</Button>}
+            {me?.roles?.some((r: string) => ['owner', 'admin', 'moderator'].includes(r)) && (
+              <Button variant="ghost" data-testid="feature-art" onClick={async () => {
+                try {
+                  const r: any = await api.admin.feature(a.id, 'featured', !a.featured);
+                  toast.success(a.featured ? 'No longer featured' : r?.ink ? `Featured · @${a.artist.username} earned ${r.ink} Ink` : 'Featured');
+                  void qc.invalidateQueries({ queryKey: ['artwork', id] });
+                } catch (e) { toast.error(toGameError(e).message); }
+              }}><Star className="h-4 w-4" /> {a.featured ? 'Unfeature' : 'Feature'}</Button>
+            )}
           </div>
+          {a.is_owner && a.craft && <CraftCard craft={a.craft} />}
           {a.more_by_artist?.length > 0 && (
             <div>
               <h2 className="mb-2 font-display text-base font-semibold">More by @{a.artist.username}</h2>
@@ -91,5 +110,20 @@ function ReportDialog({ open, onClose, id }: { open: boolean; onClose(): void; i
         }}>Send report</Button>
       </div>
     </Dialog>
+  );
+}
+
+/** The artist's own view of their craft score, with what would raise it. */
+export function CraftCard({ craft }: { craft: NonNullable<ArtworkCard['craft']> }) {
+  const bar = (label: string, v: number) => (
+    <div className="grid gap-0.5"><div className="flex justify-between text-[11px] font-semibold text-muted"><span>{label}</span><span className="tnum">{v}%</span></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-accent-2" style={{ width: `${Math.min(100, v)}%` }} /></div></div>
+  );
+  return (
+    <div className="glass grid gap-3 rounded-2xl p-4" data-testid="craft-card">
+      <div className="flex items-center justify-between"><div className="font-display font-semibold">Craft score <span className="tnum">{craft.score}</span></div>{(craft.paid ?? 0) > 0 && <span className="text-sm font-bold text-ok tnum">+{craft.paid} Ink craft bonus</span>}</div>
+      <div className="grid gap-2 sm:grid-cols-2">{bar('Coverage', craft.coverage)}{bar('Shading', craft.shading)}{bar('Detail', craft.detail)}{bar(`Palette (${craft.colors} colours)`, Math.min(100, Math.round(((craft.colors - 1) / 7) * 100)))}</div>
+      {craft.tips?.length > 0 && <ul className="grid gap-1 text-xs text-muted">{craft.tips.map((t) => <li key={t}>• {t}</li>)}</ul>}
+    </div>
   );
 }

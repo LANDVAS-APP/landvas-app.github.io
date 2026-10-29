@@ -1,4 +1,4 @@
-// Multi-round levels for single-board games (PatternShift, LightLines and the
+// Multi-round levels for single-board games (Paint Pop, LightLines and the
 // four art games): a level is `rounds` independent boards, each generated from
 // its own sub-seed. Each board's log uses times relative to that board's start;
 // t0 is the board's start, in ms since the session started.

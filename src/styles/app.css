@@ -875,3 +875,7 @@ h1, h2, h3 {
   50% { transform: rotate(0); }
 }
 @media (prefers-reduced-motion: reduce) { [class*='lv-ring'] { animation: none !important; } }
+
+/* Paint Pop */
+@keyframes lv-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes lv-drop { from { transform: translateY(-40%); opacity: 0.2; } to { transform: translateY(0); opacity: 1; } }

@@ -186,7 +186,7 @@ export type FriendsList = {
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
 export type FeedEvent = {
   id: number;
-  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp';
+  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -274,6 +274,10 @@ export type ArtworkCard = {
   preview_width: number | null;
   preview_height: number | null;
   appreciation_count: number;
+  /** craft score 0-100 (palette, shading, detail) and the full breakdown for the artist */
+  craft_score?: number | null;
+  craft?: { score: number; coverage: number; colors: number; shading: number; detail: number; noise: number; tips: string[]; paid?: number; tier_ink?: number } | null;
+  featured?: boolean;
   /** map position — only for the artist and moderators */
   center_lng?: number;
   center_lat?: number;
@@ -350,3 +354,22 @@ export type PvpLobby = {
   config: { enabled: boolean; round_seconds: number; daily_rewarded_matches: number; min_quality_pct: number; min_account_hours: number; games: Record<string, PvpGameConfig> };
   matches: PvpMatch[]; record: { won: number; lost: number; draws: number; ink: number; paid_today: number } | null; resets_at: string;
 };
+
+// ---- more ways to earn ----
+export type WheelSlice = { label: string; kind: 'ink' | 'pigments' | 'brush_points' | 'gallery_tokens' | 'boost' | 'joystick'; amount: number; color: string; chance?: number };
+export type WheelStatus = { enabled: boolean; slices: WheelSlice[]; spins_left: number; last: { slice: number; prize: WheelSlice; at: string } | null; resets_at: string };
+export type RoomStatus = { enabled: boolean; own: boolean; checked_in: boolean; visitor_ink: number; host_ink: number; stay_seconds: number; paid_today: number; visitor_daily: number; old_enough: boolean; visitors_today: number; resets_at: string };
+export type CraftTier = { min: number; ink: number };
+export type EarnOverview = {
+  wheel: { enabled: boolean; spins_left: number };
+  rooms: { enabled: boolean; visitor_ink: number; host_ink: number; paid_today: number; visitor_daily: number; host_today: number };
+  inspire: { enabled: boolean; artist_ink: number; giver_ink: number; giver_daily: number; given_today: number; earned_today: number };
+  craft: { enabled: boolean; tiers: CraftTier[]; plot_bonus_pct: number; best: number | null };
+  featured_ink: number; challenges: number; old_enough: boolean; resets_at: string;
+};
+export type ChallengeEntry = { card: ArtworkCard; votes: number; place: number | null; prize: number; voted: boolean; mine: boolean };
+export type Challenge = {
+  id: string; title: string; theme: string; starts_at: string; ends_at: string; prizes: number[]; entry_ink: number; status: 'open' | 'done' | 'cancelled' | 'upcoming';
+  entries: ChallengeEntry[]; my_votes_left: number; my_entry: string | null;
+};
+export type ChallengesNow = { enabled: boolean; votes_per_player: number; active: Challenge[]; upcoming: Pick<Challenge, 'id' | 'title' | 'theme' | 'starts_at' | 'ends_at' | 'prizes'>[]; past: Challenge[] };

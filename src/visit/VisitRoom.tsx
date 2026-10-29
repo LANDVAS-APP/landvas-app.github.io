@@ -1,8 +1,13 @@
 // An artist's room: their explorer, their art on the walls and every canvas of
 // land they own, laid out by shape only. Nothing here says where in the world
 // any of it is — visitors see the art and the land, never the neighbourhood.
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Brush, Heart, Lock, Sparkles, User } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { toGameError } from '../backend/backend';
+import { invalidateGame, useOnboardedMe } from '../lib/queries';
+import { Button } from '../ui';
+import { ArrowLeft, Brush, CheckCircle2, DoorOpen, Heart, Lock, Sparkles, User } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../backend/api';
 import type { ArtworkCard, LandCanvas } from '../backend/types';
@@ -40,6 +45,7 @@ export default function VisitRoom() {
           <Link to={`/u/${p.username}`} className="glass flex h-10 items-center gap-1.5 rounded-2xl px-3 text-sm font-bold text-muted hover:text-fg"><ArrowLeft className="h-4 w-4" /> Profile</Link>
           <span className="lv-live" title={`Updates every ${LIVE_MS / 1000} seconds`} data-testid="room-live"><i /> Live{updated ? ` · ${timeAgo(new Date(updated).toISOString())}` : ''}</span>
           <div className="ml-auto flex items-center gap-2">
+            <CheckIn username={p.username} />
             <FriendButton playerId={p.id} username={p.username} />
           </div>
         </div>
@@ -206,3 +212,37 @@ function SectionTitle({ title, note, icon }: { title: string; note?: string; ico
   );
 }
 
+
+/** Check into someone's room: after a short look around, you both earn a little Ink (once a day). */
+function CheckIn({ username }: { username: string }) {
+  const me = useOnboardedMe();
+  const qc = useQueryClient();
+  const st = useQuery({ queryKey: ['room-enter', username], queryFn: () => api.roomEnter(username), enabled: !!me, staleTime: 60_000, retry: false });
+  const [wait, setWait] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!st.data || st.data.own || st.data.checked_in) return;
+    const until = Date.now() + st.data.stay_seconds * 1000 + 400;
+    const tick = () => setWait(Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [st.data]);
+  if (!me || !st.data || !st.data.enabled || st.data.own) return null;
+  const s = st.data;
+  if (s.checked_in) return <span className="glass flex h-10 items-center gap-1.5 rounded-2xl px-3 text-sm font-bold text-ok" data-testid="room-checked-in"><CheckCircle2 className="h-4 w-4" /> Checked in today</span>;
+  const pays = s.old_enough && s.paid_today < s.visitor_daily ? s.visitor_ink : 0;
+  return (
+    <Button size="sm" variant="rainbow" disabled={(wait ?? 1) > 0} loading={busy} data-testid="room-checkin" onClick={async () => {
+      setBusy(true);
+      try {
+        const r = await api.roomCheckin(username);
+        toast.success(r.earned > 0 ? `Checked in · +${r.earned} Ink` : 'Checked in', { description: r.host_earned > 0 ? `@${username} earned ${r.host_earned} Ink from your visit.` : s.old_enough ? 'You’ve used today’s paid check-ins.' : 'New accounts earn from check-ins after their first day.' });
+        void qc.invalidateQueries({ queryKey: ['room-enter', username] });
+        invalidateGame(qc);
+      } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+    }}>
+      <DoorOpen className="h-4 w-4" /> {(wait ?? 1) > 0 ? `Look around… ${wait ?? ''}` : pays > 0 ? `Check in · +${pays} Ink` : 'Check in'}
+    </Button>
+  );
+}
