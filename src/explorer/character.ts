@@ -3,7 +3,35 @@
 // visit room, so a cosmetic looks the same everywhere.
 import type { ExplorerStyle } from '../backend/types';
 
-export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent' };
+export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic' };
+
+export const SKIN: Record<string, string> = { peach: '#FFE2C4', light: '#FFEEDD', tan: '#E9B98C', brown: '#B97F55', deep: '#7A4E31' };
+export const HAIR_COLOR: Record<string, string> = { brown: '#6B3E26', black: '#23201F', blonde: '#F2CF6B', red: '#C8452B', pink: '#FF7AB8', blue: '#3E7BFF', silver: '#D9DCE6' };
+
+/** Hair: a back layer (behind the head) and a front layer (fringe, over the forehead). */
+function hair(id: string, c: string): { back: string; front: string } {
+  const fringe = `<path d="M12.5 13 Q23 4 33.5 13 Q28 9.5 23 9.6 Q17 9.6 12.5 13Z" fill="${c}"/>`;
+  switch (id) {
+    case 'long':
+      return { back: `<path d="M11.5 15 Q10 30 12.5 37 L17 36 Q15 26 16 17Z M34.5 15 Q36 30 33.5 37 L29 36 Q31 26 30 17Z" fill="${c}"/>`, front: `<path d="M12 14.5 Q13 5 23 5 Q33 5 34 14.5 Q30 9.8 23 9.8 Q16 9.8 12 14.5Z" fill="${c}"/>` };
+    case 'ponytail':
+      return { back: `<path class="tail" d="M31 9 Q42 10 40 24 Q38 30 35 31 Q37 22 33 14Z" fill="${c}"/><circle cx="32.5" cy="10.5" r="2" fill="#FF3D9A"/>`, front: fringe };
+    case 'pigtails':
+      return { back: `<circle cx="9.5" cy="19" r="4.2" fill="${c}"/><circle cx="36.5" cy="19" r="4.2" fill="${c}"/><circle cx="11.6" cy="16" r="1.4" fill="#FF3D9A"/><circle cx="34.4" cy="16" r="1.4" fill="#FF3D9A"/>`, front: fringe };
+    case 'bob':
+      return { back: `<path d="M11 15 Q10.5 25 13 27 L19 25 Q15 20 15.5 15Z M35 15 Q35.5 25 33 27 L27 25 Q31 20 30.5 15Z" fill="${c}"/>`, front: `<path d="M11.8 15.5 Q12.5 5 23 5 Q33.5 5 34.2 15.5 Q31 11 26 10.6 Q24 13 18 12.5 Q14 12.8 11.8 15.5Z" fill="${c}"/>` };
+    case 'bun':
+      return { back: `<circle cx="23" cy="4.5" r="4.6" fill="${c}"/>`, front: fringe };
+    case 'curly':
+      return { back: `<g fill="${c}"><circle cx="12" cy="13" r="3.6"/><circle cx="15.5" cy="8" r="3.8"/><circle cx="21" cy="5.6" r="3.9"/><circle cx="26.5" cy="5.8" r="3.9"/><circle cx="31.4" cy="8.6" r="3.7"/><circle cx="34.4" cy="13.4" r="3.4"/><circle cx="11" cy="18.6" r="3"/><circle cx="35" cy="18.6" r="3"/></g>`, front: `<g fill="${c}"><circle cx="16" cy="10.6" r="2.6"/><circle cx="20.5" cy="9" r="2.6"/><circle cx="25.5" cy="9" r="2.6"/><circle cx="30" cy="10.8" r="2.6"/></g>` };
+    case 'braid':
+      return { back: `<g fill="${c}"><circle cx="33" cy="22" r="2.6"/><circle cx="34" cy="26.6" r="2.4"/><circle cx="34.6" cy="31" r="2.2"/><circle cx="35" cy="35" r="2"/></g><circle cx="35.2" cy="37.6" r="1.3" fill="#FF3D9A"/>`, front: `<path d="M12 14.5 Q13 5 23 5 Q33 5 34 14.5 Q30 9.8 23 9.8 Q16 9.8 12 14.5Z" fill="${c}"/>` };
+    case 'spiky':
+      return { back: '', front: `<path d="M12.5 13 L14 6 L17.5 9.5 L20 3.8 L23 8.6 L26 3.8 L28.5 9.5 L32 6 L33.5 13 Q28 9.5 23 9.6 Q17 9.6 12.5 13Z" fill="${c}"/>` };
+    default:
+      return { back: '', front: fringe };
+  }
+}
 
 export function styleOf(s?: ExplorerStyle | null): Required<ExplorerStyle> {
   return { ...DEFAULT_STYLE, ...(s ?? {}) } as Required<ExplorerStyle>;
@@ -49,11 +77,11 @@ function outfit(id: string, accent: string, k: string): { defs: string; fill: st
 function hat(id: string, k: string): { defs: string; svg: string } {
   switch (id) {
     case 'none':
-      return { defs: '', svg: `<path d="M12.5 13 Q23 4 33.5 13 Q28 9.5 23 9.6 Q17 9.6 12.5 13Z" fill="#6B3E26"/>` };
+      return { defs: '', svg: '' };
     case 'cap':
       return { defs: '', svg: `<path d="M12 13.5 Q12.5 5 23 5 Q33.5 5 34 13.5Z" fill="#22C7B5"/><rect x="9" y="12" width="12" height="3" rx="1.5" fill="#1A8F82"/><circle cx="23" cy="5.5" r="1.3" fill="#1A8F82"/>` };
     case 'headphones':
-      return { defs: '', svg: `<path d="M11.5 16 Q11 3.5 23 3.5 Q35 3.5 34.5 16" fill="none" stroke="#2B2F4A" stroke-width="2.4"/><rect x="8.6" y="13.5" width="5" height="8" rx="2.5" fill="#FF3D9A"/><rect x="32.4" y="13.5" width="5" height="8" rx="2.5" fill="#FF3D9A"/><path d="M12.5 12.5 Q23 6 33.5 12.5 Q28 9 23 9 Q17.5 9 12.5 12.5Z" fill="#6B3E26"/>` };
+      return { defs: '', svg: `<path d="M11.5 16 Q11 3.5 23 3.5 Q35 3.5 34.5 16" fill="none" stroke="#2B2F4A" stroke-width="2.4"/><rect x="8.6" y="13.5" width="5" height="8" rx="2.5" fill="#FF3D9A"/><rect x="32.4" y="13.5" width="5" height="8" rx="2.5" fill="#FF3D9A"/>` };
     case 'tophat':
       return { defs: '', svg: `<rect x="10" y="10" width="26" height="3.4" rx="1.7" fill="#14162B"/><rect x="15" y="-4" width="16" height="15" rx="2" fill="#14162B"/><rect x="15" y="6" width="16" height="3" fill="#FF3D9A"/>` };
     case 'wizard':
@@ -67,7 +95,7 @@ function hat(id: string, k: string): { defs: string; svg: string } {
         svg: `<path d="M12.5 12.5 L12.5 3 L17.5 8 L23 1 L28.5 8 L33.5 3 L33.5 12.5 Z" fill="url(#cr${k})" stroke="#B87A0B" stroke-width="0.6"/><circle cx="23" cy="8.5" r="1.6" fill="#FF3D9A"/><circle cx="16.5" cy="10" r="1" fill="#22E3FF"/><circle cx="29.5" cy="10" r="1" fill="#3DDC97"/>`,
       };
     case 'halo':
-      return { defs: '', svg: `<path d="M12.5 13 Q23 4 33.5 13 Q28 9.5 23 9.6 Q17 9.6 12.5 13Z" fill="#6B3E26"/><ellipse class="halo" cx="23" cy="1.8" rx="9" ry="2.6" fill="none" stroke="#FFE14D" stroke-width="2"/>` };
+      return { defs: '', svg: `<ellipse class="halo" cx="23" cy="1.8" rx="9" ry="2.6" fill="none" stroke="#FFE14D" stroke-width="2"/>` };
     default: // beret
       return { defs: '', svg: `<path d="M11.5 13.5 Q22 1 34.5 11.5 Q29 9.5 11.5 13.5Z" fill="#FF3D9A"/><circle cx="25" cy="4.6" r="2.1" fill="#FF3D9A"/>` };
   }
@@ -96,19 +124,32 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
   const k = `${++uid}`;
   const o = outfit(s.outfit, accent, k);
   const h = hat(s.hat, k);
+  const skin = SKIN[s.skin] ?? SKIN.peach;
+  const hr = hair(s.hair, HAIR_COLOR[s.hairc] ?? HAIR_COLOR.brown);
+  const dress = s.body === 'dress' || s.body === 'skirt';
+  const lashes = dress || ['long', 'ponytail', 'pigtails', 'bun', 'braid', 'bob'].includes(s.hair);
+  const torso = s.body === 'dress'
+    ? `<path d="M14 27.5 Q23 23.5 32 27.5 L36 46 Q23 49.5 10 46Z" fill="${o.fill}"/>`
+    : s.body === 'skirt'
+      ? `<rect x="13" y="25.5" width="20" height="12" rx="7" fill="${o.fill}"/><path d="M13 35 L33 35 L36 45 Q23 48 10 45Z" fill="${o.fill}"/><rect x="13" y="34.2" width="20" height="2" fill="rgba(0,0,0,0.18)"/>`
+      : `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${o.fill}"/>`;
   return `<svg viewBox="0 -10 46 68" width="${size}" height="${Math.round(size * 68 / 46)}" aria-hidden="true">
     <defs>${o.defs}${h.defs}</defs>
     <ellipse class="shadow" cx="23" cy="54" rx="11" ry="3.4" fill="rgba(0,0,0,0.45)"/>
     <g class="body"><g class="flip">
-      <rect x="16" y="40" width="5" height="11" rx="2.5" fill="#1b1f3d"/>
-      <rect x="25" y="40" width="5" height="11" rx="2.5" fill="#1b1f3d"/>
-      <rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${o.fill}"/>
-      ${o.extra}
+      <rect x="16" y="40" width="5" height="11" rx="2.5" fill="${dress ? skin : '#1b1f3d'}"/>
+      <rect x="25" y="40" width="5" height="11" rx="2.5" fill="${dress ? skin : '#1b1f3d'}"/>
+      ${dress ? '<rect x="15.5" y="48.5" width="6" height="2.8" rx="1.4" fill="#1b1f3d"/><rect x="24.5" y="48.5" width="6" height="2.8" rx="1.4" fill="#1b1f3d"/>' : ''}
+      ${torso}
+      ${dress ? '' : o.extra}
       <rect x="14" y="27.5" width="18" height="6" rx="3" fill="rgba(255,255,255,0.2)"/>
-      <circle cx="23" cy="17" r="11" fill="#FFE2C4"/>
+      ${hr.back}
+      <circle cx="23" cy="17" r="11" fill="${skin}"/>
+      ${hr.front}
       ${h.svg}
       <circle cx="19.3" cy="18" r="1.9" fill="#1b1f3d"/><circle cx="27" cy="18" r="1.9" fill="#1b1f3d"/>
       <circle cx="19.9" cy="17.4" r="0.6" fill="#fff"/><circle cx="27.6" cy="17.4" r="0.6" fill="#fff"/>
+      ${lashes ? '<path d="M17.2 16.4 L16.2 15.4 M17.8 15.9 L17.3 14.7 M28.8 16.4 L29.8 15.4 M28.2 15.9 L28.7 14.7" stroke="#1b1f3d" stroke-width="0.8" stroke-linecap="round"/>' : ''}
       <path d="M19.6 22.2 Q23 25.2 26.6 22.2" stroke="#1b1f3d" stroke-width="1.6" fill="none" stroke-linecap="round"/>
       <circle cx="16.8" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/><circle cx="29.4" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/>
       ${hold(s.hold)}

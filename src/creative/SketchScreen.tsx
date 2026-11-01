@@ -13,7 +13,7 @@ import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import type { Stroke } from '../shared/strokes';
-import { Button, Empty, PlayerAvatar, Spinner, useConfirm } from '../ui';
+import { Button, Empty, PlayerAvatar, Spinner, inputCls, useConfirm } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from './SketchPad';
 
@@ -104,14 +104,16 @@ function SketchToday() {
         </section>
       )}
 
+      <ArtistsToday />
+      {me?.roles?.includes('owner') && <WordAdmin word={d.word} onSet={() => void q.refetch()} />}
       <section className="mb-8">
         <div className="mb-3 flex items-end justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Vote for today’s best</h2>
+          <h2 className="font-display text-lg font-semibold">Vote for today’s best <span className="text-xs font-normal text-muted">· votes are final</span></h2>
           {me && <span className="text-xs font-bold text-muted tnum">{d.votes_left} of {d.votes_per_player} votes left</span>}
         </div>
         {!d.entries.filter((e) => !e.mine).length ? <Empty icon={<Sparkles className="h-6 w-6" />} title="No sketches yet">Be the first to sketch “{d.word}”.</Empty> : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-testid="sketch-entries">
-            {d.entries.filter((e) => !e.mine).map((e) => <VoteCard key={e.id} e={e} can={!!me && (e.voted || d.votes_left > 0)} onVote={async (on) => {
+            {d.entries.filter((e) => !e.mine).map((e) => <VoteCard key={e.id} e={e} can={!!me && !e.voted && d.votes_left > 0} onVote={async (on) => {
               try { set(await api.sketchVote(e.id, on)); } catch (err) { toast.error(toGameError(err).message); }
             }} />)}
           </div>
@@ -171,6 +173,44 @@ function Drawing({ d, deadline, now, onDone }: { d: SketchToday; deadline: numbe
   );
 }
 
+/** Who has sketched today's word (which sketch is whose stays secret until voting ends). */
+function ArtistsToday() {
+  const q = useQuery({ queryKey: ['sketch-artists'], queryFn: api.sketchArtistsToday, refetchInterval: 30_000 });
+  const d = q.data;
+  if (!d?.count) return null;
+  return (
+    <section className="glass mb-6 rounded-3xl p-4" data-testid="sketch-artists">
+      <div className="mb-2 text-sm"><b className="tnum">{fmt(d.count)}</b> artist{d.count === 1 ? ' has' : 's have'} sketched today’s word <span className="text-muted">— which sketch is whose is revealed when voting ends.</span></div>
+      <div className="flex flex-wrap gap-1.5">
+        {d.artists.map((p, k) => (
+          <motion.div key={p.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(k, 20) * 0.03 }}>
+            <Link to={`/u/${p.username}`} className="flex items-center gap-1.5 rounded-full border border-line bg-surface/50 py-0.5 pl-0.5 pr-2 text-xs font-semibold hover:border-line-strong"><PlayerAvatar p={p} size={22} />@{p.username}</Link>
+          </motion.div>
+        ))}
+        {d.count > d.artists.length && <span className="self-center text-xs text-muted">+{fmt(d.count - d.artists.length)} more</span>}
+      </div>
+    </section>
+  );
+}
+
+function WordAdmin({ word, onSet }: { word: string; onSet(): void }) {
+  const [w, setW] = useState('');
+  const [busy, setBusy] = useState(false);
+  const set = async (v: string) => {
+    setBusy(true);
+    try { const r = await api.adminSetSketchWord(v); toast.success(r.custom ? `Today’s word is now “${r.word}”` : `Back to the scheduled word “${r.word}”`); setW(''); onSet(); }
+    catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  return (
+    <form className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-gold/40 bg-gold/5 p-3 text-sm" onSubmit={(e) => { e.preventDefault(); if (w.trim()) void set(w.trim()); }} data-testid="sketch-word-admin">
+      <b className="text-gold">Owner</b><span className="text-muted">Change today’s word (now “{word}”):</span>
+      <input className={cn(inputCls, 'h-9 w-48')} maxLength={40} value={w} onChange={(e) => setW(e.target.value)} placeholder="New word" />
+      <Button size="sm" variant="primary" type="submit" loading={busy} disabled={!w.trim()}>Set word</Button>
+      <Button size="sm" variant="ghost" type="button" onClick={() => void set('')}>Use scheduled word</Button>
+    </form>
+  );
+}
+
 function VoteCard({ e, can, onVote }: { e: SketchToday['entries'][number]; can: boolean; onVote(on: boolean): Promise<void> }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -182,7 +222,7 @@ function VoteCard({ e, can, onVote }: { e: SketchToday['entries'][number]; can: 
         await onVote(!e.voted);
         setBusy(false);
       }} className={cn('flex h-9 items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition disabled:opacity-40', e.voted ? 'bg-hot text-white' : 'bg-surface-2 hover:bg-hot/20')} data-testid="sketch-vote">
-        <Heart className={cn('h-4 w-4', e.voted && 'fill-current')} /> {e.voted ? 'Voted' : 'Vote'}
+        <Heart className={cn('h-4 w-4', e.voted && 'fill-current')} /> {e.voted ? 'Voted ✓' : 'Vote'}
       </button>
     </div>
   );

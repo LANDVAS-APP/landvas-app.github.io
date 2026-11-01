@@ -143,6 +143,15 @@ export const api = {
   myGroups: () => rpc<CanvasGroup[]>('my_groups'),
   // creative games
   myStreak: () => rpc<import('./types').Streak>('my_streak'),
+  myAlerts: (limit = 50) => rpc<{ unread: number; items: import('./types').Alert[] }>('my_alerts', { p_limit: limit }),
+  alertsUnread: () => rpc<number>('alerts_unread'),
+  markAlertsRead: () => rpc<number>('mark_alerts_read'),
+  roomSocial: (username: string) => rpc<import('./types').RoomSocial>('room_social', { p_username: username }),
+  roomNote: (username: string, body: string) => rpc<import('./types').RoomSocial>('room_note', { p_username: username, p_body: body }),
+  roomNoteDelete: (id: number) => rpc('room_note_delete', { p_id: id }),
+  sketchArtistsToday: () => rpc<{ count: number; artists: Profile[] }>('sketch_artists_today'),
+  adminSetSketchWord: (word: string) => rpc<{ word: string; custom: boolean }>('admin_set_sketch_word', { p_word: word }),
+  adminSetPotd: (id: string | null, note?: string) => rpc<{ ok: boolean; title?: string }>('admin_set_potd', { p_publication_id: id, p_note: note ?? null }),
   myEarningsToday: () => rpc<{ total: number; resets_at: string; by_reason: Record<string, number> }>('my_earnings_today'),
   mySketches: (limit = 60) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; votes: number; place: number | null; prize: number; day: string; live: boolean }[]>('my_sketches', { p_limit: limit }),
   sketchPublic: (id: string) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; place: number | null; day: string; voting: boolean; artist: import('./types').Profile | null } | null>('sketch_public', { p_id: id }),
@@ -196,7 +205,7 @@ export const api = {
   myMinigameRecords: () => rpc<MinigameRecords>('my_minigame_records'),
 
   // social
-  featuredToday: (limit = 12) => rpc<(ArtworkCard & { pick: 'staff' | 'community'; note?: string | null })[]>('featured_today', { p_limit: limit }),
+  featuredToday: (limit = 12) => rpc<(ArtworkCard & { pick: 'potd' | 'staff' | 'community'; note?: string | null })[]>('featured_today', { p_limit: limit }),
   galleryList: (section: string, limit = 24, offset = 0, bbox?: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) =>
     rpc<ArtworkCard[]>('gallery_list', { p_section: section, p_limit: limit, p_offset: offset, p_bbox: bbox ?? null }),
   trendingArtists: () => rpc<{ artist: Profile; appreciations: number; top_artwork: ArtworkCard | null }[]>('trending_artists', { p_days: 7, p_limit: 12 }),

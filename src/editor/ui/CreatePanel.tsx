@@ -69,6 +69,41 @@ const STEPS = [
   { title: 'Highlight', tip: 'Add a few bright pixels where the light hits. Then a background — it makes the picture pop.' },
 ];
 
+type Bg = { name: string; css: string; draw(g: CanvasRenderingContext2D, w: number, h: number): void };
+const grad = (stops: string[], horizon = 1) => (g: CanvasRenderingContext2D, w: number, h: number) => {
+  const lg = g.createLinearGradient(0, 0, 0, h * horizon);
+  stops.forEach((c, i) => lg.addColorStop(i / (stops.length - 1), c));
+  g.fillStyle = lg;
+  g.fillRect(0, 0, w, h);
+};
+const BACKGROUNDS: Bg[] = [
+  { name: 'Sky', css: 'linear-gradient(#4A90E2,#BFE3FF)', draw: grad(['#4A90E2', '#8CC7FF', '#DDF1FF']) },
+  { name: 'Sunset', css: 'linear-gradient(#5B3BA8,#FF7A59,#FFD27A)', draw: grad(['#3D2A7A', '#B5468C', '#FF7A59', '#FFD27A']) },
+  { name: 'Night', css: 'linear-gradient(#0B1230,#2A2F6E)', draw: (g, w, h) => {
+    grad(['#060A1E', '#1A1F55', '#363B86'])(g, w, h);
+    let seed = 7;
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    g.fillStyle = '#FFFFFF';
+    for (let i = 0; i < (w * h) / 900; i++) { const s = r() < 0.9 ? 1 : 2; g.globalAlpha = 0.4 + r() * 0.6; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), s, s); }
+    g.globalAlpha = 1;
+  } },
+  { name: 'Meadow', css: 'linear-gradient(#8CC7FF 55%,#5DBB63 55%)', draw: (g, w, h) => {
+    grad(['#6FB6FF', '#CDEBFF'], 0.6)(g, w, h);
+    const lg = g.createLinearGradient(0, h * 0.58, 0, h);
+    lg.addColorStop(0, '#6CC46F'); lg.addColorStop(1, '#2F7D3A');
+    g.fillStyle = lg;
+    g.beginPath(); g.moveTo(0, h * 0.62);
+    for (let x = 0; x <= w; x += 8) g.lineTo(x, h * (0.58 + 0.04 * Math.sin(x / (w / 6))));
+    g.lineTo(w, h); g.lineTo(0, h); g.fill();
+  } },
+  { name: 'Ocean', css: 'linear-gradient(#9AD9FF 45%,#1E6FB8 45%)', draw: (g, w, h) => {
+    grad(['#8FD0FF', '#E6F6FF'], 0.45)(g, w, h);
+    const lg = g.createLinearGradient(0, h * 0.45, 0, h);
+    lg.addColorStop(0, '#2A8AD4'); lg.addColorStop(1, '#0B3A6E');
+    g.fillStyle = lg; g.fillRect(0, h * 0.45, w, h);
+  } },
+];
+
 export function CreatePanel({ ed }: { ed: Editor }) {
   const [idea, setIdea] = useState(newIdea);
   const [, force] = useState(0);
@@ -131,6 +166,22 @@ export function CreatePanel({ ed }: { ed: Editor }) {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="grid gap-2" data-testid="quick-backgrounds">
+        <div className="eyebrow">Quick start · backgrounds</div>
+        <p className="text-xs text-muted">One tap fills your whole canvas with a scene on its own layer. Paint your subject on top.</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {BACKGROUNDS.map((b) => (
+            <button key={b.name} onClick={() => ed.paintBackground(b.name, b.draw)} className="group overflow-hidden rounded-xl border border-line text-[11px] font-bold hover:border-line-strong" title={`${b.name} background`}>
+              <span className="block h-10 w-full transition group-hover:scale-105" style={{ background: b.css }} />
+              <span className="block py-1">{b.name}</span>
+            </button>
+          ))}
+          <button onClick={() => ed.paintBackground('Colour', (g, w, h) => { g.fillStyle = ed.s.color; g.fillRect(0, 0, w, h); })} className="overflow-hidden rounded-xl border border-line text-[11px] font-bold hover:border-line-strong">
+            <span className="block h-10 w-full" style={{ background: ed.s.color }} /><span className="block py-1">My colour</span>
+          </button>
+        </div>
       </section>
 
       <section className="grid gap-2">

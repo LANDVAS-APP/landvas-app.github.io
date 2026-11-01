@@ -21,7 +21,7 @@ export type Profile = {
   created_at: string;
 };
 
-export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura';
+export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body';
 export type ExplorerStyle = Partial<Record<ExplorerPart, string>>;
 
 export type PlotTypeInfo = {
@@ -392,3 +392,9 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
   top: Stroke[] | null; bottom: Stroke[] | null; edge: Stroke[] | null; partner: Profile | null };
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
+
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type RoomSocial = {
+  visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
+  notes: { id: number; body: string; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
+};

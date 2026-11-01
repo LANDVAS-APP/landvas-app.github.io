@@ -14,6 +14,10 @@ import { ExplorerFigure } from './ExplorerFigure';
 import { styleOf } from './character';
 
 const PARTS: { id: ExplorerPart; label: string }[] = [
+  { id: 'body', label: 'Body' },
+  { id: 'hair', label: 'Hair' },
+  { id: 'hairc', label: 'Hair colour' },
+  { id: 'skin', label: 'Skin' },
   { id: 'hat', label: 'Hat' },
   { id: 'hold', label: 'Holding' },
   { id: 'outfit', label: 'Outfit' },
@@ -27,7 +31,7 @@ export default function ExplorerScreen() {
   const me = useOnboardedMe();
   const world = useWorld();
   const qc = useQueryClient();
-  const [part, setPart] = useState<ExplorerPart>('hat');
+  const [part, setPart] = useState<ExplorerPart>('body');
   const [draft, setDraft] = useState<Required<ExplorerStyle> | null>(null);
   const [walking, setWalking] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);

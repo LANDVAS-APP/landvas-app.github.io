@@ -15,6 +15,7 @@ import { Page } from '../app/Shell';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { LandMosaic } from '../land/LandMosaic';
 import { FriendButton } from '../social/FriendButton';
+import { ArtShowcase, RoomGuests } from './RoomExtras';
 import { useAssetUrl } from '../gallery/GalleryScreen';
 import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
@@ -79,6 +80,9 @@ export default function VisitRoom() {
           <Stat label="Loves" value={fmt(d.stats.appreciations)} />
           <Stat label="Earns" value={land.data ? formatRate(Number(land.data.usd_per_second)) : '—'} className="col-span-2 sm:col-span-1" />
         </div>
+
+        <ArtShowcase art={gallery} />
+        <RoomGuests username={p.username} />
 
         <section className="mt-7">
           <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Their land" note="Every canvas they own, by shape. Where it is stays private." />

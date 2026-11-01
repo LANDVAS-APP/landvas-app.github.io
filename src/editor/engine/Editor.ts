@@ -856,6 +856,29 @@ export class Editor {
   placementUpscale() {
     return this.placement ? this.placement.scale : 0;
   }
+  /** Paint a background (on a new layer at the bottom) with a function drawing in document space. */
+  paintBackground(name: string, draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
+    if (this.doc.layers.length >= this.maxLayers) {
+      this.toast?.(`Layer limit reached (${this.maxLayers}). Merge or delete a layer first.`);
+      return;
+    }
+    this.history.begin(`Background: ${name}`, true);
+    const keep = this.doc.activeId;
+    const layer = this.doc.addLayer('Background', 0);
+    for (const cell of this.doc.cells) {
+      const t = this.doc.tile(layer, cell.key, true)!;
+      t.ctx.save();
+      t.ctx.translate(-cell.x, -cell.y);
+      draw(t.ctx, this.doc.width, this.doc.height);
+      t.ctx.restore();
+      t.dirty = true;
+    }
+    this.history.commit();
+    if (keep && this.doc.layer(keep)) this.doc.activeId = keep;
+    this.doc.touchAll();
+    this.markChanged();
+  }
+
   confirmPlacement() {
     const pl = this.placement;
     if (!pl) return;

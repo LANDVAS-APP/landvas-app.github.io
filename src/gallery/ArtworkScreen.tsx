@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DoorOpen, Flag, Share2, Sparkles, Stamp, Star } from 'lucide-react';
+import { Crown, DoorOpen, Flag, Share2, Sparkles, Stamp, Star } from 'lucide-react';
 import { confetti } from '../ui/confetti';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -73,6 +73,12 @@ export default function ArtworkScreen() {
                   void qc.invalidateQueries({ queryKey: ['artwork', id] });
                 } catch (e) { toast.error(toGameError(e).message); }
               }}><Star className="h-4 w-4" /> {a.featured ? 'Unfeature' : 'Feature'}</Button>
+            )}
+            {me?.roles?.includes('owner') && (
+              <Button variant="ghost" data-testid="set-potd" onClick={async () => {
+                try { await api.adminSetPotd(a.id); toast.success('Painting of the Day set — it leads Featured today until the daily reset'); void qc.invalidateQueries({ queryKey: ['featured-today'] }); }
+                catch (e) { toast.error(toGameError(e).message); }
+              }}><Crown className="h-4 w-4" /> Painting of the Day</Button>
             )}
           </div>
           <StampCard id={a.id} owner={!!a.is_owner} signedIn={!!me} artist={a.artist.username} />

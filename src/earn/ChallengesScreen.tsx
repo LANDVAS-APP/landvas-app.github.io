@@ -110,7 +110,7 @@ function ActiveChallenge({ c, me, votesPer }: { c: Challenge; me: boolean; votes
               <div className="flex items-center justify-between gap-1 px-1">
                 <div className="min-w-0"><div className="truncate text-sm font-semibold">{e.card.title}</div><div className="truncate text-[11px] text-muted">@{e.card.artist.username}</div></div>
                 {me && !e.mine ? (
-                  <button onClick={() => void vote(e.card.id, !e.voted)} disabled={!e.voted && c.my_votes_left <= 0} data-testid="challenge-vote"
+                  <button onClick={() => void vote(e.card.id, !e.voted)} disabled={e.voted || c.my_votes_left <= 0} data-testid="challenge-vote"
                     className={cn('flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold tnum transition', e.voted ? 'bg-gold text-bg' : 'bg-surface-2 text-fg hover:bg-gold/20 disabled:opacity-40')}>
                     <ThumbsUp className="h-3.5 w-3.5" /> {e.votes}
                   </button>

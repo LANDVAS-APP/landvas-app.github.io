@@ -2,6 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { Camera, Check, Shuffle, X } from 'lucide-react';
 import { getBackend } from '../backend/backend';
+import type { ExplorerStyle } from '../backend/types';
+import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { preparePicture } from '../lib/picture';
 import { sha256Hex } from '../lib/utils';
 import { confetti, confettiCannons } from '../ui/confetti';
@@ -15,6 +17,17 @@ import { cn, saveStorage } from '../lib/utils';
 import { Avatar, Button, Field, Spinner, Wordmark, inputCls } from '../ui';
 
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
+/** Starting explorers to pick from — every part can be changed later in the Explorer screen. */
+const PRESETS: ExplorerStyle[] = [
+  { body: 'dress', hair: 'long', hairc: 'brown', skin: 'peach', hat: 'none' },
+  { body: 'classic', hair: 'short', hairc: 'brown', skin: 'peach', hat: 'beret' },
+  { body: 'skirt', hair: 'ponytail', hairc: 'blonde', skin: 'light', hat: 'none' },
+  { body: 'classic', hair: 'spiky', hairc: 'black', skin: 'tan', hat: 'none' },
+  { body: 'dress', hair: 'curly', hairc: 'black', skin: 'deep', hat: 'none' },
+  { body: 'classic', hair: 'curly', hairc: 'black', skin: 'brown', hat: 'none' },
+  { body: 'skirt', hair: 'pigtails', hairc: 'red', skin: 'peach', hat: 'none' },
+  { body: 'dress', hair: 'bun', hairc: 'pink', skin: 'brown', hat: 'none' },
+];
 const ACCENTS = ['#7B5CFF', '#FF4D6D', '#FF9F1C', '#22C7B5', '#34C3FF', '#FF4FD8', '#3DDC97', '#0B1230'];
 
 export function Onboarding() {
@@ -31,6 +44,7 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pic, setPic] = useState<{ blob: Blob; url: string } | null>(null);
+  const [preset, setPreset] = useState(() => Math.floor(Math.random() * PRESETS.length));
   const picInput = useRef<HTMLInputElement>(null);
   useEffect(() => () => { if (pic) URL.revokeObjectURL(pic.url); }, [pic]);
 
@@ -47,6 +61,7 @@ export function Onboarding() {
     setError(null);
     try {
       await api.completeOnboarding({ username, displayName, avatarSeed: seed, avatarStyle: style, accentColor: accent, termsVersion: terms });
+      await api.equipExplorer(PRESETS[preset]).catch(() => {});
       if (pic) {
         // the picture goes up once the profile exists; if it fails, the drawn avatar stays
         try {
@@ -125,6 +140,20 @@ export function Onboarding() {
                 ))}
               </div>
             </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass grid gap-3 rounded-[28px] p-5" data-testid="explorer-presets">
+          <div>
+            <div className="font-display text-lg font-semibold">Choose your explorer</div>
+            <p className="text-sm text-muted">They walk the map for you and greet visitors in your room. Change hair, skin, outfit and more any time.</p>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+            {PRESETS.map((p, i) => (
+              <motion.button type="button" key={i} whileTap={{ scale: 0.92 }} onClick={() => setPreset(i)} aria-pressed={preset === i} aria-label={`Explorer ${i + 1}`}
+                className={cn('flex items-end justify-center rounded-2xl border bg-bg-2/60 pb-1 pt-2 transition', preset === i ? 'border-accent ring-2 ring-accent/50' : 'border-line hover:border-line-strong')} data-testid="explorer-preset">
+                <ExplorerFigure style={p} accent={accent} size={preset === i ? 46 : 40} walking={preset === i} />
+              </motion.button>
+            ))}
           </div>
         </motion.div>
         <div>
