@@ -3,7 +3,7 @@
 // reveal of the rarity that was secret until now. Legendary and Mythic plots get
 // light rays and a bigger burst. Reduced motion shows the reveal card only.
 import { AnimatePresence, motion } from 'motion/react';
-import { Brush, Sparkles, Upload } from 'lucide-react';
+import { Brush, Sparkles, TreePine, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
@@ -18,6 +18,8 @@ import { Button } from '../ui';
 export type Celebration = {
   gx: number; gy: number; rarity: RarityId; type: PlotTypeId; name?: string | null; usd: number;
   groupId: string; first: boolean; onDone?: () => void;
+  /** set when the plot was bought as an Inkborn Habitat */
+  habitatId?: string | null;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -219,10 +221,16 @@ function Card({ c, reduce, revealed, onRevealed }: { c: Celebration; reduce: boo
             <span>{PLOT_TYPES[c.type].name} · {PLOT_TYPES[c.type].game}</span>
             <span className="font-bold tnum" style={{ color: revealed ? '#3DDC97' : undefined }}>{revealed ? `+${formatRate(c.usd)} rent` : '+$? / s'}</span>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button variant="rainbow" onClick={() => go('draw')} data-testid="choose-draw"><Brush className="h-4 w-4" /> Paint it</Button>
-            <Button variant="secondary" onClick={() => go('upload')} data-testid="choose-upload"><Upload className="h-4 w-4" /> Upload art</Button>
-          </div>
+          {c.habitatId ? (
+            <div className="mt-4 grid gap-2">
+              <Button variant="rainbow" onClick={() => { const grow = !!c.onDone; close(); if (!grow) nav(`/habitat/${c.habitatId}`); }} data-testid="enter-habitat"><TreePine className="h-4 w-4" /> Enter your sanctuary</Button>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Button variant="rainbow" onClick={() => go('draw')} data-testid="choose-draw"><Brush className="h-4 w-4" /> Paint it</Button>
+              <Button variant="secondary" onClick={() => go('upload')} data-testid="choose-upload"><Upload className="h-4 w-4" /> Upload art</Button>
+            </div>
+          )}
           <button className="mt-3 text-xs font-bold text-muted hover:text-fg" onClick={close} data-testid="celebration-close">Keep exploring</button>
         </div>
       </motion.div>

@@ -27,7 +27,7 @@ import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, def
 
 export default function Sanctuary() {
   const { id } = useParams();
-  const q = useQuery({ queryKey: ['habitat', id ?? 'starter'], queryFn: () => api.habitatGet(id ?? null), staleTime: 30_000 });
+  const q = useQuery({ queryKey: ['habitat', id ?? 'starter'], queryFn: () => api.habitatGet(id ?? null), staleTime: 30_000, refetchOnMount: 'always' });
   if (q.isLoading) return <div className="fixed inset-0 flex items-center justify-center bg-[#0f2a1a]"><Spinner /></div>;
   if (q.error || !q.data) {
     return (
@@ -37,7 +37,8 @@ export default function Sanctuary() {
       </div>
     );
   }
-  return <Game key={q.data.id} h={q.data} />;
+  // a habitat that grew (or shrank) gets a fresh world built from its new shape
+  return <Game key={`${q.data.id}:${q.data.cells.map((c) => c.join(',')).join(';')}`} h={q.data} />;
 }
 
 // ---- simulation types ------------------------------------------------------------------
@@ -51,6 +52,8 @@ type Mode = 'play' | 'decor';
 
 const SPEED: Record<Genome['mood'], number> = { playful: 3.6, sleepy: 2.2, curious: 3.0, shy: 3.2, foodie: 2.7, brave: 3.4 };
 const PLAYER_SPEED = 7;
+/** connected habitat plots make a bigger place */
+export const sizeName = (plots: number) => (plots >= 16 ? 'grand sanctuary' : plots >= 9 ? 'forest' : plots >= 4 ? 'woodland' : plots >= 2 ? 'meadow' : 'small glade');
 const LABEL_SCALE = 2;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -62,7 +65,20 @@ function Game({ h }: { h: Habitat }) {
   const reduce = useUi((s) => s.settings.reduceMotion);
   const owner = h.is_owner;
   const T = useMemo(() => makeTerrain(h.cells, h.seed), [h.cells, h.seed]);
-  const startLayout = useMemo(() => (h.layout.length || h.layout_rev > 0 ? h.layout : defaultLayout(T, h.seed, 30 + 20 * Math.max(0, h.plots - 1))), [h.layout, h.layout_rev, T, h.seed]);
+  // a fresh habitat starts decorated; when it grows, the newly joined plots get their own trees and flowers
+  const grownInto = useRef(false);
+  const startLayout = useMemo(() => {
+    const full = defaultLayout(T, h.seed, 30 + 20 * Math.max(0, h.plots - 1));
+    if (!h.layout.length && h.layout_rev === 0) return full;
+    const used = new Set(h.layout.map((d) => `${Math.floor(d.x / CELL)},${Math.floor(d.y / CELL)}`));
+    const bare = new Set(T.cells.map(([x, y]) => `${x},${y}`).filter((k) => !used.has(k)));
+    if (!bare.size || !h.is_owner) return h.layout;
+    const add = full.filter((d) => bare.has(`${Math.floor(d.x / CELL)},${Math.floor(d.y / CELL)}`) && canPlace(T, h.layout, d.k, d.x, d.y))
+      .map((d, i) => ({ ...d, id: `g${h.layout_rev}x${i}` }));
+    if (!add.length) return h.layout;
+    grownInto.current = true;
+    return [...h.layout, ...add].slice(0, 30 + 20 * Math.max(0, h.plots - 1));
+  }, [h.layout, h.layout_rev, h.is_owner, T, h.seed, h.plots]);
   const maxDecor = 30 + 20 * Math.max(0, h.plots - 1);
 
   const cv = useRef<HTMLCanvasElement>(null);
@@ -114,8 +130,8 @@ function Game({ h }: { h: Habitat }) {
 
   // the owner's first visit keeps the starting layout for good
   useEffect(() => {
-    if (owner && h.layout_rev === 0 && h.layout.length === 0) {
-      api.habitatSaveLayout(h.id, startLayout, 0).then((r) => setRev(r.layout_rev)).catch(() => {});
+    if (owner && ((h.layout_rev === 0 && h.layout.length === 0) || grownInto.current)) {
+      api.habitatSaveLayout(h.id, startLayout, h.layout_rev).then((r) => setRev(r.layout_rev)).catch(() => {});
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -190,7 +206,8 @@ function Game({ h }: { h: Habitat }) {
       last = now;
       // adaptive resolution: drop the pixel ratio on slow devices, restore it when there's headroom
       if (dt > 0.026) { slow += dt; fast = 0; } else if (dt < 0.015) { fast += dt; slow = Math.max(0, slow - dt); }
-      if (slow > 1.5 && e.dpr > 1) { e.dpr = Math.max(1, e.dpr - 0.5); slow = 0; resize(); }
+      // on a struggling device, draw fewer pixels (down to 60% resolution) and drop the extras
+      if (slow > 1.5 && e.dpr > 0.6) { e.dpr = Math.max(0.6, e.dpr - (e.dpr > 1 ? 0.5 : 0.2)); slow = 0; resize(); }
       if (fast > 6 && e.dpr < e.maxDpr) { e.dpr = Math.min(e.maxDpr, e.dpr + 0.25); fast = 0; resize(); }
       step(dt, now);
       render(now);
@@ -524,7 +541,7 @@ function Game({ h }: { h: Habitat }) {
       // light: time-of-day tint, sunbeams by day, glowing lanterns and fireflies by night
       if (night) { g.fillStyle = 'rgba(16,24,70,0.42)'; g.fillRect(0, 0, W, H); }
       else if (dusk) { g.fillStyle = 'rgba(255,130,60,0.10)'; g.fillRect(0, 0, W, H); }
-      else if (!reduce) {
+      else if (!reduce && e.dpr >= 1) {
         g.save(); g.globalCompositeOperation = 'lighter';
         for (let i = 0; i < 3; i++) {
           const x = ((i * 0.37 + t * 0.012) % 1.3) * W * 1.2 - W * 0.2;
@@ -540,8 +557,8 @@ function Game({ h }: { h: Habitat }) {
         lg.addColorStop(0, `rgba(255,200,110,${night ? 0.35 : 0.15})`); lg.addColorStop(1, 'rgba(255,200,110,0)');
         g.fillStyle = lg; g.fillRect(sx - z * 6, sy - z * 9, z * 12, z * 12);
       }
-      const fa = night ? 0.9 : dusk ? 0.6 : 0.3;
-      for (const f of flies) {
+      const fa = e.dpr < 1 && !night ? 0 : night ? 0.9 : dusk ? 0.6 : 0.3;
+      if (fa > 0) for (const f of flies) {
         const fx = f.x + Math.sin(t * 0.5 * f.s + f.p) * 2, fy = f.y + Math.cos(t * 0.4 * f.s + f.p * 1.3) * 1.5;
         const [sx, sy] = toScreen(fx, fy);
         if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
@@ -761,7 +778,7 @@ function Game({ h }: { h: Habitat }) {
           <button onClick={() => (dirty && mode === 'decor' ? toast('Save or cancel your decorating first') : (window.history.length > 1 ? nav(-1) : nav('/inkborn')))} className="rounded-xl p-2 hover:bg-white/10" aria-label="Leave the sanctuary"><ArrowLeft className="h-5 w-5" /></button>
           <div className="min-w-0">
             <div className="truncate font-display text-sm font-bold">{h.name}</div>
-            <div className="truncate text-[11px] text-white/70">{owner ? 'Your sanctuary' : `@${h.owner.username}’s sanctuary`} · 🐾 {h.creatures.length}/{h.capacity}{h.plots > 1 ? ` · ${h.plots} plots` : ''}</div>
+            <div className="truncate text-[11px] text-white/70">{owner ? 'Your sanctuary' : `@${h.owner.username}’s sanctuary`} · 🐾 {h.creatures.length}/{h.capacity} · {h.kind === 'starter' ? 'starter' : `${sizeName(h.plots)}, ${h.plots} plot${h.plots === 1 ? '' : 's'}`}</div>
           </div>
         </div>
         <div className="pointer-events-auto flex items-center gap-1.5">

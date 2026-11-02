@@ -7,11 +7,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { PlotDetails } from '../backend/types';
+import type { CanvasGroup, PlotDetails, PlotKind } from '../backend/types';
 import { useSession } from '../app/App';
 import { celebrate, invalidateGame, qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { useUi } from '../lib/store';
-import { cn, fmt, plotLabel } from '../lib/utils';
+import { cn, fmt, plotLabel, safeStorage, saveStorage } from '../lib/utils';
 import { PLOT_TYPES, drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
@@ -183,7 +183,7 @@ function NeighborDiagram({ d }: { d: PlotDetails }) {
 }
 
 function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
-  d: PlotDetails; signedIn: boolean; onClaimed(v: { groupId: string; first: boolean }): void; onGrow(v: { newGroup: string; neighbors: string[] }): void;
+  d: PlotDetails; signedIn: boolean; onClaimed(v: { groupId: string; first: boolean }): void; onGrow(v: { newGroup: string; neighbors: string[]; habitat?: boolean }): void;
 }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
@@ -192,6 +192,8 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [kind, setKind] = useState<PlotKind>(() => (safeStorage<string>('landvas.plotKind', 'canvas') === 'habitat' ? 'habitat' : 'canvas'));
+  const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
     return (
@@ -207,23 +209,34 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const reach = d.reach;
   const inReach = reach?.in_reach ?? false;
   const gpsOn = ex.gps === 'on';
+  // what the new plot becomes is the player's choice; a habitat is the same plot at the same price
+  const becomeHabitat = async (groupId: string) => {
+    if (kind !== 'habitat') return null;
+    try { return (await api.setGroupKind(groupId, 'habitat')).habitat_id ?? null; } catch (e) { toast.error(toGameError(e).message); return null; }
+  };
   const run = async () => {
     setBusy('claim');
     try {
       if (starter) {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true });
+        const hab = await becomeHabitat(r.group_id);
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
-        const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))];
+        const hab = await becomeHabitat(r.group_id);
+        // only plots of the same type can join up (art with art, habitat with habitat)
+        const groups = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined) ?? [];
+        const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
+        const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindOf(id) === kind);
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false,
-          onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent }) : undefined,
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab,
+          onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }
       invalidateGame(qc);
+      void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
     } catch (e) {
       toast.error(toGameError(e).message);
     } finally {
@@ -248,6 +261,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         </div>
       ) : inReach ? (
         <>
+          {(starter || canAfford) && d.available !== false && <PlotKindChoice kind={kind} onPick={pickKind} />}
           {(starter || canAfford) && (
             <input className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 text-sm placeholder:text-faint focus:border-accent focus:outline-none" maxLength={32}
               placeholder="Name your plot (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
@@ -271,7 +285,31 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   );
 }
 
-function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: string[] } | null; onClose(): void }) {
+function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
+  const opts = [
+    { k: 'canvas' as const, icon: '🎨', title: 'Art Canvas', body: 'Paint and publish artwork', color: '#7B5CFF' },
+    { k: 'habitat' as const, icon: '🌳', title: 'Inkborn Habitat', body: 'A sanctuary for your creatures', color: '#3DDC97' },
+  ];
+  return (
+    <div className="grid gap-1.5" data-testid="plot-kind-choice">
+      <div className="text-xs font-bold text-muted">What should this plot become?</div>
+      <div className="grid grid-cols-2 gap-2" role="radiogroup">
+        {opts.map((o) => (
+          <motion.button key={o.k} type="button" role="radio" aria-checked={kind === o.k} whileTap={{ scale: 0.96 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
+            className={cn('grid gap-0.5 rounded-2xl border-2 p-2.5 text-left transition', kind === o.k ? 'bg-surface-2' : 'border-line bg-surface/40 opacity-75')}
+            style={{ borderColor: kind === o.k ? o.color : undefined, boxShadow: kind === o.k ? `0 0 24px -10px ${o.color}` : undefined }}>
+            <span className="text-xl">{o.icon}</span>
+            <span className="text-sm font-bold" style={{ color: kind === o.k ? o.color : undefined }}>{o.title}</span>
+            <span className="text-[11px] leading-tight text-muted">{o.body}</span>
+          </motion.button>
+        ))}
+      </div>
+      {kind === 'habitat' && <p className="text-[11px] text-muted">Same price and rent. Merge neighbouring habitat plots to grow it: 1 plot is a small glade, 4 a woodland, 16 a big sanctuary. You can switch types any time without losing anything.</p>}
+    </div>
+  );
+}
+
+function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: string[]; habitat?: boolean } | null; onClose(): void }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -279,11 +317,12 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
   const price = cost.data?.ink ?? 0;
   const short = !!cost.data && price > cost.data.balance;
   return (
-    <Dialog open={!!grow} onOpenChange={(o) => !o && onClose()} title="Your canvas can grow"
-      description="Connect these plots to create a larger masterpiece. Existing art keeps its exact position — you will draw across the old border as one surface.">
+    <Dialog open={!!grow} onOpenChange={(o) => !o && onClose()} title={grow?.habitat ? 'Your sanctuary can grow' : 'Your canvas can grow'}
+      description={grow?.habitat ? 'Connect these habitat plots into one bigger sanctuary — more room to explore, more decorations and space for more Inkborn. Everyone living there moves in together.'
+        : 'Connect these plots to create a larger masterpiece. Existing art keeps its exact position — you will draw across the old border as one surface.'}>
       <div className="mt-2 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Not now</Button>
-        {price > 0 && <p className="mr-auto self-center text-xs text-muted">Connecting costs <b className="text-fg tnum">{price} Ink</b>{short ? ' — you need more Ink first' : ''}. Bigger murals earn bigger craft bonuses.</p>}
+        {price > 0 && <p className="mr-auto self-center text-xs text-muted">Connecting costs <b className="text-fg tnum">{price} Ink</b>{short ? ' — you need more Ink first' : ''}. {grow?.habitat ? 'Bigger sanctuaries hold more creatures.' : 'Bigger murals earn bigger craft bonuses.'}</p>}
         <Button variant="rainbow" loading={busy} disabled={short} data-testid="connect-plots" onClick={async () => {
           if (!grow) return;
           setBusy(true);
@@ -291,8 +330,10 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
             const g = await api.fuseGroups([grow.newGroup, ...grow.neighbors]);
             celebrate(g.achievements);
             invalidateGame(qc);
-            toast.success(`Connected — ${g.plot_count} plots, one canvas`);
-            nav(`/create/${g.id}`);
+            void qc.invalidateQueries({ queryKey: ['habitat'] });
+            void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
+            if (grow.habitat && g.habitat_id) { toast.success(`Connected — a ${g.plot_count}-plot sanctuary`); nav(`/habitat/${g.habitat_id}`); }
+            else { toast.success(`Connected — ${g.plot_count} plots, one canvas`); nav(`/create/${g.id}`); }
           } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
         }}>
           <Link2 className="h-4 w-4" /> Connect plots
