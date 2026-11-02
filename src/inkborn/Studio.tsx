@@ -10,10 +10,10 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
-import { useOnboardedMe } from '../lib/queries';
+import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
 import type { Stroke } from '../shared/strokes';
-import { Button, Field, Spinner, inputCls } from '../ui';
+import { Button, Field, ResourceIcon, Spinner, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from '../creative/SketchPad';
 import { CreatureView } from './CreatureView';
@@ -30,6 +30,7 @@ export default function Studio() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const sanct = useQuery({ queryKey: ['sanctuaries'], queryFn: api.mySanctuaries, enabled: !!me });
+  const eco = useQuery({ queryKey: ['inkborn-economy'], queryFn: api.inkbornEconomy, enabled: !!me });
   const existing = id ? sanct.data?.creatures.find((c) => c.id === id) : null;
   const [mode, setMode] = useState<Mode>(id ? 'custom' : 'draw');
   const [genome, setGenome] = useState<Genome>(() => randomGenome());
@@ -71,6 +72,8 @@ export default function Studio() {
         const c = await api.inkbornCreate({ clientKey: key.current, name: name.trim(), source, genome, drawing: source === 'drawn' ? strokes : null, habitatId: homeId });
         saveStorage('landvas.inkborn.draft', []);
         confettiCannons();
+        invalidateGame(qc);
+        void qc.invalidateQueries({ queryKey: ['inkborn-economy'] });
         toast.success(`${c.name} is alive!`, { description: c.habitat_id ? 'They’re waiting in their sanctuary.' : 'Every sanctuary is full — make room to give them a home.' });
         key.current = newKey();
         void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
@@ -84,6 +87,8 @@ export default function Studio() {
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
   const ready = mode !== 'draw' || !!alive || !!existing;
+  const cost = eco.data?.next_cost ?? 0;
+  const afford = Number(me.balances.ink) >= cost;
 
   return (
     <Page>
@@ -173,7 +178,17 @@ export default function Studio() {
                   </select>
                 </Field>
               )}
-              <Button variant="rainbow" size="lg" loading={busy} disabled={!name.trim()} onClick={save} data-testid="save-inkborn">{existing ? 'Save changes' : `Release ${name.trim() || 'your Inkborn'}`}</Button>
+              {!existing && eco.data && (
+                <div className="flex items-center justify-between rounded-xl bg-surface-2/60 px-3 py-2 text-xs" data-testid="inkborn-cost">
+                  <span className="text-muted">{eco.data.next_cost === 0 ? 'Your first Inkborn is free' : 'Bringing an Inkborn to life costs'}</span>
+                  {eco.data.next_cost === 0 ? <b className="text-ok">Free</b> : <span className="flex items-center gap-1 font-bold"><ResourceIcon r="ink" className="h-3.5 w-3.5" />{eco.data.next_cost} Ink</span>}
+                </div>
+              )}
+              {!existing && cost > 0 && !afford ? (
+                <Button variant="secondary" size="lg" onClick={() => nav('/play')}>Need {cost - Number(me.balances.ink)} more Ink — play to earn</Button>
+              ) : (
+                <Button variant="rainbow" size="lg" loading={busy} disabled={!name.trim()} onClick={save} data-testid="save-inkborn">{existing ? 'Save changes' : `Release ${name.trim() || 'your Inkborn'}`}</Button>
+              )}
             </section>
           )}
           {!existing && mode === 'draw' && (

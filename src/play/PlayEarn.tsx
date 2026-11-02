@@ -4,8 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  ArrowRight, Brush, Check, Clock, DoorOpen, Flame, Gamepad2, Gift, Lightbulb, Paintbrush, PenLine, RotateCw, Share2, Sparkles, Stamp, Star, Swords, Trophy, Users,
-} from 'lucide-react';
+  ArrowRight, Brush, Check, Clock, DoorOpen, Flame, Gamepad2, Gift, Lightbulb, Paintbrush, PenLine, RotateCw, Share2, Sparkles, Stamp, Star, Swords, Trophy, Users, PawPrint } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -82,6 +81,7 @@ export default function PlayEarn() {
       ...(e?.rooms.enabled ? [{ key: 'rooms', icon: DoorOpen, color: '#7B5CFF', title: 'Check into rooms', text: `${e.rooms.paid_today}/${e.rooms.visitor_daily} paid check-ins today. Hosts earn too.`, reward: `+${e.rooms.visitor_ink} Ink each`, status: e.rooms.paid_today < e.rooms.visitor_daily ? 'ready' : 'done', today: sum('room_visit', 'room_host'), to: '/players' } as Card] : []),
     ],
     games: [
+      { key: 'inkborn', icon: PawPrint, color: '#3DDC97', title: 'Inkborn games & jobs', text: 'Play Berry Dash and Firefly Catch as your own creature, send it on jobs, and collect its Ink Spring.', reward: 'Up to 150 Ink a day', today: sum('inkborn'), to: '/inkborn' },
       { key: 'pvp', icon: Swords, color: '#FF4D6D', title: 'PvP minigames', text: pvpWaiting > 0 ? `${pvpWaiting} rival${pvpWaiting === 1 ? '' : 's'} waiting — play now for an instant result.` : 'Free head-to-head games against an anonymous rival.', reward: pvpWin ? `${fmt(pvpWin)} Ink a win` : 'Ink for wins', status: pvpWaiting > 0 ? 'ready' : null, today: sum('pvp'), to: '/pvp' },
       ...(doodle.data?.enabled ? [{ key: 'doodle', icon: Lightbulb, color: '#FFE14D', title: 'Draw & Guess', text: doodle.data.open ? `${doodle.data.open} drawing${doodle.data.open === 1 ? '' : 's'} to guess right now.` : 'Draw a word for others to guess.', reward: `Up to ${doodle.data.guesser_ink} a guess · ${doodle.data.drawer_ink} per guesser`, status: doodle.data.open ? 'ready' : null, today: sum('doodle'), to: '/doodle' } as Card] : []),
     ],

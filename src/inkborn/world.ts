@@ -19,7 +19,7 @@ export function rng(seed: number) {
 }
 
 // ---- decorations ----------------------------------------------------------------------
-export type DecorTag = 'food' | 'bed' | 'toy' | 'light' | 'tree';
+export type DecorTag = 'food' | 'bed' | 'toy' | 'light' | 'tree' | 'ink';
 export type DecorDef = {
   k: string; label: string; r: number; flat?: boolean; tag?: DecorTag; turn?: boolean; /** animated every frame (everything else is drawn once into a cached sprite) */ live?: boolean; group: 'Trees' | 'Plants' | 'Rocks' | 'Cosy';
   /** drawn with its foot at (0,0); s = pixels per world unit */
@@ -160,6 +160,22 @@ export const DECOR: DecorDef[] = [
     g.fillStyle = '#FFE14D'; g.beginPath(); g.arc(0, -0.5 * s - b, 0.5 * s, -0.5, 0.5); g.lineTo(0, -0.5 * s - b); g.fill();
     circ(g, -0.18 * s, -0.68 * s - b, 0.12 * s, 'rgba(255,255,255,0.7)');
   } },
+  { k: 'inkspring', live: true, label: 'Ink Spring', r: 0.9, tag: 'ink', group: 'Cosy', draw(g, s, t) {
+    shadow(g, s, 1.5);
+    // a mossy stone basin of glowing ink; happy creatures nearby make it fill faster
+    ell(g, 0, -0.45 * s, 1.35 * s, 0.75 * s, '#6E7484');
+    ell(g, 0, -0.6 * s, 1.3 * s, 0.6 * s, '#8D93A3');
+    ell(g, -0.5 * s, -0.95 * s, 0.5 * s, 0.16 * s, '#5FA34C');
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.4);
+    const gr = g.createRadialGradient(0, -0.65 * s, 0, 0, -0.65 * s, 1.1 * s);
+    gr.addColorStop(0, '#B79CFF'); gr.addColorStop(0.6, '#6A4CFF'); gr.addColorStop(1, '#3B2BB0');
+    g.fillStyle = gr; g.beginPath(); g.ellipse(0, -0.65 * s, 1.0 * s, 0.42 * s, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgba(200,180,255,${0.25 + 0.3 * pulse})`; g.beginPath(); g.ellipse(-0.25 * s, -0.75 * s, 0.4 * s, 0.12 * s, 0, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 3; i++) {
+      const k = (t * 0.7 + i / 3) % 1;
+      circ(g, (i - 1) * 0.35 * s, (-0.8 - k * 1.4) * s, (0.12 - k * 0.08) * s, `rgba(150,120,255,${1 - k})`);
+    }
+  } },
   { k: 'signpost', label: 'Sign post', r: 0.3, turn: true, group: 'Cosy', draw(g, s) {
     shadow(g, s, 0.5);
     g.fillStyle = '#6B4A2E'; g.fillRect(-0.1 * s, -2.2 * s, 0.2 * s, 2.2 * s);
@@ -283,7 +299,7 @@ export function defaultLayout(T: Terrain, seed: number, max = 30 + 20 * Math.max
   const c0 = T.cells[0];
   const big = T.cells.length >= 4;
   const hx = c0[0] * CELL + CELL * (big ? 1 : 0.5), hy = c0[1] * CELL + CELL * (big ? 1 : 0.5);
-  around('nest', hx - 5, hy + 3, 4, 40); around('bowl', hx - 1, hy + 5, 4, 40); around('ball', hx + 4, hy + 4, 4, 40); around('lantern', hx + 2, hy - 2, 5, 40);
+  around('nest', hx - 5, hy + 3, 4, 40); around('bowl', hx - 1, hy + 5, 4, 40); around('ball', hx + 4, hy + 4, 4, 40); around('lantern', hx + 2, hy - 2, 5, 40); around('inkspring', hx + 1, hy + 1, 6, 40);
   around('berry', hx + 6, hy - 4, 5, 40); around('log', hx + 6, hy + 2, 6, 40); around('signpost', T.path[0][0] + 1.5, T.path[0][1] - 1.5, 3, 40);
   const p = T.pond;
   if (p) { around('reeds', p.x + p.rx, p.y - 0.3, 1.2); around('reeds', p.x - p.rx + 0.2, p.y + 0.5, 1.2); around('boulder', p.x - p.rx - 2, p.y - p.ry - 1, 2.5); }

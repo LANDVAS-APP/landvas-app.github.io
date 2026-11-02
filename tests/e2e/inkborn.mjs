@@ -146,7 +146,13 @@ try {
   check('the creature and its bond persist after reload', kept.length === 1 && kept[0][0] === 'Mochi' && kept[0][1] > 0, JSON.stringify(kept));
   await shot('7-after-reload');
 
-  // randomize a second creature
+  // randomize a second creature — the first was free, this one costs 100 Ink
+  await nav('/inkborn/create', 1500);
+  await page.click('[data-testid=studio-random]');
+  const costText = await page.textContent('[data-testid=inkborn-cost]');
+  check('the second Inkborn costs 100 Ink', /100 Ink/.test(costText ?? ''), costText);
+  await page.evaluate(async () => { const api = window.__landvasApi; const st = await api.myState(); await api.devGrantSelfAdmin(); await api.admin.adjustBalance(st.user_id, 'ink', 120, 'e2e second creature'); });
+  await nav('/inkborn', 800);
   await nav('/inkborn/create', 1500);
   await page.click('[data-testid=studio-random]');
   await page.click('[data-testid=roll]'); await page.click('[data-testid=roll]');
@@ -156,6 +162,38 @@ try {
   await page.waitForSelector('[data-testid=sanctuary-canvas]', { timeout: 15000 });
   await page.waitForTimeout(1200);
   check('a random creature joins too', (await page.evaluate(() => window.__landvasSanctuary.e.sims.length)) === 2);
+  const inkLeft = await page.evaluate(async () => (await window.__landvasApi.myState()).balances.ink);
+  check('and 100 Ink was paid for it', Number(inkLeft) === 20, String(inkLeft));
+  check('the Ink Spring shows in the sanctuary', !!(await page.waitForSelector('[data-testid=spring-pill]', { timeout: 8000 }).catch(() => null)));
+  await shot('8b-spring');
+
+  // play as the creature: Berry Dash (a full real-time round, the finger chasing whatever's nearest)
+  const mochiId = await page.evaluate(async () => (await window.__landvasApi.mySanctuaries()).creatures.find((c) => c.name === 'Mochi').id);
+  await nav(`/inkborn/play/berrydash/${mochiId}`, 1500);
+  await shot('13-game-intro');
+  await page.click('[data-testid=game-start]');
+  await page.waitForSelector('[data-testid=inkborn-arena]', { timeout: 10000 });
+  const t0 = Date.now();
+  while (Date.now() - t0 < 47000 && await page.isVisible('[data-testid=inkborn-arena]').catch(() => false)) {
+    await page.mouse.move(W * (0.2 + Math.random() * 0.6), H * (0.25 + Math.random() * 0.6));
+    await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+    if (Date.now() - t0 > 20000 && Date.now() - t0 < 21500) await shot('14-game-play');
+  }
+  await page.waitForSelector('[data-testid=game-done]', { timeout: 20000 });
+  const gs = await page.textContent('[data-testid=game-score]');
+  const gi = await page.textContent('[data-testid=game-ink]');
+  check('a Berry Dash round is scored and paid by the server', gs !== null && /\+\d+ Ink/.test(gi ?? ''), `score ${gs}, ${gi}`);
+  await shot('15-game-done');
+
+  // send Mochi on a job from the profile
+  await nav('/inkborn', 1500);
+  await page.click('[data-testid=inkborn-list] > button');
+  await page.waitForSelector('[data-testid=creature-profile]');
+  await page.click('[data-testid=open-jobs]');
+  await page.click('[data-testid=job-forage]');
+  check('a creature can be sent on a job', !!(await page.waitForSelector('[data-testid=job-status]', { timeout: 8000 }).catch(() => null)));
+  await shot('16-job');
+  await page.keyboard.press('Escape');
   await nav('/inkborn', 1500);
   check('the hub lists both creatures', (await page.$$('[data-testid=inkborn-list] > button')).length === 2);
   await page.click('[data-testid=inkborn-list] > button');

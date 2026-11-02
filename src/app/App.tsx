@@ -51,6 +51,7 @@ const DuetScreen = lazy(() => import('../creative/DuetScreen'));
 const InkbornHub = lazy(() => import('../inkborn/Hub'));
 const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
+const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -139,6 +140,7 @@ const routes: RouteObject[] = [
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },
       { path: '/habitat', element: player(<Sanctuary />) },
+      { path: '/inkborn/play/:game/:id', element: player(<InkbornGame />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
       { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },

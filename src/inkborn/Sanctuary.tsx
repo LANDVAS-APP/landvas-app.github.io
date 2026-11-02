@@ -22,6 +22,7 @@ import { REACTIONS, bondLevel } from './care';
 import { CreatureView } from './CreatureView';
 import { MOOD_INFO, cleanGenome, type Genome } from './genome';
 import { CreatureProfile, Meter } from './Profile';
+import { CreatureWork, SpringPill } from './Earn';
 import { drawCreature, heart, type CreatureState } from './rig';
 import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
 
@@ -45,8 +46,9 @@ export default function Sanctuary() {
 type Task = 'wander' | 'come' | 'food' | 'bed' | 'toy' | 'look' | 'flee';
 type Sim = {
   c: Inkborn; g: Genome; x: number; y: number; dir: 1 | -1; st: CreatureState; until: number;
-  tx: number; ty: number; task: Task | null; after: CreatureState | null; stuck: number; seed: number; speed: number; nextPet: number;
+  tx: number; ty: number; task: Task | null; after: CreatureState | null; stuck: number; seed: number; speed: number; nextPet: number; detours?: number; resume?: boolean;
 };
+const away = (s: Sim) => !!s.c.job;
 type Part = { x: number; y: number; vx: number; vy: number; life: number; max: number; kind: 'heart' | 'spark' | 'text' | 'zz' | 'crumb' | 'ring'; text?: string; color?: string };
 type Mode = 'play' | 'decor';
 
@@ -259,10 +261,12 @@ function Game({ h }: { h: Habitat }) {
         e.cam.y += (P.y + e.cam.oy - e.cam.y) * Math.min(1, dt * 5);
       }
       e.cam.x = clamp(e.cam.x, -CELL / 2, e.T.W + CELL / 2); e.cam.y = clamp(e.cam.y, -CELL / 2, e.T.H + CELL / 2);
-      for (const s of e.sims) think(s, dt, now);
+      for (const s of e.sims) if (!away(s)) think(s, dt, now);
       // gentle separation so creatures don't stack
       for (let i = 0; i < e.sims.length; i++) for (let j = i + 1; j < e.sims.length; j++) {
-        const a = e.sims[i], b = e.sims[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+        const a = e.sims[i], b = e.sims[j];
+        if (away(a) || away(b)) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
         if (d > 0.01 && d < 1.3) {
           const push = (1.3 - d) * 0.5 * dt * 4, ux = dx / d, uy = dy / d;
           if (walkable(e.T, e.solids, a.x - ux * push, a.y - uy * push, 0.4)) { a.x -= ux * push; a.y -= uy * push; }
@@ -317,6 +321,8 @@ function Game({ h }: { h: Habitat }) {
       const r = Math.random;
       const t = s.task;
       s.task = null;
+      if (s.resume) { s.resume = false; if (pickTarget(s, 'come')) return; }
+      if (t === 'come') s.detours = 0;
       if (s.after) { s.st = s.after; s.after = null; s.until = now + (s.st === 'eat' ? 3200 : 2200); if (s.st === 'happy') hearts(s, 3); return; }
       if (t === 'food') { s.st = 'eat'; s.until = now + 2800 + r() * 2000; }
       else if (t === 'bed') { s.st = 'sleep'; s.until = now + 7000 + r() * 9000 * (s.g.mood === 'sleepy' ? 2 : 1); }
@@ -356,7 +362,18 @@ function Game({ h }: { h: Habitat }) {
           if (m) { s.x = m[0]; s.y = m[1]; s.stuck = m[2] ? s.stuck + dt * 0.25 : 0; } else s.stuck += dt;
         }
         if (Math.abs(ux) > 0.15) s.dir = ux > 0 ? 1 : -1;
-        if (s.stuck > 1.2) { if (s.task === 'come') arrive(s, now); else { s.st = 'idle'; s.task = null; s.until = now + 600; } }
+        if (s.stuck > 1.2) {
+          // stuck behind something on the way to you: sidestep to a clear spot, then try again (a few times)
+          if ((s.task === 'come' || s.resume) && (s.detours ?? 0) < 4) {
+            s.detours = (s.detours ?? 0) + 1;
+            for (let i = 0; i < 30; i++) {
+              const x = s.x + (Math.random() - 0.5) * 8, y = s.y + (Math.random() - 0.5) * 8;
+              if (walkable(e.T, e.solids, x, y, 0.4)) { s.tx = x; s.ty = y; s.task = 'wander'; s.resume = true; s.stuck = 0; break; }
+            }
+            if (s.stuck > 0) arrive(s, now);
+          } else if (s.task === 'come') arrive(s, now);
+          else { s.st = 'idle'; s.task = null; s.resume = false; s.until = now + 600; }
+        }
         return;
       }
       // react to the explorer walking up
@@ -487,6 +504,7 @@ function Game({ h }: { h: Habitat }) {
         } });
       }
       for (const s of e.sims) {
+        if (away(s)) continue;
         const [sx, sy] = toScreen(s.x, s.y);
         const px = 2.3 * z;
         if (!vis(sx, sy, px, px * 2)) continue;
@@ -583,6 +601,7 @@ function Game({ h }: { h: Habitat }) {
   const hitCreature = (sx: number, sy: number) => {
     let best: Sim | null = null, bd = Infinity;
     for (const s of e.sims) {
+      if (away(s)) continue;
       const [cx, cy] = engine.current!.toScreen(s.x, s.y);
       const px = 2.3 * e.cam.z * s.g.size;
       const d = Math.hypot(sx - cx, sy - (cy - px * 0.45));
@@ -742,7 +761,7 @@ function Game({ h }: { h: Habitat }) {
       toast.error(toGameError(err).message);
     }
   };
-  const call = (s: Sim) => { s.after = null; engine.current?.pickTarget(s, 'come'); say(s, '!', '#FFE14D'); };
+  const call = (s: Sim) => { s.after = null; s.detours = 0; engine.current?.pickTarget(s, 'come'); say(s, '!', '#FFE14D'); };
 
   // ---- decorating ----
   const save = async () => {
@@ -790,6 +809,8 @@ function Game({ h }: { h: Habitat }) {
         </div>
       </div>
 
+      {owner && mode === 'play' && <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-[max(76px,calc(env(safe-area-inset-top,0px)+64px))]"><SpringPill habitatId={h.id} onCollected={(n) => { const sp = e.layout.find((d) => d.k === 'inkspring'); const at = sp ?? e.player; burst(e.parts, at.x, at.y, 'spark', 18); e.parts.push({ x: at.x, y: at.y, vx: 0, vy: 0, life: 0, max: 1.8, kind: 'text', text: `+${n} Ink`, color: '#C9B8FF' }); }} /></div>}
+
       {!h.active && <div className="absolute inset-x-4 top-20 mx-auto max-w-md rounded-2xl bg-[#0d1f14]/90 p-3 text-center text-sm">This habitat plot has been turned back into an art canvas. Its creatures are safe in the starter sanctuary.</div>}
 
       <AnimatePresence>
@@ -804,8 +825,11 @@ function Game({ h }: { h: Habitat }) {
       {mode === 'play' && e.sims.length > 0 && (
         <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-1/2 grid max-h-[50vh] -translate-y-1/2 gap-1.5 overflow-y-auto rounded-2xl bg-black/50 p-1.5 no-scrollbar" data-testid="roster">
           {e.sims.map((s) => (
-            <button key={s.c.id} onClick={() => { setSel(s.c.id); e.cam.ox = s.x - e.player.x; e.cam.oy = s.y - e.player.y; }} className={cn('rounded-xl', sel === s.c.id ? 'bg-white/25' : 'hover:bg-white/10')} aria-label={s.c.name} title={s.c.name}>
-              <CreatureView genome={s.g} size={42} ground={false} state={s.st === 'sleep' ? 'sleep' : 'idle'} />
+            <button key={s.c.id} onClick={() => { setSel(s.c.id); if (!away(s)) { e.cam.ox = s.x - e.player.x; e.cam.oy = s.y - e.player.y; } }} className={cn('rounded-xl', sel === s.c.id ? 'bg-white/25' : 'hover:bg-white/10')} aria-label={s.c.name} title={s.c.name}>
+              <span className={cn('relative block', away(s) && 'opacity-50')}>
+                <CreatureView genome={s.g} size={42} ground={false} state={s.st === 'sleep' ? 'sleep' : 'idle'} />
+                {away(s) && <span className="absolute -bottom-0.5 -right-0.5 text-sm">{s.c.job_until && new Date(s.c.job_until).getTime() <= Date.now() ? '🎁' : '🎒'}</span>}
+              </span>
             </button>
           ))}
         </div>
@@ -838,6 +862,7 @@ function Game({ h }: { h: Habitat }) {
               <Meter icon={<Heart className="h-3 w-3 text-[#FF4D6D]" />} label="Happy" value={selSim.c.happiness} color="#FF4D6D" />
               <Meter icon={<span className="text-[10px]">⚡</span>} label="Energy" value={selSim.c.energy} color="#FFC93D" />
             </div>
+            {away(selSim) ? null : (
             <div className="mt-2.5 grid grid-cols-5 gap-1.5">
               {owner ? (
                 <>
@@ -851,6 +876,8 @@ function Game({ h }: { h: Habitat }) {
               <CareBtn icon={<Megaphone className="h-4 w-4" />} label="Call" onClick={() => call(selSim)} testid="call" />
               <CareBtn icon={<Info className="h-4 w-4" />} label="Info" onClick={() => setProfile(selSim.c)} />
             </div>
+            )}
+            {owner && <div className="mt-2"><CreatureWork c={selSim.c} compact onChanged={(c) => { selSim.c = { ...selSim.c, ...c }; if (!c.job) { selSim.x = e.player.x + 1.5; selSim.y = e.player.y + 0.4; if (!walkable(e.T, e.solids, selSim.x, selSim.y, 0.4)) { selSim.x = e.player.x; selSim.y = e.player.y; } selSim.st = 'happy'; selSim.until = performance.now() + 2500; engine.current?.hearts(selSim, 3); } bump((v) => v + 1); }} /></div>}
           </motion.div>
         )}
       </AnimatePresence>

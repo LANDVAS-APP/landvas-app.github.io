@@ -408,7 +408,15 @@ export type Inkborn = {
   habitat_id: string | null; bond: number; happiness: number; energy: number; created_at: string; mine: boolean;
   portrait_status: 'none' | 'unconfigured' | 'queued' | 'ready' | 'failed'; portrait_path: string | null;
   drawing?: import('../shared/strokes').Stroke[] | null; last_fed: string | null; last_played: string | null;
+  job?: string | null; job_until?: string | null; job_started?: string | null;
 };
+export type InkbornJob = { label: string; minutes: number; ink: number; energy: number };
+export type InkbornGameCfg = { enabled: boolean; seconds: number; energy: number; max_score: number; points_per_ink: number; max_ink: number };
+export type InkbornEconomy = {
+  made: number; next_cost: number; ink_today: number; daily_cap: number;
+  jobs: Record<string, InkbornJob>; games: Record<string, InkbornGameCfg>; spring: { enabled: boolean; per_creature_hour: number; per_spring_hour: number; max_springs: number; min_happiness: number; max_hours: number };
+};
+export type SpringState = { happy: number; springs: number; hours: number; rate: number; ready: number; full_in_hours: number; enabled: boolean };
 export type Decor = { id: string; k: string; x: number; y: number; f?: 0 | 1 };
 export type Habitat = {
   id: string; kind: 'starter' | 'plot'; biome: 'woodland'; seed: number; layout: Decor[]; layout_rev: number; owner: Profile; is_owner: boolean;

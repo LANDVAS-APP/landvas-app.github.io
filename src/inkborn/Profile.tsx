@@ -13,6 +13,7 @@ import { Button, Dialog, inputCls } from '../ui';
 import { StrokeView } from '../creative/SketchPad';
 import { bondLevel, energyWord, moodWord } from './care';
 import { CreatureView } from './CreatureView';
+import { CreatureWork } from './Earn';
 import { MOOD_INFO, cleanGenome } from './genome';
 
 export function Meter({ icon, label, value, color, hint }: { icon: React.ReactNode; label: string; value: number; color: string; hint?: string }) {
@@ -64,6 +65,7 @@ export function CreatureProfile({ c, open, onOpenChange, sanct, onChanged }: {
           <div className="rounded-xl bg-surface-2/60 p-2"><dt className="text-muted">Bond points</dt><dd className="font-bold">{c.bond}</dd></div>
           <div className="rounded-xl bg-surface-2/60 p-2"><dt className="text-muted">Home</dt><dd className="truncate font-bold">{homes.find((h) => h.id === c.habitat_id)?.name ?? (c.habitat_id ? 'Sanctuary' : 'No room yet')}</dd></div>
         </dl>
+        {c.mine && <div className="rounded-2xl bg-[#13261a] p-2 text-white"><CreatureWork c={c} onChanged={(n) => onChanged?.(n)} /></div>}
         {c.portrait_status === 'unconfigured' && <p className="text-center text-[11px] text-faint">AI-painted portraits aren’t switched on yet — {c.name} is shown on the Inkborn animation rig.</p>}
         {c.mine && (
           <div className="grid gap-2 border-t border-line pt-3">

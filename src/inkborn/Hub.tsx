@@ -14,6 +14,11 @@ import { bondLevel } from './care';
 import { CreatureView } from './CreatureView';
 import { MOOD_INFO, cleanGenome } from './genome';
 import { CreatureProfile } from './Profile';
+import { jobLabel, useInkEconomy } from './Earn';
+import { GAMES, type GameId } from './games/engines';
+import { cn } from '../lib/utils';
+import { ResourceIcon } from '../ui';
+import { useNavigate } from 'react-router-dom';
 
 export default function Hub() {
   const me = useOnboardedMe();
@@ -49,7 +54,9 @@ export default function Hub() {
             return (
               <motion.button key={c.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }} whileHover={{ y: -4 }}
                 onClick={() => setOpen(c)} className="glass group grid justify-items-center gap-1 rounded-3xl p-3 text-left">
-                <div className="relative"><CreatureView genome={g} size={120} state={c.energy < 15 ? 'sleep' : c.happiness > 80 ? 'happy' : 'idle'} /></div>
+                <div className={cn('relative', c.job && 'opacity-60')}><CreatureView genome={g} size={120} state={c.energy < 15 ? 'sleep' : c.happiness > 80 ? 'happy' : 'idle'} />
+                  {c.job && <span className="absolute right-0 top-0 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold">{c.job_until && new Date(c.job_until).getTime() <= Date.now() ? '🎁 back!' : `🎒 ${jobLabel(c.job)}`}</span>}
+                </div>
                 <div className="w-full truncate text-center font-display font-semibold">{c.name}</div>
                 <div className="text-[11px] text-muted">{MOOD_INFO[g.mood].emoji} {MOOD_INFO[g.mood].label} · {bondLevel(c.bond).name}</div>
                 <div className="mt-1 flex w-full items-center gap-2 text-[10px] text-muted">
@@ -61,6 +68,8 @@ export default function Hub() {
           })}
         </section>
       )}
+
+      {d.creatures.length > 0 && <EarnPanel creatures={d.creatures} />}
 
       <h2 className="mb-3 font-display text-lg font-semibold">Sanctuaries</h2>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="sanctuary-list">
@@ -85,5 +94,38 @@ export default function Hub() {
       </section>
       <CreatureProfile c={cur} open={!!open} onOpenChange={(v) => !v && setOpen(null)} sanct={d} />
     </Page>
+  );
+}
+
+function EarnPanel({ creatures }: { creatures: Inkborn[] }) {
+  const eco = useInkEconomy();
+  const nav = useNavigate();
+  const rested = [...creatures].filter((c) => !c.job).sort((a, b) => b.energy - a.energy)[0];
+  return (
+    <section className="mb-8 grid gap-3" data-testid="inkborn-earn">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold">Earn Ink with your Inkborn</h2>
+        {eco.data && <span className="flex items-center gap-1 text-xs text-muted"><ResourceIcon r="ink" className="h-3.5 w-3.5" /> {eco.data.ink_today}/{eco.data.daily_cap} today</span>}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {(Object.keys(GAMES) as GameId[]).map((g) => (
+          <motion.button key={g} whileHover={{ y: -3 }} disabled={!rested} onClick={() => rested && nav(`/inkborn/play/${g}/${rested.id}`)}
+            className="glass grid gap-1 rounded-3xl p-4 text-left disabled:opacity-60" style={{ boxShadow: `inset 0 0 0 1px ${GAMES[g].color}44` }} data-testid={`hub-game-${g}`}>
+            <span className="text-3xl">{GAMES[g].emoji}</span>
+            <b className="font-display">{GAMES[g].name}</b>
+            <span className="text-xs text-muted">{GAMES[g].blurb}</span>
+            <span className="mt-1 text-[11px] font-bold" style={{ color: GAMES[g].color }}>{rested ? `Play as ${rested.name} →` : 'Everyone is away'}</span>
+          </motion.button>
+        ))}
+        <div className="glass grid gap-1 rounded-3xl p-4 text-sm">
+          <span className="text-3xl">🎒</span><b className="font-display">Jobs</b>
+          <span className="text-xs text-muted">Send a creature foraging, exploring or questing. They come back with Ink, and a closer bond brings back more.</span>
+        </div>
+        <div className="glass grid gap-1 rounded-3xl p-4 text-sm">
+          <span className="text-3xl">🫧</span><b className="font-display">Ink Springs</b>
+          <span className="text-xs text-muted">Happy creatures slowly fill their sanctuary’s spring with Ink, and Ink Spring decorations add more. Collect it in the sanctuary.</span>
+        </div>
+      </div>
+    </section>
   );
 }
