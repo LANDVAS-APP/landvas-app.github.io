@@ -1,0 +1,142 @@
+# Builds the LANDVAS iOS and Android apps on GitHub's machines (no Mac needed).
+#
+#  * Every push to `source` checks that both apps still compile (unsigned).
+#  * Run it by hand (Actions → Native apps → Run workflow) with "release" ticked to make
+#    store-ready builds: a signed .aab for Google Play and an upload straight to App Store
+#    Connect / TestFlight. The secrets it needs are listed in docs/STORE-LAUNCH.md; any that
+#    are missing just skip their step with a warning.
+name: Native apps
+on:
+  push:
+    branches: [source]
+    paths: ['src/**', 'android/**', 'ios/**', 'capacitor.config.ts', 'package*.json', '.env.native', 'scripts/native-config.mjs', '.github/workflows/native.yml']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Sign and upload to the stores'
+        type: boolean
+        default: false
+      version:
+        description: 'Version shown in the stores (e.g. 1.0.0)'
+        default: '1.0.0'
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  LANDVAS_VERSION_NAME: ${{ inputs.version || '1.0.0' }}
+  # every store upload needs a bigger build number than the last
+  LANDVAS_BUILD_NUMBER: ${{ github.run_number }}
+  LANDVAS_VERSION_CODE: ${{ github.run_number }}
+  ADMOB_APP_ID_ANDROID: ${{ vars.ADMOB_APP_ID_ANDROID }}
+  ADMOB_APP_ID_IOS: ${{ vars.ADMOB_APP_ID_IOS }}
+  VITE_ADMOB_REWARDED_ANDROID: ${{ vars.ADMOB_REWARDED_ANDROID }}
+  VITE_ADMOB_REWARDED_IOS: ${{ vars.ADMOB_REWARDED_IOS }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - run: npm ci
+      - name: Build the game for the app
+        run: |
+          # unset ad ids fall back to the test ids in .env.native
+          [ -z "$VITE_ADMOB_REWARDED_ANDROID" ] && unset VITE_ADMOB_REWARDED_ANDROID
+          [ -z "$VITE_ADMOB_REWARDED_IOS" ] && unset VITE_ADMOB_REWARDED_IOS
+          export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
+          npm run build:native
+          node scripts/native-config.mjs
+          npx cap sync android
+      - name: Signing key
+        if: ${{ inputs.release }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::warning::ANDROID_KEYSTORE_BASE64 is missing — building unsigned"; exit 0; fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "LANDVAS_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - name: Build Android App Bundle
+        working-directory: android
+        env:
+          LANDVAS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LANDVAS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          LANDVAS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon bundleRelease assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: landvas-android-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/apk/debug/*.apk
+      - name: Upload to Google Play (internal testing)
+        if: ${{ inputs.release && env.LANDVAS_KEYSTORE_PATH != '' }}
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_JSON" ]; then echo "::notice::No PLAY_SERVICE_ACCOUNT_JSON — download the .aab from this run and upload it in Play Console"; exit 0; fi
+          echo "PLAY_UPLOAD=1" >> "$GITHUB_ENV"
+      - if: ${{ env.PLAY_UPLOAD == '1' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.landvas.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: draft
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build the game for the app
+        run: |
+          [ -z "$VITE_ADMOB_REWARDED_ANDROID" ] && unset VITE_ADMOB_REWARDED_ANDROID
+          [ -z "$VITE_ADMOB_REWARDED_IOS" ] && unset VITE_ADMOB_REWARDED_IOS
+          export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
+          npm run build:native
+          node scripts/native-config.mjs
+          npx cap sync ios
+      - name: Check it compiles (unsigned)
+        if: ${{ !inputs.release }}
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tail -40
+      - name: Archive and upload to App Store Connect
+        if: ${{ inputs.release }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$ASC_KEY_P8" ] || [ -z "$APPLE_TEAM_ID" ]; then echo "::error::Add ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 and APPLE_TEAM_ID secrets (docs/STORE-LAUNCH.md)"; exit 1; fi
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"; printf '%s' "$ASC_KEY_P8" > "$KEY"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/LANDVAS.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic $AUTH archive | tail -40
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/LANDVAS.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" $AUTH
+          echo "::notice::Uploaded build $LANDVAS_BUILD_NUMBER to App Store Connect — it shows in TestFlight after processing (~10-30 min)"

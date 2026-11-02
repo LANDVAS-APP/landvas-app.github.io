@@ -67,7 +67,7 @@ export default function Legal() {
             <H>What others can see</H>
             <p>Your username, avatar, the plots you own, your published artwork and leaderboard positions. Your plots are visible on the shared map, but your profile, artwork pages, visit room, the gallery and the feed never show where they are.</p>
             <H>How long we keep it</H>
-            <p>While your account exists, plus the time needed for legal, tax or fraud-prevention reasons. Ask us to delete your account with a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link>.</p>
+            <p>While your account exists, plus the time needed for legal, tax or fraud-prevention reasons. You can delete your account yourself at any time in <Link to="/settings" className="text-accent-2">Settings → Account → Delete my account</Link>; it removes your profile, plots, art and creatures straight away. You can also ask through a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link>. The mobile apps show ads only when you choose to watch one for a bonus; the ad network (Google AdMob) may use your device's advertising ID, which you can limit in your phone's settings.</p>
             <H>Artwork metadata</H>
             <p>We re-encode every uploaded image and strip metadata such as camera location before it is published.</p>
           </>

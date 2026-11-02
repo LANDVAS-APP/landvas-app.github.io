@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Satellite, Shield, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -84,6 +85,7 @@ export default function Settings() {
               <Button variant="ghost" onClick={async () => { await backend.signOut(); qc.clear(); nav('/welcome'); }} data-testid="sign-out"><LogOut className="h-4 w-4" /> Sign out</Button>
               {me.roles.length > 0 && <Button variant="ghost" onClick={() => nav('/admin')}><Shield className="h-4 w-4" /> Admin console</Button>}
             </div>
+            <DeleteAccount onDone={async () => { await backend.signOut().catch(() => {}); qc.clear(); nav('/welcome'); }} />
           </Section>
         )}
 
@@ -129,5 +131,30 @@ export default function Settings() {
         </Section>
       </div>
     </Page>
+  );
+}
+
+/** Delete your account from inside the game (the App Store and Google Play require it). */
+function DeleteAccount({ onDone }: { onDone(): void }) {
+  const [open, setOpen] = useState(false);
+  const [word, setWord] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!open) return <button className="justify-self-start text-xs font-semibold text-faint hover:text-bad hover:underline" onClick={() => setOpen(true)} data-testid="delete-account">Delete my account…</button>;
+  return (
+    <div className="grid gap-2 rounded-2xl border border-bad/40 bg-bad/10 p-3 text-sm" data-testid="delete-account-panel">
+      <b>Delete your account for good?</b>
+      <p className="text-muted">Your profile, plots, artwork, Inkborn, Ink and everything else are removed and can’t be recovered. Your plots go back to the world for others to claim.</p>
+      <label className="grid gap-1 text-xs font-bold">Type DELETE to confirm
+        <input className="h-10 rounded-xl border border-line bg-surface/80 px-3 text-sm" value={word} onChange={(e) => setWord(e.target.value)} autoCapitalize="characters" data-testid="delete-confirm" />
+      </label>
+      <div className="flex gap-2">
+        <Button variant="danger" size="sm" disabled={word.trim().toUpperCase() !== 'DELETE'} loading={busy} data-testid="delete-go" onClick={async () => {
+          setBusy(true);
+          try { await api.deleteMyAccount(); toast.success('Your account has been deleted.'); onDone(); }
+          catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+        }}><Trash2 className="h-4 w-4" /> Delete everything</Button>
+        <Button variant="ghost" size="sm" onClick={() => { setOpen(false); setWord(''); }}>Keep my account</Button>
+      </div>
+    </div>
   );
 }

@@ -1,8 +1,34 @@
+import { useEffect, useState } from 'react';
 import { LogoMark } from '../ui';
 import { config } from '../env';
+import { hideSplash, isNative } from '../native/native';
+
+const TIPS = ['Tip: your first 4 plots are free', 'Tip: draw a creature and watch it come alive', 'Tip: merge neighbouring plots into one big mural', 'Tip: happy Inkborn fill your Ink Spring', 'Tip: daily limits reset every evening'];
+
+/** The app's loading screen: logo, glowing progress bar and a tip, like a game. */
+function GameBoot() {
+  const [tip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
+  useEffect(() => { hideSplash(); }, []);
+  return (
+    <div className="lv-boot flex h-full flex-col items-center justify-center gap-7 overflow-hidden bg-bg text-center" data-testid="game-boot">
+      <div className="lv-orb-a" /><div className="lv-orb-b" />
+      <div className="relative animate-[lv-float_3s_ease-in-out_infinite]">
+        <div className="absolute -inset-8 rounded-full bg-accent/30 blur-3xl" />
+        <img src="/brand/landvas-multiverse-512.png" alt="" className="relative h-32 w-32 drop-shadow-[0_10px_40px_rgba(123,92,255,0.6)]" />
+      </div>
+      <h1 className="relative font-display text-4xl font-black tracking-[0.18em]">LANDVAS</h1>
+      <div className="relative h-3 w-56 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/15">
+        <div className="h-full w-1/2 animate-[lv-load_1.4s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-[#FF4D6D] via-[#FFE14D] to-[#34C3FF]" />
+      </div>
+      <p className="relative text-sm text-muted">{tip}</p>
+    </div>
+  );
+}
 
 /** Shown while the backend boots (local mode compiles Postgres to WASM on first run). */
 export function BootScreen({ error }: { error: unknown }) {
+  if (isNative() && !error) return <GameBoot />;
+  if (isNative()) hideSplash();
   const code = (error as any)?.code ?? (error as any)?.message ?? '';
   const elsewhere = String(code).includes('open_elsewhere');
   const wasm = /wasm|WebAssembly|CompileError|unsafe-eval/i.test(String((error as any)?.message ?? ''));

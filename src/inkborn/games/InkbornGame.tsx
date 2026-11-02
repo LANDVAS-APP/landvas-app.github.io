@@ -16,10 +16,11 @@ import { Button, ResourceIcon, Spinner } from '../../ui';
 import { confettiCannons } from '../../ui/confetti';
 import { CreatureView } from '../CreatureView';
 import { cleanGenome } from '../genome';
+import { AdButton } from '../../ads/AdButton';
 import { ENGINES, GAMES, type Engine, type GameId, type GameInput } from './engines';
 
 type Phase = { k: 'intro' } | { k: 'count'; n: number; session: string; seed: number; seconds: number } | { k: 'play'; session: string; seed: number; seconds: number }
-  | { k: 'done'; score: number; earned: number; paid: number; capped: boolean; best: number | null };
+  | { k: 'done'; session: string; score: number; earned: number; paid: number; capped: boolean; best: number | null; doubled?: boolean };
 
 export default function InkbornGame() {
   const { game, id } = useParams();
@@ -56,10 +57,10 @@ export default function InkbornGame() {
       void qc.invalidateQueries({ queryKey: ['inkborn-economy'] });
       void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
       if (r.paid > 0) confettiCannons();
-      setPhase({ k: 'done', score: r.score, earned: r.earned, paid: r.paid, capped: r.capped, best: r.best });
+      setPhase({ k: 'done', session, score: r.score, earned: r.earned, paid: r.paid, capped: r.capped, best: r.best });
     } catch (e) {
       toast.error(toGameError(e).message);
-      setPhase({ k: 'done', score, earned: 0, paid: 0, capped: false, best: null });
+      setPhase({ k: 'done', session, score, earned: 0, paid: 0, capped: false, best: null });
     }
   };
 
@@ -91,6 +92,7 @@ export default function InkbornGame() {
                 </div>
               )}
               {eco.data && <p className="text-[11px] text-white/60">Inkborn Ink today: {eco.data.ink_today}/{eco.data.daily_cap}</p>}
+              {!enough && <AdButton reward="inkborn_energy" refId={c.id} label={`Watch an ad to wake ${c.name} up`} done={`${c.name} is full of beans!`} />}
               <Button variant="rainbow" size="lg" disabled={!enough} loading={busy} onClick={start} data-testid="game-start"><Play className="h-5 w-5" /> {enough ? 'Play' : `${c.name} is too sleepy — let them rest`}</Button>
             </motion.div>
           )}
@@ -104,6 +106,7 @@ export default function InkbornGame() {
               <div className="font-display text-6xl font-black" data-testid="game-score">{phase.score}</div>
               {phase.best != null && <div className="text-xs text-white/60">Best: {phase.best}</div>}
               <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-lg font-bold" data-testid="game-ink"><ResourceIcon r="ink" className="h-5 w-5" /> +{phase.paid} Ink</div>
+              {phase.paid > 0 && !phase.doubled && <AdButton reward="game_double" refId={phase.session} label={`Watch an ad: double to ${phase.paid * 2} Ink`} done={`+${phase.paid} more Ink!`} onDone={() => setPhase({ ...phase, doubled: true, paid: phase.paid * 2 })} />}
               {phase.capped && <p className="text-xs text-white/70">You’ve hit today’s Inkborn Ink limit — it resets this evening.</p>}
               <div className="flex gap-2">
                 <Button variant="rainbow" onClick={() => setPhase({ k: 'intro' })}><RotateCcw className="h-4 w-4" /> Again</Button>

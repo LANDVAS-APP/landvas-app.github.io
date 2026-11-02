@@ -941,3 +941,22 @@ a.glass:active, button.glass:active { transform: scale(0.985); }
   .lv-orb-a, .lv-orb-b, .lv-page > *, .lv-title::after { animation: none !important; }
 }
 [data-reduce-motion='true'] .lv-orb-a, [data-reduce-motion='true'] .lv-orb-b, [data-reduce-motion='true'] .lv-page > *, [data-reduce-motion='true'] .lv-title::after { animation: none !important; }
+
+/* ===== the iOS / Android app: feels like a game, not a web page ===== */
+@keyframes lv-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes lv-load { 0% { transform: translateX(-110%); } 100% { transform: translateX(220%); } }
+@keyframes lv-screen-in { from { opacity: 0; transform: translateY(14px) scale(0.99); } to { opacity: 1; transform: none; } }
+html.native, html.native body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+html.native input, html.native textarea, html.native [contenteditable] { -webkit-user-select: text; user-select: text; }
+html.native img { -webkit-user-drag: none; }
+html.native *::-webkit-scrollbar { display: none; }
+html.native button:active:not(:disabled), html.native [role=tab]:active { transform: scale(0.96); transition: transform 0.06s; }
+html.native .lv-screen { animation: lv-screen-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+html.native.reduce-motion .lv-screen { animation: none; }

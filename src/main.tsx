@@ -8,6 +8,7 @@ import { BootScreen } from './app/BootScreen';
 import { setAvatarResolver } from './ui';
 import { startUpdates } from './app/updates';
 import { captureReferral } from './social/referralStore';
+import { initNative } from './native/native';
 
 if (config.fonts === 'self') {
   void import('@fontsource-variable/unbounded');
@@ -22,6 +23,7 @@ applyTheme(useUi.getState().settings.theme);
 applyMotion(useUi.getState().settings.reduceMotion);
 if (config.e2e) document.documentElement.classList.add('e2e');
 
+void initNative();
 startUpdates();
 // keep an invite code from a ?ref= link before the router tidies the address
 captureReferral();

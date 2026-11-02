@@ -10,6 +10,9 @@ import { useUi } from '../lib/store';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
+import { isNative } from '../native/native';
+import { initAds } from '../ads/ads';
+import { useEffect } from 'react';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
@@ -31,6 +34,8 @@ export const SECTIONS = [
 const ME_PAGES = [
   { to: '/me', label: 'Me' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
 ];
+// the app gets chunkier, game-style tabs
+const NATIVE = isNative();
 const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 /** Which section (and its pages) a path belongs to. */
 function sectionOf(path: string) {
@@ -61,6 +66,8 @@ export function Shell() {
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
   const sec = sectionOf(loc.pathname);
+  // the app sets up ads (consent + Apple's tracking prompt) once you're signed in and playing
+  useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // a tab lights up for its own page, or for its section unless another tab is that page
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
   const tabs = (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
@@ -118,7 +125,7 @@ function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string;
   return (
     <Link to={to} className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-bold transition-colors', active ? 'text-fg' : 'text-faint')} aria-current={active ? 'page' : undefined}>
       {active && <motion.span layoutId="tab-active" className="absolute inset-x-3 top-0 h-[3px] rounded-full bg-gradient-to-r from-accent to-accent-2 shadow-[0_0_12px_var(--accent)]" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
-      <motion.span className="relative" animate={active ? { y: [0, -4, 0], scale: [1, 1.12, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.4 }}>
+      <motion.span className={cn('relative', NATIVE && 'flex h-9 w-12 items-center justify-center rounded-2xl transition-colors', NATIVE && active && 'bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_6px_20px_-6px_var(--accent)]')} animate={active ? { y: [0, -4, 0], scale: [1, 1.12, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.4 }}>
         {avatar ?? (Icon ? <Icon className="h-[22px] w-[22px]" /> : <span className="block h-[22px] w-[22px] rounded-full bg-surface-2" />)}<Dot n={badge} />
       </motion.span>
       <span className="max-w-full truncate px-0.5">{label}</span>

@@ -5903,6 +5903,299 @@ function encodePng(png, options) {
   return encoder2.encode();
 }
 
+// src/shared/craft.ts
+var clamp01 = (v) => Math.max(0, Math.min(1, v));
+var MAX = 192;
+function normalize(img) {
+  const { width: w, height: h } = img;
+  const k = Math.max(w, h) / MAX;
+  if (Math.abs(k - 1) < 0.01) return img;
+  const W = Math.max(1, Math.round(w / k)), H = Math.max(1, Math.round(h / k));
+  const out = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) {
+    const sy = Math.min(h - 1, Math.floor((y + 0.5) * k));
+    for (let x = 0; x < W; x++) {
+      const sx = Math.min(w - 1, Math.floor((x + 0.5) * k));
+      const s = (sy * w + sx) * 4, d = (y * W + x) * 4;
+      out[d] = img.data[s];
+      out[d + 1] = img.data[s + 1];
+      out[d + 2] = img.data[s + 2];
+      out[d + 3] = img.data[s + 3];
+    }
+  }
+  return { width: W, height: H, data: out };
+}
+var empty2 = (tips = []) => ({ score: 0, coverage: 0, colors: 0, shading: 0, detail: 0, noise: 0, tips });
+function analyzeCraft(input) {
+  const img = normalize(input);
+  const { width: w, height: h, data: d } = img;
+  const n = w * h;
+  if (!n) return empty2();
+  const R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n);
+  const q = new Int32Array(n), painted = new Uint8Array(n);
+  let paintN = 0;
+  for (let i = 0, p = 0; p < n; i += 4, p++) {
+    const a = d[i + 3] / 255;
+    const r = d[i] * a + 255 * (1 - a), g = d[i + 1] * a + 255 * (1 - a), b = d[i + 2] * a + 255 * (1 - a);
+    R[p] = r;
+    G[p] = g;
+    B[p] = b;
+    const ink = 765 - (r + g + b) > 24;
+    painted[p] = ink ? 1 : 0;
+    if (ink) paintN++;
+    q[p] = ink ? r >> 4 << 8 | g >> 4 << 4 | b >> 4 : -1;
+  }
+  const coverage = paintN / n;
+  if (paintN < n * 0.01) return { ...empty2(["Paint more of your canvas."]), coverage: Math.round(coverage * 100) };
+  const solid = new Uint8Array(n);
+  let solidN = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y * w + x, c = q[p];
+    if (c < 0) continue;
+    if (q[p - 1] === c && q[p + 1] === c && q[p - w] === c && q[p + w] === c) {
+      solid[p] = 1;
+      solidN++;
+    }
+  }
+  const count = /* @__PURE__ */ new Map();
+  for (let p = 0; p < n; p++) if (solid[p]) count.set(q[p], (count.get(q[p]) ?? 0) + 1);
+  const minShare = Math.max(6, solidN * 5e-3);
+  const major = [...count.entries()].filter(([, c]) => c >= minShare).sort((x, y) => y[1] - x[1]);
+  const rgbOf = (c) => [(c >> 8 << 4) + 8, ((c >> 4 & 15) << 4) + 8, ((c & 15) << 4) + 8];
+  const kept = [];
+  const family = /* @__PURE__ */ new Map();
+  for (const [c, a] of major) {
+    const rgb = rgbOf(c);
+    const k = kept.findIndex((x) => Math.hypot(x.rgb[0] - rgb[0], x.rgb[1] - rgb[1], x.rgb[2] - rgb[2]) < 20);
+    if (k >= 0) {
+      kept[k].area += a;
+      family.set(c, k);
+    } else {
+      family.set(c, kept.length);
+      kept.push({ c, rgb, area: a });
+    }
+  }
+  const colors = kept.length;
+  const hsl = kept.map(({ rgb: [r, g, b] }) => {
+    const mx = Math.max(r, g, b) / 255, mn = Math.min(r, g, b) / 255, l = (mx + mn) / 2, dd = mx - mn;
+    let hue = 0;
+    if (dd > 1e-4) {
+      if (mx === r / 255) hue = (g - b) / 255 / dd % 6;
+      else if (mx === g / 255) hue = (b - r) / 255 / dd + 2;
+      else hue = (r - g) / 255 / dd + 4;
+      hue = (hue * 60 + 360) % 360;
+    }
+    const s = dd < 1e-4 ? 0 : dd / (1 - Math.abs(2 * l - 1));
+    return { hue, s, l };
+  });
+  let ramps = 0;
+  for (let i = 0; i < hsl.length; i++) for (let j = i + 1; j < hsl.length; j++) {
+    const a = hsl[i], b = hsl[j];
+    const grey = a.s < 0.12 && b.s < 0.12;
+    const dh = Math.min(Math.abs(a.hue - b.hue), 360 - Math.abs(a.hue - b.hue));
+    if ((grey || a.s >= 0.12 && b.s >= 0.12 && dh < 28) && Math.abs(a.l - b.l) > 0.08) ramps++;
+  }
+  const hues = new Set(hsl.map((x) => x.s < 0.12 ? -1 : Math.round(x.hue / 30) % 12)).size;
+  const label = new Int32Array(n).fill(-1);
+  const stack = [];
+  let regions = 0;
+  const minRegion = Math.max(8, n * 15e-4);
+  for (let p = 0; p < n; p++) {
+    if (!solid[p] || label[p] >= 0) continue;
+    const f = family.get(q[p]);
+    if (f === void 0) continue;
+    let size = 0, x0 = w, x1 = 0, y0 = h, y1 = 0;
+    label[p] = regions;
+    stack.push(p);
+    while (stack.length) {
+      const c = stack.pop();
+      size++;
+      const x = c % w, y = (c - x) / w;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      for (const nb of [x > 0 ? c - 1 : -1, x < w - 1 ? c + 1 : -1, c - w, c + w]) {
+        if (nb < 0 || nb >= n || !solid[nb] || label[nb] >= 0 || family.get(q[nb]) !== f) continue;
+        label[nb] = regions;
+        stack.push(nb);
+      }
+    }
+    const box = (x1 - x0 + 1) * (y1 - y0 + 1);
+    if (size >= minRegion && (size / box >= 0.3 || box < n * 0.01)) regions++;
+  }
+  const pairs = /* @__PURE__ */ new Set();
+  for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
+    const p = y * w + x;
+    if (!solid[p]) continue;
+    const a = family.get(q[p]);
+    if (a === void 0) continue;
+    for (const [dx, dy] of [[3, 0], [0, 3], [3, 3], [-3, 3]]) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || xx >= w || yy >= h) continue;
+      const o = yy * w + xx;
+      if (!solid[o]) continue;
+      const b = family.get(q[o]);
+      if (b === void 0 || b === a) continue;
+      pairs.add(Math.min(a, b) * 64 + Math.max(a, b));
+    }
+  }
+  const S = new Int32Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) S[(y + 1) * (w + 1) + x + 1] = painted[y * w + x] + S[y * (w + 1) + x + 1] + S[(y + 1) * (w + 1) + x] - S[y * (w + 1) + x];
+  const rr = 5;
+  let massN = 0;
+  for (let y = rr; y < h - rr; y++) for (let x = rr; x < w - rr; x++) {
+    if (!painted[y * w + x]) continue;
+    const a = S[(y - rr) * (w + 1) + x - rr], b = S[(y - rr) * (w + 1) + x + rr + 1], c = S[(y + rr + 1) * (w + 1) + x - rr], e = S[(y + rr + 1) * (w + 1) + x + rr + 1];
+    if (e - b - c + a === (2 * rr + 1) ** 2) massN++;
+  }
+  const mass = massN / paintN;
+  let lonely = 0, inner = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y * w + x;
+    if (!painted[p]) continue;
+    inner++;
+    const c = q[p];
+    const near = (o) => q[o] >= 0 && Math.abs(R[o] - R[p]) + Math.abs(G[o] - G[p]) + Math.abs(B[o] - B[p]) < 60;
+    if (c !== q[p - 1] && c !== q[p + 1] && c !== q[p - w] && c !== q[p + w] && !near(p - 1) && !near(p + 1) && !near(p - w) && !near(p + w)) lonely++;
+  }
+  const noise = inner ? lonely / inner : 0;
+  const cov = clamp01(coverage / 0.6);
+  const pal = clamp01((colors - 1) / 9) * clamp01((hues - 1) / 3 + 0.4);
+  const shade = clamp01(ramps / 5);
+  const det = clamp01((regions - 1) / 14);
+  const adj = clamp01(pairs.size / 9);
+  const filled = clamp01(mass / 0.55);
+  let raw = 0.14 * cov + 0.24 * pal + 0.2 * shade + 0.26 * det + 0.16 * adj;
+  raw *= 0.35 + 0.65 * filled;
+  if (noise > 0.12) raw *= clamp01(1 - (noise - 0.12) / 0.2) * 0.85 + 0.15;
+  let score = Math.round(100 * raw);
+  if (colors <= 1) score = Math.min(score, 10);
+  else if (colors === 2) score = Math.min(score, 25);
+  if (regions < 4) score = Math.min(score, 20);
+  const tips = [];
+  if (colors < 4) tips.push("Use more colours \u2014 and fill real shapes with them, not just lines.");
+  if (shade < 0.5) tips.push("Add shading: a lighter and a darker tone of each colour gives depth.");
+  if (det < 0.5) tips.push("Build the picture from more shapes: a subject, a background, details.");
+  if (filled < 0.6) tips.push("Fill your shapes in \u2014 lines and squiggles on their own earn little.");
+  if (adj < 0.5 && colors >= 3) tips.push("Let your colours meet: shapes that touch read as one picture.");
+  if (cov < 0.6) tips.push("Fill more of the canvas \u2014 backgrounds count.");
+  if (noise > 0.2) tips.push("Scattered single pixels read as noise. Group pixels into shapes.");
+  return { score, coverage: Math.round(coverage * 100), colors, shading: Math.round(shade * 100), detail: Math.round(det * 100), noise: Math.round(noise * 100), tips };
+}
+
+// src/shared/originality.ts
+var N = 16;
+var clamp012 = (v) => Math.max(0, Math.min(1, v));
+function fingerprint(img) {
+  const { width: w, height: h, data: d } = img;
+  const ink = (i) => d[i + 3] >= 32 && 765 - (d[i] + d[i + 1] + d[i + 2]) > 24;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (ink((y * w + x) * 4)) {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  const out = new Uint8Array(N * N * 4);
+  if (x1 < 0) return toB64(out);
+  const side = Math.max(x1 - x0 + 1, y1 - y0 + 1);
+  const cx = (x0 + x1 + 1) / 2, cy = (y0 + y1 + 1) / 2;
+  const sx = cx - side / 2, sy = cy - side / 2;
+  const sum = new Float64Array(N * N * 4);
+  for (let y = Math.max(0, Math.floor(sy)); y < Math.min(h, Math.ceil(sy + side)); y++) {
+    for (let x = Math.max(0, Math.floor(sx)); x < Math.min(w, Math.ceil(sx + side)); x++) {
+      const gx = Math.min(N - 1, Math.floor((x - sx) / side * N)), gy = Math.min(N - 1, Math.floor((y - sy) / side * N));
+      const c = (gy * N + gx) * 4, i = (y * w + x) * 4;
+      sum[c + 3] += 1;
+      if (ink(i)) {
+        sum[c] += d[i];
+        sum[c + 1] += d[i + 1];
+        sum[c + 2] += d[i + 2];
+        out[c + 3]++;
+      }
+    }
+  }
+  for (let c = 0; c < N * N; c++) {
+    const painted = out[c * 4 + 3], all = sum[c * 4 + 3] || 1;
+    out[c * 4 + 3] = Math.round(painted / all * 255);
+    if (painted) for (let k = 0; k < 3; k++) out[c * 4 + k] = Math.round(sum[c * 4 + k] / painted);
+  }
+  return toB64(out);
+}
+function decode2(fp, mirror = false) {
+  const b = fromB64(fp);
+  if (b.length !== N * N * 4) return null;
+  const rgb = new Float32Array(N * N * 3), m = new Uint8Array(N * N), lum = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const src = (y * N + (mirror ? N - 1 - x : x)) * 4, c = y * N + x;
+    m[c] = b[src + 3] >= 77 ? 1 : 0;
+    for (let k = 0; k < 3; k++) rgb[c * 3 + k] = b[src + k];
+    lum[c] = m[c] ? (0.2126 * b[src] + 0.7152 * b[src + 1] + 0.0722 * b[src + 2]) / 255 : 1;
+  }
+  return { rgb, m, lum };
+}
+function edges(c) {
+  const e = new Uint8Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x;
+    if (x + 1 < N && Math.abs(c.lum[i] - c.lum[i + 1]) > 0.12 || y + 1 < N && Math.abs(c.lum[i] - c.lum[i + N]) > 0.12) e[i] = 1;
+  }
+  return e;
+}
+var iou = (a, b) => {
+  let i = 0, u = 0;
+  for (let k = 0; k < a.length; k++) {
+    if (a[k] || b[k]) u++;
+    if (a[k] && b[k]) i++;
+  }
+  return u ? i / u : 1;
+};
+function compare(a, b) {
+  let n = 0, s = 0;
+  for (let k = 0; k < N * N; k++) {
+    if (!a.m[k] && !b.m[k]) continue;
+    n++;
+    if (a.m[k] && b.m[k]) {
+      const dist = Math.hypot(a.rgb[k * 3] - b.rgb[k * 3], a.rgb[k * 3 + 1] - b.rgb[k * 3 + 1], a.rgb[k * 3 + 2] - b.rgb[k * 3 + 2]);
+      s += clamp012(1 - dist / 160);
+    }
+  }
+  const color = n ? s / n : 1;
+  const struct = 0.5 * iou(a.m, b.m) + 0.5 * iou(edges(a), edges(b));
+  return Math.max(color, 0.92 * struct);
+}
+function similarity(fa, fb) {
+  const a = decode2(fa), b = decode2(fb), bm = decode2(fb, true);
+  if (!a || !b || !bm) return 0;
+  if (!a.m.some(Boolean) || !b.m.some(Boolean)) return 0;
+  return Math.round(Math.max(compare(a, b), compare(a, bm)) * 1e3) / 1e3;
+}
+function mostSimilar(fp, refs) {
+  let best = null;
+  for (const r of refs) {
+    if (!r.fp) continue;
+    const sim = similarity(fp, r.fp);
+    if (!best || sim > best.sim) best = { sim, id: r.id, title: r.title, own: r.own };
+  }
+  return best;
+}
+function toB64(u) {
+  let s = "";
+  for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+  return btoa(s);
+}
+function fromB64(s) {
+  try {
+    const b = atob(s);
+    const u = new Uint8Array(b.length);
+    for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    return u;
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
 // src/shared/art.ts
 var blank = (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
 function downsample2x(src) {
@@ -6260,6 +6553,16 @@ async function processPublication(deps2, publicationId, saved, checkpoint = () =
       screening
     }
   });
+  try {
+    const fp = fingerprint(full);
+    const refs = await deps2.db.call("svc_art_fingerprints", { p_publication_id: publicationId }).catch(() => []);
+    const near = mostSimilar(fp, refs ?? []);
+    await deps2.db.call("svc_record_craft", {
+      p_publication_id: publicationId,
+      p_craft: { ...analyzeCraft(full), fingerprint: fp, similar: near && near.sim >= 0.5 ? near : null }
+    });
+  } catch {
+  }
 }
 async function publishPublication(deps2, publicationId, saved, checkpoint = () => {
 }) {

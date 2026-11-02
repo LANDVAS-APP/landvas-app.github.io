@@ -12,6 +12,7 @@ import { invalidateGame } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { Button, ResourceIcon } from '../ui';
 import { GAMES, type GameId } from './games/engines';
+import { AdButton } from '../ads/AdButton';
 
 export const useInkEconomy = (on = true) => useQuery({ queryKey: ['inkborn-economy'], queryFn: api.inkbornEconomy, enabled: on, staleTime: 30_000 });
 
@@ -51,7 +52,8 @@ export function CreatureWork({ c, onChanged, compact }: { c: Inkborn; onChanged?
       <div className="flex items-center gap-2 rounded-2xl bg-white/10 p-2 text-xs" data-testid="job-status">
         <span className="text-lg">{JOB_ICONS[c.job] ?? '🎒'}</span>
         <div className="min-w-0 flex-1"><b>{done ? `${c.name} is back!` : `${c.name} is ${jobLabel(c.job)}`}</b><div className="text-white/60">{done ? 'They brought something back.' : `Back in ${left(c.job_until, now)}`}</div></div>
-        {done && <Button size="sm" variant="rainbow" loading={busy === 'claim'} onClick={() => void run('claim', () => api.inkbornJobClaim(c.id))} data-testid="job-claim">Collect</Button>}
+        {done ? <Button size="sm" variant="rainbow" loading={busy === 'claim'} onClick={() => void run('claim', () => api.inkbornJobClaim(c.id))} data-testid="job-claim">Collect</Button>
+          : <AdButton reward="job_rush" refId={c.id} label="Ad: home now" done={`${c.name} hurried home!`} className="px-2.5 py-1.5 text-[11px]" onDone={() => onChanged?.({ ...c, job_until: new Date().toISOString() })} />}
       </div>
     );
   }
@@ -63,6 +65,7 @@ export function CreatureWork({ c, onChanged, compact }: { c: Inkborn; onChanged?
         <button onClick={() => setPick(pick === 'jobs' ? null : 'jobs')} className={cn('flex items-center justify-center gap-1.5 rounded-2xl py-2 text-xs font-bold', pick === 'jobs' ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20')} data-testid="open-jobs"><Timer className="h-4 w-4" /> Send on a job</button>
         <button onClick={() => setPick(pick === 'games' ? null : 'games')} className={cn('flex items-center justify-center gap-1.5 rounded-2xl py-2 text-xs font-bold', pick === 'games' ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20')} data-testid="open-games"><Gamepad2 className="h-4 w-4" /> Play as {c.name}</button>
       </div>
+      {pick && c.energy < 30 && <AdButton reward="inkborn_energy" refId={c.id} label={`Ad: wake ${c.name} up (+energy)`} done={`${c.name} is full of beans!`} onDone={(r) => onChanged?.({ ...c, energy: Number(r.energy ?? c.energy) })} />}
       {pick === 'jobs' && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="grid gap-1.5">
           {jobs.map(([k, j]) => {
@@ -109,11 +112,14 @@ export function SpringPill({ habitatId, onCollected }: { habitatId: string; onCo
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
   return (
+    <div className="grid justify-items-end gap-1.5">
     <button onClick={collect} disabled={busy} data-testid="spring-pill"
       className={cn('flex items-center gap-2 rounded-2xl px-3 py-1.5 text-xs font-bold', s.ready > 0 ? 'bg-[#6A4CFF]/80 shadow-[0_0_24px_-4px_#8B6CFF]' : 'bg-black/55')}
       title={`${s.happy} happy creature${s.happy === 1 ? '' : 's'} and ${s.springs} Ink Spring${s.springs === 1 ? '' : 's'} make ${s.rate} Ink an hour (fills for up to 12 hours)`}>
       <span>🫧</span>
       <span className="text-left leading-tight">{s.ready > 0 ? <>Collect {s.ready} Ink</> : <>Ink Spring</>}<span className="block text-[10px] font-normal text-white/70">{s.rate} Ink/hour</span></span>
     </button>
+    {s.rate > 0 && s.full_in_hours > 2 && <AdButton reward="spring_boost" refId={habitatId} label="Ad: +2h of Ink" done="The spring bubbles over!" className="px-2.5 py-1.5 text-[11px]" />}
+    </div>
   );
 }

@@ -16,6 +16,7 @@ import { drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
 import { pendingReferral } from '../social/referralStore';
+import { isNative } from '../native/native';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
 function LivingCanvas() {
@@ -143,6 +144,9 @@ export function Welcome() {
     catch (err) { setError(toGameError(err).message); } finally { setBusy(false); }
   };
   const [joined, setJoined] = useState(false);
+  const app = isNative();
+  // the app opens on a game title screen; the account card slides up when you tap Play
+  const [started, setStarted] = useState(!app || !!params.get('mode') || !!invite);
   const [accounts, setAccounts] = useState<{ email: string }[]>([]);
   const formRef = useRef<HTMLElement>(null);
   const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: 60_000 });
@@ -194,6 +198,29 @@ export function Welcome() {
         <LivingCanvas />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,transparent_0%,var(--bg)_72%)]" />
         <div className="gutter relative mx-auto grid min-h-[100dvh] max-w-6xl items-center gap-10 py-10 md:grid-cols-[1.15fr_1fr]">
+          {app ? (
+            <motion.section className="grid justify-items-center pt-[env(safe-area-inset-top,0px)] text-center" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} data-testid="title-screen">
+              <div className="relative animate-[lv-float_3.2s_ease-in-out_infinite]">
+                <div className="absolute -inset-10 rounded-full bg-accent/35 blur-3xl" />
+                <img src="/brand/landvas-multiverse-512.png" alt="" className={started ? 'relative h-20 w-20' : 'relative h-36 w-36 drop-shadow-[0_12px_50px_rgba(123,92,255,0.7)]'} />
+              </div>
+              <h1 className={`relative mt-4 font-display font-black tracking-[0.16em] ${started ? 'text-3xl' : 'text-5xl'}`}>LANDVAS</h1>
+              <p className="relative mt-2 font-display text-lg"><span className="lv-rainbow-anim font-bold">Own a piece. Paint the world.</span></p>
+              {!started && (
+                <div className="mt-10 grid w-full max-w-xs gap-3">
+                  <motion.button whileTap={{ scale: 0.94 }} animate={{ scale: [1, 1.04, 1] }} transition={{ repeat: Infinity, duration: 1.8 }}
+                    onClick={() => { setStarted(true); setTab('signup'); }} data-testid="title-play"
+                    className="h-16 rounded-3xl bg-gradient-to-r from-[#FF4D6D] via-[#7B5CFF] to-[#34C3FF] font-display text-2xl font-black tracking-widest text-white shadow-[0_12px_40px_-10px_#7B5CFF]">PLAY</motion.button>
+                  <button onClick={() => { setStarted(true); setTab('signin'); }} className="h-12 rounded-2xl bg-white/10 font-bold" data-testid="title-signin">I have an account</button>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {([['Artists', stats.data?.players], ['Artworks', stats.data?.artworks], ['Plots', stats.data?.plots]] as const).map(([l, v]) => (
+                      <div key={l} className="lv-stat rounded-2xl px-2 py-2"><div className="font-display text-lg font-bold tnum">{v == null ? '—' : fmt(v)}</div><div className="eyebrow !text-[9px]">{l}</div></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.section>
+          ) : (
           <motion.section className="max-w-xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <Link to="/" aria-label="LANDVAS home"><Wordmark /></Link>
             <h1 className="mt-8 font-display text-[clamp(2.2rem,6vw,4.2rem)] font-bold leading-[1.02]">
@@ -216,7 +243,8 @@ export function Welcome() {
             </ul>
             <button onClick={() => document.getElementById('what')?.scrollIntoView({ behavior: 'smooth' })} className="mt-8 hidden items-center gap-1.5 text-sm font-bold text-muted hover:text-fg md:inline-flex">See everything you can do <ChevronDown className="h-4 w-4 animate-bounce" /></button>
           </motion.section>
-          <motion.section ref={formRef} className="glass relative rounded-[28px] p-6" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.6, delay: 0.15 }}>
+          )}
+          {started && <motion.section ref={formRef} className="glass relative rounded-[28px] p-6" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.6, delay: 0.15 }}>
             <AnimatePresence>
               {joined && (
                 <motion.div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-[28px] bg-bg/95 p-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} data-testid="welcome-joined">
@@ -306,10 +334,11 @@ export function Welcome() {
             <button className="mt-5 w-full text-center text-sm font-semibold text-muted hover:text-fg" onClick={() => { saveStorage('landvas.welcomed', true); nav('/world'); }}>
               Explore the map first →
             </button>
-          </motion.section>
+          </motion.section>}
         </div>
       </div>
 
+      {!app && <>
       <section id="what" className="gutter mx-auto max-w-7xl py-16">
         <div className="mx-auto max-w-2xl text-center">
           <div className="eyebrow">What you can do</div>
@@ -350,6 +379,7 @@ export function Welcome() {
         </div>
       </section>
       <Footer />
+      </>}
       {config.isArtifact && <span className="sr-only">Playable build</span>}
     </div>
   );

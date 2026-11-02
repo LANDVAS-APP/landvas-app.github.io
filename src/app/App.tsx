@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { isNative } from '../native/native';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { getBackend } from '../backend/backend';
@@ -39,6 +40,8 @@ const PvpSandbox = lazy(() => import('../pvp/PvpScreen').then((m) => ({ default:
 
 /** landvas.app: the public homepage (the live map lives at /world). */
 function RootRoute() {
+  // the app opens straight into the game (the website's home page is for visitors)
+  if (isNative()) return <Navigate to={getBackend().session() ? '/world' : '/welcome'} replace />;
   return p(<HomePage />);
 }
 const VisitRoom = lazy(() => import('../visit/VisitRoom'));

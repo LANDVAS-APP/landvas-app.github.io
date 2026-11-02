@@ -17,6 +17,8 @@ import { cn } from '../lib/utils';
 import { qk, useWorld } from '../lib/queries';
 import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from './explorer';
 import { saveStorage } from '../lib/utils';
+import { AdButton } from '../ads/AdButton';
+import { adsSupported } from '../ads/ads';
 
 const R = 54; // knob travel radius (px)
 const SEND_MS = 900;
@@ -198,10 +200,14 @@ export function Joystick({ onClose }: { onClose(): void }) {
               toast.success('Tank refilled', { description: `−${r.cost} Ink · ${r.joystick?.ink_refills_left ?? 0} Ink refill${r.joystick?.ink_refills_left === 1 ? "" : "s"} left today` });
             } catch (e) { toast.error(toGameError(e).message); } finally { setRefilling(false); }
           }} data-testid="joystick-refill-ink"><Fuel className="h-3.5 w-3.5 text-gold" /> Refill · {joy?.refill_ink ?? 50} Ink</button>
-        <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold hover:bg-surface" onClick={() => {
-          if (joy?.ads_enabled) toast('Ads are on their way', { description: 'The ad player will appear here once the ad network is connected.' });
-          else toast('Refill with an ad — coming soon', { description: `Ads aren’t live yet. Your tank also refills for free at ${new Date(joy?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
-        }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>
+        {adsSupported() ? (
+          <AdButton reward="joystick_refill" label="Ad: refill" done="Tank refilled!" className="rounded-xl px-2.5 py-1.5 text-xs" testid="joystick-refill"
+            onDone={() => { void api.myState().then((st) => { if (st.onboarded && st.explorer) useExplorer.getState().set(st.explorer as any); }); }} />
+        ) : (
+          <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold hover:bg-surface" onClick={() => {
+            toast('Refill with an ad in the LANDVAS app', { description: `Bonus ads play in the iOS and Android apps. Your tank also refills for free at ${new Date(joy?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
+          }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>
+        )}
         {gpsWasOn && gpsSupported() && (
           <button className="flex items-center gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ok hover:bg-surface" onClick={() => {
             saveStorage('landvas.gps', true);
