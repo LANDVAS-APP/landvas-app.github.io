@@ -227,6 +227,68 @@ async function drawPlotTile(blocks: PlotBlocks, z: number, x: number, y: number,
   return bmp;
 }
 
+// ---- habitat plots: a little woodland drawn over the plot (above any old artwork) ----------
+const hash = (x: number, y: number, k: number) => {
+  let h = (x * 374761393 + y * 668265263 + k * 2147483647) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+export function drawHabitatPlot(ctx: CanvasRenderingContext2D, gx: number, gy: number, px: number, py: number, cs: number, accent: string) {
+  const gr = ctx.createLinearGradient(px, py, px + cs, py + cs);
+  gr.addColorStop(0, '#6CC463'); gr.addColorStop(1, '#3E9A4C');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = gr; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) return;
+  // a pond on some plots
+  if (hash(gx, gy, 1) < 0.45 && cs >= 10) {
+    const cx = px + cs * (0.3 + hash(gx, gy, 2) * 0.4), cy = py + cs * (0.35 + hash(gx, gy, 3) * 0.3);
+    ctx.fillStyle = '#B9A675'; ctx.beginPath(); ctx.ellipse(cx, cy, cs * 0.2, cs * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3EA0DA'; ctx.beginPath(); ctx.ellipse(cx, cy, cs * 0.17, cs * 0.11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(cx - cs * 0.05, cy - cs * 0.03, cs * 0.05, cs * 0.02, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // flowers
+  if (cs >= 16) for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = ['#FFE14D', '#FF9FCB', '#FFFFFF', '#C6B5FF'][i % 4];
+    ctx.beginPath(); ctx.arc(px + hash(gx, gy, 20 + i) * cs, py + hash(gx, gy, 40 + i) * cs, Math.max(0.8, cs * 0.018), 0, Math.PI * 2); ctx.fill();
+  }
+  // trees, back to front
+  const n = cs >= 24 ? 6 : 3;
+  const trees = Array.from({ length: n }, (_, i) => ({ x: px + cs * (0.08 + hash(gx, gy, 60 + i) * 0.84), y: py + cs * (0.14 + hash(gx, gy, 80 + i) * 0.8), r: cs * (0.07 + hash(gx, gy, 100 + i) * 0.05), k: hash(gx, gy, 120 + i) }))
+    .sort((a, b) => a.y - b.y);
+  for (const t of trees) {
+    ctx.fillStyle = 'rgba(10,40,20,0.3)'; ctx.beginPath(); ctx.ellipse(t.x, t.y + t.r * 0.9, t.r, t.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    if (t.k < 0.5) {
+      ctx.fillStyle = '#1F6B3C'; ctx.beginPath(); ctx.moveTo(t.x - t.r, t.y + t.r * 0.8); ctx.lineTo(t.x, t.y - t.r * 1.6); ctx.lineTo(t.x + t.r, t.y + t.r * 0.8); ctx.fill();
+    } else {
+      ctx.fillStyle = '#2C7A3A'; ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4FA552'; ctx.beginPath(); ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.55, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // a tiny resident at close zoom
+  if (cs >= 40) {
+    const cx = px + cs * 0.62, cy = py + cs * 0.72, r = cs * 0.06;
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.2, r, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1B1530'; ctx.beginPath(); ctx.arc(cx - r * 0.4, cy - r * 0.2, r * 0.18, 0, Math.PI * 2); ctx.arc(cx + r * 0.4, cy - r * 0.2, r * 0.18, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = Math.max(1, cs * 0.02);
+  ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+}
+
+async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number): Promise<ImageBitmap | ArrayBuffer | null> {
+  const shift = GRID_LEVEL - z;
+  if (shift < 0) return null;
+  const gx0 = x << shift, gy0 = y << shift, n = 1 << shift;
+  const bx0 = gx0 >> BLOCK_SHIFT, by0 = gy0 >> BLOCK_SHIFT, bn = Math.max(1, n >> BLOCK_SHIFT);
+  const lists: PlotRow[][] = [];
+  for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
+  const rows = lists.flat().filter((r) => r[11] === 'habitat' && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
+  if (!rows.length) return null;
+  const cs = PX / n;
+  const ctx = ctx2d();
+  for (const r of rows) drawHabitatPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs, r[8] || '#7B5CFF');
+  return snapshot(canvas!);
+}
+
 // every grid tile at a zoom looks the same (plots line up with tiles), so draw it once per zoom
 const gridImages = new Map<number, Promise<ImageBitmap | ArrayBuffer>>();
 function gridTile(z: number): Promise<ImageBitmap | ArrayBuffer> | null {
@@ -275,6 +337,16 @@ export function registerPlotProtocols(blocks: PlotBlocks, opts: () => PlotTileOp
     try {
       const t0 = performance.now();
       const img = await drawPlotTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]), opts(), t0);
+      return { data: (img ?? new ArrayBuffer(0)) as any };
+    } catch {
+      return { data: new ArrayBuffer(0) };
+    }
+  });
+  addProtocol('lvhab', async (params) => {
+    const m = /^lvhab:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
+    if (!m) return { data: new ArrayBuffer(0) };
+    try {
+      const img = await drawHabitatTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]));
       return { data: (img ?? new ArrayBuffer(0)) as any };
     } catch {
       return { data: new ArrayBuffer(0) };

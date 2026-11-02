@@ -149,7 +149,7 @@ export type PlotDetails = {
 };
 
 /** Compact row from plots_in_bbox: [gx, gy, type, level, is_mine, group_id, has_art, username, accent, rarity, name] */
-export type PlotRow = [number, number, PlotTypeId, number, boolean | null, string | null, boolean, string | null, string | null, RarityId, (string | null)?];
+export type PlotRow = [number, number, PlotTypeId, number, boolean | null, string | null, boolean, string | null, string | null, RarityId, (string | null)?, PlotKind?];
 
 /** One row of the public players directory. */
 export type DirectoryPlayer = {
@@ -210,6 +210,8 @@ export type Referrals = {
 export type GroupCell = [number, number, PlotTypeId, number, boolean];
 export type CanvasGroup = {
   id: string;
+  kind?: PlotKind;
+  habitat_id?: string | null;
   name: string;
   status: string;
   plot_count: number;
@@ -397,4 +399,22 @@ export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
+};
+
+// ---- Inkborn ----
+export type PlotKind = 'canvas' | 'habitat';
+export type Inkborn = {
+  id: string; name: string; source: 'drawn' | 'random' | 'custom'; genome: import('../inkborn/genome').Genome; personality: string;
+  habitat_id: string | null; bond: number; happiness: number; energy: number; created_at: string; mine: boolean;
+  portrait_status: 'none' | 'unconfigured' | 'queued' | 'ready' | 'failed'; portrait_path: string | null;
+  drawing?: import('../shared/strokes').Stroke[] | null; last_fed: string | null; last_played: string | null;
+};
+export type Decor = { id: string; k: string; x: number; y: number; f?: 0 | 1 };
+export type Habitat = {
+  id: string; kind: 'starter' | 'plot'; biome: 'woodland'; seed: number; layout: Decor[]; layout_rev: number; owner: Profile; is_owner: boolean;
+  group_id: string | null; name: string; plots: number; capacity: number; active: boolean; cells: [number, number][]; creatures: Inkborn[];
+};
+export type Sanctuaries = {
+  habitats: { id: string; kind: 'starter' | 'plot'; group_id: string | null; plots: number; capacity: number; creatures: number; name: string }[];
+  creatures: Inkborn[]; starter_id: string; max_creatures: number; ai_portraits: boolean;
 };

@@ -5,7 +5,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
@@ -50,6 +50,8 @@ export default function EditorScreen() {
   const huge = (group.data?.plot_count ?? 0) > EDITOR_MAX_PLOTS;
   const bundle = useQuery({ queryKey: ['huge-bundle', group.data?.project_id], queryFn: () => api.getProject(group.data!.project_id!), enabled: huge && !!group.data?.project_id });
   if (!group.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
+  // an Inkborn Habitat isn't painted — it's a sanctuary (its artwork is kept for when it's a canvas again)
+  if (group.data.kind === 'habitat' && group.data.habitat_id) return <Navigate to={`/habitat/${group.data.habitat_id}`} replace />;
   if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
   return <PaintEditor />;
 }

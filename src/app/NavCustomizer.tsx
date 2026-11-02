@@ -1,4 +1,4 @@
-// Pick and order the four tabs in the phone's bottom bar (Me is always last).
+// Pick and order the tabs in the phone's bottom bar (Me is always last).
 import { motion } from 'motion/react';
 import { ArrowDown, ArrowUp, Check, Plus, RotateCcw } from 'lucide-react';
 import { useUi } from '../lib/store';

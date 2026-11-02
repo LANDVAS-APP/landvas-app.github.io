@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { PlotKindControl } from '../inkborn/PlotKindPicker';
 import { Brush, Combine, LayoutGrid, MapPin, Pencil } from 'lucide-react';
 import { touchingGroups } from '../plot/MergeBar';
 import { useEffect, useState } from 'react';
@@ -92,9 +93,12 @@ export default function CanvasesScreen() {
                     <button className="flex items-center gap-1.5 text-left font-bold hover:underline" onClick={() => setRenaming({ id: g.id, name: g.name })}>{g.name} <Pencil className="h-3 w-3 text-faint" /></button>
                   )}
                   <div className="text-xs text-muted">{g.plot_count} plot{g.plot_count === 1 ? '' : 's'} · {g.max_gx - g.min_gx + 1}×{g.max_gy - g.min_gy + 1} · edited {timeAgo(g.project?.updated_at ?? g.updated_at)}</div>
+                  <PlotKindControl g={g} className="mt-1" />
                   {st && <div className={cn('mt-1 text-xs font-semibold', st.cls)}>{st.label}{pub?.decision_reason ? ` — ${pub.decision_reason}` : ''}</div>}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" variant="primary" onClick={() => nav(`/create/${g.id}`)}><Brush className="h-4 w-4" /> Paint</Button>
+                    {g.kind === 'habitat' && g.habitat_id
+                      ? <Button size="sm" variant="primary" onClick={() => nav(`/habitat/${g.habitat_id}`)}>🐾 Enter sanctuary</Button>
+                      : <Button size="sm" variant="primary" onClick={() => nav(`/create/${g.id}`)}><Brush className="h-4 w-4" /> Paint</Button>}
                     <Button size="sm" variant="ghost" onClick={() => {
                       const [gx, gy] = g.cells[0];
                       const [lng, lat] = cellCenter(gx, gy);

@@ -28,6 +28,7 @@ maplibregl.setWorkerUrl(workerUrl);
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 const ART_TILES = (gen: number) => [`lvart://{z}/{x}/{y}?g=${gen}`];
 const PLOT_TILES = (gen: number) => [`lvplots://{z}/{x}/{y}?g=${gen}`];
+const HAB_TILES = (gen: number) => [`lvhab://{z}/{x}/{y}?g=${gen}`];
 const NAMES_MIN_ZOOM = GRID_LEVEL - 1.8;
 // phones with 3x screens draw at 2x: a third of the pixels to fill, the same look
 const PIXEL_RATIO = Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2);
@@ -206,6 +207,7 @@ export function WorldMap() {
     if (!m?.getSource('lv-plots')) return;
     plotGenRef.current++;
     (m.getSource('lv-plots') as RasterTileSource).setTiles(PLOT_TILES(plotGenRef.current));
+    (m.getSource('lv-habitats') as RasterTileSource | undefined)?.setTiles(HAB_TILES(plotGenRef.current));
   }
 
   // Plots, their outlines and the grid are image tiles (see plotTiles.ts) that MapLibre
@@ -421,7 +423,7 @@ export function WorldMap() {
   const ownKey = useRef('');
   useEffect(() => {
     if (!ready || !groups.data) return;
-    const k = groups.data.map((g) => `${g.id}:${g.status}:${g.plot_count}:${g.cells.length}`).sort().join('|');
+    const k = groups.data.map((g) => `${g.id}:${g.status}:${g.plot_count}:${g.cells.length}:${g.kind ?? 'canvas'}`).sort().join('|');
     if (ownKey.current && ownKey.current !== k) {
       for (const g of groups.data) for (const [gx, gy] of g.cells) plotBlocks.invalidate(gx, gy, gx, gy);
       redrawPlots();
@@ -512,6 +514,7 @@ function addLayers(map: MLMap, glyphs: boolean) {
   // the plot grid and owned plots are image tiles drawn on the device (plotTiles.ts)
   map.addSource('lv-gridtiles', { type: 'raster', tiles: ['lvgrid://{z}/{x}/{y}'], tileSize: 256, minzoom: Math.floor(GRIDLINES_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-plots', { type: 'raster', tiles: PLOT_TILES(1), tileSize: 256, minzoom: Math.floor(PLOTS_MIN_ZOOM), maxzoom: GRID_LEVEL });
+  map.addSource('lv-habitats', { type: 'raster', tiles: HAB_TILES(1), tileSize: 256, minzoom: Math.floor(PLOTS_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-art', { type: 'raster', tiles: ART_TILES(1), tileSize: 256, minzoom: ART_MIN_ZOOM, maxzoom: ART_MAX_ZOOM });
   map.addSource('lv-groups', { type: 'geojson', data: EMPTY });
   map.addSource('lv-reach', { type: 'geojson', data: EMPTY });
@@ -541,6 +544,8 @@ function addLayers(map: MLMap, glyphs: boolean) {
   map.addLayer({ id: 'lv-reach-fill', type: 'fill', source: 'lv-reach', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.06 } });
   // published art sits above every territory overlay: it is shown exactly as it was painted
   map.addLayer({ id: 'lv-art', type: 'raster', source: 'lv-art', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest', 'raster-opacity': 1 } });
+  // Inkborn Habitat plots: a miniature woodland drawn over the plot (any old artwork stays saved underneath)
+  map.addLayer({ id: 'lv-habitats', type: 'raster', source: 'lv-habitats', minzoom: PLOTS_MIN_ZOOM, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
   map.addLayer({ id: 'lv-reach-line', type: 'line', source: 'lv-reach', paint: { 'line-color': '#FFFFFF', 'line-width': 1.6, 'line-opacity': 0.7, 'line-dasharray': [2, 2] } });
   map.addLayer({ id: 'lv-route', type: 'line', source: 'lv-route', paint: { 'line-color': '#FFE14D', 'line-width': 3, 'line-opacity': 0.85, 'line-dasharray': [1, 1.6] } });
   map.addLayer({ id: 'lv-hover', type: 'line', source: 'lv-hover', paint: { 'line-color': '#ffffff', 'line-width': 1.5, 'line-opacity': 0.75 } });

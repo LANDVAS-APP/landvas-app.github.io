@@ -27,7 +27,8 @@ describe('plot_blocks', () => {
     const x0 = (HOME.gx >> 6) << 6, y0 = (HOME.gy >> 6) << 6;
     const bbox = await db.rpc(a, 'plots_in_bbox', { p_min_gx: x0, p_min_gy: y0, p_max_gx: x0 + 63, p_max_gy: y0 + 63 });
     const sort = (r: any[]) => [...r].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
-    expect(sort(blocks[k])).toEqual(sort(bbox));
+    expect(sort(blocks[k].map((r: any[]) => r.slice(0, 11)))).toEqual(sort(bbox));
+    expect(blocks[k].every((r: any[]) => r[11] === "canvas")).toBe(true); // plot kind (v0.22)
     const mine = blocks[k].find((r: any) => r[0] === HOME.gx);
     const theirs = blocks[k].find((r: any) => r[0] === HOME.gx + 3);
     expect(mine[4]).toBe(true);

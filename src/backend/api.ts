@@ -143,6 +143,18 @@ export const api = {
   myGroups: () => rpc<CanvasGroup[]>('my_groups'),
   // creative games
   myStreak: () => rpc<import('./types').Streak>('my_streak'),
+  // Inkborn
+  setGroupKind: (groupId: string, kind: import('./types').PlotKind) => rpc<CanvasGroup>('set_group_kind', { p_group_id: groupId, p_kind: kind }),
+  mySanctuaries: () => rpc<import('./types').Sanctuaries>('my_sanctuaries'),
+  habitatGet: (id: string | null) => rpc<import('./types').Habitat>('habitat_get', { p_id: id }),
+  habitatForPlot: (gx: number, gy: number) => rpc<{ habitat_id: string; name: string; owner: Profile; plots: number; creatures: number } | null>('habitat_for_plot', { p_gx: gx, p_gy: gy }),
+  habitatSaveLayout: (id: string, layout: import('./types').Decor[], rev: number) => rpc<import('./types').Habitat>('habitat_save_layout', { p_id: id, p_layout: layout, p_rev: rev }),
+  inkbornCreate: (a: { clientKey: string; name: string; source: 'drawn' | 'random' | 'custom'; genome: unknown; drawing: unknown; habitatId?: string | null }) =>
+    rpc<import('./types').Inkborn>('inkborn_create', { p_client_key: a.clientKey, p_name: a.name, p_source: a.source, p_genome: a.genome, p_drawing: a.drawing ?? null, p_habitat_id: a.habitatId ?? null }),
+  inkbornUpdate: (id: string, name: string | null, genome: unknown | null) => rpc<import('./types').Inkborn>('inkborn_update', { p_id: id, p_name: name, p_genome: genome }),
+  inkbornMove: (id: string, habitatId: string) => rpc<import('./types').Inkborn>('inkborn_move', { p_id: id, p_habitat_id: habitatId }),
+  inkbornCare: (id: string, action: 'pet' | 'feed' | 'play') => rpc<import('./types').Inkborn & { reaction: string; bond_gain: number }>('inkborn_care', { p_id: id, p_action: action }),
+  inkbornRelease: (id: string) => rpc('inkborn_release', { p_id: id }),
   myAlerts: (limit = 50) => rpc<{ unread: number; items: import('./types').Alert[] }>('my_alerts', { p_limit: limit }),
   alertsUnread: () => rpc<number>('alerts_unread'),
   markAlertsRead: () => rpc<number>('mark_alerts_read'),

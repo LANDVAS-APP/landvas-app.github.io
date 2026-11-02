@@ -48,6 +48,9 @@ const ExplorerScreen = lazy(() => import('../explorer/ExplorerScreen'));
 const SketchScreen = lazy(() => import('../creative/SketchScreen'));
 const DoodleScreen = lazy(() => import('../creative/DoodleScreen'));
 const DuetScreen = lazy(() => import('../creative/DuetScreen'));
+const InkbornHub = lazy(() => import('../inkborn/Hub'));
+const InkbornStudio = lazy(() => import('../inkborn/Studio'));
+const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -87,7 +90,7 @@ function OnboardingGate() {
 
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest map art'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
-  [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
+  [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
@@ -135,6 +138,8 @@ const routes: RouteObject[] = [
       { path: '/onboarding', element: <Onboarding /> },
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },
+      { path: '/habitat', element: player(<Sanctuary />) },
+      { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
       { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },
       {
@@ -165,6 +170,9 @@ const routes: RouteObject[] = [
           { path: '/sketch/:id', element: p(<SketchScreen />) },
           { path: '/doodle', element: player(<DoodleScreen />) },
           { path: '/duet', element: player(<DuetScreen />) },
+          { path: '/inkborn', element: player(<InkbornHub />) },
+          { path: '/inkborn/create', element: player(<InkbornStudio />) },
+          { path: '/inkborn/edit/:id', element: player(<InkbornStudio />) },
           { path: '/duet/:id', element: p(<DuetScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },

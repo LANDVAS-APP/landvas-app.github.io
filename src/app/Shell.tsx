@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -18,6 +18,9 @@ export const SECTIONS = [
     { to: '/canvases', label: 'My canvases' }, { to: '/challenges', label: 'Challenges' }, { to: '/sketch', label: 'Sketch of the Day' },
     { to: '/duet', label: 'Duets' }, { to: '/inventory', label: 'Studio & shop' },
   ] },
+  { to: '/inkborn', label: 'Inkborn', icon: PawPrint, pages: [
+    { to: '/inkborn', label: 'My creatures' }, { to: '/inkborn/create', label: 'Create an Inkborn' }, { to: '/habitat', label: 'Sanctuary' },
+  ] },
   { to: '/play', label: 'Play & Earn', icon: Gamepad2, pages: [
     { to: '/play', label: 'Play & Earn' }, { to: '/pvp', label: 'PvP' }, { to: '/doodle', label: 'Draw & Guess' }, { to: '/events', label: 'Events' }, { to: '/leaderboards', label: 'Ranks' },
   ] },
@@ -35,9 +38,9 @@ function sectionOf(path: string) {
   return SECTIONS.find((s) => under(path, s.to) || s.pages.some((p) => under(path, p.to))) ?? null;
 }
 
-// the phone tab bar: four tabs the player picks (Settings → Phone navigation), then Me
-export const DEFAULT_TABS = ['/world', '/canvases', '/play', '/social'];
-export const MAX_TABS = 4;
+// the phone tab bar: five tabs the player picks (Settings → Phone navigation), then Me
+export const DEFAULT_TABS = ['/world', '/canvases', '/inkborn', '/play', '/social'];
+export const MAX_TABS = 5;
 /** Everything that can sit in the phone tab bar: the sections, or a favourite page. */
 export const TAB_CHOICES = [
   ...SECTIONS.map(({ to, label, icon }) => ({ to, label, icon })),

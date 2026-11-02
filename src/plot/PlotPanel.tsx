@@ -21,6 +21,9 @@ import { formatRate } from '../shared/rent';
 import { plotMetres } from '../shared/grid';
 import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
+import { PlotKindControl } from '../inkborn/PlotKindPicker';
+
+const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -116,6 +119,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
               <span className="text-xs text-muted">Level {d.level}</span>
             </Link>
           )}
+          {d.owned && !d.is_mine && <HabitatVisit d={d} />}
           {d.is_mine && <MineBlock d={d} />}
         </div>
       )}
@@ -352,11 +356,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
       toast.success('Plot detached into its own canvas');
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  const hab = useHabitatAt(d.gx, d.gy, true).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : 'canvas', habitat_id: hab?.habitat_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="primary" onClick={() => d.group && nav(`/create/${d.group.id}`)} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>
+        {hab ? <Button variant="primary" onClick={() => nav(`/habitat/${hab.habitat_id}`)} data-testid="open-habitat">🐾 Enter sanctuary</Button>
+          : <Button variant="primary" onClick={() => d.group && nav(`/create/${d.group.id}`)} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>
       {d.group && d.group.plot_count > 1 && (
@@ -393,6 +400,21 @@ function UpgradeRow({ title, desc, cost, busy, onClick, balances }: { title: str
         <Button size="sm" variant={afford ? 'primary' : 'secondary'} disabled={!afford} loading={busy} onClick={onClick}><Cost cost={cost} /></Button>
       ) : <span className="text-xs font-bold text-faint">MAX</span>}
     </div>
+  );
+}
+
+function HabitatVisit({ d }: { d: PlotDetails }) {
+  const hab = useHabitatAt(d.gx, d.gy, true).data;
+  if (!hab) return null;
+  return (
+    <Link to={`/habitat/${hab.habitat_id}`} className="flex items-center gap-3 rounded-2xl border border-[#3DDC97]/40 bg-[#3DDC97]/10 p-3 hover:border-[#3DDC97]" data-testid="visit-habitat">
+      <span className="text-2xl">🌳</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">Inkborn Habitat</div>
+        <div className="truncate text-sm font-semibold">{hab.name} · 🐾 {hab.creatures} creature{hab.creatures === 1 ? '' : 's'}</div>
+      </div>
+      <span className="text-xs font-bold text-[#3DDC97]">Visit →</span>
+    </Link>
   );
 }
 

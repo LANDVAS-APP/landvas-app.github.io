@@ -1,7 +1,7 @@
 // The new-player tutorial: a short, skippable walk through what you can do. "Show me" jumps
 // to the screen and shrinks the tour to a pill so the player can look around, then carry on.
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Brush, CircleDollarSign, Gamepad2, Gift, Map, MapPinned, Sparkles, Trophy, Wand2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brush, CircleDollarSign, Gamepad2, Gift, Map, MapPinned, PawPrint, Sparkles, Trophy, Wand2, X } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
@@ -18,6 +18,7 @@ const STEPS: Step[] = [
   { icon: MapPinned, color: '#34C3FF', title: 'Claim 4 free plots', body: 'Your explorer stands on the real map. Tap plots inside the dashed square around it — your first 4 are free. Each one’s rarity is a surprise!', to: '/world', cta: 'Show me the map' },
   { icon: Gamepad2, color: '#3DDC97', title: 'Win Ink with minigames', body: 'Every plot hides one of eight minigames. Clear its rounds to earn Ink — the currency that buys the plots next door. Rarer plots pay more.', to: '/play', cta: 'Show me the games' },
   { icon: Brush, color: '#FF4D6D', title: 'Paint it your way', body: 'Open a canvas and use the Create tab: idea prompts, ready-made palettes, shade ramps, trace guides and a free mirror. Careful, original work earns a craft bonus.', to: '/canvases', cta: 'Show me my canvases' },
+  { icon: PawPrint, color: '#3DDC97', title: 'Raise an Inkborn', body: 'Draw any creature and watch it come alive, then pet, feed and play with it in your own woodland sanctuary. Every player gets a free one — and any plot can become a habitat.', to: '/inkborn', cta: 'Show me Inkborn' },
   { icon: Wand2, color: '#FF9F1C', title: 'Grow a mural', body: 'Buy neighbouring plots and merge them into one canvas you can paint across. Bigger murals earn bigger craft bonuses — merging costs a little Ink per plot.' },
   { icon: CircleDollarSign, color: '#22C7B5', title: 'Rent every second', body: 'Your land earns USD rent around the clock. Hit the 20× boost once a day — daily limits reset every evening.' },
   { icon: Trophy, color: '#FFE14D', title: 'More ways to earn', body: 'Spin the daily wheel, check in at other players’ rooms, enter weekly challenges and battle in free PvP minigames.', to: '/pvp', cta: 'Show me PvP' },
