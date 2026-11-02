@@ -88,7 +88,7 @@ export function Tour() {
           </div>
           {step > 0 && <Button size="sm" variant="ghost" onClick={() => set({ step: step - 1 })} aria-label="Back"><ArrowLeft className="h-4 w-4" /></Button>}
           <Button variant={last ? 'rainbow' : 'primary'} onClick={() => (last ? finish(true) : set({ step: step + 1 }))} data-testid="tour-next">
-            {last ? 'Let’s paint!' : step === 0 ? 'Show me around' : 'Next'} <ArrowRight className="h-4 w-4" />
+            {last ? 'Let’s play!' : step === 0 ? 'Show me around' : 'Next'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </motion.div>

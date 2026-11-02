@@ -130,7 +130,7 @@ export default function PlayEarn() {
         <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
           {tab === 'mine' ? <MyCreations /> : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid={`earn-cards-${tab}`}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid={`earn-cards-${tab}`}>
                 {cards[tab].map((c, i) => <EarnCard key={c.key} c={c} i={i} />)}
               </div>
               {tab === 'games' && <div className="mt-6"><h2 className="mb-2 font-display text-lg font-semibold">Your plots’ minigames</h2><MinigameGrid /></div>}

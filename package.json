@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "LANDVAS — Own a piece. Paint the world. Multiplayer map-based art and territory game.",
+  "description": "LANDVAS — Own a piece. Play it your way. A multiplayer world-map game for every playstyle.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

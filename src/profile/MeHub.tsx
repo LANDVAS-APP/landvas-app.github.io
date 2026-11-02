@@ -38,7 +38,7 @@ export default function MeHub() {
     { to: `/u/${p.username}/room`, label: 'My room', icon: DoorOpen, hint: 'What visitors see' },
     { to: '/social', label: 'Social', icon: MessagesSquare, hint: 'Feed, chat, friends' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
-    { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top landholders & artists' },
+    { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top players' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },
     { to: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Theme, GPS, tabs, account' },
     { to: '/pvp', label: 'PvP minigames', icon: Gamepad2, hint: 'Free head-to-head games' },

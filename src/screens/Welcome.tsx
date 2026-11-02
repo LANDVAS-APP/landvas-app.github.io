@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, Brush, Check, ChevronDown, CircleDollarSign, Eye, EyeOff, Gamepad2, Gift, Lightbulb, Mail, MapPinned, PartyPopper, Swords, Trophy, Users, Wand2 } from 'lucide-react';
+import { ArrowRight, Brush, Check, ChevronDown, CircleDollarSign, Eye, EyeOff, Gamepad2, Gift, Lightbulb, Mail, MapPinned, PartyPopper, PawPrint, Swords, Trophy, Users, Wand2 } from 'lucide-react';
 import { api } from '../backend/api';
 import { ArtMarquee, Earnings, HowItWorks, Minigames, Social, Footer } from '../home/HomePage';
 import { FAQ } from '../home/faq';
@@ -17,6 +17,7 @@ import type { PlotTypeId } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
 import { pendingReferral } from '../social/referralStore';
 import { isNative } from '../native/native';
+import { PITCH, PLAYSTYLES, TAGLINE, TAGLINE_TEXT } from '../brand';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
 function LivingCanvas() {
@@ -99,7 +100,8 @@ const FEATURES = [
   { icon: Brush, color: '#FF4D6D', title: 'Paint with helpers', text: 'Brushes, layers and mirror mode, plus idea prompts, ready-made palettes, shade ramps and trace guides.' },
   { icon: Gamepad2, color: '#3DDC97', title: 'Eight minigames', text: 'Each plot hides a game. Clear rounds to earn Ink — the currency that buys the plots next door.' },
   { icon: Swords, color: '#FF9F1C', title: 'PvP minigames', text: 'Free head-to-head rounds against anonymous rivals for bonus Ink.' },
-  { icon: Wand2, color: '#7B5CFF', title: 'Murals across plots', text: 'Merge neighbouring plots and paint one continuous mural — up to thousands of plots wide.' },
+  { icon: PawPrint, color: '#3DDC97', title: 'Raise Inkborn', text: 'Draw a creature and it comes alive. Raise it in a woodland sanctuary, send it on jobs, and play games as it.' },
+  { icon: Wand2, color: '#7B5CFF', title: 'Grow your territory', text: 'Merge neighbouring plots into one giant mural or sanctuary — up to thousands of plots wide.' },
   { icon: CircleDollarSign, color: '#22C7B5', title: 'Rent every second', text: 'Your land earns USD rent around the clock. Boost it 20× once a day.' },
   { icon: Trophy, color: '#FFE14D', title: 'Daily wheel & challenges', text: 'Spin daily, enter weekly themed challenges, get featured, and earn for original craft.' },
   { icon: Users, color: '#FF4FD8', title: 'Friends pay off', text: 'Invite friends for an Ink bonus — and a share of what they earn while they play.' },
@@ -205,15 +207,16 @@ export function Welcome() {
                 <img src="/brand/landvas-multiverse-512.png" alt="" className={started ? 'relative h-20 w-20' : 'relative h-36 w-36 drop-shadow-[0_12px_50px_rgba(123,92,255,0.7)]'} />
               </div>
               <h1 className={`relative mt-4 font-display font-black tracking-[0.16em] ${started ? 'text-3xl' : 'text-5xl'}`}>LANDVAS</h1>
-              <p className="relative mt-2 font-display text-lg"><span className="lv-rainbow-anim font-bold">Own a piece. Paint the world.</span></p>
+              <p className="relative mt-2 font-display text-lg"><span className="lv-rainbow-anim font-bold">{TAGLINE_TEXT}</span></p>
+              {!started && <PlaystyleChips className="mt-5 justify-center" />}
               {!started && (
-                <div className="mt-10 grid w-full max-w-xs gap-3">
+                <div className="mt-8 grid w-full max-w-xs gap-3">
                   <motion.button whileTap={{ scale: 0.94 }} animate={{ scale: [1, 1.04, 1] }} transition={{ repeat: Infinity, duration: 1.8 }}
                     onClick={() => { setStarted(true); setTab('signup'); }} data-testid="title-play"
                     className="h-16 rounded-3xl bg-gradient-to-r from-[#FF4D6D] via-[#7B5CFF] to-[#34C3FF] font-display text-2xl font-black tracking-widest text-white shadow-[0_12px_40px_-10px_#7B5CFF]">PLAY</motion.button>
                   <button onClick={() => { setStarted(true); setTab('signin'); }} className="h-12 rounded-2xl bg-white/10 font-bold" data-testid="title-signin">I have an account</button>
                   <div className="mt-2 grid grid-cols-3 gap-2">
-                    {([['Artists', stats.data?.players], ['Artworks', stats.data?.artworks], ['Plots', stats.data?.plots]] as const).map(([l, v]) => (
+                    {([['Players', stats.data?.players], ['Artworks', stats.data?.artworks], ['Plots', stats.data?.plots]] as const).map(([l, v]) => (
                       <div key={l} className="lv-stat rounded-2xl px-2 py-2"><div className="font-display text-lg font-bold tnum">{v == null ? '—' : fmt(v)}</div><div className="eyebrow !text-[9px]">{l}</div></div>
                     ))}
                   </div>
@@ -224,15 +227,15 @@ export function Welcome() {
           <motion.section className="max-w-xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <Link to="/" aria-label="LANDVAS home"><Wordmark /></Link>
             <h1 className="mt-8 font-display text-[clamp(2.2rem,6vw,4.2rem)] font-bold leading-[1.02]">
-              Own a piece.
+              {TAGLINE[0]}
               <br />
-              <span className="lv-rainbow-anim">Paint the world.</span>
+              <span className="lv-rainbow-anim">{TAGLINE[1]}</span>
             </h1>
             <p className="mt-5 max-w-md text-[17px] text-muted">
-              The planet is split into house-sized plots. Claim one for free, paint it, play its minigame for Ink, then grow it into a mural the whole world sees on the live map.
+              {PITCH}
             </p>
             <div className="mt-6 grid max-w-md grid-cols-3 gap-2" data-testid="welcome-stats">
-              {([['Artists', stats.data?.players], ['Artworks', stats.data?.artworks], ['Plots claimed', stats.data?.plots]] as const).map(([l, v]) => (
+              {([['Players', stats.data?.players], ['Artworks', stats.data?.artworks], ['Plots claimed', stats.data?.plots]] as const).map(([l, v]) => (
                 <div key={l} className="lv-stat rounded-2xl px-3 py-2.5"><div className="font-display text-xl font-bold tnum">{v == null ? '—' : fmt(v)}</div><div className="eyebrow !text-[10px]">{l}</div></div>
               ))}
             </div>
@@ -241,6 +244,7 @@ export function Welcome() {
                 <motion.li key={t} className="flex items-center gap-2" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.12 }}><Check className="h-4 w-4 text-ok" /> {t}</motion.li>
               ))}
             </ul>
+            <PlaystyleChips className="mt-6" />
             <button onClick={() => document.getElementById('what')?.scrollIntoView({ behavior: 'smooth' })} className="mt-8 hidden items-center gap-1.5 text-sm font-bold text-muted hover:text-fg md:inline-flex">See everything you can do <ChevronDown className="h-4 w-4 animate-bounce" /></button>
           </motion.section>
           )}
@@ -251,7 +255,7 @@ export function Welcome() {
                   <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}
                     className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_0_60px_-10px_var(--accent)]"><PartyPopper className="h-10 w-10" /></motion.div>
                   <div className="font-display text-2xl font-bold">Welcome to LANDVAS!</div>
-                  <p className="text-sm text-muted">Your artist account is ready. Next: pick a name and your look.</p>
+                  <p className="text-sm text-muted">Your account is ready. Next: pick a name and your look.</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -302,7 +306,7 @@ export function Welcome() {
               {notice && <p className="rounded-xl border border-line bg-surface/70 p-3 text-sm">{notice}</p>}
               <motion.div whileTap={{ scale: 0.98 }}>
                 <Button variant="primary" size="lg" className="w-full" loading={busy} type="submit">
-                  {tab === 'signup' ? 'Create my artist account' : 'Sign in'} <ArrowRight className="h-4 w-4" />
+                  {tab === 'signup' ? 'Create my account' : 'Sign in'} <ArrowRight className="h-4 w-4" />
                 </Button>
               </motion.div>
               {b.sendMagicLink && tab === 'signin' && (
@@ -343,6 +347,7 @@ export function Welcome() {
         <div className="mx-auto max-w-2xl text-center">
           <div className="eyebrow">What you can do</div>
           <h2 className="mt-2 font-display text-3xl font-bold md:text-5xl">One map. Endless ways to play.</h2>
+          <p className="mx-auto mt-3 max-w-xl text-muted">Painter, creature keeper, explorer, competitor, builder or collector — every playstyle has a home on the same living map.</p>
         </div>
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f, i) => (
@@ -381,6 +386,20 @@ export function Welcome() {
       <Footer />
       </>}
       {config.isArtifact && <span className="sr-only">Playable build</span>}
+    </div>
+  );
+}
+
+/** Every way to play, at a glance. */
+export function PlaystyleChips({ className }: { className?: string }) {
+  return (
+    <div className={`flex flex-wrap gap-1.5 ${className ?? ''}`} data-testid="playstyles">
+      {PLAYSTYLES.map((p, i) => (
+        <motion.span key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + i * 0.07 }}
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `${p.color}22`, color: p.color, boxShadow: `inset 0 0 0 1px ${p.color}55` }}>
+          {p.emoji} {p.title}
+        </motion.span>
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // Homepage FAQ. Also emitted as FAQPage structured data in index.html, so keep the
 // two in sync (scripts/check-seo is not needed: the text below is the source).
 export const FAQ: { q: string; a: string }[] = [
-  { q: 'What is LANDVAS?', a: 'LANDVAS is a free map-based art game. The real world is divided into 4.3 billion house-sized plots. You claim plots near you, paint pixel art and murals on them that every player sees on the live world map, play minigames to earn Ink, and your land earns USD rent every second.' },
+  { q: 'What is LANDVAS?', a: 'LANDVAS is a free world-map game you play your way. The real world is divided into 4.3 billion house-sized plots. Claim the plots near you, then make them anything: paint murals every player sees on the live map, turn them into sanctuaries for creatures you design, battle in minigames and PvP, collect art, or grow a territory that earns USD rent every second.' },
   { q: 'Is LANDVAS free to play?', a: 'Yes. Your first 4 plots are free, and everything else is earned by playing: win minigames for Ink, invite friends, and convert your rent into Ink. Ink can’t be bought with money.' },
   { q: 'How do plots earn money?', a: 'Every plot you own earns USD rent each second at a rate set by its rarity — Common, Rare, Epic, Legendary or Mythic. A free daily boost multiplies all your rent by 20× for a while, and plot upgrades add +1% per level. Rates can change and rent is a game reward, not an investment.' },
   { q: 'Can I cash out my rent?', a: 'Cash-out isn’t available yet. Until it is, you can convert rent into Ink at $1 = 100 Ink, starting from just $0.01, and spend it on more plots, art tools and explorer outfits.' },

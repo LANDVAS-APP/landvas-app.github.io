@@ -93,7 +93,7 @@ function OnboardingGate() {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest map art'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
@@ -103,7 +103,7 @@ function RouteMeta() {
   useEffect(() => {
     const path = loc.pathname;
     const t = TITLES.find(([re]) => re.test(path))?.[1];
-    if (path !== '/') document.title = t ? `${t} · LANDVAS` : 'LANDVAS — Own a piece. Paint the world.';
+    if (path !== '/') document.title = t ? `${t} · LANDVAS` : 'LANDVAS — Own a piece. Play it your way.';
     const url = `https://landvas.app${path === '/' ? '/' : path}`;
     document.querySelector('link[rel=canonical]')?.setAttribute('href', url);
     document.querySelector('meta[property="og:url"]')?.setAttribute('content', url);

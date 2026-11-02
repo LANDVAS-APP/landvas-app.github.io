@@ -92,7 +92,7 @@ export function Onboarding() {
           <motion.div className="h-full rounded-full bg-gradient-to-r from-accent via-gold to-accent-2" animate={{ width: `${10 + progress * 45}%` }} transition={{ type: 'spring', stiffness: 120, damping: 18 }} />
         </div>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="eyebrow">Step 1 of 2 · Your artist identity</div>
+          <div className="eyebrow">Step 1 of 2 · Your player identity</div>
           <h1 className="mt-2 font-display text-3xl font-bold">Sign your work</h1>
           <p className="mt-2 text-muted">This name appears beside every plot you own and every mural you publish.</p>
         </motion.div>

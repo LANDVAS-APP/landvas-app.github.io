@@ -175,7 +175,7 @@ export function Field({ label, hint, error, children, htmlFor }: { label: string
 export const RESOURCE_META: Record<Resource, { name: string; color: string; hint: string }> = {
   ink: { name: 'Ink', color: '#34C3FF', hint: 'Primary currency: buy plots and upgrades.' },
   pigments: { name: 'Pigments', color: '#FF4FD8', hint: 'Unlock brushes, palettes and finishes.' },
-  brush_points: { name: 'Brush Points', color: '#FFC93D', hint: 'Creative experience — raises your artist level.' },
+  brush_points: { name: 'Brush Points', color: '#FFC93D', hint: 'Creative experience — raises your level.' },
   gallery_tokens: { name: 'Gallery Tokens', color: '#3DDC97', hint: 'Earned through approved art and achievements.' },
 };
 

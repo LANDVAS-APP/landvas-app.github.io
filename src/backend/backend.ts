@@ -60,7 +60,7 @@ export class GameError extends Error {
 
 const MESSAGES: Record<string, string> = {
   not_authenticated: 'Please sign in to do that.',
-  onboarding_required: 'Finish setting up your artist profile first.',
+  onboarding_required: 'Finish setting up your player profile first.',
   account_restricted: 'Your account is restricted. Check Settings for details.',
   plot_unavailable: 'Someone already owns this plot — try a neighbour.',
   starter_already_claimed: 'You already claimed your free starter plot.',

@@ -96,7 +96,7 @@ const banner = (w, h) => `<div class="space" style="position:relative;width:${w}
   <div style="position:absolute;inset:0;background:radial-gradient(60% 80% at 50% 50%, #070B1Cee 0%, #070B1Caa 45%, transparent 80%)"></div>
   <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${h * 0.05}px">
     <div style="display:flex;align-items:center;gap:${h * 0.07}px">${mark(h * 0.36)}<div class="word" style="font-size:${h * 0.2}px">LANDVAS</div></div>
-    <div class="word rain" style="font-size:${h * 0.075}px;letter-spacing:0.02em;font-weight:700">Own a piece. Paint the world.</div>
+    <div class="word rain" style="font-size:${h * 0.075}px;letter-spacing:0.02em;font-weight:700">Own a piece. Play it your way.</div>
   </div></div>`;
 await render(path.join(OUT, 'landvas-banner-3000x1000.png'), 1500, 500, 2, banner(1500, 500));
 // 5. link preview (Open Graph / Twitter card)
@@ -104,12 +104,12 @@ const og = `<div class="space" style="position:relative;width:1200px;height:630p
   <div class="grid"></div>${mosaic(19, 10, 64, 3)}
   <div style="position:absolute;inset:0;background:linear-gradient(90deg,#070B1C 0%,#070B1Cf0 48%,#070B1C66 75%,transparent 100%)"></div>
   <div style="position:absolute;left:80px;top:78px;display:flex;align-items:center;gap:26px">${mark(104)}<div class="word" style="font-size:54px">LANDVAS</div></div>
-  <div style="position:absolute;left:80px;top:230px;width:720px">
-    <div class="word" style="font-size:72px;line-height:1.05;letter-spacing:0">Own a piece.<br><span class="rain">Paint the world.</span></div>
-    <div class="tag" style="font-size:27px;margin-top:30px;line-height:1.4">Claim real-world plots, paint murals the whole map can see, win minigames and earn USD rent every second.</div>
+  <div style="position:absolute;left:80px;top:220px;width:900px">
+    <div class="word" style="font-size:64px;line-height:1.05;letter-spacing:0">Own a piece.<br><span class="rain">Play it your way.</span></div>
+    <div class="tag" style="font-size:25px;margin-top:24px;line-height:1.4;width:700px">Claim real-world plots and make them yours — paint, raise creatures, explore, compete.</div>
   </div>
   <div style="position:absolute;left:80px;bottom:56px;display:flex;gap:14px" class="tag">
-    ${['Free starter plot', '4 minigames', 'Live global art map'].map((t) => `<span style="font-size:20px;padding:10px 18px;border-radius:999px;border:1.5px solid #3a4590;background:#10183acc;color:#E8ECFF">${t}</span>`).join('')}
+    ${['🎨 Create', '🐾 Raise', '🧭 Explore', '⚔️ Compete'].map((t) => `<span style="font-size:20px;padding:10px 18px;border-radius:999px;border:1.5px solid #3a4590;background:#10183acc;color:#E8ECFF">${t}</span>`).join('')}
   </div></div>`;
 await render(path.join(ROOT, 'public/og-image.png'), 1200, 630, 1, og);
 await render(path.join(OUT, 'landvas-og-2400x1260.png'), 1200, 630, 2, og);

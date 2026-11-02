@@ -18,6 +18,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { LogoMark } from '../ui';
 import { FAQ } from './faq';
+import { PLAYSTYLES, TAGLINE } from '../brand';
 import { FeaturedToday } from '../gallery/FeaturedToday';
 
 const signedIn = () => !!getBackend().session();
@@ -33,12 +34,13 @@ export default function HomePage() {
   const art = useQuery({ queryKey: ['home-art'], queryFn: () => api.galleryList('new', 36), refetchInterval: 60_000 });
   const cards = art.data ?? [];
   useEffect(() => {
-    document.title = 'LANDVAS — Own a piece. Paint the world. | Pixel art map game that pays rent';
+    document.title = 'LANDVAS — Own a piece. Play it your way. | The world-map game for every playstyle';
   }, []);
   return (
     <div className="lv-home min-h-full overflow-x-hidden bg-bg text-fg" data-testid="homepage">
       <TopBar />
       <Hero stats={stats.data} cards={cards} />
+      <Playstyles />
       <div className="gutter mx-auto max-w-7xl pt-12"><FeaturedToday /></div>
       <ArtMarquee cards={cards} loading={art.isLoading} />
       <HowItWorks />
@@ -102,13 +104,13 @@ function Hero({ stats, cards }: { stats?: { players: number; artworks: number; p
       <div className="gutter mx-auto grid max-w-7xl gap-10 pb-16 pt-14 md:pb-24 md:pt-24 lg:grid-cols-[1.15fr_1fr] lg:items-center">
         <div>
           <div className="lv-pill inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold">
-            <span className="lv-dot" /> The world map is live — {stats && stats.players > 1 ? `${fmt(stats.players)} artists playing` : 'be one of the first artists'}
+            <span className="lv-dot" /> The world map is live — {stats && stats.players > 1 ? `${fmt(stats.players)} players on the map` : 'be one of the first players'}
           </div>
           <h1 className="mt-6 font-display text-[clamp(2.6rem,6.2vw,5rem)] font-bold leading-[0.98] tracking-tight">
-            Own a piece.<br /><span className="lv-rainbow-anim">Paint the world.</span>
+            {TAGLINE[0]}<br /><span className="lv-rainbow-anim">{TAGLINE[1]}</span>
           </h1>
           <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-muted md:text-lg">
-            LANDVAS splits the real world into house-sized plots. Claim the ones around you, paint them into murals everyone sees on the live map, win minigames for Ink — and watch your land earn <b className="text-fg">USD rent every second</b>.
+            LANDVAS turns the real world into one giant game board. Claim the plots around you, then make them anything — a mural, a creature sanctuary, a minigame arena — while your land earns <b className="text-fg">USD rent every second</b>.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to={playHref()} className="lv-cta group inline-flex h-14 items-center gap-2 rounded-2xl px-7 text-base font-extrabold text-white">
@@ -294,17 +296,40 @@ function MarqueeCard({ c }: { c: ArtworkCard }) {
 
 const STEPS = [
   { icon: MapPinned, title: 'Claim real-world plots', body: 'The planet is a grid of 4.3 billion house-sized plots. Your first 4 are free. Every plot is a mystery until you claim it — Common to Mythic.', color: '#3DDC97' },
-  { icon: Brush, title: 'Paint what everyone sees', body: 'Draw or upload art on a real editor with brushes, layers and symmetry. Publish it and it appears on the live world map for every player.', color: '#FF4D6D' },
+  { icon: Brush, title: 'Make it anything', body: 'Paint a mural everyone sees on the live map, or turn the plot into a living sanctuary for creatures you designed. Switch any time.', color: '#FF4D6D' },
   { icon: Gamepad2, title: 'Win Ink in minigames', body: 'Each plot hosts one of eight skill games. Wins pay Ink — the currency that buys more land, brushes, colours and explorer looks.', color: '#34C3FF' },
-  { icon: Sparkles, title: 'Grow murals & earn rent', body: 'Connect neighbouring plots into one continuous canvas. Every plot you own earns USD rent each second, by its rarity.', color: '#FFB31F' },
+  { icon: Sparkles, title: 'Grow your territory', body: 'Connect neighbouring plots into giant murals and sanctuaries. Every plot you own earns USD rent each second, by its rarity.', color: '#FFB31F' },
 ];
+
+/** Every way to play LANDVAS, each with its own door into the game. */
+export function Playstyles() {
+  return (
+    <section className="gutter mx-auto max-w-7xl pt-16" aria-labelledby="playstyles" data-testid="home-playstyles">
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="eyebrow">Every playstyle</div>
+        <h2 id="playstyles" className="mt-2 font-display text-3xl font-bold md:text-5xl">How will you play?</h2>
+        <p className="mt-3 text-muted">One living map, six ways to make it yours. Mix them however you like.</p>
+      </div>
+      <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {PLAYSTYLES.map((p) => (
+          <Link key={p.id} to={signedIn() ? p.to : playHref()} className="glass group relative overflow-hidden rounded-3xl p-5 transition hover:-translate-y-1" style={{ boxShadow: `inset 0 0 0 1px ${p.color}33` }}>
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-40 blur-2xl transition group-hover:opacity-70" style={{ background: p.color }} />
+            <div className="relative text-4xl">{p.emoji}</div>
+            <h3 className="relative mt-3 font-display text-xl font-bold" style={{ color: p.color }}>{p.title}</h3>
+            <p className="relative mt-1.5 text-[15px] leading-relaxed text-muted">{p.text}</p>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export function HowItWorks() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="how">
       <div className="mx-auto max-w-2xl text-center">
         <div className="eyebrow">How it works</div>
-        <h2 id="how" className="mt-2 font-display text-3xl font-bold md:text-5xl">A map you can own, paint and play</h2>
+        <h2 id="how" className="mt-2 font-display text-3xl font-bold md:text-5xl">A world you can own, build and play</h2>
       </div>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((s, i) => (

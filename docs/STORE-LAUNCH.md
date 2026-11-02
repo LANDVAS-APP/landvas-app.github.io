@@ -62,12 +62,14 @@ server — the app can't fake them.
 ## 5. Store listings
 
 **Name:** LANDVAS
-**Subtitle (iOS, 30):** Paint the world. Raise creatures.
-**Short description (Play, 80):** Claim real-world map plots, paint them, raise creatures and play minigames.
+**Subtitle (iOS, 30):** Own a piece. Play it your way.
+**Short description (Play, 80):** The world-map game for every playstyle: create, raise, explore and compete.
 **Category:** Games → Casual (secondary: Entertainment) · **Age rating:** 12+ / Teen (user-generated art and chat, location)
 
 **Description:**
-> The whole planet is split into house-sized plots — and they're up for grabs.
+> The real world is one giant game board — and every playstyle has a home on it.
+>
+> The whole planet is split into house-sized plots. Claim the ones around you, then make them yours: a mural, a creature sanctuary, a rent-earning empire, a minigame arena. Create, raise, explore, compete, build or collect — mix them however you like.
 >
 > 🗺️ CLAIM YOUR PIECE OF THE WORLD — Your explorer stands where you really are. Claim the plots around you; your first 4 are free, and every plot hides a surprise rarity and its own minigame.
 >
@@ -81,7 +83,7 @@ server — the app can't fake them.
 >
 > Plots are virtual — owning one never means owning real land.
 
-**Keywords (iOS, 100):** map,paint,draw,pixel,art,creature,pet,explore,gps,mural,canvas,multiplayer,minigames,world
+**Keywords (iOS, 100):** map,world,creature,pet,explore,gps,paint,draw,pixel,minigames,pvp,multiplayer,land,collect,rpg
 
 **URLs:** Privacy `https://landvas.app/legal/privacy` · Terms `https://landvas.app/legal/terms` · Support `https://landvas.app/support` · Marketing `https://landvas.app`
 

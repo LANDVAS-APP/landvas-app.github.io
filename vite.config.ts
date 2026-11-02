@@ -58,9 +58,9 @@ export default defineConfig(({ mode }) => {
           injectRegister: false,
           includeAssets: ['favicon.svg', 'favicon.ico', 'favicon-*.png', 'icons/*.png'],
           manifest: {
-            name: 'LANDVAS — Own a piece. Paint the world.',
+            name: 'LANDVAS — Own a piece. Play it your way.',
             short_name: 'LANDVAS',
-            description: 'Claim virtual plots on a world map, fuse them into continuous canvases and paint murals everyone can see.',
+            description: 'The world-map game you play your way: claim plots, then paint, raise creatures, battle, explore and collect.',
             theme_color: '#0A0F24',
             background_color: '#070B1C',
             display: 'standalone',
