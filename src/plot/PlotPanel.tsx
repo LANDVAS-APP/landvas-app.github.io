@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
+import { mergePieces, useMapFx } from '../map/MapFx';
 import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -327,13 +328,18 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
           if (!grow) return;
           setBusy(true);
           try {
-            const g = await api.fuseGroups([grow.newGroup, ...grow.neighbors]);
+            const ids = [grow.newGroup, ...grow.neighbors];
+            const pieces = await mergePieces(qc.getQueryData(qk.groups), ids);
+            const g = await api.fuseGroups(ids);
+            // stay on the map for the merge animation; the new canvas / sanctuary is one tap away
+            onClose();
+            useMapFx.getState().playMerge(pieces);
             celebrate(g.achievements);
             invalidateGame(qc);
             void qc.invalidateQueries({ queryKey: ['habitat'] });
             void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
-            if (grow.habitat && g.habitat_id) { toast.success(`Connected — a ${g.plot_count}-plot sanctuary`); nav(`/habitat/${g.habitat_id}`); }
-            else { toast.success(`Connected — ${g.plot_count} plots, one canvas`); nav(`/create/${g.id}`); }
+            if (grow.habitat && g.habitat_id) toast.success(`Connected — a ${g.plot_count}-plot sanctuary`, { action: { label: 'Enter it', onClick: () => nav(`/habitat/${g.habitat_id}`) } });
+            else toast.success(`Connected — ${g.plot_count} plots, one canvas`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
           } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
         }}>
           <Link2 className="h-4 w-4" /> Connect plots
@@ -379,11 +385,12 @@ function MineBlock({ d }: { d: PlotDetails }) {
     if (!d.group) return;
     setBusy('fuse');
     try {
+      const pieces = await mergePieces(qc.getQueryData(qk.groups), [d.group.id, other]);
       const g = await api.fuseGroups([d.group.id, other]);
+      useMapFx.getState().playMerge(pieces);
       celebrate(g.achievements);
       invalidateGame(qc);
-      toast.success(`Canvases connected — ${g.plot_count} plots`);
-      nav(`/create/${g.id}`);
+      toast.success(`Canvases connected — ${g.plot_count} plots`, { action: g.habitat_id ? { label: 'Enter sanctuary', onClick: () => nav(`/habitat/${g.habitat_id}`) } : { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   const detach = async () => {

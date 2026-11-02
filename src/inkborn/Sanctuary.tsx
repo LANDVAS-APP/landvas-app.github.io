@@ -4,13 +4,14 @@
 // trees, decorations, creatures and the explorer depth-sorted, with only what's on screen drawn.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Check, FlipHorizontal2, Hand, Heart, Info, Megaphone, Minus, Paintbrush, Plus, Sparkles, Trash2, Utensils, X, Volleyball } from 'lucide-react';
+import { ArrowLeft, Bath, Camera, Check, Cherry, EyeOff, FlipHorizontal2, Footprints, Hand, Heart, Info, Megaphone, Minus, Paintbrush, Plus, Sparkles, Trash2, Utensils, Wand2, X, Volleyball } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { Decor, Habitat, Inkborn } from '../backend/types';
+import type { CareAction, Decor, Habitat, Inkborn } from '../backend/types';
+import { invalidateResidents } from '../map/MapFx';
 import { holdUpdates } from '../app/updates';
 import { config } from '../env';
 import { explorerSvg } from '../explorer/character';
@@ -24,7 +25,7 @@ import { MOOD_INFO, cleanGenome, type Genome } from './genome';
 import { CreatureProfile, Meter } from './Profile';
 import { CreatureWork, SpringPill } from './Earn';
 import { drawCreature, heart, type CreatureState } from './rig';
-import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
+import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, inside, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
 
 export default function Sanctuary() {
   const { id } = useParams();
@@ -43,11 +44,19 @@ export default function Sanctuary() {
 }
 
 // ---- simulation types ------------------------------------------------------------------
-type Task = 'wander' | 'come' | 'food' | 'bed' | 'toy' | 'look' | 'flee';
+type Task = 'wander' | 'come' | 'food' | 'bed' | 'toy' | 'look' | 'flee' | 'fetch' | 'return' | 'snack' | 'hide' | 'bathe' | 'friend';
 type Sim = {
   c: Inkborn; g: Genome; x: number; y: number; dir: 1 | -1; st: CreatureState; until: number;
   tx: number; ty: number; task: Task | null; after: CreatureState | null; stuck: number; seed: number; speed: number; nextPet: number; detours?: number; resume?: boolean;
+  /** trotting after the explorer */ follow?: boolean;
+  /** a trick started at this time (a spin and a hop) */ spin?: number;
+  /** holding the ball in its mouth */ carry?: boolean;
+  /** tucked away behind something (hide & seek) */ hidden?: boolean;
+  snack?: string; friend?: Sim; splash?: number; sparkle?: number;
 };
+/** the thrown ball: flying (with a height), lying in the grass, or carried back */
+type Ball = { x: number; y: number; z: number; fx: number; fy: number; tx: number; ty: number; t: number; dur: number; state: 'fly' | 'ground' | 'carried'; by: string | null };
+type Seek = { sim: string; spot: string; phase: 'count' | 'seek'; until: number; tries: number };
 const away = (s: Sim) => !!s.c.job;
 type Part = { x: number; y: number; vx: number; vy: number; life: number; max: number; kind: 'heart' | 'spark' | 'text' | 'zz' | 'crumb' | 'ring'; text?: string; color?: string };
 type Mode = 'play' | 'decor';
@@ -57,6 +66,7 @@ const PLAYER_SPEED = 7;
 /** connected habitat plots make a bigger place */
 export const sizeName = (plots: number) => (plots >= 16 ? 'grand sanctuary' : plots >= 9 ? 'forest' : plots >= 4 ? 'woodland' : plots >= 2 ? 'meadow' : 'small glade');
 const LABEL_SCALE = 2;
+const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2);
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 function Game({ h }: { h: Habitat }) {
@@ -104,6 +114,7 @@ function Game({ h }: { h: Habitat }) {
     cam: { x: number; y: number; z: number; ox: number; oy: number }; joy: { x: number; y: number }; keys: Set<string>;
     mode: Mode; place: string | null; pick: string | null; ghost: { x: number; y: number; ok: boolean } | null; sel: string | null;
     W: number; H: number; dpr: number; maxDpr: number;
+    ball: Ball | null; snacks: { id: string; x: number; y: number }[]; seek: Seek | null;
   } | null>(null);
 
   if (!E.current) {
@@ -125,10 +136,15 @@ function Game({ h }: { h: Habitat }) {
       player: { x: px, y: py, dir: 1, walking: false, tx: null, ty: null, bob: 0 },
       cam: { x: px, y: py, z: 24, ox: 0, oy: 0 }, joy: { x: 0, y: 0 }, keys: new Set(),
       mode: 'play', place: null, pick: null, ghost: null, sel: null, W: 0, H: 0, dpr: 1, maxDpr: Math.min(2, devicePixelRatio || 1),
+      ball: null, snacks: [], seek: null,
     };
   }
   const e = E.current;
   e.mode = mode; e.place = place; e.pick = pick; e.sel = sel;
+  // what the engine tells the page (set below, read by the loop)
+  const hooks = useRef({ fetched: (_s: Sim) => {}, snacked: (_s: Sim) => {}, bathed: (_s: Sim) => {}, seekPhase: (_p: 'seek') => {}, seekOver: (_found: boolean) => {} });
+  const [seek, setSeek] = useState<{ name: string; phase: 'count' | 'seek'; tries: number } | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   // the owner's first visit keeps the starting layout for good
   useEffect(() => {
@@ -261,11 +277,38 @@ function Game({ h }: { h: Habitat }) {
         e.cam.y += (P.y + e.cam.oy - e.cam.y) * Math.min(1, dt * 5);
       }
       e.cam.x = clamp(e.cam.x, -CELL / 2, e.T.W + CELL / 2); e.cam.y = clamp(e.cam.y, -CELL / 2, e.T.H + CELL / 2);
-      for (const s of e.sims) if (!away(s)) think(s, dt, now);
+      // the ball: an arc through the air, then it waits in the grass for someone to fetch it
+      const B = e.ball;
+      if (B && B.state === 'fly') {
+        B.t += dt;
+        const k = Math.min(1, B.t / B.dur);
+        B.x = B.fx + (B.tx - B.fx) * k; B.y = B.fy + (B.ty - B.fy) * k; B.z = Math.sin(k * Math.PI) * 3.2;
+        if (k >= 1) { B.state = 'ground'; B.z = 0; e.parts.push({ x: B.x, y: B.y, vx: 0, vy: 0, life: 0, max: 0.5, kind: 'ring' }); }
+      } else if (B && B.state === 'carried') {
+        const s = e.sims.find((q) => q.c.id === B.by);
+        if (s) { B.x = s.x + s.dir * 0.55; B.y = s.y + 0.05; B.z = 1.1 * s.g.size; } else e.ball = null;
+      }
+      for (const s of e.sims) if (!away(s) && !s.hidden) think(s, dt, now);
+      // hide & seek: the hider gets tucked away when the count ends; its hiding place rustles now and then
+      const S = e.seek;
+      if (S) {
+        const hs = e.sims.find((q) => q.c.id === S.sim);
+        const spot = e.layout.find((d) => d.id === S.spot);
+        if (!hs || !spot) e.seek = null;
+        else if (S.phase === 'count' && now >= S.until) {
+          hs.hidden = true; hs.task = null; hs.st = 'idle'; hs.until = now + 60_000;
+          hs.x = spot.x + 0.2; hs.y = spot.y - Math.max(0.6, (DECOR_BY_K[spot.k]?.r ?? 1) * 0.7);
+          S.phase = 'seek'; S.until = now + 45_000;
+          hooks.current.seekPhase('seek');
+        } else if (S.phase === 'seek') {
+          if (Math.random() < dt * (0.35 + S.tries * 0.25)) for (let i = 0; i < 4; i++) e.parts.push({ x: spot.x + (Math.random() - 0.5) * 1.8, y: spot.y - 2 - Math.random() * 2, vx: (Math.random() - 0.5) * 1.2, vy: -0.4, life: 0, max: 0.9, kind: 'crumb', color: Math.random() < 0.5 ? '#4FA552' : '#7BD47F' });
+          if (now >= S.until) hooks.current.seekOver(false);
+        }
+      }
       // gentle separation so creatures don't stack
       for (let i = 0; i < e.sims.length; i++) for (let j = i + 1; j < e.sims.length; j++) {
         const a = e.sims[i], b = e.sims[j];
-        if (away(a) || away(b)) continue;
+        if (away(a) || away(b) || a.hidden || b.hidden) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
         if (d > 0.01 && d < 1.3) {
           const push = (1.3 - d) * 0.5 * dt * 4, ux = dx / d, uy = dy / d;
@@ -317,12 +360,50 @@ function Game({ h }: { h: Habitat }) {
       return true;
     };
 
+    /** walk to a spot (nudged to somewhere walkable) for a task */
+    const goTo = (s: Sim, x: number, y: number, task: Task) => {
+      let px = x, py = y;
+      for (let i = 0; i < 30 && !walkable(e.T, e.solids, px, py, 0.4); i++) { px = x + (Math.random() - 0.5) * (1 + i * 0.3); py = y + (Math.random() - 0.5) * (1 + i * 0.3); }
+      s.tx = px; s.ty = py; s.task = task; s.st = 'walk'; s.stuck = 0; s.hidden = false;
+    };
     const arrive = (s: Sim, now: number) => {
       const r = Math.random;
       const t = s.task;
       s.task = null;
+      if (t === 'fetch') {
+        const B = e.ball;
+        if (B && B.state === 'ground' && Math.hypot(B.x - s.x, B.y - s.y) < 1.6) {
+          B.state = 'carried'; B.by = s.c.id; s.carry = true;
+          goTo(s, e.player.x + (s.x > e.player.x ? 1.2 : -1.2), e.player.y + 0.3, 'return');
+        } else if (B && B.state !== 'carried') goTo(s, B.x, B.y, 'fetch');
+        else { s.st = 'idle'; s.until = now + 800; }
+        return;
+      }
+      if (t === 'return') {
+        s.carry = false; e.ball = null;
+        s.st = 'happy'; s.until = now + 1800; s.dir = e.player.x > s.x ? 1 : -1; hearts(s, 3);
+        hooks.current.fetched(s);
+        return;
+      }
+      if (t === 'snack') {
+        const i = e.snacks.findIndex((q) => q.id === s.snack);
+        if (i >= 0) { e.snacks.splice(i, 1); s.st = 'eat'; s.until = now + 2600; hooks.current.snacked(s); }
+        else if (e.snacks.length) { const q = e.snacks[0]; s.snack = q.id; goTo(s, q.x - 0.6, q.y, 'snack'); }
+        else { s.st = 'idle'; s.until = now + 800; }
+        s.snack = s.st === 'walk' ? s.snack : undefined;
+        return;
+      }
+      if (t === 'hide') { s.hidden = true; s.st = 'idle'; s.until = now + 60_000; return; }
+      if (t === 'bathe') { s.st = 'happy'; s.splash = now; s.until = now + 2600; hooks.current.bathed(s); return; }
+      if (t === 'friend') {
+        const f = s.friend; s.friend = undefined;
+        s.st = 'happy'; s.until = now + 1800; hearts(s, 2);
+        if (f && !f.hidden && f.task === null && Math.hypot(f.x - s.x, f.y - s.y) < 2.5) { f.st = 'happy'; f.until = now + 1800; f.dir = s.x > f.x ? 1 : -1; s.dir = f.x > s.x ? 1 : -1; hearts(f, 2); }
+        return;
+      }
       if (s.resume) { s.resume = false; if (pickTarget(s, 'come')) return; }
       if (t === 'come') s.detours = 0;
+      if (t === 'come' && s.follow && !s.after) { s.st = 'idle'; s.dir = e.player.x > s.x ? 1 : -1; s.until = now + 400; return; }
       if (s.after) { s.st = s.after; s.after = null; s.until = now + (s.st === 'eat' ? 3200 : 2200); if (s.st === 'happy') hearts(s, 3); return; }
       if (t === 'food') { s.st = 'eat'; s.until = now + 2800 + r() * 2000; }
       else if (t === 'bed') { s.st = 'sleep'; s.until = now + 7000 + r() * 9000 * (s.g.mood === 'sleepy' ? 2 : 1); }
@@ -345,15 +426,25 @@ function Game({ h }: { h: Habitat }) {
       let task: Task | 'idle' = 'wander';
       for (const [k, v] of w) { pickN -= v; if (pickN <= 0) { task = k; break; } }
       if (task === 'idle') { s.st = 'idle'; s.until = now + 1500 + r() * 2500; return; }
+      // now and then two creatures go and play together
+      if (task === 'wander' && r() < 0.18) {
+        const friends = e.sims.filter((o) => o !== s && !away(o) && !o.hidden && o.st !== 'sleep' && o.task === null);
+        const f = friends[Math.floor(r() * friends.length)];
+        if (f) { s.friend = f; goTo(s, f.x + (s.x < f.x ? -1.1 : 1.1), f.y + 0.1, 'friend'); return; }
+      }
       if (!pickTarget(s, task)) { s.st = 'idle'; s.until = now + 1500; }
     };
 
     const think = (s: Sim, dt: number, now: number) => {
       const dP = Math.hypot(s.x - e.player.x, s.y - e.player.y);
+      // following you: trot back whenever you get a few steps ahead
+      if (s.follow && s.st !== 'walk' && dP > 2.6 && !s.carry) { goTo(s, e.player.x - e.player.dir * 1.4, e.player.y + 0.4, 'come'); s.until = now; }
+      if (s.follow && s.st === 'walk' && s.task === 'come' && Math.hypot(s.tx - e.player.x, s.ty - e.player.y) > 3) { s.tx = e.player.x - e.player.dir * 1.4; s.ty = e.player.y + 0.4; }
       if (s.st === 'walk') {
         const dx = s.tx - s.x, dy = s.ty - s.y, d = Math.hypot(dx, dy);
         if (d < 0.2) { arrive(s, now); return; }
-        const sp = s.speed * (s.task === 'come' || s.task === 'flee' ? 1.6 : 1) * dt;
+        // a follower keeps pace with you; errands are a quick trot
+        const sp = (s.follow && s.task === 'come' ? Math.max(s.speed * 1.6, PLAYER_SPEED * 1.05) : s.speed * (s.task === 'fetch' || s.task === 'return' || s.task === 'hide' ? 2 : s.task === 'come' || s.task === 'flee' || s.task === 'snack' ? 1.6 : 1)) * dt;
         const ux = dx / d, uy = dy / d;
         const step = Math.min(sp, d);
         if (!walkable(e.T, e.solids, s.x, s.y, 0.4)) { s.x += ux * step; s.y += uy * step; s.stuck = 0; }
@@ -382,13 +473,15 @@ function Game({ h }: { h: Habitat }) {
         if (s.st === 'idle' || s.st === 'look') s.dir = e.player.x > s.x ? 1 : -1;
         if (s.g.mood === 'playful' && s.st === 'idle' && Math.random() < dt * 0.5) { s.st = 'happy'; s.until = now + 1200; }
       }
+      if (s.splash && now - s.splash < 2400 && Math.random() < dt * 14) e.parts.push({ x: s.x + (Math.random() - 0.5) * 1.4, y: s.y, vx: (Math.random() - 0.5) * 2.4, vy: -1 - Math.random() * 1.5, life: 0, max: 0.7, kind: 'spark', color: Math.random() < 0.5 ? '#7FD3F5' : '#FFFFFF' });
+      if (s.sparkle && now - s.sparkle < 1800 && Math.random() < dt * 12) e.parts.push({ x: s.x + (Math.random() - 0.5) * 1.6, y: s.y - Math.random() * 0.4, vx: 0, vy: -0.6, life: 0, max: 0.8, kind: 'spark', color: Math.random() < 0.5 ? '#FFE14D' : '#FFFFFF' });
       if (s.st === 'eat' && Math.random() < dt * 3) e.parts.push({ x: s.x + s.dir * 0.6, y: s.y, vx: (Math.random() - 0.5) * 1.5, vy: -2.2, life: 0, max: 0.5, kind: 'crumb', color: '#E9A04C' });
       if (s.st === 'sleep' && Math.random() < dt * 0.7) e.parts.push({ x: s.x + 0.4, y: s.y, vx: 0.3, vy: -0.9, life: 0, max: 2.2, kind: 'zz' });
       if (now >= s.until) decide(s, now);
     };
 
     const hearts = (s: Sim, n: number) => { for (let i = 0; i < n; i++) e.parts.push({ x: s.x + (Math.random() - 0.5) * 1.2, y: s.y, vx: (Math.random() - 0.5) * 0.4, vy: -1.4 - Math.random() * 0.6, life: -i * 0.12, max: 1.4, kind: 'heart' }); };
-    engine.current = { hearts, pickTarget, toScreen };
+    engine.current = { hearts, pickTarget, toScreen, goTo };
     if (config.e2e || import.meta.env.DEV) (window as any).__landvasSanctuary = { e, toScreen, fps: () => 1 / Math.max(0.001, (performance.now() - last) / 1000) };
 
     // ---- rendering ----
@@ -503,8 +596,27 @@ function Game({ h }: { h: Habitat }) {
           else blit(def, sx, sy, z, def.tag === 'tree' ? Math.sin(t * 0.9 + decorVariant(d.id) * 7) * 0.025 : 0, !!d.f);
         } });
       }
+      for (const sn of e.snacks) {
+        const [sx, sy] = toScreen(sn.x, sn.y);
+        items.push({ y: sn.y, flat: true, draw: () => {
+          g.fillStyle = 'rgba(10,30,15,0.25)'; g.beginPath(); g.ellipse(sx, sy, z * 0.5, z * 0.2, 0, 0, Math.PI * 2); g.fill();
+          [[-0.2, 0, '#E8344E'], [0.22, -0.05, '#7B4BD9'], [0, -0.25, '#E8344E']].forEach(([bx, by, c]) => { g.fillStyle = c as string; g.beginPath(); g.arc(sx + (bx as number) * z, sy + (by as number) * z - z * 0.18, z * 0.2, 0, Math.PI * 2); g.fill(); });
+          g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.arc(sx - z * 0.26, sy - z * 0.26, z * 0.06, 0, Math.PI * 2); g.fill();
+        } });
+      }
+      if (e.ball) {
+        const B = e.ball;
+        const [sx, sy] = toScreen(B.x, B.y);
+        items.push({ y: B.state === 'carried' ? B.y + 0.01 : B.y, flat: false, draw: () => {
+          if (B.state !== 'carried') { g.fillStyle = 'rgba(10,30,15,0.3)'; g.beginPath(); g.ellipse(sx, sy, z * (0.4 - B.z * 0.05), z * 0.16, 0, 0, Math.PI * 2); g.fill(); }
+          const by = sy - B.z * z - z * 0.38, r = z * 0.36;
+          g.fillStyle = '#FF5A5F'; g.beginPath(); g.arc(sx, by, r, 0, Math.PI * 2); g.fill();
+          g.strokeStyle = '#FFE14D'; g.lineWidth = Math.max(1.5, z * 0.09); g.beginPath(); g.arc(sx, by, r * 0.98, -0.6 + t * 4 * (B.state === 'fly' ? 1 : 0), 1.2 + t * 4 * (B.state === 'fly' ? 1 : 0)); g.stroke();
+          g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(sx - r * 0.35, by - r * 0.35, r * 0.25, 0, Math.PI * 2); g.fill();
+        } });
+      }
       for (const s of e.sims) {
-        if (away(s)) continue;
+        if (away(s) || s.hidden) continue;
         const [sx, sy] = toScreen(s.x, s.y);
         const px = 2.3 * z;
         if (!vis(sx, sy, px, px * 2)) continue;
@@ -513,7 +625,15 @@ function Game({ h }: { h: Habitat }) {
             g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 2;
             g.beginPath(); g.ellipse(sx, sy, px * 0.62, px * 0.62 * TILT * 0.6, 0, 0, Math.PI * 2); g.stroke();
           }
-          drawCreature(g, s.g, sx, sy, px, { t: t + s.seed, state: s.st, dir: s.dir, look: s.st === 'look' ? Math.sin(t * 1.3 + s.seed) : 0, seed: s.seed });
+          if (s.follow) { g.fillStyle = 'rgba(255,225,77,0.35)'; g.beginPath(); g.ellipse(sx, sy, px * 0.5, px * 0.5 * TILT * 0.5, 0, 0, Math.PI * 2); g.fill(); }
+          // a trick: a hop with a full spin
+          const sk = s.spin ? (now - s.spin) / 950 : 1;
+          if (sk < 1) {
+            const cy = sy - px * 0.45 - Math.sin(sk * Math.PI) * px * 0.7;
+            g.save(); g.translate(sx, cy); g.rotate(ease(sk) * Math.PI * 2 * s.dir); g.translate(-sx, -(sy - px * 0.45));
+          }
+          drawCreature(g, s.g, sx, sy, px, { t: t + s.seed, state: sk < 1 ? 'happy' : s.st, dir: s.dir, look: s.st === 'look' ? Math.sin(t * 1.3 + s.seed) : 0, seed: s.seed });
+          if (sk < 1) g.restore();
           const near = Math.hypot(s.x - e.player.x, s.y - e.player.y) < 4;
           if (e.sel === s.c.id || near) {
             const lb = label(s.c.name);
@@ -594,7 +714,7 @@ function Game({ h }: { h: Habitat }) {
     return () => { cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const engine = useRef<{ hearts(s: Sim, n: number): void; pickTarget(s: Sim, t: Task): boolean; toScreen(x: number, y: number): [number, number] } | null>(null);
+  const engine = useRef<{ hearts(s: Sim, n: number): void; pickTarget(s: Sim, t: Task): boolean; toScreen(x: number, y: number): [number, number]; goTo(s: Sim, x: number, y: number, t: Task): void } | null>(null);
 
   // ---- input ----
   const toWorld = useCallback((sx: number, sy: number): [number, number] => [(sx - e.W / 2) / e.cam.z + e.cam.x, (sy - e.H / 2) / (e.cam.z * TILT) + e.cam.y], [e]);
@@ -609,15 +729,16 @@ function Game({ h }: { h: Habitat }) {
     }
     return best;
   };
+  const overDecor = (d: Decor, sx: number, sy: number) => {
+    const def = DECOR_BY_K[d.k];
+    if (!def) return false;
+    const [cx, cy] = engine.current!.toScreen(d.x, d.y);
+    const w = Math.max(1.2, def.r + 0.6) * e.cam.z, hh = (def.tag === 'tree' ? 6.5 : d.k === 'lantern' || d.k === 'signpost' ? 3 : 1.8) * e.cam.z;
+    return sx > cx - w && sx < cx + w && sy > cy - hh && sy < cy + e.cam.z * 0.5;
+  };
   const hitDecor = (sx: number, sy: number) => {
     let best: Decor | null = null;
-    for (const d of e.layout) {
-      const def = DECOR_BY_K[d.k];
-      if (!def) continue;
-      const [cx, cy] = engine.current!.toScreen(d.x, d.y);
-      const w = Math.max(1.2, def.r + 0.6) * e.cam.z, hh = (def.tag === 'tree' ? 6.5 : d.k === 'lantern' || d.k === 'signpost' ? 3 : 1.8) * e.cam.z;
-      if (sx > cx - w && sx < cx + w && sy > cy - hh && sy < cy + e.cam.z * 0.5 && (!best || d.y > best.y)) best = d;
-    }
+    for (const d of e.layout) if (overDecor(d, sx, sy) && (!best || d.y > best.y)) best = d;
     return best;
   };
 
@@ -708,6 +829,18 @@ function Game({ h }: { h: Habitat }) {
       setPick(d ? d.id : null);
       return;
     }
+    if (e.seek?.phase === 'seek') {
+      // anywhere on their hiding place counts, even where something in front overlaps it
+      const spot = e.layout.find((q) => q.id === e.seek!.spot);
+      if (spot && overDecor(spot, x, y)) { hooks.current.seekOver(true); return; }
+      const d = hitDecor(x, y);
+      if (d) {
+        e.seek.tries++;
+        setSeek((q) => (q ? { ...q, tries: q.tries + 1 } : q));
+        e.parts.push({ x: d.x, y: d.y, vx: 0, vy: 0, life: 0, max: 1.2, kind: 'text', text: ['Not here…', 'Nope!', 'Hmm, no…'][e.seek.tries % 3], color: '#FFE58A' });
+        return;
+      }
+    }
     const s = hitCreature(x, y);
     if (s) {
       setSel(s.c.id);
@@ -737,31 +870,156 @@ function Game({ h }: { h: Habitat }) {
   }, [e, hint]);
 
   // ---- care ----
-  const say = (s: Sim, text: string, color?: string) => e.parts.push({ x: s.x, y: s.y, vx: 0, vy: 0, life: 0, max: 1.6, kind: 'text', text, color });
-  const care = async (s: Sim, action: 'pet' | 'feed' | 'play') => {
+  // stacked, so two messages at once don't overlap
+  const say = (s: Sim, text: string, color?: string) => {
+    const n = e.parts.filter((p) => p.kind === 'text' && Math.abs(p.x - s.x) < 3 && p.life < p.max * 0.7).length;
+    e.parts.push({ x: s.x, y: s.y - n * (1.1 / TILT), vx: 0, vy: 0, life: 0, max: 1.6, kind: 'text', text, color });
+  };
+  const care = async (s: Sim, action: CareAction, quiet = false) => {
     const now = performance.now();
+    if (!owner) return;
     if (action === 'pet') {
       if (now < s.nextPet) { engine.current?.hearts(s, 1); return; }
       s.nextPet = now + 1500;
       s.st = 'happy'; s.until = now + 1500; s.task = null; s.dir = e.player.x > s.x ? 1 : -1;
       engine.current?.hearts(s, 3);
-    } else {
+    } else if (action === 'brush') {
+      s.st = 'happy'; s.until = now + 1800; s.task = null; s.sparkle = now; s.dir = e.player.x > s.x ? 1 : -1;
+    } else if (action === 'trick') {
+      s.task = null; s.st = 'idle'; s.until = now + 1200; s.dir = e.player.x > s.x ? 1 : -1;
+      if (s.c.bond >= 10) { s.spin = now; setTimeout(() => burst(e.parts, s.x, s.y, 'spark', 16), 500); }
+    } else if (action === 'feed' || action === 'play') {
       s.after = action === 'feed' ? 'eat' : 'happy';
       engine.current?.pickTarget(s, 'come');
     }
     try {
       const r = await api.inkbornCare(s.c.id, action);
       s.c = { ...s.c, ...r };
-      if (action !== 'pet' || r.bond_gain) say(s, r.bond_gain ? `${REACTIONS[r.reaction] ?? '♥'} +${r.bond_gain} bond` : REACTIONS[r.reaction] ?? '♥', r.reaction === 'tired' || r.reaction === 'full' ? '#FFE58A' : '#FFFFFF');
+      if (!quiet && (action !== 'pet' || r.bond_gain)) say(s, r.bond_gain ? `${REACTIONS[r.reaction] ?? '♥'} +${r.bond_gain} bond` : REACTIONS[r.reaction] ?? '♥', ['tired', 'full', 'fluffy', 'unsure', 'clean', 'again'].includes(r.reaction) ? '#FFE58A' : '#FFFFFF');
+      else if (quiet && r.bond_gain) say(s, `+${r.bond_gain} bond`, '#FFFFFF');
       if (r.reaction === 'tired') { s.after = null; s.st = 'sleep'; s.until = performance.now() + 5000; }
+      if (r.reaction === 'unsure') { s.spin = undefined; s.st = 'look'; s.until = performance.now() + 1500; }
       if (r.reaction === 'yay') burst(e.parts, s.x, s.y, 'spark', 14);
       bump((v) => v + 1);
+      invalidateResidents();
       void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
     } catch (err) {
       toast.error(toGameError(err).message);
     }
   };
   const call = (s: Sim) => { s.after = null; s.detours = 0; engine.current?.pickTarget(s, 'come'); say(s, '!', '#FFE14D'); };
+
+  // ---- activities ----
+  const awake = () => e.sims.filter((s) => !away(s) && !s.hidden && !s.carry);
+  const nearest = (list: Sim[], x: number, y: number) => list.reduce<Sim | null>((b, s) => (!b || Math.hypot(s.x - x, s.y - y) < Math.hypot(b.x - x, b.y - y) ? s : b), null);
+  const landing = (dist: number) => {
+    const P = e.player;
+    for (let i = 0; i < 40; i++) {
+      const a = (P.dir > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * (0.9 + i * 0.12);
+      const d = dist * (1 - i * 0.015);
+      const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d * 0.8;
+      if (walkable(e.T, e.solids, x, y, 0.5)) return [x, y] as const;
+    }
+    return null;
+  };
+  /** throw the ball ahead of you; the selected creature (or the keenest one nearby) runs to fetch it */
+  const throwBall = () => {
+    if (e.ball) { toast('The ball is already out — wait for it to come back'); return; }
+    const to = landing(6 + Math.random() * 4);
+    if (!to) { toast('No room to throw here — walk somewhere more open'); return; }
+    const P = e.player;
+    e.ball = { x: P.x, y: P.y, z: 1.5, fx: P.x + P.dir * 0.5, fy: P.y, tx: to[0], ty: to[1], t: 0, dur: 0.75, state: 'fly', by: null };
+    const list = awake().filter((s) => s.st !== 'sleep' || s.c.id === sel);
+    const pickOne = (sel && list.find((s) => s.c.id === sel)) || list.find((s) => s.g.mood === 'playful' || s.g.mood === 'brave') || nearest(list, P.x, P.y);
+    if (!pickOne) { toast('Nobody’s awake to fetch it'); e.ball = null; return; }
+    pickOne.follow = false;
+    setTimeout(() => { if (e.ball) { engine.current?.goTo(pickOne, to[0], to[1], 'fetch'); say(pickOne, '!', '#FFE14D'); } }, 380);
+  };
+  /** sprinkle berries around you; everyone awake comes for a snack */
+  const snackTime = () => {
+    const P = e.player;
+    const list = awake().filter((s) => s.st !== 'sleep');
+    if (!list.length) { toast('Everyone’s napping right now'); return; }
+    e.snacks = [];
+    const n = Math.min(6, Math.max(2, list.length));
+    for (let i = 0; i < n * 3 && e.snacks.length < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.5, d = 1.6 + Math.random() * 1.4;
+      const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d * 0.7;
+      if (walkable(e.T, e.solids, x, y, 0.4)) e.snacks.push({ id: `sn${i}${Date.now() % 1000}`, x, y });
+    }
+    if (!e.snacks.length) { toast('No room for a picnic here'); return; }
+    for (const q of e.snacks) e.parts.push({ x: q.x, y: q.y, vx: 0, vy: 0, life: 0, max: 0.5, kind: 'ring' });
+    list.forEach((s, i) => { const q = e.snacks[i % e.snacks.length]; s.snack = q.id; s.after = null; engine.current?.goTo(s, q.x - 0.6, q.y, 'snack'); });
+  };
+  const whistle = () => {
+    const list = awake();
+    for (const s of list) { if (s.st === 'sleep') { s.st = 'look'; s.until = performance.now() + 300; } call(s); }
+    e.parts.push({ x: e.player.x, y: e.player.y, vx: 0, vy: 0, life: 0, max: 0.8, kind: 'ring' });
+  };
+  const toggleFollow = (s: Sim) => {
+    s.follow = !s.follow;
+    say(s, s.follow ? 'Right behind you!' : 'Okay, I’ll play here', '#FFE58A');
+    if (s.follow) engine.current?.pickTarget(s, 'come');
+    bump((v) => v + 1);
+  };
+  const bathe = (s: Sim) => {
+    const p = e.T.pond;
+    if (!p) return;
+    const a = Math.atan2(s.y - p.y, s.x - p.x);
+    s.after = null;
+    engine.current?.goTo(s, p.x + Math.cos(a) * (p.rx + 0.5), p.y + Math.sin(a) * (p.ry + 0.4), 'bathe');
+  };
+  /** hide & seek: they hide behind something while you count, then you tap where you think they are */
+  const startSeek = () => {
+    const list = awake().filter((s) => s.st !== 'sleep');
+    const hs = (sel && list.find((s) => s.c.id === sel)) || list[Math.floor(Math.random() * list.length)];
+    if (!hs) { toast('Nobody’s awake to play hide & seek'); return; }
+    if (owner && hs.c.energy < 10) { say(hs, REACTIONS.tired, '#FFE58A'); return; }
+    const P = e.player;
+    const spots = e.layout.filter((d) => { const def = DECOR_BY_K[d.k]; return def && !def.flat && def.r >= 0.7 && inside(e.T, d.x, d.y - def.r, 0.5) && Math.hypot(d.x - P.x, d.y - P.y) > 4; });
+    if (!spots.length) { toast('There’s nowhere to hide! Plant some trees, bushes or rocks first.'); return; }
+    const spot = spots[Math.floor(Math.random() * spots.length)];
+    hs.follow = false;
+    engine.current?.goTo(hs, spot.x + 0.2, spot.y - Math.max(0.6, DECOR_BY_K[spot.k].r * 0.7), 'hide');
+    e.seek = { sim: hs.c.id, spot: spot.id, phase: 'count', until: performance.now() + 3500, tries: 0 };
+    setSel(null);
+    setSeek({ name: hs.c.name, phase: 'count', tries: 0 });
+  };
+  const endSeek = (found: boolean) => {
+    const S = e.seek;
+    e.seek = null;
+    setSeek(null);
+    const hs = S && e.sims.find((q) => q.c.id === S.sim);
+    if (!hs) return;
+    hs.hidden = false; hs.task = null;
+    const spot = e.layout.find((d) => d.id === S!.spot);
+    if (spot) { hs.x = spot.x + (DECOR_BY_K[spot.k]?.r ?? 1) + 0.6; hs.y = spot.y + 0.3; if (!walkable(e.T, e.solids, hs.x, hs.y, 0.4)) { hs.x = spot.x - (DECOR_BY_K[spot.k]?.r ?? 1) - 0.6; } }
+    hs.st = 'happy'; hs.until = performance.now() + 2200; hs.dir = e.player.x > hs.x ? 1 : -1;
+    burst(e.parts, hs.x, hs.y, 'spark', 18);
+    if (found) { engine.current?.hearts(hs, 4); say(hs, S!.tries === 0 ? 'Found me first try!' : 'You found me!', '#FFFFFF'); void care(hs, 'hideseek', true); }
+    else say(hs, 'Here I am! 🙈', '#FFE58A');
+  };
+  const photo = async () => {
+    const c = cv.current;
+    if (!c) return;
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'));
+    if (!blob) return;
+    const file = new File([blob], `${h.name.replace(/[^\w-]+/g, '-').toLowerCase() || 'sanctuary'}.png`, { type: 'image/png' });
+    try {
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: h.name }); return; }
+    } catch { /* cancelled — fall back to saving */ }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast.success('Snapshot saved');
+  };
+  hooks.current = {
+    fetched: (s) => { void care(s, 'fetch'); },
+    snacked: (s) => { if (owner) void care(s, 'feed', true); else engine.current?.hearts(s, 1); },
+    bathed: (s) => { void care(s, 'bathe'); },
+    seekPhase: () => setSeek((q) => (q ? { ...q, phase: 'seek' } : q)),
+    seekOver: (found) => endSeek(found),
+  };
 
   // ---- decorating ----
   const save = async () => {
@@ -801,7 +1059,8 @@ function Game({ h }: { h: Habitat }) {
           </div>
         </div>
         <div className="pointer-events-auto flex items-center gap-1.5">
-          {mode === 'play' && owner && <Button size="sm" variant="secondary" className="bg-black/55" onClick={startDecor} data-testid="decorate"><Paintbrush className="h-4 w-4" /> Decorate</Button>}
+          {mode === 'play' && e.sims.length > 0 && <Button size="sm" variant="secondary" className={cn('bg-black/55', toolsOpen && 'ring-2 ring-[#FFE14D]')} onClick={() => setToolsOpen((v) => !v)} aria-expanded={toolsOpen} data-testid="activities"><Volleyball className="h-4 w-4" /> <span className="max-sm:hidden">Play</span></Button>}
+          {mode === 'play' && owner && <Button size="sm" variant="secondary" className="bg-black/55" onClick={() => { setToolsOpen(false); startDecor(); }} data-testid="decorate"><Paintbrush className="h-4 w-4" /> <span className="max-sm:hidden">Decorate</span></Button>}
           <div className="flex rounded-xl bg-black/55">
             <button className="p-2" onClick={() => (e.cam.z = clamp(e.cam.z / 1.2, 8, 44))} aria-label="Zoom out"><Minus className="h-4 w-4" /></button>
             <button className="p-2" onClick={() => (e.cam.z = clamp(e.cam.z * 1.2, 8, 44))} aria-label="Zoom in"><Plus className="h-4 w-4" /></button>
@@ -811,12 +1070,54 @@ function Game({ h }: { h: Habitat }) {
 
       {owner && mode === 'play' && <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-[max(76px,calc(env(safe-area-inset-top,0px)+64px))]"><SpringPill habitatId={h.id} onCollected={(n) => { const sp = e.layout.find((d) => d.k === 'inkspring'); const at = sp ?? e.player; burst(e.parts, at.x, at.y, 'spark', 18); e.parts.push({ x: at.x, y: at.y, vx: 0, vy: 0, life: 0, max: 1.8, kind: 'text', text: `+${n} Ink`, color: '#C9B8FF' }); }} /></div>}
 
+      {/* activities */}
+      <AnimatePresence>
+        {mode === 'play' && toolsOpen && !seek && (
+          <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-[max(64px,calc(env(safe-area-inset-top,0px)+56px))] z-10 grid w-[min(300px,calc(100%-24px))] gap-1 rounded-3xl bg-[#0d1f14]/95 p-2 shadow-2xl" data-testid="activities-menu">
+            <div className="px-2 pb-1 pt-0.5 text-[11px] font-bold uppercase tracking-wider text-white/50">Play together</div>
+            {([
+              { icon: <Volleyball className="h-5 w-5 text-[#FF5A5F]" />, label: 'Throw the ball', hint: sel ? 'Your pick runs to fetch it' : 'The keenest one fetches it', go: throwBall, id: 'act-ball' },
+              { icon: <Cherry className="h-5 w-5 text-[#E8344E]" />, label: 'Snack time', hint: 'Sprinkle berries — everyone comes to eat', go: snackTime, id: 'act-snack' },
+              { icon: <EyeOff className="h-5 w-5 text-[#9C7CFF]" />, label: 'Hide & seek', hint: 'They hide while you count, then you find them', go: startSeek, id: 'act-seek' },
+              { icon: <Megaphone className="h-5 w-5 text-[#FFE14D]" />, label: 'Whistle', hint: 'Call everyone over', go: whistle, id: 'act-whistle' },
+              { icon: <Camera className="h-5 w-5 text-[#7FD3F5]" />, label: 'Take a snapshot', hint: 'Save or share this moment', go: () => void photo(), id: 'act-photo' },
+            ]).map((a) => (
+              <motion.button key={a.id} whileTap={{ scale: 0.96 }} onClick={() => { setToolsOpen(false); a.go(); }} data-testid={a.id}
+                className="flex items-center gap-3 rounded-2xl px-2.5 py-2 text-left hover:bg-white/10">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">{a.icon}</span>
+                <span className="min-w-0"><span className="block text-sm font-bold">{a.label}</span><span className="block truncate text-[11px] text-white/60">{a.hint}</span></span>
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* hide & seek */}
+      <AnimatePresence>
+        {seek?.phase === 'count' && (
+          <motion.div key="count" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-0 z-20 grid place-content-center bg-black/85 text-center" data-testid="seek-count">
+            <div className="text-5xl">🙈</div>
+            <div className="mt-2 font-display text-2xl font-bold">Cover your eyes!</div>
+            <div className="text-white/70">{seek.name} is finding a hiding place…</div>
+            <SeekCount />
+          </motion.div>
+        )}
+        {seek?.phase === 'seek' && (
+          <motion.div key="seek" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+            className="absolute inset-x-0 top-[max(64px,calc(env(safe-area-inset-top,0px)+56px))] z-10 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center gap-2 rounded-2xl bg-black/70 p-1.5 pl-3 text-xs" data-testid="seek-banner">
+            <span>🔎 <b>Find {seek.name}!</b> Tap the tree, bush or rock you think they’re behind{seek.tries > 1 ? ' — listen for rustling leaves' : ''}.</span>
+            <Button size="sm" variant="ghost" onClick={() => endSeek(false)}>Give up</Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!h.active && <div className="absolute inset-x-4 top-20 mx-auto max-w-md rounded-2xl bg-[#0d1f14]/90 p-3 text-center text-sm">This habitat plot has been turned back into an art canvas. Its creatures are safe in the starter sanctuary.</div>}
 
       <AnimatePresence>
         {hint && mode === 'play' && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 top-20 mx-auto w-fit max-w-[calc(100%-32px)] rounded-2xl bg-black/65 px-4 py-2.5 text-center text-xs" data-testid="sanctuary-hint">
-            <b>Walk</b> with the joystick, WASD or by tapping the ground · <b>tap a creature</b> to {owner ? 'pet it' : 'say hi'} · <b>pinch</b> or scroll to zoom
+            <b>Walk</b> with the joystick, WASD or by tapping the ground · <b>tap a creature</b> to {owner ? 'pet it' : 'say hi'} · <b>Play</b> for fetch, snacks and hide & seek
           </motion.div>
         )}
       </AnimatePresence>
@@ -869,10 +1170,14 @@ function Game({ h }: { h: Habitat }) {
                   <CareBtn icon={<Hand className="h-4 w-4" />} label="Pet" onClick={() => void care(selSim, 'pet')} />
                   <CareBtn icon={<Utensils className="h-4 w-4" />} label="Feed" onClick={() => void care(selSim, 'feed')} testid="feed" />
                   <CareBtn icon={<Volleyball className="h-4 w-4" />} label="Play" onClick={() => void care(selSim, 'play')} testid="play" />
+                  <CareBtn icon={<Sparkles className="h-4 w-4" />} label="Brush" onClick={() => void care(selSim, 'brush')} testid="brush" />
+                  <CareBtn icon={<Wand2 className="h-4 w-4" />} label="Trick" onClick={() => void care(selSim, 'trick')} testid="trick" title={selSim.c.bond < 10 ? `${selSim.c.name} learns tricks once you’re Pals` : 'A spin and a hop'} />
+                  {e.T.pond && <CareBtn icon={<Bath className="h-4 w-4" />} label="Bathe" onClick={() => bathe(selSim)} testid="bathe" />}
                 </>
               ) : (
-                <div className="col-span-3 flex items-center text-[11px] text-white/70">Only @{h.owner.username} can feed and play with {selSim.c.name} — but you can call them over to say hi.</div>
+                <div className="col-span-5 flex items-center text-[11px] text-white/70">Only @{h.owner.username} can feed and play with {selSim.c.name} — but you can call them over or walk together.</div>
               )}
+              <CareBtn icon={<Footprints className="h-4 w-4" />} label={selSim.follow ? 'Stay' : 'Follow'} onClick={() => toggleFollow(selSim)} testid="follow" active={!!selSim.follow} />
               <CareBtn icon={<Megaphone className="h-4 w-4" />} label="Call" onClick={() => call(selSim)} testid="call" />
               <CareBtn icon={<Info className="h-4 w-4" />} label="Info" onClick={() => setProfile(selSim.c)} />
             </div>
@@ -947,9 +1252,16 @@ function burst(parts: Part[], x: number, y: number, kind: 'spark', n: number) {
   }
 }
 
-function CareBtn({ icon, label, onClick, testid }: { icon: React.ReactNode; label: string; onClick(): void; testid?: string }) {
+function SeekCount() {
+  const [n, setN] = useState(3);
+  useEffect(() => { const t = setInterval(() => setN((v) => Math.max(1, v - 1)), 1150); return () => clearInterval(t); }, []);
+  return <motion.div key={n} initial={{ scale: 1.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mt-4 font-display text-7xl font-black">{n}</motion.div>;
+}
+
+function CareBtn({ icon, label, onClick, testid, active, title }: { icon: React.ReactNode; label: string; onClick(): void; testid?: string; active?: boolean; title?: string }) {
   return (
-    <motion.button whileTap={{ scale: 0.88 }} onClick={onClick} data-testid={testid} className="grid justify-items-center gap-0.5 rounded-2xl bg-white/10 py-2 text-[11px] font-bold hover:bg-white/20">
+    <motion.button whileTap={{ scale: 0.88 }} onClick={onClick} data-testid={testid} title={title} aria-pressed={active}
+      className={cn('grid justify-items-center gap-0.5 rounded-2xl py-2 text-[11px] font-bold', active ? 'bg-[#FFE14D]/30 ring-1 ring-[#FFE14D]' : 'bg-white/10 hover:bg-white/20')}>
       {icon}{label}
     </motion.button>
   );

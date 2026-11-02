@@ -25,7 +25,7 @@ import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } 
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
-import { Joystick, fmtTank } from '../explorer/Joystick';
+import { Joystick, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 
 const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
@@ -45,6 +45,17 @@ export function MapScreen() {
   useRaritySync();
   useExplorerSync();
   const [joystick, setJoystick] = useState(false);
+  const exState = useExplorer((s) => s.state);
+  const canDrive = !!me && !!exState && exState.joystick?.enabled !== false;
+  // WASD / arrow keys walk the explorer (and open the joystick if it's closed)
+  useDriveKeys(canDrive, () => { if (!useUi.getState().merge) setJoystick(true); });
+  // turning a phone sideways brings up the D-pad
+  const landscape = useLandscapePhone();
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!landscape) { autoOpened.current = false; return; }
+    if (canDrive && !autoOpened.current) { autoOpened.current = true; setJoystick(true); }
+  }, [landscape, canDrive]);
   const merging = useUi((s) => s.merge !== null);
   const celebrating = useCelebration((s) => s.hidden !== null);
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
@@ -82,7 +93,8 @@ export function MapScreen() {
       {me && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
       <AnimatePresence>
         {me && joystick && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-6">
+          <div className={cn('pointer-events-none absolute inset-x-0 z-20 flex justify-center px-4',
+            landscape ? 'bottom-[calc(64px+env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] md:bottom-[max(12px,env(safe-area-inset-bottom,0px))]' : 'bottom-[calc(84px+env(safe-area-inset-bottom,0px))] md:bottom-6')}>
             <Joystick onClose={() => setJoystick(false)} />
           </div>
         )}
@@ -105,7 +117,8 @@ function useExplorerSync() {
   const me = useOnboardedMe();
   const set = useExplorer((s) => s.set);
   useEffect(() => {
-    if (me) set(me.explorer);
+    // while you steer, the joystick's own (server-checked) steps are newer than this snapshot
+    if (me && !recentlyDriven()) set(me.explorer);
   }, [me?.explorer, set]); // eslint-disable-line react-hooks/exhaustive-deps
   const wantGps = !!me && safeStorage('landvas.gps', false);
   useEffect(() => {

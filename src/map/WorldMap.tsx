@@ -22,6 +22,7 @@ import { BUILDING_LAYERS, STREET_LABEL_LAYERS, recolorOffline, resolveStyle, the
 import { citiesInView } from './places';
 import { mapHandle } from './mapHandle';
 import { explorerElement } from '../explorer/character';
+import { MapFx, invalidateResidents } from './MapFx';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -425,6 +426,7 @@ export function WorldMap() {
     if (!ready || !groups.data) return;
     const k = groups.data.map((g) => `${g.id}:${g.status}:${g.plot_count}:${g.cells.length}:${g.kind ?? 'canvas'}`).sort().join('|');
     if (ownKey.current && ownKey.current !== k) {
+      invalidateResidents();
       for (const g of groups.data) for (const [gx, gy] of g.cells) plotBlocks.invalidate(gx, gy, gx, gy);
       redrawPlots();
     }
@@ -501,6 +503,7 @@ export function WorldMap() {
   return (
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
+      <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />
     </div>
   );
 }

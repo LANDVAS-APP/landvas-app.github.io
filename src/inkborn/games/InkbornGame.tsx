@@ -153,7 +153,7 @@ function Arena({ game, genome, seed, seconds, onEnd }: { game: GameId; genome: R
     const kd = (e: KeyboardEvent) => { input.current.keys.add(e.key.toLowerCase()); if (e.key.startsWith('Arrow')) e.preventDefault(); };
     const ku = (e: KeyboardEvent) => input.current.keys.delete(e.key.toLowerCase());
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+    return () => { cancelAnimationFrame(raf); engine.dispose?.(); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const pos = (e: React.PointerEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   return (

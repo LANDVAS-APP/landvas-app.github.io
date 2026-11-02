@@ -264,12 +264,7 @@ export function drawHabitatPlot(ctx: CanvasRenderingContext2D, gx: number, gy: n
       ctx.fillStyle = '#4FA552'; ctx.beginPath(); ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.55, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // a tiny resident at close zoom
-  if (cs >= 40) {
-    const cx = px + cs * 0.62, cy = py + cs * 0.72, r = cs * 0.06;
-    ctx.fillStyle = accent; ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.2, r, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1B1530'; ctx.beginPath(); ctx.arc(cx - r * 0.4, cy - r * 0.2, r * 0.18, 0, Math.PI * 2); ctx.arc(cx + r * 0.4, cy - r * 0.2, r * 0.18, 0, Math.PI * 2); ctx.fill();
-  }
+  // the residents themselves are drawn live over the map (see MapFx.tsx)
   ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = Math.max(1, cs * 0.02);
   ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
 }

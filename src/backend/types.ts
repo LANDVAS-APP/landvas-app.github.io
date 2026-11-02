@@ -417,6 +417,9 @@ export type InkbornEconomy = {
   jobs: Record<string, InkbornJob>; games: Record<string, InkbornGameCfg>; spring: { enabled: boolean; per_creature_hour: number; per_spring_hour: number; max_springs: number; min_happiness: number; max_hours: number };
 };
 export type SpringState = { happy: number; springs: number; hours: number; rate: number; ready: number; full_in_hours: number; enabled: boolean };
+export type CareAction = 'pet' | 'feed' | 'play' | 'brush' | 'fetch' | 'trick' | 'bathe' | 'hideseek';
+/** A creature as the map sees it on someone's habitat plot. */
+export type Resident = { id: string; name: string; genome: import('../inkborn/genome').Genome; personality: string; mine: boolean; happiness: number; energy: number };
 export type Decor = { id: string; k: string; x: number; y: number; f?: 0 | 1 };
 export type Habitat = {
   id: string; kind: 'starter' | 'plot'; biome: 'woodland'; seed: number; layout: Decor[]; layout_rev: number; owner: Profile; is_owner: boolean;

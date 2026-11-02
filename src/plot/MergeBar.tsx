@@ -13,6 +13,8 @@ import { useUi } from '../lib/store';
 import { components, isConnected } from '../shared/fusion';
 import type { CellTuple } from '../shared/grid';
 import { Button } from '../ui';
+import { useMapFx } from '../map/MapFx';
+import { buzz } from '../native/native';
 
 const cellsOf = (gs: CanvasGroup[]) => gs.flatMap((g) => g.cells.map((c) => [c[0], c[1]] as CellTuple));
 
@@ -24,7 +26,9 @@ export function touchingGroups(all: CanvasGroup[], picked: string[]): string[] {
   const out = new Set(picked);
   const queue = [...picked];
   while (queue.length) {
-    const g = active.find((x) => x.id === queue.shift());
+    // take the id first: inside find() it would never run on an empty list (and loop forever)
+    const id = queue.shift();
+    const g = active.find((x) => x.id === id);
     if (!g) continue;
     for (const [x, y] of g.cells) {
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -68,11 +72,15 @@ export function MergeBar() {
   const more = touchingGroups(all, merge.length ? merge : all.slice(0, 1).map((g) => g.id)).length - merge.length;
   const go = async () => {
     setBusy(true);
+    const pieces = picked.map((x) => x.cells.map((c) => [c[0], c[1]] as CellTuple));
     try {
       const g = await api.fuseGroups(picked.map((x) => x.id));
+      // the plots pull together, their seams dissolve and one outline traces the new canvas
+      setMerge(null);
+      useMapFx.getState().playMerge(pieces);
+      if (useUi.getState().settings.haptics) buzz('success');
       celebrate(g.achievements);
       invalidateGame(qc);
-      setMerge(null);
       toast.success(`Merged into one canvas of ${g.plot_count} plots`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
     } catch (e) {
       toast.error(toGameError(e).message);

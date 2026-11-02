@@ -8,6 +8,7 @@ import { api } from '../backend/api';
 import type { ExplorerState } from '../backend/types';
 import { GRID_SIZE, lngLatToCell } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
+import { config } from '../env';
 
 export type GpsStatus = 'off' | 'asking' | 'on' | 'denied' | 'unavailable';
 
@@ -42,6 +43,8 @@ export const useExplorer = create<Store>((set, get) => ({
   setGps: (gps) => set({ gps }),
   setFollowing: (following) => set({ following }),
 }));
+
+if (typeof window !== 'undefined' && (config.e2e || import.meta.env.DEV)) (window as any).__landvasExplorer = useExplorer;
 
 const mercY = (lat: number) => {
   const r = (lat * Math.PI) / 180;

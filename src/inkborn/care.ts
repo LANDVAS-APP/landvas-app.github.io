@@ -13,6 +13,8 @@ export function bondLevel(bond: number) {
 
 export const REACTIONS: Record<string, string> = {
   purr: '♥', yum: 'Yum!', full: 'So full…', yay: 'Yay!', tired: 'Too sleepy to play…',
+  shiny: 'So shiny!', fluffy: 'Already fluffy!', fetch: 'Again! Again!', trick: 'Ta-da!', unsure: 'Huh? (tricks come once you’re Pals)',
+  splash: 'Splish splash!', clean: 'Squeaky clean already', found: 'You found me!', again: 'Let’s play something else',
 };
 
 export function moodWord(happiness: number) {
