@@ -6,6 +6,7 @@ import { Search, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
+import { toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { cn } from '../lib/utils';
 import { Button, Empty, PlayerAvatar, Spinner, inputCls } from '../ui';
@@ -47,7 +48,11 @@ export default function Visit() {
           ))}
         </div>
       </div>
-      {q.isLoading ? <div className="flex justify-center py-16"><Spinner /></div> : !items.length ? (
+      {q.isLoading ? <div className="flex justify-center py-16"><Spinner /></div> : q.isError ? (
+        <Empty icon={<Users className="h-6 w-6" />} title="Sanctuaries couldn’t load" action={<Button variant="secondary" onClick={() => q.refetch()}>Try again</Button>}>
+          {toGameError(q.error).message}
+        </Empty>
+      ) : !items.length ? (
         <Empty icon={<Users className="h-6 w-6" />} title={sort === 'friends' ? 'No friends’ sanctuaries yet' : 'No sanctuaries found'}>
           {sort === 'friends' ? 'Add friends from the Community tab — their sanctuaries show up here.' : 'Try another name.'}
         </Empty>

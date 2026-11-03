@@ -27,3 +27,4 @@ const asPlayer = (call) => `select set_config('request.jwt.claims', json_build_o
 out('directory_as_player', await query(asPlayer(`select jsonb_array_length(public.sanctuary_directory(null, 'lively', 24, 0) -> 'items') n`)));
 out('directory_as_player_new', await query(asPlayer(`select jsonb_array_length(public.sanctuary_directory(null, 'new', 24, 0) -> 'items') n`)));
 out('directory_grants', await query(`select grantee, privilege_type from information_schema.routine_privileges where routine_schema = 'public' and routine_name = 'sanctuary_directory'`));
+out('readonly_player_functions', await query(`select count(*) n from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.provolatile in ('s', 'i') and p.prosrc like '%require_active_player%'`));
