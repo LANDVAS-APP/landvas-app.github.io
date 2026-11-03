@@ -103,7 +103,7 @@ export class History {
     }
     const t = this.doc.tile(layer, key, true)!;
     t.ctx.putImageData(data, 0, 0);
-    t.dirty = true;
+    t.dirty = true; t.local = true;
   }
 
   private captureLayers(): LayerState {

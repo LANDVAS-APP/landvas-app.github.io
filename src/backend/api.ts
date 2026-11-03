@@ -183,6 +183,8 @@ export const api = {
   setActivity: (kind: import('./types').ActivityKind, detail: Record<string, string> = {}) => rpc<{ ok: true }>('set_activity', { p_kind: kind, p_detail: detail }),
   warpToPlayer: (player: string) => rpc<import('./types').SpaceState & { spawn: { d: number[]; player: string } | null; with: Profile }>('space_warp_to_player', { p_player: player }),
   spaceSocial: () => rpc<import('./types').SpaceSocial>('space_worlds_social'),
+  planetChatSend: (world: string, body: string) => rpc<import('./types').PlanetChatMsg>('planet_chat_send', { p_world: world, p_body: body }),
+  planetChatList: (world: string, after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; shard: number | null }>('planet_chat_list', { p_world: world, p_after: after }),
   roverState: () => rpc<import('./types').RoverState>('rover_state'),
   roverBuy: (model: string) => rpc<import('./types').RoverState>('rover_buy', { p_model: model }),
   roverRefuel: (ice: number, ink: number) => rpc<import('./types').RoverState>('rover_refuel', { p_ice: ice, p_ink: ink }),

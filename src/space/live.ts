@@ -23,6 +23,8 @@ export function usePlanetLive(opts: {
   onMembers(m: LiveMember[]): void;
   onRemote(id: string, d: number[], face: number[], hop: number, v?: string | null): void;
   onSpawn?(d: number[], who: LiveMember | null): void;
+  /** a chat message someone in the group just sent (instant, before the next list fetch) */ onChat?(m: unknown): void;
+  /** filled in with a way to broadcast to the group */ sendRef?: { current: ((m: unknown) => void) | null };
 }) {
   const [info, setInfo] = useState<LiveInfo | null>(null);
   const ref = useRef(opts); ref.current = opts;
@@ -34,7 +36,8 @@ export function usePlanetLive(opts: {
     let members = new Set<string>();
     let lastSent = 0, lastKey = '';
     const onMsg = (m: unknown) => {
-      const x = m as { id?: string; d?: number[]; f?: number[]; h?: number; v?: string };
+      const x = m as { id?: string; d?: number[]; f?: number[]; h?: number; v?: string; t?: string; m?: unknown };
+      if (x?.t === 'chat') { if (x.id && members.has(x.id)) ref.current.onChat?.(x.m); return; }
       if (x?.id && members.has(x.id) && x.d && x.f) ref.current.onRemote(x.id, x.d, x.f, x.h ?? 0, x.v ?? null);
     };
     const beat = async () => {
@@ -53,6 +56,7 @@ export function usePlanetLive(opts: {
         if (toGameError(e).code === 'land_first') stopped = true;
       }
     };
+    if (opts.sendRef) opts.sendRef.current = (m) => ch?.send(m);
     void beat();
     const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2000);
     const tx = setInterval(() => {
@@ -62,7 +66,7 @@ export function usePlanetLive(opts: {
       if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop, v: p.v }); savePose(world, p); }
     }, 100);
     // no explicit leave: a quick hop between the map and the 3D view keeps your group (and spot)
-    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); };
+    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
   }, [opts.enabled, opts.world, opts.myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return info;
 }

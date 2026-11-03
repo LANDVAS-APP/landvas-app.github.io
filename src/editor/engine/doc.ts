@@ -13,7 +13,7 @@ import { PLOT_PX, type CellTuple } from '../../shared/grid';
 
 export const R = PLOT_PX;
 
-export type Tile = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; dirty: boolean; hash: string | null };
+export type Tile = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; dirty: boolean; hash: string | null; /** changed since the last on-device autosave */ local?: boolean };
 export type Layer = { id: string; name: string; opacity: number; visible: boolean; tiles: Map<string, Tile> };
 export type CellInfo = { key: string; gx: number; gy: number; x: number; y: number };
 
@@ -27,7 +27,7 @@ export function makeCanvas(w = R, h = R) {
 export function newTile(): Tile {
   const canvas = makeCanvas();
   const ctx = canvas.getContext('2d', { willReadFrequently: false })!;
-  return { canvas, ctx, dirty: true, hash: null };
+  return { canvas, ctx, dirty: true, hash: null, local: true };
 }
 
 let idCounter = 0;

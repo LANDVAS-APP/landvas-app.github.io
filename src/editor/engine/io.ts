@@ -41,7 +41,7 @@ export async function loadDoc(bundle: ProjectBundle, onProgress?: (done: number,
       t.ctx.drawImage(bmp, 0, 0);
       bmp.close?.();
       t.hash = j.hash;
-      t.dirty = false;
+      t.dirty = false; t.local = false;
     } else missing++;
     onProgress?.(++done, jobs.length);
   });

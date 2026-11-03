@@ -501,6 +501,7 @@ export type BaseCatalog = {
   config: { max_modules: number; refund: number; palette: string[]; modules: Record<string, { name: string; emoji: string; w: number; d: number; cost: Record<string, number> }> };
   items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number;
 };
+export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile };
 export type RoverModel = { id: string; name: string; emoji: string; speed: number; tank: number; burn_per_km: number; cost: Record<string, number> };
 export type RoverState = {
   owned: string[]; active: string | null; fuel: number; tank: number; driving: boolean; world: string | null; km: number; km_today: number;

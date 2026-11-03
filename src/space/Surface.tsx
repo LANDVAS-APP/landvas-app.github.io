@@ -23,6 +23,7 @@ import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
 import { DigPanel } from './Dig';
 import { RoverControls, RoverGarage, useRover } from './Rover';
+import { PlanetChatBox, usePlanetChat } from './PlanetChat';
 import { BaseBuilder } from './BaseBuilder';
 import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
 import { PLANET_GAMES } from './planetGames';
@@ -180,7 +181,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [reveal, setReveal] = useState<{ rarity: string; games: string[] } | null>(null);
 
   // walk together with your live group (the same group from the World tab or full screen)
+  const chat = usePlanetChat(world, me?.profile.id, ready, scene);
   const live = usePlanetLive({
+    sendRef: chat.sendRef, onChat: chat.onChat,
     world, enabled: ready, myId: me?.profile.id,
     pose: () => scene.current?.pose() ?? null,
     onMembers: (ms) => scene.current?.setLive(ms.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop, companion: m.companion?.genome ? cleanGenome(m.companion.genome) : null,
@@ -319,6 +322,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => setDigOpen(true)} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
+
+      {/* group chat (your live group of up to 10) */}
+      {ready && !high && <PlanetChatBox chat={chat} myId={me?.profile.id} className={cn('absolute left-3 z-10', embedded ? 'top-[40%]' : 'top-[38%]')} />}
 
       {/* the plot under you (or the one you tapped from above) */}
       <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center px-3', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+140px)] md:bottom-[150px]' : 'bottom-[calc(max(16px,env(safe-area-inset-bottom,0px))+140px)] sm:bottom-[max(16px,env(safe-area-inset-bottom,0px))]')}>

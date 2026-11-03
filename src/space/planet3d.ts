@@ -40,6 +40,7 @@ export type PlanetScene = {
   /** drop in next to a spot on the globe */ teleport(d: number[]): void;
   /** stand exactly here, facing this way */ place(d: number[], face?: number[]): void;
   setBuddy(g: Genome | null): void;
+  /** a speech bubble over an explorer (id, or 'me') for a few seconds */ say(id: string, text: string): void;
   /** 0 = on your feet … 1 = the whole planet */ setZoom(level: number): void; zoom(f: number): void;
   /** look back at yourself */ findMe(): void;
   walkTo(c: Cell): void;
@@ -63,6 +64,24 @@ function textSprite(text: string, color = '#fff', scale = 1) {
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
   s.scale.set(5.3 * scale, 1 * scale, 1); s.center.set(0.5, 0);
+  return s;
+}
+/** A speech bubble: up to 3 wrapped lines, with a little tail. */
+function bubbleSprite(text: string) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 200;
+  const g = c.getContext('2d')!;
+  g.font = '600 34px ui-rounded, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const words = text.split(' '); const lines: string[] = []; let cur = '';
+  for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (g.measureText(t).width > 440 && cur) { lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur);
+  if (lines.length > 3) { lines.length = 3; lines[2] = lines[2].replace(/\s*\S*$/, '') + '…'; }
+  const w = Math.min(490, Math.max(...lines.map((l) => g.measureText(l).width)) + 44), h = lines.length * 40 + 26, top = 170 - h;
+  g.fillStyle = 'rgba(255,255,255,0.95)'; g.beginPath(); g.roundRect(256 - w / 2, top, w, h, 26); g.fill();
+  g.beginPath(); g.moveTo(240, 168); g.lineTo(256, 194); g.lineTo(272, 168); g.fill();
+  g.fillStyle = '#141633'; lines.forEach((l, i) => g.fillText(l, 256, top + 13 + 20 + i * 40));
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, depthTest: false, transparent: true }));
+  s.scale.set(3.1, 1.21, 1); s.center.set(0.5, 0); s.renderOrder = 6;
   return s;
 }
 function imageSprite(url: string, h: number) {
@@ -611,6 +630,13 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     obj.quaternion.setFromRotationMatrix(basis.makeBasis(bx, d, bz));
     obj.position.copy(d).multiplyScalar(h);
   };
+  const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
+  const dropBubble = (id: string) => { const b = bubbles.get(id); if (b) { scene.remove(b.s); disposeSprite(b.s); bubbles.delete(id); } };
+  const say = (id: string, text: string) => {
+    dropBubble(id);
+    const t = String(text).replace(/\s+/g, ' ').trim().slice(0, 140); if (!t) return;
+    const s = bubbleSprite(t); scene.add(s); bubbles.set(id, { s, until: performance.now() + Math.min(10000, 4500 + t.length * 60) });
+  };
   let ride: { kind: string; speed: number; obj: THREE.Object3D } | null = null;
   const setRover = (kind: string | null, speed = 20) => {
     if (ride) { scene.remove(ride.obj); ride = null; }
@@ -840,6 +866,13 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         buddy.tex.needsUpdate = true;
       }
     }
+    for (const [id, b] of bubbles) {
+      const at = id === 'me' ? me.position : others.get(id)?.s.position;
+      if (!at || performance.now() > b.until) { dropBubble(id); continue; }
+      const upv = id === 'me' ? P.d : others.get(id)!.d;
+      b.s.position.copy(at).addScaledVector(upv, id === 'me' ? 1.95 : 2.55);
+      b.s.visible = hgh < 0.5;
+    }
     for (const x of others.values()) {
       const gap = x.d.angleTo(x.to) * R;
       if (gap > 60) x.d.copy(x.to);
@@ -920,7 +953,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say,
     findMe: () => { freeLook = false; },
     pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0, v: ride?.kind }),
     place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },
@@ -933,6 +966,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel); o.canvas.removeEventListener('webglcontextlost', lost);
       clearPlots(); highlight(null); setBuddy(null); setRover(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
       for (const id of [...others.keys()]) dropOther(id);
+      for (const id of [...bubbles.keys()]) dropBubble(id);
       for (const l of labelPool) if (l.s) disposeSprite(l.s);
       disposeSprite(me);
       decor.forEach((m) => m.dispose());
@@ -940,6 +974,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

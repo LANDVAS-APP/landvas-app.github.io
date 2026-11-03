@@ -580,7 +580,7 @@ export class Editor {
       t.ctx.drawImage(buf, 0, 0);
       t.ctx.globalAlpha = 1;
       t.ctx.globalCompositeOperation = 'source-over';
-      t.dirty = true;
+      t.dirty = true; t.local = true;
       this.doc.touch(key);
     }
     this.history.commit();
@@ -700,7 +700,7 @@ export class Editor {
       transform(t.ctx);
       t.ctx.drawImage(big, 0, 0);
       t.ctx.restore();
-      t.dirty = true;
+      t.dirty = true; t.local = true;
     }
     this.history.commit();
     this.doc.touchAll();
@@ -770,7 +770,7 @@ export class Editor {
       bt.ctx.globalAlpha = top.opacity;
       bt.ctx.drawImage(t.canvas, 0, 0);
       bt.ctx.globalAlpha = 1;
-      bt.dirty = true;
+      bt.dirty = true; bt.local = true;
     }
     this.doc.layers.splice(idx, 1);
     this.doc.activeId = below.id;
@@ -808,7 +808,7 @@ export class Editor {
     for (const [k, t] of l.tiles) {
       this.history.snapshotTile(l, k, t);
       t.ctx.clearRect(0, 0, R, R);
-      t.dirty = true;
+      t.dirty = true; t.local = true;
     }
     this.history.commit();
     this.doc.touchAll();
@@ -871,7 +871,7 @@ export class Editor {
       t.ctx.translate(-cell.x, -cell.y);
       draw(t.ctx, this.doc.width, this.doc.height);
       t.ctx.restore();
-      t.dirty = true;
+      t.dirty = true; t.local = true;
     }
     this.history.commit();
     if (keep && this.doc.layer(keep)) this.doc.activeId = keep;
@@ -897,7 +897,7 @@ export class Editor {
       t.ctx.scale(pl.scale * (pl.flipX ? -1 : 1), pl.scale);
       t.ctx.drawImage(pl.src, -pl.src.width / 2, -pl.src.height / 2);
       t.ctx.restore();
-      t.dirty = true;
+      t.dirty = true; t.local = true;
     }
     // drop tiles the image did not touch
     for (const [k, t] of [...layer.tiles]) {

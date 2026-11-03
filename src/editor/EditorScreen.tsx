@@ -20,6 +20,7 @@ import { BRUSHES } from './engine/brush';
 import type { Doc } from './engine/doc';
 import { Editor, type ToolId } from './engine/Editor';
 import { loadDoc, publish, saveTiles, type PublishStep } from './engine/io';
+import { LocalDrafts, applyLocalDraft, clearLocalDraft, readLocalDraft } from './engine/localDraft';
 import { CreatePanel } from './ui/CreatePanel';
 import { EDITOR_MAX_PLOTS, HugeMural } from './HugeMural';
 import { holdUpdates } from '../app/updates';
@@ -73,6 +74,8 @@ function PaintEditor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ed, setEd] = useState<Editor | null>(null);
   const baseVersion = useRef<string>('');
+  const local = useRef<LocalDrafts | null>(null);
+  const recovered = useRef(false);
   const [title, setTitle] = useState('Untitled');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -104,6 +107,22 @@ function PaintEditor() {
         const { doc, missing } = await loadDoc(b, (d, t) => live && setProgress([d, t]));
         if (!live) return;
         if (missing) toast.warning(`${missing} saved tile${missing === 1 ? '' : 's'} could not be downloaded.`);
+        // anything painted on this device that never reached the cloud (a reload, a crash) comes back
+        local.current = new LocalDrafts(b.project.id);
+        recovered.current = false;
+        const kept = await readLocalDraft(b.project.id);
+        if (!live) return;
+        if (kept && (kept.base === b.version.id || kept.saved_at > new Date(b.version.created_at).getTime())) {
+          const n = await applyLocalDraft(doc, kept);
+          if (kept.title) setTitle(kept.title);
+          recovered.current = true;
+          toast.success(`Recovered your unsaved painting${n ? ` (${n} plot tile${n === 1 ? '' : 's'})` : ''} from this device`, {
+            description: `From ${timeAgo(new Date(kept.saved_at).toISOString())}. It saves to your account in a moment.`,
+            action: { label: 'Discard', onClick: () => { void clearLocalDraft(b.project.id).then(() => reload()); } },
+            duration: 9000,
+          });
+        } else if (kept) void clearLocalDraft(b.project.id);
+        if (!live) return;
         setDoc(doc);
       } catch (e) {
         setLoadErr(toGameError(e).message);
@@ -123,6 +142,7 @@ function PaintEditor() {
     e.maxLayers = Math.max((limits?.max_layers_base ?? 6) + extra, doc.layers.length);
     e.unlocked = new Set(me?.unlocks ?? []);
     e.toast = (m) => toast(m);
+    if (recovered.current) e.dirty = true;
     setEd(e);
     if (config.e2e || import.meta.env.DEV) (window as any).__landvasEditor = e;
     return () => e.dispose();
@@ -140,6 +160,7 @@ function PaintEditor() {
       baseVersion.current = r.version_id;
       ed.dirty = false;
       ed.emit();
+      void local.current?.cleared();
       setSavedAt(r.saved_at);
       celebrate(r.achievements);
       invalidateGame(qc);
@@ -154,11 +175,27 @@ function PaintEditor() {
     }
   }, [ed, bundle, me, title, qc]);
 
-  // autosave + unload guard
+  // autosave: to this device every 5 s (free, only the tiles that changed), to your account every minute
+  // and whenever you switch away — each account save is a new version, so those stay less frequent
+  const snapVer = useRef(-1);
+  const snapshot = useCallback(() => {
+    if (!ed || !ed.dirty || !local.current) return;
+    const v = ed.getVersion(); if (v === snapVer.current) return; snapVer.current = v;
+    void local.current.snapshot(ed.doc, baseVersion.current, title);
+  }, [ed, title]);
   useEffect(() => {
     if (!ed) return;
-    const t = setInterval(() => { if (ed.dirty && !saving) void save(); }, 90_000);
-    const before = (e: BeforeUnloadEvent) => { if (ed.dirty) { e.preventDefault(); e.returnValue = ''; } };
+    const t5 = setInterval(snapshot, 5_000);
+    const away = () => { if (document.visibilityState === 'hidden') { snapVer.current = -1; snapshot(); if (ed.dirty && !saving) void save(); } };
+    const hide = () => { snapVer.current = -1; snapshot(); };
+    document.addEventListener('visibilitychange', away);
+    window.addEventListener('pagehide', hide);
+    return () => { clearInterval(t5); document.removeEventListener('visibilitychange', away); window.removeEventListener('pagehide', hide); };
+  }, [ed, snapshot, save, saving]);
+  useEffect(() => {
+    if (!ed) return;
+    const t = setInterval(() => { if (ed.dirty && !saving) void save(); }, 60_000);
+    const before = (e: BeforeUnloadEvent) => { if (ed.dirty) { snapVer.current = -1; snapshot(); e.preventDefault(); e.returnValue = ''; } };
     window.addEventListener('beforeunload', before);
     const keys = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); } };
     window.addEventListener('keydown', keys);
@@ -179,6 +216,7 @@ function PaintEditor() {
       else {
         const discard = await confirm({ title: 'Leave without saving?', body: 'Unsaved changes will be lost.', confirm: 'Discard changes', danger: true });
         if (!discard) return;
+        if (bundle) { await clearLocalDraft(bundle.project.id); ed.dirty = false; }
       }
     }
     nav(-1);
@@ -209,7 +247,7 @@ function PaintEditor() {
           <input value={title} onChange={(e) => { setTitle(e.target.value.slice(0, 80)); if (ed) { ed.dirty = true; ed.emit(); } }}
             className="w-full min-w-0 truncate bg-transparent font-display text-[15px] font-semibold focus:outline-none" aria-label="Artwork title" id="art-title" />
           <div className="truncate text-[11.5px] text-muted tnum">
-            {cols}×{rows} canvas · {doc?.cells.length ?? '…'} plot{doc?.cells.length === 1 ? '' : 's'} · {saving ? 'Saving…' : ed?.dirty ? 'Unsaved changes' : savedAt ? `Saved ${timeAgo(savedAt)}` : ''}
+            {cols}×{rows} canvas · {doc?.cells.length ?? '…'} plot{doc?.cells.length === 1 ? '' : 's'} · {saving ? 'Saving…' : ed?.dirty ? 'Kept on this device · saving soon' : savedAt ? `Saved ${timeAgo(savedAt)}` : ''}
           </div>
         </div>
         <div className="hidden items-center gap-1 sm:flex">
