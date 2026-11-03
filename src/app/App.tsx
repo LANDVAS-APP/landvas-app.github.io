@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { isNative } from '../native/native';
+import { useActivityReporter } from '../social/activity';
+import { useOnboardedMe } from '../lib/queries';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { getBackend } from '../backend/backend';
@@ -118,6 +120,13 @@ function RouteMeta() {
   return null;
 }
 
+/** Tell friends what you're up to (the screen you're on). */
+function ActivitySync() {
+  const me = useOnboardedMe();
+  useActivityReporter(!!me);
+  return null;
+}
+
 function SessionSync() {
   const qc = useQueryClient();
   useReferralRedeemer();
@@ -142,7 +151,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><OnboardingGate /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><OnboardingGate /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

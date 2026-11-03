@@ -16,6 +16,7 @@ import { buzz } from '../native/native';
 import { Button, Dialog, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import type { World } from './worlds';
+import { reportActivity } from '../social/activity';
 
 export const digKey = (world: string) => ['dig', world] as const;
 const layerAt = (layers: MineLayer[], depth: number) => layers.findIndex((l) => depth < l.to) === -1 ? layers.length - 1 : layers.findIndex((l) => depth < l.to);
@@ -30,6 +31,7 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
   const haptics = useUi((st) => st.settings.haptics);
   const reduce = useUi((st) => st.settings.reduceMotion);
   useEffect(() => { if (q.data) setState(q.data); }, [q.data]);
+  useEffect(() => { reportActivity('dig', { world }); return () => reportActivity(null); }, [world]);
   const live = useRef({ pending: 0, shown: 0, target: 0, sending: false, holding: false, lastTap: 0, pops: [] as { x: number; y: number; text: string; life: number }[], shake: 0 });
   const st = useRef(state); st.current = state;
   const cv = useRef<HTMLCanvasElement>(null);

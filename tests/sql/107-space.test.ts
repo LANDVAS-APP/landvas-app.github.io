@@ -70,6 +70,7 @@ describe('Space', () => {
     expect(s.dest).toMatch(/^exo:\d+$/);
     expect(s.warped).toBe(false);
     await land(sol);
+    await db.giveInk(sol, 1000);
     const st = await db.rpc(sol, 'space_settle', { p_name: 'New Inkhaven' });
     expect(st.home_name).toBe('New Inkhaven');
     expect(st.home_seed).toBe(st.exo_seed);

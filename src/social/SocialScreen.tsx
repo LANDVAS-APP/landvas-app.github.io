@@ -19,6 +19,18 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { FriendButton } from './FriendButton';
+import { Rocket } from 'lucide-react';
+import { canWarpTo, describeWhereabouts, registerGameNames, useWarpTo } from './activity';
+import { PlanetBall } from '../space/PlanetBall';
+import { exoWorld, worldOf } from '../space/worlds';
+import { PLANET_GAMES } from '../space/planetGames';
+import { SPACE_GAMES } from '../space/games';
+import { GAMES as INK_GAMES } from '../inkborn/games/engines';
+
+registerGameNames(Object.fromEntries([
+  ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
+  ...Object.entries(INK_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(GAME_INFO).map(([k, v]) => [k, (v as { name: string }).name]),
+]));
 
 const TABS = [
   { value: 'feed', label: 'Live feed' },
@@ -106,6 +118,8 @@ const dedupe = <T extends { id: number }>(list: T[]) => {
 
 function FeedRow({ e }: { e: FeedEvent }) {
   const p = e.player;
+  const me = useOnboardedMe();
+  const warpTo = useWarpTo();
   const who = <Link to={`/u/${p.username}`} className="font-bold hover:underline">@{p.username}</Link>;
   let icon = <Sparkles className="h-4 w-4 text-accent-2" />;
   let body: React.ReactNode = null;
@@ -161,6 +175,37 @@ function FeedRow({ e }: { e: FeedEvent }) {
     case 'duet':
       icon = <Star className="h-4 w-4 text-hot" />;
       body = <>{who} finished a <Link to={`/duet/${e.data.duet_id}`} className="font-semibold hover:underline">duet: {e.data.prompt}</Link></>;
+      break;
+    case 'planet_plot': {
+      const w = worldOf(e.data.world as string);
+      icon = <Flag className="h-4 w-4 text-[#B69CFF]" />;
+      body = <>{who} claimed a plot on <b>{w?.name ?? 'a far-off world'}</b>{e.data.rarity ? <span className="ml-1 rounded-full bg-[#B69CFF]/20 px-1.5 text-[10px] font-black uppercase text-[#B69CFF]">{e.data.rarity}</span> : null}</>;
+      extra = w ? <PlanetBall w={w} size={36} /> : null;
+      break;
+    }
+    case 'settle': {
+      const w = exoWorld(Number(e.data.seed), e.data.name as string);
+      icon = <Rocket className="h-4 w-4 text-gold" />;
+      body = <>{who} settled a new world: <b>{e.data.name}</b> 🏡</>;
+      extra = <PlanetBall w={w} size={44} />;
+      break;
+    }
+    case 'exploring': {
+      const w = worldOf(e.data.world as string);
+      const room = e.data.live && Number(e.data.in_room) < Number(e.data.room_size);
+      icon = <Rocket className="h-4 w-4 text-[#7FE3FF]" />;
+      body = <>{who} is exploring <b>{w?.name ?? 'space'}</b>{e.data.live ? <span className="text-muted"> · {e.data.in_room}/{e.data.room_size} in the group</span> : <span className="text-muted"> · earlier</span>}</>;
+      extra = room && me ? <Button size="sm" variant="rainbow" onClick={() => void warpTo(p)} data-testid="feed-join">Join</Button> : w ? <PlanetBall w={w} size={36} /> : null;
+      break;
+    }
+    case 'playdate':
+      icon = <Star className="h-4 w-4 text-[#FF8FB1]" />;
+      body = <>{who} took <b>{e.data.mine}</b> on a playdate with @{e.data.host}’s <b>{e.data.theirs}</b>{e.data.eggs ? ' — and they both got an egg! 🥚' : ''}</>;
+      extra = e.data.habitat ? <Link to={`/habitat/${e.data.habitat}`}><Button size="sm" variant="secondary">Visit</Button></Link> : null;
+      break;
+    case 'dig':
+      icon = <Sparkles className="h-4 w-4 text-[#FFB13D]" />;
+      body = <>{who} dug through to <b>{e.data.layer}</b> on {worldOf(e.data.world as string)?.name ?? 'a far-off world'} ⛏️ <span className="text-muted">· {fmt(Number(e.data.depth))} m deep</span></>;
       break;
     case 'stamp':
       icon = <Star className="h-4 w-4 text-gold" />;
@@ -356,6 +401,7 @@ function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; lab
 // ---- friends ------------------------------------------------------------------------------
 
 function FriendsTab() {
+  const warpTo = useWarpTo();
   const me = useOnboardedMe();
   const session = useSession();
   const q = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 30_000 });
@@ -387,13 +433,17 @@ function FriendsTab() {
           <Empty icon={<Users className="h-6 w-6" />} title="No friends yet" action={<Link to="/invite" className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white">Invite a friend</Link>}>Add players from their profile or the Players page — or invite someone you know.</Empty>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {friends.map((f) => (
-              <div key={f.player.id} className="glass flex items-center gap-3 rounded-2xl p-3" data-testid="friend-row">
-                <Link to={`/u/${f.player.username}`}><PlayerAvatar p={f.player} size={44} /></Link>
+            {[...friends].sort((a, b) => Number(!!b.now?.online) - Number(!!a.now?.online)).map((f) => (
+              <div key={f.player.id} className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3" data-testid="friend-row">
+                <Link to={`/u/${f.player.username}`} className="relative"><PlayerAvatar p={f.player} size={44} />
+                  {f.now?.online && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-bg-2 bg-[#4FD18B]" aria-label="online" />}
+                </Link>
                 <div className="min-w-0 flex-1">
                   <Link to={`/u/${f.player.username}`} className="block truncate font-bold hover:underline">{f.player.display_name || f.player.username}</Link>
-                  <div className="text-xs text-muted">@{f.player.username} · {fmt(f.plots)} plot{f.plots === 1 ? '' : 's'}</div>
+                  <div className="truncate text-xs text-muted" data-testid="friend-now">{describeWhereabouts(f.now) ?? `@${f.player.username} · ${fmt(f.plots)} plot${f.plots === 1 ? '' : 's'}`}</div>
+                  {f.now?.space?.home_name && !f.now.space.at_home && <div className="truncate text-[11px] text-faint">🏡 home world: {f.now.space.home_name}</div>}
                 </div>
+                {canWarpTo(f.now, true) && <Button size="sm" variant="rainbow" onClick={() => void warpTo(f.player)} data-testid="warp-to-friend">⚡ Warp</Button>}
                 <Link to={`/u/${f.player.username}/room`} className="flex h-8 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold hover:border-line-strong" aria-label={`Visit @${f.player.username}'s room`}><DoorOpen className="h-3.5 w-3.5" /> Room</Link>
               </div>
             ))}

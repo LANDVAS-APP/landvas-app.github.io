@@ -378,10 +378,10 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
           <Button variant="rainbow" loading={busy} onClick={rename}>Save</Button>
         </div>
       </Dialog>
-      <Dialog open={settleOpen} onOpenChange={setSettleOpen} title="Settle this world" description="Make it your home world. Your dome goes up by the rocket, it gets a plot map of its own that only you can build on, and you can fly back from mission control any time.">
+      <Dialog open={settleOpen} onOpenChange={setSettleOpen} title="Settle this world" description="Make it your home world for 1,000 Ink. Your dome goes up by the rocket, it gets a plot map of its own that only you can build on, it shows up for your friends, and you can warp back any time.">
         <div className="grid gap-3">
           <input className={inputCls} value={name} maxLength={32} onChange={(e) => setName(e.target.value)} placeholder="Name your world" data-testid="settle-name" />
-          <Button variant="rainbow" loading={busy} disabled={!name.trim()} onClick={settle} data-testid="settle-go"><Home className="h-4 w-4" /> Make it home</Button>
+          <Button variant="rainbow" loading={busy} disabled={!name.trim()} onClick={settle} data-testid="settle-go"><Home className="h-4 w-4" /> Make it home · 1,000 <ResourceIcon r="ink" className="h-4 w-4" /></Button>
         </div>
       </Dialog>
     </div>

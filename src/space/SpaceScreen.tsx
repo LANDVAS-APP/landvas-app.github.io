@@ -22,7 +22,10 @@ import { SPACE_KEY, fmtLeft, placeName, useFlight, useSpace } from './useSpace';
 import { WORLDS, WORLD_ORDER, type World, type WorldId, exoWorld, worldKey, worldOf } from './worlds';
 import { SPACE_GAMES } from './games';
 import { createSystemScene, type SystemLive } from './system3d';
+import { PlanetBall } from './PlanetBall';
+export { PlanetBall };
 import { PLANET_GAMES } from './planetGames';
+import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
 
 export default function SpaceScreen() {
   const me = useOnboardedMe();
@@ -91,6 +94,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
         <>
           <StatusCard s={s} flight={flight} onWorld={onWorld} accent={accent} busy={busy} onHome={() => launch('earth')} onRush={rush} />
           <WarpBar s={s} busy={busy} onWarp={(d) => launch(d)} />
+          <FriendsInSpace />
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="glass relative min-w-0 overflow-hidden rounded-[28px] p-2" data-testid="system-map">
               <SystemMap s={s} progress={flight.progress} flying={flight.flying} picked={pick} onPick={setPick} accent={accent} />
@@ -395,15 +399,6 @@ function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; 
   );
 }
 
-export function PlanetBall({ w, size = 48 }: { w: World | null; size?: number }) {
-  if (!w) return <div className="grid shrink-0 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_35%,#8B5CFF,#1B1340)] text-2xl" style={{ width: size, height: size }}>✨</div>;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      {w.ring && <div className="absolute left-1/2 top-1/2 h-[30%] w-[150%] -translate-x-1/2 -translate-y-1/2 -rotate-12 rounded-[50%] border-[3px]" style={{ borderColor: w.ring }} />}
-      <div className="absolute inset-0 rounded-full shadow-[inset_-6px_-6px_14px_rgba(0,0,0,0.45)]" style={{ background: `radial-gradient(circle at 35% 35%, ${w.color}, ${w.color2})` }} />
-    </div>
-  );
-}
 
 // ---- engine upgrades ---------------------------------------------------------------------------
 function EngineCard({ s, busy, onUpgrade, accent }: { s: SpaceState; busy: string | null; onUpgrade(): void; accent: string }) {
@@ -491,6 +486,50 @@ function Logbook({ s }: { s: SpaceState }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ---- friends out in space, and the newest worlds anyone has settled ----------------------------------
+function FriendsInSpace() {
+  const q = useQuery({ queryKey: ['space-social'], queryFn: api.spaceSocial, refetchInterval: 30_000 });
+  const warpTo = useWarpTo();
+  const friends = q.data?.friends ?? [], worlds = q.data?.new_worlds ?? [];
+  if (!friends.length && !worlds.length) return null;
+  return (
+    <div className="glass grid gap-3 rounded-[28px] p-4" data-testid="friends-in-space">
+      {friends.length > 0 && (
+        <div className="grid gap-2">
+          <div className="eyebrow">Friends in space</div>
+          {friends.map(({ player, now }) => {
+            const loc = now.space && now.space.location !== 'earth' ? worldOf(now.space.location, now.space.home_seed, now.space.home_name) : null;
+            const home = now.space?.home_seed ? exoWorld(now.space.home_seed, now.space.home_name) : null;
+            return (
+              <div key={player.id} className="flex items-center gap-2.5 rounded-2xl bg-surface-2/70 p-2" data-testid="space-friend">
+                <PlanetBall w={loc ?? home} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold">@{player.username}{now.online && <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-[#4FD18B]" />}</div>
+                  <div className="truncate text-[11px] text-muted">{describeWhereabouts(now) ?? (home ? `🏡 ${now.space?.home_name}` : 'on Earth')}{home && !now.space?.at_home ? ` · home: ${now.space?.home_name}` : ''}</div>
+                </div>
+                {canWarpTo(now, true) && <Button size="sm" variant="rainbow" onClick={() => void warpTo(player)}>⚡ Warp</Button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {worlds.length > 0 && (
+        <div className="grid gap-2">
+          <div className="eyebrow">Newly settled worlds</div>
+          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
+            {worlds.map((x) => (
+              <div key={`${x.seed}-${x.at}`} className="grid w-20 shrink-0 justify-items-center gap-1 text-center text-[10.5px]">
+                <PlanetBall w={exoWorld(x.seed, x.name)} size={44} />
+                <b className="w-full truncate">{x.name}</b><span className="w-full truncate text-muted">@{x.player.username}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

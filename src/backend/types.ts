@@ -179,14 +179,15 @@ export type AdminPlot = [number, number, RarityId, PlotTypeId, number, boolean, 
 
 export type FriendStatus = 'none' | 'self' | 'friends' | 'incoming' | 'outgoing';
 export type FriendsList = {
-  friends: { player: Profile; since: string; plots: number }[];
+  friends: { player: Profile; since: string; plots: number; now?: Whereabouts }[];
   incoming: { player: Profile; at: string }[];
   outgoing: { player: Profile; at: string }[];
 };
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
 export type FeedEvent = {
   id: number;
-  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp';
+  kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -482,4 +483,15 @@ export type DigState = {
   energy: number; energy_max: number; regen_per_minute: number; items: Record<string, number>;
   config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number } };
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
+};
+export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other';
+export type Whereabouts = {
+  online: boolean;
+  activity: { kind: ActivityKind; detail: Record<string, string>; at: string } | null;
+  space: { location: string; dest: string | null; arrive_at: string | null; home_seed: number | null; home_name: string | null; at_home: boolean } | null;
+  room: { live: boolean; in_room?: number; room_size?: number } | null;
+};
+export type SpaceSocial = {
+  friends: { player: Profile; now: Whereabouts }[];
+  new_worlds: { player: Profile; seed: number; name: string; at: string }[];
 };

@@ -94,10 +94,9 @@ describe('Planet plots', () => {
     expect((await db.rpc(ana, 'planet_game_finish', { p_session: free.session, p_score: 150 })).paid).toBe(0);
   });
 
-  it('planet Ink stops at the daily cap', async () => {
+  it('planet Ink stops at the daily cap (per world)', async () => {
     await db.sql(`update planet_plots set rarity = 'dust'`);
-    await db.sql(`update space_pilots set planet_ink_today = 195, planet_ink_day = date_trunc('day', now()) where player_id = $1`, [bo]);
-    await db.sql(`update space_pilots set planet_ink_day = private.day_start(now()) where player_id = $1`, [bo]);
+    await db.sql(`insert into planet_ink_days (player_id, world, day, ink) values ($1, 'moon', private.day_start(now()), 95)`, [bo]);
     const g = await db.rpc(bo, 'planet_game_start', { p_world: 'moon', p_gx: 5, p_gy: 5, p_game: 'rockrun' });
     await age(g.session, 60);
     const r = await db.rpc(bo, 'planet_game_finish', { p_session: g.session, p_score: 150 });
