@@ -21,3 +21,9 @@ out('directory_candidates', await query(`select count(*) n, count(*) filter (whe
 out('directory_function', await query(`select p.proname, pg_get_function_identity_arguments(p.oid) args from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('sanctuary_directory', 'inkborn_set_companion')`));
 out('player_status', await query(`select status, count(*) from public.players group by 1`));
 out('migrations_latest', await query(`select name, applied_at from landvas_meta.migrations order by applied_at desc limit 4`));
+// call the directory as a sample player (read-only), report only how many came back — or the error
+const asPlayer = (call) => `select set_config('request.jwt.claims', json_build_object('sub', (select id::text from public.players where status = 'active' order by created_at limit 1), 'role', 'authenticated')::text, true) c;
+  ${call}`;
+out('directory_as_player', await query(asPlayer(`select jsonb_array_length(public.sanctuary_directory(null, 'lively', 24, 0) -> 'items') n`)));
+out('directory_as_player_new', await query(asPlayer(`select jsonb_array_length(public.sanctuary_directory(null, 'new', 24, 0) -> 'items') n`)));
+out('directory_grants', await query(`select grantee, privilege_type from information_schema.routine_privileges where routine_schema = 'public' and routine_name = 'sanctuary_directory'`));
