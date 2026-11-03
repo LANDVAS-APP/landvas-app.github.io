@@ -183,6 +183,9 @@ export const api = {
   setActivity: (kind: import('./types').ActivityKind, detail: Record<string, string> = {}) => rpc<{ ok: true }>('set_activity', { p_kind: kind, p_detail: detail }),
   warpToPlayer: (player: string) => rpc<import('./types').SpaceState & { spawn: { d: number[]; player: string } | null; with: Profile }>('space_warp_to_player', { p_player: player }),
   spaceSocial: () => rpc<import('./types').SpaceSocial>('space_worlds_social'),
+  baseCatalog: () => rpc<import('./types').BaseCatalog>('planet_base_catalog'),
+  baseSave: (world: string, gx: number, gy: number, layout: import('./types').BaseModule[], rev: number) =>
+    rpc<{ layout: import('./types').BaseModule[]; rev: number; spent: Record<string, number>; refunded: Record<string, number>; items: Record<string, number> }>('planet_base_save', { p_world: world, p_gx: gx, p_gy: gy, p_layout: layout, p_rev: rev }),
   planetMap: (world: string) => rpc<import('./types').PlanetMap>('planet_map', { p_world: world }),
   planetMeteors: (world: string) => rpc<import('./types').MeteorShower>('planet_meteors', { p_world: world }),
   planetMeteorGrab: (world: string, idx: number, d: number[] | null) => rpc<{ paid: number; earned: number; golden: boolean; capped: boolean }>('planet_meteor_grab', { p_world: world, p_idx: idx, p_d: d }),

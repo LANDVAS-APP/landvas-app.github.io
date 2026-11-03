@@ -22,6 +22,7 @@ import { confettiCannons } from '../ui/confetti';
 import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
 import { DigPanel } from './Dig';
+import { BaseBuilder } from './BaseBuilder';
 import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
 import { PLANET_GAMES } from './planetGames';
 import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
@@ -83,6 +84,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [lost, setLost] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
   const [digOpen, setDigOpen] = useState(false);
+  const [building, setBuilding] = useState<PlanetPlot | null>(null);
   const collecting = useRef(false);
 
   const collect = async () => {
@@ -320,7 +322,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
           <PlotCard map={map.data} cell={cell} plot={here} high={high} busy={busy} rows={builtRows} rarityOf={rarityOf}
             onClaim={claim} onWalk={() => cell && scene.current?.walkTo(cell)}
             onRename={() => { setName(here?.name ?? ''); setRenameOpen(true); }}
-            onPlay={(g) => cell && nav(`/space/planet/${encodeURIComponent(world)}/${cell.gx}/${cell.gy}/${g}`)} />
+            onPlay={(g) => cell && nav(`/space/planet/${encodeURIComponent(world)}/${cell.gx}/${cell.gy}/${g}`)} onBuild={() => here && setBuilding(here)} />
         )}
         {ready && !canPlots && (
           <div className="pointer-events-auto rounded-2xl bg-black/60 px-4 py-2 text-center text-xs text-white/80 backdrop-blur">Uncharted world — settle it to lay out plots of your own.</div>
@@ -340,6 +342,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       </div>
       {high && ready && !cell && <div className={cn('pointer-events-none absolute inset-x-0 z-10 mx-auto w-fit rounded-full bg-black/45 px-3 py-1 text-[11px] text-white/80', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+150px)] md:bottom-[160px]' : 'bottom-[160px]')}>{zoom.mode === 'orbit' ? 'Drag to spin the planet · tap a plot' : 'Fly with the stick · tap a plot · Land to walk'}</div>}
 
+      <AnimatePresence>{building && <BaseBuilder world={world} plot={building} onClose={() => setBuilding(null)} onSaved={() => { void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
       <AnimatePresence>{digOpen && <DigPanel world={world} w={w} pose={() => scene.current?.pose().d ?? null} onClose={() => setDigOpen(false)} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
@@ -393,9 +396,9 @@ function RarityBadge({ r }: { r: RarityInfo | undefined }) {
   if (!r) return null;
   return <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${r.color}33`, color: r.color, boxShadow: `inset 0 0 0 1px ${r.color}88` }} data-testid="cosmic-rarity">{r.name}{r.mult > 1 ? ` ×${r.mult}` : ''}</span>;
 }
-function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk, onRename, onPlay }: {
+function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk, onRename, onPlay, onBuild }: {
   map: PlanetMap; cell: Cell | null; plot: PlanetPlot | null; high: boolean; busy: boolean; rows: number; rarityOf: Record<string, RarityInfo>;
-  onClaim(): void; onWalk(): void; onRename(): void; onPlay(game: string): void;
+  onClaim(): void; onWalk(): void; onRename(): void; onPlay(game: string): void; onBuild(): void;
 }) {
   const card = 'pointer-events-auto w-full max-w-sm rounded-2xl border border-white/10 bg-black/65 p-3 text-white shadow-xl backdrop-blur';
   if (!cell) return high ? null : <div className={cn(card, 'text-center text-xs text-white/75')}>The polar wilds — no plots out here. Head toward the equator.</div>;
@@ -419,6 +422,7 @@ function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk
       {(rarityOf[plot.rarity]?.rank ?? 0) < map.bonus_from && PLANET_GAMES[map.bonus_game] && (
         <div className="mt-2 rounded-xl border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] text-white/60">🔒 {PLANET_GAMES[map.bonus_game].emoji} {PLANET_GAMES[map.bonus_game].name} — plots of {map.rarities[map.bonus_from]?.name ?? 'Nebula'} rarity or rarer unlock it</div>
       )}
+      {!high && <Button size="sm" variant="secondary" className="mt-2 w-full" onClick={onBuild} data-testid="base-open">🏗️ Build your base{plot.base?.layout.length ? ` · ${plot.base.layout.length} modules` : ''}</Button>}
       {high && <div className="mt-2 flex justify-center">{go}</div>}
       <div className="mt-1.5 text-center text-[10px] text-white/55">Planet Ink today {map.ink_today}/{map.daily_cap}</div>
     </div>

@@ -187,7 +187,7 @@ export type ChatMessage = { id: number; body: string; created_at: string; player
 export type FeedEvent = {
   id: number;
   kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
-    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig';
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -448,7 +448,8 @@ export type SpaceState = {
 };
 
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
-export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null } };
+export type BaseModule = { id: string; k: string; x: number; y: number; r?: number; c?: string };
+export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number } | null };
 export type PlanetMap = {
   world: string; rows: number; cols: number; radius: number; claimed: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
@@ -494,4 +495,8 @@ export type Whereabouts = {
 export type SpaceSocial = {
   friends: { player: Profile; now: Whereabouts }[];
   new_worlds: { player: Profile; seed: number; name: string; at: string }[];
+};
+export type BaseCatalog = {
+  config: { max_modules: number; refund: number; palette: string[]; modules: Record<string, { name: string; emoji: string; w: number; d: number; cost: Record<string, number> }> };
+  items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number;
 };

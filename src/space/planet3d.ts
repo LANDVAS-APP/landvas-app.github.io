@@ -12,8 +12,9 @@ import type { PlanetPlot } from '../backend/types';
 import type { Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { rng } from '../inkborn/world';
-import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey, colsFor, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
+import { LAT_MAX, PLOT_M, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey, colsFor, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
+import { moduleModel } from './baseModels';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
@@ -426,6 +427,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
 
   // ---- plots (with a small pool of name labels for the ones near you) ------------------------------
   const plotGroup = new THREE.Group(); scene.add(plotGroup);
+  const baseGroup = new THREE.Group(); scene.add(baseGroup); // bases: shared geometry, so just dropped on rebuild
   const plotMat = track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
   const flagGeo = track(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5)); const clothGeo = track(new THREE.PlaneGeometry(1.3, 0.8));
   const poleMat = track(new THREE.MeshStandardMaterial({ color: '#E6EBF5' }));
@@ -438,6 +440,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const clearPlots = () => {
     for (const c of [...plotGroup.children]) { plotGroup.remove(c); if (c instanceof THREE.InstancedMesh) c.dispose(); }
     plotGeo?.dispose(); plotGeo = null; plotList = []; beams = null;
+    baseGroup.clear();
   };
   const beamGeo = track(new THREE.CylinderGeometry(0.35, 0.9, 70, 8, 1, true).translate(0, 35, 0));
   const beamMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -462,6 +465,23 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       const d = plotList[i].d;
       stand(o3, d, surf(d) + 1.2); o3.updateMatrix(); poles.setMatrixAt(i, o3.matrix);
       stand(o3, d, surf(d) + 2.1); o3.translateX(0.65); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, css(rarity[p.rarity]?.color ?? '#ffffff'));
+    });
+    // bases on the plots round you
+    const east = new THREE.Vector3(), north = new THREE.Vector3(), basis = new THREE.Matrix4(), q = new THREE.Quaternion();
+    plots.forEach((p, i) => {
+      const lay = p.base?.layout; if (!lay?.length) return;
+      if (plotList[i].d.angleTo(patchC.lengthSq() ? patchC : P.d) * R > 700) return;
+      const b = cellBounds(p, rows);
+      for (const m of lay) {
+        const d = V(dirOf(b.lat0 + (m.y / PLOT_M) * (b.lat1 - b.lat0), b.lon0 + (m.x / PLOT_M) * (b.lon1 - b.lon0)));
+        east.crossVectors(UP, d); if (east.lengthSq() < 1e-8) east.set(1, 0, 0); east.normalize();
+        north.crossVectors(east, d).negate();
+        const obj = moduleModel(m.k, m.c);
+        basis.makeBasis(east, d, north.clone().negate()); q.setFromRotationMatrix(basis);
+        obj.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(UP, ((m.r ?? 0) * Math.PI) / 2));
+        obj.position.copy(d).multiplyScalar(surf(d) - 0.05);
+        baseGroup.add(obj);
+      }
     });
     const shiny = plots.map((p, i) => ({ p, i })).filter((x) => (rarity[x.p.rarity]?.rank ?? 0) >= 3);
     if (shiny.length) {
@@ -760,6 +780,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const near = dist < R * 0.9;
     patch.visible = near; nearLines.visible = near; for (const m of decor) m.visible = near && dist < 160;
     patchU.uCos.value = near ? Math.cos((PATCH * 0.985) / R) : 2;
+    baseGroup.visible = hgh < 0.6;
     secPts.visible = hgh > 0.3; secMat.opacity = Math.min(0.95, (hgh - 0.3) * 3);
     farLines.visible = hgh > 0.25; (farLines.material as THREE.LineBasicMaterial).opacity = 0.16 * Math.min(1, (hgh - 0.25) * 3);
 
@@ -893,6 +914,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, mets, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }
