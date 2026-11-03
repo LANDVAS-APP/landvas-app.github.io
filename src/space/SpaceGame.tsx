@@ -110,7 +110,7 @@ function SpaceGame() {
   );
 }
 
-function Arena({ game, seed, seconds, onEnd }: { game: SpaceGameId; seed: number; seconds: number; onEnd(score: number): void }) {
+export function Arena({ game, make, seed, seconds, onEnd }: { game?: SpaceGameId; make?: (seed: number, W: number, H: number, input: GameInput) => Engine; seed: number; seconds: number; onEnd(score: number): void }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useState({ score: 0, left: seconds });
   const input = useRef<GameInput>({ joy: { x: 0, y: 0 }, keys: new Set(), tap: null, target: null });
@@ -123,7 +123,7 @@ function Arena({ game, seed, seconds, onEnd }: { game: SpaceGameId; seed: number
     const rect = c.getBoundingClientRect();
     const W = rect.width, H = rect.height;
     c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
-    const engine: Engine = SPACE_ENGINES[game](seed, W, H, input.current);
+    const engine: Engine = (make ?? SPACE_ENGINES[game ?? 'asteroids'])(seed, W, H, input.current);
     if (config.e2e || import.meta.env.DEV) (window as any).__landvasSpaceGame = { engine, input: input.current };
     let raf = 0, last = performance.now(), t = 0, shown = -1, lastScore = -1;
     const t0 = performance.now();

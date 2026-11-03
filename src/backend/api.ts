@@ -163,6 +163,14 @@ export const api = {
   spaceSettle: (name: string) => rpc<import('./types').SpaceState>('space_settle', { p_name: name }),
   spaceWorld: (world: string) => rpc<{ world: string; pilots: number; here: number; recent: Profile[] }>('space_world', { p_world: world }),
   spaceGameStart: (game: string) => rpc<{ session: string; seed: number; game: string; seconds: number }>('space_game_start', { p_game: game }),
+  planetMap: (world: string) => rpc<import('./types').PlanetMap>('planet_map', { p_world: world }),
+  planetClaim: (world: string, gx: number, gy: number) => rpc<import('./types').PlanetMap & { claimed: [number, number]; paid: number }>('planet_claim', { p_world: world, p_gx: gx, p_gy: gy }),
+  planetRename: (world: string, gx: number, gy: number, name: string) => rpc<{ ok: true }>('planet_rename', { p_world: world, p_gx: gx, p_gy: gy, p_name: name }),
+  myPlanetPlots: () => rpc<{ world: string; gx: number; gy: number; name: string | null; claimed_at: string }[]>('my_planet_plots'),
+  planetGameStart: (world: string, gx: number, gy: number, game: string) =>
+    rpc<{ session: string; seed: number; game: string; seconds: number; rewarded: boolean; rounds_left: number }>('planet_game_start', { p_world: world, p_gx: gx, p_gy: gy, p_game: game }),
+  planetGameFinish: (session: string, score: number) =>
+    rpc<{ score: number; earned: number; paid: number; capped: boolean; rewarded: boolean; best: number | null; repeat?: boolean }>('planet_game_finish', { p_session: session, p_score: score }),
   spaceGameFinish: (session: string, score: number) => rpc<{ score: number; earned: number; paid: number; capped: boolean; best: number | null; repeat?: boolean }>('space_game_finish', { p_session: session, p_score: score }),
   habitatResidents: (groupIds: string[]) => rpc<Record<string, import('./types').Resident[]>>('habitat_residents', { p_groups: groupIds }),
   inkbornCare: (id: string, action: import('./types').CareAction) => rpc<import('./types').Inkborn & { reaction: string; bond_gain: number }>('inkborn_care', { p_id: id, p_action: action }),

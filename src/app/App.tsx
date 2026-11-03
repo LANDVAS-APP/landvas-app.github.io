@@ -59,6 +59,7 @@ const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
 const PlotsScreen = lazy(() => import('../plots/PlotsScreen'));
 const SpaceSurface = lazy(() => import('../space/Surface'));
 const SpaceGame = lazy(() => import('../space/SpaceGame'));
+const PlanetGame = lazy(() => import('../space/PlanetGame'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -151,6 +152,7 @@ const routes: RouteObject[] = [
       { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/space/surface', element: player(<SpaceSurface />) },
       { path: '/space/play/:game', element: player(<SpaceGame />) },
+      { path: '/space/planet/:world/:gx/:gy/:game', element: player(<PlanetGame />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
       { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },
       {

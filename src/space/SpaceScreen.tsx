@@ -21,6 +21,8 @@ import { PARTS, PART_INFO, Rocket } from './Rocket';
 import { SPACE_KEY, fmtLeft, placeName, useFlight, useSpace } from './useSpace';
 import { WORLDS, WORLD_ORDER, type World, type WorldId, exoWorld, worldKey, worldOf } from './worlds';
 import { SPACE_GAMES } from './games';
+import { createSystemScene, type SystemLive } from './system3d';
+import { PLANET_GAMES } from './planetGames';
 
 export default function SpaceScreen() {
   const me = useOnboardedMe();
@@ -89,7 +91,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="glass relative min-w-0 overflow-hidden rounded-[28px] p-2" data-testid="system-map">
               <SystemMap s={s} progress={flight.progress} flying={flight.flying} picked={pick} onPick={setPick} accent={accent} />
-              <div className="absolute left-4 top-3 text-[11px] font-bold uppercase tracking-wider text-white/60">The solar system · tap a world</div>
+              <div className="absolute left-4 top-3 text-[11px] font-bold uppercase tracking-wider text-white/60">The solar system · drag to look · tap a world</div>
               <div className="absolute bottom-3 right-3 flex gap-2">
                 {s.home_seed && <Button size="sm" variant="secondary" onClick={() => setPick('home')} data-testid="pick-home"><Home className="h-4 w-4" /> {s.home_name}</Button>}
                 <Button size="sm" variant="secondary" onClick={() => setPick('exo')} data-testid="pick-exo"><Telescope className="h-4 w-4" /> Deep space</Button>
@@ -101,6 +103,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
                   : <EngineCard key="engine" s={s} busy={busy} onUpgrade={() => run('engine', api.spaceUpgradeEngine, (r) => { confettiCannons(); toast.success(`Engine Mk ${'I'.repeat(r.engine)} installed!`, { description: r.engine >= 3 ? 'The outer planets — and deep space — are within reach.' : 'Jupiter and Saturn are within reach.' }); })} accent={accent} />}
               </AnimatePresence>
               <GamesCard s={s} />
+              <PlanetPlotsCard s={s} />
             </div>
           </div>
           <Logbook s={s} />
@@ -205,7 +208,29 @@ const RINGS: (WorldId | 'earth')[] = ['mercury', 'venus', 'earth', 'mars', 'jupi
 const BASE: Record<string, number> = { mercury: 0.4, venus: 2.1, earth: 3.9, mars: 1.2, jupiter: 5.1, saturn: 2.8, uranus: 4.4, neptune: 0.9, pluto: 3.3 };
 const SPEED: Record<string, number> = { mercury: 4.1, venus: 1.6, earth: 1, mars: 0.53, jupiter: 0.084, saturn: 0.034, uranus: 0.012, neptune: 0.006, pluto: 0.004 };
 
-function SystemMap({ s, progress, flying, picked, onPick, accent }: { s: SpaceState; progress: number; flying: boolean; picked: string | null; onPick(id: string): void; accent: string }) {
+type MapProps = { s: SpaceState; progress: number; flying: boolean; picked: string | null; onPick(id: string): void; accent: string };
+/** The solar system in 3D (falls back to the flat map where WebGL isn't available). */
+function SystemMap(p: MapProps) {
+  const [flat, setFlat] = useState(false);
+  return flat ? <SystemMap2D {...p} /> : <SystemMap3D {...p} onFail={() => setFlat(true)} />;
+}
+function SystemMap3D({ s, progress, flying, picked, onPick, accent, onFail }: MapProps & { onFail(): void }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const reduce = useUi((st) => st.settings.reduceMotion);
+  const live = useRef<SystemLive>({ location: s.location, dest: s.dest, flying, progress, picked, locked: () => false });
+  live.current = { location: s.location, dest: s.dest, flying, progress, picked, locked: (id) => s.engine < (s.config.worlds[id]?.tier ?? 1) };
+  const pickRef = useRef(onPick); pickRef.current = onPick;
+  useEffect(() => {
+    let sc: ReturnType<typeof createSystemScene>;
+    try { sc = createSystemScene(cv.current!, live, accent, reduce, (id) => pickRef.current(id)); }
+    catch (e) { console.warn('3D map unavailable', e); onFail(); return; }
+    if (location.search.includes('e2e=1')) (window as any).__landvasSystem = sc.positions;
+    return () => sc.dispose();
+  }, [accent, reduce]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={cv} className="block h-[min(80vw,480px)] min-h-[320px] w-full max-w-full cursor-grab touch-none rounded-[22px] active:cursor-grabbing" aria-label="The solar system in 3D: drag to look around, tap a world to plan a trip" data-testid="system-canvas" />;
+}
+
+function SystemMap2D({ s, progress, flying, picked, onPick, accent }: MapProps) {
   const cv = useRef<HTMLCanvasElement>(null);
   const pos = useRef(new Map<string, { x: number; y: number; r: number }>());
   const live = useRef({ s, progress, flying, picked });
@@ -408,6 +433,35 @@ function GamesCard({ s }: { s: SpaceState }) {
     </div>
   );
 }
+
+// ---- your plots out among the planets ---------------------------------------------------------
+function PlanetPlotsCard({ s }: { s: SpaceState }) {
+  const nav = useNavigate();
+  const q = useQuery({ queryKey: ['planet-mine'], queryFn: api.myPlanetPlots, staleTime: 30_000 });
+  const plots = q.data ?? [];
+  return (
+    <div className="glass grid gap-2 rounded-[28px] p-4" data-testid="planet-plots">
+      <div className="flex items-center gap-2"><div className="eyebrow">Planet plots</div><span className="ml-auto text-[11px] text-muted">{plots.length} owned</span></div>
+      {!plots.length && <p className="text-xs text-muted">Land on any world and walk its globe to claim plots — everyone exploring there sees your flag. Each world’s plots come with two games of their own that pay Ink.</p>}
+      <div className="grid max-h-72 gap-1.5 overflow-y-auto">
+        {plots.map((p) => {
+          const w = worldOf(p.world, s.home_seed, s.home_name);
+          const games = PLANET_GAMES_BY_WORLD[worldKey(p.world)] ?? [];
+          return (
+            <div key={`${p.world}:${p.gx}:${p.gy}`} className="flex items-center gap-2 rounded-2xl bg-surface-2/70 p-2">
+              <PlanetBall w={w} size={30} />
+              <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{p.name || 'Plot'}</div><div className="truncate text-[11px] text-muted">{w?.name ?? p.world}</div></div>
+              {games.map((g) => (
+                <button key={g} onClick={() => nav(`/space/planet/${encodeURIComponent(p.world)}/${p.gx}/${p.gy}/${g}`)} className="rounded-xl bg-surface-3/80 px-2 py-1 text-lg hover:bg-surface-3" title={PLANET_GAMES[g]?.name} aria-label={`Play ${PLANET_GAMES[g]?.name}`}>{PLANET_GAMES[g]?.emoji}</button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+const PLANET_GAMES_BY_WORLD: Record<string, string[]> = Object.entries(PLANET_GAMES).reduce((m, [id, g]) => { (m[g.world] ??= []).push(id); return m; }, {} as Record<string, string[]>);
 
 // ---- the logbook: worlds visited ------------------------------------------------------------
 function Logbook({ s }: { s: SpaceState }) {

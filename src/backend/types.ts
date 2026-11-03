@@ -444,3 +444,9 @@ export type SpaceState = {
   launches: number; ink_today: number; rush_cost: number | null; day: string; server_time: string; config: SpaceConfig; balances: Balances;
   fuel_spent?: number; paid?: number; first_bonus?: number; capped?: boolean;
 };
+
+export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; owner: { username: string; accent: string | null } };
+export type PlanetMap = {
+  world: string; rows: number; cols: number; games: string[]; price: number; landed: boolean;
+  plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
+};

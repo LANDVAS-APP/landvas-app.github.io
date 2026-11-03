@@ -1,0 +1,33 @@
+import { describe, it, expect } from 'vitest';
+import { LAT_MAX, cellAt, cellBounds, cellCenterDir, dirOf, latLonOf } from '../../src/space/planetGrid';
+import { PLANET_GAMES, makePlanetEngine } from '../../src/space/planetGames';
+import type { GameInput } from '../../src/inkborn/games/engines';
+
+describe('planet grid', () => {
+  it('round-trips every cell centre and keeps the poles wild', () => {
+    const rows = 12;
+    for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < rows * 2; gx++) expect(cellAt(cellCenterDir({ gx, gy }, rows), rows)).toEqual({ gx, gy });
+    expect(cellAt(dirOf(LAT_MAX + 1, 20), rows)).toBeNull();
+    expect(cellAt(dirOf(-89, 20), rows)).toBeNull();
+    const b = cellBounds({ gx: 0, gy: 0 }, rows);
+    expect(b.lat0).toBe(-LAT_MAX); expect(b.lon0).toBe(-180);
+    const ll = latLonOf(dirOf(33, -120));
+    expect(ll.lat).toBeCloseTo(33); expect(ll.lon).toBeCloseTo(-120);
+  });
+});
+
+describe('planet games', () => {
+  it('every world has exactly two games and every game runs', () => {
+    const per: Record<string, number> = {};
+    for (const g of Object.values(PLANET_GAMES)) per[g.world] = (per[g.world] ?? 0) + 1;
+    expect(Object.values(per).every((n) => n === 2)).toBe(true);
+    expect(Object.keys(per)).toHaveLength(10);
+    for (const id of Object.keys(PLANET_GAMES)) {
+      const input: GameInput = { joy: { x: 0, y: 0 }, keys: new Set(), tap: null, target: null };
+      const e = makePlanetEngine(id, '#8B5CFF', 42)(7, 400, 700, input);
+      for (let i = 0; i < 600; i++) { if (i % 20 === 0) input.tap = { x: 200, y: 350 }; e.step(1 / 30, i / 30); }
+      expect(Number.isFinite(e.score())).toBe(true);
+      expect(e.score()).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
