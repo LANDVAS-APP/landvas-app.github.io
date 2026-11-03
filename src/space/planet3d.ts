@@ -12,7 +12,7 @@ import type { PlanetPlot } from '../backend/types';
 import type { Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { rng } from '../inkborn/world';
-import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellKey, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
+import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey, colsFor, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
@@ -24,10 +24,12 @@ export type PlanetSceneOpts = {
   /** swoop down from space first */ intro?: boolean;
   onCell(c: Cell | null): void; onSample(got: number): void; onPick(c: Cell | null): void; onZoom(z: ZoomInfo): void; onLost?(): void;
   /** you're standing by meteorite i (asked again every few seconds while you stay) */ onMeteor?(i: number): void;
+  /** the grid cell the view is centred on moved a good way (fetch the plots round it) */ onArea?(c: { gx: number; gy: number }): void;
 };
 export type PlanetScene = {
   /** joystick: x right, y forward (-1..1) */ joy: { x: number; y: number }; jump(): void;
   /** rarity colours, and from which rank a plot shines a beam into the sky */ setPlots(plots: PlanetPlot[], rarity?: Record<string, { color: string; rank: number }>): void;
+  /** from afar: claimed-plot counts per sector of `size` x `size` plots */ setSectors(list: [number, number, number, boolean][], size: number): void;
   /** the current meteor shower (`key` changes with each new shower, which falls from the sky) */ setMeteors(key: string, list: { i: number; d: number[]; golden: boolean; taken: boolean }[]): void;
   /** a little burst of light where something happened (a meteorite grabbed) */ burst(d: number[], color?: string): void;
   /** the live group: add/remove explorers; positions from the heartbeat */ setLive(p: Pilot[]): void;
@@ -92,7 +94,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const seedR = rng(o.seed);
   const reduce = !!o.reduceMotion;
   const tier = deviceTier();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier === 2, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier === 2, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
   const maxDpr = Math.min(window.devicePixelRatio || 1, tier === 2 ? 2 : tier === 1 ? 1.6 : 1);
   let dpr = maxDpr;
   renderer.setPixelRatio(dpr);
@@ -108,10 +110,24 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
 
   // ---- the shape and colour of the land ----------------------------------------------------------
   const unit = (r: () => number = seedR) => { const v = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1); return v.lengthSq() < 1e-4 ? v.set(0, 1, 0) : v.normalize(); };
-  const bumps = Array.from({ length: 8 }, (_, i) => ({ v: unit(), f: i < 3 ? 2 + seedR() * 4 : 8 + seedR() * 30, a: i < 3 ? 1 : 0.28, p: seedR() * 6 }));
-  const sumA = bumps.reduce((n, b) => n + b.a, 0);
-  const amp = w.gas ? 0.25 : Math.min(3.2, R * 0.017) * (w.features.includes('mesas') || w.features.includes('volcano') ? 1.35 : 1);
-  const height = (d: THREE.Vector3) => amp * bumps.reduce((n, b) => n + b.a * Math.sin(b.f * d.dot(b.v) * 3 + b.p), 0) / sumA;
+  // terrain in metres: big swells, hills, then small bumps underfoot (gas giants: gentle cloud swells)
+  const rough = w.features.includes('mesas') || w.features.includes('volcano') ? 1.4 : w.features.includes('craters') ? 1.1 : 1;
+  const OCT: [number, number][] = w.gas ? [[R * 0.5, 4], [900, 1.2], [120, 0.3]]
+    : [[R * 0.9, 34 * rough], [R * 0.3, 15 * rough], [700, 6 * rough], [180, 1.6 * rough], [48, 0.45 * rough], [14, 0.1]];
+  const bumps = OCT.map(([lambda, a]) => ({ v: unit(), k: (2 * Math.PI * R) / lambda, a, p: seedR() * 6, low: lambda >= 500 }));
+  const amp = OCT.reduce((n, [, a]) => n + a, 0);
+  const heightLow = (d: THREE.Vector3) => { let h = 0; for (const b of bumps) if (b.low) h += b.a * Math.sin(b.k * d.dot(b.v) + b.p); return h; };
+  const heightFull = (d: THREE.Vector3) => { let h = 0; for (const b of bumps) h += b.a * Math.sin(b.k * d.dot(b.v) + b.p); return h; };
+  // near you the ground has all its detail; it eases into the smooth far globe at the patch's rim
+  const patchC = new THREE.Vector3(0, 0, 0); let PATCH = 0;
+  const height = (d: THREE.Vector3) => {
+    const lo = heightLow(d);
+    if (!PATCH) return lo;
+    const r = d.angleTo(patchC) * R / PATCH;
+    if (r >= 1) return lo;
+    const k = r < 0.6 ? 1 : 1 - (r - 0.6) / 0.4;
+    return lo + (heightFull(d) - lo) * k * k * (3 - 2 * k);
+  };
   const surf = (d: THREE.Vector3) => R + height(d);
   const g0 = css(w.ground[0]), g1 = css(w.ground[1]), det = css(w.detail), c1 = css(w.color), c2 = css(w.color2);
   const ice = new THREE.Color('#EEF6FF');
@@ -152,9 +168,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const colors = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) {
       tmp.fromBufferAttribute(pos, i).normalize();
-      const hgt = height(tmp);
+      const hgt = heightLow(tmp);
       colorAt(tmp, hgt, col, (seedR() - 0.5) * 0.1);
-      tmp.multiplyScalar(R + hgt - 0.15); // a hair low, so the detailed patch always sits on top
+      tmp.multiplyScalar(R + hgt - 0.3); // a hair low, so the detailed patch always sits on top
       pos.setXYZ(i, tmp.x, tmp.y, tmp.z);
       colors.set([col.r, col.g, col.b], i * 3);
     }
@@ -164,7 +180,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   }
 
   // ---- the detailed ground around you: a round patch rebuilt as you go ----------------------------
-  const PATCH = Math.min(R * 0.9, 120); // radius in world units
+  PATCH = Math.min(R * 0.9, 260); // radius in metres
   const RINGS = tier === 0 ? 46 : 64, SEGS = tier === 0 ? 96 : 140;
   const patchGeo = track(new THREE.BufferGeometry());
   {
@@ -180,7 +196,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const patch = new THREE.Mesh(patchGeo, groundMat(-1));
   patch.frustumCulled = false;
   scene.add(patch);
-  const patchC = new THREE.Vector3(0, 0, 0); // centre (unit), zero = not built yet
 
   // decorations that live on the patch, placed from a world-fixed hash so they never shuffle
   type Kind = { geo: THREE.BufferGeometry; mat: THREE.Material; p: number; scale(r: () => number): THREE.Vector3; sink: number; lift?: number };
@@ -201,8 +216,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const nearSpawn = (d: THREE.Vector3) => d.angleTo(spawn) * R < 10;
 
   // plot lines near you (rebuilt with the patch) and over the whole globe (seen from afar)
-  const hStep = (2 * LAT_MAX) / rows, cols = rows * 2, wStep = 360 / cols;
-  const NEAR_MAX = 60000; // line vertices; one fixed GPU buffer, refilled on each rebuild (no leaks)
+  const hStep = (2 * LAT_MAX) / rows, cols = colsFor(rows), wStep = 360 / cols;
+  const SECTOR = Math.max(1, Math.round(rows / 40));
+  const NEAR_MAX = 90000; // line vertices; one fixed GPU buffer, refilled on each rebuild (no leaks)
   const nearLineGeo = track(new THREE.BufferGeometry());
   const nearLineAttr = new THREE.BufferAttribute(new Float32Array(NEAR_MAX * 3), 3); nearLineAttr.setUsage(THREE.DynamicDrawUsage);
   nearLineGeo.setAttribute('position', nearLineAttr); nearLineGeo.setDrawRange(0, 0);
@@ -210,10 +226,11 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const nearLines = new THREE.LineSegments(nearLineGeo, lineMat); nearLines.frustumCulled = false; scene.add(nearLines);
   const farLines = (() => {
     const pts: number[] = [];
-    const push = (lat: number, lon: number) => { const d = V(dirOf(lat, lon)); d.multiplyScalar(R + amp + 0.5); pts.push(d.x, d.y, d.z); };
-    const st = Math.max(1, 360 / Math.max(90, cols * 2));
-    for (let gy = 0; gy <= rows; gy++) { const lat = -LAT_MAX + gy * hStep; for (let lon = -180; lon < 180; lon += st) { push(lat, lon); push(lat, lon + st); } }
-    for (let gx = 0; gx < cols; gx++) { const lon = -180 + gx * wStep; for (let lat = -LAT_MAX; lat < LAT_MAX - 1e-6; lat += st) { push(lat, lon); push(Math.min(LAT_MAX, lat + st), lon); } }
+    const push = (lat: number, lon: number) => { const d = V(dirOf(lat, lon)); d.multiplyScalar(R + heightLow(d) + 2); pts.push(d.x, d.y, d.z); };
+    // from afar, the grid is drawn in sectors (SECTOR x SECTOR plots)
+    const st = 1.5;
+    for (let gy = 0; gy <= rows; gy += SECTOR) { const lat = -LAT_MAX + gy * hStep; for (let lon = -180; lon < 180; lon += st) { push(lat, lon); push(lat, lon + st); } }
+    for (let gx = 0; gx < cols; gx += SECTOR) { const lon = -180 + gx * wStep; for (let lat = -LAT_MAX; lat < LAT_MAX - 1e-6; lat += st) { push(lat, lon); push(Math.min(LAT_MAX, lat + st), lon); } }
     const g = track(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const m = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.16, depthWrite: false }));
     const l = new THREE.LineSegments(g, m); scene.add(l); return l;
@@ -265,11 +282,12 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       }
     }
     decor.forEach((m, k) => { m.count = counts[k]; m.instanceMatrix.needsUpdate = true; });
+    if (lastPlots) setPlots(lastPlots.plots, lastPlots.rarity); // their tiles follow the ground's new detail
     // plot lines across the patch
     const pts: number[] = [];
     const push = (dd: THREE.Vector3) => { if (pts.length >= NEAR_MAX * 3) return; tmp.copy(dd).multiplyScalar(surf(dd) + 0.12); pts.push(tmp.x, tmp.y, tmp.z); };
     const inside = (dd: THREE.Vector3) => dd.angleTo(c) * R < PATCH * 0.98;
-    const segLen = Math.max(0.15, (1.6 / R) / D); // ~1.6 units, in degrees
+    const segLen = (4 / R) / D; // ~4 m, in degrees
     const a0 = new THREE.Vector3(), a1 = new THREE.Vector3();
     const latDeg = latC / D, lonDeg = lonC / D, spanDeg = span / D;
     for (let gy = 0; gy <= rows; gy++) {
@@ -297,9 +315,12 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const skyU = { top: { value: css(w.sky[0]) }, horizon: { value: css(w.sky[1]) }, up: { value: new THREE.Vector3(0, 1, 0) }, space: { value: 0 } };
   const sky = new THREE.Mesh(track(new THREE.SphereGeometry(SKY, 32, 16)), track(new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, uniforms: skyU,
-    vertexShader: 'varying vec3 vd; void main(){ vd = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 up; uniform float space; varying vec3 vd;
-      void main(){ float k = clamp(dot(normalize(vd), up), -0.2, 1.0); vec3 c = mix(horizon, top, pow(max(k,0.0), 0.6));
+    vertexShader: '#include <common>\n#include <logdepthbuf_pars_vertex>\nvarying vec3 vd; void main(){ vd = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);\n#include <logdepthbuf_vertex>\n}',
+    fragmentShader: `#include <logdepthbuf_pars_fragment>
+      uniform vec3 top; uniform vec3 horizon; uniform vec3 up; uniform float space; varying vec3 vd;
+      void main(){
+#include <logdepthbuf_fragment>
+      float k = clamp(dot(normalize(vd), up), -0.2, 1.0); vec3 c = mix(horizon, top, pow(max(k,0.0), 0.6));
         c = mix(c, vec3(0.012,0.015,0.04), space); gl_FragColor = vec4(c, 1.0); }`,
   })));
   sky.renderOrder = -2; scene.add(sky);
@@ -338,8 +359,8 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   }
   const atmMat = w.dark ? null : track(new THREE.ShaderMaterial({
     side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { c: { value: css(w.sky[1]) }, k: { value: 1 } },
-    vertexShader: 'varying vec3 n; varying vec3 v; void main(){ n = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); v = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }',
-    fragmentShader: 'uniform vec3 c; uniform float k; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.0 - abs(dot(n, v)), 2.5); gl_FragColor = vec4(c, f * 0.9 * k); }',
+    vertexShader: '#include <common>\n#include <logdepthbuf_pars_vertex>\nvarying vec3 n; varying vec3 v; void main(){ n = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); v = normalize(-mv.xyz); gl_Position = projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
+    fragmentShader: '#include <logdepthbuf_pars_fragment>\nuniform vec3 c; uniform float k; varying vec3 n; varying vec3 v; void main(){\n#include <logdepthbuf_fragment>\n float f = pow(1.0 - abs(dot(n, v)), 2.5); gl_FragColor = vec4(c, f * 0.9 * k); }',
   }));
   if (atmMat) scene.add(new THREE.Mesh(track(new THREE.SphereGeometry(R * 1.12, 64, 32)), atmMat));
   const fog = w.dark ? null : new THREE.Fog(css(w.sky[1]), 80, 360);
@@ -410,6 +431,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const poleMat = track(new THREE.MeshStandardMaterial({ color: '#E6EBF5' }));
   const clothMat = track(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.7 }));
   let plotGeo: THREE.BufferGeometry | null = null;
+  let lastPlots: { plots: PlanetPlot[]; rarity: Record<string, { color: string; rank: number }> } | null = null;
   let plotList: { p: PlanetPlot; d: THREE.Vector3 }[] = [];
   const LABELS = 10;
   const labelPool: { s: THREE.Sprite | null; key: string }[] = Array.from({ length: LABELS }, () => ({ s: null, key: '' }));
@@ -421,6 +443,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const beamMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   let beams: THREE.InstancedMesh | null = null;
   const setPlots = (plots: PlanetPlot[], rarity: Record<string, { color: string; rank: number }> = {}) => {
+    lastPlots = { plots, rarity };
     clearPlots();
     plotList = plots.map((p) => ({ p, d: V(cellCenterDir(p, rows)) }));
     for (const l of labelPool) l.key = '__stale';
@@ -480,6 +503,24 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     for (let j = 0; j < N; j++) at(0, j); for (let i = 0; i < N; i++) at(i, N - 1); for (let j = N - 1; j >= 0; j--) at(N - 1, j); for (let i = N - 1; i >= 0; i--) at(i, 0);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(ring, 3));
     hi = new THREE.Group(); hi.add(new THREE.Mesh(gg, hiMat), new THREE.LineLoop(lg, hiLine)); scene.add(hi);
+  };
+
+  // ---- from afar: where the plots are --------------------------------------------------------------
+  const secGeo = track(new THREE.BufferGeometry());
+  const secMat = track(new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, map: glowTex, blending: THREE.AdditiveBlending }));
+  const secPts = new THREE.Points(secGeo, secMat); secPts.frustumCulled = false; secPts.renderOrder = 3; scene.add(secPts);
+  const setSectors = (list: [number, number, number, boolean][], size: number) => {
+    const pos: number[] = [], cs: number[] = [];
+    const max = Math.max(1, ...list.map((x) => x[2]));
+    for (const [sx, sy, n, mine] of list) {
+      const lat = -LAT_MAX + (sy + 0.5) * size * hStep, lon = -180 + (sx + 0.5) * size * wStep;
+      if (lat > LAT_MAX) continue;
+      const d = V(dirOf(Math.min(LAT_MAX, lat), lon)); d.multiplyScalar(R + heightLow(d) + 4); pos.push(d.x, d.y, d.z);
+      const c = mine ? new THREE.Color('#FFE36B') : new THREE.Color('#B69CFF').lerp(new THREE.Color('#ffffff'), Math.min(1, n / max));
+      cs.push(c.r, c.g, c.b);
+    }
+    secGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    secGeo.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3));
   };
 
   // ---- meteor showers -----------------------------------------------------------------------------
@@ -605,8 +646,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     // the true ground near you, else a sphere hit (cheap, and good enough from up high)
     const hit = dist < R * 0.9 ? ray.intersectObject(patch, false)[0] : undefined;
     if (hit) return hit.point.clone().normalize();
-    const s = new THREE.Sphere(new THREE.Vector3(), R + amp * 0.3); const p = new THREE.Vector3();
-    return ray.ray.intersectSphere(s, p) ? p.normalize() : null;
+    const s = new THREE.Sphere(new THREE.Vector3(), R); const p = new THREE.Vector3();
+    if (!ray.ray.intersectSphere(s, p)) return null;
+    p.normalize(); s.radius = R + heightLow(p); return ray.ray.intersectSphere(s, p) ? p.normalize() : null;
   };
   const pointers = new Map<number, { x: number; y: number }>();
   let drag: { x: number; y: number; moved: number } | null = null; let pinch = 0;
@@ -670,6 +712,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const ro = new ResizeObserver(resize); ro.observe(o.canvas);
   buildPatch(P.d);
   let raf = 0, last = performance.now(), t = 0, labelT = 0, lastZoomReport = '';
+  let lastArea: { gx: number; gy: number } | null = null;
   // adaptive resolution: if frames run slow, render fewer pixels (and more again when there's room)
   let perfT = 0, perfN = 0;
   const frame = (now: number) => {
@@ -717,8 +760,13 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const near = dist < R * 0.9;
     patch.visible = near; nearLines.visible = near; for (const m of decor) m.visible = near && dist < 160;
     patchU.uCos.value = near ? Math.cos((PATCH * 0.985) / R) : 2;
+    secPts.visible = hgh > 0.3; secMat.opacity = Math.min(0.95, (hgh - 0.3) * 3);
     farLines.visible = hgh > 0.25; (farLines.material as THREE.LineBasicMaterial).opacity = 0.16 * Math.min(1, (hgh - 0.25) * 3);
 
+    { // tell the page when the view has moved on, so it can fetch the plots round it
+      const cf = cellFloat([F.x, F.y, F.z], rows);
+      if (!lastArea || Math.abs(cf.gy - lastArea.gy) > 24 || Math.min(Math.abs(cf.gx - lastArea.gx), cols - Math.abs(cf.gx - lastArea.gx)) > 24) { lastArea = cf; o.onArea?.({ gx: Math.floor(cf.gx), gy: Math.floor(cf.gy) }); }
+    }
     const ground = surf(P.d);
     const bob = P.moving && P.up === 0 && !reduce && hgh < 0.3 ? Math.abs(Math.sin(t * 11)) * 0.12 : 0;
     me.position.copy(P.d).multiplyScalar(ground + P.up + bob);
@@ -825,7 +873,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy,
     findMe: () => { freeLook = false; },
     pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0 }),
     place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },

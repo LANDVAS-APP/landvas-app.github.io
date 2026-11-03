@@ -21,7 +21,7 @@ describe('Live worlds', () => {
 
   it('the Moon is big now', async () => {
     await putOn(ids[0], 'moon');
-    expect(await db.rpc(ids[0], 'planet_map', { p_world: 'moon' })).toMatchObject({ rows: 60, cols: 120 });
+    expect(await db.rpc(ids[0], 'planet_map', { p_world: 'moon' })).toMatchObject({ rows: 1000, cols: 2500 });
   });
 
   it('newcomers join the live group and spawn next to someone', async () => {

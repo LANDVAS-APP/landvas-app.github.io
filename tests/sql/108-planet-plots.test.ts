@@ -23,7 +23,8 @@ afterAll(() => db.close());
 describe('Planet plots', () => {
   it('every solar world has a map anyone can see; buying needs you landed there', async () => {
     const m = await db.rpc(ana, 'planet_map', { p_world: 'moon' });
-    expect(m).toMatchObject({ world: 'moon', rows: 60, cols: 120, price: 30, landed: false, plots: [] });
+    expect(m).toMatchObject({ world: 'moon', rows: 1000, cols: 2500, price: 30, landed: false, plots: [], claimed: 0 });
+    expect(m.radius).toBeCloseTo(1000 * 8 * 180 / (144 * Math.PI), 3);
     expect(m.games).toEqual(['moonlander', 'rockrun']);
     await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 3, p_gy: 4 }), 'land_first');
     await expectError(db.rpc(ana, 'planet_map', { p_world: 'vulcan' }), 'invalid_world');
@@ -36,18 +37,24 @@ describe('Planet plots', () => {
     expect(r.price).toBe(35);
     expect(await ink(ana)).toBe(970);
     await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 3, p_gy: 4 }), 'plot_unavailable');
-    await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 120, p_gy: 0 }), 'invalid_plot');
+    await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 2500, p_gy: 0 }), 'invalid_plot');
     // Bo sees it (and Ana, who is on the Moon)
     const seen = await db.rpc(bo, 'planet_map', { p_world: 'moon' });
-    expect(seen.plots).toHaveLength(1);
-    expect(seen.plots[0]).toMatchObject({ gx: 3, gy: 4, mine: false, owner: { username: 'ana_planet' } });
+    expect(seen.plots).toHaveLength(0); // only your own come with the map…
+    expect(seen.claimed).toBe(1);
+    const near = await db.rpc(bo, 'planet_plots_near', { p_world: 'moon', p_gx0: -10, p_gx1: 10, p_gy0: 0, p_gy1: 10 }); // …the rest by area (wrapping round)
+    expect(near).toHaveLength(1);
+    expect(near[0]).toMatchObject({ gx: 3, gy: 4, mine: false, owner: { username: 'ana_planet' } });
+    expect(await db.rpc(bo, 'planet_plots_near', { p_world: 'moon', p_gx0: 100, p_gx1: 200, p_gy0: 0, p_gy1: 10 })).toHaveLength(0);
+    await expectError(db.rpc(bo, 'planet_plots_near', { p_world: 'moon', p_gx0: 0, p_gx1: 2000, p_gy0: 0, p_gy1: 10 }), 'area_too_big');
+    expect(await db.rpc(bo, 'planet_sectors', { p_world: 'moon', p_size: 32 })).toEqual([[0, 0, 1, false]]);
     expect(seen.pilots.map((p: any) => p.username)).toContain('ana_planet');
     expect(seen.price).toBe(30);
     // and can't buy on Mars without being there
     await putOn(bo, 'moon');
     await expectError(db.rpc(bo, 'planet_claim', { p_world: 'mars', p_gx: 0, p_gy: 0 }), 'land_first');
     await db.rpc(bo, 'planet_claim', { p_world: 'moon', p_gx: 5, p_gy: 5 });
-    expect((await db.rpc(ana, 'planet_map', { p_world: 'moon' })).plots).toHaveLength(2);
+    expect((await db.rpc(ana, 'planet_map', { p_world: 'moon' })).claimed).toBe(2);
     await db.rpc(ana, 'planet_rename', { p_world: 'moon', p_gx: 3, p_gy: 4, p_name: 'Tranquil Base' });
     await expectError(db.rpc(bo, 'planet_rename', { p_world: 'moon', p_gx: 3, p_gy: 4, p_name: 'Mine now' }), 'not_owner');
     const mine = await db.rpc(ana, 'my_planet_plots');
@@ -57,7 +64,7 @@ describe('Planet plots', () => {
   it('your home world is yours alone', async () => {
     await db.sql(`update space_pilots set home_seed = 4242, home_name = 'Ana Prime', location = 'exo:4242' where player_id = $1`, [ana]);
     const m = await db.rpc(ana, 'planet_map', { p_world: 'exo:4242' });
-    expect(m).toMatchObject({ rows: 24, cols: 48, landed: true });
+    expect(m).toMatchObject({ rows: 900, cols: 2250, landed: true });
     await db.rpc(ana, 'planet_claim', { p_world: 'exo:4242', p_gx: 0, p_gy: 0 });
     await expectError(db.rpc(bo, 'planet_map', { p_world: 'exo:4242' }), 'invalid_world');
     await db.sql(`update space_pilots set location = 'exo:4242' where player_id = $1`, [bo]);

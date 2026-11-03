@@ -174,6 +174,9 @@ export const api = {
   planetLive: (world: string, d?: number[] | null, face?: number[] | null, hop = 0) =>
     rpc<import('./types').PlanetLive>('planet_live', { p_world: world, p_d: d ?? null, p_face: face ?? null, p_hop: hop }),
   planetLeave: () => rpc<{ ok: true }>('planet_leave'),
+  planetPlotsNear: (world: string, gx0: number, gx1: number, gy0: number, gy1: number) =>
+    rpc<import('./types').PlanetPlot[]>('planet_plots_near', { p_world: world, p_gx0: gx0, p_gx1: gx1, p_gy0: gy0, p_gy1: gy1 }),
+  planetSectors: (world: string, size: number) => rpc<[number, number, number, boolean][]>('planet_sectors', { p_world: world, p_size: size }),
   planetMap: (world: string) => rpc<import('./types').PlanetMap>('planet_map', { p_world: world }),
   planetMeteors: (world: string) => rpc<import('./types').MeteorShower>('planet_meteors', { p_world: world }),
   planetMeteorGrab: (world: string, idx: number, d: number[] | null) => rpc<{ paid: number; earned: number; golden: boolean; capped: boolean }>('planet_meteor_grab', { p_world: world, p_idx: idx, p_d: d }),

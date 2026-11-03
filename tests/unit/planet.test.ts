@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { LAT_MAX, cellAt, cellBounds, cellCenterDir, dirOf, latLonOf } from '../../src/space/planetGrid';
+import { LAT_MAX, cellAt, cellBounds, cellCenterDir, colsFor, dirOf, latLonOf, radiusFor } from '../../src/space/planetGrid';
 import { PLANET_GAMES, makePlanetEngine } from '../../src/space/planetGames';
 import type { GameInput } from '../../src/inkborn/games/engines';
 
 describe('planet grid', () => {
   it('round-trips every cell centre and keeps the poles wild', () => {
     const rows = 12;
-    for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < rows * 2; gx++) expect(cellAt(cellCenterDir({ gx, gy }, rows), rows)).toEqual({ gx, gy });
+    for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < colsFor(rows); gx++) expect(cellAt(cellCenterDir({ gx, gy }, rows), rows)).toEqual({ gx, gy });
+    // big worlds: plots are 8 m across at the equator, and the far corner still round-trips
+    const big = 1000, R = radiusFor(big), eq = cellBounds({ gx: 0, gy: 499 }, big);
+    expect(((eq.lat1 - eq.lat0) * Math.PI / 180) * R).toBeCloseTo(8, 5);
+    expect(((eq.lon1 - eq.lon0) * Math.PI / 180) * R).toBeCloseTo(8, 5);
+    expect(cellAt(cellCenterDir({ gx: colsFor(big) - 1, gy: big - 1 }, big), big)).toEqual({ gx: colsFor(big) - 1, gy: big - 1 });
     expect(cellAt(dirOf(LAT_MAX + 1, 20), rows)).toBeNull();
     expect(cellAt(dirOf(-89, 20), rows)).toBeNull();
     const b = cellBounds({ gx: 0, gy: 0 }, rows);

@@ -111,7 +111,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         canvas: cv.current, world: w, rows: builtRows, seed: seedOf(world), accent: me?.profile.accent_color ?? '#8B5CFF',
         explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)),
         isHome, samples: latest.current.taken ? 0 : SAMPLES, reduceMotion: reduce, startHigh: embedded, intro,
-        onCell: setCell, onPick: setCell, onZoom: setZoomInfo, onLost: () => setLost(true),
+        onCell: setCell, onPick: setCell, onZoom: setZoomInfo, onLost: () => setLost(true), onArea: setArea,
         onSample: (n) => { setGot(n); if (n === SAMPLES) void latest.current.collect(); },
         onMeteor: (i) => latest.current.grab(i),
       });
@@ -128,7 +128,23 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
 
   useEffect(() => { if (ready) scene.current?.setBuddy(buddyGenome); }, [ready, buddyGenome]);
   const rarityOf = useMemo(() => Object.fromEntries((map.data?.rarities ?? []).map((r, i) => [r.id, { ...r, rank: i }])), [map.data?.rarities]);
-  useEffect(() => { if (ready && map.data) scene.current?.setPlots(map.data.plots, rarityOf); }, [ready, map.data, rarityOf]);
+  // a world has millions of plots: fetch the claimed ones round where you're looking, and sector counts for afar
+  const [area, setArea] = useState<{ gx: number; gy: number } | null>(null);
+  const win = area ? { gx: Math.round(area.gx / 32) * 32, gy: Math.round(area.gy / 32) * 32 } : null;
+  const near = useQuery({
+    queryKey: ['planet-near', world, win?.gx, win?.gy], enabled: canPlots && !!win && !!map.data, refetchInterval: 15_000, placeholderData: (prev) => prev,
+    queryFn: () => api.planetPlotsNear(world, win!.gx - 120, win!.gx + 120, Math.max(0, win!.gy - 100), Math.min((map.data?.rows ?? 1) - 1, win!.gy + 100)),
+  });
+  const sectorSize = Math.max(1, Math.round(builtRows / 40));
+  const sectors = useQuery({ queryKey: ['planet-sectors', world], enabled: canPlots && ready, refetchInterval: 60_000, queryFn: () => api.planetSectors(world, sectorSize) });
+  const shownPlots = useMemo(() => {
+    const byKey = new Map<string, PlanetPlot>();
+    for (const p of near.data ?? []) byKey.set(`${p.gx}:${p.gy}`, p);
+    for (const p of map.data?.plots ?? []) byKey.set(`${p.gx}:${p.gy}`, p);
+    return [...byKey.values()];
+  }, [near.data, map.data?.plots]);
+  useEffect(() => { if (ready && map.data) scene.current?.setPlots(shownPlots, rarityOf); }, [ready, shownPlots, rarityOf]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready && sectors.data) scene.current?.setSectors(sectors.data, sectorSize); }, [ready, sectors.data, sectorSize]);
 
   // meteor showers: everyone on the world sees the same ones; first to reach one gets it
   const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: 4000 });
@@ -171,12 +187,12 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
     },
   });
 
-  const plotAt = (c: Cell | null) => (c && map.data ? map.data.plots.find((p) => p.gx === c.gx && p.gy === c.gy) ?? null : null);
+  const plotAt = (c: Cell | null) => (c ? shownPlots.find((p) => p.gx === c.gx && p.gy === c.gy) ?? null : null);
   const here = plotAt(cell);
   const mine = (map.data?.plots ?? []).filter((p) => p.mine);
   const high = zoom.mode !== 'walk';
   const R = radiusFor(builtRows);
-  const around = 2 * Math.PI * R, plotM = (R * Math.PI) / builtRows;
+  const around = 2 * Math.PI * R, plotM = (R * Math.PI * 144) / (180 * builtRows);
 
   const claim = async () => {
     if (!cell) return;
@@ -185,7 +201,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       const r = await api.planetClaim(world, cell.gx, cell.gy);
       qc.setQueryData(planetKey(world), r);
       invalidateGame(qc);
-      void qc.invalidateQueries({ queryKey: ['planet-mine'] });
+      void qc.invalidateQueries({ queryKey: ['planet-mine'] }); void near.refetch(); void sectors.refetch();
       setReveal({ rarity: r.rarity, games: r.games_unlocked });
     } catch (e) { toast.error(toGameError(e).message); void map.refetch(); } finally { setBusy(false); }
   };
@@ -247,7 +263,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
             </div>
           )}
           <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="planet-scale">
-            🧭 {distance(around)} around · plots {Math.round(plotM)} m wide
+            🧭 {distance(around)} around · {((map.data?.rows ?? builtRows) * (map.data?.cols ?? builtRows * 2.5) / 1e6).toFixed(1)}M plots, {Math.round(plotM)} m wide
           </span>
           {live && (
             <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
@@ -262,7 +278,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
           )}
           {canPlots && map.data && (
             <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setListOpen(true)} data-testid="my-planet-plots">
-              <Flag className="h-3 w-3" /> {mine.length ? `My plots here (${mine.length})` : `${map.data.plots.length} plots claimed`}
+              <Flag className="h-3 w-3" /> {mine.length ? `My plots here (${mine.length})` : `${map.data.claimed.toLocaleString()} plots claimed`}
             </button>
           )}
         </div>
@@ -337,9 +353,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
           })}
         </div>
       </Dialog>
-      <Dialog open={listOpen} onOpenChange={setListOpen} title={`Plots on ${w.name}`} description={map.data ? `${map.data.plots.length} claimed by explorers so far. A new plot costs you ${map.data.price} Ink here.` : undefined}>
+      <Dialog open={listOpen} onOpenChange={setListOpen} title={`Plots on ${w.name}`} description={map.data ? `${map.data.claimed.toLocaleString()} of ${(map.data.rows * map.data.cols).toLocaleString()} plots claimed so far. A new plot costs you ${map.data.price} Ink here.` : undefined}>
         <div className="grid max-h-[50vh] gap-1.5 overflow-y-auto">
-          {(mine.length ? mine : (map.data?.plots ?? [])).map((p) => (
+          {mine.map((p) => (
             <button key={cellKey(p)} className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-left hover:bg-surface-3"
               onClick={() => { setListOpen(false); scene.current?.walkTo(p); }}>
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.owner.accent ?? '#8B5CFF' }} />
@@ -348,7 +364,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
               <MapPin className="h-4 w-4 text-muted" />
             </button>
           ))}
-          {!map.data?.plots.length && <p className="text-sm text-muted">No one has claimed a plot here yet — be the first!</p>}
+          {!mine.length && <p className="text-sm text-muted">You haven’t claimed a plot here yet — walk onto any free one and claim it.</p>}
         </div>
       </Dialog>
       <AnimatePresence>{reveal && map.data && <RarityReveal r={rarityOf[reveal.rarity]} games={reveal.games} bonus={map.data.bonus_game} world={w} onClose={() => setReveal(null)} />}</AnimatePresence>

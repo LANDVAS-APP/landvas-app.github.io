@@ -22,8 +22,8 @@ describe('Cosmic rarities', () => {
     const r = await db.rpc(a, 'planet_claim', { p_world: 'moon', p_gx: 1, p_gy: 30 });
     expect(['dust', 'comet', 'nebula', 'pulsar', 'supernova', 'singularity']).toContain(r.rarity);
     expect(r.rarities).toHaveLength(6);
-    const seen = await db.rpc(b, 'planet_map', { p_world: 'moon' });
-    expect(seen.plots[0].rarity).toBe(r.rarity);
+    const seen = await db.rpc(b, 'planet_plots_near', { p_world: 'moon', p_gx0: 0, p_gx1: 5, p_gy0: 28, p_gy1: 32 });
+    expect(seen[0].rarity).toBe(r.rarity);
   });
 
   it('rarer worlds roll rarer plots', async () => {
@@ -59,7 +59,7 @@ describe('Meteor showers', () => {
     expect(got.paid).toBeGreaterThanOrEqual(3);
     await expectError(db.rpc(b, 'planet_meteor_grab', { p_world: 'moon', p_idx: 0, p_d: met.d }), 'meteor_taken');
     // a far-off claimed position doesn't let you reach across the Moon
-    const far = s1.meteors.find((m: any) => Math.acos(m.d[0] * met.d[0] + m.d[1] * met.d[1] + m.d[2] * met.d[2]) * 240 > 60);
+    const far = s1.meteors.find((m: any) => Math.acos(m.d[0] * met.d[0] + m.d[1] * met.d[1] + m.d[2] * met.d[2]) * (1000 * 8 * 180 / (144 * Math.PI)) > 60);
     if (far) await expectError(db.rpc(b, 'planet_meteor_grab', { p_world: 'moon', p_idx: far.i, p_d: far.d }), 'too_far');
     const after = await db.rpc(b, 'planet_meteors', { p_world: 'moon' });
     expect(after.meteors[0]).toMatchObject({ taken: true, by: 'cosmo_a', mine: false });

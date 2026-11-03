@@ -449,7 +449,7 @@ export type SpaceState = {
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
 export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null } };
 export type PlanetMap = {
-  world: string; rows: number; cols: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
+  world: string; rows: number; cols: number; radius: number; claimed: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
 };
 export type Companion = { id: string; name: string; genome: import('../inkborn/genome').Genome };
