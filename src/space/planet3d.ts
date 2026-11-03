@@ -14,7 +14,7 @@ import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { rng } from '../inkborn/world';
 import { LAT_MAX, PLOT_M, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey, colsFor, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
-import { moduleModel } from './baseModels';
+import { moduleModel, roverModel } from './baseModels';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
@@ -34,8 +34,9 @@ export type PlanetScene = {
   /** the current meteor shower (`key` changes with each new shower, which falls from the sky) */ setMeteors(key: string, list: { i: number; d: number[]; golden: boolean; taken: boolean }[]): void;
   /** a little burst of light where something happened (a meteorite grabbed) */ burst(d: number[], color?: string): void;
   /** the live group: add/remove explorers; positions from the heartbeat */ setLive(p: Pilot[]): void;
-  /** a streamed position for one explorer */ remote(id: string, d: number[], face: number[], hop: number): void;
-  /** where you are, to send to the group */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean };
+  /** a streamed position for one explorer (v: the rover they're driving) */ remote(id: string, d: number[], face: number[], hop: number, v?: string | null): void;
+  /** where you are, to send to the group (v: the rover you're driving) */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean; v?: string };
+  /** get in a rover (top speed in m/s) or out (null) */ setRover(kind: string | null, speed?: number): void;
   /** drop in next to a spot on the globe */ teleport(d: number[]): void;
   /** stand exactly here, facing this way */ place(d: number[], face?: number[]): void;
   setBuddy(g: Genome | null): void;
@@ -599,10 +600,28 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); s.scale.set(1.7, 1.7, 1); s.center.set(0.5, 0.06);
     scene.add(s); buddy = { s, c, tex, d: P.d.clone(), st: 'idle', hop: 0, dir: 1, g: gen };
   };
-  type Other = { s: THREE.Sprite; lab: THREE.Sprite; dot: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number; pet: THREE.Sprite | null; petD: THREE.Vector3 };
+  type Other = { s: THREE.Sprite; lab: THREE.Sprite; dot: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number; pet: THREE.Sprite | null; petD: THREE.Vector3; v: string | null; rover: THREE.Object3D | null };
   const others = new Map<string, Other>();
   const otherDotMat = track(new THREE.SpriteMaterial({ map: glowTex, color: '#7FE3FF', transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
-  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab, x.dot); disposeSprite(x.s); disposeSprite(x.lab); if (x.pet) { scene.remove(x.pet); disposeSprite(x.pet); } others.delete(id); };
+  /** turn a rover so it sits on the ground at d, nose along face */
+  const basis = new THREE.Matrix4(), bx = new THREE.Vector3(), bz = new THREE.Vector3();
+  const orient = (obj: THREE.Object3D, d: THREE.Vector3, face: THREE.Vector3, h: number) => {
+    bz.copy(face).projectOnPlane(d); if (bz.lengthSq() < 1e-6) bz.set(0, 0, 1).projectOnPlane(d); bz.normalize();
+    bx.crossVectors(d, bz).normalize();
+    obj.quaternion.setFromRotationMatrix(basis.makeBasis(bx, d, bz));
+    obj.position.copy(d).multiplyScalar(h);
+  };
+  let ride: { kind: string; speed: number; obj: THREE.Object3D } | null = null;
+  const setRover = (kind: string | null, speed = 20) => {
+    if (ride) { scene.remove(ride.obj); ride = null; }
+    if (kind) { ride = { kind, speed, obj: roverModel(kind, o.accent) }; scene.add(ride.obj); }
+  };
+  const setOtherRover = (x: Other, v: string | null) => {
+    if (x.v === v) return;
+    if (x.rover) { scene.remove(x.rover); x.rover = null; }
+    x.v = v; if (v) { x.rover = roverModel(v, '#9FD3FF'); scene.add(x.rover); }
+  };
+  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; setOtherRover(x, null); scene.remove(x.s, x.lab, x.dot); disposeSprite(x.s); disposeSprite(x.lab); if (x.pet) { scene.remove(x.pet); disposeSprite(x.pet); } others.delete(id); };
   /** Someone else's companion: drawn once (they're small and there can be a few), bobbing after them. */
   const petSprite = (gen: Genome) => {
     const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -623,14 +642,15 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         const s = imageSprite(p.explorerUrl, 1.9); const lab = textSprite(`@${p.username}`, '#ffffff', 0.45);
         const dot = new THREE.Sprite(otherDotMat); dot.renderOrder = 4;
         const start = d ?? spawn.clone();
-        x = { s, lab, dot, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0, pet: p.companion ? petSprite(p.companion) : null, petD: start.clone() };
+        x = { s, lab, dot, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0, pet: p.companion ? petSprite(p.companion) : null, petD: start.clone(), v: null, rover: null };
         scene.add(s, lab, dot); others.set(p.id, x);
       }
       if (d && performance.now() - x.streamed > 2500) { x.to.copy(d); const f = vec(p.face); if (f) x.face.copy(f); x.hopTo = p.hop ?? 0; }
     }
   };
-  const remote = (id: string, d: number[], face: number[], hop: number) => {
+  const remote = (id: string, d: number[], face: number[], hop: number, rv?: string | null) => {
     const x = others.get(id); const v = vec(d); if (!x || !v) return;
+    setOtherRover(x, typeof rv === 'string' && /^[a-z]{2,12}$/.test(rv) ? rv : null);
     x.to.copy(v); const f = vec(face); if (f) x.face.copy(f); x.hopTo = Math.max(0, Math.min(50, Number(hop) || 0)); x.streamed = performance.now();
   };
 
@@ -764,7 +784,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     P.moving = move.lengthSq() > 1e-4;
     if (P.moving) {
       // walk at ground level; up high you fly — faster the higher you are
-      const sp = Math.min(1, move.length()) * (7 + Math.min(dist, R * 1.2) * 0.55) * (P.target ? 1.15 : 1);
+      const walkSp = (7 + Math.min(dist, R * 1.2) * 0.55) * (P.target ? 1.15 : 1);
+      // in a rover on the ground you go at the rover's speed; up high you fly as usual
+      const sp = Math.min(1, move.length()) * (ride && hgh < 0.3 ? Math.max(ride.speed, walkSp) : walkSp);
       move.normalize(); P.face.lerp(move, Math.min(1, dt * 10)).normalize();
       if (P.target) { const left = P.target.angleTo(up) * R; moveOn(P.d, move, Math.min(left, sp * dt)); } else moveOn(P.d, move, sp * dt);
       P.face.projectOnPlane(P.d).normalize();
@@ -789,8 +811,10 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       if (!lastArea || Math.abs(cf.gy - lastArea.gy) > 24 || Math.min(Math.abs(cf.gx - lastArea.gx), cols - Math.abs(cf.gx - lastArea.gx)) > 24) { lastArea = cf; o.onArea?.({ gx: Math.floor(cf.gx), gy: Math.floor(cf.gy) }); }
     }
     const ground = surf(P.d);
-    const bob = P.moving && P.up === 0 && !reduce && hgh < 0.3 ? Math.abs(Math.sin(t * 11)) * 0.12 : 0;
-    me.position.copy(P.d).multiplyScalar(ground + P.up + bob);
+    const bob = P.moving && P.up === 0 && !reduce && hgh < 0.3 && !ride ? Math.abs(Math.sin(t * 11)) * 0.12 : 0;
+    const seat = ride ? (ride.kind === 'crawler' ? 1.5 : 1.0) : 0;
+    me.position.copy(P.d).multiplyScalar(ground + P.up + bob + seat);
+    if (ride) { ride.obj.visible = hgh < 0.6; orient(ride.obj, P.d, P.face, ground + P.up + (ride.kind === 'hover' && !reduce ? Math.sin(t * 3) * 0.08 : 0)); }
     if (P.moving) { const sx = P.face.dot(right); if (Math.abs(sx) > 0.15) { const m = me.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; } }
     stand(shadow, P.d, ground + 0.08); shadowMat.opacity = 0.28 * Math.max(0.25, 1 - P.up / 8);
     // markers that stay readable from orbit
@@ -823,8 +847,10 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       x.walk = gap > 0.15 ? x.walk + dt * 11 : 0;
       x.hop += (x.hopTo - x.hop) * Math.min(1, dt * 12);
       const gr = surf(x.d) + x.hop + (x.walk && x.hop < 0.05 ? Math.abs(Math.sin(x.walk)) * 0.12 : 0);
-      x.s.position.copy(x.d).multiplyScalar(gr);
-      x.lab.position.copy(x.d).multiplyScalar(gr + 2.1);
+      const xs = x.v ? (x.v === 'crawler' ? 1.5 : 1.0) : 0;
+      x.s.position.copy(x.d).multiplyScalar(gr + xs);
+      x.lab.position.copy(x.d).multiplyScalar(gr + 2.1 + xs);
+      if (x.rover) { x.rover.visible = hgh < 0.6; orient(x.rover, x.d, x.face, surf(x.d) + x.hop); }
       x.dot.visible = hgh > 0.2; x.dot.scale.setScalar(dotSize * 0.8); x.dot.position.copy(x.d).multiplyScalar(gr + 1);
       const sx = x.face.dot(right); if (Math.abs(sx) > 0.15) { const m = x.s.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; }
       if (x.pet) {
@@ -894,9 +920,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover,
     findMe: () => { freeLook = false; },
-    pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0 }),
+    pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0, v: ride?.kind }),
     place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },
     teleport: (d) => { const v = vec(d); if (!v) return; const side = new THREE.Vector3().crossVectors(v, UP).normalize(); if (side.lengthSq() < 0.5) side.set(1, 0, 0); P.d.copy(v); moveOn(P.d, side, 2.2); F.copy(P.d); P.target = null; if (buddy) buddy.d.copy(P.d); camF.copy(v).sub(P.d).projectOnPlane(P.d).normalize(); buildPatch(P.d); },
     walkTo: (c) => { P.target = V(cellCenterDir(c, rows)); freeLook = false; },
@@ -905,7 +931,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('blur', blur);
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); o.canvas.removeEventListener('pointerup', pu);
       o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel); o.canvas.removeEventListener('webglcontextlost', lost);
-      clearPlots(); highlight(null); setBuddy(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
+      clearPlots(); highlight(null); setBuddy(null); setRover(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
       for (const id of [...others.keys()]) dropOther(id);
       for (const l of labelPool) if (l.s) disposeSprite(l.s);
       disposeSprite(me);
@@ -914,6 +940,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

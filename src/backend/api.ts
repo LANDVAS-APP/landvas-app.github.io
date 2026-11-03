@@ -183,6 +183,13 @@ export const api = {
   setActivity: (kind: import('./types').ActivityKind, detail: Record<string, string> = {}) => rpc<{ ok: true }>('set_activity', { p_kind: kind, p_detail: detail }),
   warpToPlayer: (player: string) => rpc<import('./types').SpaceState & { spawn: { d: number[]; player: string } | null; with: Profile }>('space_warp_to_player', { p_player: player }),
   spaceSocial: () => rpc<import('./types').SpaceSocial>('space_worlds_social'),
+  roverState: () => rpc<import('./types').RoverState>('rover_state'),
+  roverBuy: (model: string) => rpc<import('./types').RoverState>('rover_buy', { p_model: model }),
+  roverRefuel: (ice: number, ink: number) => rpc<import('./types').RoverState>('rover_refuel', { p_ice: ice, p_ink: ink }),
+  roverDrive: (world: string, on: boolean, d: number[] | null) => rpc<import('./types').RoverState>('rover_drive', { p_world: world, p_on: on, p_d: d }),
+  roverTick: (world: string, d: number[] | null) => rpc<import('./types').RoverState>('rover_tick', { p_world: world, p_d: d }),
+  sanctuaryVisitPing: (habitat: string) => rpc<{ ok: boolean }>('sanctuary_visit_ping', { p_habitat: habitat }),
+  baseVisitPing: (world: string, gx: number, gy: number) => rpc<{ ok: boolean }>('planet_base_visit_ping', { p_world: world, p_gx: gx, p_gy: gy }),
   baseCatalog: () => rpc<import('./types').BaseCatalog>('planet_base_catalog'),
   baseSave: (world: string, gx: number, gy: number, layout: import('./types').BaseModule[], rev: number) =>
     rpc<{ layout: import('./types').BaseModule[]; rev: number; spent: Record<string, number>; refunded: Record<string, number>; items: Record<string, number> }>('planet_base_save', { p_world: world, p_gx: gx, p_gy: gy, p_layout: layout, p_rev: rev }),

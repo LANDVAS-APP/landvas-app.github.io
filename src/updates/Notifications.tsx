@@ -1,7 +1,10 @@
 // The bell (site-wide updates + support replies) and the "what's new" popup.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MessageSquareHeart, Newspaper, Sparkles, Stamp, Star, Users, Wrench } from 'lucide-react';
+import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { buzz } from '../native/native';
+import { worldOf } from '../space/worlds';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
@@ -25,7 +28,7 @@ export function useNotifications() {
 /** A bell button with a count; opens the updates panel. */
 export function useAlerts() {
   const me = useOnboardedMe();
-  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: 45_000, staleTime: 15_000 });
+  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: 15_000, refetchIntervalInBackground: false, staleTime: 5_000 });
 }
 
 export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {
@@ -116,14 +119,68 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   potd: { icon: Star, color: '#FFE14D', text: (a) => <>Your “{a.data.title}” is the <b>Painting of the Day</b>!</>, to: (a) => `/art/${a.data.publication_id}` },
   duet: { icon: Users, color: '#FF4D6D', text: (a) => <>finished your duet: {a.data.prompt}</>, to: (a) => `/duet/${a.data.duet_id}` },
   doodle: { icon: Sparkles, color: '#FFE14D', text: () => <>guessed your drawing</>, to: () => '/doodle' },
+  friend_request: { icon: UserPlus, color: '#22E3FF', text: () => <>sent you a friend request</>, to: () => '/social' },
+  friend_accept: { icon: UserCheck, color: '#3DDC97', text: () => <>accepted your friend request</>, to: (a) => (a.actor ? `/u/${a.actor.username}` : '/social') },
+  sanctuary_visit: { icon: PawPrint, color: '#B49BFF', text: (a) => <>is visiting your sanctuary{a.data.name ? <> “{a.data.name}”</> : null}</>, to: (a) => (a.data.habitat ? `/habitat/${a.data.habitat}` : '/habitat') },
+  playdate: {
+    icon: Heart, color: '#FF7EB6', to: () => '/inkborn',
+    text: (a) => <>had a playdate with your <b>{a.data.mine}</b>{a.data.tip ? <span className="text-ok"> · +{a.data.tip} Ink</span> : null}{a.data.egg ? <> · 🥚 you got an egg!</> : null}</>,
+  },
+  warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
+  base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },
+  neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
+
+function worldName(w?: string) {
+  if (!w) return 'a planet';
+  return worldOf(w)?.name ?? 'a planet';
+}
+
+const shown: { user: string | null; ids: Set<number> | null } = { user: null, ids: null };
+
+/** New activity pops up as it happens (anywhere in the app), not just in the bell. */
+export function AlertPopups() {
+  const me = useOnboardedMe();
+  const nav = useNavigate();
+  const alerts = useAlerts();
+  useEffect(() => {
+    const items = alerts.data?.items;
+    if (!me || !items) return;
+    // kept outside the component so a remount (or a route change) never pops the same thing twice
+    if (shown.user !== me.profile.id) { shown.user = me.profile.id; shown.ids = null; }
+    const seen = { get current() { return shown.ids; }, set current(v) { shown.ids = v; } };
+    const fresh = (a: Alert) => !a.read && Date.now() - new Date(a.created_at).getTime() < (seen.current ? 30 * 60_000 : 5 * 60_000);
+    // first load: only what just happened pops up; the rest waits in the bell
+    const isFirst = !seen.current;
+    if (!seen.current) seen.current = new Set();
+    const pop = items.filter((a) => !seen.current!.has(a.id) && ALERT[a.kind] && fresh(a)).slice(0, isFirst ? 2 : 4).reverse();
+    for (const a of items) seen.current.add(a.id);
+    if (!pop.length) return;
+    buzz('light');
+    for (const a of pop) {
+      const k = ALERT[a.kind];
+      const to = a.kind === 'note' ? `/u/${me.profile.username}/room` : k.to(a);
+      toast.custom((id) => (
+        <button data-testid="alert-popup" data-kind={a.kind} onClick={() => { toast.dismiss(id); if (to) nav(to); }}
+          className="glass flex w-[min(92vw,380px)] items-center gap-3 rounded-2xl border border-line p-3 text-left text-sm text-fg shadow-xl">
+          <span className="relative shrink-0">
+            {a.actor ? <PlayerAvatar p={a.actor} size={36} /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2"><k.icon className="h-4 w-4" style={{ color: k.color }} /></span>}
+            {a.actor && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-2"><k.icon className="h-3 w-3" style={{ color: k.color }} /></span>}
+          </span>
+          <span className="min-w-0 flex-1 break-words">{a.actor ? <b>@{a.actor.username} </b> : null}{k.text(a)}</span>
+        </button>
+      ), { id: `alert-${a.id}`, duration: 6000 });
+    }
+  }, [alerts.data, me, nav]);
+  return null;
+}
 
 function ActivityList({ onLink }: { onLink(to: string): void }) {
   const me = useOnboardedMe();
   const alerts = useAlerts();
   const items = alerts.data?.items ?? [];
   if (alerts.isLoading) return <p className="py-6 text-center text-sm text-muted">Loading…</p>;
-  if (!items.length) return <p className="py-6 text-center text-sm text-muted" data-testid="activity-empty">When someone visits your room, collects a stamp or is inspired by your art, it shows up here.</p>;
+  if (!items.length) return <p className="py-6 text-center text-sm text-muted" data-testid="activity-empty">When someone visits you, plays with your Inkborn, warps to you, adds you as a friend or collects your art, it shows up here.</p>;
   return (
     <div className="grid max-h-[60vh] gap-1.5 overflow-y-auto pr-1 scroll-thin" data-testid="activity-list">
       {items.map((a) => {

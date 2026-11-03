@@ -41,7 +41,17 @@ export default function Sanctuary() {
     );
   }
   // a habitat that grew (or shrank) gets a fresh world built from its new shape
-  return <Game key={`${q.data.id}:${q.data.cells.map((c) => c.join(',')).join(';')}`} h={q.data} />;
+  return <><VisitPing h={q.data} /><Game key={`${q.data.id}:${q.data.cells.map((c) => c.join(',')).join(';')}`} h={q.data} /></>;
+}
+
+/** Let the keeper know someone's looking round (the server only pings them once an hour). */
+function VisitPing({ h }: { h: Habitat }) {
+  useEffect(() => {
+    if (h.is_owner) return;
+    const t = setTimeout(() => void api.sanctuaryVisitPing(h.id).catch(() => {}), 1500);
+    return () => clearTimeout(t);
+  }, [h.id, h.is_owner]);
+  return null;
 }
 
 // ---- simulation types ------------------------------------------------------------------

@@ -7,7 +7,7 @@ import { getBackend, toGameError } from '../backend/backend';
 import type { LiveMember } from '../backend/types';
 import { safeStorage, saveStorage } from '../lib/utils';
 
-export type Pose = { d: number[]; face: number[]; hop: number };
+export type Pose = { d: number[]; face: number[]; hop: number; v?: string };
 export type LiveInfo = { with: number; onWorld: number; size: number };
 
 /** Your last spot on each world, so the map and the 3D surface agree on where you are. */
@@ -21,7 +21,7 @@ export function usePlanetLive(opts: {
   world: string; enabled: boolean; myId: string | undefined;
   pose(): Pose | null;
   onMembers(m: LiveMember[]): void;
-  onRemote(id: string, d: number[], face: number[], hop: number): void;
+  onRemote(id: string, d: number[], face: number[], hop: number, v?: string | null): void;
   onSpawn?(d: number[], who: LiveMember | null): void;
 }) {
   const [info, setInfo] = useState<LiveInfo | null>(null);
@@ -34,8 +34,8 @@ export function usePlanetLive(opts: {
     let members = new Set<string>();
     let lastSent = 0, lastKey = '';
     const onMsg = (m: unknown) => {
-      const x = m as { id?: string; d?: number[]; f?: number[]; h?: number };
-      if (x?.id && members.has(x.id) && x.d && x.f) ref.current.onRemote(x.id, x.d, x.f, x.h ?? 0);
+      const x = m as { id?: string; d?: number[]; f?: number[]; h?: number; v?: string };
+      if (x?.id && members.has(x.id) && x.d && x.f) ref.current.onRemote(x.id, x.d, x.f, x.h ?? 0, x.v ?? null);
     };
     const beat = async () => {
       if (stopped) return;
@@ -57,9 +57,9 @@ export function usePlanetLive(opts: {
     const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2000);
     const tx = setInterval(() => {
       const p = ref.current.pose(); if (!p || !ch) return;
-      const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2);
+      const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2) + (p.v ?? '');
       const now = performance.now();
-      if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop }); savePose(world, p); }
+      if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop, v: p.v }); savePose(world, p); }
     }, 100);
     // no explicit leave: a quick hop between the map and the 3D view keeps your group (and spot)
     return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); };

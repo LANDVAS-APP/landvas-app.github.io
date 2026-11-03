@@ -396,7 +396,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -472,7 +472,7 @@ export type PlaydateStart = {
   mine: { id: string; name: string; genome: import('../inkborn/genome').Genome };
   theirs: { id: string; name: string; genome: import('../inkborn/genome').Genome; owner: Profile };
 };
-export type PlaydateFinish = { score: number; earned: number; paid: number; capped: boolean; host_tip: number; egg: InkEgg | null; their_egg: { kind: string } | null; no_egg_because: string | null; repeat?: boolean };
+export type PlaydateFinish = { score: number; earned: number; paid: number; capped: boolean; host_tip: number; egg: InkEgg | null; their_egg: { kind: string } | null; no_egg_because: string | null; repeat?: boolean; eggs_left?: number };
 export type SanctuaryCard = {
   id: string; kind: 'starter' | 'plot'; plots: number; creatures: number; capacity: number; name: string; owner: Profile; friend: boolean; active_at: string;
   preview: { name: string; genome: import('../inkborn/genome').Genome }[];
@@ -499,4 +499,10 @@ export type SpaceSocial = {
 export type BaseCatalog = {
   config: { max_modules: number; refund: number; palette: string[]; modules: Record<string, { name: string; emoji: string; w: number; d: number; cost: Record<string, number> }> };
   items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number;
+};
+export type RoverModel = { id: string; name: string; emoji: string; speed: number; tank: number; burn_per_km: number; cost: Record<string, number> };
+export type RoverState = {
+  owned: string[]; active: string | null; fuel: number; tank: number; driving: boolean; world: string | null; km: number; km_today: number;
+  config: { enabled: boolean; fuel_per_ice: number; fuel_per_ink: number; models: RoverModel[] }; items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>;
+  bought?: string; added?: number; moved_m?: number; burned?: number; out_of_fuel?: boolean;
 };

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { isNative } from '../native/native';
 import { useActivityReporter } from '../social/activity';
+import { AlertPopups } from '../updates/Notifications';
 import { useOnboardedMe } from '../lib/queries';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -151,7 +152,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><OnboardingGate /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
@@ -236,7 +237,7 @@ if (config.router !== 'memory' && !getBackend().session()) {
 }
 
 if (config.e2e || import.meta.env.DEV) {
-  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasBackend: getBackend() });
+  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasBackend: getBackend(), __landvasQc: queryClient });
 }
 
 export function App() {

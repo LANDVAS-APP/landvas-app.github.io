@@ -22,6 +22,7 @@ import { confettiCannons } from '../ui/confetti';
 import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
 import { DigPanel } from './Dig';
+import { RoverControls, RoverGarage, useRover } from './Rover';
 import { BaseBuilder } from './BaseBuilder';
 import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
 import { PLANET_GAMES } from './planetGames';
@@ -84,6 +85,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [lost, setLost] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
   const [digOpen, setDigOpen] = useState(false);
+  const [garageOpen, setGarageOpen] = useState(false);
   const [building, setBuilding] = useState<PlanetPlot | null>(null);
   const collecting = useRef(false);
 
@@ -183,7 +185,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
     pose: () => scene.current?.pose() ?? null,
     onMembers: (ms) => scene.current?.setLive(ms.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop, companion: m.companion?.genome ? cleanGenome(m.companion.genome) : null,
       explorerUrl: svgUrl(explorerSvg(m.explorer_style as never, m.accent_color ?? '#7B5CFF', 184)) }))),
-    onRemote: (id, d, f, h) => scene.current?.remote(id, d, f, h),
+    onRemote: (id, d, f, h, v) => scene.current?.remote(id, d, f, h, v),
     onSpawn: (d, who) => {
       if (savedPose(world)) return; // you were already here — stay where you left off
       scene.current?.teleport(d);
@@ -195,6 +197,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const here = plotAt(cell);
   const mine = (map.data?.plots ?? []).filter((p) => p.mine);
   const high = zoom.mode !== 'walk';
+  const rover = useRover(world, scene, ready, high);
   const R = radiusFor(builtRows);
   const around = 2 * Math.PI * R, plotM = (R * Math.PI * 144) / (180 * builtRows);
 
@@ -312,6 +315,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         </button>
         <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.zoom(1.8)} aria-label="Higher" data-testid="zoom-out"><Minus className="h-5 w-5" /></button>
         {high && <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.findMe()} aria-label="Find me"><Crosshair className="h-5 w-5" /></button>}
+        {!high && ready && <RoverControls rover={rover} onGarage={() => setGarageOpen(true)} />}
         {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => setDigOpen(true)} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
@@ -343,6 +347,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       {high && ready && !cell && <div className={cn('pointer-events-none absolute inset-x-0 z-10 mx-auto w-fit rounded-full bg-black/45 px-3 py-1 text-[11px] text-white/80', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+150px)] md:bottom-[160px]' : 'bottom-[160px]')}>{zoom.mode === 'orbit' ? 'Drag to spin the planet · tap a plot' : 'Fly with the stick · tap a plot · Land to walk'}</div>}
 
       <AnimatePresence>{building && <BaseBuilder world={world} plot={building} onClose={() => setBuilding(null)} onSaved={() => { void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
+      <RoverGarage open={garageOpen} onOpenChange={setGarageOpen} rover={rover} />
       <AnimatePresence>{digOpen && <DigPanel world={world} w={w} pose={() => scene.current?.pose().d ?? null} onClose={() => setDigOpen(false)} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
@@ -396,6 +401,15 @@ function RarityBadge({ r }: { r: RarityInfo | undefined }) {
   if (!r) return null;
   return <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${r.color}33`, color: r.color, boxShadow: `inset 0 0 0 1px ${r.color}88` }} data-testid="cosmic-rarity">{r.name}{r.mult > 1 ? ` ×${r.mult}` : ''}</span>;
 }
+/** Standing at someone's base lets them know (the server only pings once an hour per visitor). */
+function BaseVisitPing({ world, gx, gy }: { world: string; gx: number; gy: number }) {
+  useEffect(() => {
+    const t = setTimeout(() => void api.baseVisitPing(world, gx, gy).catch(() => {}), 3000);
+    return () => clearTimeout(t);
+  }, [world, gx, gy]);
+  return null;
+}
+
 function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk, onRename, onPlay, onBuild }: {
   map: PlanetMap; cell: Cell | null; plot: PlanetPlot | null; high: boolean; busy: boolean; rows: number; rarityOf: Record<string, RarityInfo>;
   onClaim(): void; onWalk(): void; onRename(): void; onPlay(game: string): void; onBuild(): void;
@@ -430,7 +444,8 @@ function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk
   if (plot) return (
     <div className={cn(card, 'flex items-center gap-2')}>
       <Flag className="h-4 w-4 shrink-0" style={{ color: plot.owner.accent ?? '#fff' }} />
-      <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="truncate font-bold">{plot.name || `@${plot.owner.username}’s plot`}</span><RarityBadge r={rarityOf[plot.rarity]} /></div><div className="text-[11px] text-white/60">Claimed by @{plot.owner.username}</div></div>
+      {!high && !!plot.base?.layout.length && <BaseVisitPing world={map.world} gx={plot.gx} gy={plot.gy} />}
+      <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="truncate font-bold">{plot.name || `@${plot.owner.username}’s plot`}</span><RarityBadge r={rarityOf[plot.rarity]} /></div><div className="text-[11px] text-white/60">Claimed by @{plot.owner.username}{plot.base?.layout.length ? ` · 🏗️ base of ${plot.base.layout.length}` : ''}</div></div>
       {high ? go : where}
     </div>
   );

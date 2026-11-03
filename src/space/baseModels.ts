@@ -91,3 +91,33 @@ export function moduleModel(kind: string, color = '#F2F5FB'): THREE.Object3D {
   }
   return o;
 }
+
+/** A rover, facing +z, wheels on the ground at y = 0. The driver sits at about y = 1. */
+export function roverModel(kind: string, color = '#FFC93D'): THREE.Object3D {
+  const o = new THREE.Group();
+  const wheel = g('rwheel', () => new THREE.CylinderGeometry(0.42, 0.42, 0.3, 14).rotateZ(Math.PI / 2));
+  const tyre = mat('tyre', () => new THREE.MeshStandardMaterial({ color: '#2A2E38', roughness: 0.9 }));
+  if (kind === 'hover') {
+    o.add(mesh(g('hdisc', () => new THREE.CylinderGeometry(1.5, 1.8, 0.35, 24)), solid(color), 0, 0.75));
+    o.add(mesh(g('hring', () => new THREE.TorusGeometry(1.6, 0.09, 8, 32).rotateX(Math.PI / 2)), glow('#7EF0FF'), 0, 0.5));
+    o.add(mesh(g('hglow', () => new THREE.CylinderGeometry(1.1, 0.4, 0.4, 20)), glow('#B49BFF'), 0, 0.3));
+    o.add(mesh(g('hcan', () => new THREE.SphereGeometry(0.8, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2)), glass('#BFE3FF'), 0, 0.92));
+  } else if (kind === 'crawler') {
+    o.add(mesh(g('cbody', () => new THREE.BoxGeometry(2.3, 0.8, 3.4)), solid(color), 0, 0.95));
+    o.add(mesh(g('ccab', () => new THREE.BoxGeometry(1.8, 0.8, 1.4)), glass('#BFE3FF'), 0, 1.7, 0.6));
+    for (const s of [-1, 1]) {
+      o.add(mesh(g('ctrack', () => new THREE.BoxGeometry(0.55, 0.7, 3.8)), tyre, s * 1.35, 0.35));
+      for (const z of [-1.3, 0, 1.3]) o.add(mesh(wheel, metal, s * 1.35, 0.42, z));
+    }
+    o.add(mesh(g('cant', () => new THREE.CylinderGeometry(0.03, 0.03, 1.4, 5)), metal, -0.8, 2.3, -1.2));
+    o.add(mesh(g('clight', () => new THREE.BoxGeometry(1.4, 0.18, 0.08)), glow('#FFF3B0'), 0, 1.15, 1.72));
+  } else {
+    o.add(mesh(g('bbase', () => new THREE.BoxGeometry(1.7, 0.3, 2.8)), metal, 0, 0.55));
+    o.add(mesh(g('bbody', () => new THREE.BoxGeometry(1.5, 0.45, 1.6)), solid(color), 0, 0.85, -0.4));
+    o.add(mesh(g('bbar', () => new THREE.TorusGeometry(0.75, 0.06, 6, 16, Math.PI)), metal, 0, 1.0, 0.3));
+    o.add(mesh(g('bdish', () => new THREE.ConeGeometry(0.35, 0.2, 12, 1, true).rotateX(Math.PI)), solid('#F2F5FB'), 0.6, 1.5, -1.0));
+    o.add(mesh(g('blight', () => new THREE.BoxGeometry(1.1, 0.14, 0.08)), glow('#FFF3B0'), 0, 0.6, 1.42));
+    for (const s of [-1, 1]) for (const z of [-1, 1]) o.add(mesh(wheel, tyre, s * 0.98, 0.42, z * 1.05));
+  }
+  return o;
+}
