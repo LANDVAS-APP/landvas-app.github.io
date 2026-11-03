@@ -47,6 +47,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
   const set = useSet();
   const flight = useFlight(s);
   const [launching, setLaunching] = useState<{ to: string; minutes: number } | null>(null);
+  const [warping, setWarping] = useState<string | null>(null);
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const ink = Number(s.balances?.ink ?? 0);
@@ -63,7 +64,8 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
     toast.success(`Fast travel! You’re on ${placeName(r, r.location)} 🚀`, { description: `−${(r as SpaceState & { rush_paid?: number }).rush_paid ?? 0} Ink` });
   });
   /** launch, and with `fast` arrive right away (fast travel) */
-  const launch = (dest: string, fast = false) => run(`launch:${dest}${fast ? ':fast' : ''}`, async () => { const r = await api.spaceLaunch(dest); return fast ? api.spaceRush() : r; }, (r) => {
+  const launch = (dest: string, fast = false) => run(`launch:${dest}${fast ? ':fast' : ''}`, async () => { const r = await api.spaceLaunch(dest); return fast && !r.warped ? api.spaceRush() : r; }, (r) => {
+    if (r.warped) { if (useUi.getState().settings.haptics) buzz('success'); setPick(null); setWarping(placeName(r, r.location)); return; }
     if (fast) { if (useUi.getState().settings.haptics) buzz('success'); setPick(null); toast.success(`Fast travel! You’re on ${placeName(r, r.location)} 🚀`); return; }
     if (useUi.getState().settings.haptics) buzz('heavy');
     const mins = (new Date(r.arrive_at!).getTime() - new Date(r.depart_at!).getTime()) / 60000;
@@ -88,6 +90,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
       })} /> : (
         <>
           <StatusCard s={s} flight={flight} onWorld={onWorld} accent={accent} busy={busy} onHome={() => launch('earth')} onRush={rush} />
+          <WarpBar s={s} busy={busy} onWarp={(d) => launch(d)} />
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="glass relative min-w-0 overflow-hidden rounded-[28px] p-2" data-testid="system-map">
               <SystemMap s={s} progress={flight.progress} flying={flight.flying} picked={pick} onPick={setPick} accent={accent} />
@@ -110,6 +113,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
         </>
       )}
 
+      <AnimatePresence>{warping && <WarpOverlay to={warping} onDone={() => { setWarping(null); nav('/world'); }} />}</AnimatePresence>
       <AnimatePresence>{launching && <LaunchOverlay s={s} to={launching.to} minutes={launching.minutes} accent={accent} onDone={() => setLaunching(null)} />}</AnimatePresence>
     </div>
   );
@@ -339,6 +343,7 @@ function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; 
   const ink = Number(s.balances?.ink ?? 0);
   const fuel = cfg?.fuel ?? 0;
   const there = (id === 'home' && s.location === `exo:${s.home_seed}`) || s.location === id;
+  const warpable = id !== 'exo' && (s.warps ?? []).includes(id === 'home' ? `exo:${s.home_seed}` : id);
   const info = useQuery({ queryKey: ['space-world', id], queryFn: () => api.spaceWorld(id), enabled: id !== 'exo' && id !== 'home', staleTime: 60_000 });
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="glass grid gap-3 rounded-[28px] p-4" data-testid="world-card">
@@ -353,8 +358,10 @@ function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; 
       <p className="text-sm text-muted">{id === 'exo' ? 'Fire up the big engine and jump to a random world nobody has charted. Like it? Settle it as your home world.' : w?.fact}</p>
       {cfg && (
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-surface-2 px-3 py-1">⏱ {cfg.minutes} min trip</span>
-          <span className="flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1">⛽ {fuel ? <>{fuel} <ResourceIcon r="ink" className="h-3 w-3" /></> : 'free'}</span>
+          {warpable ? <span className="rounded-full bg-[#7FE3FF]/20 px-3 py-1 font-bold text-[#7FE3FF]">⚡ free, instant warp</span> : <>
+            <span className="rounded-full bg-surface-2 px-3 py-1">⏱ {cfg.minutes} min trip</span>
+            <span className="flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1">⛽ {fuel ? <>{fuel} <ResourceIcon r="ink" className="h-3 w-3" /></> : 'free'}</span>
+          </>}
           <span className="flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1">🪨 samples +{cfg.sample} <ResourceIcon r="ink" className="h-3 w-3" />/day</span>
           {!s.samples[`first:${key}`] && <span className="rounded-full bg-gold/15 px-3 py-1 text-gold">✨ first visit +{cfg.first} Ink</span>}
           {w?.gravity != null && <span className="rounded-full bg-surface-2 px-3 py-1">🪶 gravity {w.gravity}×</span>}
@@ -365,6 +372,10 @@ function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; 
         <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3 text-sm"><Lock className="h-4 w-4 text-muted" /> Needs an Engine Mk {'I'.repeat(cfg.tier)} — upgrade in the hangar.</div>
       ) : there ? (
         <div className="rounded-2xl bg-ok/10 p-3 text-sm text-ok">You’re here.</div>
+      ) : warpable ? (
+        <Button variant="rainbow" size="lg" loading={busy === `launch:${id}`} onClick={() => onLaunch()} data-testid="warp">
+          ⚡ Warp there — free &amp; instant
+        </Button>
       ) : (
         <div className="grid gap-2">
           <Button variant="rainbow" size="lg" loading={busy === `launch:${id}`} disabled={flying || ink < fuel} onClick={() => onLaunch()} data-testid="launch">
@@ -481,6 +492,48 @@ function Logbook({ s }: { s: SpaceState }) {
         })}
       </div>
     </div>
+  );
+}
+
+// ---- warp: anywhere you've unlocked or been, free and instant --------------------------------------
+function WarpBar({ s, busy, onWarp }: { s: SpaceState; busy: string | null; onWarp(dest: string): void }) {
+  const list = (s.warps ?? []).map((d) => ({ d, arg: d === `exo:${s.home_seed}` ? 'home' : d, w: d === 'earth' ? null : worldOf(d, s.home_seed, s.home_name) }));
+  if (list.length < 2) return null;
+  return (
+    <div className="glass rounded-[28px] p-3" data-testid="warp-bar">
+      <div className="mb-2 flex items-center gap-2 px-1"><span className="eyebrow">⚡ Warp</span><span className="text-[11px] text-muted">free &amp; instant to anywhere you’ve unlocked or been</span></div>
+      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        {list.map(({ d, arg, w }) => {
+          const here = s.location === d && !s.dest;
+          return (
+            <button key={d} disabled={here || !!busy} onClick={() => onWarp(arg)} data-testid={`warp-${arg}`}
+              className={cn('grid w-[72px] shrink-0 justify-items-center gap-1 rounded-2xl p-2 text-center text-[10.5px] font-semibold transition', here ? 'bg-ok/15 text-ok' : 'bg-surface-2/70 hover:bg-surface-2 active:scale-95')}>
+              {w ? <PlanetBall w={w} size={36} /> : <span className="grid h-9 w-9 place-items-center text-2xl">🌍</span>}
+              <span className="w-full truncate">{d === 'earth' ? 'Earth' : d === `exo:${s.home_seed}` ? `🏡 ${s.home_name ?? 'Home'}` : w?.name.replace('The ', '').split(' (')[0]}</span>
+              {here && <span className="text-[9px] uppercase">here</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WarpOverlay({ to, onDone }: { to: string; onDone(): void }) {
+  const reduce = useUi((st) => st.settings.reduceMotion);
+  useEffect(() => { const t = setTimeout(onDone, reduce ? 500 : 1500); return () => clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const streaks = useMemo(() => Array.from({ length: 48 }, (_, i) => ({ a: (i / 48) * 360 + (i % 3) * 4, d: 0.5 + (i % 5) * 0.12, delay: (i % 7) * 0.05 })), []);
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] grid place-items-center overflow-hidden bg-[#05060F]" data-testid="warp-overlay">
+      {!reduce && streaks.map((st, i) => (
+        <motion.div key={i} className="absolute left-1/2 top-1/2 h-[2px] origin-left rounded-full bg-gradient-to-r from-transparent via-[#7FE3FF] to-white"
+          style={{ rotate: st.a, width: '60vmax' }} initial={{ scaleX: 0, opacity: 0, x: 0 }} animate={{ scaleX: [0, 1], opacity: [0, 1, 0], x: ['0vmax', '30vmax'] }} transition={{ duration: st.d, delay: st.delay, repeat: Infinity, ease: 'easeIn' }} />
+      ))}
+      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative text-center text-white">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-white/60">Warping to</div>
+        <div className="font-display text-4xl font-black">{to}</div>
+      </motion.div>
+    </motion.div>
   );
 }
 

@@ -30,17 +30,15 @@ describe('Space', () => {
     await expectError(db.rpc(sol, 'space_build', { p_part: 'wings' }), 'invalid_part');
   });
 
-  it('flying takes real time; the Moon is free; far worlds need a bigger engine', async () => {
+  it('worlds your engine reaches are a free, instant warp; far ones need a bigger engine', async () => {
     await expectError(db.rpc(sol, 'space_launch', { p_dest: 'jupiter' }), 'engine_too_small');
+    const before = await ink(sol);
     const s = await db.rpc(sol, 'space_launch', { p_dest: 'moon' });
-    expect(s.dest).toBe('moon');
-    expect(s.fuel_spent).toBe(0);
-    await expectError(db.rpc(sol, 'space_launch', { p_dest: 'mars' }), 'space_in_flight');
-    expect((await db.rpc(sol, 'space_state')).location).toBe('earth');
-    await land(sol);
-    const there = await db.rpc(sol, 'space_state');
-    expect(there).toMatchObject({ location: 'moon', dest: null });
-    expect(there.visited).toContain('moon');
+    expect(s).toMatchObject({ location: 'moon', dest: null, warped: true, fuel_spent: 0 });
+    expect(s.visited).toContain('moon');
+    expect(s.warps).toEqual(expect.arrayContaining(['earth', 'moon', 'mars']));
+    expect(s.warps).not.toContain('jupiter');
+    expect(await ink(sol)).toBe(before);
   });
 
   it('samples pay once a day per world, plus a first-visit bonus', async () => {
@@ -52,33 +50,34 @@ describe('Space', () => {
     await expectError(db.rpc(sol, 'space_collect'), 'samples_taken');
   });
 
-  it('fuel costs Ink; upgrading the engine opens the outer planets; coming home is free', async () => {
-    let s = await db.rpc(sol, 'space_launch', { p_dest: 'mars' });
-    expect(s.fuel_spent).toBe(5);
-    await land(sol);
+  it('upgrading the engine opens the outer planets — also free and instant; so is coming home', async () => {
+    const s = await db.rpc(sol, 'space_launch', { p_dest: 'mars' });
+    expect(s).toMatchObject({ location: 'mars', fuel_spent: 0 });
     await db.giveInk(sol, 1200);
-    s = await db.rpc(sol, 'space_upgrade_engine');
-    expect(s.engine).toBe(2);
-    s = await db.rpc(sol, 'space_upgrade_engine');
-    expect(s.engine).toBe(3);
+    expect((await db.rpc(sol, 'space_upgrade_engine')).engine).toBe(2);
+    const up = await db.rpc(sol, 'space_upgrade_engine');
+    expect(up.engine).toBe(3);
+    expect(up.warps).toContain('neptune');
     await expectError(db.rpc(sol, 'space_upgrade_engine'), 'engine_maxed');
+    expect((await db.rpc(sol, 'space_launch', { p_dest: 'neptune' })).location).toBe('neptune');
     const home = await db.rpc(sol, 'space_launch', { p_dest: 'earth' });
-    expect(home.fuel_spent).toBe(0);
-    await land(sol);
-    expect((await db.rpc(sol, 'space_state')).location).toBe('earth');
+    expect(home).toMatchObject({ location: 'earth', fuel_spent: 0 });
   });
 
-  it('a random far-off world can become your home, and you can fly back to it', async () => {
+  it('a new far-off world takes a real trip; once settled (or visited) it is a free warp too', async () => {
     await expectError(db.rpc(sol, 'space_settle', { p_name: 'Nope' }), 'not_on_a_world');
     const s = await db.rpc(sol, 'space_launch', { p_dest: 'exo' });
     expect(s.dest).toMatch(/^exo:\d+$/);
+    expect(s.warped).toBe(false);
     await land(sol);
     const st = await db.rpc(sol, 'space_settle', { p_name: 'New Inkhaven' });
     expect(st.home_name).toBe('New Inkhaven');
     expect(st.home_seed).toBe(st.exo_seed);
-    await db.rpc(sol, 'space_launch', { p_dest: 'earth' }); await land(sol);
+    expect(st.warps).toContain(`exo:${st.home_seed}`);
+    await db.rpc(sol, 'space_launch', { p_dest: 'earth' });
     const back = await db.rpc(sol, 'space_launch', { p_dest: 'home' });
-    expect(back.dest).toBe(`exo:${st.home_seed}`);
+    expect(back).toMatchObject({ location: `exo:${st.home_seed}`, dest: null, warped: true });
+    await expectError(db.rpc(sol, 'space_launch', { p_dest: 'exo:12345' }), 'invalid_world');
     await expectError(db.rpc(eve, 'space_launch', { p_dest: 'home' }), 'rocket_not_built');
   });
 
@@ -108,18 +107,22 @@ describe('Space', () => {
 });
 
 describe('Space fast travel', () => {
-  it('pays a little Ink to land right away; no trip, nothing to rush', async () => {
+  it('a trip somewhere new can be rushed for a little Ink — or redirected by warping', async () => {
     const u = await db.newPlayer('rush_pilot');
     await db.giveInk(u, 500);
     for (const p of ['nose', 'fins', 'tank', 'engine']) await db.rpc(u, 'space_build', { p_part: p });
+    await db.sql(`update space_pilots set engine = 3 where player_id = $1`, [u]);
     await expectError(db.rpc(u, 'space_rush'), 'not_in_flight');
-    const s = await db.rpc(u, 'space_launch', { p_dest: 'mars' }); // 3 minutes
-    expect(s.rush_cost).toBe(3 + 2 * 3);
+    const s = await db.rpc(u, 'space_launch', { p_dest: 'exo' });
+    expect(s.rush_cost).toBeGreaterThan(0);
     const before = await ink(u);
     const r = await db.rpc(u, 'space_rush');
-    expect(r.rush_paid).toBe(9);
-    expect(r.location).toBe('mars');
-    expect(r.dest).toBeNull();
-    expect(await ink(u)).toBe(before - 9);
+    expect(r.rush_paid).toBe(s.rush_cost);
+    expect(r.location).toBe(s.dest);
+    expect(await ink(u)).toBe(before - s.rush_cost);
+    // mid-flight to somewhere new, warp somewhere you know instead
+    await db.rpc(u, 'space_launch', { p_dest: 'exo' });
+    const w = await db.rpc(u, 'space_launch', { p_dest: 'moon' });
+    expect(w).toMatchObject({ location: 'moon', dest: null, warped: true });
   });
 });

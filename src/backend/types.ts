@@ -443,6 +443,7 @@ export type SpaceState = {
   exo_seed: number | null; home_seed: number | null; home_name: string | null; visited: string[]; samples: Record<string, string | boolean>;
   launches: number; ink_today: number; rush_cost: number | null; day: string; server_time: string; config: SpaceConfig; balances: Balances;
   fuel_spent?: number; paid?: number; first_bonus?: number; capped?: boolean;
+  /** destinations you can warp to — free and instant */ warps?: string[]; warped?: boolean;
 };
 
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };

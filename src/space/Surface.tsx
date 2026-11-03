@@ -17,7 +17,7 @@ import { CurrencyPills, PlayerBadge } from '../map/Hud';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
-import { Button, Dialog, ResourceIcon, Spinner, inputCls, useConfirm } from '../ui';
+import { Button, Dialog, ResourceIcon, Spinner, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
@@ -57,7 +57,6 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const me = useOnboardedMe();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const confirm = useConfirm();
   const reduce = useUi((st) => st.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);
   const scene = useRef<PlanetScene | null>(null);
@@ -81,6 +80,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
+  const [warpOpen, setWarpOpen] = useState(false);
   const collecting = useRef(false);
 
   const collect = async () => {
@@ -200,9 +200,10 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
     try { const r = await api.spaceSettle(name.trim()); qc.setQueryData(SPACE_KEY, r); setSettleOpen(false); confettiCannons(); toast.success(`Welcome home to ${r.home_name}! 🏡`, { description: 'It has a map of its own now — only you can build here.' }); }
     catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
-  const flyHome = async () => {
-    if (!(await confirm({ title: 'Fly home to Earth?', body: 'The trip home is free, and your plots here stay yours.', confirm: 'Launch' }))) return;
-    try { const r = await api.spaceLaunch('earth'); qc.setQueryData(SPACE_KEY, r); toast.success('Heading home to Earth 🌍'); } catch (e) { toast.error(toGameError(e).message); }
+  const warpTo = async (dest: string, label: string) => {
+    setWarpOpen(false);
+    try { const r = await api.spaceLaunch(dest); qc.setQueryData(SPACE_KEY, r); invalidateGame(qc); toast.success(`⚡ Warped to ${label}`); }
+    catch (e) { toast.error(toGameError(e).message); }
   };
   const cfg = s.config.worlds[worldKey(s.location)];
   const bottom = embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px))] md:bottom-5' : 'bottom-[max(16px,env(safe-area-inset-bottom,0px))]';
@@ -242,7 +243,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
               <div className="leading-tight"><div className="font-display text-sm font-bold">{w.name}{isHome ? ' · home' : ''}</div><div className="whitespace-nowrap text-[10.5px] text-white/65">Rocket parked here</div></div>
               <button className="ml-1 rounded-xl bg-white/10 p-2 hover:bg-white/20" onClick={() => nav('/space')} aria-label="Mission control" data-testid="space-button"><RocketIcon className="h-4 w-4" /></button>
               {onPeekEarth && <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={onPeekEarth} title="Look at Earth's map (you stay here)" data-testid="peek-earth">🌍 Earth</button>}
-              <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={flyHome} title="Fly home to Earth" data-testid="fly-home">🚀 Home</button>
+              <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={() => setWarpOpen(true)} title="Warp to another world — free and instant" data-testid="warp-open">⚡ Warp</button>
             </div>
           )}
           <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="planet-scale">
@@ -320,6 +321,22 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       </div>
       {high && ready && !cell && <div className={cn('pointer-events-none absolute inset-x-0 z-10 mx-auto w-fit rounded-full bg-black/45 px-3 py-1 text-[11px] text-white/80', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+150px)] md:bottom-[160px]' : 'bottom-[160px]')}>{zoom.mode === 'orbit' ? 'Drag to spin the planet · tap a plot' : 'Fly with the stick · tap a plot · Land to walk'}</div>}
 
+      <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
+          {(s.warps ?? []).map((d) => {
+            const ww = d === 'earth' ? null : worldOf(d, s.home_seed, s.home_name);
+            const label = d === 'earth' ? 'Earth' : d === `exo:${s.home_seed}` ? (s.home_name ?? 'Home') : (ww?.name ?? d).replace('The ', '').split(' (')[0];
+            const here = d === s.location;
+            return (
+              <button key={d} disabled={here} onClick={() => void warpTo(d === `exo:${s.home_seed}` ? 'home' : d, label)} data-testid={`warp-to-${d}`}
+                className={cn('grid justify-items-center gap-1 rounded-2xl p-2 text-[11px] font-semibold', here ? 'bg-ok/15 text-ok' : 'bg-surface-2 hover:bg-surface-3')}>
+                <span className="grid h-10 w-10 place-items-center rounded-full text-xl" style={{ background: ww ? `radial-gradient(circle at 35% 35%, ${ww.color}, ${ww.color2})` : 'radial-gradient(circle at 35% 35%, #3EA0DA, #1B4A7A)' }}>{d === 'earth' ? '🌍' : d === `exo:${s.home_seed}` ? '🏡' : ''}</span>
+                <span className="w-full truncate text-center">{label}</span>{here && <span className="text-[9px] uppercase">here</span>}
+              </button>
+            );
+          })}
+        </div>
+      </Dialog>
       <Dialog open={listOpen} onOpenChange={setListOpen} title={`Plots on ${w.name}`} description={map.data ? `${map.data.plots.length} claimed by explorers so far. A new plot costs you ${map.data.price} Ink here.` : undefined}>
         <div className="grid max-h-[50vh] gap-1.5 overflow-y-auto">
           {(mine.length ? mine : (map.data?.plots ?? [])).map((p) => (
