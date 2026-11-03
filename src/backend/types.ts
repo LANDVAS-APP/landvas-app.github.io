@@ -404,7 +404,7 @@ export type RoomSocial = {
 // ---- Inkborn ----
 export type PlotKind = 'canvas' | 'habitat';
 export type Inkborn = {
-  id: string; name: string; source: 'drawn' | 'random' | 'custom'; genome: import('../inkborn/genome').Genome; personality: string;
+  id: string; name: string; source: 'drawn' | 'random' | 'custom' | 'bred'; genome: import('../inkborn/genome').Genome; personality: string;
   habitat_id: string | null; bond: number; happiness: number; energy: number; created_at: string; mine: boolean;
   portrait_status: 'none' | 'unconfigured' | 'queued' | 'ready' | 'failed'; portrait_path: string | null;
   drawing?: import('../shared/strokes').Stroke[] | null; last_fed: string | null; last_played: string | null;
@@ -458,3 +458,14 @@ export type PlanetLive = {
 };
 export type Meteor = { i: number; d: number[]; golden: boolean; taken: boolean; mine: boolean; by: string | null };
 export type MeteorShower = { win: number; started_at: string; ends_at: string; reach_m: number; meteors: Meteor[] };
+export type InkEgg = {
+  id: string; kind: 'speckled' | 'swirl' | 'starry' | 'striped' | 'glimmer' | 'cosmic'; shell: { a: string; b: string; c: string };
+  parents: { name: string; owner: string; genome: import('../inkborn/genome').Genome }[]; mutated: boolean;
+  laid_at: string; hatch_at: string; ready: boolean; hatched: boolean; seen: boolean; genome: import('../inkborn/genome').Genome | null;
+};
+export type PlaydateStart = {
+  session: string; seed: number; seconds: number; egg_score: number; eggs_left: number;
+  mine: { id: string; name: string; genome: import('../inkborn/genome').Genome };
+  theirs: { id: string; name: string; genome: import('../inkborn/genome').Genome; owner: Profile };
+};
+export type PlaydateFinish = { score: number; earned: number; paid: number; capped: boolean; host_tip: number; egg: InkEgg | null; their_egg: { kind: string } | null; no_egg_because: string | null; repeat?: boolean };

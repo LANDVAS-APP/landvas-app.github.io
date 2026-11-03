@@ -146,6 +146,11 @@ export const api = {
   // Inkborn
   setGroupKind: (groupId: string, kind: import('./types').PlotKind) => rpc<CanvasGroup>('set_group_kind', { p_group_id: groupId, p_kind: kind }),
   mySanctuaries: () => rpc<import('./types').Sanctuaries>('my_sanctuaries'),
+  playdateStart: (mine: string, theirs: string) => rpc<import('./types').PlaydateStart>('inkborn_playdate_start', { p_mine: mine, p_theirs: theirs }),
+  playdateFinish: (session: string, score: number) => rpc<import('./types').PlaydateFinish>('inkborn_playdate_finish', { p_session: session, p_score: score }),
+  inkEggs: () => rpc<import('./types').InkEgg[]>('inkborn_eggs'),
+  inkEggsSeen: () => rpc<{ ok: true }>('inkborn_eggs_seen'),
+  inkEggHatch: (egg: string, name: string) => rpc<{ inkborn: import('./types').Inkborn; egg: import('./types').InkEgg }>('inkborn_egg_hatch', { p_egg: egg, p_name: name }),
   habitatGet: (id: string | null) => rpc<import('./types').Habitat>('habitat_get', { p_id: id }),
   habitatForPlot: (gx: number, gy: number) => rpc<{ habitat_id: string; name: string; owner: Profile; plots: number; creatures: number } | null>('habitat_for_plot', { p_gx: gx, p_gy: gy }),
   habitatSaveLayout: (id: string, layout: import('./types').Decor[], rev: number) => rpc<import('./types').Habitat>('habitat_save_layout', { p_id: id, p_layout: layout, p_rev: rev }),

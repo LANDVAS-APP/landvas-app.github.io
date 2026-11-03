@@ -1175,7 +1175,13 @@ function Game({ h }: { h: Habitat }) {
                   {e.T.pond && <CareBtn icon={<Bath className="h-4 w-4" />} label="Bathe" onClick={() => bathe(selSim)} testid="bathe" />}
                 </>
               ) : (
-                <div className="col-span-5 flex items-center text-[11px] text-white/70">Only @{h.owner.username} can feed and play with {selSim.c.name} — but you can call them over or walk together.</div>
+                <>
+                  <button className="col-span-3 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#FF8FB1] to-[#B69CFF] px-2 py-2 text-sm font-bold text-white shadow"
+                    onClick={() => nav(`/inkborn/playdate/${selSim.c.id}`, { state: { name: selSim.c.name, genome: selSim.c.genome, owner: h.owner.username, back: `/habitat/${h.id}` } })} data-testid="playdate">
+                    🧺 Playdate
+                  </button>
+                  <div className="col-span-2 flex items-center text-[10px] leading-tight text-white/70">Bring your Inkborn to play with {selSim.c.name} — great rounds lay eggs!</div>
+                </>
               )}
               <CareBtn icon={<Footprints className="h-4 w-4" />} label={selSim.follow ? 'Stay' : 'Follow'} onClick={() => toggleFollow(selSim)} testid="follow" active={!!selSim.follow} />
               <CareBtn icon={<Megaphone className="h-4 w-4" />} label="Call" onClick={() => call(selSim)} testid="call" />

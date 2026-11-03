@@ -12,6 +12,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { Button, Empty, Spinner } from '../ui';
 import { bondLevel } from './care';
 import { CreatureView } from './CreatureView';
+import { EggsPanel } from './Eggs';
 import { MOOD_INFO, cleanGenome } from './genome';
 import { CreatureProfile } from './Profile';
 import { jobLabel, useInkEconomy } from './Earn';
@@ -36,7 +37,7 @@ export default function Hub() {
           <Link to="/inkborn/create"><Button variant="rainbow" data-testid="new-inkborn"><Plus className="h-4 w-4" /> Create</Button></Link>
         </div>
       }>
-        Draw a creature and watch it come alive, then raise it in a woodland sanctuary. Pet, feed and play with your Inkborn to grow your bond.
+        Draw a creature and watch it come alive, then raise it in a woodland sanctuary. Pet, feed and play with your Inkborn to grow your bond — and visit other players’ sanctuaries for playdates that lay eggs.
       </PageHeader>
 
       {d.creatures.length === 0 ? (
@@ -69,6 +70,7 @@ export default function Hub() {
         </section>
       )}
 
+      <EggsPanel />
       {d.creatures.length > 0 && <EarnPanel creatures={d.creatures} />}
 
       <h2 className="mb-3 font-display text-lg font-semibold">Sanctuaries</h2>
