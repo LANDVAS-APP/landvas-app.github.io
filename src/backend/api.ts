@@ -306,7 +306,11 @@ export const api = {
   // admin
   admin: {
     overview: () => rpc<any>('admin_overview'),
-    announcements: () => rpc<(Announcement & { active: boolean; author?: any })[]>('admin_announcements'),
+    announcements: () => rpc<import('./types').AdminAnnouncement[]>('admin_announcements'),
+    draftAnnouncement: (a: { title: string; body: string; kind: Announcement['kind']; link: string | null; popup: boolean }) =>
+      rpc<Announcement>('admin_announcement_draft', { p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup }),
+    publishAnnouncement: (a: { id: string; title: string; body: string; kind: Announcement['kind']; link: string | null; popup: boolean }) =>
+      rpc<Announcement>('admin_announcement_publish', { p_id: a.id, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup }),
     saveAnnouncement: (a: { id?: string | null; title: string; body: string; kind: string; link?: string | null; popup: boolean; active: boolean }) =>
       rpc<Announcement>('admin_announcement_save', { p_id: a.id ?? null, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup, p_active: a.active }),
     deleteAnnouncement: (id: string) => rpc<{ ok: boolean }>('admin_announcement_delete', { p_id: id }),

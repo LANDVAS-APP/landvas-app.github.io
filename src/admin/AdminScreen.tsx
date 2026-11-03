@@ -103,6 +103,7 @@ function Hub() {
   const pending = mode.data?.pending ?? 0;
   const notes = useNotifications();
   const openTickets = notes.data?.open_tickets_staff ?? 0;
+  const drafts = notes.data?.drafts_staff ?? 0;
   useEffect(() => { history.replaceState(null, '', `#${tab}`); }, [tab]);
   return (
     <Page wide>
@@ -112,6 +113,7 @@ function Hub() {
       <Tabs value={tab} onValueChange={setTab} className="mb-5" items={TABS.map((t) => ({
         value: t.value,
         label: t.value === 'review' && pending > 0 ? <span className="flex items-center gap-1.5">Review <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{pending}</span></span>
+          : t.value === 'updates' && drafts > 0 ? <span className="flex items-center gap-1.5">Updates <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum" data-testid="drafts-badge">{drafts}</span></span>
           : t.value === 'support' && openTickets > 0 ? <span className="flex items-center gap-1.5">Support <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{openTickets}</span></span> : t.label,
       }))} />
       {tab === 'review' && <ReviewTab />}

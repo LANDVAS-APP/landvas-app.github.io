@@ -90,6 +90,12 @@ function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: b
             <span><b>Support replied</b> to {n.data.support_replies === 1 ? 'your ticket' : `${n.data.support_replies} of your tickets`}. Tap to read.</span>
           </button>
         )}
+        {!!n.data?.drafts_staff && (
+          <button onClick={() => go('/admin#updates')} className="flex items-center gap-3 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3 text-left text-sm" data-testid="drafts-waiting">
+            <Sparkles className="h-5 w-5 shrink-0 text-accent-2" />
+            <span><b>{n.data.drafts_staff} update draft{n.data.drafts_staff === 1 ? '' : 's'}</b> from the latest build waiting for your approval.</span>
+          </button>
+        )}
         {!!n.data?.open_tickets_staff && (
           <button onClick={() => go('/admin#support')} className="flex items-center gap-3 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-left text-sm">
             <LifeBuoy className="h-5 w-5 shrink-0 text-warn" />
@@ -234,14 +240,20 @@ export function AnnouncementPopup() {
     if (to) nav(to);
   };
   if (!a) return null;
+  return <AnnouncementPopupView a={a} open={open} onClose={() => done()} onLink={(to) => done(to)} />;
+}
+
+/** The popup players see (also used by the admin preview). */
+export function AnnouncementPopupView({ a, open, onClose, onLink, preview }: { a: Announcement; open: boolean; onClose(): void; onLink(to: string): void; preview?: boolean }) {
   const k = KIND[a.kind] ?? KIND.update;
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && done()} title={<span className="flex items-center gap-2"><k.icon className="h-5 w-5" style={{ color: k.color }} /> {a.title}</span>}>
-      <div className="grid gap-4" data-testid="announcement-popup">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={<span className="flex items-center gap-2"><k.icon className="h-5 w-5" style={{ color: k.color }} /> {a.title}</span>}>
+      <div className="grid gap-4" data-testid={preview ? 'announcement-popup-preview' : 'announcement-popup'}>
+        {preview && <div className="rounded-xl bg-warn/15 px-3 py-1.5 text-[11px] font-bold text-warn">PREVIEW — only you can see this</div>}
         <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
         <div className="flex flex-wrap gap-2">
-          {a.link && <Button variant="rainbow" onClick={() => done(a.link!)}>Take a look</Button>}
-          <Button variant={a.link ? 'secondary' : 'primary'} onClick={() => done()} data-testid="announcement-dismiss">Got it</Button>
+          {a.link && <Button variant="rainbow" onClick={() => onLink(a.link!)}>Take a look</Button>}
+          <Button variant={a.link ? 'secondary' : 'primary'} onClick={onClose} data-testid="announcement-dismiss">Got it</Button>
         </div>
       </div>
     </Dialog>
