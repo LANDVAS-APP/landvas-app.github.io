@@ -48,6 +48,8 @@ export interface Backend {
   /** Local mode runs the pipeline in-page after submission/admin actions. */
   kickPipeline(): Promise<void>;
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;
+  /** A low-latency message channel shared by everyone in one live group (positions on a planet). */
+  liveChannel?(name: string, onMessage: (m: unknown) => void): { send(m: unknown): void; close(): void };
   resetLocalData?(): Promise<void>;
 }
 

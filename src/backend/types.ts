@@ -450,3 +450,8 @@ export type PlanetMap = {
   world: string; rows: number; cols: number; games: string[]; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
 };
+export type LiveMember = Profile & { explorer_style?: unknown; d: number[]; face: number[]; hop: number };
+export type PlanetLive = {
+  world: string; shard: number; joined: boolean; spawn: { d: number[]; player: string } | null; group_size: number;
+  channel: string; members: LiveMember[]; on_world: number;
+};

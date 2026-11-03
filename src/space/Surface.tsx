@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
+import { getBackend } from '../backend/backend';
 import { toGameError } from '../backend/backend';
 import type { PlanetMap, PlanetPlot, SpaceState } from '../backend/types';
 import { explorerSvg } from '../explorer/character';
@@ -114,18 +115,56 @@ function Ground({ s, w }: { s: SpaceState; w: World }) {
 
   // keep the plots and explorers on the globe current
   useEffect(() => { if (ready && map.data) scene.current?.setPlots(map.data.plots); }, [ready, map.data]);
+  // walk together: a heartbeat finds (and keeps) your live group of up to 10 and drops you next to
+  // someone; in between, positions stream to the group over a realtime channel
+  const [live, setLive] = useState<{ with: number; onWorld: number; size: number } | null>(null);
   useEffect(() => {
-    if (!ready || !map.data) return;
-    scene.current?.setPilots(map.data.pilots.filter((p) => p.id !== me?.profile.id).map((p) => ({
-      id: p.id, username: p.username, accent: p.accent_color,
-      explorerUrl: svgUrl(explorerSvg((p as { explorer_style?: never }).explorer_style, p.accent_color ?? '#7B5CFF', 184)),
-    })));
-  }, [ready, map.data, me?.profile.id]);
+    if (!ready || !me) return;
+    const backend = getBackend();
+    const myId = me.profile.id;
+    let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '';
+    let members = new Set<string>();
+    let lastSent = 0, lastKey = '';
+    const onMsg = (m: unknown) => {
+      const x = m as { id?: string; d?: number[]; f?: number[]; h?: number };
+      if (x?.id && members.has(x.id) && x.d && x.f) scene.current?.remote(x.id, x.d, x.f, x.h ?? 0);
+    };
+    const beat = async (first = false) => {
+      const sc = scene.current; if (!sc || stopped) return;
+      const pose = sc.pose();
+      try {
+        const r = await api.planetLive(world, pose.d, pose.face, pose.hop);
+        if (stopped) return;
+        if (r.joined && r.spawn && first) {
+          sc.teleport(r.spawn.d);
+          const who = r.members.find((m) => m.id === r.spawn!.player);
+          if (who) toast(`You landed next to @${who.username} 👋`, { description: 'Walk together — everyone in your group sees you move live.' });
+        }
+        members = new Set(r.members.map((m) => m.id));
+        if (!(window as { __landvasLiveFreeze?: boolean }).__landvasLiveFreeze) sc.setLive(r.members.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop,
+          explorerUrl: svgUrl(explorerSvg(m.explorer_style as never, m.accent_color ?? '#7B5CFF', 184)) })));
+        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg) ?? null; }
+        setLive({ with: r.members.length, onWorld: r.on_world, size: r.group_size });
+      } catch (e) {
+        const err = toGameError(e);
+        if (err.code === 'land_first') stopped = true;
+      }
+    };
+    void beat(true);
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2000);
+    const tx = setInterval(() => {
+      const sc = scene.current; if (!sc || !ch) return;
+      const p = sc.pose();
+      const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2);
+      const now = performance.now();
+      if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop }); }
+    }, 100);
+    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); void api.planetLeave().catch(() => {}); };
+  }, [ready, world, me?.profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const plotAt = (c: Cell | null) => (c && map.data ? map.data.plots.find((p) => p.gx === c.gx && p.gy === c.gy) ?? null : null);
   const here = plotAt(cell);
   const mine = (map.data?.plots ?? []).filter((p) => p.mine);
-  const others = (map.data?.pilots ?? []).filter((p) => p.id !== me?.profile.id);
 
   const claim = async () => {
     if (!cell) return;
@@ -175,7 +214,12 @@ function Ground({ s, w }: { s: SpaceState; w: World }) {
         </div>
       </div>
       <div className="pointer-events-none absolute left-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+58px)] flex flex-col items-start gap-1.5">
-        {others.length > 0 && <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]"><Users className="h-3 w-3" /> {others.length} other explorer{others.length === 1 ? '' : 's'} here</span>}
+        {live && (
+          <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#4FD18B]" /><Users className="h-3 w-3" />
+            {live.with ? `${live.with + 1}/${live.size} exploring together` : 'Just you here right now'}{live.onWorld > live.with + 1 ? ` · ${live.onWorld} on ${w.name.replace('The ', 'the ')}` : ''}
+          </span>
+        )}
         {canPlots && map.data && (
           <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setListOpen(true)} data-testid="my-planet-plots">
             <Flag className="h-3 w-3" /> {mine.length ? `My plots here (${mine.length})` : `${map.data.plots.length} plots claimed`}

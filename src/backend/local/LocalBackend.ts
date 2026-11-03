@@ -302,6 +302,14 @@ export class LocalBackend implements Backend {
     }
   }
 
+  /** Same-device stand-in for realtime: other tabs of this browser. */
+  liveChannel(name: string, onMessage: (m: unknown) => void) {
+    if (typeof BroadcastChannel === 'undefined') return { send() {}, close() {} };
+    const ch = new BroadcastChannel(`landvas-live:${name}`);
+    ch.onmessage = (e) => onMessage(e.data);
+    return { send: (m: unknown) => ch.postMessage(m), close: () => ch.close() };
+  }
+
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {
     this.mapListeners.add(cb);
     void this.pollUpdates();

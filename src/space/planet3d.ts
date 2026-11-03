@@ -11,7 +11,7 @@ import { rng } from '../inkborn/world';
 import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellKey, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
 
-export type Pilot = { id: string; username: string; accent: string; explorerUrl: string };
+export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number };
 export type PlanetSceneOpts = {
   canvas: HTMLCanvasElement; world: World; rows: number; seed: number; accent: string; explorerUrl: string;
   buddy: Genome | null; isHome: boolean; samples: number; reduceMotion?: boolean;
@@ -19,7 +19,11 @@ export type PlanetSceneOpts = {
 };
 export type PlanetScene = {
   /** joystick: x right, y forward (-1..1) */ joy: { x: number; y: number }; jump(): void;
-  setPlots(plots: PlanetPlot[]): void; setPilots(p: Pilot[]): void;
+  setPlots(plots: PlanetPlot[]): void;
+  /** the live group: add/remove explorers; positions from the heartbeat */ setLive(p: Pilot[]): void;
+  /** a streamed position for one explorer */ remote(id: string, d: number[], face: number[], hop: number): void;
+  /** where you are, to send to the group */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean };
+  /** drop in next to a spot on the globe */ teleport(d: number[]): void;
   setOrbit(on: boolean): void; walkTo(c: Cell): void; zoom(f: number): void;
   dispose(): void;
 };
@@ -79,7 +83,8 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const height = (d: THREE.Vector3) => amp * bumps.reduce((n, b) => n + b.a * Math.sin(b.f * d.dot(b.v) * 3 + b.p), 0) / sumA;
   const surf = (d: THREE.Vector3) => R + height(d);
 
-  const geo = track(new THREE.SphereGeometry(R, 200, 140));
+  const seg = Math.min(360, Math.max(200, rows * 6));
+  const geo = track(new THREE.SphereGeometry(R, seg, Math.round(seg * 0.7)));
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   const g0 = css(w.ground[0]), g1 = css(w.ground[1]), det = css(w.detail), c1 = css(w.color), c2 = css(w.color2);
@@ -193,7 +198,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   // ---- decor -------------------------------------------------------------------------------------
   const spawn = V(dirOf(4, 6));
   const nearSpawn = (d: THREE.Vector3) => d.angleTo(spawn) * R < 9;
-  const decor = (geom: THREE.BufferGeometry, mat: THREE.Material, n: number, scale: (i: number) => THREE.Vector3, sink = 0.2) => {
+  const dens = Math.max(1, (R / 40) ** 2);
+  const decor = (geom: THREE.BufferGeometry, mat: THREE.Material, n0: number, scale: (i: number) => THREE.Vector3, sink = 0.2) => {
+    const n = Math.round(n0 * (n0 < 20 ? Math.sqrt(dens) : dens));
     const m = new THREE.InstancedMesh(track(geom), track(mat), n);
     const o3 = new THREE.Object3D();
     let k = 0;
@@ -334,18 +341,29 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); s.scale.set(1.7, 1.7, 1); s.center.set(0.5, 0.06);
     scene.add(s); buddy = { s, c, tex, d: P.d.clone(), st: 'idle', hop: 0, dir: 1 };
   }
-  type Other = { p: Pilot; s: THREE.Sprite; lab: THREE.Sprite; home: THREE.Vector3; d: THREE.Vector3; to: THREE.Vector3; wait: number };
+  type Other = { s: THREE.Sprite; lab: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number };
   const others = new Map<string, Other>();
-  const setPilots = (list: Pilot[]) => {
+  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab); x.s.material.map?.dispose(); x.s.material.dispose(); x.lab.material.map?.dispose(); x.lab.material.dispose(); others.delete(id); };
+  const vec = (a: number[] | null | undefined) => (a && a.length === 3 && a.every(Number.isFinite) ? new THREE.Vector3(a[0], a[1], a[2]).normalize() : null);
+  const setLive = (list: Pilot[]) => {
     const keep = new Set(list.map((p) => p.id));
-    for (const [id, x] of others) if (!keep.has(id)) { scene.remove(x.s, x.lab); x.s.material.map?.dispose(); x.s.material.dispose(); x.lab.material.map?.dispose(); x.lab.material.dispose(); others.delete(id); }
+    for (const id of [...others.keys()]) if (!keep.has(id)) dropOther(id);
     for (const p of list) {
-      if (others.has(p.id)) continue;
-      const hr = rng([...p.id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 3) >>> 0);
-      const home = spawn.clone().applyAxisAngle(new THREE.Vector3(hr() - 0.5, hr() - 0.5, hr() - 0.5).normalize(), (6 + hr() * 22) / R).normalize();
-      const s = imageSprite(p.explorerUrl, 1.9); const lab = textSprite(`@${p.username}`, '#ffffff', 0.45);
-      scene.add(s, lab); others.set(p.id, { p, s, lab, home, d: home.clone(), to: home.clone(), wait: hr() * 3 });
+      const d = vec(p.d);
+      let x = others.get(p.id);
+      if (!x) {
+        const s = imageSprite(p.explorerUrl, 1.9); const lab = textSprite(`@${p.username}`, '#ffffff', 0.45);
+        const start = d ?? spawn.clone();
+        x = { s, lab, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0 };
+        scene.add(s, lab); others.set(p.id, x);
+      }
+      // heartbeat positions only fill in when nothing has streamed in lately
+      if (d && performance.now() - x.streamed > 2500) { x.to.copy(d); const f = vec(p.face); if (f) x.face.copy(f); x.hopTo = p.hop ?? 0; }
     }
+  };
+  const remote = (id: string, d: number[], face: number[], hop: number) => {
+    const x = others.get(id); const v = vec(d); if (!x || !v) return;
+    x.to.copy(v); const f = vec(face); if (f) x.face.copy(f); x.hopTo = Math.max(0, Math.min(50, Number(hop) || 0)); x.streamed = performance.now();
   };
 
   // ---- controls ---------------------------------------------------------------------------------
@@ -490,14 +508,17 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         buddy.tex.needsUpdate = true;
       }
     }
-    // other explorers amble about
+    // the others in your live group glide to where they are
     for (const x of others.values()) {
-      x.wait -= dt;
       const gap = x.d.angleTo(x.to) * R;
-      if (gap > 0.3) moveOn(x.d, x.to.clone().projectOnPlane(x.d).normalize(), Math.min(gap, 3.2 * dt));
-      else if (x.wait <= 0) { x.to = x.home.clone(); moveOn(x.to, unit().projectOnPlane(x.home).normalize(), Math.random() * 9); x.wait = 2 + Math.random() * 5; }
-      x.s.position.copy(x.d).multiplyScalar(surf(x.d));
-      x.lab.position.copy(x.d).multiplyScalar(surf(x.d) + 2.1);
+      if (gap > 40) x.d.copy(x.to);
+      else if (gap > 0.01) moveOn(x.d, x.to.clone().projectOnPlane(x.d).normalize(), Math.min(gap, Math.max(gap * dt * 9, 7.5 * dt)));
+      x.walk = gap > 0.15 ? x.walk + dt * 11 : 0;
+      x.hop += (x.hopTo - x.hop) * Math.min(1, dt * 12);
+      const gr = surf(x.d) + x.hop + (x.walk && x.hop < 0.05 ? Math.abs(Math.sin(x.walk)) * 0.12 : 0);
+      x.s.position.copy(x.d).multiplyScalar(gr);
+      x.lab.position.copy(x.d).multiplyScalar(gr + 2.1);
+      const sx = x.face.dot(right); if (Math.abs(sx) > 0.15) { const m = x.s.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; }
     }
     // samples spin and glow; walk into them
     for (const s of samples) {
@@ -549,10 +570,12 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(frame);
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, setOrbit, walkTo: (c: Cell) => api.walkTo(c), cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows) };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, setOrbit, setLive: (l: Pilot[]) => setLive(l), remote: (...a: [string, number[], number[], number]) => remote(...a), walkTo: (c: Cell) => api.walkTo(c), cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows) };
 
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setPilots, setOrbit, zoom,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setLive, remote, setOrbit, zoom,
+    pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0 }),
+    teleport: (d) => { const v = vec(d); if (!v) return; const side = new THREE.Vector3().crossVectors(v, UP).normalize(); if (side.lengthSq() < 0.5) side.set(1, 0, 0); P.d.copy(v); moveOn(P.d, side, 2.2); P.target = null; if (buddy) buddy.d.copy(P.d); camF.copy(v).sub(P.d).projectOnPlane(P.d).normalize(); },
     walkTo: (c) => { P.target = V(cellCenterDir(c, rows)); setOrbit(false); },
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();

@@ -163,6 +163,9 @@ export const api = {
   spaceSettle: (name: string) => rpc<import('./types').SpaceState>('space_settle', { p_name: name }),
   spaceWorld: (world: string) => rpc<{ world: string; pilots: number; here: number; recent: Profile[] }>('space_world', { p_world: world }),
   spaceGameStart: (game: string) => rpc<{ session: string; seed: number; game: string; seconds: number }>('space_game_start', { p_game: game }),
+  planetLive: (world: string, d?: number[] | null, face?: number[] | null, hop = 0) =>
+    rpc<import('./types').PlanetLive>('planet_live', { p_world: world, p_d: d ?? null, p_face: face ?? null, p_hop: hop }),
+  planetLeave: () => rpc<{ ok: true }>('planet_leave'),
   planetMap: (world: string) => rpc<import('./types').PlanetMap>('planet_map', { p_world: world }),
   planetClaim: (world: string, gx: number, gy: number) => rpc<import('./types').PlanetMap & { claimed: [number, number]; paid: number }>('planet_claim', { p_world: world, p_gx: gx, p_gy: gy }),
   planetRename: (world: string, gx: number, gy: number, name: string) => rpc<{ ok: true }>('planet_rename', { p_world: world, p_gx: gx, p_gy: gy, p_name: name }),

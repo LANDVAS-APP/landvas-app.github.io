@@ -184,6 +184,17 @@ export class SupabaseBackend implements Backend {
     }
   }
 
+  liveChannel(name: string, onMessage: (m: unknown) => void) {
+    let ready = false;
+    const ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false } } })
+      .on('broadcast', { event: 'm' }, (p) => onMessage(p.payload))
+      .subscribe((status) => { ready = status === 'SUBSCRIBED'; });
+    return {
+      send: (m: unknown) => { if (ready) void ch.send({ type: 'broadcast', event: 'm', payload: m }); },
+      close: () => { void this.sb.removeChannel(ch); },
+    };
+  }
+
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {
     let lastId = 0;
     let live = false;

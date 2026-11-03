@@ -23,7 +23,7 @@ afterAll(() => db.close());
 describe('Planet plots', () => {
   it('every solar world has a map anyone can see; buying needs you landed there', async () => {
     const m = await db.rpc(ana, 'planet_map', { p_world: 'moon' });
-    expect(m).toMatchObject({ world: 'moon', rows: 24, cols: 48, price: 30, landed: false, plots: [] });
+    expect(m).toMatchObject({ world: 'moon', rows: 60, cols: 120, price: 30, landed: false, plots: [] });
     expect(m.games).toEqual(['moonlander', 'rockrun']);
     await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 3, p_gy: 4 }), 'land_first');
     await expectError(db.rpc(ana, 'planet_map', { p_world: 'vulcan' }), 'invalid_world');
@@ -36,7 +36,7 @@ describe('Planet plots', () => {
     expect(r.price).toBe(35);
     expect(await ink(ana)).toBe(970);
     await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 3, p_gy: 4 }), 'plot_unavailable');
-    await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 48, p_gy: 0 }), 'invalid_plot');
+    await expectError(db.rpc(ana, 'planet_claim', { p_world: 'moon', p_gx: 120, p_gy: 0 }), 'invalid_plot');
     // Bo sees it (and Ana, who is on the Moon)
     const seen = await db.rpc(bo, 'planet_map', { p_world: 'moon' });
     expect(seen.plots).toHaveLength(1);
