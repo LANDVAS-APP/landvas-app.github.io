@@ -56,6 +56,7 @@ const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
 const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
+const PlotsScreen = lazy(() => import('../plots/PlotsScreen'));
 const SpaceSurface = lazy(() => import('../space/Surface'));
 const SpaceGame = lazy(() => import('../space/SpaceGame'));
 
@@ -181,6 +182,7 @@ const routes: RouteObject[] = [
           { path: '/doodle', element: player(<DoodleScreen />) },
           { path: '/duet', element: player(<DuetScreen />) },
           { path: '/space', element: player(<SpaceScreen />) },
+          { path: '/plots', element: player(<PlotsScreen />) },
           { path: '/inkborn', element: player(<InkbornHub />) },
           { path: '/inkborn/create', element: player(<InkbornStudio />) },
           { path: '/inkborn/edit/:id', element: player(<InkbornStudio />) },

@@ -106,3 +106,20 @@ describe('Space', () => {
     expect(w.recent[0].username).toBe('sol_pilot');
   });
 });
+
+describe('Space fast travel', () => {
+  it('pays a little Ink to land right away; no trip, nothing to rush', async () => {
+    const u = await db.newPlayer('rush_pilot');
+    await db.giveInk(u, 500);
+    for (const p of ['nose', 'fins', 'tank', 'engine']) await db.rpc(u, 'space_build', { p_part: p });
+    await expectError(db.rpc(u, 'space_rush'), 'not_in_flight');
+    const s = await db.rpc(u, 'space_launch', { p_dest: 'mars' }); // 3 minutes
+    expect(s.rush_cost).toBe(3 + 2 * 3);
+    const before = await ink(u);
+    const r = await db.rpc(u, 'space_rush');
+    expect(r.rush_paid).toBe(9);
+    expect(r.location).toBe('mars');
+    expect(r.dest).toBeNull();
+    expect(await ink(u)).toBe(before - 9);
+  });
+});

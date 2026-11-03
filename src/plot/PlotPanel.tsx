@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
 import { mergePieces, useMapFx } from '../map/MapFx';
+import { diveInto } from '../map/Hud';
 import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -425,8 +426,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
       <RenamePlot d={d} />
       {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : 'canvas', habitat_id: hab?.habitat_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {hab ? <Button variant="primary" onClick={() => nav(`/habitat/${hab.habitat_id}`)} data-testid="open-habitat">🐾 Enter sanctuary</Button>
-          : <Button variant="primary" onClick={() => d.group && nav(`/create/${d.group.id}`)} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
+        {hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
+          : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>
       {d.group && d.group.plot_count > 1 && (

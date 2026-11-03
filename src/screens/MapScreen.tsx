@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, ChevronDown, Combine, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Rocket, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { Box, Check, Combine, Crosshair, Gamepad, LayoutGrid, Rocket, Satellite, Sparkles, X } from 'lucide-react';
+import { CurrencyPills, DayNight, ModeButton, PlayerBadge, takeReturn } from '../map/Hud';
 import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -29,12 +30,6 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 
-const MODES: { id: MapMode; label: string; icon: any; hint: string }[] = [
-  { id: 'atlas', label: 'Atlas', icon: MapPinned, hint: 'Places, borders and every owned territory' },
-  { id: 'canvas', label: 'Canvas', icon: Palette, hint: 'The art itself — the map steps back' },
-  { id: 'discovery', label: 'Discover', icon: Compass, hint: 'Claimable mystery plots and who owns the land around you' },
-  { id: 'land', label: 'My Land', icon: Layers, hint: 'Your plots, canvases and upgrade options' },
-];
 
 export function MapScreen() {
   const mode = useUi((s) => s.mode);
@@ -63,31 +58,24 @@ export function MapScreen() {
   return (
     <div className="absolute inset-0">
       <WorldMap />
-      {/* top bar */}
-      <div className="gutter pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pt-[max(12px,env(safe-area-inset-top,0px))]">
+      <DayNight />
+      {/* the game HUD */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
         <div className="flex items-start gap-2">
-          <Link to="/" className="pointer-events-auto glass flex h-11 items-center gap-2 rounded-2xl px-3 md:hidden" aria-label="LANDVAS">
-            <LogoMark size={26} />
-          </Link>
-          <PlaceSearch />
-          <NotificationBell className="pointer-events-auto shrink-0 md:hidden" />
-          <div className="pointer-events-auto ml-auto hidden items-center gap-2 md:flex">
-            {me ? <><RentHud /><BoostButton /><div className="glass rounded-2xl p-1.5"><ResourceBar /></div></> : !session ? <SignInChip /> : null}
+          {me ? <PlayerBadge /> : !session ? <div className="pointer-events-auto"><SignInChip /></div> : null}
+          <div className="pointer-events-auto ml-auto flex items-center gap-1.5">
+            {me && <CurrencyPills />}
+            <NotificationBell className="lv-gbtn !h-[38px] !w-[38px] !rounded-full !p-0" />
           </div>
         </div>
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <div className="glass flex rounded-2xl p-1" role="radiogroup" aria-label="Map mode">
-            {MODES.map((m) => (
-              <button key={m.id} role="radio" aria-checked={mode === m.id} title={m.hint} onClick={() => setMode(m.id)}
-                className={cn('flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold transition', mode === m.id ? 'bg-surface-2 text-fg shadow' : 'text-muted hover:text-fg')}>
-                <m.icon className="h-4 w-4" />
-                <span className={cn(mode === m.id ? 'inline' : 'hidden sm:inline')}>{m.label}</span>
-              </button>
-            ))}
-          </div>
-          {me && <div className="flex min-w-0 items-center gap-2 md:hidden"><RentHud /><BoostButton compact /></div>}
-          {!me && !session && <div className="md:hidden"><SignInChip /></div>}
-          {me && <div className="md:hidden"><div className="glass rounded-2xl p-1"><ResourceBar compact /></div></div>}
+        {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
+        <div className="flex flex-col items-start gap-2">
+          <ModeButton />
+          {me && (
+            <Link to="/plots" className="pointer-events-auto lv-gbtn round" aria-label="My plots" data-testid="hud-plots">
+              <LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span>
+            </Link>
+          )}
         </div>
       </div>
       <ZoomHint zoom={view.zoom} />
@@ -100,7 +88,6 @@ export function MapScreen() {
           </div>
         )}
       </AnimatePresence>
-      <Legend mode={mode} />
       {/* the panel would give the rarity away while the claim roll is still spinning */}
       <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
         <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
@@ -128,6 +115,14 @@ function useExplorerSync() {
     if (!hasExplorer || centred.current) return;
     centred.current = true;
     const ui = useUi.getState();
+    // back from a plot you dove into: zoom back out over it
+    const back = takeReturn();
+    if (back) {
+      // start close over the plot, then pull back out to where you were
+      ui.setView({ lng: back.lng, lat: back.lat, zoom: Math.min(22.4, back.zoom + 2.2) }, ui.bbox);
+      setTimeout(() => useUi.getState().requestFly({ lng: back.lng, lat: back.lat, zoom: back.zoom }), 700);
+      return;
+    }
     if (ui.flyTo && Date.now() - ui.flyTo.at < 15000) return; // something else asked to show a place
     const st = useExplorer.getState();
     const p = explorerNow(st.state, st.offset);
@@ -159,52 +154,49 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   }, [groups.data]);
   const nav = useNavigate();
   const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', paused: 'GPS paused', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
+  const spaceLabel = !space.data?.built ? 'Space' : flight.flying ? fmtLeft(flight.left) : space.data.location !== 'earth' ? placeName(space.data, space.data.location).replace('The ', '') : 'Space';
   return (
-    <div className="absolute bottom-[calc(150px+env(safe-area-inset-bottom,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-end gap-2 md:bottom-20">
+    <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 md:bottom-8" data-testid="hud-rail">
       {canMerge && !merging && (
-        <button className="glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold" onClick={() => startMerge(null)} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
-          <Combine className="h-4 w-4 text-accent-2" /> Merge
+        <button className="lv-gbtn round" onClick={() => startMerge(null)} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
+          <Combine className="h-5 w-5" /><span className="lbl">Merge</span>
         </button>
       )}
       {/* space: your rocket, and the trip under way */}
-      <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', flight.flying ? 'text-accent-2 ring-2 ring-accent-2/60' : 'text-fg')}
+      <button className={cn('lv-gbtn round', flight.flying && 'hot')}
         onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">
-        <Rocket className={cn('h-4 w-4', flight.flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} />
-        <span className="tnum">{!space.data?.built ? 'Space' : flight.flying ? `${placeName(space.data, space.data.dest)} · ${fmtLeft(flight.left)}` : space.data.location !== 'earth' ? placeName(space.data, space.data.location) : 'Space'}</span>
+        <Rocket className={cn('h-5 w-5', flight.flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} /><span className="lbl tnum max-w-[48px] truncate">{spaceLabel}</span>
       </button>
       <button
-        className={cn('glass flex h-11 items-center gap-2 rounded-2xl px-3 text-xs font-bold', ex.gps === 'on' || ex.gps === 'paused' ? 'text-ok' : ex.gps === 'denied' || ex.gps === 'unavailable' ? 'text-faint' : 'text-fg')}
+        className={cn('lv-gbtn round', (ex.gps === 'on' || ex.gps === 'paused') && 'go')}
         onClick={() => {
           if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
           enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
         }}
         title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
+        aria-label={gpsLabel}
         data-testid="gps-toggle"
       >
-        <Satellite className="h-4 w-4" /> <span className="hidden sm:inline">{gpsLabel}</span>
+        <Satellite className="h-5 w-5" /><span className="lbl">{{ off: 'GPS', asking: '…', on: 'GPS', paused: 'Paused', denied: 'Blocked', unavailable: 'No GPS' }[ex.gps]}</span>
       </button>
-      <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', tilt && 'text-accent-2 ring-2 ring-accent-2/60')}
-        onClick={() => updateSettings({ tilt3d: !tilt })} aria-pressed={tilt} title="Tilt the map to see buildings in 3D" data-testid="tilt-3d">
-        <Box className="h-4 w-4" /> {tilt ? '3D' : '2D'}
+      <button className={cn('lv-gbtn round', tilt && 'on')} onClick={() => updateSettings({ tilt3d: !tilt })} aria-pressed={tilt} title="Tilt the map to see buildings in 3D" data-testid="tilt-3d">
+        <Box className="h-5 w-5" /><span className="lbl">{tilt ? '3D' : '2D'}</span>
       </button>
       {has && joy?.enabled !== false && (
-        <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', joystick && 'text-accent-2 ring-2 ring-accent-2/60')}
-          onClick={onJoystick} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
-          <Gamepad className="h-4 w-4" /> <span className="tnum">{joy ? fmtTank(Number(joy.seconds_left)) : 'Joystick'}</span>
+        <button className={cn('lv-gbtn round', joystick && 'on')} onClick={onJoystick} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
+          <Gamepad className="h-5 w-5" /><span className="lbl tnum">{joy ? fmtTank(Number(joy.seconds_left)) : 'Move'}</span>
         </button>
       )}
       {has && (
-        <button
-          className={cn('glass flex h-11 w-11 items-center justify-center rounded-2xl', ex.following && 'text-accent-2 ring-2 ring-accent-2/60')}
-          aria-label="Center on my explorer"
+        <button className={cn('lv-gbtn round', ex.following && 'on')} aria-label="Center on my explorer"
           onClick={() => {
             const p = explorerNow(ex.state, ex.offset);
             if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
-            ex.setFollowing(!ex.following || true);
+            ex.setFollowing(true);
           }}
           data-testid="locate-me"
         >
-          <Crosshair className="h-5 w-5" />
+          <Crosshair className="h-5 w-5" /><span className="lbl">Me</span>
         </button>
       )}
     </div>
@@ -253,126 +245,18 @@ function ZoomHint({ zoom }: { zoom: number }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex justify-center md:bottom-6">
       <div className="glass rounded-full px-4 py-2 text-[12.5px] font-semibold text-muted">
-        {zoom < Z_TOWN - 1 ? 'Zoom into a city to see its plots — or search a place above' : 'Keep zooming in to your street — tap the map to dive in'}
+        {zoom < Z_TOWN - 1 ? 'Zoom in to see plots — or tap 🎯 to jump to your explorer' : 'Keep zooming in to your street — tap the map to dive in'}
       </div>
     </div>
   );
 }
 
-function Legend({ mode }: { mode: MapMode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10 md:bottom-6">
-      <button className="glass flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-bold" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        Legend <ChevronDown className={cn('h-3.5 w-3.5 transition', open && 'rotate-180')} />
-      </button>
-      {open && (
-        <div className="glass absolute bottom-12 right-0 w-72 rounded-2xl p-4 text-xs">
-          <p className="mb-3 text-muted">{MODES.find((m) => m.id === mode)?.hint}</p>
-          <div className="eyebrow mb-2">Rarity · rent per plot (owned plots)</div>
-          {RARITY_ORDER.map((r) => (
-            <div key={r} className="mb-1.5 flex items-center justify-between gap-2"><RarityBadge r={r} small /><span className="tnum text-muted">{formatRate(rarityInfo(r).usd_per_second)}</span></div>
-          ))}
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-dashed border-line-strong p-2 text-muted"><span className="font-display text-base font-bold text-fg">?</span> Unclaimed plots are a mystery — type, minigame and rarity are revealed when claimed.</div>
-          <div className="eyebrow mb-2 mt-3">Minigame by plot type (owned plots)</div>
-          {(['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'clay', 'prism', 'glass'] as const).map((t) => (
-            <div key={t} className="mb-1.5 flex items-center gap-2"><TypeDot t={t} /><span className="font-bold capitalize">{t}</span><span className="text-faint">{PLOT_TYPES[t].game}</span></div>
-          ))}
-          <div className="mt-3 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border-2 border-white" /> Your plots · others show their owner's colour</div>
-          <div className="mt-2 flex items-center gap-2"><span className="h-3 w-6 rounded-sm border border-dashed border-white" /> Claimable around your explorer</div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function TypeDot({ t, size = 14 }: { t: PlotTypeId; size?: number }) {
   const c = [PLOT_TYPES[t].a, PLOT_TYPES[t].b];
   return <span className="inline-block shrink-0 rounded-[4px]" style={{ width: size, height: size, background: `linear-gradient(135deg, ${c[0]}, ${c[1]})` }} />;
 }
 
-function PlaceSearch() {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState<Place[]>([]);
-  const [open, setOpen] = useState(false);
-  const requestFly = useUi((s) => s.requestFly);
-  const select = useUi((s) => s.select);
-  const me = useOnboardedMe();
-  const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
-  useEffect(() => {
-    let live = true;
-    const t = setTimeout(async () => {
-      const r = await searchPlaces(q);
-      if (live) setResults(r);
-    }, 120);
-    return () => { live = false; clearTimeout(t); };
-  }, [q]);
-  const coords = useMemo(() => {
-    const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
-    if (!m) return null;
-    const a = Number(m[1]), b = Number(m[2]);
-    if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0 && a < GRID_SIZE && b < GRID_SIZE && (a > 180 || b > 90)) return { plot: { gx: a, gy: b } };
-    if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lng: b };
-    return null;
-  }, [q]);
-  const go = (lng: number, lat: number, zoom: number) => {
-    requestFly({ lng, lat, zoom });
-    setOpen(false);
-    setQ('');
-  };
-  const myLand = groups.data?.[0];
-  return (
-    <div className="pointer-events-auto relative min-w-0 flex-1 md:max-w-md">
-      <div className="glass flex h-11 items-center gap-2 rounded-2xl px-3">
-        <Search className="h-4 w-4 shrink-0 text-muted" />
-        <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 160)}
-          placeholder="Search a city, country or plot" className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-fg placeholder:text-faint focus:outline-none" aria-label="Search places" id="place-search" />
-        {q && <button onClick={() => setQ('')} aria-label="Clear search"><X className="h-4 w-4 text-muted" /></button>}
-      </div>
-      {open && (results.length > 0 || coords || (!q && (myLand || !config.isArtifact))) && (
-        <div className="glass absolute left-0 right-0 top-12 z-30 max-h-[60vh] overflow-y-auto rounded-2xl p-1.5 scroll-thin">
-          {!q && myLand && (
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
-              const [lng, lat] = cellCenter(myLand.cells[0][0], myLand.cells[0][1]);
-              go(lng, lat, Z_HOUSE);
-              select({ gx: myLand.cells[0][0], gy: myLand.cells[0][1] });
-            }}>
-              <Layers className="h-4 w-4 text-accent-2" /><span className="text-sm font-semibold">Go to my land</span>
-            </button>
-          )}
-          {!q && !config.isArtifact && 'geolocation' in navigator && (
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
-              navigator.geolocation.getCurrentPosition((p) => go(p.coords.longitude, p.coords.latitude, Z_STREET), () => toast.error('Location unavailable — search for a place instead.'), { timeout: 8000 });
-            }}>
-              <LocateFixed className="h-4 w-4 text-muted" />
-              <span className="text-sm">Near me <span className="text-faint">(optional, never stored)</span></span>
-            </button>
-          )}
-          {coords && 'plot' in coords && coords.plot && (
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => {
-              const [lng, lat] = cellCenter(coords.plot!.gx, coords.plot!.gy);
-              go(lng, lat, Z_PLOT);
-              select(coords.plot!);
-            }}>
-              <MapPinned className="h-4 w-4 text-gold" /><span className="text-sm">Plot {coords.plot.gx} · {coords.plot.gy}</span>
-            </button>
-          )}
-          {coords && 'lat' in coords && (
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => go(coords.lng!, coords.lat!, Z_STREET)}>
-              <MapPinned className="h-4 w-4 text-gold" /><span className="text-sm">{coords.lat}, {coords.lng}</span>
-            </button>
-          )}
-          {results.map((r) => (
-            <button key={r.kind + r.name + r.lng} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-2" onMouseDown={() => go(r.lng, r.lat, r.zoom)}>
-              <span className="min-w-0 truncate text-sm font-semibold">{r.name}</span>
-              <span className="shrink-0 text-xs text-faint">{r.sub}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ---- "Getting started" quest list: the mandatory launch loop, made visible ----
 
@@ -384,7 +268,7 @@ function Checklist() {
   const pubs = useQuery({ queryKey: qk.pubs, queryFn: api.myPublications, enabled: !!me });
   const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me });
   const [hidden, setHidden] = useState(() => safeStorage('landvas.checklist.hidden', false));
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => typeof innerWidth === 'number' && innerWidth < 640);
   const guide = useRef(safeStorage<string | null>('landvas.guide', null));
   const requestFly = useUi((s) => s.requestFly);
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -16,7 +16,7 @@ import { useEffect } from 'react';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
-  { to: '/world', label: 'World', icon: Globe2, pages: [] as { to: string; label: string }[] },
+  { to: '/world', label: 'World', icon: Globe2, pages: [{ to: '/world', label: 'Map' }, { to: '/plots', label: 'My plots' }] as { to: string; label: string }[] },
   { to: '/canvases', label: 'Create', icon: Brush, pages: [
     { to: '/canvases', label: 'My canvases' }, { to: '/challenges', label: 'Challenges' }, { to: '/sketch', label: 'Sketch of the Day' },
     { to: '/duet', label: 'Duets' }, { to: '/inventory', label: 'Studio & shop' },
@@ -52,7 +52,7 @@ export const MAX_TABS = 5;
 /** Everything that can sit in the phone tab bar: the sections, or a favourite page. */
 export const TAB_CHOICES = [
   ...SECTIONS.map(({ to, label, icon }) => ({ to, label, icon })),
-  { to: '/gallery', label: 'Gallery', icon: Images }, { to: '/players', label: 'Players', icon: Users }, { to: '/invite', label: 'Invite', icon: Gift },
+  { to: '/plots', label: 'My plots', icon: LayoutGrid }, { to: '/gallery', label: 'Gallery', icon: Images }, { to: '/players', label: 'Players', icon: Users }, { to: '/invite', label: 'Invite', icon: Gift },
   { to: '/pvp', label: 'PvP', icon: Swords }, { to: '/challenges', label: 'Challenges', icon: Trophy }, { to: '/sketch', label: 'Sketch', icon: PenLine },
   { to: '/events', label: 'Events', icon: CalendarDays }, { to: '/leaderboards', label: 'Ranks', icon: Trophy }, { to: '/achievements', label: 'Badges', icon: Award },
   { to: '/inventory', label: 'Studio', icon: Package }, { to: '/support', label: 'Help', icon: LifeBuoy },
@@ -101,7 +101,7 @@ export function Shell() {
       </main>
       <AnnouncementPopup />
       <Tour />
-      <nav className="glass fixed inset-x-0 bottom-0 z-40 flex justify-around border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)] md:hidden" aria-label="Main">
+      <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
         {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={tabActive(i.to)} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} active={sec?.to === '/me'} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>
@@ -126,9 +126,8 @@ function RailItem({ to, label, icon: Icon, badge, active }: { to: string; label:
 
 function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string; label: string; icon: any; avatar?: ReactNode; badge?: number; active?: boolean }) {
   return (
-    <Link to={to} className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-bold transition-colors', active ? 'text-fg' : 'text-faint')} aria-current={active ? 'page' : undefined}>
-      {active && <motion.span layoutId="tab-active" className="absolute inset-x-3 top-0 h-[3px] rounded-full bg-gradient-to-r from-accent to-accent-2 shadow-[0_0_12px_var(--accent)]" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
-      <motion.span className={cn('relative', NATIVE && 'flex h-9 w-12 items-center justify-center rounded-2xl transition-colors', NATIVE && active && 'bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_6px_20px_-6px_var(--accent)]')} animate={active ? { y: [0, -4, 0], scale: [1, 1.12, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.4 }}>
+    <Link to={to} className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10.5px] font-extrabold transition-colors', active ? 'text-white' : 'text-white/55')} aria-current={active ? 'page' : undefined}>
+      <motion.span className={cn('relative flex h-10 w-12 items-center justify-center rounded-2xl transition-colors', active && 'bg-[linear-gradient(180deg,#9a7bff,#5b3df5)] text-white shadow-[0_3px_0_#2c1a8a,0_10px_22px_-8px_rgba(123,92,255,0.9),inset_0_1px_0_rgba(255,255,255,0.35)]')} animate={active ? { y: [0, -6, -2], scale: [1, 1.15, 1.05] } : { y: 0, scale: 1 }} transition={{ duration: 0.4 }} whileTap={{ scale: 0.88 }}>
         {avatar ?? (Icon ? <Icon className="h-[22px] w-[22px]" /> : <span className="block h-[22px] w-[22px] rounded-full bg-surface-2" />)}<Dot n={badge} />
       </motion.span>
       <span className="max-w-full truncate px-0.5">{label}</span>

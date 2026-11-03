@@ -436,10 +436,11 @@ export type SpaceGameCfg = { enabled: boolean; seconds: number; max_score: numbe
 export type SpaceConfig = {
   enabled: boolean; daily_cap: number; parts: Record<string, { label: string; ink: number }>; engine_upgrade_ink: number[];
   worlds: Record<string, SpaceWorldCfg>; games: Record<string, SpaceGameCfg>;
+  fast_travel?: { enabled: boolean; base_ink: number; ink_per_minute: number };
 };
 export type SpaceState = {
   parts: string[]; built: boolean; engine: number; location: string; dest: string | null; depart_at: string | null; arrive_at: string | null;
   exo_seed: number | null; home_seed: number | null; home_name: string | null; visited: string[]; samples: Record<string, string | boolean>;
-  launches: number; ink_today: number; day: string; server_time: string; config: SpaceConfig; balances: Balances;
+  launches: number; ink_today: number; rush_cost: number | null; day: string; server_time: string; config: SpaceConfig; balances: Balances;
   fuel_spent?: number; paid?: number; first_bonus?: number; capped?: boolean;
 };

@@ -23,6 +23,7 @@ import { citiesInView } from './places';
 import { mapHandle } from './mapHandle';
 import { explorerElement } from '../explorer/character';
 import { MapFx, invalidateResidents } from './MapFx';
+import { PlotBubbles } from './Hud';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -506,7 +507,7 @@ export function WorldMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !flyTo) return;
-    map.flyTo({ center: [flyTo.lng, flyTo.lat], zoom: flyTo.zoom, essential: true, duration: settings.reduceMotion ? 0 : 1600 });
+    map.flyTo({ center: [flyTo.lng, flyTo.lat], zoom: flyTo.zoom, pitch: settings.tilt3d ? 55 : 0, essential: true, duration: settings.reduceMotion ? 0 : 1600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTo]);
 
@@ -556,6 +557,7 @@ export function WorldMap() {
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
       <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />
+      <PlotBubbles ready={ready} />
     </div>
   );
 }

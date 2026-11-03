@@ -87,6 +87,7 @@ const MESSAGES: Record<string, string> = {
   account_has_payments: 'Your account has payment records — contact support and we’ll delete it for you.',
   confirm_delete: 'Type DELETE to confirm.',
   inkborn_busy: 'They’re away on a job right now — wait for them to come back.',
+  not_in_flight: 'You’re not flying anywhere right now.',
   rocket_not_built: 'Finish building your rocket first — it needs all four parts.',
   space_in_flight: 'Your rocket is already flying — wait until it lands.',
   engine_too_small: 'Your engine can’t reach that far yet — upgrade it in the hangar.',

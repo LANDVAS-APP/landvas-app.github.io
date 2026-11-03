@@ -56,7 +56,13 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
     setBusy(key);
     try { const r = await fn(); set(r); ok?.(r); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
-  const launch = (dest: string) => run(`launch:${dest}`, () => api.spaceLaunch(dest), (r) => {
+  const rush = () => run('rush', api.spaceRush, (r) => {
+    if (useUi.getState().settings.haptics) buzz('success');
+    toast.success(`Fast travel! You’re on ${placeName(r, r.location)} 🚀`, { description: `−${(r as SpaceState & { rush_paid?: number }).rush_paid ?? 0} Ink` });
+  });
+  /** launch, and with `fast` arrive right away (fast travel) */
+  const launch = (dest: string, fast = false) => run(`launch:${dest}${fast ? ':fast' : ''}`, async () => { const r = await api.spaceLaunch(dest); return fast ? api.spaceRush() : r; }, (r) => {
+    if (fast) { if (useUi.getState().settings.haptics) buzz('success'); setPick(null); toast.success(`Fast travel! You’re on ${placeName(r, r.location)} 🚀`); return; }
     if (useUi.getState().settings.haptics) buzz('heavy');
     const mins = (new Date(r.arrive_at!).getTime() - new Date(r.depart_at!).getTime()) / 60000;
     setLaunching({ to: r.dest!, minutes: mins });
@@ -79,7 +85,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
         if (r.built) { confettiCannons(); toast.success('Your rocket is ready! 🚀', { description: 'Pick a world and launch — the Moon trip is free.' }); }
       })} /> : (
         <>
-          <StatusCard s={s} flight={flight} onWorld={onWorld} accent={accent} busy={busy} onHome={() => launch('earth')} />
+          <StatusCard s={s} flight={flight} onWorld={onWorld} accent={accent} busy={busy} onHome={() => launch('earth')} onRush={rush} />
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="glass relative min-w-0 overflow-hidden rounded-[28px] p-2" data-testid="system-map">
               <SystemMap s={s} progress={flight.progress} flying={flight.flying} picked={pick} onPick={setPick} accent={accent} />
@@ -91,7 +97,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
             </div>
             <div className="grid min-w-0 content-start gap-4">
               <AnimatePresence mode="wait">
-                {pick ? <WorldCard key={pick} s={s} id={pick} busy={busy} flying={flight.flying} onLaunch={() => launch(pick)} onClose={() => setPick(null)} />
+                {pick ? <WorldCard key={pick} s={s} id={pick} busy={busy} flying={flight.flying} onLaunch={(fast) => launch(pick, fast)} onClose={() => setPick(null)} />
                   : <EngineCard key="engine" s={s} busy={busy} onUpgrade={() => run('engine', api.spaceUpgradeEngine, (r) => { confettiCannons(); toast.success(`Engine Mk ${'I'.repeat(r.engine)} installed!`, { description: r.engine >= 3 ? 'The outer planets — and deep space — are within reach.' : 'Jupiter and Saturn are within reach.' }); })} accent={accent} />}
               </AnimatePresence>
               <GamesCard s={s} />
@@ -149,7 +155,10 @@ function Hangar({ s, accent, busy, onBuild }: { s: SpaceState; accent: string; b
 }
 
 // ---- status -------------------------------------------------------------------------------
-function StatusCard({ s, flight, onWorld, accent, busy, onHome }: { s: SpaceState; flight: ReturnType<typeof useFlight>; onWorld: boolean; accent: string; busy: string | null; onHome(): void }) {
+function StatusCard({ s, flight, onWorld, accent, busy, onHome, onRush }: { s: SpaceState; flight: ReturnType<typeof useFlight>; onWorld: boolean; accent: string; busy: string | null; onHome(): void; onRush(): void }) {
+  // the fast-travel price drops as the trip goes on (base + per minute left)
+  const ft = s.config.fast_travel;
+  const rushCost = flight.flying ? (ft?.base_ink ?? 3) + (ft?.ink_per_minute ?? 2) * Math.ceil(flight.left / 60) : 0;
   const nav = useNavigate();
   return (
     <div className="glass flex flex-wrap items-center gap-4 rounded-[28px] p-4" data-testid="space-status">
@@ -161,6 +170,11 @@ function StatusCard({ s, flight, onWorld, accent, busy, onHome }: { s: SpaceStat
             <div className="font-display text-xl font-bold">{placeName(s, s.location)} → {placeName(s, s.dest)}</div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-[linear-gradient(90deg,#22E3FF,#8B5CFF,#FF3D9A)] transition-[width] duration-500" style={{ width: `${flight.progress * 100}%` }} /></div>
             <div className="mt-1 text-sm text-muted">Landing in <b className="tnum text-fg" data-testid="flight-left">{fmtLeft(flight.left)}</b> — play an asteroid run while you fly.</div>
+            {ft?.enabled !== false && (
+              <Button size="sm" variant="rainbow" className="mt-2" loading={busy === 'rush'} disabled={Number(s.balances?.ink ?? 0) < rushCost} onClick={onRush} data-testid="fast-travel">
+                ⚡ Fast travel · {rushCost} <ResourceIcon r="ink" className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </>
         ) : onWorld ? (
           <>
@@ -292,7 +306,7 @@ function SystemMap({ s, progress, flying, picked, onPick, accent }: { s: SpaceSt
 }
 
 // ---- a world's card ---------------------------------------------------------------------------
-function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; id: string; busy: string | null; flying: boolean; onLaunch(): void; onClose(): void }) {
+function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; id: string; busy: string | null; flying: boolean; onLaunch(fast?: boolean): void; onClose(): void }) {
   const key = worldKey(id);
   const cfg = s.config.worlds[key];
   const w: World | null = id === 'exo' ? null : id === 'home' ? exoWorld(s.home_seed!, s.home_name) : worldOf(id);
@@ -327,9 +341,19 @@ function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; 
       ) : there ? (
         <div className="rounded-2xl bg-ok/10 p-3 text-sm text-ok">You’re here.</div>
       ) : (
-        <Button variant="rainbow" size="lg" loading={busy === `launch:${id}`} disabled={flying || ink < fuel} onClick={onLaunch} data-testid="launch">
-          <RocketIcon className="h-5 w-5" /> {flying ? 'Already in flight' : ink < fuel ? `Need ${fuel} Ink of fuel` : 'Launch'}
-        </Button>
+        <div className="grid gap-2">
+          <Button variant="rainbow" size="lg" loading={busy === `launch:${id}`} disabled={flying || ink < fuel} onClick={() => onLaunch()} data-testid="launch">
+            <RocketIcon className="h-5 w-5" /> {flying ? 'Already in flight' : ink < fuel ? `Need ${fuel} Ink of fuel` : 'Launch'}
+          </Button>
+          {!flying && cfg && s.config.fast_travel?.enabled !== false && (() => {
+            const fast = fuel + (s.config.fast_travel?.base_ink ?? 3) + (s.config.fast_travel?.ink_per_minute ?? 2) * Math.ceil(cfg.minutes);
+            return (
+              <Button variant="secondary" loading={busy === `launch:${id}:fast`} disabled={ink < fast} onClick={() => onLaunch(true)} data-testid="launch-fast">
+                ⚡ Fast travel — arrive now · {fast} <ResourceIcon r="ink" className="h-3.5 w-3.5" />
+              </Button>
+            );
+          })()}
+        </div>
       )}
     </motion.div>
   );

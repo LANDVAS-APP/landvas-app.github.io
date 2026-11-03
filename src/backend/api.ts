@@ -158,6 +158,7 @@ export const api = {
   spaceBuild: (part: string) => rpc<import('./types').SpaceState>('space_build', { p_part: part }),
   spaceUpgradeEngine: () => rpc<import('./types').SpaceState>('space_upgrade_engine'),
   spaceLaunch: (dest: string) => rpc<import('./types').SpaceState>('space_launch', { p_dest: dest }),
+  spaceRush: () => rpc<import('./types').SpaceState & { rush_paid: number }>('space_rush'),
   spaceCollect: () => rpc<import('./types').SpaceState>('space_collect'),
   spaceSettle: (name: string) => rpc<import('./types').SpaceState>('space_settle', { p_name: name }),
   spaceWorld: (world: string) => rpc<{ world: string; pilots: number; here: number; recent: Profile[] }>('space_world', { p_world: world }),
