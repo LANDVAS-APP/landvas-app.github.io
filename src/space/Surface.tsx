@@ -4,7 +4,7 @@
 // on the shared map, each with its world's two games; and a far-off world can be settled as home.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ChevronUp, Crosshair, Flag, Footprints, Home, MapPin, Minus, Pencil, Plus, Rocket as RocketIcon, Users } from 'lucide-react';
+import { ArrowLeft, ChevronUp, Crosshair, Flag, Footprints, Home, MapPin, Minus, Pencil, Pickaxe, Plus, Rocket as RocketIcon, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import { Button, Dialog, ResourceIcon, Spinner, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
+import { DigPanel } from './Dig';
 import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
 import { PLANET_GAMES } from './planetGames';
 import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
@@ -81,6 +82,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
+  const [digOpen, setDigOpen] = useState(false);
   const collecting = useRef(false);
 
   const collect = async () => {
@@ -308,6 +310,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         </button>
         <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.zoom(1.8)} aria-label="Higher" data-testid="zoom-out"><Minus className="h-5 w-5" /></button>
         {high && <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.findMe()} aria-label="Find me"><Crosshair className="h-5 w-5" /></button>}
+        {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => setDigOpen(true)} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
 
@@ -337,6 +340,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       </div>
       {high && ready && !cell && <div className={cn('pointer-events-none absolute inset-x-0 z-10 mx-auto w-fit rounded-full bg-black/45 px-3 py-1 text-[11px] text-white/80', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+150px)] md:bottom-[160px]' : 'bottom-[160px]')}>{zoom.mode === 'orbit' ? 'Drag to spin the planet · tap a plot' : 'Fly with the stick · tap a plot · Land to walk'}</div>}
 
+      <AnimatePresence>{digOpen && <DigPanel world={world} w={w} pose={() => scene.current?.pose().d ?? null} onClose={() => setDigOpen(false)} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
           {(s.warps ?? []).map((d) => {

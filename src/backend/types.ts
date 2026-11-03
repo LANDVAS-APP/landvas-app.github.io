@@ -475,3 +475,11 @@ export type SanctuaryCard = {
   id: string; kind: 'starter' | 'plot'; plots: number; creatures: number; capacity: number; name: string; owner: Profile; friend: boolean; active_at: string;
   preview: { name: string; genome: import('../inkborn/genome').Genome }[];
 };
+export type MineLayer = { id: string; name: string; to: number; hardness: number; color: string; finds: Record<string, number>; first_ink: number };
+export type MineTool = { id: string; name: string; power: number; cost: Record<string, number> };
+export type DigState = {
+  world: string | null; depth: number; shaft: number[] | null; layers_reached: number; tools: string[]; power: number;
+  energy: number; energy_max: number; regen_per_minute: number; items: Record<string, number>;
+  config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number } };
+  dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
+};
