@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Box, Check, Combine, Crosshair, Gamepad, LayoutGrid, Rocket, Satellite, Sparkles, X } from 'lucide-react';
 import { CurrencyPills, DayNight, ModeButton, PlayerBadge, takeReturn } from '../map/Hud';
 import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { worldOf } from '../space/worlds';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -31,7 +32,18 @@ import { Joystick, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } fr
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 
 
+/** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
 export function MapScreen() {
+  const space = useSpace();
+  const flight = useFlight(space.data);
+  const s = space.data;
+  const w = s && !flight.flying && !s.dest ? worldOf(s.location, s.home_seed, s.home_name) : null;
+  if (s && w) return <Suspense fallback={<div className="absolute inset-0 bg-[#05060F]" />}><PlanetView key={s.location} s={s} w={w} embedded /></Suspense>;
+  return <EarthMap />;
+}
+const PlanetView = lazy(() => import('../space/Surface').then((m) => ({ default: m.PlanetView })));
+
+function EarthMap() {
   const mode = useUi((s) => s.mode);
   const setMode = useUi((s) => s.setMode);
   const selected = useUi((s) => s.selected);

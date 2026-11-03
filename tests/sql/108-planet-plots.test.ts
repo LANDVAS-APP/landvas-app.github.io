@@ -57,7 +57,7 @@ describe('Planet plots', () => {
   it('your home world is yours alone', async () => {
     await db.sql(`update space_pilots set home_seed = 4242, home_name = 'Ana Prime', location = 'exo:4242' where player_id = $1`, [ana]);
     const m = await db.rpc(ana, 'planet_map', { p_world: 'exo:4242' });
-    expect(m).toMatchObject({ rows: 12, cols: 24, landed: true });
+    expect(m).toMatchObject({ rows: 24, cols: 48, landed: true });
     await db.rpc(ana, 'planet_claim', { p_world: 'exo:4242', p_gx: 0, p_gy: 0 });
     await expectError(db.rpc(bo, 'planet_map', { p_world: 'exo:4242' }), 'invalid_world');
     await db.sql(`update space_pilots set location = 'exo:4242' where player_id = $1`, [bo]);

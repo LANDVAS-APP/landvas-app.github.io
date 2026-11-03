@@ -1,8 +1,12 @@
-// A whole world in 3D: a round, low-poly globe you can walk all the way around (third person, with
-// your Inkborn bobbing after you), its plot grid laid over the ground, everyone's claimed plots with
-// their flags, other explorers who are on the world right now, your rocket at the landing site and
-// the day's glowing samples. Pull out to orbit to see the whole planet and tap anywhere to walk there.
-// Plain three.js, driven by the React screen through the small PlanetScene handle.
+// A whole world in 3D, from your boots to orbit in one continuous zoom. Down low you walk in third
+// person (your Inkborn bobbing after you, the others in your live group walking with you); pinch or
+// scroll out and you rise up until the whole planet hangs in front of you, with everyone's plots and
+// flags on it. Drag the globe, tap a plot, walk (or fly) there.
+//
+// Built to scale: the globe itself is a modest low-poly mesh, and a detailed patch of ground (with its
+// rocks, crystals and plot lines) is rebuilt around you as you move — so a planet can be huge without
+// costing more. Labels are pooled, the render resolution adapts to the device, and a lost GL context
+// is reported instead of crashing. Plain three.js; React drives it through the PlanetScene handle.
 import * as THREE from 'three';
 import type { PlanetPlot } from '../backend/types';
 import type { Genome } from '../inkborn/genome';
@@ -12,10 +16,13 @@ import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellKey, dirOf, radiusFor, 
 import type { World } from './worlds';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number };
+export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
 export type PlanetSceneOpts = {
   canvas: HTMLCanvasElement; world: World; rows: number; seed: number; accent: string; explorerUrl: string;
-  buddy: Genome | null; isHome: boolean; samples: number; reduceMotion?: boolean;
-  onCell(c: Cell | null): void; onSample(got: number): void; onPick(c: Cell | null): void; onMode(orbit: boolean): void;
+  isHome: boolean; samples: number; reduceMotion?: boolean;
+  /** start high over the planet (the World tab) rather than on your feet */ startHigh?: boolean;
+  /** swoop down from space first */ intro?: boolean;
+  onCell(c: Cell | null): void; onSample(got: number): void; onPick(c: Cell | null): void; onZoom(z: ZoomInfo): void; onLost?(): void;
 };
 export type PlanetScene = {
   /** joystick: x right, y forward (-1..1) */ joy: { x: number; y: number }; jump(): void;
@@ -24,12 +31,17 @@ export type PlanetScene = {
   /** a streamed position for one explorer */ remote(id: string, d: number[], face: number[], hop: number): void;
   /** where you are, to send to the group */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean };
   /** drop in next to a spot on the globe */ teleport(d: number[]): void;
-  setOrbit(on: boolean): void; walkTo(c: Cell): void; zoom(f: number): void;
+  /** stand exactly here, facing this way */ place(d: number[], face?: number[]): void;
+  setBuddy(g: Genome | null): void;
+  /** 0 = on your feet … 1 = the whole planet */ setZoom(level: number): void; zoom(f: number): void;
+  /** look back at yourself */ findMe(): void;
+  walkTo(c: Cell): void;
   dispose(): void;
 };
 
-const V = (a: Vec3) => new THREE.Vector3(a[0], a[1], a[2]);
+const V = (a: Vec3 | number[]) => new THREE.Vector3(a[0], a[1], a[2]);
 const UP = new THREE.Vector3(0, 1, 0);
+const D = Math.PI / 180;
 const css = (() => {
   let g: CanvasRenderingContext2D | null = null;
   return (c: string) => { g ??= document.createElement('canvas').getContext('2d'); if (!g) return new THREE.Color(c); g.fillStyle = '#000'; g.fillStyle = c; return new THREE.Color(g.fillStyle as string); };
@@ -52,74 +64,231 @@ function imageSprite(url: string, h: number) {
   s.scale.set(h * (46 / 68), h, 1); s.center.set(0.5, 0);
   return s;
 }
+const disposeSprite = (s: THREE.Sprite) => { s.material.map?.dispose(); s.material.dispose(); };
 /** Put an object on the ground at `d` (unit vector), standing up, turned `spin` round its up axis. */
 function stand(o: THREE.Object3D, d: THREE.Vector3, r: number, spin = 0) {
   o.position.copy(d).multiplyScalar(r);
   o.quaternion.setFromUnitVectors(UP, d);
   if (spin) o.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(UP, spin));
 }
+const hash = (a: number, b: number, c: number) => {
+  let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 2147483647);
+  h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0;
+};
+/** How strong the GPU looks — sets the starting render resolution. */
+function deviceTier() {
+  const mem = (navigator as { deviceMemory?: number }).deviceMemory ?? 4;
+  const cores = navigator.hardwareConcurrency ?? 4;
+  const phone = Math.min(window.innerWidth, window.innerHeight) < 600;
+  return mem <= 2 || cores <= 2 ? 0 : phone || mem <= 4 ? 1 : 2;
+}
 
 export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const { world: w, rows } = o;
-  const cols = rows * 2;
   const R = radiusFor(rows);
-  const r = rng(o.seed);
+  const seedR = rng(o.seed);
   const reduce = !!o.reduceMotion;
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.innerWidth < 700 ? 1.5 : 2, window.devicePixelRatio || 1));
+  const tier = deviceTier();
+  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier > 0, powerPreference: 'high-performance' });
+  const maxDpr = Math.min(window.devicePixelRatio || 1, tier === 2 ? 2 : tier === 1 ? 1.6 : 1);
+  let dpr = maxDpr;
+  renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 4000);
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.1, R * 20);
   const disposables: { dispose(): void }[] = [];
   const track = <T extends { dispose(): void }>(x: T) => { disposables.push(x); return x; };
+  const lost = (e: Event) => { e.preventDefault(); cancelAnimationFrame(raf); o.onLost?.(); };
+  o.canvas.addEventListener('webglcontextlost', lost);
 
-  // ---- the ground ------------------------------------------------------------------------------
-  const unit = () => { const v = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1); return v.lengthSq() < 1e-4 ? v.set(0, 1, 0) : v.normalize(); };
-  const bumps = Array.from({ length: 7 }, (_, i) => ({ v: unit(), f: 2 + r() * (i < 3 ? 4 : 11), a: i < 3 ? 1 : 0.35, p: r() * 6 }));
+  // ---- the shape and colour of the land ----------------------------------------------------------
+  const unit = (r: () => number = seedR) => { const v = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1); return v.lengthSq() < 1e-4 ? v.set(0, 1, 0) : v.normalize(); };
+  const bumps = Array.from({ length: 8 }, (_, i) => ({ v: unit(), f: i < 3 ? 2 + seedR() * 4 : 8 + seedR() * 30, a: i < 3 ? 1 : 0.28, p: seedR() * 6 }));
   const sumA = bumps.reduce((n, b) => n + b.a, 0);
-  const amp = w.gas ? 0.25 : R * (w.features.includes('mesas') || w.features.includes('volcano') ? 0.024 : 0.017);
+  const amp = w.gas ? 0.25 : Math.min(3.2, R * 0.017) * (w.features.includes('mesas') || w.features.includes('volcano') ? 1.35 : 1);
   const height = (d: THREE.Vector3) => amp * bumps.reduce((n, b) => n + b.a * Math.sin(b.f * d.dot(b.v) * 3 + b.p), 0) / sumA;
   const surf = (d: THREE.Vector3) => R + height(d);
-
-  const seg = Math.min(360, Math.max(200, rows * 6));
-  const geo = track(new THREE.SphereGeometry(R, seg, Math.round(seg * 0.7)));
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const colors = new Float32Array(pos.count * 3);
   const g0 = css(w.ground[0]), g1 = css(w.ground[1]), det = css(w.detail), c1 = css(w.color), c2 = css(w.color2);
   const ice = new THREE.Color('#EEF6FF');
   const icy = w.features.includes('ice');
-  const tmp = new THREE.Vector3(), col = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) {
-    tmp.fromBufferAttribute(pos, i).normalize();
-    const hgt = height(tmp);
-    tmp.multiplyScalar(R + hgt);
-    pos.setXYZ(i, tmp.x, tmp.y, tmp.z);
-    const lat = Math.asin(tmp.y / (R + hgt));
+  const colorAt = (d: THREE.Vector3, hgt: number, out: THREE.Color, jitter: number) => {
+    const lat = Math.asin(Math.max(-1, Math.min(1, d.y)));
     if (w.gas) {
-      const band = Math.sin(lat * 14 + Math.sin(Math.atan2(tmp.x, tmp.z) * 3 + lat * 5) * 0.6);
-      col.copy(c1).lerp(c2, (band + 1) / 2 * 0.8);
-      if (Math.abs(Math.sin(lat * 31)) > 0.93) col.lerp(det, 0.5);
+      const band = Math.sin(lat * 14 + Math.sin(Math.atan2(d.x, d.z) * 3 + lat * 5) * 0.6);
+      out.copy(c1).lerp(c2, ((band + 1) / 2) * 0.8);
+      if (Math.abs(Math.sin(lat * 31)) > 0.93) out.lerp(det, 0.5);
     } else {
-      col.copy(g1).lerp(g0, Math.min(1, Math.max(0, (hgt / (amp || 1) + 1) / 2 + (r() - 0.5) * 0.12)));
+      out.copy(g1).lerp(g0, Math.min(1, Math.max(0, (hgt / (amp || 1) + 1) / 2 + jitter)));
       const pole = Math.abs(lat) / (Math.PI / 2);
-      if (icy || pole > 0.85) col.lerp(ice, Math.max(0, (pole - (icy ? 0.6 : 0.85)) * 3));
+      if (icy || pole > 0.85) out.lerp(ice, Math.max(0, Math.min(1, (pole - (icy ? 0.6 : 0.85)) * 3)));
     }
-    colors.set([col.r, col.g, col.b], i * 3);
+    return out;
+  };
+  const tmp = new THREE.Vector3(), col = new THREE.Color();
+
+  // ---- the globe (low detail, seen from afar) — hides itself under the detailed patch -------------
+  const patchU = { uPatch: { value: new THREE.Vector3(0, 1, 0) }, uCos: { value: 2 } };
+  const groundMat = (offset: number) => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: !w.gas, roughness: w.gas ? 0.7 : 0.95, metalness: 0, polygonOffset: offset !== 0, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
+    return track(m);
+  };
+  const globeMat = groundMat(0);
+  globeMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uPatch = patchU.uPatch; sh.uniforms.uCos = patchU.uCos;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirW = normalize(position);');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirW;\nuniform vec3 uPatch;\nuniform float uCos;')
+      .replace('void main() {', 'void main() {\n  if (dot(normalize(vDirW), uPatch) > uCos) discard;');
+  };
+  {
+    const seg = tier === 0 ? 128 : 176;
+    const geo = track(new THREE.SphereGeometry(R, seg, Math.round(seg * 0.68)));
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const colors = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      tmp.fromBufferAttribute(pos, i).normalize();
+      const hgt = height(tmp);
+      colorAt(tmp, hgt, col, (seedR() - 0.5) * 0.1);
+      tmp.multiplyScalar(R + hgt - 0.15); // a hair low, so the detailed patch always sits on top
+      pos.setXYZ(i, tmp.x, tmp.y, tmp.z);
+      colors.set([col.r, col.g, col.b], i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.deleteAttribute('normal');
+    scene.add(new THREE.Mesh(geo, globeMat));
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  const planet = new THREE.Mesh(geo, track(new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: !w.gas, roughness: w.gas ? 0.7 : 0.95, metalness: 0 })));
-  scene.add(planet);
+
+  // ---- the detailed ground around you: a round patch rebuilt as you go ----------------------------
+  const PATCH = Math.min(R * 0.9, 120); // radius in world units
+  const RINGS = tier === 0 ? 46 : 64, SEGS = tier === 0 ? 96 : 140;
+  const patchGeo = track(new THREE.BufferGeometry());
+  {
+    const n = 1 + RINGS * SEGS;
+    patchGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    patchGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    const idx: number[] = [];
+    const at = (ring: number, s: number) => (ring === 0 ? 0 : 1 + (ring - 1) * SEGS + (s % SEGS));
+    for (let s = 0; s < SEGS; s++) idx.push(0, at(1, s), at(1, s + 1));
+    for (let r = 1; r < RINGS; r++) for (let s = 0; s < SEGS; s++) { const a = at(r, s), b = at(r, s + 1), c = at(r + 1, s), d = at(r + 1, s + 1); idx.push(a, c, b, b, c, d); }
+    patchGeo.setIndex(idx);
+  }
+  const patch = new THREE.Mesh(patchGeo, groundMat(-1));
+  patch.frustumCulled = false;
+  scene.add(patch);
+  const patchC = new THREE.Vector3(0, 0, 0); // centre (unit), zero = not built yet
+
+  // decorations that live on the patch, placed from a world-fixed hash so they never shuffle
+  type Kind = { geo: THREE.BufferGeometry; mat: THREE.Material; p: number; scale(r: () => number): THREE.Vector3; sink: number; lift?: number };
+  const kinds: Kind[] = [];
+  if (!w.gas) {
+    kinds.push({ geo: new THREE.DodecahedronGeometry(1, 0), mat: new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1 }), p: 0.2, scale: (r) => new THREE.Vector3(0.4 + r() * 1.5, 0.3 + r() * 0.9, 0.4 + r() * 1.5), sink: 0.25 });
+    if (w.features.includes('crystals')) kinds.push({ geo: new THREE.OctahedronGeometry(1, 0), mat: new THREE.MeshStandardMaterial({ color: det, emissive: det, emissiveIntensity: 0.6, flatShading: true, roughness: 0.3 }), p: 0.08, scale: (r) => { const s = 0.4 + r() * 0.8; return new THREE.Vector3(s * 0.5, s * 2.2, s * 0.5); }, sink: 0 });
+    if (icy) kinds.push({ geo: new THREE.ConeGeometry(0.6, 3, 5), mat: new THREE.MeshStandardMaterial({ color: '#DDF2FF', emissive: '#7FC8FF', emissiveIntensity: 0.25, flatShading: true, roughness: 0.2 }), p: 0.09, scale: (r) => new THREE.Vector3(1, 0.5 + r(), 1), sink: 0 });
+    if (w.features.includes('mesas')) kinds.push({ geo: new THREE.CylinderGeometry(3, 4, 4, 7), mat: new THREE.MeshStandardMaterial({ color: g0, flatShading: true, roughness: 1 }), p: 0.012, scale: (r) => { const s = 0.7 + r() * 1.3; return new THREE.Vector3(s, s * (0.6 + r()), s); }, sink: 0.6 });
+    if (w.features.includes('volcano')) kinds.push({ geo: new THREE.ConeGeometry(9, 9, 9, 1, true), mat: new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1, side: THREE.DoubleSide }), p: 0.003, scale: (r) => new THREE.Vector3(1, 0.8 + r() * 0.6, 1), sink: 0.5 });
+    if (w.features.includes('craters')) kinds.push({ geo: new THREE.TorusGeometry(2.2, 0.35, 5, 14).rotateX(Math.PI / 2), mat: new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1 }), p: 0.05, scale: (r) => { const s = 0.6 + r() * 2.2; return new THREE.Vector3(s, 0.7, s); }, sink: 0.15 });
+  } else {
+    kinds.push({ geo: new THREE.IcosahedronGeometry(1.4, 1), mat: new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.75, roughness: 1, flatShading: true }), p: 0.06, scale: (r) => { const s = 1 + r() * 2; return new THREE.Vector3(s * 1.6, s * 0.6, s); }, sink: 0, lift: 2 });
+  }
+  const CAP = tier === 0 ? 450 : 1100;
+  const decor = kinds.map((k) => { const m = new THREE.InstancedMesh(track(k.geo), track(k.mat), CAP); m.count = 0; m.frustumCulled = false; scene.add(m); return m; });
+  const spawn = V(dirOf(4, 6));
+  const nearSpawn = (d: THREE.Vector3) => d.angleTo(spawn) * R < 10;
+
+  // plot lines near you (rebuilt with the patch) and over the whole globe (seen from afar)
+  const hStep = (2 * LAT_MAX) / rows, cols = rows * 2, wStep = 360 / cols;
+  const nearLineGeo = track(new THREE.BufferGeometry());
+  const lineMat = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: w.gas ? 0.24 : 0.2, depthWrite: false }));
+  const nearLines = new THREE.LineSegments(nearLineGeo, lineMat); nearLines.frustumCulled = false; scene.add(nearLines);
+  const farLines = (() => {
+    const pts: number[] = [];
+    const push = (lat: number, lon: number) => { const d = V(dirOf(lat, lon)); d.multiplyScalar(R + amp + 0.5); pts.push(d.x, d.y, d.z); };
+    const st = Math.max(1, 360 / Math.max(90, cols * 2));
+    for (let gy = 0; gy <= rows; gy++) { const lat = -LAT_MAX + gy * hStep; for (let lon = -180; lon < 180; lon += st) { push(lat, lon); push(lat, lon + st); } }
+    for (let gx = 0; gx < cols; gx++) { const lon = -180 + gx * wStep; for (let lat = -LAT_MAX; lat < LAT_MAX - 1e-6; lat += st) { push(lat, lon); push(Math.min(LAT_MAX, lat + st), lon); } }
+    const g = track(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const m = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.16, depthWrite: false }));
+    const l = new THREE.LineSegments(g, m); scene.add(l); return l;
+  })();
+
+  const buildPatch = (c: THREE.Vector3) => {
+    patchC.copy(c);
+    const e1 = new THREE.Vector3().crossVectors(Math.abs(c.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : UP, c).normalize();
+    const e2 = new THREE.Vector3().crossVectors(c, e1).normalize();
+    const pos = patchGeo.attributes.position as THREE.BufferAttribute, cl = patchGeo.attributes.color as THREE.BufferAttribute;
+    const setV = (i: number, d: THREE.Vector3) => { const h = height(d); colorAt(d, h, col, ((hash(Math.round(d.x * 4000), Math.round(d.y * 4000), Math.round(d.z * 4000)) % 1000) / 1000 - 0.5) * 0.1); tmp.copy(d).multiplyScalar(R + h); pos.setXYZ(i, tmp.x, tmp.y, tmp.z); cl.setXYZ(i, col.r, col.g, col.b); };
+    setV(0, c);
+    const d = new THREE.Vector3();
+    for (let r = 1; r <= RINGS; r++) {
+      const rad = PATCH * Math.pow(r / RINGS, 1.35); // denser near the middle
+      for (let s = 0; s < SEGS; s++) {
+        const a = (s / SEGS) * Math.PI * 2;
+        d.copy(c).addScaledVector(e1, (Math.cos(a) * rad) / R).addScaledVector(e2, (Math.sin(a) * rad) / R).normalize();
+        setV(1 + (r - 1) * SEGS + s, d);
+      }
+    }
+    pos.needsUpdate = true; cl.needsUpdate = true; patchGeo.computeBoundingSphere();
+    patchU.uPatch.value.copy(c);
+    patchU.uCos.value = Math.cos((PATCH * 0.985) / R);
+    // decorations: a world-fixed lattice of ~6-unit cells around the centre
+    const step = 6 / R; // radians
+    const latC = Math.asin(c.y), lonC = Math.atan2(c.x, c.z);
+    const span = PATCH / R;
+    const counts = kinds.map(() => 0);
+    const o3 = new THREE.Object3D();
+    const i0 = Math.floor((latC - span) / step), i1 = Math.ceil((latC + span) / step);
+    for (let i = i0; i <= i1; i++) {
+      const lat = i * step; if (Math.abs(lat) > Math.PI / 2 - 0.01) continue;
+      const lstep = step / Math.max(0.05, Math.cos(lat));
+      const lspan = Math.min(Math.PI, span / Math.max(0.05, Math.cos(lat)));
+      const j0 = Math.floor((lonC - lspan) / lstep), j1 = Math.ceil((lonC + lspan) / lstep);
+      for (let j = j0; j <= j1; j++) {
+        const jj = ((j % Math.round((2 * Math.PI) / lstep)) + Math.round((2 * Math.PI) / lstep)) % Math.round((2 * Math.PI) / lstep);
+        const r = rng(hash(i, jj, o.seed));
+        const roll = r();
+        let acc = 0, k = -1;
+        for (let q = 0; q < kinds.length; q++) { acc += kinds[q].p; if (roll < acc) { k = q; break; } }
+        if (k < 0 || counts[k] >= CAP) continue;
+        const la = lat + (r() - 0.5) * step, lo = j * lstep + (r() - 0.5) * lstep;
+        d.set(Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo));
+        if (d.angleTo(c) * R > PATCH * 0.97 || nearSpawn(d)) continue;
+        stand(o3, d, surf(d) - kinds[k].sink + (kinds[k].lift ?? 0), r() * 6.28); o3.scale.copy(kinds[k].scale(r)); o3.updateMatrix();
+        decor[k].setMatrixAt(counts[k]++, o3.matrix);
+      }
+    }
+    decor.forEach((m, k) => { m.count = counts[k]; m.instanceMatrix.needsUpdate = true; });
+    // plot lines across the patch
+    const pts: number[] = [];
+    const push = (dd: THREE.Vector3) => { tmp.copy(dd).multiplyScalar(surf(dd) + 0.12); pts.push(tmp.x, tmp.y, tmp.z); };
+    const inside = (dd: THREE.Vector3) => dd.angleTo(c) * R < PATCH * 0.98;
+    const segLen = Math.max(0.15, (1.6 / R) / D); // ~1.6 units, in degrees
+    const a0 = new THREE.Vector3(), a1 = new THREE.Vector3();
+    const latDeg = latC / D, lonDeg = lonC / D, spanDeg = span / D;
+    for (let gy = 0; gy <= rows; gy++) {
+      const lat = -LAT_MAX + gy * hStep; if (Math.abs(lat - latDeg) > spanDeg) continue;
+      const lspan = Math.min(180, spanDeg / Math.max(0.05, Math.cos(lat * D)));
+      for (let lon = lonDeg - lspan; lon < lonDeg + lspan; lon += segLen) { a0.set(...dirOf(lat, lon)); a1.set(...dirOf(lat, lon + segLen)); if (inside(a0) && inside(a1)) { push(a0); push(a1); } }
+    }
+    for (let gx = 0; gx < cols; gx++) {
+      const lon = -180 + gx * wStep;
+      const dl = ((lon - lonDeg + 540) % 360) - 180; if (Math.abs(dl) * Math.cos(latC) > spanDeg * 1.2 && Math.abs(latDeg) < 80) continue;
+      for (let lat = Math.max(-LAT_MAX, latDeg - spanDeg); lat < Math.min(LAT_MAX, latDeg + spanDeg); lat += segLen) { a0.set(...dirOf(lat, lon)); a1.set(...dirOf(Math.min(LAT_MAX, lat + segLen), lon)); if (inside(a0) && inside(a1)) { push(a0); push(a1); } }
+    }
+    nearLineGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    nearLineGeo.computeBoundingSphere();
+  };
 
   // ---- light, sky, atmosphere ------------------------------------------------------------------
+  const SKY = Math.max(2000, R * 12);
+  camera.far = SKY * 1.2; camera.updateProjectionMatrix();
   const sunDir = new THREE.Vector3(0.6, 0.55, 0.35).normalize();
-  const sun = new THREE.DirectionalLight('#FFF6E4', w.dark ? 2.6 : 2.2); sun.position.copy(sunDir).multiplyScalar(300); scene.add(sun);
+  const sun = new THREE.DirectionalLight('#FFF6E4', w.dark ? 2.6 : 2.2); sun.position.copy(sunDir).multiplyScalar(R * 4); scene.add(sun);
   scene.add(new THREE.HemisphereLight(css(w.sky[1]), css(w.ground[1]), w.dark ? 0.55 : 0.95));
   scene.add(new THREE.AmbientLight('#ffffff', w.dark ? 0.25 : 0.2));
   const skyU = { top: { value: css(w.sky[0]) }, horizon: { value: css(w.sky[1]) }, up: { value: new THREE.Vector3(0, 1, 0) }, space: { value: 0 } };
-  const sky = new THREE.Mesh(track(new THREE.SphereGeometry(1800, 32, 16)), track(new THREE.ShaderMaterial({
+  const sky = new THREE.Mesh(track(new THREE.SphereGeometry(SKY, 32, 16)), track(new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, uniforms: skyU,
     vertexShader: 'varying vec3 vd; void main(){ vd = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 up; uniform float space; varying vec3 vd;
@@ -129,62 +298,48 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   sky.renderOrder = -2; scene.add(sky);
   const starGeo = track(new THREE.BufferGeometry());
   const starPts = new Float32Array(2400 * 3);
-  for (let i = 0; i < 2400; i++) { const v = unit().multiplyScalar(1500); starPts.set([v.x, v.y, v.z], i * 3); }
+  for (let i = 0; i < 2400; i++) { const v = unit().multiplyScalar(SKY * 0.85); starPts.set([v.x, v.y, v.z], i * 3); }
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPts, 3));
   const starMat = track(new THREE.PointsMaterial({ color: '#ffffff', size: 2.2, sizeAttenuation: false, transparent: true, opacity: w.dark ? 0.95 : 0.12, depthWrite: false }));
   const stars = new THREE.Points(starGeo, starMat); stars.renderOrder = -1; scene.add(stars);
-  // the Sun (smaller and paler the further out you are)
-  const sunSize = w.id === 'mercury' ? 180 : w.id === 'venus' ? 120 : ['jupiter', 'saturn'].includes(w.id) ? 40 : ['uranus', 'neptune', 'pluto'].includes(w.id) ? 18 : 80;
-  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!; const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,240,200,0.8)'); gr.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); return track(t); })();
+  const sunSize = (w.id === 'mercury' ? 180 : w.id === 'venus' ? 120 : ['jupiter', 'saturn'].includes(w.id) ? 40 : ['uranus', 'neptune', 'pluto'].includes(w.id) ? 18 : 80) * (SKY / 2000);
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!; const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,240,200,0.8)'); gr.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return track(new THREE.CanvasTexture(c)); })();
   const sunSprite = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: glowTex, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, fog: false })));
-  sunSprite.scale.setScalar(sunSize); sunSprite.position.copy(sunDir).multiplyScalar(1400); scene.add(sunSprite);
-  // something big in the sky
+  sunSprite.scale.setScalar(sunSize); sunSprite.position.copy(sunDir).multiplyScalar(SKY * 0.78); scene.add(sunSprite);
   if (w.id === 'moon') {
-    const earth = new THREE.Mesh(track(new THREE.SphereGeometry(70, 48, 32)), track(new THREE.MeshStandardMaterial({ color: '#3EA0DA', roughness: 0.6, emissive: '#0b2a4a', emissiveIntensity: 0.4 })));
-    earth.position.set(-500, 420, -900); scene.add(earth);
-    const land = new THREE.Mesh(track(new THREE.IcosahedronGeometry(71, 2)), track(new THREE.MeshStandardMaterial({ color: '#4FA552', flatShading: true, transparent: true, opacity: 0.85 })));
+    const er = SKY * 0.035;
+    const earth = new THREE.Mesh(track(new THREE.SphereGeometry(er, 48, 32)), track(new THREE.MeshStandardMaterial({ color: '#3EA0DA', roughness: 0.6, emissive: '#0b2a4a', emissiveIntensity: 0.4 })));
+    earth.position.set(-0.28, 0.24, -0.5).normalize().multiplyScalar(SKY * 0.6); scene.add(earth);
+    const land = new THREE.Mesh(track(new THREE.IcosahedronGeometry(er * 1.01, 2)), track(new THREE.MeshStandardMaterial({ color: '#4FA552', flatShading: true, transparent: true, opacity: 0.85 })));
     land.position.copy(earth.position); land.scale.set(1, 0.7, 0.6); scene.add(land);
   }
   if (w.ring || w.id === 'saturn') {
-    const rg = track(new THREE.RingGeometry(R * 1.5, R * 2.7, 128, 6));
+    const rg = track(new THREE.RingGeometry(R * 1.5, R * 2.7, 160, 6));
     const rc = css(w.ring ?? '#D9C58F');
     const ringCols = new Float32Array(rg.attributes.position.count * 4);
     for (let i = 0; i < rg.attributes.position.count; i++) {
-      const x = rg.attributes.position.getX(i), y = rg.attributes.position.getY(i), d = (Math.hypot(x, y) - R * 1.5) / (R * 1.2);
-      ringCols.set([rc.r, rc.g, rc.b, 0.25 + 0.45 * Math.abs(Math.sin(d * 23)) * (d > 0.55 && d < 0.6 ? 0.1 : 1)], i * 4);
+      const x = rg.attributes.position.getX(i), y = rg.attributes.position.getY(i), dd = (Math.hypot(x, y) - R * 1.5) / (R * 1.2);
+      ringCols.set([rc.r, rc.g, rc.b, 0.25 + 0.45 * Math.abs(Math.sin(dd * 23)) * (dd > 0.55 && dd < 0.6 ? 0.1 : 1)], i * 4);
     }
     rg.setAttribute('color', new THREE.BufferAttribute(ringCols, 4));
     const ring = new THREE.Mesh(rg, track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false })));
     ring.rotation.x = Math.PI / 2 - 0.35; scene.add(ring);
   }
   if (w.id === 'jupiter') for (let i = 0; i < 4; i++) {
-    const m = new THREE.Mesh(track(new THREE.SphereGeometry(8 + i * 3, 24, 16)), track(new THREE.MeshStandardMaterial({ color: ['#E9D27A', '#D8CFC0', '#9A8F80', '#7C7468'][i], roughness: 0.9 })));
+    const m = new THREE.Mesh(track(new THREE.SphereGeometry(R * (0.05 + i * 0.015), 24, 16)), track(new THREE.MeshStandardMaterial({ color: ['#E9D27A', '#D8CFC0', '#9A8F80', '#7C7468'][i], roughness: 0.9 })));
     m.position.set(...dirOf(12 + i * 8, 30 + i * 75)).multiplyScalar(R * (3 + i)); scene.add(m);
   }
-  if (!w.dark) {
-    const atm = new THREE.Mesh(track(new THREE.SphereGeometry(R * 1.12, 64, 32)), track(new THREE.ShaderMaterial({
-      side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { c: { value: css(w.sky[1]) } },
-      vertexShader: 'varying vec3 n; varying vec3 v; void main(){ n = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); v = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }',
-      fragmentShader: 'uniform vec3 c; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.0 - abs(dot(n, v)), 2.5); gl_FragColor = vec4(c, f * 0.9); }',
-    })));
-    scene.add(atm);
-  }
-  const fogCol = css(w.sky[1]);
-  const fog = w.dark ? null : new THREE.Fog(fogCol, R * 0.6, R * 1.9);
+  const atmMat = w.dark ? null : track(new THREE.ShaderMaterial({
+    side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { c: { value: css(w.sky[1]) }, k: { value: 1 } },
+    vertexShader: 'varying vec3 n; varying vec3 v; void main(){ n = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); v = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }',
+    fragmentShader: 'uniform vec3 c; uniform float k; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.0 - abs(dot(n, v)), 2.5); gl_FragColor = vec4(c, f * 0.9 * k); }',
+  }));
+  if (atmMat) scene.add(new THREE.Mesh(track(new THREE.SphereGeometry(R * 1.12, 64, 32)), atmMat));
+  const fog = w.dark ? null : new THREE.Fog(css(w.sky[1]), 80, 360);
 
-  // ---- grid lines --------------------------------------------------------------------------------
-  {
-    const pts: number[] = [];
-    const push = (lat: number, lon: number) => { const d = V(dirOf(lat, lon)); d.multiplyScalar(surf(d) + 0.12); pts.push(d.x, d.y, d.z); };
-    const hStep = (2 * LAT_MAX) / rows;
-    for (let gy = 0; gy <= rows; gy++) { const lat = -LAT_MAX + gy * hStep; for (let lon = -180; lon < 180; lon += 1.5) { push(lat, lon); push(lat, lon + 1.5); } }
-    for (let gx = 0; gx < cols; gx++) { const lon = -180 + gx * (360 / cols); for (let lat = -LAT_MAX; lat < LAT_MAX; lat += 1.5) { push(lat, lon); push(Math.min(LAT_MAX, lat + 1.5), lon); } }
-    const lg = track(new THREE.BufferGeometry()); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    scene.add(new THREE.LineSegments(lg, track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: w.gas ? 0.22 : 0.16, depthWrite: false }))));
-  }
   /** A curved tile over a cell (or part of one), lifted `lift` off the ground. */
-  const tileGeo = (c: Cell, lift: number, inset = 0) => {
-    const b = cellBounds(c, rows), N = 6;
+  const tileGeo = (c: Cell, lift: number, inset = 0, N = 6) => {
+    const b = cellBounds(c, rows);
     const dl = (b.lat1 - b.lat0) * inset, dn = (b.lon1 - b.lon0) * inset;
     const verts: number[] = [], idx: number[] = [];
     for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
@@ -192,38 +347,8 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       d.multiplyScalar(surf(d) + lift); verts.push(d.x, d.y, d.z);
     }
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const a = i * (N + 1) + j; idx.push(a, a + 1, a + N + 1, a + 1, a + N + 2, a + N + 1); }
-    return { verts, idx };
+    return { verts, idx, N };
   };
-
-  // ---- decor -------------------------------------------------------------------------------------
-  const spawn = V(dirOf(4, 6));
-  const nearSpawn = (d: THREE.Vector3) => d.angleTo(spawn) * R < 9;
-  const dens = Math.max(1, (R / 40) ** 2);
-  const decor = (geom: THREE.BufferGeometry, mat: THREE.Material, n0: number, scale: (i: number) => THREE.Vector3, sink = 0.2) => {
-    const n = Math.round(n0 * (n0 < 20 ? Math.sqrt(dens) : dens));
-    const m = new THREE.InstancedMesh(track(geom), track(mat), n);
-    const o3 = new THREE.Object3D();
-    let k = 0;
-    for (let i = 0; i < n * 3 && k < n; i++) {
-      const d = unit();
-      if (nearSpawn(d)) continue;
-      stand(o3, d, surf(d) - sink, r() * 6.28); o3.scale.copy(scale(k)); o3.updateMatrix(); m.setMatrixAt(k++, o3.matrix);
-    }
-    m.count = k; scene.add(m); return m;
-  };
-  if (!w.gas) {
-    decor(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1 }), 260, () => new THREE.Vector3(0.4 + r() * 1.4, 0.3 + r() * 0.9, 0.4 + r() * 1.4));
-    if (w.features.includes('crystals')) decor(new THREE.OctahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: det, emissive: det, emissiveIntensity: 0.6, flatShading: true, roughness: 0.3 }), 120, () => { const s = 0.4 + r() * 0.8; return new THREE.Vector3(s * 0.5, s * 2.2, s * 0.5); }, 0);
-    if (icy) decor(new THREE.ConeGeometry(0.6, 3, 5), new THREE.MeshStandardMaterial({ color: '#DDF2FF', emissive: '#7FC8FF', emissiveIntensity: 0.25, flatShading: true, roughness: 0.2 }), 140, () => new THREE.Vector3(1, 0.5 + r(), 1), 0);
-    if (w.features.includes('mesas')) decor(new THREE.CylinderGeometry(3, 4, 4, 7), new THREE.MeshStandardMaterial({ color: g0, flatShading: true, roughness: 1 }), 40, () => { const s = 0.7 + r() * 1.3; return new THREE.Vector3(s, s * (0.6 + r()), s); }, 0.6);
-    if (w.features.includes('volcano')) {
-      decor(new THREE.ConeGeometry(9, 9, 9, 1, true), new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1, side: THREE.DoubleSide }), 7, () => new THREE.Vector3(1, 0.8 + r() * 0.6, 1), 0.5);
-    }
-    if (w.features.includes('craters')) decor(new THREE.TorusGeometry(2.2, 0.35, 5, 14).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: g1, flatShading: true, roughness: 1 }), 80, () => { const s = 0.6 + r() * 1.8; return new THREE.Vector3(s, 0.7, s); }, 0.15);
-  } else {
-    // cloud puffs drifting over the cloud deck
-    decor(new THREE.IcosahedronGeometry(1.4, 1), new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.75, roughness: 1, flatShading: true }), 160, () => { const s = 1 + r() * 2; return new THREE.Vector3(s * 1.6, s * 0.6, s); }, -1.5 - r() * 3);
-  }
 
   // ---- landing site: rocket, flag, home dome ------------------------------------------------------
   const accent = css(o.accent);
@@ -236,8 +361,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const win = new THREE.Mesh(track(new THREE.SphereGeometry(0.42, 16, 12)), track(new THREE.MeshStandardMaterial({ color: '#7EC8F5', emissive: '#1B4A7A', emissiveIntensity: 0.6 }))); win.position.set(0, 5.2, 0.95); rk.add(win);
     for (let i = 0; i < 4; i++) { const fin = new THREE.Mesh(track(new THREE.BoxGeometry(0.15, 2, 1.4)), acc); const a = (i / 4) * Math.PI * 2; fin.position.set(Math.cos(a) * 1.2, 1.6, Math.sin(a) * 1.2); fin.rotation.y = -a; rk.add(fin); }
     const legs = new THREE.Mesh(track(new THREE.CylinderGeometry(1.3, 1.7, 0.8, 8)), track(new THREE.MeshStandardMaterial({ color: '#59647D' }))); legs.position.y = 0.4; rk.add(legs);
-    const d = spawn.clone().applyAxisAngle(UP, 0.05).normalize();
-    stand(rk, d, surf(d) - 0.2, 0.4); scene.add(rk);
+    stand(rk, spawn, surf(spawn) - 0.2, 0.4); scene.add(rk);
     const flag = new THREE.Group();
     const pole = new THREE.Mesh(track(new THREE.CylinderGeometry(0.06, 0.06, 3.4, 6)), white); pole.position.y = 1.7; flag.add(pole);
     const cloth = new THREE.Mesh(track(new THREE.PlaneGeometry(1.6, 1)), track(new THREE.MeshStandardMaterial({ color: accent, side: THREE.DoubleSide }))); cloth.position.set(0.8, 2.9, 0); flag.add(cloth);
@@ -247,11 +371,14 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       const hd = spawn.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -7 / R).normalize();
       const dome = new THREE.Group();
       dome.add(new THREE.Mesh(track(new THREE.SphereGeometry(4.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2)), track(new THREE.MeshStandardMaterial({ color: '#BFE3FF', transparent: true, opacity: 0.3, roughness: 0.1, metalness: 0.3, side: THREE.DoubleSide }))));
-      const lawn = new THREE.Mesh(track(new THREE.CylinderGeometry(4.4, 4.4, 0.2, 32)), track(new THREE.MeshStandardMaterial({ color: '#4FA552' }))); dome.add(lawn);
+      dome.add(new THREE.Mesh(track(new THREE.CylinderGeometry(4.4, 4.4, 0.2, 32)), track(new THREE.MeshStandardMaterial({ color: '#4FA552' }))));
       for (let i = 0; i < 3; i++) { const tr = new THREE.Mesh(track(new THREE.IcosahedronGeometry(0.9 + i * 0.2, 0)), track(new THREE.MeshStandardMaterial({ color: '#2F7D3A', flatShading: true }))); tr.position.set(-1.8 + i * 1.8, 1.4, (i % 2) - 0.5); dome.add(tr); }
       stand(dome, hd, surf(hd) - 0.1); scene.add(dome);
     }
   }
+  // a beacon over the landing site you can spot from orbit
+  const beaconMat = track(new THREE.SpriteMaterial({ map: glowTex, color: accent, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const beacon = new THREE.Sprite(beaconMat); beacon.position.copy(spawn).multiplyScalar(R + 4); scene.add(beacon);
 
   // ---- samples -----------------------------------------------------------------------------------
   type Sample = { d: THREE.Vector3; m: THREE.Mesh; glow: THREE.Sprite; got: boolean };
@@ -261,7 +388,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const sm = track(new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: det, emissiveIntensity: 1.2, flatShading: true }));
     const gm = track(new THREE.SpriteMaterial({ map: glowTex, color: det, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     for (let i = 0; i < o.samples; i++) {
-      const a = (i / o.samples) * Math.PI * 2 + r(), dist = (10 + r() * 16) / R;
+      const a = (i / o.samples) * Math.PI * 2 + seedR(), dist = (10 + seedR() * 16) / R;
       const tangent = new THREE.Vector3().crossVectors(spawn, UP).normalize().applyAxisAngle(spawn, a);
       const d = spawn.clone().applyAxisAngle(new THREE.Vector3().crossVectors(spawn, tangent).normalize(), dist).normalize();
       const m = new THREE.Mesh(sg, sm); const glow = new THREE.Sprite(gm); glow.scale.setScalar(3);
@@ -269,34 +396,39 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     }
   }
 
-  // ---- plots -------------------------------------------------------------------------------------
+  // ---- plots (with a small pool of name labels for the ones near you) ------------------------------
   const plotGroup = new THREE.Group(); scene.add(plotGroup);
-  const plotMat = track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
-  const labels: { s: THREE.Sprite; d: THREE.Vector3 }[] = [];
-  const flagGeo = track(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 5)); const clothGeo = track(new THREE.PlaneGeometry(1.2, 0.75));
+  const plotMat = track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+  const flagGeo = track(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5)); const clothGeo = track(new THREE.PlaneGeometry(1.3, 0.8));
   const poleMat = track(new THREE.MeshStandardMaterial({ color: '#E6EBF5' }));
+  const clothMat = track(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.7 }));
   let plotGeo: THREE.BufferGeometry | null = null;
+  let plotList: { p: PlanetPlot; d: THREE.Vector3 }[] = [];
+  const LABELS = 10;
+  const labelPool: { s: THREE.Sprite | null; key: string }[] = Array.from({ length: LABELS }, () => ({ s: null, key: '' }));
   const clearPlots = () => {
-    for (const c of [...plotGroup.children]) { plotGroup.remove(c); if (c instanceof THREE.Sprite) { c.material.map?.dispose(); c.material.dispose(); } else if (c instanceof THREE.InstancedMesh) c.dispose(); }
-    plotGeo?.dispose(); plotGeo = null; labels.length = 0;
+    for (const c of [...plotGroup.children]) { plotGroup.remove(c); if (c instanceof THREE.InstancedMesh) c.dispose(); }
+    plotGeo?.dispose(); plotGeo = null; plotList = [];
   };
   const setPlots = (plots: PlanetPlot[]) => {
     clearPlots();
+    plotList = plots.map((p) => ({ p, d: V(cellCenterDir(p, rows)) }));
+    for (const l of labelPool) l.key = '__stale';
     if (!plots.length) return;
+    const N = plots.length > 3000 ? 3 : 6;
     const verts: number[] = [], cs: number[] = [], idx: number[] = [];
-    const cloths = new THREE.InstancedMesh(clothGeo, track(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.7 })), plots.length);
+    const cloths = new THREE.InstancedMesh(clothGeo, clothMat, plots.length);
     const poles = new THREE.InstancedMesh(flagGeo, poleMat, plots.length);
     const o3 = new THREE.Object3D();
     plots.forEach((p, i) => {
       const c = css(p.owner.accent || '#8B5CFF');
-      const t = tileGeo(p, 0.16, 0.04);
+      if (p.mine) c.lerp(new THREE.Color('#ffffff'), 0.15);
+      const t = tileGeo(p, 0.18, 0.04, N);
       const base = verts.length / 3;
-      verts.push(...t.verts); for (let k = 0; k < t.verts.length / 3; k++) cs.push(c.r, c.g, c.b); idx.push(...t.idx.map((x) => x + base));
-      const d = V(cellCenterDir(p, rows));
+      verts.push(...t.verts); for (let k = 0; k < t.verts.length / 3; k++) cs.push(c.r, c.g, c.b); for (const x of t.idx) idx.push(x + base);
+      const d = plotList[i].d;
       stand(o3, d, surf(d) + 1.2); o3.updateMatrix(); poles.setMatrixAt(i, o3.matrix);
-      stand(o3, d, surf(d) + 2.1); o3.translateX(0.6); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, c);
-      const lab = textSprite(p.name ? `${p.name}` : p.mine ? 'My plot' : `@${p.owner.username}`, p.mine ? '#FFE36B' : '#ffffff', 0.5);
-      stand(lab, d, surf(d) + 2.9); lab.quaternion.identity(); plotGroup.add(lab); labels.push({ s: lab, d });
+      stand(o3, d, surf(d) + 2.1); o3.translateX(0.65); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, c);
     });
     plotGeo = new THREE.BufferGeometry();
     plotGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -304,8 +436,20 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     plotGeo.setIndex(idx);
     plotGroup.add(new THREE.Mesh(plotGeo, plotMat), poles, cloths);
   };
-  // the plot you're standing on (or looking at in orbit)
-  const hiMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
+  const refreshLabels = () => {
+    const near = plotList.map((x) => ({ x, a: x.d.angleTo(P.d) * R })).filter((q) => q.a < 40).sort((a, b) => a.a - b.a).slice(0, LABELS);
+    const want = new Map(near.map((q) => [cellKey(q.x.p) + (q.x.p.name ?? ''), q.x]));
+    for (const l of labelPool) if (l.s && !want.has(l.key)) { scene.remove(l.s); disposeSprite(l.s); l.s = null; l.key = ''; }
+    const have = new Set(labelPool.map((l) => l.key));
+    for (const [k, x] of want) {
+      if (have.has(k)) continue;
+      const slot = labelPool.find((l) => !l.s); if (!slot) break;
+      const s = textSprite(x.p.name ? x.p.name : x.p.mine ? 'My plot' : `@${x.p.owner.username}`, x.p.mine ? '#FFE36B' : '#ffffff', 0.5);
+      s.position.copy(x.d).multiplyScalar(surf(x.d) + 2.9); scene.add(s); slot.s = s; slot.key = k;
+    }
+  };
+  // the plot you're standing on (or picked from above)
+  const hiMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }));
   const hiLine = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9 }));
   let hi: THREE.Group | null = null; let hiKey = '';
   const highlight = (c: Cell | null) => {
@@ -313,38 +457,44 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     if (k === hiKey) return; hiKey = k;
     if (hi) { scene.remove(hi); hi.traverse((x) => { if (x instanceof THREE.Mesh || x instanceof THREE.LineLoop) x.geometry.dispose(); }); hi = null; }
     if (!c) return;
-    const t = tileGeo(c, 0.22);
+    const t = tileGeo(c, 0.26, 0, 8);
     const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(t.verts, 3)); gg.setIndex(t.idx);
-    const N = 7, ring: number[] = [];
+    const N = t.N + 1, ring: number[] = [];
     const at = (i: number, j: number) => ring.push(t.verts[(i * N + j) * 3], t.verts[(i * N + j) * 3 + 1], t.verts[(i * N + j) * 3 + 2]);
     for (let j = 0; j < N; j++) at(0, j); for (let i = 0; i < N; i++) at(i, N - 1); for (let j = N - 1; j >= 0; j--) at(N - 1, j); for (let i = N - 1; i >= 0; i--) at(i, 0);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(ring, 3));
     hi = new THREE.Group(); hi.add(new THREE.Mesh(gg, hiMat), new THREE.LineLoop(lg, hiLine)); scene.add(hi);
   };
 
-  // ---- you, your Inkborn, other explorers ---------------------------------------------------------
+  // ---- you, your Inkborn, the others in your live group -------------------------------------------
   const me = imageSprite(o.explorerUrl, 1.9); scene.add(me);
-  const shadowMat = track(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6 }));
+  const youMat = track(new THREE.SpriteMaterial({ map: glowTex, color: '#FFE36B', transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+  const youDot = new THREE.Sprite(youMat); youDot.renderOrder = 5; scene.add(youDot); // "you are here", from high up
+  const shadowMat = track(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
   const shadow = new THREE.Mesh(track(new THREE.CircleGeometry(0.55, 20)), shadowMat); scene.add(shadow);
   const P = { d: spawn.clone(), up: 0, vy: 0, face: new THREE.Vector3(), target: null as THREE.Vector3 | null, moving: false };
   { // land a few steps east of the rocket, looking north (the rocket off to your left)
     const east = new THREE.Vector3().crossVectors(UP, P.d).normalize();
     P.d.applyAxisAngle(new THREE.Vector3().crossVectors(P.d, east).normalize(), 9 / R).normalize();
   }
-  const camF = new THREE.Vector3().crossVectors(UP, P.d).cross(P.d).negate().normalize(); // north along the ground
+  const camF = new THREE.Vector3().crossVectors(UP, P.d).cross(P.d).negate().normalize();
   if (camF.lengthSq() < 0.5) camF.set(0, 0, 1);
   P.face.copy(camF);
-  let buddy: { s: THREE.Sprite; c: HTMLCanvasElement; tex: THREE.CanvasTexture; d: THREE.Vector3; st: CreatureState; hop: number; dir: 1 | -1 } | null = null;
-  if (o.buddy) {
+  type Buddy = { s: THREE.Sprite; c: HTMLCanvasElement; tex: THREE.CanvasTexture; d: THREE.Vector3; st: CreatureState; hop: number; dir: 1 | -1; g: Genome };
+  let buddy: Buddy | null = null;
+  const setBuddy = (gen: Genome | null) => {
+    if (buddy) { scene.remove(buddy.s); buddy.tex.dispose(); buddy.s.material.dispose(); buddy = null; }
+    if (!gen) return;
     const c = document.createElement('canvas'); c.width = c.height = 160;
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); s.scale.set(1.7, 1.7, 1); s.center.set(0.5, 0.06);
-    scene.add(s); buddy = { s, c, tex, d: P.d.clone(), st: 'idle', hop: 0, dir: 1 };
-  }
-  type Other = { s: THREE.Sprite; lab: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number };
+    scene.add(s); buddy = { s, c, tex, d: P.d.clone(), st: 'idle', hop: 0, dir: 1, g: gen };
+  };
+  type Other = { s: THREE.Sprite; lab: THREE.Sprite; dot: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number };
   const others = new Map<string, Other>();
-  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab); x.s.material.map?.dispose(); x.s.material.dispose(); x.lab.material.map?.dispose(); x.lab.material.dispose(); others.delete(id); };
-  const vec = (a: number[] | null | undefined) => (a && a.length === 3 && a.every(Number.isFinite) ? new THREE.Vector3(a[0], a[1], a[2]).normalize() : null);
+  const otherDotMat = track(new THREE.SpriteMaterial({ map: glowTex, color: '#7FE3FF', transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab, x.dot); disposeSprite(x.s); disposeSprite(x.lab); others.delete(id); };
+  const vec = (a: number[] | null | undefined) => (a && a.length === 3 && a.every(Number.isFinite) && Math.hypot(a[0], a[1], a[2]) > 1e-6 ? new THREE.Vector3(a[0], a[1], a[2]).normalize() : null);
   const setLive = (list: Pilot[]) => {
     const keep = new Set(list.map((p) => p.id));
     for (const id of [...others.keys()]) if (!keep.has(id)) dropOther(id);
@@ -353,11 +503,11 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       let x = others.get(p.id);
       if (!x) {
         const s = imageSprite(p.explorerUrl, 1.9); const lab = textSprite(`@${p.username}`, '#ffffff', 0.45);
+        const dot = new THREE.Sprite(otherDotMat); dot.renderOrder = 4;
         const start = d ?? spawn.clone();
-        x = { s, lab, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0 };
-        scene.add(s, lab); others.set(p.id, x);
+        x = { s, lab, dot, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0 };
+        scene.add(s, lab, dot); others.set(p.id, x);
       }
-      // heartbeat positions only fill in when nothing has streamed in lately
       if (d && performance.now() - x.streamed > 2500) { x.to.copy(d); const f = vec(p.face); if (f) x.face.copy(f); x.hopTo = p.hop ?? 0; }
     }
   };
@@ -365,6 +515,16 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const x = others.get(id); const v = vec(d); if (!x || !v) return;
     x.to.copy(v); const f = vec(face); if (f) x.face.copy(f); x.hopTo = Math.max(0, Math.min(50, Number(hop) || 0)); x.streamed = performance.now();
   };
+
+  // ---- camera: one zoom from your boots to orbit ---------------------------------------------------
+  const DMIN = 4, DMAX = R * 3.4;
+  let dist = o.startHigh ? R * 2.7 : 8.5, distTo = dist, pitch = 0.26;
+  const F = P.d.clone(); // what the camera centres on — you, unless you've dragged the globe round
+  let freeLook = false;
+  const level = (d: number) => Math.min(1, Math.max(0, Math.log(d / DMIN) / Math.log(DMAX / DMIN)));
+  const highness = (d: number) => { const t = Math.min(1, Math.max(0, (Math.log(d) - Math.log(28)) / (Math.log(R * 1.4) - Math.log(28)))); return t * t * (3 - 2 * t); };
+  const zoom = (f: number) => { distTo = Math.max(DMIN, Math.min(DMAX, distTo * f)); };
+  const setZoom = (lv: number) => { distTo = DMIN * Math.pow(DMAX / DMIN, Math.max(0, Math.min(1, lv))); };
 
   // ---- controls ---------------------------------------------------------------------------------
   const joy = { x: 0, y: 0 };
@@ -375,19 +535,21 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const k = e.key.toLowerCase(); keys.add(k);
     if (k === ' ') { jumpQueued = true; e.preventDefault(); }
     if (k.startsWith('arrow')) e.preventDefault();
+    if (k === '=' || k === '+') zoom(0.8); if (k === '-' || k === '_') zoom(1.25);
   };
   const ku = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
   const blur = () => keys.clear(); window.addEventListener('blur', blur);
-  let orbit = false; let pitch = 0.26; let dist = 8.5;
-  const oDir = new THREE.Vector3(); let oDist = R * 2.9; const oUp = new THREE.Vector3();
   const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
   const pick = (cx: number, cy: number) => {
     const rc = o.canvas.getBoundingClientRect();
     ndc.set(((cx - rc.left) / rc.width) * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(planet, false)[0];
-    return hit ? hit.point.clone().normalize() : null;
+    // the true ground near you, else a sphere hit (cheap, and good enough from up high)
+    const hit = dist < R * 0.9 ? ray.intersectObject(patch, false)[0] : undefined;
+    if (hit) return hit.point.clone().normalize();
+    const s = new THREE.Sphere(new THREE.Vector3(), R + amp * 0.3); const p = new THREE.Vector3();
+    return ray.ray.intersectSphere(s, p) ? p.normalize() : null;
   };
   const pointers = new Map<number, { x: number; y: number }>();
   let drag: { x: number; y: number; moved: number } | null = null; let pinch = 0;
@@ -400,51 +562,46 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const pm = (e: PointerEvent) => {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) zoom(pinch / d); pinch = d; return; }
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch && d) zoom(pinch / d); pinch = d; return; }
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-    if (orbit) {
-      const right = new THREE.Vector3().crossVectors(oDir, oUp).normalize();
-      oDir.applyAxisAngle(oUp, -dx * 0.005).applyAxisAngle(right, -dy * 0.005).normalize();
-      oUp.copy(new THREE.Vector3().crossVectors(right, oDir)).normalize();
+    if (drag.moved < 6) return;
+    const hgh = highness(dist);
+    if (hgh > 0.45) {
+      // spin the globe under you: move the look point across the surface
+      freeLook = true;
+      const k = (dist / Math.max(200, o.canvas.clientHeight)) / R * 1.1;
+      const right = new THREE.Vector3().crossVectors(camF, F).normalize();
+      F.applyAxisAngle(camF, -dx * k).applyAxisAngle(right, -dy * k).normalize();
+      camF.applyAxisAngle(right, -dy * k);
     } else {
       camF.applyAxisAngle(P.d, -dx * 0.006).normalize();
-      pitch = Math.max(0.08, Math.min(1.25, pitch + dy * 0.004));
+      pitch = Math.max(0.06, Math.min(1.3, pitch + dy * 0.004));
     }
   };
   const pu = (e: PointerEvent) => {
     pointers.delete(e.pointerId);
     if (drag && drag.moved < 8 && pointers.size === 0) {
       const d = pick(e.clientX, e.clientY);
-      if (orbit) { const c = d ? cellAt([d.x, d.y, d.z], rows) : null; highlight(c); o.onPick(c); if (d) P.target = d; }
-      else if (d && d.angleTo(P.d) * R < 60) P.target = d;
+      if (highness(dist) > 0.3) { const c = d ? cellAt([d.x, d.y, d.z], rows) : null; highlight(c); picked = c; o.onPick(c); }
+      else if (d && d.angleTo(P.d) * R < 80) P.target = d;
     }
     if (pointers.size === 0) { drag = null; pinch = 0; }
   };
-  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.1 : 0.9); };
+  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom(Math.exp(Math.max(-0.4, Math.min(0.4, e.deltaY * 0.0015)))); };
   o.canvas.addEventListener('pointerdown', pd); o.canvas.addEventListener('pointermove', pm);
   o.canvas.addEventListener('pointerup', pu); o.canvas.addEventListener('pointercancel', pu);
   o.canvas.addEventListener('wheel', wheel, { passive: false });
-  const zoom = (f: number) => {
-    if (orbit) oDist = Math.max(R * 1.35, Math.min(R * 5, oDist * f));
-    else dist = Math.max(4, Math.min(22, dist * f));
-  };
-  const setOrbit = (on: boolean) => {
-    if (on === orbit) return;
-    orbit = on; o.onMode(on);
-    if (on) { oDir.copy(P.d).add(camF.clone().multiplyScalar(-0.35)).normalize(); oUp.copy(camF).projectOnPlane(oDir).normalize(); oDist = R * 2.9; }
-    else { lastCell = '__'; }
-  };
+  let picked: Cell | null = null;
 
   // ---- the loop ----------------------------------------------------------------------------------
   const G = 22 * Math.max(0.15, Math.min(2.5, w.gravity));
-  const SPEED = 7;
-  let lastCell = ''; let got = 0; let intro = reduce ? 1 : 0;
+  let lastCell = ''; let got = 0; let intro = o.intro && !reduce ? 0 : 1;
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), camUp = new THREE.Vector3();
   const introFrom = spawn.clone().multiplyScalar(R * 4).add(new THREE.Vector3(0, R * 0.8, 0));
   const tv = new THREE.Vector3(), tv2 = new THREE.Vector3();
   const moveOn = (d: THREE.Vector3, dir: THREE.Vector3, dist2: number) => {
-    const axis = tv2.crossVectors(d, dir); if (axis.lengthSq() < 1e-9) return;
+    const axis = tv2.crossVectors(d, dir); if (axis.lengthSq() < 1e-12) return;
     axis.normalize(); d.applyAxisAngle(axis, dist2 / R).normalize();
   };
   const resize = () => {
@@ -454,73 +611,97 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   resize();
   const ro = new ResizeObserver(resize); ro.observe(o.canvas);
-  let raf = 0, last = performance.now(), t = 0;
+  buildPatch(P.d);
+  let raf = 0, last = performance.now(), t = 0, labelT = 0, lastZoomReport = '';
+  // adaptive resolution: if frames run slow, render fewer pixels (and more again when there's room)
+  let perfT = 0, perfN = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const raw = (now - last) / 1000; last = now;
+    const dt = Math.min(0.05, raw); t += dt;
+    perfT += raw; perfN++;
+    if (perfT > 2) {
+      const avg = perfT / perfN; perfT = 0; perfN = 0;
+      const next = avg > 0.026 ? Math.max(0.6, dpr - 0.2) : avg < 0.015 ? Math.min(maxDpr, dpr + 0.1) : dpr;
+      if (Math.abs(next - dpr) > 0.01) { dpr = next; renderer.setPixelRatio(dpr); resize(); }
+    }
     const up = P.d;
-    // keep the camera's forward lying flat on the ground under you
-    camF.projectOnPlane(up).normalize();
+    dist += (distTo - dist) * Math.min(1, dt * 6);
+    const hgh = highness(dist);
+    camF.projectOnPlane(F).normalize();
     const right = tv.crossVectors(camF, up).normalize();
-    let mx = joy.x + (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
-    let my = joy.y + (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
-    if (keys.has('q')) camF.applyAxisAngle(up, dt * 1.8);
-    if (keys.has('e')) camF.applyAxisAngle(up, -dt * 1.8);
+    const mx = joy.x + (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
+    const my = joy.y + (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+    if (keys.has('q')) camF.applyAxisAngle(F, dt * 1.8);
+    if (keys.has('e')) camF.applyAxisAngle(F, -dt * 1.8);
     const move = new THREE.Vector3();
-    if (orbit) { mx = 0; my = 0; }
-    if (mx || my) { P.target = null; move.addScaledVector(camF, my).addScaledVector(right, mx); }
-    else if (P.target && !orbit) {
+    const fwd = camF.clone().projectOnPlane(up).normalize();
+    if (mx || my) { P.target = null; freeLook = false; move.addScaledVector(fwd, my).addScaledVector(right, mx); }
+    else if (P.target) {
       if (P.target.angleTo(up) * R < 0.6) P.target = null;
       else move.copy(P.target).projectOnPlane(up);
     }
     P.moving = move.lengthSq() > 1e-4;
     if (P.moving) {
-      const sp = Math.min(1, move.length()) * SPEED * (P.target ? 1.15 : 1);
+      // walk at ground level; up high you fly — faster the higher you are
+      const sp = Math.min(1, move.length()) * (7 + Math.min(dist, R * 1.2) * 0.55) * (P.target ? 1.15 : 1);
       move.normalize(); P.face.lerp(move, Math.min(1, dt * 10)).normalize();
-      moveOn(P.d, move, sp * dt);
-      // the camera swings round behind you when you walk sideways (gently)
-      if (!orbit && Math.abs(mx) > 0.2 && my >= 0) camF.lerp(P.face, dt * 0.8).normalize();
-      if (P.target && !orbit) camF.lerp(P.face, dt * 2.2).normalize();
+      if (P.target) { const left = P.target.angleTo(up) * R; moveOn(P.d, move, Math.min(left, sp * dt)); } else moveOn(P.d, move, sp * dt);
+      P.face.projectOnPlane(P.d).normalize();
+      if (hgh < 0.3 && Math.abs(mx) > 0.2 && my >= 0) camF.lerp(P.face, dt * 0.8).normalize();
+      if (P.target && hgh < 0.3) camF.lerp(P.face, dt * 2.2).normalize();
     }
-    if (jumpQueued && P.up <= 0.001 && !orbit) { P.vy = 9; jumpQueued = false; } else if (P.up > 0.001) jumpQueued = false;
+    if (jumpQueued && P.up <= 0.001 && hgh < 0.5) { P.vy = 9; jumpQueued = false; } else if (P.up > 0.001 || hgh >= 0.5) jumpQueued = false;
     P.vy -= G * dt; P.up = Math.max(0, P.up + P.vy * dt); if (P.up === 0) P.vy = 0;
+    // the look point follows you unless you've spun the globe away (and always once you're low)
+    if (!freeLook || hgh < 0.35 || P.moving) { freeLook = freeLook && hgh >= 0.35 && !P.moving; F.lerp(P.d, Math.min(1, dt * (hgh < 0.35 ? 30 : 4))).normalize(); }
+    // rebuild the detailed ground when you've wandered off its middle
+    if (dist < R * 0.9 && P.d.angleTo(patchC) * R > PATCH * 0.3) buildPatch(P.d);
+    const near = dist < R * 0.9;
+    patch.visible = near; nearLines.visible = near; for (const m of decor) m.visible = near && dist < 160;
+    patchU.uCos.value = near ? Math.cos((PATCH * 0.985) / R) : 2;
+    farLines.visible = hgh > 0.25; (farLines.material as THREE.LineBasicMaterial).opacity = 0.16 * Math.min(1, (hgh - 0.25) * 3);
+
     const ground = surf(P.d);
-    const bob = P.moving && P.up === 0 && !reduce ? Math.abs(Math.sin(t * 11)) * 0.12 : 0;
+    const bob = P.moving && P.up === 0 && !reduce && hgh < 0.3 ? Math.abs(Math.sin(t * 11)) * 0.12 : 0;
     me.position.copy(P.d).multiplyScalar(ground + P.up + bob);
-    // mirror the explorer to face the way you walk on screen
     if (P.moving) { const sx = P.face.dot(right); if (Math.abs(sx) > 0.15) { const m = me.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; } }
     stand(shadow, P.d, ground + 0.08); shadowMat.opacity = 0.28 * Math.max(0.25, 1 - P.up / 8);
+    // markers that stay readable from orbit
+    const dotSize = dist * 0.035;
+    youDot.visible = hgh > 0.2; youDot.scale.setScalar(dotSize * (1 + 0.15 * Math.sin(t * 5))); youDot.position.copy(P.d).multiplyScalar(ground + 1);
+    beacon.scale.setScalar(Math.max(4, dist * 0.03)); beaconMat.opacity = 0.35 + 0.5 * hgh;
 
-    // your Inkborn follows, a couple of steps behind
     if (buddy) {
       const want = P.d.clone(); moveOn(want, P.face.clone().negate(), 2.2);
       const gap = buddy.d.angleTo(want) * R;
-      if (gap > 0.4) { const dir = want.clone().projectOnPlane(buddy.d).normalize(); moveOn(buddy.d, dir, Math.min(gap, (gap > 6 ? 11 : 7.5) * dt)); buddy.st = 'walk'; buddy.dir = dir.dot(right) < 0 ? -1 : 1; }
+      if (gap > 30) buddy.d.copy(want);
+      else if (gap > 0.4) { const dir = want.clone().projectOnPlane(buddy.d).normalize(); moveOn(buddy.d, dir, Math.min(gap, Math.max(gap * dt * 4, 7.5 * dt))); buddy.st = 'walk'; buddy.dir = dir.dot(right) < 0 ? -1 : 1; }
       else if (buddy.st === 'walk') buddy.st = 'idle';
       buddy.hop = Math.max(0, buddy.hop - dt);
       const hopY = buddy.hop > 0 ? Math.sin((buddy.hop / 0.7) * Math.PI) * 1.4 : 0;
       buddy.s.position.copy(buddy.d).multiplyScalar(surf(buddy.d) + hopY);
-      if (((t * 30) | 0) % 2 === 0) {
+      buddy.s.visible = hgh < 0.5;
+      if (buddy.s.visible && ((t * 30) | 0) % 2 === 0) {
         const g = buddy.c.getContext('2d')!; g.clearRect(0, 0, 160, 160);
-        drawCreature(g, o.buddy!, 80, 150, 78, { t, state: buddy.hop > 0 ? 'happy' : buddy.st, dir: buddy.dir });
+        drawCreature(g, buddy.g, 80, 150, 78, { t, state: buddy.hop > 0 ? 'happy' : buddy.st, dir: buddy.dir });
         g.strokeStyle = 'rgba(200,230,255,0.8)'; g.lineWidth = 3; g.fillStyle = 'rgba(180,220,255,0.12)'; g.beginPath(); g.arc(80, 108, 54, 0, Math.PI * 2); g.fill(); g.stroke();
         g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(58, 80, 10, 5, -0.6, 0, Math.PI * 2); g.fill();
         buddy.tex.needsUpdate = true;
       }
     }
-    // the others in your live group glide to where they are
     for (const x of others.values()) {
       const gap = x.d.angleTo(x.to) * R;
-      if (gap > 40) x.d.copy(x.to);
+      if (gap > 60) x.d.copy(x.to);
       else if (gap > 0.01) moveOn(x.d, x.to.clone().projectOnPlane(x.d).normalize(), Math.min(gap, Math.max(gap * dt * 9, 7.5 * dt)));
       x.walk = gap > 0.15 ? x.walk + dt * 11 : 0;
       x.hop += (x.hopTo - x.hop) * Math.min(1, dt * 12);
       const gr = surf(x.d) + x.hop + (x.walk && x.hop < 0.05 ? Math.abs(Math.sin(x.walk)) * 0.12 : 0);
       x.s.position.copy(x.d).multiplyScalar(gr);
       x.lab.position.copy(x.d).multiplyScalar(gr + 2.1);
+      x.dot.visible = hgh > 0.2; x.dot.scale.setScalar(dotSize * 0.8); x.dot.position.copy(x.d).multiplyScalar(gr + 1);
       const sx = x.face.dot(right); if (Math.abs(sx) > 0.15) { const m = x.s.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; }
     }
-    // samples spin and glow; walk into them
     for (const s of samples) {
       if (s.got) continue;
       const y = surf(s.d) + 1.1 + (reduce ? 0 : Math.sin(t * 2.4 + s.d.x * 9) * 0.25);
@@ -531,63 +712,64 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         if (buddy) { buddy.hop = 0.7; buddy.st = 'happy'; }
       }
     }
-    // plot labels only show nearby (and in orbit, none)
-    for (const l of labels) l.s.visible = !orbit && l.d.angleTo(P.d) * R < 24;
-    // which plot am I on?
+    labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); }
+    for (const l of labelPool) if (l.s) l.s.visible = hgh < 0.35;
     const c = cellAt([P.d.x, P.d.y, P.d.z], rows);
     const k = c ? cellKey(c) : '';
-    if (k !== lastCell) { lastCell = k; if (!orbit) { highlight(c); o.onCell(c); } }
+    if (k !== lastCell) { lastCell = k; if (hgh < 0.3) { highlight(c); o.onCell(c); } }
+    if (hgh < 0.3 && picked) { picked = null; lastCell = '__'; }
     hiLine.opacity = 0.55 + 0.35 * Math.sin(t * 4);
+    const zinfo = `${level(dist).toFixed(2)}`;
+    if (zinfo !== lastZoomReport) { lastZoomReport = zinfo; o.onZoom({ level: level(dist), meters: Math.round(dist), mode: hgh < 0.3 ? 'walk' : hgh < 0.85 ? 'fly' : 'orbit' }); }
 
-    // camera
-    if (orbit) {
-      camPos.copy(oDir).multiplyScalar(oDist); camLook.set(0, 0, 0); camUp.copy(oUp);
-      skyU.space.value += (1 - skyU.space.value) * Math.min(1, dt * 3);
-      scene.fog = null; starMat.opacity += (0.95 - starMat.opacity) * Math.min(1, dt * 3);
-    } else {
-      const head = P.d.clone().multiplyScalar(ground + P.up * 0.6 + 1.3);
-      camPos.copy(head).addScaledVector(up, Math.sin(pitch) * dist).addScaledVector(camF, -Math.cos(pitch) * dist);
-      // never dip under the ground
-      const cd = camPos.clone().normalize(); const minR = surf(cd) + 0.8; if (camPos.length() < minR) camPos.copy(cd.multiplyScalar(minR));
-      camLook.copy(head).addScaledVector(camF, 4).addScaledVector(up, 0.4); camUp.copy(up);
-      skyU.space.value += (0 - skyU.space.value) * Math.min(1, dt * 3);
-      scene.fog = fog; starMat.opacity += ((w.dark ? 0.95 : 0.12) - starMat.opacity) * Math.min(1, dt * 3);
-    }
-    skyU.up.value.copy(up);
+    // camera: behind you on the ground, rising to straight above (and north-up) for the whole globe
+    const fUp = F;
+    const groundF = surf(F);
+    const pit = pitch + (Math.PI / 2 - 0.02 - pitch) * hgh;
+    const head = tv2.copy(F).multiplyScalar(groundF + (1.3 + P.up * 0.6) * (1 - hgh));
+    camPos.copy(head).addScaledVector(fUp, Math.sin(pit) * dist).addScaledVector(camF, -Math.cos(pit) * dist);
+    const cd = camPos.clone().normalize(); const minR = surf(cd) + 0.8; if (camPos.length() < minR) camPos.copy(cd.multiplyScalar(minR));
+    camLook.copy(head).addScaledVector(camF, 4 * (1 - hgh)).addScaledVector(fUp, 0.4 * (1 - hgh));
+    camUp.copy(fUp).lerp(camF, hgh).normalize();
+    skyU.space.value = Math.max(w.dark ? 1 : 0, hgh);
+    skyU.up.value.copy(fUp);
+    scene.fog = fog && hgh < 0.15 ? fog : null;
+    starMat.opacity = w.dark ? 0.95 : 0.12 + 0.83 * hgh;
+    if (atmMat) atmMat.uniforms.k.value = 0.35 + 0.65 * hgh;
+    camera.near = Math.max(0.08, dist * 0.01); camera.updateProjectionMatrix();
     if (intro < 1) {
       intro = Math.min(1, intro + dt / 2.8);
       const e = 1 - Math.pow(1 - intro, 3);
       camera.position.lerpVectors(introFrom, camPos, e);
       camera.up.copy(UP).lerp(camUp, e).normalize();
-      camera.lookAt(tv2.set(0, 0, 0).lerp(camLook, e));
-      scene.fog = e > 0.7 ? scene.fog : null;
+      camera.lookAt(new THREE.Vector3().lerp(camLook, e));
     } else {
-      const k2 = orbit ? Math.min(1, dt * 4) : Math.min(1, dt * 9);
-      camera.position.lerp(camPos, k2);
-      camera.up.lerp(camUp, k2).normalize();
-      camera.lookAt(camLook);
+      camera.position.copy(camPos); camera.up.copy(camUp); camera.lookAt(camLook);
     }
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(frame);
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, setOrbit, setLive: (l: Pilot[]) => setLive(l), remote: (...a: [string, number[], number[], number]) => remote(...a), walkTo: (c: Cell) => api.walkTo(c), cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows) };
-
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setLive, remote, setOrbit, zoom,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setLive, remote, zoom, setZoom, setBuddy,
+    findMe: () => { freeLook = false; },
     pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0 }),
-    teleport: (d) => { const v = vec(d); if (!v) return; const side = new THREE.Vector3().crossVectors(v, UP).normalize(); if (side.lengthSq() < 0.5) side.set(1, 0, 0); P.d.copy(v); moveOn(P.d, side, 2.2); P.target = null; if (buddy) buddy.d.copy(P.d); camF.copy(v).sub(P.d).projectOnPlane(P.d).normalize(); },
-    walkTo: (c) => { P.target = V(cellCenterDir(c, rows)); setOrbit(false); },
+    place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },
+    teleport: (d) => { const v = vec(d); if (!v) return; const side = new THREE.Vector3().crossVectors(v, UP).normalize(); if (side.lengthSq() < 0.5) side.set(1, 0, 0); P.d.copy(v); moveOn(P.d, side, 2.2); F.copy(P.d); P.target = null; if (buddy) buddy.d.copy(P.d); camF.copy(v).sub(P.d).projectOnPlane(P.d).normalize(); buildPatch(P.d); },
+    walkTo: (c) => { P.target = V(cellCenterDir(c, rows)); freeLook = false; },
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('blur', blur);
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); o.canvas.removeEventListener('pointerup', pu);
-      o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel);
-      clearPlots(); highlight(null);
-      scene.traverse((x) => { if (x instanceof THREE.Sprite) { x.material.map?.dispose(); x.material.dispose(); } });
-      buddy?.tex.dispose();
+      o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel); o.canvas.removeEventListener('webglcontextlost', lost);
+      clearPlots(); highlight(null); setBuddy(null);
+      for (const id of [...others.keys()]) dropOther(id);
+      for (const l of labelPool) if (l.s) disposeSprite(l.s);
+      disposeSprite(me);
+      decor.forEach((m) => m.dispose());
       for (const d of disposables) d.dispose();
       renderer.dispose();
     },
   };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

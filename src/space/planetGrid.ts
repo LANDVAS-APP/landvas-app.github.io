@@ -44,4 +44,4 @@ export function cellLabel(c: Cell, rows: number) {
   return `${lat >= 0 ? 'N' : 'S'}${Math.abs(lat)}° · ${lon >= 0 ? 'E' : 'W'}${Math.abs(lon)}°`;
 }
 /** Globe radius for a map with this many rows — plots stay about the same size on every world. */
-export const radiusFor = (rows: number) => rows * 1.9;
+export const radiusFor = (rows: number) => rows * 4;
