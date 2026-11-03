@@ -10,7 +10,7 @@ import { GRID_SIZE, lngLatToCell } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
 import { config } from '../env';
 
-export type GpsStatus = 'off' | 'asking' | 'on' | 'denied' | 'unavailable';
+export type GpsStatus = 'off' | 'asking' | 'on' | 'paused' | 'denied' | 'unavailable';
 
 type Store = {
   state: ExplorerState | null;
@@ -109,6 +109,9 @@ export function enableGps(onFirstFix?: (lng: number, lat: number) => void) {
 
 let watchId: number | null = null;
 let lastReport = { at: 0, lng: 0, lat: 0 };
+let lastFix = 0;
+let wanted = false; // the player wants GPS on (it may be paused or restarting)
+let resumeHooked = false;
 let inflight = false;
 let warned = false;
 
@@ -123,14 +126,18 @@ export function startGps(opts: { onFirstFix?: (lng: number, lat: number) => void
     return;
   }
   if (watchId !== null) return;
+  wanted = true;
+  hookResume();
   st.setGps('asking');
   let first = true;
   watchId = navigator.geolocation.watchPosition(
     async (pos) => {
       const { longitude: lng, latitude: lat, accuracy } = pos.coords;
       useExplorer.getState().setGps('on');
+      lastFix = Date.now();
+      // plots are ~7-9 m: report every few metres so the explorer keeps up with you
       const moved = haversine(lastReport, { lng, lat });
-      const due = Date.now() - lastReport.at > 30_000 || moved > 25;
+      const due = Date.now() - lastReport.at > 12_000 || moved > Math.max(4, Math.min(20, accuracy * 0.5));
       if (first) opts.onFirstFix?.(lng, lat);
       first = false;
       if (!due || inflight || accuracy > 3000) return;
@@ -155,14 +162,51 @@ export function startGps(opts: { onFirstFix?: (lng: number, lat: number) => void
       if (err.code === err.PERMISSION_DENIED) {
         stopGps();
         useExplorer.getState().setGps('denied');
+      } else if (Date.now() - lastFix > 60_000) {
+        // no fix for a while (tunnel, indoors, a phone that dropped the watch): start it again
+        restartGps();
       }
     },
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 },
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 30000 },
   );
 }
 
-export function stopGps() {
+function restartGps() {
+  if (!wanted) return;
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
-  if (useExplorer.getState().gps === 'on' || useExplorer.getState().gps === 'asking') useExplorer.getState().setGps('off');
+  startGps();
+}
+
+/** Phones (and installed web apps) stop location updates in the background and don't
+ *  always restart them: start a fresh watch whenever the game comes back to the front. */
+function hookResume() {
+  if (resumeHooked || typeof document === 'undefined') return;
+  resumeHooked = true;
+  const back = () => { if (!document.hidden && wanted && useExplorer.getState().gps !== 'paused') { lastReport.at = 0; restartGps(); } };
+  document.addEventListener('visibilitychange', back);
+  window.addEventListener('pageshow', back);
+  window.addEventListener('focus', () => { if (wanted && Date.now() - lastFix > 20_000) back(); });
+}
+
+/** Turn GPS off (the player chose to). */
+export function stopGps() {
+  wanted = false;
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  if (useExplorer.getState().gps !== 'denied' && useExplorer.getState().gps !== 'unavailable') useExplorer.getState().setGps('off');
+}
+
+/** Hold GPS while the joystick steers (GPS would pull the explorer straight back). */
+export function pauseGps() {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  if (wanted) useExplorer.getState().setGps('paused');
+}
+/** Pick GPS up again after the joystick closes. */
+export function resumeGps() {
+  if (useExplorer.getState().gps !== 'paused') return;
+  lastReport.at = 0;
+  wanted = true;
+  startGps();
 }

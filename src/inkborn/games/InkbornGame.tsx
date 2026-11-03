@@ -22,7 +22,13 @@ import { ENGINES, GAMES, type Engine, type GameId, type GameInput } from './engi
 type Phase = { k: 'intro' } | { k: 'count'; n: number; session: string; seed: number; seconds: number } | { k: 'play'; session: string; seed: number; seconds: number }
   | { k: 'done'; session: string; score: number; earned: number; paid: number; capped: boolean; best: number | null; doubled?: boolean };
 
-export default function InkbornGame() {
+/** A fresh round screen for each game and creature (switching must not carry a round across). */
+export default function InkbornGameRoute() {
+  const { game, id } = useParams();
+  return <InkbornGame key={`${game}:${id}`} />;
+}
+
+function InkbornGame() {
   const { game, id } = useParams();
   const g = (game && game in GAMES ? game : 'berrydash') as GameId;
   const info = GAMES[g];

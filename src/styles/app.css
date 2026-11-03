@@ -960,3 +960,42 @@ html.native *::-webkit-scrollbar { display: none; }
 html.native button:active:not(:disabled), html.native [role=tab]:active { transform: scale(0.96); transition: transform 0.06s; }
 html.native .lv-screen { animation: lv-screen-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 html.native.reduce-motion .lv-screen { animation: none; }
+
+/* space: a rocket gently bobbing in flight */
+@keyframes lv-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* space is always dark, whatever the theme */
+.lv-space {
+  --bg: #070b1c;
+  --bg-2: #0b1230;
+  --surface: #10183a;
+  --surface-2: #172253;
+  --line: rgba(160, 180, 255, 0.14);
+  --line-strong: rgba(170, 190, 255, 0.3);
+  --fg: #eef1ff;
+  --muted: #a1abd6;
+  --faint: #6d77a8;
+  --accent: #8b6bff;
+  --accent-2: #22e3ff;
+  --hot: #ff4d6d;
+  --gold: #ffc93d;
+  --ok: #3ddc97;
+  --warn: #ffb23f;
+  --bad: #ff5a6e;
+  --glass: rgba(12, 18, 46, 0.8);
+  --glass-solid: rgba(12, 18, 46, 0.93);
+  --scrim: rgba(3, 6, 18, 0.62);
+  --map-ocean: #0b0820;
+  --map-land: #241a4d;
+  --map-border: rgba(236, 226, 255, 0.4);
+  --map-coast: #b8a6ff;
+  --map-grat: rgba(199, 184, 255, 0.07);
+  --shadow: 0 22px 60px -24px rgba(0, 0, 0, 0.75);
+  --rainbow: linear-gradient(90deg, #ff4d6d, #ff9f1c, #ffe14d, #3ddc97, #34c3ff, #7b5cff, #ff4fd8);
+  color-scheme: dark;
+  color: var(--fg);
+  background: radial-gradient(120% 70% at 50% 0%, #1d1648 0%, #070b1c 55%, #04050d 100%);
+}

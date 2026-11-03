@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -23,6 +23,9 @@ export const SECTIONS = [
   ] },
   { to: '/inkborn', label: 'Inkborn', icon: PawPrint, pages: [
     { to: '/inkborn', label: 'My creatures' }, { to: '/inkborn/create', label: 'Create an Inkborn' }, { to: '/habitat', label: 'Sanctuary' },
+  ] },
+  { to: '/space', label: 'Space', icon: Rocket, pages: [
+    { to: '/space', label: 'Mission control' }, { to: '/space/play/asteroids', label: 'Asteroid Run' }, { to: '/space/play/lander', label: 'Moon Lander' },
   ] },
   { to: '/play', label: 'Play & Earn', icon: Gamepad2, pages: [
     { to: '/play', label: 'Play & Earn' }, { to: '/pvp', label: 'PvP' }, { to: '/doodle', label: 'Draw & Guess' }, { to: '/events', label: 'Events' }, { to: '/leaderboards', label: 'Ranks' },

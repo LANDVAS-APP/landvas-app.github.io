@@ -55,6 +55,9 @@ const InkbornHub = lazy(() => import('../inkborn/Hub'));
 const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
+const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
+const SpaceSurface = lazy(() => import('../space/Surface'));
+const SpaceGame = lazy(() => import('../space/SpaceGame'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -145,6 +148,8 @@ const routes: RouteObject[] = [
       { path: '/habitat', element: player(<Sanctuary />) },
       { path: '/inkborn/play/:game/:id', element: player(<InkbornGame />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
+      { path: '/space/surface', element: player(<SpaceSurface />) },
+      { path: '/space/play/:game', element: player(<SpaceGame />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
       { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },
       {
@@ -175,6 +180,7 @@ const routes: RouteObject[] = [
           { path: '/sketch/:id', element: p(<SketchScreen />) },
           { path: '/doodle', element: player(<DoodleScreen />) },
           { path: '/duet', element: player(<DuetScreen />) },
+          { path: '/space', element: player(<SpaceScreen />) },
           { path: '/inkborn', element: player(<InkbornHub />) },
           { path: '/inkborn/create', element: player(<InkbornStudio />) },
           { path: '/inkborn/edit/:id', element: player(<InkbornStudio />) },

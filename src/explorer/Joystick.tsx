@@ -21,7 +21,7 @@ import { cn, safeStorage } from '../lib/utils';
 import { qk, useWorld } from '../lib/queries';
 import { plotMetres } from '../shared/grid';
 import { buzz } from '../native/native';
-import { explorerNow, gpsSupported, startGps, stopGps, useExplorer } from './explorer';
+import { explorerNow, gpsSupported, pauseGps, resumeGps, useExplorer } from './explorer';
 import { saveStorage } from '../lib/utils';
 import { AdButton } from '../ads/AdButton';
 import { adsSupported } from '../ads/ads';
@@ -131,7 +131,8 @@ export function Joystick({ onClose }: { onClose(): void }) {
   const [secs, setSecs] = useState(Number(joy?.seconds_left ?? tank));
   const [knob, setKnob] = useState({ x: 0, y: 0, active: false });
   const [dir, setDir] = useState<{ x: number; y: number } | null>(null); // the D-pad arrow being pressed
-  const [gpsWasOn] = useState(() => ex.gps === 'on' || ex.gps === 'asking');
+  const [gpsWasOn] = useState(() => ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused');
+  const back = useRef(true); // resume GPS when the joystick closes (unless the player stays manual)
   const vec = useRef({ x: 0, y: 0, active: false });
   // a tap on the D-pad (or a quick key press) walks one plot: how far is left of that step
   const stepRef = useRef<{ x: number; y: number; left: number } | null>(null);
@@ -150,12 +151,11 @@ export function Joystick({ onClose }: { onClose(): void }) {
     }
   }, [joy?.seconds_left]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // GPS would pull the explorer straight back, so it pauses while you steer
+  // GPS would pull the explorer straight back, so it pauses while you steer and picks up again after
   useEffect(() => {
-    if (gpsWasOn) {
-      stopGps();
-      toast('GPS paused while you use the joystick', { description: 'Tap “Back to GPS” to return to where you really are.' });
-    }
+    if (!gpsWasOn) return;
+    pauseGps();
+    return () => { if (back.current) resumeGps(); };
   }, [gpsWasOn]);
 
   async function send(force = false) {
@@ -309,7 +309,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
         }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>
       )}
       {gpsWasOn && gpsSupported() && (
-        <button className={cn(btn, 'text-ok')} onClick={() => { saveStorage('landvas.gps', true); startGps(); onClose(); }}><Satellite className="h-3.5 w-3.5" /> Back to GPS</button>
+        <button className={cn(btn, 'text-ok')} onClick={() => { saveStorage('landvas.gps', true); onClose(); }} data-testid="back-to-gps"><Satellite className="h-3.5 w-3.5" /> Back to GPS</button>
       )}
     </>
   );
@@ -318,6 +318,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       <div className="eyebrow !text-[10px]">Joystick tank</div>
       <div className={cn('font-display text-2xl font-semibold tnum', empty && 'text-bad')} data-testid="joystick-tank">{fmtTank(secs)}</div>
       <div className="text-[11px] text-muted">{Math.round(speed * 3.6)} km/h · tap = 1 plot</div>
+      {gpsWasOn && <div className="text-[10.5px] font-semibold text-ok" data-testid="gps-paused-note">GPS is fine — paused while you steer</div>}
     </div>
   );
   const switcher = (

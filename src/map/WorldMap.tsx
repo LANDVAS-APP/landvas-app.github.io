@@ -105,8 +105,13 @@ export function WorldMap() {
       mapRef.current = m;
       mapHandle.current = m;
       if (config.e2e || import.meta.env.DEV) (window as any).__landvasMap = m;
-      m.on('load', () => {
-        if (!map) return;
+      // Set up as soon as the style is ready — not on 'load', which waits for every first
+      // basemap tile: on a slow phone connection that left the explorer missing until a zoom
+      // happened to finish the download.
+      let setUp = false;
+      const onReady = () => {
+        if (!map || setUp || !(map as any).style?._loaded) return; // the style itself (isStyleLoaded() would wait for tiles too)
+        setUp = true;
         // a fly-to requested before this map existed (e.g. "View on map" from the editor)
         const pending = useUi.getState().flyTo;
         if (pending && Date.now() - pending.at < 15000) map.jumpTo({ center: [pending.lng, pending.lat], zoom: pending.zoom });
@@ -117,7 +122,10 @@ export function WorldMap() {
         applyMode(map, modeRef.current, onlineRef.current);
         setReady(true);
         refresh();
-      });
+      };
+      m.on('style.load', onReady);
+      m.on('styledata', onReady);
+      m.on('load', onReady);
       m.on('moveend', () => {
         if (!map) return;
         const c = map.getCenter();
@@ -309,7 +317,7 @@ export function WorldMap() {
     let lastFollow = 0;
     let lastPaint = 0;
     const el = explorerElement(me?.profile.explorer_style, accent);
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] });
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6], opacity: '1', opacityWhenCovered: '1' });
     explorerMarker.current = marker;
     let added = false;
     let prev: { lng: number; lat: number } | null = null;

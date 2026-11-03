@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Rocket, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -119,7 +120,21 @@ function useExplorerSync() {
   useEffect(() => {
     // while you steer, the joystick's own (server-checked) steps are newer than this snapshot
     if (me && !recentlyDriven()) set(me.explorer);
-  }, [me?.explorer, set]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [me?.explorer, set]);
+  // opening the map: go to your explorer and follow it (it used to stay wherever the map last was)
+  const centred = useRef(false);
+  const hasExplorer = !!me?.explorer;
+  useEffect(() => {
+    if (!hasExplorer || centred.current) return;
+    centred.current = true;
+    const ui = useUi.getState();
+    if (ui.flyTo && Date.now() - ui.flyTo.at < 15000) return; // something else asked to show a place
+    const st = useExplorer.getState();
+    const p = explorerNow(st.state, st.offset);
+    if (!p) return;
+    ui.requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(ui.view.zoom, Z_STREET + 0.5) });
+    st.setFollowing(true);
+  }, [hasExplorer]); // eslint-disable-line react-hooks/exhaustive-deps
   const wantGps = !!me && safeStorage('landvas.gps', false);
   useEffect(() => {
     if (wantGps) startGps();
@@ -133,13 +148,22 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const updateSettings = useUi((s) => s.updateSettings);
   const joy = ex.state?.joystick;
   const has = !!ex.state;
-  const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
+  const space = useSpace();
+  const flight = useFlight(space.data);
+  const nav = useNavigate();
+  const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', paused: 'GPS paused', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
   return (
     <div className="absolute bottom-[calc(150px+env(safe-area-inset-bottom,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-end gap-2 md:bottom-20">
+      {/* space: your rocket, and the trip under way */}
+      <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', flight.flying ? 'text-accent-2 ring-2 ring-accent-2/60' : 'text-fg')}
+        onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">
+        <Rocket className={cn('h-4 w-4', flight.flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} />
+        <span className="tnum">{!space.data?.built ? 'Space' : flight.flying ? `${placeName(space.data, space.data.dest)} · ${fmtLeft(flight.left)}` : space.data.location !== 'earth' ? placeName(space.data, space.data.location) : 'Space'}</span>
+      </button>
       <button
-        className={cn('glass flex h-11 items-center gap-2 rounded-2xl px-3 text-xs font-bold', ex.gps === 'on' ? 'text-ok' : ex.gps === 'denied' || ex.gps === 'unavailable' ? 'text-faint' : 'text-fg')}
+        className={cn('glass flex h-11 items-center gap-2 rounded-2xl px-3 text-xs font-bold', ex.gps === 'on' || ex.gps === 'paused' ? 'text-ok' : ex.gps === 'denied' || ex.gps === 'unavailable' ? 'text-faint' : 'text-fg')}
         onClick={() => {
-          if (ex.gps === 'on' || ex.gps === 'asking') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
+          if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
           enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
         }}
         title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
