@@ -1059,3 +1059,6 @@ button, a, [role="button"] { touch-action: manipulation; }
 
 /* dive into a plot from the map */
 .lv-portal { position: fixed; inset: 0; z-index: 90; pointer-events: none; background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0) 0, rgba(255,255,255,0) var(--r, 0px), #0b0f26 calc(var(--r, 0px) + 1px)); }
+
+/* off on another world: your explorer is not on Earth */
+.lv-away .lv-explorer { display: none !important; }

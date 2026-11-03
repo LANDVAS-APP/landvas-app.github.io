@@ -18,7 +18,7 @@ import { worldOf } from './worlds';
 
 type Phase = { k: 'intro' } | { k: 'count'; n: number; session: string; seed: number; seconds: number; rewarded: boolean; left: number }
   | { k: 'play'; session: string; seed: number; seconds: number }
-  | { k: 'done'; score: number; paid: number; capped: boolean; rewarded: boolean; best: number | null };
+  | { k: 'done'; score: number; paid: number; capped: boolean; rewarded: boolean; best: number | null; mult: number };
 
 export default function PlanetGameRoute() {
   const p = useParams();
@@ -57,10 +57,10 @@ function PlanetGame() {
       const r = await api.planetGameFinish(session, score);
       invalidateGame(qc);
       if (r.paid > 0) confettiCannons();
-      setPhase({ k: 'done', score: r.score, paid: r.paid, capped: r.capped, rewarded: r.rewarded, best: r.best });
+      setPhase({ k: 'done', score: r.score, paid: r.paid, capped: r.capped, rewarded: r.rewarded, best: r.best, mult: r.mult ?? 1 });
     } catch (e) {
       toast.error(toGameError(e).message);
-      setPhase({ k: 'done', score, paid: 0, capped: false, rewarded: false, best: null });
+      setPhase({ k: 'done', score, paid: 0, capped: false, rewarded: false, best: null, mult: 1 });
     }
   };
 
@@ -78,6 +78,7 @@ function PlanetGame() {
               <h1 className="font-display text-3xl font-bold">{info.name}</h1>
               <p className="text-white/80">{info.blurb}</p>
               <p className="rounded-2xl bg-white/10 p-3 text-sm text-white/80">{info.how}</p>
+              {info.bonus && <p className="rounded-full bg-[#B69CFF]/25 px-3 py-1 text-xs font-bold text-[#D9CCFF]">✨ Bonus game — unlocked by your rare plot</p>}
               <p className="text-[11px] text-white/60">The first 3 rounds a day on each of your plots pay Ink.{left != null ? ` ${left} paid round${left === 1 ? '' : 's'} left here today.` : ''}</p>
               <Button variant="rainbow" size="lg" loading={busy} onClick={start} data-testid="planet-game-start"><Play className="h-5 w-5" /> Play</Button>
             </motion.div>
@@ -89,7 +90,7 @@ function PlanetGame() {
               <div className="text-sm uppercase tracking-widest text-white/60">Score</div>
               <div className="font-display text-6xl font-black">{phase.score}</div>
               {phase.best != null && <div className="text-xs text-white/60">Best: {phase.best}</div>}
-              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-lg font-bold"><ResourceIcon r="ink" className="h-5 w-5" /> +{phase.paid} Ink</div>
+              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-lg font-bold"><ResourceIcon r="ink" className="h-5 w-5" /> +{phase.paid} Ink{phase.mult > 1 && <span className="ml-1 rounded-full bg-[#FFB13D]/25 px-2 py-0.5 text-xs text-[#FFD27A]">×{phase.mult} cosmic rarity</span>}</div>
               {!phase.rewarded && <p className="text-xs text-white/70">That was a just-for-fun round — this plot’s paid rounds are used up for today.</p>}
               {phase.capped && <p className="text-xs text-white/70">You’ve hit today’s planet Ink limit — it resets this evening.</p>}
               <div className="flex gap-2">

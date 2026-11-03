@@ -445,9 +445,10 @@ export type SpaceState = {
   fuel_spent?: number; paid?: number; first_bonus?: number; capped?: boolean;
 };
 
-export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; owner: { username: string; accent: string | null } };
+export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
+export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null } };
 export type PlanetMap = {
-  world: string; rows: number; cols: number; games: string[]; price: number; landed: boolean;
+  world: string; rows: number; cols: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
 };
 export type LiveMember = Profile & { explorer_style?: unknown; d: number[]; face: number[]; hop: number };
@@ -455,3 +456,5 @@ export type PlanetLive = {
   world: string; shard: number; joined: boolean; spawn: { d: number[]; player: string } | null; group_size: number;
   channel: string; members: LiveMember[]; on_world: number;
 };
+export type Meteor = { i: number; d: number[]; golden: boolean; taken: boolean; mine: boolean; by: string | null };
+export type MeteorShower = { win: number; started_at: string; ends_at: string; reach_m: number; meteors: Meteor[] };

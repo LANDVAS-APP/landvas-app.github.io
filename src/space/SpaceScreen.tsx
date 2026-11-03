@@ -446,11 +446,11 @@ function PlanetPlotsCard({ s }: { s: SpaceState }) {
       <div className="grid max-h-72 gap-1.5 overflow-y-auto">
         {plots.map((p) => {
           const w = worldOf(p.world, s.home_seed, s.home_name);
-          const games = PLANET_GAMES_BY_WORLD[worldKey(p.world)] ?? [];
+          const games = p.games ?? PLANET_GAMES_BY_WORLD[worldKey(p.world)] ?? [];
           return (
             <div key={`${p.world}:${p.gx}:${p.gy}`} className="flex items-center gap-2 rounded-2xl bg-surface-2/70 p-2">
               <PlanetBall w={w} size={30} />
-              <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{p.name || 'Plot'}</div><div className="truncate text-[11px] text-muted">{w?.name ?? p.world}</div></div>
+              <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold">{p.name || 'Plot'}</div><div className="truncate text-[11px] text-muted">{w?.name ?? p.world} · <span className="capitalize">{p.rarity}</span></div></div>
               {games.map((g) => (
                 <button key={g} onClick={() => nav(`/space/planet/${encodeURIComponent(p.world)}/${p.gx}/${p.gy}/${g}`)} className="rounded-xl bg-surface-3/80 px-2 py-1 text-lg hover:bg-surface-3" title={PLANET_GAMES[g]?.name} aria-label={`Play ${PLANET_GAMES[g]?.name}`}>{PLANET_GAMES[g]?.emoji}</button>
               ))}
@@ -461,7 +461,7 @@ function PlanetPlotsCard({ s }: { s: SpaceState }) {
     </div>
   );
 }
-const PLANET_GAMES_BY_WORLD: Record<string, string[]> = Object.entries(PLANET_GAMES).reduce((m, [id, g]) => { (m[g.world] ??= []).push(id); return m; }, {} as Record<string, string[]>);
+const PLANET_GAMES_BY_WORLD: Record<string, string[]> = Object.entries(PLANET_GAMES).filter(([, g]) => !g.bonus).reduce((m, [id, g]) => { (m[g.world] ??= []).push(id); return m; }, {} as Record<string, string[]>);
 
 // ---- the logbook: worlds visited ------------------------------------------------------------
 function Logbook({ s }: { s: SpaceState }) {

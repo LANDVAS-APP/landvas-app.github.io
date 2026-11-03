@@ -19,13 +19,16 @@ describe('planet grid', () => {
 describe('planet games', () => {
   it('every world has exactly two games and every game runs', () => {
     const per: Record<string, number> = {};
-    for (const g of Object.values(PLANET_GAMES)) per[g.world] = (per[g.world] ?? 0) + 1;
+    const bonus: Record<string, number> = {};
+    for (const g of Object.values(PLANET_GAMES)) if (g.bonus) bonus[g.world] = (bonus[g.world] ?? 0) + 1; else per[g.world] = (per[g.world] ?? 0) + 1;
     expect(Object.values(per).every((n) => n === 2)).toBe(true);
+    expect(Object.values(bonus).every((n) => n === 1)).toBe(true);
+    expect(Object.keys(bonus)).toHaveLength(10);
     expect(Object.keys(per)).toHaveLength(10);
     for (const id of Object.keys(PLANET_GAMES)) {
       const input: GameInput = { joy: { x: 0, y: 0 }, keys: new Set(), tap: null, target: null };
       const e = makePlanetEngine(id, '#8B5CFF', 42)(7, 400, 700, input);
-      for (let i = 0; i < 600; i++) { if (i % 20 === 0) input.tap = { x: 200, y: 350 }; e.step(1 / 30, i / 30); }
+      for (let i = 0; i < 600; i++) { if (i % 20 === 0) input.tap = { x: 60 + (i * 7) % 280, y: 300 + (i * 13) % 350 }; input.target = i % 40 < 15 ? { x: 150, y: 700 } : null; e.step(1 / 30, i / 30); }
       expect(Number.isFinite(e.score())).toBe(true);
       expect(e.score()).toBeGreaterThanOrEqual(0);
     }

@@ -53,7 +53,7 @@ const seedOf = (loc: string) => (loc.startsWith('exo:') ? Number(loc.slice(4)) :
 const distance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` : `${Math.round(m)} m`);
 
 /** The planet itself. `embedded` = the World tab (game HUD, starts high over the globe). */
-export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World; embedded?: boolean }) {
+export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceState; w: World; embedded?: boolean; onPeekEarth?(): void }) {
   const me = useOnboardedMe();
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -98,7 +98,7 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
   const rows = map.data?.rows;
   const canBuild = canPlots ? rows != null || map.isError : true;
   const builtRows = rows ?? 16;
-  const latest = useRef({ taken, collect }); latest.current = { taken, collect };
+  const latest = useRef({ taken, collect, grab: (_i: number) => {} }); latest.current = { taken, collect, grab: (i: number) => void grab(i) };
   useEffect(() => {
     if (!canBuild || !cv.current) return;
     const introKey = `landvas.planet.intro.${world}`;
@@ -112,6 +112,7 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
         isHome, samples: latest.current.taken ? 0 : SAMPLES, reduceMotion: reduce, startHigh: embedded, intro,
         onCell: setCell, onPick: setCell, onZoom: setZoomInfo, onLost: () => setLost(true),
         onSample: (n) => { setGot(n); if (n === SAMPLES) void latest.current.collect(); },
+        onMeteor: (i) => latest.current.grab(i),
       });
     } catch (e) {
       console.error(e);
@@ -125,7 +126,35 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
   }, [canBuild]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (ready) scene.current?.setBuddy(buddyGenome); }, [ready, buddyGenome]);
-  useEffect(() => { if (ready && map.data) scene.current?.setPlots(map.data.plots); }, [ready, map.data]);
+  const rarityOf = useMemo(() => Object.fromEntries((map.data?.rarities ?? []).map((r, i) => [r.id, { ...r, rank: i }])), [map.data?.rarities]);
+  useEffect(() => { if (ready && map.data) scene.current?.setPlots(map.data.plots, rarityOf); }, [ready, map.data, rarityOf]);
+
+  // meteor showers: everyone on the world sees the same ones; first to reach one gets it
+  const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: 4000 });
+  useEffect(() => { if (ready && shower.data) scene.current?.setMeteors(String(shower.data.win), shower.data.meteors); }, [ready, shower.data]);
+  const grabbing = useRef(new Set<number>());
+  const grab = async (i: number) => {
+    if (grabbing.current.has(i)) return;
+    grabbing.current.add(i);
+    try {
+      const r = await api.planetMeteorGrab(world, i, scene.current?.pose().d ?? null);
+      const m = shower.data?.meteors.find((x) => x.i === i);
+      if (m) scene.current?.burst(m.d, r.golden ? '#FFE36B' : '#FF9A5C');
+      invalidateGame(qc);
+      toast.success(r.golden ? `Golden meteorite! +${r.paid} Ink 🌟` : `Meteorite! +${r.paid} Ink ☄️`, { description: r.capped ? 'You’ve hit today’s planet Ink limit.' : undefined, duration: 2200 });
+    } catch (e) {
+      const err = toGameError(e);
+      if (err.code !== 'too_far') toast(err.message, { duration: 1800 });
+    } finally {
+      grabbing.current.delete(i);
+      void shower.refetch();
+    }
+  };
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const metLeft = shower.data?.meteors.filter((m) => !m.taken).length ?? 0;
+  const nextIn = shower.data ? Math.max(0, (new Date(shower.data.ends_at).getTime() - clock) / 1000) : 0;
+  const [reveal, setReveal] = useState<{ rarity: string; games: string[] } | null>(null);
 
   // walk together with your live group (the same group from the World tab or full screen)
   const live = usePlanetLive({
@@ -156,8 +185,7 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
       qc.setQueryData(planetKey(world), r);
       invalidateGame(qc);
       void qc.invalidateQueries({ queryKey: ['planet-mine'] });
-      confettiCannons();
-      toast.success(`Plot claimed on ${w.name}! 🚩`, { description: `-${r.paid} Ink · its two games are ready to play.` });
+      setReveal({ rarity: r.rarity, games: r.games_unlocked });
     } catch (e) { toast.error(toGameError(e).message); void map.refetch(); } finally { setBusy(false); }
   };
   const rename = async () => {
@@ -210,9 +238,10 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
           {embedded && (
             <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/55 px-3 py-1.5 backdrop-blur" data-testid="planet-banner">
               <span className="text-lg">🪐</span>
-              <div className="leading-tight"><div className="font-display text-sm font-bold">{w.name}{isHome ? ' · home' : ''}</div><div className="text-[10.5px] text-white/65">Your rocket is parked here</div></div>
+              <div className="leading-tight"><div className="font-display text-sm font-bold">{w.name}{isHome ? ' · home' : ''}</div><div className="whitespace-nowrap text-[10.5px] text-white/65">Rocket parked here</div></div>
               <button className="ml-1 rounded-xl bg-white/10 p-2 hover:bg-white/20" onClick={() => nav('/space')} aria-label="Mission control" data-testid="space-button"><RocketIcon className="h-4 w-4" /></button>
-              <button className="rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={flyHome} data-testid="fly-home">🌍 Fly home</button>
+              {onPeekEarth && <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={onPeekEarth} title="Look at Earth's map (you stay here)" data-testid="peek-earth">🌍 Earth</button>}
+              <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={flyHome} title="Fly home to Earth" data-testid="fly-home">🚀 Home</button>
             </div>
           )}
           <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="planet-scale">
@@ -222,6 +251,11 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
             <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#4FD18B]" /><Users className="h-3 w-3" />
               {live.with ? `${live.with + 1}/${live.size} exploring together` : 'Just you here right now'}{live.onWorld > live.with + 1 ? ` · ${live.onWorld} on ${w.name.replace('The ', 'the ')}` : ''}
+            </span>
+          )}
+          {shower.data && (
+            <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', metLeft ? 'bg-[#FF7A3D]/70' : 'bg-black/50')} data-testid="meteor-chip">
+              ☄️ {metLeft ? `Meteor shower by the landing site · ${metLeft} left` : 'Shower’s over'} · next {Math.floor(nextIn / 60)}:{String(Math.floor(nextIn % 60)).padStart(2, '0')}
             </span>
           )}
           {canPlots && map.data && (
@@ -262,7 +296,7 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
       {/* the plot under you (or the one you tapped from above) */}
       <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center px-3', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+140px)] md:bottom-[150px]' : 'bottom-[calc(max(16px,env(safe-area-inset-bottom,0px))+140px)] sm:bottom-[max(16px,env(safe-area-inset-bottom,0px))]')}>
         {ready && canPlots && map.data && (
-          <PlotCard map={map.data} cell={cell} plot={here} high={high} busy={busy} rows={builtRows}
+          <PlotCard map={map.data} cell={cell} plot={here} high={high} busy={busy} rows={builtRows} rarityOf={rarityOf}
             onClaim={claim} onWalk={() => cell && scene.current?.walkTo(cell)}
             onRename={() => { setName(here?.name ?? ''); setRenameOpen(true); }}
             onPlay={(g) => cell && nav(`/space/planet/${encodeURIComponent(world)}/${cell.gx}/${cell.gy}/${g}`)} />
@@ -299,6 +333,7 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
           {!map.data?.plots.length && <p className="text-sm text-muted">No one has claimed a plot here yet — be the first!</p>}
         </div>
       </Dialog>
+      <AnimatePresence>{reveal && map.data && <RarityReveal r={rarityOf[reveal.rarity]} games={reveal.games} bonus={map.data.bonus_game} world={w} onClose={() => setReveal(null)} />}</AnimatePresence>
       <Dialog open={renameOpen} onOpenChange={setRenameOpen} title="Name your plot" description="Everyone exploring this world sees it on your flag.">
         <div className="grid gap-3">
           <input className={inputCls} value={name} maxLength={32} onChange={(e) => setName(e.target.value)} placeholder="Crater Cove" data-testid="planet-plot-name" />
@@ -315,8 +350,13 @@ export function PlanetView({ s, w, embedded = false }: { s: SpaceState; w: World
   );
 }
 
-function PlotCard({ map, cell, plot, high, busy, rows, onClaim, onWalk, onRename, onPlay }: {
-  map: PlanetMap; cell: Cell | null; plot: PlanetPlot | null; high: boolean; busy: boolean; rows: number;
+type RarityInfo = { id: string; name: string; color: string; mult: number; rank: number };
+function RarityBadge({ r }: { r: RarityInfo | undefined }) {
+  if (!r) return null;
+  return <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${r.color}33`, color: r.color, boxShadow: `inset 0 0 0 1px ${r.color}88` }} data-testid="cosmic-rarity">{r.name}{r.mult > 1 ? ` ×${r.mult}` : ''}</span>;
+}
+function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk, onRename, onPlay }: {
+  map: PlanetMap; cell: Cell | null; plot: PlanetPlot | null; high: boolean; busy: boolean; rows: number; rarityOf: Record<string, RarityInfo>;
   onClaim(): void; onWalk(): void; onRename(): void; onPlay(game: string): void;
 }) {
   const card = 'pointer-events-auto w-full max-w-sm rounded-2xl border border-white/10 bg-black/65 p-3 text-white shadow-xl backdrop-blur';
@@ -328,16 +368,19 @@ function PlotCard({ map, cell, plot, high, busy, rows, onClaim, onWalk, onRename
       <div className="flex items-center gap-2">
         <Flag className="h-4 w-4 shrink-0" style={{ color: plot.owner.accent ?? '#FFE36B' }} />
         <div className="min-w-0 flex-1 truncate font-display font-bold">{plot.name || 'Your plot'}</div>
-        {where}
+        <RarityBadge r={rarityOf[plot.rarity]} />
         <button onClick={onRename} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Rename plot"><Pencil className="h-4 w-4" /></button>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        {map.games.map((g) => { const info = PLANET_GAMES[g]; return (
+        {[...map.games, ...((rarityOf[plot.rarity]?.rank ?? 0) >= map.bonus_from ? [map.bonus_game] : [])].map((g) => { const info = PLANET_GAMES[g]; return (
           <button key={g} onClick={() => onPlay(g)} className="flex items-center gap-2 rounded-xl bg-white/10 px-2.5 py-2 text-left hover:bg-white/20" data-testid={`planet-game-${g}`}>
             <span className="text-2xl">{info?.emoji ?? '🎮'}</span><span className="min-w-0 truncate text-sm font-bold">{info?.name ?? g}</span>
           </button>
         ); })}
       </div>
+      {(rarityOf[plot.rarity]?.rank ?? 0) < map.bonus_from && PLANET_GAMES[map.bonus_game] && (
+        <div className="mt-2 rounded-xl border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] text-white/60">🔒 {PLANET_GAMES[map.bonus_game].emoji} {PLANET_GAMES[map.bonus_game].name} — plots of {map.rarities[map.bonus_from]?.name ?? 'Nebula'} rarity or rarer unlock it</div>
+      )}
       {high && <div className="mt-2 flex justify-center">{go}</div>}
       <div className="mt-1.5 text-center text-[10px] text-white/55">Planet Ink today {map.ink_today}/{map.daily_cap}</div>
     </div>
@@ -345,13 +388,13 @@ function PlotCard({ map, cell, plot, high, busy, rows, onClaim, onWalk, onRename
   if (plot) return (
     <div className={cn(card, 'flex items-center gap-2')}>
       <Flag className="h-4 w-4 shrink-0" style={{ color: plot.owner.accent ?? '#fff' }} />
-      <div className="min-w-0 flex-1"><div className="truncate font-bold">{plot.name || `@${plot.owner.username}’s plot`}</div><div className="text-[11px] text-white/60">Claimed by @{plot.owner.username}</div></div>
+      <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="truncate font-bold">{plot.name || `@${plot.owner.username}’s plot`}</span><RarityBadge r={rarityOf[plot.rarity]} /></div><div className="text-[11px] text-white/60">Claimed by @{plot.owner.username}</div></div>
       {high ? go : where}
     </div>
   );
   return (
     <div className={cn(card, 'flex items-center gap-2')} data-testid="planet-plot-free">
-      <div className="min-w-0 flex-1"><div className="font-bold">Unclaimed plot</div>{where}</div>
+      <div className="min-w-0 flex-1"><div className="font-bold">Unclaimed plot</div><div className="text-[11px] text-white/60">{cellLabel(cell, rows)}{map.luck > 0 ? ` · +${Math.round(map.luck * 100)}% rare luck here` : ''}</div></div>
       {high && go}
       {map.landed ? <Button size="sm" variant="rainbow" loading={busy} onClick={onClaim} data-testid="planet-claim"><Flag className="h-4 w-4" /> Claim · {map.price} <ResourceIcon r="ink" className="h-3.5 w-3.5" /></Button>
         : <span className="text-[11px] text-white/60">Land here to buy</span>}
@@ -378,5 +421,33 @@ function Stick({ onMove }: { onMove(x: number, y: number): void }) {
       <div className="absolute left-1/2 top-1/2 h-14 w-14 rounded-full border border-white/40 bg-white/25 shadow-lg"
         style={{ transform: `translate(calc(-50% + ${k.x * R}px), calc(-50% + ${k.y * R}px))` }} />
     </div>
+  );
+}
+
+/** The roll: a plot's cosmic rarity spins up after you claim it. */
+function RarityReveal({ r, games, bonus, world, onClose }: { r: RarityInfo | undefined; games: string[]; bonus: string; world: World; onClose(): void }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => { const t = setTimeout(() => { setShown(true); if ((r?.rank ?? 0) >= 2) confettiCannons(); }, 1400); return () => clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!r) return null;
+  const unlocked = games.includes(bonus) && PLANET_GAMES[bonus];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-30 grid place-items-center bg-black/70 p-6 backdrop-blur-sm" onClick={() => shown && onClose()} data-testid="rarity-reveal">
+      <div className="grid w-full max-w-xs justify-items-center gap-3 text-center">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-white/60">Plot claimed on {world.name}</div>
+        <motion.div className="grid h-40 w-40 place-items-center rounded-full"
+          style={{ background: shown ? `radial-gradient(circle, ${r.color} 0%, ${r.color}55 45%, transparent 70%)` : 'radial-gradient(circle, #ffffff33, transparent 70%)' }}
+          animate={shown ? { scale: [0.6, 1.15, 1], rotate: 0 } : { rotate: 360 * 3 }} transition={shown ? { duration: 0.6 } : { duration: 1.4, ease: 'easeIn' }}>
+          <span className="text-6xl">{shown ? ['✨', '☄️', '🌌', '💫', '🌟', '🕳️'][r.rank] ?? '✨' : '❔'}</span>
+        </motion.div>
+        {shown ? (
+          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="grid gap-2">
+            <div className="font-display text-3xl font-black" style={{ color: r.color }}>{r.name}</div>
+            <div className="text-sm text-white/80">{r.mult > 1 ? `Its games pay ×${r.mult} Ink.` : 'A solid start — rarer plots pay more.'}</div>
+            {unlocked && <div className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">Bonus game unlocked: {PLANET_GAMES[bonus].emoji} {PLANET_GAMES[bonus].name}</div>}
+            <Button variant="rainbow" onClick={onClose} data-testid="reveal-ok">Nice!</Button>
+          </motion.div>
+        ) : <div className="text-sm text-white/70">Scanning the plot…</div>}
+      </div>
+    </motion.div>
   );
 }

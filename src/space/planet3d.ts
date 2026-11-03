@@ -23,10 +23,13 @@ export type PlanetSceneOpts = {
   /** start high over the planet (the World tab) rather than on your feet */ startHigh?: boolean;
   /** swoop down from space first */ intro?: boolean;
   onCell(c: Cell | null): void; onSample(got: number): void; onPick(c: Cell | null): void; onZoom(z: ZoomInfo): void; onLost?(): void;
+  /** you're standing by meteorite i (asked again every few seconds while you stay) */ onMeteor?(i: number): void;
 };
 export type PlanetScene = {
   /** joystick: x right, y forward (-1..1) */ joy: { x: number; y: number }; jump(): void;
-  setPlots(plots: PlanetPlot[]): void;
+  /** rarity colours, and from which rank a plot shines a beam into the sky */ setPlots(plots: PlanetPlot[], rarity?: Record<string, { color: string; rank: number }>): void;
+  /** the current meteor shower (`key` changes with each new shower, which falls from the sky) */ setMeteors(key: string, list: { i: number; d: number[]; golden: boolean; taken: boolean }[]): void;
+  /** a little burst of light where something happened (a meteorite grabbed) */ burst(d: number[], color?: string): void;
   /** the live group: add/remove explorers; positions from the heartbeat */ setLive(p: Pilot[]): void;
   /** a streamed position for one explorer */ remote(id: string, d: number[], face: number[], hop: number): void;
   /** where you are, to send to the group */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean };
@@ -89,7 +92,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const seedR = rng(o.seed);
   const reduce = !!o.reduceMotion;
   const tier = deviceTier();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier > 0, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier === 2, powerPreference: 'high-performance' });
   const maxDpr = Math.min(window.devicePixelRatio || 1, tier === 2 ? 2 : tier === 1 ? 1.6 : 1);
   let dpr = maxDpr;
   renderer.setPixelRatio(dpr);
@@ -199,7 +202,10 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
 
   // plot lines near you (rebuilt with the patch) and over the whole globe (seen from afar)
   const hStep = (2 * LAT_MAX) / rows, cols = rows * 2, wStep = 360 / cols;
+  const NEAR_MAX = 60000; // line vertices; one fixed GPU buffer, refilled on each rebuild (no leaks)
   const nearLineGeo = track(new THREE.BufferGeometry());
+  const nearLineAttr = new THREE.BufferAttribute(new Float32Array(NEAR_MAX * 3), 3); nearLineAttr.setUsage(THREE.DynamicDrawUsage);
+  nearLineGeo.setAttribute('position', nearLineAttr); nearLineGeo.setDrawRange(0, 0);
   const lineMat = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: w.gas ? 0.24 : 0.2, depthWrite: false }));
   const nearLines = new THREE.LineSegments(nearLineGeo, lineMat); nearLines.frustumCulled = false; scene.add(nearLines);
   const farLines = (() => {
@@ -261,7 +267,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     decor.forEach((m, k) => { m.count = counts[k]; m.instanceMatrix.needsUpdate = true; });
     // plot lines across the patch
     const pts: number[] = [];
-    const push = (dd: THREE.Vector3) => { tmp.copy(dd).multiplyScalar(surf(dd) + 0.12); pts.push(tmp.x, tmp.y, tmp.z); };
+    const push = (dd: THREE.Vector3) => { if (pts.length >= NEAR_MAX * 3) return; tmp.copy(dd).multiplyScalar(surf(dd) + 0.12); pts.push(tmp.x, tmp.y, tmp.z); };
     const inside = (dd: THREE.Vector3) => dd.angleTo(c) * R < PATCH * 0.98;
     const segLen = Math.max(0.15, (1.6 / R) / D); // ~1.6 units, in degrees
     const a0 = new THREE.Vector3(), a1 = new THREE.Vector3();
@@ -276,8 +282,9 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       const dl = ((lon - lonDeg + 540) % 360) - 180; if (Math.abs(dl) * Math.cos(latC) > spanDeg * 1.2 && Math.abs(latDeg) < 80) continue;
       for (let lat = Math.max(-LAT_MAX, latDeg - spanDeg); lat < Math.min(LAT_MAX, latDeg + spanDeg); lat += segLen) { a0.set(...dirOf(lat, lon)); a1.set(...dirOf(Math.min(LAT_MAX, lat + segLen), lon)); if (inside(a0) && inside(a1)) { push(a0); push(a1); } }
     }
-    nearLineGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    nearLineGeo.computeBoundingSphere();
+    let n = Math.min(NEAR_MAX, pts.length / 3); n -= n % 2;
+    (nearLineAttr.array as Float32Array).set(n * 3 < pts.length ? pts.slice(0, n * 3) : pts);
+    nearLineAttr.needsUpdate = true; nearLineGeo.setDrawRange(0, n);
   };
 
   // ---- light, sky, atmosphere ------------------------------------------------------------------
@@ -408,9 +415,12 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const labelPool: { s: THREE.Sprite | null; key: string }[] = Array.from({ length: LABELS }, () => ({ s: null, key: '' }));
   const clearPlots = () => {
     for (const c of [...plotGroup.children]) { plotGroup.remove(c); if (c instanceof THREE.InstancedMesh) c.dispose(); }
-    plotGeo?.dispose(); plotGeo = null; plotList = [];
+    plotGeo?.dispose(); plotGeo = null; plotList = []; beams = null;
   };
-  const setPlots = (plots: PlanetPlot[]) => {
+  const beamGeo = track(new THREE.CylinderGeometry(0.35, 0.9, 70, 8, 1, true).translate(0, 35, 0));
+  const beamMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  let beams: THREE.InstancedMesh | null = null;
+  const setPlots = (plots: PlanetPlot[], rarity: Record<string, { color: string; rank: number }> = {}) => {
     clearPlots();
     plotList = plots.map((p) => ({ p, d: V(cellCenterDir(p, rows)) }));
     for (const l of labelPool) l.key = '__stale';
@@ -428,8 +438,14 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       verts.push(...t.verts); for (let k = 0; k < t.verts.length / 3; k++) cs.push(c.r, c.g, c.b); for (const x of t.idx) idx.push(x + base);
       const d = plotList[i].d;
       stand(o3, d, surf(d) + 1.2); o3.updateMatrix(); poles.setMatrixAt(i, o3.matrix);
-      stand(o3, d, surf(d) + 2.1); o3.translateX(0.65); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, c);
+      stand(o3, d, surf(d) + 2.1); o3.translateX(0.65); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, css(rarity[p.rarity]?.color ?? '#ffffff'));
     });
+    const shiny = plots.map((p, i) => ({ p, i })).filter((x) => (rarity[x.p.rarity]?.rank ?? 0) >= 3);
+    if (shiny.length) {
+      beams = new THREE.InstancedMesh(beamGeo, beamMat, shiny.length); beams.frustumCulled = false;
+      shiny.forEach((x, k) => { stand(o3, plotList[x.i].d, surf(plotList[x.i].d)); o3.scale.set(1, 1 + (rarity[x.p.rarity].rank - 3) * 0.6, 1); o3.updateMatrix(); beams!.setMatrixAt(k, o3.matrix); beams!.setColorAt(k, css(rarity[x.p.rarity].color)); });
+      plotGroup.add(beams);
+    }
     plotGeo = new THREE.BufferGeometry();
     plotGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     plotGeo.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3));
@@ -464,6 +480,38 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     for (let j = 0; j < N; j++) at(0, j); for (let i = 0; i < N; i++) at(i, N - 1); for (let j = N - 1; j >= 0; j--) at(N - 1, j); for (let i = N - 1; i >= 0; i--) at(i, 0);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(ring, 3));
     hi = new THREE.Group(); hi.add(new THREE.Mesh(gg, hiMat), new THREE.LineLoop(lg, hiLine)); scene.add(hi);
+  };
+
+  // ---- meteor showers -----------------------------------------------------------------------------
+  type Met = { i: number; d: THREE.Vector3; golden: boolean; rock: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Sprite; fall: number; asked: number };
+  const mets = new Map<number, Met>();
+  let metKey = '';
+  const metGeo = track(new THREE.DodecahedronGeometry(0.75, 0));
+  const metMat = track(new THREE.MeshStandardMaterial({ color: '#5A4A44', emissive: '#FF7A3D', emissiveIntensity: 0.55, flatShading: true, roughness: 0.8 }));
+  const goldMat = track(new THREE.MeshStandardMaterial({ color: '#FFD84D', emissive: '#FFB13D', emissiveIntensity: 0.9, flatShading: true, roughness: 0.3, metalness: 0.4 }));
+  const dropMet = (m: Met) => { scene.remove(m.rock, m.glow, m.trail); m.glow.material.dispose(); m.trail.material.dispose(); mets.delete(m.i); };
+  const setMeteors = (key: string, list: { i: number; d: number[]; golden: boolean; taken: boolean }[]) => {
+    const fresh = key !== metKey; metKey = key;
+    if (fresh) for (const m of [...mets.values()]) dropMet(m);
+    for (const x of list) {
+      const have = mets.get(x.i);
+      if (x.taken) { if (have) dropMet(have); continue; }
+      if (have) continue;
+      const d = vec(x.d); if (!d) continue;
+      const rock = new THREE.Mesh(metGeo, x.golden ? goldMat : metMat);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: x.golden ? '#FFE36B' : '#FF9A5C', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.scale.setScalar(x.golden ? 5 : 3.6);
+      const trail = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#FFB13D', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      trail.scale.set(2.2, 14, 1);
+      scene.add(rock, glow, trail);
+      mets.set(x.i, { i: x.i, d, golden: x.golden, rock, glow, trail, fall: fresh && !reduce ? 1 + Math.random() * 1.5 : 0, asked: 0 });
+    }
+  };
+  const bursts: { s: THREE.Sprite; t: number }[] = [];
+  const burst = (d: number[], color = '#FFE36B') => {
+    const v = vec(d); if (!v) return;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    s.position.copy(v).multiplyScalar(surf(v) + 1); scene.add(s); bursts.push({ s, t: 0 });
   };
 
   // ---- you, your Inkborn, the others in your live group -------------------------------------------
@@ -712,6 +760,17 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         if (buddy) { buddy.hop = 0.7; buddy.st = 'happy'; }
       }
     }
+    for (const m of mets.values()) {
+      const gr = surf(m.d);
+      if (m.fall > 0) { m.fall = Math.max(0, m.fall - dt); }
+      const hgt = m.fall > 0 ? Math.pow(m.fall, 2) * 90 : 0;
+      m.rock.position.copy(m.d).multiplyScalar(gr + 0.5 + hgt); m.rock.rotation.x += dt * 0.6; m.rock.rotation.y += dt * 0.9;
+      m.glow.position.copy(m.rock.position); m.glow.material.opacity = 0.6 + 0.3 * Math.sin(t * 5 + m.i);
+      m.glow.scale.setScalar((m.golden ? 5 : 3.6) * (1 + hgh * dist * 0.004));
+      m.trail.visible = hgt > 0; if (hgt > 0) { m.trail.position.copy(m.d).multiplyScalar(gr + 0.5 + hgt + 7); }
+      if (!m.fall && o.onMeteor && m.d.angleTo(P.d) * R < 4 && t - m.asked > 3) { m.asked = t; o.onMeteor(m.i); }
+    }
+    for (let i = bursts.length - 1; i >= 0; i--) { const b = bursts[i]; b.t += dt; b.s.scale.setScalar(2 + b.t * 30); b.s.material.opacity = Math.max(0, 1 - b.t * 1.6); if (b.t > 0.7) { scene.remove(b.s); b.s.material.dispose(); bursts.splice(i, 1); } }
     labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); }
     for (const l of labelPool) if (l.s) l.s.visible = hgh < 0.35;
     const c = cellAt([P.d.x, P.d.y, P.d.z], rows);
@@ -750,7 +809,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setLive, remote, zoom, setZoom, setBuddy,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy,
     findMe: () => { freeLook = false; },
     pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0 }),
     place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },
@@ -761,7 +820,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('blur', blur);
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); o.canvas.removeEventListener('pointerup', pu);
       o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel); o.canvas.removeEventListener('webglcontextlost', lost);
-      clearPlots(); highlight(null); setBuddy(null);
+      clearPlots(); highlight(null); setBuddy(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
       for (const id of [...others.keys()]) dropOther(id);
       for (const l of labelPool) if (l.s) disposeSprite(l.s);
       disposeSprite(me);
@@ -770,6 +829,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, R, rows, mets, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

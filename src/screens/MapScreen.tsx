@@ -38,12 +38,15 @@ export function MapScreen() {
   const flight = useFlight(space.data);
   const s = space.data;
   const w = s && !flight.flying && !s.dest ? worldOf(s.location, s.home_seed, s.home_name) : null;
-  if (s && w) return <Suspense fallback={<div className="absolute inset-0 bg-[#05060F]" />}><PlanetView key={s.location} s={s} w={w} embedded /></Suspense>;
-  return <EarthMap />;
+  const [peekEarth, setPeekEarth] = useState(false);
+  useEffect(() => { if (!w) setPeekEarth(false); }, [w?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (s && w && !peekEarth) return <Suspense fallback={<div className="absolute inset-0 bg-[#05060F]" />}><PlanetView key={s.location} s={s} w={w} embedded onPeekEarth={() => setPeekEarth(true)} /></Suspense>;
+  return <EarthMap away={w ? { name: w.name, back: () => setPeekEarth(false) } : null} />;
 }
 const PlanetView = lazy(() => import('../space/Surface').then((m) => ({ default: m.PlanetView })));
 
-function EarthMap() {
+/** Earth. `away`: you're off on another world — your explorer isn't here (and GPS rests) while you look around. */
+function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const mode = useUi((s) => s.mode);
   const setMode = useUi((s) => s.setMode);
   const selected = useUi((s) => s.selected);
@@ -51,10 +54,10 @@ function EarthMap() {
   const me = useOnboardedMe();
   const view = useUi((s) => s.view);
   useRaritySync();
-  useExplorerSync();
+  useExplorerSync(!!away);
   const [joystick, setJoystick] = useState(false);
   const exState = useExplorer((s) => s.state);
-  const canDrive = !!me && !!exState && exState.joystick?.enabled !== false;
+  const canDrive = !!me && !!exState && exState.joystick?.enabled !== false && !away;
   // WASD / arrow keys walk the explorer (and open the joystick if it's closed)
   useDriveKeys(canDrive, () => { if (!useUi.getState().merge) setJoystick(true); });
   // turning a phone sideways brings up the D-pad
@@ -68,7 +71,7 @@ function EarthMap() {
   const celebrating = useCelebration((s) => s.hidden !== null);
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
-    <div className="absolute inset-0">
+    <div className={cn('absolute inset-0', away && 'lv-away')}>
       <WorldMap />
       <DayNight />
       {/* the game HUD */}
@@ -91,7 +94,16 @@ function EarthMap() {
         </div>
       </div>
       <ZoomHint zoom={view.zoom} />
-      {me && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
+      {me && !away && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
+      {away && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-8">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#0B0E24]/90 px-4 py-2.5 text-white shadow-xl backdrop-blur" data-testid="away-banner">
+            <span className="text-2xl">🚀</span>
+            <div className="leading-tight"><div className="text-sm font-bold">You’re on {away.name}</div><div className="text-[11px] text-white/65">Your explorer is up there with you — just looking at Earth.</div></div>
+            <Button size="sm" variant="rainbow" onClick={away.back} data-testid="back-to-planet">Back</Button>
+          </div>
+        </div>
+      )}
       <AnimatePresence>
         {me && joystick && (
           <div className={cn('pointer-events-none absolute inset-x-0 z-20 flex justify-center px-4',
@@ -104,16 +116,16 @@ function EarthMap() {
       <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
         <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
       </div>
-      {me && !selected && !joystick && !merging && <Checklist />}
+      {me && !selected && !joystick && !merging && !away && <Checklist />}
       {me && <MergeBar />}
-      {me && <PlacementPrompt />}
+      {me && !away && <PlacementPrompt />}
       <ClaimCelebration />
     </div>
   );
 }
 
 /** Mirror the server's explorer state; resume GPS for players who turned it on. */
-function useExplorerSync() {
+function useExplorerSync(away = false) {
   const me = useOnboardedMe();
   const set = useExplorer((s) => s.set);
   useEffect(() => {
@@ -124,7 +136,7 @@ function useExplorerSync() {
   const centred = useRef(false);
   const hasExplorer = !!me?.explorer;
   useEffect(() => {
-    if (!hasExplorer || centred.current) return;
+    if (!hasExplorer || centred.current || away) return;
     centred.current = true;
     const ui = useUi.getState();
     // back from a plot you dove into: zoom back out over it
@@ -144,8 +156,9 @@ function useExplorerSync() {
   }, [hasExplorer]); // eslint-disable-line react-hooks/exhaustive-deps
   const wantGps = !!me && safeStorage('landvas.gps', false);
   useEffect(() => {
+    if (away) { stopGps(); return; }
     if (wantGps) startGps();
-  }, [wantGps]);
+  }, [wantGps, away]);
 }
 
 function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoystick(): void }) {
