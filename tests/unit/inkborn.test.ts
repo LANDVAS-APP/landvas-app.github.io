@@ -36,7 +36,8 @@ describe('Inkborn genomes', () => {
     expect(g.size).toBeGreaterThanOrEqual(0.8);
     expect(g.size).toBeLessThanOrEqual(1.25);
     expect(MOODS).toContain(g.mood);
-    expect([2, 4]).toContain(g.legs);
+    expect(g.legs).toBeGreaterThanOrEqual(0);
+    expect(g.legs).toBeLessThanOrEqual(8); // any count from 0 to 8 is a real creature now
   });
   it('draws every part and every animation state on the rig', () => {
     const states: CreatureState[] = ['idle', 'walk', 'look', 'sleep', 'eat', 'happy'];

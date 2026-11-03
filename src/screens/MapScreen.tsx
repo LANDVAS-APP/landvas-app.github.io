@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, ChevronDown, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Rocket, Satellite, Search, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronDown, Combine, Compass, Crosshair, Gamepad, Layers, LocateFixed, MapPinned, Palette, Rocket, Satellite, Search, Sparkles, X } from 'lucide-react';
 import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -21,7 +21,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
 import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
 import { NotificationBell } from '../updates/Notifications';
-import { MergeBar } from '../plot/MergeBar';
+import { MergeBar, startMerge, touchingGroups } from '../plot/MergeBar';
 import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
@@ -150,10 +150,22 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const has = !!ex.state;
   const space = useSpace();
   const flight = useFlight(space.data);
+  // one tap into merge mode whenever some of your plots touch each other
+  const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: has });
+  const merging = useUi((s) => s.merge !== null);
+  const canMerge = useMemo(() => {
+    const act = (groups.data ?? []).filter((g) => g.status === 'active');
+    return act.some((g) => touchingGroups(act, [g.id]).length > 1);
+  }, [groups.data]);
   const nav = useNavigate();
   const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', paused: 'GPS paused', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
   return (
     <div className="absolute bottom-[calc(150px+env(safe-area-inset-bottom,0px))] right-[max(16px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-end gap-2 md:bottom-20">
+      {canMerge && !merging && (
+        <button className="glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold" onClick={() => startMerge(null)} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
+          <Combine className="h-4 w-4 text-accent-2" /> Merge
+        </button>
+      )}
       {/* space: your rocket, and the trip under way */}
       <button className={cn('glass flex h-11 items-center gap-1.5 rounded-2xl px-3 text-xs font-bold', flight.flying ? 'text-accent-2 ring-2 ring-accent-2/60' : 'text-fg')}
         onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">

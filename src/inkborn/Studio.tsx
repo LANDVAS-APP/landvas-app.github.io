@@ -18,7 +18,7 @@ import { confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from '../creative/SketchPad';
 import { CreatureView } from './CreatureView';
 import {
-  BODIES, EARS, EYES, HORNS, MOODS, MOOD_INFO, PATTERNS, TAILS, WINGS, cleanGenome, genomeFromDrawing, hsl, randomGenome, randomName, type Genome,
+  BODIES, EARS, EYES, GAITS, GAIT_INFO, HORNS, MAX_EYES, MAX_LEGS, MOODS, MOOD_INFO, PATTERNS, TAILS, WINGS, cleanGenome, defaultGait, genomeFromDrawing, hsl, randomGenome, randomName, type Genome,
 } from './genome';
 
 type Mode = 'draw' | 'random' | 'custom';
@@ -122,7 +122,8 @@ export default function Studio() {
                   <div className="grid gap-2">
                     <div className="font-display text-lg font-semibold">Your drawing came alive!</div>
                     <ul className="flex flex-wrap gap-1.5">{alive.notes.map((n) => <li key={n} className="rounded-full bg-ok/15 px-2 py-0.5 text-xs font-bold text-ok">✓ {n}</li>)}</ul>
-                    <p className="text-xs text-muted">Not quite right? Switch to Customize to change any part, or draw again.</p>
+                    <WeSaw genome={genome} onChange={setGenome} />
+                    <p className="text-xs text-muted">Not quite right? Fix the counts above, switch to Customize to change any part, or draw again.</p>
                     <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => { setAlive(null); }}>Draw again</Button><Button size="sm" variant="ghost" onClick={() => setMode('custom')}>Customize</Button></div>
                   </div>
                 </div>
@@ -203,6 +204,43 @@ export default function Studio() {
   );
 }
 
+/** The counts read from a drawing, with quick fixes: eyes, legs, and how a legless one gets about. */
+function WeSaw({ genome, onChange, title = 'Here’s what we saw' }: { genome: Genome; onChange(g: Genome): void; title?: string }) {
+  const set = (p: Partial<Genome>) => {
+    const g = { ...genome, ...p };
+    if (p.legs !== undefined) g.gait = g.legs > 0 ? 'walk' : genome.gait !== 'walk' ? genome.gait : defaultGait(g.body, g.wings);
+    if (p.eyecount !== undefined) g.eyes = g.eyecount === 1 ? 'one' : genome.eyes === 'one' ? 'big' : genome.eyes;
+    onChange(g);
+  };
+  const step = (label: string, value: number, max: number, key: 'eyecount' | 'legs', testid: string) => (
+    <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface-2/60 px-3 py-2">
+      <span className="text-sm font-bold">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <button className="h-8 w-8 rounded-xl bg-surface text-lg font-bold disabled:opacity-30" disabled={value <= 0} onClick={() => set({ [key]: value - 1 } as Partial<Genome>)} aria-label={`Fewer ${label.toLowerCase()}`} data-testid={`${testid}-minus`}>−</button>
+        <span className="w-6 text-center font-display text-lg font-bold tnum" data-testid={`${testid}-count`}>{value}</span>
+        <button className="h-8 w-8 rounded-xl bg-surface text-lg font-bold disabled:opacity-30" disabled={value >= max} onClick={() => set({ [key]: value + 1 } as Partial<Genome>)} aria-label={`More ${label.toLowerCase()}`} data-testid={`${testid}-plus`}>+</button>
+      </div>
+    </div>
+  );
+  return (
+    <div className="grid gap-2" data-testid="we-saw">
+      <div className="text-xs font-bold text-muted">{title}</div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {step('Eyes', genome.eyecount, MAX_EYES, 'eyecount', 'eyes')}
+        {step('Legs', genome.legs, MAX_LEGS, 'legs', 'legs')}
+      </div>
+      {genome.legs === 0 ? (
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="How it moves">
+          {GAITS.filter((g) => g !== 'walk').map((g) => (
+            <button key={g} role="radio" aria-checked={genome.gait === g} onClick={() => onChange({ ...genome, gait: g })} data-testid={`gait-${g}`}
+              className={cn('rounded-full border px-3 py-1.5 text-xs font-bold', genome.gait === g ? 'border-accent bg-accent/15' : 'border-line')}>{GAIT_INFO[g].emoji} {GAIT_INFO[g].label}</button>
+          ))}
+        </div>
+      ) : <div className="text-[11px] text-muted">{GAIT_INFO.walk.emoji} Walks on {genome.legs} leg{genome.legs === 1 ? '' : 's'} — take them all away and it can roll, bounce, slither or hover instead.</div>}
+    </div>
+  );
+}
+
 const SWATCHES = [0, 20, 40, 55, 90, 140, 175, 200, 225, 260, 290, 320].map((h) => hsl(h, 70, 64)).concat(['#F5F0E6', '#C9B8A6', '#6B6F80', '#3A3F55']);
 
 function Customizer({ genome, onChange }: { genome: Genome; onChange(g: Genome): void }) {
@@ -210,10 +248,11 @@ function Customizer({ genome, onChange }: { genome: Genome; onChange(g: Genome):
   const rows: { label: string; key: keyof Genome; options: readonly (string | number)[] }[] = useMemo(() => [
     { label: 'Body', key: 'body', options: BODIES }, { label: 'Eyes', key: 'eyes', options: EYES }, { label: 'Ears', key: 'ears', options: EARS },
     { label: 'Horns', key: 'horns', options: HORNS }, { label: 'Tail', key: 'tail', options: TAILS }, { label: 'Wings', key: 'wings', options: WINGS },
-    { label: 'Pattern', key: 'pattern', options: PATTERNS }, { label: 'Legs', key: 'legs', options: [2, 4] },
+    { label: 'Pattern', key: 'pattern', options: PATTERNS },
   ], []);
   return (
     <section className="glass grid gap-4 rounded-3xl p-4" data-testid="studio-custom">
+      <WeSaw genome={genome} onChange={onChange} title="Eyes, legs and how it moves" />
       {rows.map((r) => (
         <div key={r.key} className="grid gap-1.5">
           <div className="text-xs font-bold text-muted">{r.label}</div>

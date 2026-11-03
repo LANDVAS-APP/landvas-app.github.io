@@ -40,6 +40,7 @@ function poly(gx: number, gy: number, props: Record<string, unknown>): GeoJSON.F
 const setData = (map: MLMap, id: string, data: GeoJSON.GeoJSON) => (map.getSource(id) as GeoJSONSource | undefined)?.setData(data);
 
 export const artIndex = new ArtIndex();
+let lastMergePaint = 0;
 export const plotBlocks = new PlotBlocks();
 
 export function WorldMap() {
@@ -154,7 +155,8 @@ export function WorldMap() {
         const cell = lngLatToCell(e.lngLat.lng, e.lngLat.lat);
         const ui = useUi.getState();
         if (ui.merge) {
-          // merge mode: tapping one of your plots adds or removes its canvas
+          // merge mode: tapping one of your plots adds or removes its canvas (a drag-pick already did)
+          if (performance.now() - lastMergePaint < 700) return;
           const g = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined)?.find((x) => x.cells.some((c) => c[0] === cell.gx && c[1] === cell.gy));
           if (g) ui.toggleMerge(g.id);
           return;
@@ -416,6 +418,48 @@ export function WorldMap() {
 
   const merge = useUi((s) => s.merge);
   const mergeHover = useUi((s) => s.mergeHover);
+  const mergeTool = useUi((s) => s.mergeTool);
+  // merge mode: drag a finger (or the mouse) across your plots to pick them all in one go
+  const picking = merge !== null && mergeTool === 'pick';
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !picking) return;
+    map.dragPan.disable();
+    const el = map.getCanvasContainer();
+    let painting = false, add = true;
+    const touched = new Set<string>();
+    const groupAt = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const ll = map.unproject([e.clientX - r.left, e.clientY - r.top]);
+      const c = lngLatToCell(ll.lng, ll.lat);
+      return (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined)?.find((x) => x.status === 'active' && x.cells.some((k) => k[0] === c.gx && k[1] === c.gy)) ?? null;
+    };
+    const apply = (id: string) => {
+      touched.add(id);
+      const ui = useUi.getState(), cur = ui.merge ?? [];
+      if (add && !cur.includes(id)) ui.setMerge([...cur, id]);
+      if (!add && cur.includes(id)) ui.setMerge(cur.filter((x) => x !== id));
+      lastMergePaint = performance.now();
+    };
+    const down = (e: PointerEvent) => {
+      if (!e.isPrimary || e.button > 0) return;
+      const g = groupAt(e);
+      painting = true; touched.clear();
+      add = !g || !(useUi.getState().merge ?? []).includes(g.id);
+      if (g) apply(g.id);
+    };
+    const move = (e: PointerEvent) => { if (!painting) return; const g = groupAt(e); if (g && !touched.has(g.id)) apply(g.id); };
+    const up = () => { painting = false; };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      map.dragPan.enable();
+      el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    };
+  }, [ready, picking]); // eslint-disable-line react-hooks/exhaustive-deps
   const rolling = useCelebration((s) => s.hidden);
   useEffect(() => { if (ready) redrawPlots(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

@@ -1,7 +1,7 @@
 // Merge mode: tap any of your plots on the map to pick their canvases, then merge
 // them all at once. Only your own touching canvases can merge (the server checks).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Combine, MousePointerClick, Sparkles, X } from 'lucide-react';
+import { Combine, Hand, MousePointerClick, Paintbrush, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { useUi } from '../lib/store';
 import { components, isConnected } from '../shared/fusion';
 import type { CellTuple } from '../shared/grid';
 import { Button } from '../ui';
+import { cn } from '../lib/utils';
 import { useMapFx } from '../map/MapFx';
 import { buzz } from '../native/native';
 
@@ -54,6 +55,8 @@ export function MergeBar() {
   const me = useOnboardedMe();
   const merge = useUi((s) => s.merge);
   const setMerge = useUi((s) => s.setMerge);
+  const tool = useUi((s) => s.mergeTool);
+  const setTool = useUi((s) => s.setMergeTool);
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -94,7 +97,7 @@ export function MergeBar() {
           <div className="min-w-0 flex-1">
             <div className="font-display font-semibold">Merge plots</div>
             <p className="text-xs text-muted">
-              {picked.length === 0 ? <><MousePointerClick className="mr-1 inline h-3.5 w-3.5" />Tap your plots on the map to pick them.</>
+              {picked.length === 0 ? <><MousePointerClick className="mr-1 inline h-3.5 w-3.5" />Drag across your plots (or tap them) to pick them.</>
                 : picked.length === 1 ? 'Now tap the plots next to it — or select everything touching.'
                 : connected ? <><b className="text-fg">{picked.length} canvases · {plots} plots</b> ready to become one{price > 0 ? <> for <b className="text-fg tnum">{price} Ink</b></> : ''}.{short && <span className="text-warn"> You need {price - (cost.data?.balance ?? 0)} more Ink.</span>}</>
                 : <span className="text-warn">These are in {pieces} separate groups — merged plots must touch.</span>}
@@ -107,6 +110,10 @@ export function MergeBar() {
             <Sparkles className="h-4 w-4" /> Select all touching{more > 0 ? ` (+${more})` : ''}
           </Button>
           {picked.length > 0 && <Button size="sm" variant="ghost" onClick={() => setMerge([])}>Clear</Button>}
+          <div className="flex rounded-xl bg-surface-2 p-0.5" role="radiogroup" aria-label="What dragging does">
+            <button role="radio" aria-checked={tool === 'pick'} onClick={() => setTool('pick')} title="Drag across plots to pick them" className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', tool === 'pick' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="merge-tool-pick"><Paintbrush className="h-3.5 w-3.5" /> Pick</button>
+            <button role="radio" aria-checked={tool === 'pan'} onClick={() => setTool('pan')} title="Drag to move the map" className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', tool === 'pan' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="merge-tool-pan"><Hand className="h-3.5 w-3.5" /> Move</button>
+          </div>
           <Button size="sm" variant="rainbow" className="ml-auto" disabled={!connected || short} loading={busy} onClick={go} data-testid="merge-go">
             <Combine className="h-4 w-4" /> Merge {picked.length >= 2 ? `${plots} plots` : ''}
           </Button>

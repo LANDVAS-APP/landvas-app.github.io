@@ -44,7 +44,16 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
   // whole-body motion
   let bob = 0, sx = 1, sy = 1, tilt = 0;
   if (state === 'idle' || state === 'look') { const b = Math.sin(t * 2.4 + seed) * 0.03; sx = 1 - b; sy = 1 + b; }
-  if (state === 'walk') { bob = -Math.abs(Math.sin(t * 9)) * S * 0.07; const b = Math.sin(t * 18) * 0.035; sx = 1 + b; sy = 1 - b; tilt = Math.sin(t * 9) * 0.05; }
+  const gait = gen.legs > 0 ? 'walk' : gen.gait ?? 'roll';
+  let roll = 0, lift = 0;
+  if (state === 'walk') {
+    if (gait === 'roll') { roll = t * 7; bob = -Math.abs(Math.sin(t * 7)) * S * 0.02; }
+    else if (gait === 'bounce') { const h = Math.abs(Math.sin(t * 7)); bob = -h * S * 0.3; sy = 1 + (1 - h) * -0.12 + h * 0.06; sx = 2 - sy; }
+    else if (gait === 'slither') { const b = Math.sin(t * 10) * 0.12; sx = 1 + b; sy = 1 - b * 0.6; tilt = Math.sin(t * 5) * 0.08; }
+    else { bob = -Math.abs(Math.sin(t * 9)) * S * 0.07; const b = Math.sin(t * 18) * 0.035; sx = 1 + b; sy = 1 - b; tilt = Math.sin(t * 9) * 0.05; }
+  }
+  // hovering creatures float above the ground (except when asleep)
+  if (gait === 'hover' && state !== 'sleep') lift = S * (0.22 + Math.sin(t * 2.6 + seed) * 0.05);
   if (state === 'happy') { const h = Math.abs(Math.sin(t * 6.5)); bob = -h * S * 0.32; sy = 1 + (1 - h) * -0.08 + h * 0.06; sx = 2 - sy; }
   if (state === 'sleep') { const b = Math.sin(t * 1.4) * 0.035; sy = 0.82 + b; sx = 1.1 - b; }
   if (state === 'eat') tilt = 0.18 + Math.sin(t * 10) * 0.08;
@@ -57,12 +66,12 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
   // ground shadow (doesn't jump)
   g.fillStyle = 'rgba(20,24,40,0.28)';
   g.beginPath();
-  g.ellipse(0, 0, rx * (state === 'happy' ? 0.8 + 0.2 * (1 + bob / (S * 0.32)) : 1.05), ry * 0.22, 0, 0, Math.PI * 2);
+  g.ellipse(0, 0, rx * (state === 'happy' ? 0.8 + 0.2 * (1 + bob / (S * 0.32)) : 1.05) * (lift ? 0.7 : 1), ry * 0.22 * (lift ? 0.7 : 1), 0, 0, Math.PI * 2);
   g.fill();
   g.scale(pose.dir, 1);
-  const legH = state === 'sleep' ? 0 : S * 0.16;
-  g.translate(0, bob - legH - ry * sy);
-  g.rotate(tilt);
+  const legH = state === 'sleep' || gen.legs === 0 ? 0 : S * 0.16;
+  g.translate(0, bob - lift - legH - ry * sy);
+  g.rotate(tilt + roll);
   g.lineJoin = 'round';
   g.lineCap = 'round';
   const lw = Math.max(1.2, S * 0.035);
@@ -82,7 +91,16 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
     g.stroke();
     g.restore();
   };
-  if (gen.legs === 4) { leg(-rx * 0.62, -1, true); leg(rx * 0.38, 1, true); }
+  // any number of legs, spread along the belly; with 3 or more, every other one stands behind
+  const legXs = (() => {
+    const n = gen.legs;
+    if (n <= 0) return [] as { x: number; back: boolean; ph: number }[];
+    if (n === 1) return [{ x: 0, back: false, ph: 1 }];
+    if (n === 2) return [{ x: -rx * 0.35, back: false, ph: 1 }, { x: rx * 0.35, back: false, ph: -1 }];
+    if (n === 4) return [{ x: -rx * 0.62, back: true, ph: -1 }, { x: rx * 0.38, back: true, ph: 1 }, { x: -rx * 0.38, back: false, ph: 1 }, { x: rx * 0.62, back: false, ph: -1 }];
+    return Array.from({ length: n }, (_, i) => ({ x: -rx * 0.72 + (rx * 1.44 * i) / (n - 1), back: i % 2 === 1, ph: i % 2 ? -1 : 1 }));
+  })();
+  for (const l of legXs) if (l.back) leg(l.x, l.ph, true);
 
   // tail, from the back of the body
   if (gen.tail !== 'none') {
@@ -156,7 +174,7 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
   g.stroke();
   g.restore();
 
-  if (gen.legs === 4) { leg(-rx * 0.38, 1, false); leg(rx * 0.62, -1, false); } else { leg(-rx * 0.35, 1, false); leg(rx * 0.35, -1, false); }
+  for (const l of legXs) if (!l.back) leg(l.x, l.ph, false);
 
   // ears and horns on top
   const topY = -ry * sy;
@@ -216,10 +234,11 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
   const fy = -ry * sy * 0.25;
   const eyeGap = Math.min(rx * 0.32, S * 0.15);
   const blink = state !== 'sleep' && (Math.sin(t * 0.9 + seed * 3) > 0.985);
-  const er = S * (gen.eyes === 'big' ? 0.085 : gen.eyes === 'one' ? 0.11 : 0.062);
-  const eye = (ex: number) => {
+  const nEyes = gen.eyecount ?? (gen.eyes === 'one' ? 1 : 2);
+  const er = S * (gen.eyes === 'big' ? 0.085 : gen.eyes === 'one' || nEyes === 1 ? 0.11 : 0.062) * (nEyes >= 5 ? 0.68 : nEyes >= 3 ? 0.82 : 1);
+  const eye = (ex: number, ey = fy) => {
     g.save();
-    g.translate(ex, fy);
+    g.translate(ex, ey);
     if (state === 'sleep' || blink || gen.eyes === 'sleepy') {
       g.strokeStyle = '#1B1F3D';
       g.lineWidth = Math.max(1.2, S * 0.03);
@@ -249,7 +268,15 @@ export function drawCreature(g: CanvasRenderingContext2D, gen: Genome, x: number
     }
     g.restore();
   };
-  if (gen.eyes === 'one') eye(fx); else { eye(fx - eyeGap); eye(fx + eyeGap); }
+  // eye layouts: one in the middle, a pair, a third on the forehead, then rows
+  const up = er * 2.4;
+  const layout: [number, number][] =
+    nEyes <= 0 ? [] : nEyes === 1 ? [[fx, fy]] : nEyes === 2 ? [[fx - eyeGap, fy], [fx + eyeGap, fy]]
+      : nEyes === 3 ? [[fx - eyeGap, fy], [fx + eyeGap, fy], [fx, fy - up]]
+      : nEyes === 4 ? [[fx - eyeGap, fy], [fx + eyeGap, fy], [fx - eyeGap * 0.9, fy - up], [fx + eyeGap * 0.9, fy - up]]
+      : nEyes === 5 ? [[fx - eyeGap, fy], [fx + eyeGap, fy], [fx - eyeGap * 1.3, fy - up], [fx, fy - up * 1.15], [fx + eyeGap * 1.3, fy - up]]
+      : [[fx - eyeGap * 1.4, fy], [fx, fy + er * 0.3], [fx + eyeGap * 1.4, fy], [fx - eyeGap * 1.3, fy - up], [fx, fy - up * 1.15], [fx + eyeGap * 1.3, fy - up]];
+  for (const [ex, ey] of layout) eye(ex, ey);
   if (gen.cheeks) {
     g.fillStyle = 'rgba(255,110,150,0.45)';
     for (const cxp of [fx - eyeGap * 1.55, fx + eyeGap * 1.55]) { g.beginPath(); g.ellipse(cxp, fy + er * 1.6, er * 0.75, er * 0.45, 0, 0, Math.PI * 2); g.fill(); }

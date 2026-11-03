@@ -310,6 +310,8 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
   );
 }
 
+const AUTO_CONNECT_KEY = 'landvas.merge.auto';
+
 function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: string[]; habitat?: boolean } | null; onClose(): void }) {
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -317,6 +319,32 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
   const cost = useFuseCost(grow ? [grow.newGroup, ...grow.neighbors] : [], !!grow);
   const price = cost.data?.ink ?? 0;
   const short = !!cost.data && price > cost.data.balance;
+  const [always, setAlways] = useState(() => safeStorage<boolean>(AUTO_CONNECT_KEY, false));
+  const connect = async () => {
+    if (!grow) return;
+    setBusy(true);
+    try {
+      const ids = [grow.newGroup, ...grow.neighbors];
+      const pieces = await mergePieces(qc.getQueryData(qk.groups), ids);
+      const g = await api.fuseGroups(ids);
+      // stay on the map for the merge animation; the new canvas / sanctuary is one tap away
+      onClose();
+      useMapFx.getState().playMerge(pieces);
+      celebrate(g.achievements);
+      invalidateGame(qc);
+      void qc.invalidateQueries({ queryKey: ['habitat'] });
+      void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
+      if (grow.habitat && g.habitat_id) toast.success(`Connected — a ${g.plot_count}-plot sanctuary`, { action: { label: 'Enter it', onClick: () => nav(`/habitat/${g.habitat_id}`) } });
+      else toast.success(`Connected — ${g.plot_count} plots, one canvas`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  // "always connect": new plots join their neighbours by themselves (when the Ink is there)
+  const auto = useRef<string | null>(null);
+  useEffect(() => {
+    if (!grow || !always || !cost.data || short || busy || auto.current === grow.newGroup) return;
+    auto.current = grow.newGroup;
+    void connect();
+  }, [grow, always, cost.data, short]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Dialog open={!!grow} onOpenChange={(o) => !o && onClose()} title={grow?.habitat ? 'Your sanctuary can grow' : 'Your canvas can grow'}
       description={grow?.habitat ? 'Connect these habitat plots into one bigger sanctuary — more room to explore, more decorations and space for more Inkborn. Everyone living there moves in together.'
@@ -324,26 +352,13 @@ function GrowDialog({ grow, onClose }: { grow: { newGroup: string; neighbors: st
       <div className="mt-2 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Not now</Button>
         {price > 0 && <p className="mr-auto self-center text-xs text-muted">Connecting costs <b className="text-fg tnum">{price} Ink</b>{short ? ' — you need more Ink first' : ''}. {grow?.habitat ? 'Bigger sanctuaries hold more creatures.' : 'Bigger murals earn bigger craft bonuses.'}</p>}
-        <Button variant="rainbow" loading={busy} disabled={short} data-testid="connect-plots" onClick={async () => {
-          if (!grow) return;
-          setBusy(true);
-          try {
-            const ids = [grow.newGroup, ...grow.neighbors];
-            const pieces = await mergePieces(qc.getQueryData(qk.groups), ids);
-            const g = await api.fuseGroups(ids);
-            // stay on the map for the merge animation; the new canvas / sanctuary is one tap away
-            onClose();
-            useMapFx.getState().playMerge(pieces);
-            celebrate(g.achievements);
-            invalidateGame(qc);
-            void qc.invalidateQueries({ queryKey: ['habitat'] });
-            void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
-            if (grow.habitat && g.habitat_id) toast.success(`Connected — a ${g.plot_count}-plot sanctuary`, { action: { label: 'Enter it', onClick: () => nav(`/habitat/${g.habitat_id}`) } });
-            else toast.success(`Connected — ${g.plot_count} plots, one canvas`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
-          } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
-        }}>
+        <Button variant="rainbow" loading={busy} disabled={short} data-testid="connect-plots" onClick={() => void connect()}>
           <Link2 className="h-4 w-4" /> Connect plots
         </Button>
+        <label className="flex w-full items-center gap-2 text-xs text-muted">
+          <input type="checkbox" checked={always} onChange={(e) => { setAlways(e.target.checked); saveStorage(AUTO_CONNECT_KEY, e.target.checked); }} className="h-4 w-4 accent-[var(--accent)]" data-testid="auto-connect" />
+          Always connect new plots to the ones they touch (you can turn this off in the same place)
+        </label>
       </div>
     </Dialog>
   );
