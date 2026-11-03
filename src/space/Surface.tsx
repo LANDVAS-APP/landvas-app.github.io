@@ -67,7 +67,8 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const canPlots = w.kind !== 'exo' || isHome;
   const map = useQuery({ queryKey: planetKey(world), queryFn: () => api.planetMap(world), enabled: canPlots, refetchInterval: 15_000 });
   const sanct = useQuery({ queryKey: ['sanctuaries'], queryFn: api.mySanctuaries, enabled: !!me, staleTime: 60_000 });
-  const buddy = sanct.data?.creatures.find((c) => !c.job) ?? null;
+  // your companion comes along (or, until you've starred one, whoever's free)
+  const buddy = (sanct.data?.companion_id ? sanct.data.creatures.find((c) => c.id === sanct.data!.companion_id) : null) ?? sanct.data?.creatures.find((c) => !c.job) ?? null;
   const buddyGenome = useMemo(() => (buddy ? cleanGenome(buddy.genome) : null), [buddy?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cell, setCell] = useState<Cell | null>(null);
   const [zoom, setZoomInfo] = useState<ZoomInfo>({ level: embedded ? 0.8 : 0.1, meters: 0, mode: embedded ? 'orbit' : 'walk' });
@@ -160,7 +161,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const live = usePlanetLive({
     world, enabled: ready, myId: me?.profile.id,
     pose: () => scene.current?.pose() ?? null,
-    onMembers: (ms) => scene.current?.setLive(ms.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop,
+    onMembers: (ms) => scene.current?.setLive(ms.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop, companion: m.companion?.genome ? cleanGenome(m.companion.genome) : null,
       explorerUrl: svgUrl(explorerSvg(m.explorer_style as never, m.accent_color ?? '#7B5CFF', 184)) }))),
     onRemote: (id, d, f, h) => scene.current?.remote(id, d, f, h),
     onSpawn: (d, who) => {

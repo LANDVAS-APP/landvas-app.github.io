@@ -12,6 +12,7 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { CareAction, Decor, Habitat, Inkborn } from '../backend/types';
 import { invalidateResidents } from '../map/MapFx';
+import { useCompanion } from './companion';
 import { holdUpdates } from '../app/updates';
 import { config } from '../env';
 import { explorerSvg } from '../explorer/character';
@@ -49,6 +50,7 @@ type Sim = {
   c: Inkborn; g: Genome; x: number; y: number; dir: 1 | -1; st: CreatureState; until: number;
   tx: number; ty: number; task: Task | null; after: CreatureState | null; stuck: number; seed: number; speed: number; nextPet: number; detours?: number; resume?: boolean;
   /** trotting after the explorer */ follow?: boolean;
+  /** a companion visiting from elsewhere (not one of this sanctuary's residents) */ visiting?: boolean;
   /** a trick started at this time (a spin and a hop) */ spin?: number;
   /** holding the ball in its mouth */ carry?: boolean;
   /** tucked away behind something (hide & seek) */ hidden?: boolean;
@@ -141,6 +143,19 @@ function Game({ h }: { h: Habitat }) {
   }
   const e = E.current;
   e.mode = mode; e.place = place; e.pick = pick; e.sel = sel;
+  // your companion trots after you — here at home, or along on a visit to someone else's sanctuary
+  const companion = useCompanion();
+  useEffect(() => {
+    if (!companion) return;
+    const here = e.sims.find((x) => x.c.id === companion.c.id);
+    if (here) { here.follow = true; bump((v) => v + 1); return () => { here.follow = false; }; }
+    const p = e.player;
+    const sim: Sim = { c: { ...companion.c, mine: true }, g: companion.g, x: p.x - 1.2, y: p.y + 0.3, dir: 1, st: 'happy', until: performance.now() + 1500,
+      tx: p.x, ty: p.y, task: null, after: null, stuck: 0, seed: Math.random() * 100, speed: SPEED[companion.g.mood] ?? 3.2, nextPet: 0, follow: true, visiting: true };
+    if (!walkable(e.T, e.solids, sim.x, sim.y, 0.4)) { sim.x = p.x; sim.y = p.y; }
+    e.sims.push(sim); bump((v) => v + 1);
+    return () => { const ex = E.current; if (ex) ex.sims = ex.sims.filter((x) => x !== sim); };
+  }, [companion?.c.id, h.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // what the engine tells the page (set below, read by the loop)
   const hooks = useRef({ fetched: (_s: Sim) => {}, snacked: (_s: Sim) => {}, bathed: (_s: Sim) => {}, seekPhase: (_p: 'seek') => {}, seekOver: (_found: boolean) => {} });
   const [seek, setSeek] = useState<{ name: string; phase: 'count' | 'seek'; tries: number } | null>(null);
@@ -156,7 +171,7 @@ function Game({ h }: { h: Habitat }) {
   // keep the residents in step with the server (a creature made, moved or released elsewhere)
   useEffect(() => {
     const ids = new Set(h.creatures.map((c) => c.id));
-    e.sims = e.sims.filter((s) => ids.has(s.c.id));
+    e.sims = e.sims.filter((s) => s.visiting || ids.has(s.c.id));
     for (const c of h.creatures) {
       const s = e.sims.find((x) => x.c.id === c.id);
       if (s) { s.c = c; s.g = cleanGenome(c.genome); continue; }
@@ -1175,7 +1190,9 @@ function Game({ h }: { h: Habitat }) {
                   {e.T.pond && <CareBtn icon={<Bath className="h-4 w-4" />} label="Bathe" onClick={() => bathe(selSim)} testid="bathe" />}
                 </>
               ) : (
-                <>
+                selSim.c.mine ? (
+                  <div className="col-span-5 flex items-center text-[11px] text-white/75">⭐ {selSim.c.name} is your companion, visiting with you. Tap one of @{h.owner.username}’s creatures for a playdate.</div>
+                ) : <>
                   <button className="col-span-3 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#FF8FB1] to-[#B69CFF] px-2 py-2 text-sm font-bold text-white shadow"
                     onClick={() => nav(`/inkborn/playdate/${selSim.c.id}`, { state: { name: selSim.c.name, genome: selSim.c.genome, owner: h.owner.username, back: `/habitat/${h.id}` } })} data-testid="playdate">
                     🧺 Playdate

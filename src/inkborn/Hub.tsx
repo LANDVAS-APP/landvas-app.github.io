@@ -1,8 +1,10 @@
 // /inkborn — your creatures and your sanctuaries. Everyone has a free starter sanctuary;
 // plots turned into Inkborn Habitats add bigger ones that others can find on the map.
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { toGameError } from '../backend/backend';
 import { motion } from 'motion/react';
-import { Heart, MapPinned, Plus, TreePine, Zap } from 'lucide-react';
+import { Heart, MapPinned, Plus, Star, TreePine, Users, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -25,6 +27,14 @@ export default function Hub() {
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['sanctuaries'], queryFn: api.mySanctuaries, enabled: !!me });
   const [open, setOpen] = useState<Inkborn | null>(null);
+  const qc = useQueryClient();
+  const star = async (c: Inkborn, on: boolean) => {
+    try {
+      await api.setCompanion(on ? c.id : null);
+      await qc.invalidateQueries({ queryKey: ['sanctuaries'] });
+      toast.success(on ? `${c.name} is your companion now ⭐` : `${c.name} will stay home`, { description: on ? 'They’ll roam with you on the map, on other worlds and into the sanctuaries you visit.' : undefined });
+    } catch (e) { toast.error(toGameError(e).message); }
+  };
   if (!me || q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (q.error || !q.data) return <Page><Empty title="Inkborn couldn’t load">Try again in a moment.</Empty></Page>;
   const d = q.data;
@@ -33,7 +43,8 @@ export default function Hub() {
     <Page wide>
       <PageHeader eyebrow="Inkborn" title="Your creatures" actions={
         <div className="flex gap-2">
-          <Link to={`/habitat/${d.starter_id}`}><Button variant="secondary"><TreePine className="h-4 w-4" /> Enter sanctuary</Button></Link>
+          <Link to={`/habitat/${d.starter_id}`}><Button variant="secondary"><TreePine className="h-4 w-4" /> Sanctuary</Button></Link>
+          <Link to="/inkborn/visit"><Button variant="secondary" data-testid="visit-sanctuaries"><Users className="h-4 w-4" /> Visit</Button></Link>
           <Link to="/inkborn/create"><Button variant="rainbow" data-testid="new-inkborn"><Plus className="h-4 w-4" /> Create</Button></Link>
         </div>
       }>
@@ -54,11 +65,19 @@ export default function Hub() {
             const g = cleanGenome(c.genome);
             return (
               <motion.button key={c.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }} whileHover={{ y: -4 }}
-                onClick={() => setOpen(c)} className="glass group grid justify-items-center gap-1 rounded-3xl p-3 text-left">
+                onClick={() => setOpen(c)} className="glass group relative grid justify-items-center gap-1 rounded-3xl p-3 text-left">
                 <div className={cn('relative', c.job && 'opacity-60')}><CreatureView genome={g} size={120} state={c.energy < 15 ? 'sleep' : c.happiness > 80 ? 'happy' : 'idle'} />
                   {c.job && <span className="absolute right-0 top-0 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold">{c.job_until && new Date(c.job_until).getTime() <= Date.now() ? '🎁 back!' : `🎒 ${jobLabel(c.job)}`}</span>}
                 </div>
+                <span role="button" tabIndex={0} aria-label={d.companion_id === c.id ? `Stop ${c.name} roaming with you` : `Make ${c.name} your companion`}
+                  title={d.companion_id === c.id ? 'Your companion — roams with you everywhere' : 'Make this your companion'}
+                  onClick={(e) => { e.stopPropagation(); void star(c, d.companion_id !== c.id); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); void star(c, d.companion_id !== c.id); } }}
+                  className={cn('absolute left-2 top-2 grid h-8 w-8 place-items-center rounded-full', d.companion_id === c.id ? 'bg-[#FFC93D] text-[#5A3A00] shadow' : 'bg-black/20 text-white/70 hover:bg-black/35')} data-testid="companion-star">
+                  <Star className={cn('h-4 w-4', d.companion_id === c.id && 'fill-current')} />
+                </span>
                 <div className="w-full truncate text-center font-display font-semibold">{c.name}</div>
+                {d.companion_id === c.id && <div className="-mt-1 text-[10px] font-black uppercase tracking-wide text-[#FFC93D]">Companion</div>}
                 <div className="text-[11px] text-muted">{MOOD_INFO[g.mood].emoji} {MOOD_INFO[g.mood].label} · {bondLevel(c.bond).name}</div>
                 <div className="mt-1 flex w-full items-center gap-2 text-[10px] text-muted">
                   <Heart className="h-3 w-3 text-[#FF4D6D]" /><div className="h-1.5 flex-1 rounded-full bg-surface-2"><div className="h-full rounded-full bg-[#FF4D6D]" style={{ width: `${c.happiness}%` }} /></div>

@@ -53,6 +53,7 @@ const DoodleScreen = lazy(() => import('../creative/DoodleScreen'));
 const DuetScreen = lazy(() => import('../creative/DuetScreen'));
 const InkbornHub = lazy(() => import('../inkborn/Hub'));
 const Playdate = lazy(() => import('../inkborn/Playdate'));
+const VisitSanctuaries = lazy(() => import('../inkborn/Visit'));
 const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
@@ -189,6 +190,7 @@ const routes: RouteObject[] = [
           { path: '/plots', element: player(<PlotsScreen />) },
           { path: '/inkborn', element: player(<InkbornHub />) },
           { path: '/inkborn/create', element: player(<InkbornStudio />) },
+          { path: '/inkborn/visit', element: player(<VisitSanctuaries />) },
           { path: '/inkborn/edit/:id', element: player(<InkbornStudio />) },
           { path: '/duet/:id', element: p(<DuetScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },

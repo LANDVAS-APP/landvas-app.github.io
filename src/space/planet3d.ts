@@ -15,7 +15,7 @@ import { rng } from '../inkborn/world';
 import { LAT_MAX, cellAt, cellBounds, cellCenterDir, cellKey, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
 
-export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number };
+export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
 export type PlanetSceneOpts = {
   canvas: HTMLCanvasElement; world: World; rows: number; seed: number; accent: string; explorerUrl: string;
@@ -538,10 +538,19 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); s.scale.set(1.7, 1.7, 1); s.center.set(0.5, 0.06);
     scene.add(s); buddy = { s, c, tex, d: P.d.clone(), st: 'idle', hop: 0, dir: 1, g: gen };
   };
-  type Other = { s: THREE.Sprite; lab: THREE.Sprite; dot: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number };
+  type Other = { s: THREE.Sprite; lab: THREE.Sprite; dot: THREE.Sprite; d: THREE.Vector3; to: THREE.Vector3; face: THREE.Vector3; hop: number; hopTo: number; streamed: number; walk: number; pet: THREE.Sprite | null; petD: THREE.Vector3 };
   const others = new Map<string, Other>();
   const otherDotMat = track(new THREE.SpriteMaterial({ map: glowTex, color: '#7FE3FF', transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
-  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab, x.dot); disposeSprite(x.s); disposeSprite(x.lab); others.delete(id); };
+  const dropOther = (id: string) => { const x = others.get(id); if (!x) return; scene.remove(x.s, x.lab, x.dot); disposeSprite(x.s); disposeSprite(x.lab); if (x.pet) { scene.remove(x.pet); disposeSprite(x.pet); } others.delete(id); };
+  /** Someone else's companion: drawn once (they're small and there can be a few), bobbing after them. */
+  const petSprite = (gen: Genome) => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!; drawCreature(g, gen, 64, 120, 62, { t: 0, state: 'idle', dir: 1 });
+    g.strokeStyle = 'rgba(200,230,255,0.8)'; g.lineWidth = 3; g.beginPath(); g.arc(64, 86, 43, 0, Math.PI * 2); g.stroke();
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); s.scale.set(1.5, 1.5, 1); s.center.set(0.5, 0.06);
+    scene.add(s); return s;
+  };
   const vec = (a: number[] | null | undefined) => (a && a.length === 3 && a.every(Number.isFinite) && Math.hypot(a[0], a[1], a[2]) > 1e-6 ? new THREE.Vector3(a[0], a[1], a[2]).normalize() : null);
   const setLive = (list: Pilot[]) => {
     const keep = new Set(list.map((p) => p.id));
@@ -553,7 +562,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         const s = imageSprite(p.explorerUrl, 1.9); const lab = textSprite(`@${p.username}`, '#ffffff', 0.45);
         const dot = new THREE.Sprite(otherDotMat); dot.renderOrder = 4;
         const start = d ?? spawn.clone();
-        x = { s, lab, dot, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0 };
+        x = { s, lab, dot, d: start.clone(), to: start.clone(), face: new THREE.Vector3(0, 1, 0), hop: 0, hopTo: 0, streamed: 0, walk: 0, pet: p.companion ? petSprite(p.companion) : null, petD: start.clone() };
         scene.add(s, lab, dot); others.set(p.id, x);
       }
       if (d && performance.now() - x.streamed > 2500) { x.to.copy(d); const f = vec(p.face); if (f) x.face.copy(f); x.hopTo = p.hop ?? 0; }
@@ -749,6 +758,13 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       x.lab.position.copy(x.d).multiplyScalar(gr + 2.1);
       x.dot.visible = hgh > 0.2; x.dot.scale.setScalar(dotSize * 0.8); x.dot.position.copy(x.d).multiplyScalar(gr + 1);
       const sx = x.face.dot(right); if (Math.abs(sx) > 0.15) { const m = x.s.material.map!; m.repeat.x = sx < 0 ? -1 : 1; m.offset.x = sx < 0 ? 1 : 0; }
+      if (x.pet) {
+        const want = x.d.clone(); moveOn(want, x.face.clone().negate(), 2);
+        const pg = x.petD.angleTo(want) * R;
+        if (pg > 30) x.petD.copy(want); else if (pg > 0.4) moveOn(x.petD, want.clone().projectOnPlane(x.petD).normalize(), Math.min(pg, Math.max(pg * dt * 4, 7 * dt)));
+        x.pet.position.copy(x.petD).multiplyScalar(surf(x.petD) + (pg > 0.4 && !reduce ? Math.abs(Math.sin(t * 9 + x.walk)) * 0.25 : 0));
+        x.pet.visible = hgh < 0.5;
+      }
     }
     for (const s of samples) {
       if (s.got) continue;

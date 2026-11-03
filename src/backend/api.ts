@@ -146,6 +146,9 @@ export const api = {
   // Inkborn
   setGroupKind: (groupId: string, kind: import('./types').PlotKind) => rpc<CanvasGroup>('set_group_kind', { p_group_id: groupId, p_kind: kind }),
   mySanctuaries: () => rpc<import('./types').Sanctuaries>('my_sanctuaries'),
+  setCompanion: (id: string | null) => rpc<{ companion: import('./types').Companion | null }>('inkborn_set_companion', { p_id: id }),
+  sanctuaryDirectory: (query: string, sort: 'lively' | 'new' | 'friends', offset = 0) =>
+    rpc<{ items: import('./types').SanctuaryCard[] }>('sanctuary_directory', { p_query: query || null, p_sort: sort, p_limit: 24, p_offset: offset }),
   playdateStart: (mine: string, theirs: string) => rpc<import('./types').PlaydateStart>('inkborn_playdate_start', { p_mine: mine, p_theirs: theirs }),
   playdateFinish: (session: string, score: number) => rpc<import('./types').PlaydateFinish>('inkborn_playdate_finish', { p_session: session, p_score: score }),
   inkEggs: () => rpc<import('./types').InkEgg[]>('inkborn_eggs'),

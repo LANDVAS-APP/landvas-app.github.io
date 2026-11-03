@@ -1062,3 +1062,6 @@ button, a, [role="button"] { touch-action: manipulation; }
 
 /* off on another world: your explorer is not on Earth */
 .lv-away .lv-explorer { display: none !important; }
+/* your companion Inkborn, beside your explorer on the map */
+.lv-explorer .lv-companion { position: absolute; z-index: 0; width: 42px; height: 42px; left: -30px; bottom: 0; pointer-events: none; }
+.lv-explorer.left .lv-companion { left: auto; right: -30px; }

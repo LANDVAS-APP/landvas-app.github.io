@@ -427,7 +427,7 @@ export type Habitat = {
 };
 export type Sanctuaries = {
   habitats: { id: string; kind: 'starter' | 'plot'; group_id: string | null; plots: number; capacity: number; creatures: number; name: string }[];
-  creatures: Inkborn[]; starter_id: string; max_creatures: number; ai_portraits: boolean;
+  creatures: Inkborn[]; starter_id: string; companion_id?: string | null; max_creatures: number; ai_portraits: boolean;
 };
 
 // ---- Space ----
@@ -451,7 +451,8 @@ export type PlanetMap = {
   world: string; rows: number; cols: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
 };
-export type LiveMember = Profile & { explorer_style?: unknown; d: number[]; face: number[]; hop: number };
+export type Companion = { id: string; name: string; genome: import('../inkborn/genome').Genome };
+export type LiveMember = Profile & { explorer_style?: unknown; d: number[]; face: number[]; hop: number; companion?: Companion | null };
 export type PlanetLive = {
   world: string; shard: number; joined: boolean; spawn: { d: number[]; player: string } | null; group_size: number;
   channel: string; members: LiveMember[]; on_world: number;
@@ -469,3 +470,7 @@ export type PlaydateStart = {
   theirs: { id: string; name: string; genome: import('../inkborn/genome').Genome; owner: Profile };
 };
 export type PlaydateFinish = { score: number; earned: number; paid: number; capped: boolean; host_tip: number; egg: InkEgg | null; their_egg: { kind: string } | null; no_egg_because: string | null; repeat?: boolean };
+export type SanctuaryCard = {
+  id: string; kind: 'starter' | 'plot'; plots: number; creatures: number; capacity: number; name: string; owner: Profile; friend: boolean; active_at: string;
+  preview: { name: string; genome: import('../inkborn/genome').Genome }[];
+};

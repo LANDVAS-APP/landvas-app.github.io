@@ -22,7 +22,7 @@ export const SECTIONS = [
     { to: '/duet', label: 'Duets' }, { to: '/inventory', label: 'Studio & shop' },
   ] },
   { to: '/inkborn', label: 'Inkborn', icon: PawPrint, pages: [
-    { to: '/inkborn', label: 'My creatures' }, { to: '/inkborn/create', label: 'Create an Inkborn' }, { to: '/habitat', label: 'Sanctuary' },
+    { to: '/inkborn', label: 'My creatures' }, { to: '/inkborn/create', label: 'Create an Inkborn' }, { to: '/habitat', label: 'Sanctuary' }, { to: '/inkborn/visit', label: 'Visit' },
   ] },
   { to: '/space', label: 'Space', icon: Rocket, pages: [
     { to: '/space', label: 'Mission control' }, { to: '/space/play/asteroids', label: 'Asteroid Run' }, { to: '/space/play/lander', label: 'Moon Lander' },

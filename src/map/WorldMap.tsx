@@ -22,6 +22,8 @@ import { BUILDING_LAYERS, STREET_LABEL_LAYERS, recolorOffline, resolveStyle, the
 import { citiesInView } from './places';
 import { mapHandle } from './mapHandle';
 import { explorerElement } from '../explorer/character';
+import { useCompanion } from '../inkborn/companion';
+import { drawCreature } from '../inkborn/rig';
 import { MapFx, invalidateResidents } from './MapFx';
 import { PlotBubbles } from './Hud';
 
@@ -45,6 +47,7 @@ let lastMergePaint = 0;
 export const plotBlocks = new PlotBlocks();
 
 export function WorldMap() {
+  const companion = useCompanion();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const onlineRef = useRef(false);
@@ -320,6 +323,12 @@ export function WorldMap() {
     let lastFollow = 0;
     let lastPaint = 0;
     const el = explorerElement(me?.profile.explorer_style, accent);
+    // your companion trots along beside you
+    let pet: { cv: HTMLCanvasElement; g: CanvasRenderingContext2D; n: number } | null = null;
+    if (companion) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 96; cv.className = 'lv-companion';
+      el.appendChild(cv); pet = { cv, g: cv.getContext('2d')!, n: 0 };
+    }
     const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6], opacity: '1', opacityWhenCovered: '1' });
     explorerMarker.current = marker;
     let added = false;
@@ -339,6 +348,10 @@ export function WorldMap() {
         toggle('walking', p.traveling || performance.now() < movingUntil);
         toggle('left', heading < 0);
         toggle('gps', gps === 'on');
+        if (pet && companion && (pet.n++ % 3 === 0)) {
+          pet.g.clearRect(0, 0, 96, 96);
+          drawCreature(pet.g, companion.g, 48, 92, 46, { t: performance.now() / 1000, state: cls.walking ? 'walk' : 'idle', dir: cls.left ? -1 : 1 });
+        }
         const c = lngLatToCell(p.lng, p.lat);
         const key = `${c.gx}_${c.gy}_${state?.reach ?? 1}`;
         if (key !== lastCell) {
@@ -382,7 +395,7 @@ export function WorldMap() {
       marker.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, accent, styleKey]);
+  }, [ready, accent, styleKey, companion?.c.id]);
 
   // ---- reactive updates ------------------------------------------------------------
   useEffect(() => {
