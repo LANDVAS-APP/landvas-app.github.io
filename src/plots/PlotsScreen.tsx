@@ -21,6 +21,7 @@ import { Z_HOUSE, cellCenter, lngLatToCell, type PlotTypeId } from '../shared/gr
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatUsd } from '../shared/rent';
 import { Button, Dialog, Empty, ResourceIcon, Spinner } from '../ui';
+import { PlacesSheet } from '../space/Places';
 
 type Row = { gx: number; gy: number; plot_type: PlotTypeId; rarity: string; level: number; claimed_at: string; group_id: string | null; has_art: boolean; name: string | null; usd_per_second: number };
 type Sort = 'newest' | 'oldest' | 'rarity' | 'rent' | 'level' | 'nearest' | 'name' | 'type';
@@ -80,10 +81,13 @@ export default function PlotsScreen() {
   const counts = RARITY_ORDER.map((r) => [r, rows.filter((x) => x.rarity === r).length] as const).filter(([, n]) => n > 0);
   const habitats = (groups.data ?? []).filter((g) => g.status === 'active' && g.kind === 'habitat').length;
 
+  const [places, setPlaces] = useState(false);
   if (!me || plots.isLoading) return <Page><div className="grid min-h-[50vh] place-items-center"><Spinner /></div></Page>;
   return (
     <Page wide>
       <PageHeader eyebrow="Your land" title="My Plots">Every plot you own — sort, filter and tap one for everything about it.</PageHeader>
+      <Button variant="secondary" className="mb-4 w-full sm:w-auto" onClick={() => setPlaces(true)} data-testid="plots-places">🪐 All my plots, on Earth and every world — warp to any</Button>
+      {places && <PlacesSheet open onOpenChange={setPlaces} />}
       {rows.length === 0 ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="No plots yet" action={<Button variant="rainbow" onClick={() => history.back()}>Claim your first plot</Button>}>Claim plots around your explorer on the map.</Empty>
       ) : (

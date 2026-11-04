@@ -518,7 +518,38 @@ export type SpaceState = {
 };
 
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
-export type BaseModule = { id: string; k: string; x: number; y: number; r?: number; c?: string };
+/** A placed piece: where (metres from the base's south-west corner), its angle in degrees (old layouts: r quarter turns),
+ *  how high it sits (z), its size per axis, main and accent colour, material and style variant. */
+export type BaseModule = { id: string; k: string; x: number; y: number; r?: number; a?: number; z?: number; sx?: number; sy?: number; sz?: number; c?: string; c2?: string; m?: string; v?: number };
+export type BaseModDef = {
+  name: string; emoji: string; w: number; d: number; h?: number; cat?: string; prim?: boolean; req?: string; cost: Record<string, number>;
+  fx?: { power?: number; crew?: number; out?: Record<string, number>; ink?: number; research?: number; storage?: number; boost?: number;
+    convert?: { from: Record<string, number>; to: Record<string, number>; times: number }; sell?: Record<string, number> & { per?: number; max?: number } };
+};
+export type BaseEcon = {
+  power: { supply: number; demand: number }; crew: { have: number; need: number }; efficiency: number; boost: number;
+  out: Record<string, number>; ink: number; research: number; storage_cap: number;
+  convert: { from: Record<string, number>; to: Record<string, number>; rate: number }[]; sell: (Record<string, number> & { rate: number })[];
+  buildings: { id: string; k: string; lv: number; mult: number }[];
+};
+export type BaseResearch = { points: number; unlocked: string[] };
+export type BaseState = {
+  econ: BaseEcon; storage: Record<string, number>; ink_pending: number; research_pending: number; levels: Record<string, number>; prod_at: string;
+  upgrades: Record<string, Record<string, number>>; research: BaseResearch;
+  collected?: Record<string, number>; ink?: number; research_gained?: number; upgraded?: string; to?: number;
+};
+export type Discoveries = {
+  enabled: boolean; server_time: string;
+  weather: { kind: string; name: string; emoji: string; active: boolean; starts: string; ends: string; next: string; win: number; shards: { i: number; d: number[]; rare: boolean; taken: boolean }[] };
+  aliens: { i: number; d: number[]; species: AlienSpecies; found: boolean }[];
+  pois: { i: number; d: number[]; kind: string; found: boolean }[];
+  codex: Record<string, number>;
+  species: AlienSpecies[];
+  poi_kinds: Record<string, { name: string; emoji: string; ink: number }>;
+  weather_kinds: Record<string, { name: string; emoji: string; item: string; rare: string }>;
+};
+export type AlienSpecies = { id: string; name: string; emoji: string; rarity: string; ink: number };
+export type FindResult = { kind: 'shard' | 'alien' | 'poi'; idx: number; paid: number; earned: number; items: Record<string, number>; species: AlienSpecies | null; new_species: boolean; poi: string | null };
 export type BaseView = { world: string; gx: number; gy: number; w: number; h: number; layout: BaseModule[]; rev: number; mine: boolean; owner: Profile; name: string | null; modules: number; plot_m: number; catalog: { modules: Record<string, { name: string; emoji: string; w: number; d: number }> } };
 export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number; w?: number; h?: number } | null; in_base?: [number, number] | null; shaft?: { depth: number; cored: boolean } | null };
 export type PlanetMap = {
@@ -571,8 +602,13 @@ export type SpaceSocial = {
   new_worlds: { player: Profile; seed: number; name: string; at: string }[];
 };
 export type BaseCatalog = {
-  config: { max_modules: number; refund: number; palette: string[]; modules: Record<string, { name: string; emoji: string; w: number; d: number; cost: Record<string, number> }> };
-  items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number;
+  config: {
+    max_modules: number; max_modules_total?: number; max_merge?: number; refund: number; palette: string[]; modules: Record<string, BaseModDef>;
+    max_z?: number; scale?: [number, number]; max_level?: number;
+    materials?: Record<string, { name: string; req?: string }>; categories?: Record<string, { name: string; emoji: string }>;
+    research?: Record<string, { name: string; emoji: string; cost: number; desc: string }>;
+  };
+  items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number; research?: BaseResearch;
 };
 export type PlanetQuest = { id: string; metric: string; target: number; title: string; emoji?: string; ink: number; items: Record<string, number>; progress: number; done: boolean; claimed: boolean };
 export type PlanetQuests = {
@@ -587,3 +623,9 @@ export type RoverState = {
   config: { enabled: boolean; fuel_per_ice: number; fuel_per_ink: number; models: RoverModel[] }; items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>;
   bought?: string; added?: number; moved_m?: number; burned?: number; out_of_fuel?: boolean;
 };
+
+export type PlanetOverview = {
+  worlds: { world: string; rows: number; cols: number; claimed: number; mine: number; here_now: number }[];
+  plots: { world: string; gx: number; gy: number; name: string | null; rarity: string; rows: number; base: number }[];
+};
+export type PlanetHere = { player: Profile; d: number[]; friend: boolean; with_you: boolean; seen: number }[];

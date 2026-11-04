@@ -26,7 +26,9 @@ import { RoverControls, RoverGarage, useRover } from './Rover';
 import { PlanetChatBox, usePlanetChat } from './PlanetChat';
 import { QuestsChip, QuestsDialog, questsKey, useQuests } from './Quests';
 import { BaseBuilder, BaseVisit } from './BaseBuilder';
-import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
+import { createPlanetScene, type FindKind, type PlanetScene, type ZoomInfo } from './planet3d';
+import { PlacesSheet } from './Places';
+import { DiscoveriesDialog, FindsChip, StormChip, useDiscoveries } from './Discoveries';
 import { PLANET_GAMES } from './planetGames';
 import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
 import { SPACE_KEY, useFlight, useSpace } from './useSpace';
@@ -80,7 +82,6 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [paid, setPaid] = useState<{ paid: number; first: number } | null>(null);
   const [settleOpen, setSettleOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -91,6 +92,8 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [questsOpen, setQuestsOpen] = useState(false);
   const [building, setBuilding] = useState<PlanetPlot | null>(null);
   const [visiting, setVisiting] = useState<{ gx: number; gy: number } | null>(null);
+  // the planet doesn't need drawing behind the full-screen base view
+  useEffect(() => { if (building || visiting) { scene.current?.setPaused(true); return () => scene.current?.setPaused(false); } }, [!!building || !!visiting]); // eslint-disable-line react-hooks/exhaustive-deps
   const collecting = useRef(false);
 
   const collect = async () => {
@@ -109,7 +112,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const rows = map.data?.rows;
   const canBuild = canPlots ? rows != null || map.isError : true;
   const builtRows = rows ?? 16;
-  const latest = useRef({ taken, collect, grab: (_i: number) => {} }); latest.current = { taken, collect, grab: (i: number) => void grab(i) };
+  const latest = useRef({ taken, collect, grab: (_i: number) => {}, find: (_k: FindKind, _i: number) => {} }); latest.current = { taken, collect, grab: (i: number) => void grab(i), find: latest.current.find };
   useEffect(() => {
     if (!canBuild || !cv.current) return;
     const introKey = `landvas.planet.intro.${world}`;
@@ -124,6 +127,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         onCell: setCell, onPick: setCell, onZoom: setZoomInfo, onLost: () => setLost(true), onArea: setArea,
         onSample: (n) => { setGot(n); if (n === SAMPLES) void latest.current.collect(); },
         onMeteor: (i) => latest.current.grab(i),
+        onFind: (k, i) => latest.current.find(k, i),
       });
     } catch (e) {
       console.error(e);
@@ -177,6 +181,11 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       void shower.refetch();
     }
   };
+  // weather, hiding aliens and places to discover
+  const disc = useDiscoveries(world, ready && !lost, scene);
+  latest.current.find = (k, i) => void disc.find(k, i);
+  const [discOpen, setDiscOpen] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState<'plots' | 'people' | 'worlds' | null>(null);
   const [clock, setClock] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(t); }, []);
   const metLeft = shower.data?.meteors.filter((m) => !m.taken).length ?? 0;
@@ -282,20 +291,22 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
             🧭 {distance(around)} around · {((map.data?.rows ?? builtRows) * (map.data?.cols ?? builtRows * 2.5) / 1e6).toFixed(1)}M plots, {Math.round(plotM)} m wide
           </span>
           {live && (
-            <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
+            <button onClick={() => setPlacesOpen('people')} className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#4FD18B]" /><Users className="h-3 w-3" />
               {live.with ? `${live.with + 1}/${live.size} here` : 'Just you'}{live.onWorld > live.with + 1 ? ` · ${live.onWorld} on ${w.name.replace('The ', 'the ')}` : ''}
-            </span>
+            </button>
           )}
           {shower.data && (
             <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', metLeft ? 'bg-[#FF7A3D]/80' : 'bg-black/50')} data-testid="meteor-chip" title="Meteor shower by the landing site">
               ☄️ {metLeft ? `${metLeft} meteors` : 'next shower'} · {Math.floor(nextIn / 60)}:{String(Math.floor(nextIn % 60)).padStart(2, '0')}
             </span>
           )}
+          <StormChip d={disc.data} onOpen={() => setDiscOpen(true)} />
+          <FindsChip d={disc.data} onOpen={() => setDiscOpen(true)} />
           <QuestsChip q={quests.data} onOpen={() => setQuestsOpen(true)} />
           {canPlots && map.data && (
-            <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setListOpen(true)} data-testid="my-planet-plots">
-              <Flag className="h-3 w-3" /> {mine.length ? `My plots (${mine.length})` : `${map.data.claimed.toLocaleString()} claimed`}
+            <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setPlacesOpen('plots')} data-testid="my-planet-plots">
+              <Flag className="h-3 w-3" /> {mine.length ? `My plots (${mine.length}) · ` : ''}{map.data.claimed.toLocaleString()} claimed
             </button>
           )}
           </div>
@@ -372,6 +383,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       <AnimatePresence>{building && <BaseBuilder world={world} plot={building} mine={shownPlots.filter((p) => p.mine)} onClose={() => setBuilding(null)} onSaved={() => { void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
       <AnimatePresence>{visiting && <BaseVisit world={world} gx={visiting.gx} gy={visiting.gy} onClose={() => setVisiting(null)} />}</AnimatePresence>
       <RoverGarage open={garageOpen} onOpenChange={setGarageOpen} rover={rover} />
+      {placesOpen && <PlacesSheet open onOpenChange={(o) => { if (!o) setPlacesOpen(null); }} start={placesOpen}
+        here={{ world, R, go: (d) => scene.current?.teleport(d), pose: () => scene.current?.pose().d ?? null }} />}
+      <DiscoveriesDialog d={disc.data} open={discOpen} onOpenChange={setDiscOpen} worldName={w.name.replace('The ', 'the ')} pose={() => scene.current?.pose().d ?? null} R={R} />
       <QuestsDialog world={world} worldName={w.name.replace('The ', 'the ')} q={quests.data} open={questsOpen} onOpenChange={setQuestsOpen} />
       <AnimatePresence>{digPlot && <DigPanel world={world} w={w} plot={digPlot} pose={() => scene.current?.pose().d ?? null}
         onDug={(depth, cored) => scene.current?.setShaft(digPlot.gx, digPlot.gy, depth, cored)}
@@ -391,20 +405,6 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
               </button>
             );
           })}
-        </div>
-      </Dialog>
-      <Dialog open={listOpen} onOpenChange={setListOpen} title={`Plots on ${w.name}`} description={map.data ? `${map.data.claimed.toLocaleString()} of ${(map.data.rows * map.data.cols).toLocaleString()} plots claimed so far. A new plot costs you ${map.data.price} Ink here.` : undefined}>
-        <div className="grid max-h-[50vh] gap-1.5 overflow-y-auto">
-          {mine.map((p) => (
-            <button key={cellKey(p)} className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-left hover:bg-surface-3"
-              onClick={() => { setListOpen(false); scene.current?.walkTo(p); }}>
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.owner.accent ?? '#8B5CFF' }} />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.name || (p.mine ? 'My plot' : `@${p.owner.username}`)}</span>
-              <span className="text-[11px] text-muted">{cellLabel(p, builtRows)}</span>
-              <MapPin className="h-4 w-4 text-muted" />
-            </button>
-          ))}
-          {!mine.length && <p className="text-sm text-muted">You haven’t claimed a plot here yet — walk onto any free one and claim it.</p>}
         </div>
       </Dialog>
       <AnimatePresence>{reveal && map.data && <RarityReveal r={rarityOf[reveal.rarity]} games={reveal.games} bonus={map.data.bonus_game} world={w} onClose={() => setReveal(null)} />}</AnimatePresence>

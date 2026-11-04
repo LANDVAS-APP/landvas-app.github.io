@@ -23,7 +23,7 @@ describe('Bases', () => {
     await expectError(db.rpc(lou, 'planet_base_save', { p_world: 'moon', p_gx: 5, p_gy: 500, p_layout: lay, p_rev: 0 }), 'not_owner');
     await expectError(db.rpc(kai, 'planet_base_save', { p_world: 'moon', p_gx: 5, p_gy: 500, p_layout: [{ id: 'a', k: 'castle', x: 4, y: 4 }], p_rev: 0 }), 'invalid_layout');
     await expectError(db.rpc(kai, 'planet_base_save', { p_world: 'moon', p_gx: 5, p_gy: 500, p_layout: [{ id: 'a', k: 'dome', x: 7, y: 4 }], p_rev: 0 }), 'invalid_layout'); // hangs off the edge
-    await expectError(db.rpc(kai, 'planet_base_save', { p_world: 'moon', p_gx: 5, p_gy: 500, p_layout: [{ id: 'a', k: 'lamp', x: 1, y: 1, c: '#123456' }], p_rev: 0 }), 'invalid_layout');
+    await expectError(db.rpc(kai, 'planet_base_save', { p_world: 'moon', p_gx: 5, p_gy: 500, p_layout: [{ id: 'a', k: 'lamp', x: 1, y: 1, c: 'red' }], p_rev: 0 }), 'invalid_layout'); // colours are #rrggbb
   });
 
   it('new modules cost materials and Ink; everyone sees the base', async () => {

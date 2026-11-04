@@ -23,6 +23,7 @@ import { WORLDS, WORLD_ORDER, type World, type WorldId, exoWorld, worldKey, worl
 import { SPACE_GAMES } from './games';
 import { createSystemScene, type SystemLive } from './system3d';
 import { PlanetBall } from './PlanetBall';
+import { PlacesSheet } from './Places';
 export { PlanetBall };
 import { PLANET_GAMES } from './planetGames';
 import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
@@ -445,9 +446,12 @@ function PlanetPlotsCard({ s }: { s: SpaceState }) {
   const nav = useNavigate();
   const q = useQuery({ queryKey: ['planet-mine'], queryFn: api.myPlanetPlots, staleTime: 30_000 });
   const plots = q.data ?? [];
+  const [places, setPlaces] = useState(false);
   return (
     <div className="glass grid gap-2 rounded-[28px] p-4" data-testid="planet-plots">
-      <div className="flex items-center gap-2"><div className="eyebrow">Planet plots</div><span className="ml-auto text-[11px] text-muted">{plots.length} owned</span></div>
+      <div className="flex items-center gap-2"><div className="eyebrow">Planet plots</div><span className="ml-auto text-[11px] text-muted">{plots.length} owned</span>
+        <button onClick={() => setPlaces(true)} className="rounded-full bg-[var(--accent)] px-2.5 py-1 text-[11px] font-bold text-white" data-testid="space-places">📍 Find & warp</button></div>
+      {places && <PlacesSheet open onOpenChange={setPlaces} />}
       {!plots.length && <p className="text-xs text-muted">Land on any world and walk its globe to claim plots — everyone exploring there sees your flag. Each world’s plots come with two games of their own that pay Ink.</p>}
       <div className="grid max-h-72 gap-1.5 overflow-y-auto">
         {plots.map((p) => {

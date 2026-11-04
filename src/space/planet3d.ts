@@ -14,7 +14,9 @@ import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { rng } from '../inkborn/world';
 import { LAT_MAX, PLOT_M, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey, colsFor, dirOf, radiusFor, type Cell, type Vec3 } from './planetGrid';
 import type { World } from './worlds';
-import { moduleModel, roverModel } from './baseModels';
+import { animateModels, moduleModel, roverModel } from './baseModels';
+import { alienModel, animateFinds, poiModel, shardModel, WEATHER, weatherParticles } from './finds3d';
+import { isPhone } from '../lib/gfx';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
@@ -26,13 +28,18 @@ export type PlanetSceneOpts = {
   onCell(c: Cell | null): void; onSample(got: number): void; onPick(c: Cell | null): void; onZoom(z: ZoomInfo): void; onLost?(): void;
   /** you're standing by meteorite i (asked again every few seconds while you stay) */ onMeteor?(i: number): void;
   /** the grid cell the view is centred on moved a good way (fetch the plots round it) */ onArea?(c: { gx: number; gy: number }): void;
+  /** you're right by a find (storm shard, hiding alien, place to discover); asked again every few seconds while you stay */ onFind?(kind: FindKind, i: number): void;
 };
+export type FindKind = 'shard' | 'alien' | 'poi';
+export type FindMark = { id: string; kind: FindKind; i: number; d: number[]; found: boolean; storm?: string; rare?: boolean; species?: string; rarity?: string; poi?: string };
 export type PlanetScene = {
   /** joystick: x right, y forward (-1..1) */ joy: { x: number; y: number }; jump(): void;
   /** rarity colours, and from which rank a plot shines a beam into the sky */ setPlots(plots: PlanetPlot[], rarity?: Record<string, { color: string; rank: number }>): void;
   /** from afar: claimed-plot counts per sector of `size` x `size` plots */ setSectors(list: [number, number, number, boolean][], size: number): void;
   /** the current meteor shower (`key` changes with each new shower, which falls from the sky) */ setMeteors(key: string, list: { i: number; d: number[]; golden: boolean; taken: boolean }[]): void;
   /** a little burst of light where something happened (a meteorite grabbed) */ burst(d: number[], color?: string): void;
+  /** the weather here: a storm kind blowing (dust, solar, blizzard, ion, acid, ash), or null for calm */ setWeather(kind: string | null): void;
+  /** things to find round here: storm shards, hiding aliens, places to discover (found ones: shards and aliens vanish, places dim) */ setFinds(list: FindMark[]): void;
   /** the live group: add/remove explorers; positions from the heartbeat */ setLive(p: Pilot[]): void;
   /** a streamed position for one explorer (v: the rover they're driving) */ remote(id: string, d: number[], face: number[], hop: number, v?: string | null): void;
   /** where you are, to send to the group (v: the rover you're driving) */ pose(): { d: number[]; face: number[]; hop: number; moving: boolean; v?: string };
@@ -626,10 +633,11 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
         const d = V(dirOf(b.lat0 + (m.y / PLOT_M) * (b.lat1 - b.lat0), b.lon0 + (m.x / PLOT_M) * (b.lon1 - b.lon0)));
         east.crossVectors(UP, d); if (east.lengthSq() < 1e-8) east.set(1, 0, 0); east.normalize();
         north.crossVectors(east, d).negate();
-        const obj = moduleModel(m.k, m.c);
+        const obj = moduleModel(m.k, m.c, { c2: m.c2, m: m.m, v: m.v });
+        obj.scale.set(m.sx ?? 1, m.sy ?? 1, m.sz ?? 1);
         basis.makeBasis(east, d, north.clone().negate()); q.setFromRotationMatrix(basis);
-        obj.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(UP, ((m.r ?? 0) * Math.PI) / 2));
-        obj.position.copy(d).multiplyScalar(surf(d) - 0.05);
+        obj.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(UP, -((m.a ?? (m.r ?? 0) * 90) * Math.PI) / 180));
+        obj.position.copy(d).multiplyScalar(surf(d) - 0.05 + (m.z ?? 0));
         baseGroup.add(obj);
       }
     });
@@ -723,6 +731,44 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const v = vec(d); if (!v) return;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     s.position.copy(v).multiplyScalar(surf(v) + 1); scene.add(s); bursts.push({ s, t: 0 });
+  };
+
+  // ---- weather, and things to find ---------------------------------------------------------------
+  type Find = { mark: FindMark; d: THREE.Vector3; obj: THREE.Object3D; glow: THREE.Sprite | null; asked: number; peek: number };
+  const finds = new Map<string, Find>();
+  const findGroup = new THREE.Group(); scene.add(findGroup);
+  const dropFind = (f: Find) => { findGroup.remove(f.obj); if (f.glow) { findGroup.remove(f.glow); f.glow.material.dispose(); } finds.delete(f.mark.id); };
+  const setFinds = (list: FindMark[]) => {
+    const want = new Map(list.filter((x) => !(x.found && x.kind !== 'poi')).map((x) => [x.id, x]));
+    for (const f of [...finds.values()]) { const w2 = want.get(f.mark.id); if (!w2 || w2.found !== f.mark.found) dropFind(f); }
+    for (const x of want.values()) {
+      if (finds.has(x.id)) continue;
+      const d = vec(x.d); if (!d) continue;
+      const obj = x.kind === 'shard' ? shardModel(x.storm ?? 'dust', !!x.rare) : x.kind === 'alien' ? alienModel(x.species ?? 'blorp', x.rarity ?? 'common') : poiModel(x.poi ?? 'crater', x.found);
+      stand(obj, d, surf(d) - 0.05, (x.i * 2.399) % (Math.PI * 2));
+      let glow: THREE.Sprite | null = null;
+      if (!x.found && x.kind !== 'alien') {
+        const col = x.kind === 'shard' ? (x.rare ? '#FFD84D' : WEATHER[x.storm ?? 'dust']?.color ?? '#7FE3FF') : '#B69CFF';
+        glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+        glow.scale.setScalar(x.kind === 'shard' ? 3 : 4); findGroup.add(glow);
+      }
+      findGroup.add(obj);
+      finds.set(x.id, { mark: x, d, obj, glow, asked: 0, peek: 0 });
+    }
+  };
+  let weather: ReturnType<typeof weatherParticles> | null = null, weatherKind: string | null = null;
+  const stormFog = new THREE.Fog('#888888', 12, 160);
+  const flash = new THREE.AmbientLight('#CFE4FF', 0); scene.add(flash);
+  let flashT = 0;
+  const lookTmp = new THREE.Vector3();
+  const setWeather = (kind: string | null) => {
+    if (kind === weatherKind) return;
+    if (weather) { scene.remove(weather.group); weather.dispose(); weather = null; }
+    weatherKind = kind;
+    if (!kind) return;
+    weather = weatherParticles(kind, reduce ? 160 : isPhone() ? 420 : 900);
+    stormFog.color.copy(css(weather.style.tint)); stormFog.near = kind === 'blizzard' || kind === 'dust' ? 6 : 14; stormFog.far = kind === 'blizzard' || kind === 'dust' ? 110 : 170;
+    scene.add(weather.group);
   };
 
   // ---- you, your Inkborn, the others in your live group -------------------------------------------
@@ -962,6 +1008,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     patch.visible = near; nearLines.visible = near; for (const m of decor) m.visible = near && dist < 160;
     patchU.uCos.value = near ? Math.cos((PATCH * 0.985) / R) : 2;
     baseGroup.visible = hgh < 0.6;
+    if (baseGroup.visible && !reduce) animateModels(baseGroup, t);
     secPts.visible = hgh > 0.3; secMat.opacity = Math.min(0.95, (hgh - 0.3) * 3);
     farLines.visible = hgh > 0.25; (farLines.material as THREE.LineBasicMaterial).opacity = 0.16 * Math.min(1, (hgh - 0.25) * 3);
 
@@ -1047,6 +1094,32 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       m.trail.visible = hgt > 0; if (hgt > 0) { m.trail.position.copy(m.d).multiplyScalar(gr + 0.5 + hgt + 7); }
       if (!m.fall && o.onMeteor && m.d.angleTo(P.d) * R < 4 && t - m.asked > 3) { m.asked = t; o.onMeteor(m.i); }
     }
+    findGroup.visible = hgh < 0.55;
+    if (findGroup.visible) {
+      animateFinds(findGroup, t);
+      for (const f of finds.values()) {
+        const far = f.d.angleTo(P.d) * R;
+        f.obj.visible = far < 600;
+        if (f.glow) { f.glow.visible = f.obj.visible; f.glow.position.copy(f.d).multiplyScalar(surf(f.d) + (f.mark.kind === 'shard' ? 1.2 : 4.5)); f.glow.material.opacity = 0.45 + 0.35 * Math.sin(t * 3 + f.mark.i); }
+        if (f.mark.kind === 'shard') f.obj.position.copy(f.d).multiplyScalar(surf(f.d) + 0.6 + (reduce ? 0 : Math.sin(t * 2 + f.mark.i) * 0.25));
+        if (f.mark.kind === 'alien' && f.obj.visible) {
+          // tucked down its burrow until you come close, then it peeks out (and watches you)
+          const want = far < 22 ? 1 : 0; f.peek += (want - f.peek) * Math.min(1, dt * (want ? 3 : 6));
+          const body = f.obj.getObjectByName('peek'); if (body) { body.position.y = -1.6 + f.peek * 1.6 + (f.peek > 0.9 && !reduce ? Math.abs(Math.sin(t * 5)) * 0.15 : 0); body.visible = f.peek > 0.02; }
+          if (far < 40) orient(f.obj, f.d, lookTmp.copy(P.d).sub(f.d), surf(f.d) - 0.05);
+        }
+        const reach = f.mark.kind === 'shard' ? 3 : f.mark.kind === 'alien' ? 3.5 : 6;
+        if (!f.mark.found && o.onFind && far < reach && P.up < 3 && t - f.asked > 3) { f.asked = t; o.onFind(f.mark.kind, f.mark.i); }
+      }
+    }
+    if (weather) {
+      weather.group.visible = hgh < 0.3;
+      if (weather.group.visible) { weather.step(dt, t); orient(weather.group, P.d, camF, surf(P.d) - 4); }
+      if (weather.style.flash && !reduce) {
+        flashT -= dt; if (flashT <= 0) { flashT = 3 + Math.random() * 6; flash.intensity = 3.5; }
+        flash.intensity = Math.max(0, flash.intensity - dt * 9);
+      }
+    } else flash.intensity = 0;
     for (let i = bursts.length - 1; i >= 0; i--) { const b = bursts[i]; b.t += dt; b.s.scale.setScalar(2 + b.t * 30); b.s.material.opacity = Math.max(0, 1 - b.t * 1.6); if (b.t > 0.7) { scene.remove(b.s); b.s.material.dispose(); bursts.splice(i, 1); } }
     labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); }
     for (const l of labelPool) if (l.s) l.s.visible = hgh < 0.35;
@@ -1070,7 +1143,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     camUp.copy(fUp).lerp(camF, hgh).normalize();
     skyU.space.value = Math.max(w.dark ? 1 : 0, hgh);
     skyU.up.value.copy(fUp);
-    scene.fog = fog && hgh < 0.15 ? fog : null;
+    scene.fog = weather && hgh < 0.3 ? stormFog : fog && hgh < 0.15 ? fog : null;
     starMat.opacity = w.dark ? 0.95 : 0.12 + 0.83 * hgh;
     if (atmMat) atmMat.uniforms.k.value = 0.35 + 0.65 * hgh;
     camera.near = Math.max(0.08, dist * 0.01); camera.updateProjectionMatrix();
@@ -1087,7 +1160,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say, setShaft, setPaused: (p) => { paused = p; },
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setWeather, setFinds, setLive, remote, zoom, setZoom, setBuddy, setRover, say, setShaft, setPaused: (p) => { paused = p; },
     peekShaft: (c, lift = 0.25) => {
       if (!c) {
         peek = null; distTo = 8.5; camera.clearViewOffset(); return;
@@ -1106,6 +1179,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); o.canvas.removeEventListener('pointerup', pu);
       o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel); o.canvas.removeEventListener('webglcontextlost', lost);
       clearPlots(); highlight(null); setBuddy(null); setRover(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
+      setWeather(null); for (const f of [...finds.values()]) dropFind(f);
       for (const id of [...others.keys()]) dropOther(id);
       for (const id of [...bubbles.keys()]) dropBubble(id);
       for (const pt of pits.values()) dropPit(pt);
@@ -1116,6 +1190,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, pits, pitU, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, pits, pitU, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, finds, setWeather, setFinds, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }
