@@ -21,7 +21,7 @@ describe('Cosmic rarities', () => {
   it('a claim rolls a rarity that everyone sees', async () => {
     const r = await db.rpc(a, 'planet_claim', { p_world: 'moon', p_gx: 1, p_gy: 30 });
     expect(['dust', 'comet', 'nebula', 'pulsar', 'supernova', 'singularity']).toContain(r.rarity);
-    expect(r.rarities).toHaveLength(6);
+    expect(r.rarities).toHaveLength(7); // the six you can roll, plus Core (only from digging to the core)
     const seen = await db.rpc(b, 'planet_plots_near', { p_world: 'moon', p_gx0: 0, p_gx1: 5, p_gy0: 28, p_gy1: 32 });
     expect(seen[0].rarity).toBe(r.rarity);
   });

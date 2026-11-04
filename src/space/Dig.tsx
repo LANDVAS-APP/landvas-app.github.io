@@ -18,13 +18,16 @@ import { confettiCannons } from '../ui/confetti';
 import type { World } from './worlds';
 import { reportActivity } from '../social/activity';
 
-export const digKey = (world: string) => ['dig', world] as const;
+export const digKey = (world: string, gx?: number, gy?: number) => ['dig', world, gx ?? null, gy ?? null] as const;
 const layerAt = (layers: MineLayer[], depth: number) => layers.findIndex((l) => depth < l.to) === -1 ? layers.length - 1 : layers.findIndex((l) => depth < l.to);
+const coreLabel = (depth: number, bottom: number, cored: boolean) => (cored ? 'the core is yours' : `${((depth / bottom) * 100).toFixed(depth / bottom < 0.01 ? 2 : 1)}% of the way to the core`);
 const fmtDepth = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m.toFixed(m < 100 ? 1 : 0)} m`);
 
-export function DigPanel({ world, w, pose, onClose }: { world: string; w: World; pose(): number[] | null; onClose(): void }) {
+export function DigPanel({ world, w, plot, pose, onClose, onDug }: { world: string; w: World; plot: { gx: number; gy: number; name?: string | null }; pose(): number[] | null; onClose(): void; onDug?(depth: number, cored: boolean): void }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: digKey(world), queryFn: () => api.digState(world) });
+  const key = digKey(world, plot.gx, plot.gy);
+  const q = useQuery({ queryKey: key, queryFn: () => api.digState(world, plot.gx, plot.gy) });
+  const [core, setCore] = useState<{ ink: number } | null>(null);
   const [state, setState] = useState<DigState | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [banner, setBanner] = useState<{ name: string; ink: number } | null>(null);
@@ -43,8 +46,10 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
       if (!L.pending || L.sending || !s) return;
       const n = Math.min(L.pending, 30); L.pending -= n; L.sending = true;
       try {
-        const r = await api.dig(world, n, pose());
-        setState(r); qc.setQueryData(digKey(world), r);
+        const r = await api.dig(world, n, pose(), plot.gx, plot.gy);
+        setState(r); qc.setQueryData(key, r);
+        onDug?.(Number(r.depth), !!r.cored);
+        if (r.reached_core) { setCore({ ink: r.core_ink ?? 0 }); confettiCannons(); setTimeout(confettiCannons, 900); invalidateGame(qc); if (haptics) buzz('success'); }
         L.target = Number(r.depth);
         const items = s.config.items;
         let k = 0;
@@ -63,7 +68,7 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
       } finally { L.sending = false; }
     }, 900);
     return () => clearInterval(t);
-  }, [world]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [world, plot.gx, plot.gy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the cross-section
   useEffect(() => {
@@ -127,6 +132,7 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
 
   const tap = () => {
     const s = st.current, L = live.current; if (!s) return;
+    if (s.cored) { if (!L.holding) toast('You’ve reached the core of this plot — there’s nowhere deeper!'); L.holding = false; return; }
     if (s.energy - L.pending < 1) { if (!L.holding) toast('Out of digging energy — it refills over time.'); L.holding = false; return; }
     L.lastTap = performance.now(); L.pending++; L.shake = 1;
     const li = layerAt(s.config.layers, L.target);
@@ -140,12 +146,12 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
   const energyPct = Math.round((state.energy / state.energy_max) * 100);
   const tool = [...state.config.tools].reverse().find((t) => state.tools.includes(t.id)) ?? state.config.tools[0];
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 flex flex-col bg-black text-white" data-testid="dig-panel">
-      <div className="flex items-center gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))]">
+    <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 26, stiffness: 260 }} className="absolute inset-x-0 bottom-0 z-40 flex h-[60%] flex-col rounded-t-3xl border-t border-white/15 bg-black/90 text-white shadow-[0_-12px_40px_rgba(0,0,0,0.5)] backdrop-blur" data-testid="dig-panel">
+      <div className="flex items-center gap-2 p-3">
         <button onClick={onClose} className="rounded-xl bg-white/10 p-2" aria-label="Back to the surface"><X className="h-5 w-5" /></button>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-bold leading-tight">Your shaft · <span data-testid="dig-depth">{fmtDepth(Number(state.depth))}</span></div>
-          <div className="text-[11px] text-white/65">{layers[li].name} · {tool.name} digs {(state.power / layers[li].hardness).toFixed(2)} m a tap</div>
+          <div className="font-display text-lg font-bold leading-tight">{plot.name || 'Your plot'} · <span data-testid="dig-depth">{fmtDepth(Number(state.depth))}</span>{state.cored && <span className="ml-1">💖</span>}</div>
+          <div className="text-[11px] text-white/65">{layers[li].name} · {tool.name} digs {(state.power / layers[li].hardness).toFixed(2)} m a tap · {coreLabel(Number(state.depth), layers[layers.length - 1].to, !!state.cored)}</div>
         </div>
         <Button size="sm" variant="secondary" onClick={() => setToolsOpen(true)} data-testid="dig-tools"><Hammer className="h-4 w-4" /> Tools</Button>
       </div>
@@ -164,6 +170,16 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
         data-testid="dig-area">
         <canvas ref={cv} className="absolute inset-0 h-full w-full" />
         <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-white/70">Tap — or hold — to dig</div>
+        <AnimatePresence>{core && (
+          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-x-4 top-8 z-10 mx-auto max-w-sm rounded-3xl border-2 border-[#FFB020] bg-gradient-to-b from-[#3B1205]/95 to-black/95 p-5 text-center shadow-[0_0_60px_rgba(255,140,30,0.6)]" data-testid="dig-core">
+            <div className="text-5xl">💖</div>
+            <div className="mt-1 text-xs font-bold uppercase tracking-[0.25em] text-[#FFB020]">You reached the core</div>
+            <div className="font-display text-2xl font-black">The heart of {w.name.replace('The ', 'the ')}</div>
+            <div className="mt-2 text-sm text-white/80">A <b>Core heart</b> is yours, and this plot is now <b className="text-[#FF7A1A]">Core</b> rarity — the rarest there is. Everyone can see its glow.</div>
+            <div className="mt-2 flex items-center justify-center gap-1 text-lg font-bold">+{core.ink.toLocaleString()} <ResourceIcon r="ink" className="h-5 w-5" /></div>
+            <Button className="mt-3" variant="rainbow" onClick={() => setCore(null)}>Amazing</Button>
+          </motion.div>
+        )}</AnimatePresence>
         <AnimatePresence>{banner && (
           <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 top-6 mx-auto w-fit rounded-2xl bg-black/75 px-4 py-3 text-center" data-testid="dig-layer">
             <div className="text-xs font-bold uppercase tracking-widest text-white/60">You broke through to</div>
@@ -178,7 +194,7 @@ export function DigPanel({ world, w, pose, onClose }: { world: string; w: World;
         ))}
         {!Object.keys(state.items).length && <span className="text-xs text-white/55">Nothing found yet — materials turn up as you dig.</span>}
       </div>
-      <ToolsDialog open={toolsOpen} onOpenChange={setToolsOpen} state={state} onCrafted={(r) => { setState(r); qc.setQueryData(digKey(world), r); invalidateGame(qc); }} />
+      <ToolsDialog open={toolsOpen} onOpenChange={setToolsOpen} state={state} onCrafted={(r) => { const merged = { ...state, ...r, depth: state.depth, layers_reached: state.layers_reached, cored: state.cored, my_shafts: state.my_shafts }; setState(merged); qc.setQueryData(key, merged); invalidateGame(qc); }} />
     </motion.div>
   );
 }

@@ -85,7 +85,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
-  const [digOpen, setDigOpen] = useState(false);
+  const [digPlot, setDigPlot] = useState<PlanetPlot | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
   const [building, setBuilding] = useState<PlanetPlot | null>(null);
   const collecting = useRef(false);
@@ -319,7 +319,10 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.zoom(1.8)} aria-label="Higher" data-testid="zoom-out"><Minus className="h-5 w-5" /></button>
         {high && <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.findMe()} aria-label="Find me"><Crosshair className="h-5 w-5" /></button>}
         {!high && ready && <RoverControls rover={rover} onGarage={() => setGarageOpen(true)} />}
-        {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => setDigOpen(true)} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
+        {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => {
+          if (here?.mine) { setDigPlot(here); scene.current?.peekShaft(here, 0.14); }
+          else toast(here ? 'You can only dig into your own plots.' : 'Stand on one of your plots to dig — claim one first!', { description: 'Every plot you own has its own shaft, all the way down to the core.' });
+        }} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
 
@@ -354,7 +357,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
 
       <AnimatePresence>{building && <BaseBuilder world={world} plot={building} onClose={() => setBuilding(null)} onSaved={() => { void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
       <RoverGarage open={garageOpen} onOpenChange={setGarageOpen} rover={rover} />
-      <AnimatePresence>{digOpen && <DigPanel world={world} w={w} pose={() => scene.current?.pose().d ?? null} onClose={() => setDigOpen(false)} />}</AnimatePresence>
+      <AnimatePresence>{digPlot && <DigPanel world={world} w={w} plot={digPlot} pose={() => scene.current?.pose().d ?? null}
+        onDug={(depth, cored) => scene.current?.setShaft(digPlot.gx, digPlot.gy, depth, cored)}
+        onClose={() => { setDigPlot(null); scene.current?.peekShaft(null); void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
           {(s.warps ?? []).map((d) => {

@@ -41,6 +41,8 @@ export type PlanetScene = {
   /** stand exactly here, facing this way */ place(d: number[], face?: number[]): void;
   setBuddy(g: Genome | null): void;
   /** a speech bubble over an explorer (id, or 'me') for a few seconds */ say(id: string, text: string): void;
+  /** one plot's shaft got deeper (the hole in the ground follows) */ setShaft(gx: number, gy: number, depth: number, cored: boolean): void;
+  /** look down into a plot's shaft from above (null: back to normal); `lift` shifts the picture up (0..0.5) for a sheet below */ peekShaft(c: Cell | null, lift?: number): void;
   /** 0 = on your feet … 1 = the whole planet */ setZoom(level: number): void; zoom(f: number): void;
   /** look back at yourself */ findMe(): void;
   walkTo(c: Cell): void;
@@ -170,6 +172,25 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
 
   // ---- the globe (low detail, seen from afar) — hides itself under the detailed patch -------------
   const patchU = { uPatch: { value: new THREE.Vector3(0, 1, 0) }, uCos: { value: 2 } };
+  // shafts dug into plots are real holes: the ground (and the plot colours) skip these lat/lon squares
+  const MAXPITS = 8;
+  const pitU = { uPits: { value: Array.from({ length: MAXPITS }, () => new THREE.Vector4(9, 9, 9, 9)) }, uPitN: { value: 0 } };
+  const pitCut = <T extends THREE.Material>(m: T): T => {
+    const prev = m.onBeforeCompile;
+    m.onBeforeCompile = (sh, r) => {
+      prev?.call(m, sh, r);
+      sh.uniforms.uPits = pitU.uPits; sh.uniforms.uPitN = pitU.uPitN;
+      if (!sh.vertexShader.includes('varying vec3 vDirW;')) {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirW;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirW = normalize(position);');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vDirW;');
+      }
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>\nuniform vec4 uPits[${MAXPITS}];\nuniform int uPitN;`)
+        .replace('void main() {', `void main() {\n  { vec3 dd = normalize(vDirW); float la = asin(clamp(dd.y, -1.0, 1.0)); float lo = atan(dd.x, dd.z);\n    for (int i = 0; i < ${MAXPITS}; i++) { if (i >= uPitN) break; vec4 q = uPits[i]; if (la > q.x && la < q.y && lo > q.z && lo < q.w) discard; } }`);
+    };
+    m.customProgramCacheKey = () => 'pitcut';
+    return m;
+  };
   const groundMat = (offset: number) => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: !w.gas, roughness: w.gas ? 0.7 : 0.95, metalness: 0, polygonOffset: offset !== 0, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
     return track(m);
@@ -214,7 +235,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     for (let r = 1; r < RINGS; r++) for (let s = 0; s < SEGS; s++) { const a = at(r, s), b = at(r, s + 1), c = at(r + 1, s), d = at(r + 1, s + 1); idx.push(a, c, b, b, c, d); }
     patchGeo.setIndex(idx);
   }
-  const patch = new THREE.Mesh(patchGeo, groundMat(-1));
+  const patch = new THREE.Mesh(patchGeo, pitCut(groundMat(-1)));
   patch.frustumCulled = false;
   scene.add(patch);
 
@@ -257,6 +278,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     const l = new THREE.LineSegments(g, m); scene.add(l); return l;
   })();
 
+  let updatePitsRef: (() => void) | null = null;
   const buildPatch = (c: THREE.Vector3) => {
     patchC.copy(c);
     const e1 = new THREE.Vector3().crossVectors(Math.abs(c.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : UP, c).normalize();
@@ -276,6 +298,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     pos.needsUpdate = true; cl.needsUpdate = true; patchGeo.computeBoundingSphere();
     patchU.uPatch.value.copy(c);
     patchU.uCos.value = Math.cos((PATCH * 0.985) / R);
+    if (typeof updatePitsRef === 'function') updatePitsRef();
     // decorations: a world-fixed lattice of ~6-unit cells around the centre
     const step = 6 / R; // radians
     const latC = Math.asin(c.y), lonC = Math.atan2(c.x, c.z);
@@ -448,7 +471,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   // ---- plots (with a small pool of name labels for the ones near you) ------------------------------
   const plotGroup = new THREE.Group(); scene.add(plotGroup);
   const baseGroup = new THREE.Group(); scene.add(baseGroup); // bases: shared geometry, so just dropped on rebuild
-  const plotMat = track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+  const plotMat = pitCut(track(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
   const flagGeo = track(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5)); const clothGeo = track(new THREE.PlaneGeometry(1.3, 0.8));
   const poleMat = track(new THREE.MeshStandardMaterial({ color: '#E6EBF5' }));
   const clothMat = track(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.7 }));
@@ -465,9 +488,114 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const beamGeo = track(new THREE.CylinderGeometry(0.35, 0.9, 70, 8, 1, true).translate(0, 35, 0));
   const beamMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   let beams: THREE.InstancedMesh | null = null;
+  // ---- shafts: a 4 m square hole in the middle of a plot, walls banded by layer, deeper as you dig ----
+  const SHAFT_M = 4;
+  const LAYER_BANDS: [number, string][] = [[12, '#B9B2A6'], [60, '#7D7569'], [240, '#8A5A44'], [1000, '#4E3B4F'], [5000, '#7A2E2E'], [12000, '#C2410C'], [20000, '#FFB020']];
+  /** how deep it looks (metres): true to 10 m, then squeezed so the core still looks bottomless */
+  const vis = (m: number) => (m <= 10 ? m : 10 + 7 * Math.log(m / 10));
+  const unvis = (v: number) => (v <= 10 ? v : 10 * Math.exp((v - 10) / 7));
+  const bandColor = (m: number) => LAYER_BANDS.find(([to]) => m < to)?.[1] ?? LAYER_BANDS[LAYER_BANDS.length - 1][1];
+  const pitGroup = new THREE.Group(); scene.add(pitGroup);
+  const pitWallMat = track(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 1, flatShading: true }));
+  const pitRimMat = track(new THREE.MeshStandardMaterial({ color: '#3A3F4C', roughness: 0.6, metalness: 0.4, side: THREE.DoubleSide }));
+  const coreMat = track(new THREE.MeshStandardMaterial({ color: '#FFB020', emissive: '#FF7A1A', emissiveIntensity: 2.2, side: THREE.DoubleSide }));
+  const coreBeamMat = track(new THREE.MeshBasicMaterial({ color: '#FF8A2A', transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  type Pit = { c: Cell; depth: number; cored: boolean; obj: THREE.Group | null; built: string };
+  const pits = new Map<string, Pit>();
+  const shaftBox = (c: Cell) => {
+    const b = cellBounds(c, rows);
+    const la = ((b.lat0 + b.lat1) / 2) * D, lo = ((b.lon0 + b.lon1) / 2) * D;
+    const h = SHAFT_M / 2 / R, hl = h / Math.max(0.05, Math.cos(la));
+    return { la, lo, h, hl };
+  };
+  const dirLL = (la: number, lo: number) => new THREE.Vector3(Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo));
+  /** where a dug plot's flag goes (off the hole, near a corner) */
+  const flagSpot = (c: Cell) => { const { la, lo, h, hl } = shaftBox(c); return dirLL(la + h * 1.6, lo + hl * 1.6); };
+  const buildPit = (pt: Pit) => {
+    const { la, lo, h, hl } = shaftBox(pt.c);
+    const corners = [dirLL(la - h, lo - hl), dirLL(la - h, lo + hl), dirLL(la + h, lo + hl), dirLL(la + h, lo - hl)];
+    const rim = corners.map((d) => surf(d));
+    const V = vis(pt.depth);
+    const pos: number[] = [], cs: number[] = [];
+    const cc = new THREE.Color();
+    const quad = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, color: THREE.Color) => {
+      for (const v of [a, b, c, a, c, d]) { pos.push(v.x, v.y, v.z); cs.push(color.r, color.g, color.b); }
+    };
+    // walls, a band per stretch of layer (darker the deeper)
+    const cuts = [0, ...LAYER_BANDS.map(([to]) => vis(to)).filter((v) => v < V), V];
+    for (let k = 0; k < 4; k++) {
+      const d0 = corners[k], d1 = corners[(k + 1) % 4], r0 = rim[k], r1 = rim[(k + 1) % 4];
+      for (let i = 0; i < cuts.length - 1; i++) {
+        const v0 = cuts[i], v1 = cuts[i + 1]; if (v1 - v0 < 1e-3) continue;
+        cc.set(bandColor(unvis((v0 + v1) / 2))).multiplyScalar(Math.max(0.55, 1.15 - v0 / 80) * (k % 2 ? 0.85 : 1.05));
+        quad(d0.clone().multiplyScalar(r0 - v0), d1.clone().multiplyScalar(r1 - v0), d1.clone().multiplyScalar(r1 - v1), d0.clone().multiplyScalar(r0 - v1), cc);
+      }
+    }
+    const g = new THREE.Group();
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3)); wg.computeVertexNormals();
+    g.add(new THREE.Mesh(wg, pitWallMat));
+    // the floor: what you're digging into now, glowing at the core
+    const fl = corners.map((d, k) => d.clone().multiplyScalar(rim[k] - V));
+    const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute([fl[0], fl[1], fl[2], fl[0], fl[2], fl[3]].flatMap((v) => [v.x, v.y, v.z]), 3)); fg.computeVertexNormals();
+    g.add(new THREE.Mesh(fg, pt.cored ? coreMat : new THREE.MeshStandardMaterial({ color: new THREE.Color(bandColor(pt.depth)).multiplyScalar(Math.max(0.3, 1 - V / 70)), side: THREE.DoubleSide, roughness: 1 })));
+    // a lip round the top
+    const lip: number[] = [];
+    const out = [dirLL(la - h * 1.22, lo - hl * 1.22), dirLL(la - h * 1.22, lo + hl * 1.22), dirLL(la + h * 1.22, lo + hl * 1.22), dirLL(la + h * 1.22, lo - hl * 1.22)];
+    for (let k = 0; k < 4; k++) {
+      const a = corners[k].clone().multiplyScalar(rim[k] + 0.06), b = corners[(k + 1) % 4].clone().multiplyScalar(rim[(k + 1) % 4] + 0.06);
+      const c = out[(k + 1) % 4].clone().multiplyScalar(surf(out[(k + 1) % 4]) + 0.06), d = out[k].clone().multiplyScalar(surf(out[k]) + 0.06);
+      for (const v of [a, b, c, a, c, d]) lip.push(v.x, v.y, v.z);
+    }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lip, 3)); lg.computeVertexNormals();
+    g.add(new THREE.Mesh(lg, pitRimMat));
+    if (pt.cored) {
+      // the core's light shines up out of the shaft, for everyone to see
+      const beam = new THREE.Mesh(beamGeo, coreBeamMat);
+      const mid = dirLL(la, lo); stand(beam, mid, surf(mid) - V); beam.scale.set(2.2, 1.6, 2.2);
+      g.add(beam);
+    }
+    return g;
+  };
+  const dropPit = (pt: Pit) => {
+    if (!pt.obj) return;
+    pitGroup.remove(pt.obj);
+    pt.obj.traverse((x) => { if (x instanceof THREE.Mesh && x.geometry !== beamGeo) { x.geometry.dispose(); if (x.material !== pitWallMat && x.material !== pitRimMat && x.material !== coreMat && x.material !== coreBeamMat) (x.material as THREE.Material).dispose(); } });
+    pt.obj = null; pt.built = '';
+  };
+  /** the nearest few shafts are cut into the ground and drawn */
+  const updatePits = () => {
+    const centre = patchC.lengthSq() ? patchC : P.d;
+    const list = [...pits.values()].map((pt) => ({ pt, a: V(cellCenterDir(pt.c, rows)).angleTo(centre) * R })).filter((x) => x.a < PATCH * 0.9).sort((a, b) => a.a - b.a).slice(0, MAXPITS);
+    const keep = new Set(list.map((x) => x.pt));
+    for (const pt of pits.values()) if (!keep.has(pt)) dropPit(pt);
+    list.forEach(({ pt }, i) => {
+      const { la, lo, h, hl } = shaftBox(pt.c);
+      pitU.uPits.value[i].set(la - h, la + h, lo - hl, lo + hl);
+      const sig = `${pt.depth.toFixed(2)}:${pt.cored}:${patchC.x.toFixed(4)}`;
+      if (pt.built !== sig) { dropPit(pt); pt.obj = buildPit(pt); pt.built = sig; pitGroup.add(pt.obj); }
+    });
+    pitU.uPitN.value = list.length;
+  };
+  updatePitsRef = updatePits;
+  const setShaft = (gx: number, gy: number, depth: number, cored: boolean) => {
+    const k = `${gx}:${gy}`;
+    const pt = pits.get(k);
+    if (depth <= 0.05) { if (pt) { dropPit(pt); pits.delete(k); updatePits(); } return; }
+    if (pt) { pt.depth = depth; pt.cored = cored; } else pits.set(k, { c: { gx, gy }, depth, cored, obj: null, built: '' });
+    updatePits();
+  };
+
   const setPlots = (plots: PlanetPlot[], rarity: Record<string, { color: string; rank: number }> = {}) => {
     lastPlots = { plots, rarity };
     clearPlots();
+    // shafts in the plots you can see
+    const seen = new Set<string>();
+    for (const p of plots) if (p.shaft && p.shaft.depth > 0.05) {
+      const k = `${p.gx}:${p.gy}`; seen.add(k);
+      const pt = pits.get(k);
+      if (pt) { pt.depth = Math.max(pt.depth, p.shaft.depth); pt.cored = pt.cored || p.shaft.cored; } else pits.set(k, { c: { gx: p.gx, gy: p.gy }, depth: p.shaft.depth, cored: p.shaft.cored, obj: null, built: '' });
+    }
+    updatePits();
     plotList = plots.map((p) => ({ p, d: V(cellCenterDir(p, rows)) }));
     for (const l of labelPool) l.key = '__stale';
     if (!plots.length) return;
@@ -482,7 +610,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       const t = tileGeo(p, 0.18, 0.04, N);
       const base = verts.length / 3;
       verts.push(...t.verts); for (let k = 0; k < t.verts.length / 3; k++) cs.push(c.r, c.g, c.b); for (const x of t.idx) idx.push(x + base);
-      const d = plotList[i].d;
+      const d = p.shaft ? flagSpot(p) : plotList[i].d;
       stand(o3, d, surf(d) + 1.2); o3.updateMatrix(); poles.setMatrixAt(i, o3.matrix);
       stand(o3, d, surf(d) + 2.1); o3.translateX(0.65); o3.updateMatrix(); cloths.setMatrixAt(i, o3.matrix); cloths.setColorAt(i, css(rarity[p.rarity]?.color ?? '#ffffff'));
     });
@@ -528,7 +656,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     }
   };
   // the plot you're standing on (or picked from above)
-  const hiMat = track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }));
+  const hiMat = pitCut(track(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 })));
   const hiLine = track(new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9 }));
   let hi: THREE.Group | null = null; let hiKey = '';
   const highlight = (c: Cell | null) => {
@@ -683,6 +811,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   // ---- camera: one zoom from your boots to orbit ---------------------------------------------------
   const DMIN = 4, DMAX = R * 3.4;
   let dist = o.startHigh ? R * 2.7 : 8.5, distTo = dist, pitch = 0.26;
+  let peek: { d: THREE.Vector3; lift: number; c: Cell } | null = null;
   const F = P.d.clone(); // what the camera centres on — you, unless you've dragged the globe round
   let freeLook = false;
   const level = (d: number) => Math.min(1, Math.max(0, Math.log(d / DMIN) / Math.log(DMAX / DMIN)));
@@ -928,11 +1057,12 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
     // camera: behind you on the ground, rising to straight above (and north-up) for the whole globe
     const fUp = F;
     const groundF = surf(F);
-    const pit = pitch + (Math.PI / 2 - 0.02 - pitch) * hgh;
+    const pit = peek ? 1.18 : pitch + (Math.PI / 2 - 0.02 - pitch) * hgh;
     const head = tv2.copy(F).multiplyScalar(groundF + (1.3 + P.up * 0.6) * (1 - hgh));
+    if (peek) { const pd = Math.min(9, vis(pits.get(cellKey(peek.c))?.depth ?? 0)); head.copy(peek.d).multiplyScalar(surf(peek.d) - pd * 0.5); }
     camPos.copy(head).addScaledVector(fUp, Math.sin(pit) * dist).addScaledVector(camF, -Math.cos(pit) * dist);
     const cd = camPos.clone().normalize(); const minR = surf(cd) + 0.8; if (camPos.length() < minR) camPos.copy(cd.multiplyScalar(minR));
-    camLook.copy(head).addScaledVector(camF, 4 * (1 - hgh)).addScaledVector(fUp, 0.4 * (1 - hgh));
+    camLook.copy(head).addScaledVector(camF, peek ? 0 : 4 * (1 - hgh)).addScaledVector(fUp, peek ? 0 : 0.4 * (1 - hgh));
     camUp.copy(fUp).lerp(camF, hgh).normalize();
     skyU.space.value = Math.max(w.dark ? 1 : 0, hgh);
     skyU.up.value.copy(fUp);
@@ -953,7 +1083,14 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say, setShaft,
+    peekShaft: (c, lift = 0.25) => {
+      if (!c) {
+        peek = null; distTo = 8.5; camera.clearViewOffset(); return;
+      }
+      peek = { d: V(cellCenterDir(c, rows)), lift, c }; distTo = 19; freeLook = false;
+      const el = o.canvas; camera.setViewOffset(el.clientWidth, el.clientHeight, 0, el.clientHeight * lift, el.clientWidth, el.clientHeight);
+    },
     findMe: () => { freeLook = false; },
     pose: () => ({ d: P.d.toArray(), face: P.face.toArray(), hop: P.up, moving: P.moving || P.up > 0, v: ride?.kind }),
     place: (d, face) => { const v = vec(d); if (!v) return; P.d.copy(v); F.copy(v); P.target = null; if (buddy) buddy.d.copy(v); const f = vec(face); if (f) { P.face.copy(f).projectOnPlane(v).normalize(); camF.copy(P.face); } else camF.projectOnPlane(v).normalize(); buildPatch(v); },
@@ -967,6 +1104,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       clearPlots(); highlight(null); setBuddy(null); setRover(null); for (const m of [...mets.values()]) dropMet(m); for (const b of bursts) { scene.remove(b.s); b.s.material.dispose(); }
       for (const id of [...others.keys()]) dropOther(id);
       for (const id of [...bubbles.keys()]) dropBubble(id);
+      for (const pt of pits.values()) dropPit(pt);
       for (const l of labelPool) if (l.s) disposeSprite(l.s);
       disposeSprite(me);
       decor.forEach((m) => m.dispose());
@@ -974,6 +1112,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, pits, pitU, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

@@ -187,7 +187,7 @@ export type ChatMessage = { id: number; body: string; created_at: string; player
 export type FeedEvent = {
   id: number;
   kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
-    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base';
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -397,7 +397,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -450,7 +450,7 @@ export type SpaceState = {
 
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
 export type BaseModule = { id: string; k: string; x: number; y: number; r?: number; c?: string };
-export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number } | null };
+export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number } | null; shaft?: { depth: number; cored: boolean } | null };
 export type PlanetMap = {
   world: string; rows: number; cols: number; radius: number; claimed: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;
@@ -485,6 +485,7 @@ export type DigState = {
   energy: number; energy_max: number; regen_per_minute: number; items: Record<string, number>;
   config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number } };
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
+  gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number;
 };
 export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other';
 export type Whereabouts = {

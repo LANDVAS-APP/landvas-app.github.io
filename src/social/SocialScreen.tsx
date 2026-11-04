@@ -207,6 +207,10 @@ function FeedRow({ e }: { e: FeedEvent }) {
       icon = <Sparkles className="h-4 w-4 text-[#FFB13D]" />;
       body = <>{who} dug through to <b>{e.data.layer}</b> on {worldOf(e.data.world as string)?.name ?? 'a far-off world'} ⛏️ <span className="text-muted">· {fmt(Number(e.data.depth))} m deep</span></>;
       break;
+    case 'core':
+      icon = <Sparkles className="h-4 w-4 text-[#FF7A1A]" />;
+      body = <>{who} dug all the way to <b className="text-[#FF7A1A]">the core</b> of {worldOf(e.data.world as string)?.name ?? 'a far-off world'} 💖 <span className="text-muted">· a Core rarity plot</span></>;
+      break;
     case 'base':
       icon = <Sparkles className="h-4 w-4 text-[#7FE3FF]" />;
       body = <>{who} built a base on {worldOf(e.data.world as string)?.name ?? 'a far-off world'} 🏗️ <span className="text-muted">· {e.data.modules} modules</span></>;

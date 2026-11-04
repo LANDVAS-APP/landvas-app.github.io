@@ -134,6 +134,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   },
   warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
   base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },
+  core: { icon: Sparkles, color: '#FF7A1A', text: (a) => <>💖 You reached <b>the core</b> of {worldName(a.data.world)}! A Core heart is yours{a.data.ink ? <span className="text-ok"> · +{Number(a.data.ink).toLocaleString()} Ink</span> : null}</>, to: () => '/world' },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
 
