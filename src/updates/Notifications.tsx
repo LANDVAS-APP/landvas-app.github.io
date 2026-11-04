@@ -28,7 +28,7 @@ export function useNotifications() {
 /** A bell button with a count; opens the updates panel. */
 export function useAlerts() {
   const me = useOnboardedMe();
-  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: 15_000, refetchIntervalInBackground: false, staleTime: 5_000 });
+  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: 30_000, refetchIntervalInBackground: false, staleTime: 10_000 });
 }
 
 export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {

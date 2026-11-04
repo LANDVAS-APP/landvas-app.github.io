@@ -43,7 +43,7 @@ export function usePlanetChat(world: string, myId: string | undefined, enabled: 
       } catch { /* next time */ }
     };
     void tick();
-    const t = setInterval(tick, 3000);
+    const t = setInterval(tick, 6000);
     return () => { stop = true; clearInterval(t); };
   }, [enabled, world, add]);
 

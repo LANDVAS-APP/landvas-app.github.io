@@ -58,7 +58,7 @@ export function usePlanetLive(opts: {
     };
     if (opts.sendRef) opts.sendRef.current = (m) => ch?.send(m);
     void beat();
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2000);
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 3000);
     const tx = setInterval(() => {
       const p = ref.current.pose(); if (!p || !ch) return;
       const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2) + (p.v ?? '');
