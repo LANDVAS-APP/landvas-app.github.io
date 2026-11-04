@@ -19,7 +19,7 @@ function fakeCtx() {
 }
 
 // the server's max_score per game (supabase/migrations/*inkborn*)
-const MAX: Record<GameId, number> = { berrydash: 140, fireflies: 100, leafleap: 160, lilyhop: 120, songbloom: 120 };
+const MAX: Record<GameId, number> = { berrydash: 140, fireflies: 100, leafleap: 160, lilyhop: 120, songbloom: 120, stardust: 140, crystals: 150 };
 
 describe('Inkborn games', () => {
   for (const id of Object.keys(GAMES) as GameId[]) {

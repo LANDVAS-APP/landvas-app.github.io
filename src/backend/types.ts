@@ -457,7 +457,28 @@ export type Inkborn = {
   habitat_id: string | null; bond: number; happiness: number; energy: number; created_at: string; mine: boolean;
   portrait_status: 'none' | 'unconfigured' | 'queued' | 'ready' | 'failed'; portrait_path: string | null;
   drawing?: import('../shared/strokes').Stroke[] | null; last_fed: string | null; last_played: string | null;
-  job?: string | null; job_until?: string | null; job_started?: string | null;
+  job?: string | null; job_until?: string | null; job_started?: string | null; level?: number; xp?: number;
+};
+export type KeeperMaterial = { name: string; emoji: string };
+export type KeeperTreat = { name: string; emoji: string; level: number; needs: Record<string, number>; happiness?: number; energy?: number; xp?: number; bond?: number };
+export type KeeperUpgrade = { name: string; emoji: string; desc: string; level: number; base: number; growth: number; max: number };
+export type KeeperRegion = { order: number; name: string; emoji: string; level: number; minutes: number; power: number; favours: string; glimmer: number; xp: number; cxp: number; ink: number; loot: Record<string, [number, number]>; treasures: string[] };
+export type KeeperConfig = {
+  materials: Record<string, KeeperMaterial>; treats: Record<string, KeeperTreat>; upgrades: Record<string, KeeperUpgrade>; regions: Record<string, KeeperRegion>;
+  expedition: { team_max: number; energy: number; treasure_chance: number; set_bonus_glimmer: number };
+  wishes: { max_per_day: number; all_done_ink: number; all_done_glimmer: number };
+};
+export type KeeperCreature = { id: string; name: string; genome: import('../inkborn/genome').Genome; personality: string; bond: number; level: number; xp: number; level_xp: number; next_xp: number;
+  job: string | null; job_until: string | null; happiness: number; energy: number };
+export type KeeperWish = { id: number; inkborn: string; name: string; kind: 'care' | 'job' | 'game' | 'treat'; target: string | null; done: boolean; claimed: boolean };
+export type KeeperExpeditionResult = { success: boolean; loot: Record<string, number>; glimmer: number; xp: number; ink: number; treasure: string | null; set_complete: boolean; level_up: number };
+export type KeeperExpedition = { id: string; region: string; team: string[]; power: number; chance: number; started_at: string; ends_at: string; done: boolean; result: KeeperExpeditionResult | null; claimed: boolean };
+export type KeeperEvent = { id: number; at: string; kind: string; data: Record<string, any> };
+export type Keeper = {
+  level: number; xp: number; level_xp: number; next_xp: number; glimmer: number; materials: Record<string, number>; treats: Record<string, number>;
+  upgrades: Record<string, number>; upgrade_costs: Record<string, number>; treasures: string[]; creatures: KeeperCreature[]; wishes: KeeperWish[];
+  expeditions: KeeperExpedition[]; events: KeeperEvent[]; resets_at: string; config: KeeperConfig; server_time: string;
+  result?: KeeperExpeditionResult; all_done?: boolean; ink?: number; bought?: string; to?: number; baked?: string; times?: number; fed?: string; creature_level_up?: number; chance?: number;
 };
 export type InkbornJob = { label: string; minutes: number; ink: number; energy: number };
 export type InkbornGameCfg = { enabled: boolean; seconds: number; energy: number; max_score: number; points_per_ink: number; max_ink: number };

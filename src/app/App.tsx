@@ -59,6 +59,7 @@ const Playdate = lazy(() => import('../inkborn/Playdate'));
 const VisitSanctuaries = lazy(() => import('../inkborn/Visit'));
 const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
+const KeeperScreen = lazy(() => import('../inkborn/Keeper'));
 const FarmScreen = lazy(() => import('../farm/FarmScreen'));
 const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
@@ -209,6 +210,7 @@ const routes: RouteObject[] = [
           { path: '/inkborn', element: player(<InkbornHub />) },
           { path: '/inkborn/create', element: player(<InkbornStudio />) },
           { path: '/inkborn/visit', element: player(<VisitSanctuaries />) },
+          { path: '/inkborn/keeper', element: player(<KeeperScreen />) },
           { path: '/inkborn/edit/:id', element: player(<InkbornStudio />) },
           { path: '/duet/:id', element: p(<DuetScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },

@@ -25,6 +25,7 @@ import { CreatureView } from './CreatureView';
 import { MOOD_INFO, cleanGenome, type Genome } from './genome';
 import { CreatureProfile, Meter } from './Profile';
 import { CreatureWork, SpringPill } from './Earn';
+import { KeeperNews } from './Keeper';
 import { drawCreature, heart, type CreatureState } from './rig';
 import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, inside, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
 
@@ -1093,6 +1094,8 @@ function Game({ h }: { h: Habitat }) {
         </div>
       </div>
 
+      {owner && <KeeperNews />}
+      {owner && mode === 'play' && <Link to="/inkborn/keeper" className="absolute left-[max(12px,env(safe-area-inset-left,0px))] top-[max(76px,calc(env(safe-area-inset-top,0px)+64px))] flex items-center gap-1.5 rounded-2xl bg-black/55 px-3 py-1.5 text-xs font-bold backdrop-blur" data-testid="to-lodge">🏡 Lodge</Link>}
       {owner && mode === 'play' && <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-[max(76px,calc(env(safe-area-inset-top,0px)+64px))]"><SpringPill habitatId={h.id} onCollected={(n) => { const sp = e.layout.find((d) => d.k === 'inkspring'); const at = sp ?? e.player; burst(e.parts, at.x, at.y, 'spark', 18); e.parts.push({ x: at.x, y: at.y, vx: 0, vy: 0, life: 0, max: 1.8, kind: 'text', text: `+${n} Ink`, color: '#C9B8FF' }); }} /></div>}
 
       {/* activities */}

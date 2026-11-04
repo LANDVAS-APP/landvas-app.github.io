@@ -17,7 +17,7 @@ import { AdButton } from '../ads/AdButton';
 export const useInkEconomy = (on = true) => useQuery({ queryKey: ['inkborn-economy'], queryFn: api.inkbornEconomy, enabled: on, staleTime: 30_000 });
 
 const JOB_ICONS: Record<string, string> = { forage: '🫐', explore: '🧭', quest: '🗺️' };
-export const jobLabel = (job: string) => ({ forage: 'foraging', explore: 'exploring', quest: 'on a quest' } as Record<string, string>)[job] ?? 'away';
+export const jobLabel = (job: string) => ({ forage: 'foraging', explore: 'exploring', quest: 'on a quest', expedition: 'on an expedition' } as Record<string, string>)[job] ?? 'away';
 
 function useNow(ms = 1000) {
   const [now, set] = useState(() => Date.now());
@@ -46,6 +46,16 @@ export function CreatureWork({ c, onChanged, compact }: { c: Inkborn; onChanged?
       onChanged?.(r); refresh(); setPick(null);
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  if (c.job === 'expedition' && c.job_until) {
+    const home = new Date(c.job_until).getTime() <= now;
+    return (
+      <div className="flex items-center gap-2 rounded-2xl bg-white/10 p-2 text-xs" data-testid="job-status">
+        <span className="text-lg">🧭</span>
+        <div className="min-w-0 flex-1"><b>{home ? `${c.name}’s team is home!` : `${c.name} is on an expedition`}</b><div className="text-white/60">{home ? 'Welcome them home in the Keeper’s Lodge.' : `Back in ${left(c.job_until, now)}`}</div></div>
+        <Button size="sm" variant={home ? 'rainbow' : 'secondary'} onClick={() => nav('/inkborn/keeper')}>Lodge</Button>
+      </div>
+    );
+  }
   if (c.job && c.job_until) {
     const done = new Date(c.job_until).getTime() <= now;
     return (

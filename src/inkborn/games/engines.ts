@@ -3,12 +3,13 @@
 import type { Genome } from '../genome';
 import { drawCreature, heart, type CreatureState } from '../rig';
 import { rng } from '../world';
+import { crystalCaves, stardustGlide } from './engines2';
 
 export type GameInput = { joy: { x: number; y: number }; keys: Set<string>; tap: { x: number; y: number } | null; target: { x: number; y: number } | null };
 export type Engine = { step(dt: number, t: number): void; draw(g: CanvasRenderingContext2D, W: number, H: number, t: number): void; score(): number; pops: Pop[]; dispose?(): void };
 type Pop = { x: number; y: number; text: string; color: string; life: number };
 
-export type GameId = 'berrydash' | 'fireflies' | 'leafleap' | 'lilyhop' | 'songbloom';
+export type GameId = 'berrydash' | 'fireflies' | 'leafleap' | 'lilyhop' | 'songbloom' | 'stardust' | 'crystals';
 export const GAMES: Record<GameId, { name: string; emoji: string; blurb: string; how: string; color: string }> = {
   berrydash: { name: 'Berry Dash', emoji: '🫐', color: '#E8344E', blurb: 'Scamper round the meadow gobbling berries before time runs out.',
     how: 'Hold and drag to lead your Inkborn (or use the arrow keys). Red berries 1, purple 2, golden 5. Bumping a bee makes you drop 3 and get dizzy.' },
@@ -18,6 +19,10 @@ export const GAMES: Record<GameId, { name: string; emoji: string; blurb: string;
     how: 'Your Inkborn bounces by itself. Steer left and right by holding the side of the screen (or A/D, ←/→). Mushrooms launch you high, twigs snap after one bounce, acorns are +3. Falling costs 5.' },
   lilyhop: { name: 'Lily Hop', emoji: '🪷', color: '#3EA0DA', blurb: 'Hop across the drifting lily pads to the far bank without a splash.',
     how: 'Tap above, below or beside your Inkborn to hop that way (or use the arrow keys / WASD). Each row forward is 1, reaching the far bank is +10, dragonflies are +2. Miss a pad and you swim back to the start.' },
+  stardust: { name: 'Stardust Glide', emoji: '🌠', color: '#9DB6FF', blurb: 'Ride a leaf through the night sky and catch falling stardust.',
+    how: 'Hold anywhere (or ↑ / space) to float up, let go to glide down. Stardust is 1, golden stars are 5. Storm clouds and sleepy owls knock 3 off. Stardust comes home for the bakery.' },
+  crystals: { name: 'Crystal Caves', emoji: '💎', color: '#B57BFF', blurb: 'Tap clusters of matching crystals to break them free.',
+    how: 'Tap a group of two or more touching crystals of the same colour to break them. Bigger groups score far more (5 at once is 10). Keep breaking for a 🔥 combo. Crystals come home for the bakery.' },
   songbloom: { name: 'Song Bloom', emoji: '🌸', color: '#FF7AB8', blurb: 'Your Inkborn sings a little tune on the flowers — sing it back!',
     how: 'Watch which flowers light up, then tap them in the same order (or keys 1–4). Every right note is 1 and every finished tune adds its length. The tunes grow longer as you go.' },
 };
@@ -574,4 +579,4 @@ export function songBloom(genome: Genome, seed: number, W: number, H: number, in
   };
 }
 
-export const ENGINES: Record<GameId, typeof berryDash> = { berrydash: berryDash, fireflies, leafleap: leafLeap, lilyhop: lilyHop, songbloom: songBloom };
+export const ENGINES: Record<GameId, typeof berryDash> = { berrydash: berryDash, fireflies, leafleap: leafLeap, lilyhop: lilyHop, songbloom: songBloom, stardust: stardustGlide, crystals: crystalCaves };

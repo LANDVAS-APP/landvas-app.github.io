@@ -18,6 +18,7 @@ import { EggsPanel } from './Eggs';
 import { MOOD_INFO, cleanGenome } from './genome';
 import { CreatureProfile } from './Profile';
 import { jobLabel, useInkEconomy } from './Earn';
+import { KeeperBanner, KeeperNews } from './Keeper';
 import { GAMES, type GameId } from './games/engines';
 import { cn } from '../lib/utils';
 import { ResourceIcon } from '../ui';
@@ -51,6 +52,8 @@ export default function Hub() {
         Draw a creature and watch it come alive, then raise it in a woodland sanctuary. Pet, feed and play with your Inkborn to grow your bond — and visit other players’ sanctuaries for playdates that lay eggs.
       </PageHeader>
 
+      <KeeperNews />
+      {d.creatures.length > 0 && <KeeperBanner />}
       {d.creatures.length === 0 ? (
         <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass relative mb-6 grid justify-items-center gap-3 overflow-hidden rounded-[28px] p-8 text-center" data-testid="inkborn-empty">
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#2f7d3a]/40 to-transparent" />
@@ -78,7 +81,7 @@ export default function Hub() {
                 </span>
                 <div className="w-full truncate text-center font-display font-semibold">{c.name}</div>
                 {d.companion_id === c.id && <div className="-mt-1 text-[10px] font-black uppercase tracking-wide text-[#FFC93D]">Companion</div>}
-                <div className="text-[11px] text-muted">{MOOD_INFO[g.mood].emoji} {MOOD_INFO[g.mood].label} · {bondLevel(c.bond).name}</div>
+                <div className="text-[11px] text-muted">{c.level ? <b className="text-[#B49BFF]">Lv {c.level} · </b> : null}{MOOD_INFO[g.mood].emoji} {MOOD_INFO[g.mood].label} · {bondLevel(c.bond).name}</div>
                 <div className="mt-1 flex w-full items-center gap-2 text-[10px] text-muted">
                   <Heart className="h-3 w-3 text-[#FF4D6D]" /><div className="h-1.5 flex-1 rounded-full bg-surface-2"><div className="h-full rounded-full bg-[#FF4D6D]" style={{ width: `${c.happiness}%` }} /></div>
                   <Zap className="h-3 w-3 text-[#FFC93D]" /><div className="h-1.5 flex-1 rounded-full bg-surface-2"><div className="h-full rounded-full bg-[#FFC93D]" style={{ width: `${c.energy}%` }} /></div>

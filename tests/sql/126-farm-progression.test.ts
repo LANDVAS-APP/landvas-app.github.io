@@ -122,6 +122,8 @@ describe('Farm progression', () => {
   });
 
   it('daily chores: calm tap chores and farming ones, a little Ink each and a bonus for the lot', async () => {
+    await db.rpc(flo, 'farm_get', { p_id: farmId });
+    await db.sql(`update farm_chores set progress = 0 where player_id = $1`, [flo]);
     const p = (await db.rpc(flo, 'farm_get', { p_id: farmId })).progress;
     const list = p.chores.list as any[];
     expect(list).toHaveLength(5);
