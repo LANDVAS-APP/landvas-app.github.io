@@ -10,6 +10,7 @@ import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import type { Alert, Announcement } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
+import { Features, Hero, richOf } from './Rich';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar } from '../ui';
 
@@ -212,17 +213,19 @@ function ActivityList({ onLink }: { onLink(to: string): void }) {
 }
 
 export function AnnouncementCard({ a, onLink }: { a: Announcement; onLink?(to: string): void }) {
-  const k = KIND[a.kind] ?? KIND.update;
+  const [open, setOpen] = useState(false);
+  const rich = richOf(a);
   return (
-    <article className={cn('rounded-2xl border p-4', a.unread ? 'border-accent-2/50 bg-accent-2/5' : 'border-line bg-surface/50')}>
-      <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: k.color }}>
-        <k.icon className="h-3.5 w-3.5" /> {k.label}
-        <span className="font-semibold normal-case tracking-normal text-faint">· {timeAgo(a.published_at)}</span>
-        {a.unread && <span className="ml-auto rounded-full bg-hot px-1.5 py-0.5 text-[9px] tracking-wider text-white">NEW</span>}
+    <article className={cn('grid gap-2 rounded-[22px] border p-2', a.unread ? 'border-accent-2/50 bg-accent-2/5' : 'border-line bg-surface/50')} data-testid="announcement-card">
+      <div className="relative">
+        <Hero title={a.title} rich={rich} compact when={timeAgo(a.published_at)} />
+        {a.unread && <span className="absolute right-2.5 top-2.5 rounded-full bg-hot px-1.5 py-0.5 text-[9px] font-black tracking-wider text-white">NEW</span>}
       </div>
-      <h3 className="font-display text-base font-semibold">{a.title}</h3>
-      <p className="mt-1 whitespace-pre-line text-sm text-muted">{a.body}</p>
-      {a.link && onLink && <Button size="sm" variant="secondary" className="mt-3" onClick={() => onLink(a.link!)}>Take a look</Button>}
+      <div className="px-1"><Features rich={rich} limit={open ? undefined : 3} body={a.body} /></div>
+      <div className="flex flex-wrap gap-2 px-1 pb-1">
+        {rich.features.length > 3 && <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>{open ? 'Show less' : 'Read it all'}</Button>}
+        {a.link && onLink && <Button size="sm" variant="secondary" onClick={() => onLink(a.link!)}>{rich.cta || 'Take a look'}</Button>}
+      </div>
     </article>
   );
 }
@@ -248,17 +251,28 @@ export function AnnouncementPopup() {
 
 /** The popup players see (also used by the admin preview). */
 export function AnnouncementPopupView({ a, open, onClose, onLink, preview }: { a: Announcement; open: boolean; onClose(): void; onLink(to: string): void; preview?: boolean }) {
-  const k = KIND[a.kind] ?? KIND.update;
+  const rich = richOf(a);
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={<span className="flex items-center gap-2"><k.icon className="h-5 w-5" style={{ color: k.color }} /> {a.title}</span>}>
-      <div className="grid gap-4" data-testid={preview ? 'announcement-popup-preview' : 'announcement-popup'}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={<span className="sr-only">{a.title}</span>}>
+      <div className="-mt-2 grid gap-3" data-testid={preview ? 'announcement-popup-preview' : 'announcement-popup'}>
         {preview && <div className="rounded-xl bg-warn/15 px-3 py-1.5 text-[11px] font-bold text-warn">PREVIEW — only you can see this</div>}
-        <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
-        <div className="flex flex-wrap gap-2">
-          {a.link && <Button variant="rainbow" onClick={() => onLink(a.link!)}>Take a look</Button>}
-          <Button variant={a.link ? 'secondary' : 'primary'} onClick={onClose} data-testid="announcement-dismiss">Got it</Button>
+        <AnnouncementPage a={a} />
+        <div className="sticky bottom-0 -mx-1 flex flex-wrap gap-2 bg-gradient-to-t from-bg-2 via-bg-2/95 to-transparent px-1 pt-3">
+          {a.link && <Button variant="rainbow" className="flex-1" onClick={() => onLink(a.link!)}>{rich.cta || 'Take a look'}</Button>}
+          <Button variant={a.link ? 'secondary' : 'rainbow'} className="flex-1" onClick={onClose} data-testid="announcement-dismiss">Got it</Button>
         </div>
       </div>
     </Dialog>
+  );
+}
+
+/** The whole announcement (banner + every feature) — the popup, and the admin's phone preview. */
+export function AnnouncementPage({ a }: { a: Announcement }) {
+  const rich = richOf(a);
+  return (
+    <div className="grid gap-3">
+      <Hero title={a.title} rich={rich} />
+      <Features rich={rich} body={a.body} />
+    </div>
   );
 }

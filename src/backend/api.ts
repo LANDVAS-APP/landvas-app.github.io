@@ -356,6 +356,7 @@ export const api = {
     saveAnnouncement: (a: { id?: string | null; title: string; body: string; kind: string; link?: string | null; popup: boolean; active: boolean }) =>
       rpc<Announcement>('admin_announcement_save', { p_id: a.id ?? null, p_title: a.title, p_body: a.body, p_kind: a.kind, p_link: a.link || null, p_popup: a.popup, p_active: a.active }),
     deleteAnnouncement: (id: string) => rpc<{ ok: boolean }>('admin_announcement_delete', { p_id: id }),
+    announcementContent: (id: string, content: import('../updates/Rich').RichContent | null) => rpc<Announcement>('admin_announcement_content', { p_id: id, p_content: content }),
     pvp: () => rpc<any>('admin_pvp'),
     challenges: () => rpc<any[]>('admin_challenges'),
     saveChallenge: (c: { id?: string | null; title: string; theme: string; starts_at: string; ends_at: string; prizes: number[]; entry_ink: number }) =>

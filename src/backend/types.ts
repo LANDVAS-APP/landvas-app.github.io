@@ -331,9 +331,10 @@ export type MinigameFinish = {
 
 export type MapUpdate = { id: number; kind: 'art' | 'ownership'; min_gx: number; min_gy: number; max_gx: number; max_gy: number; publication_id: string | null };
 
-export type Announcement = { id: string; title: string; body: string; kind: 'update' | 'event' | 'maintenance' | 'news'; link: string | null; popup: boolean; published_at: string; unread: boolean };
+export type Announcement = { id: string; title: string; body: string; kind: 'update' | 'event' | 'maintenance' | 'news'; link: string | null; popup: boolean; published_at: string; unread: boolean;
+  content?: import('../updates/Rich').RichContent | null; built_at?: string | null };
 export type Notifications = { announcements: Announcement[]; unread_announcements: number; support_replies: number; open_tickets_staff: number | null; drafts_staff?: number | null };
-export type AdminAnnouncement = Announcement & { active: boolean; status?: 'draft' | 'published'; source?: 'manual' | 'auto'; builds?: { sha: string; at: string; notes: string[] }[]; author?: any };
+export type AdminAnnouncement = Announcement & { active: boolean; status?: 'draft' | 'published' | 'discarded'; source?: 'manual' | 'auto' | 'backfill'; builds?: { sha: string; at: string; notes: string[] }[]; author?: any };
 export type SupportTicket = {
   id: string; subject: string; category: string; status: 'open' | 'answered' | 'closed'; created_at: string; last_message_at: string;
   unread: boolean; messages: number; player?: Profile;

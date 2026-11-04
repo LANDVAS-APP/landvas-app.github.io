@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bullets, parseLog, sqlJson, summarize } from '../../scripts/update-notes.mjs';
+import { bullets, draftsFor, parseLog, richContent, sqlJson, summarize } from '../../scripts/update-notes.mjs';
 
 const log = [
   ['a1', 'Rovers, activity pop-ups, 3 eggs a day', '- Rovers: three models; drive at the\n  rover\'s speed\n- Notifications pop up live\n\nCo-Authored-By: Claude <x@y>\nClaude-Session: https://x'],
@@ -30,5 +30,14 @@ describe('update notes', () => {
   it('is safe to put in SQL', () => {
     expect(sqlJson({ a: 'x$lvjson$y' })).toBe('$lvjson${"a":"x\\u0024lvjson\\u0024y"}$lvjson$::jsonb');
     expect(JSON.parse(sqlJson({ a: '$' }).slice(8, -15))).toEqual({ a: '$' });
+  });
+  it('makes one rich draft per update, with a theme and a card per feature', () => {
+    const d = draftsFor(parseLog(log));
+    expect(d.map((x) => x.sha)).toEqual(['a1', 'c3']);
+    expect(d[0].content.features).toHaveLength(2);
+    expect(d[0].content.features[0]).toMatchObject({ title: 'Rovers', text: 'Three models; drive at the rover\'s speed' });
+    expect(d[1].content).toMatchObject({ theme: 'space', emoji: '🪐' });
+    expect(d[1].link).toBe('/space');
+    expect(richContent({ sha: 'x', subject: 'Business plots', notes: ['Tap the lemon'] })).toMatchObject({ theme: 'business', emoji: '🍋' });
   });
 });

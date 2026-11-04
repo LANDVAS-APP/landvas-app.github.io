@@ -3,13 +3,13 @@
 
 const TRAILER = /^(co-authored-by|claude-session|signed-off-by|reviewed-by|change-id):/i;
 // commits that only touch plumbing don't make it into player updates
-const PLUMBING = /^(ci|chore|build|test|tests|e2e|deploy|diag|wip|merge|revert|bump|docs?|refactor|admin|staff)\b|^(fix(e[sd])? )?(the )?(deploy|workflow|ci|tests?|typecheck|lint)\b/i;
+const PLUMBING = /^(ci|chore|build|test|tests|e2e|deploy|diag|wip|merge|revert|bump|docs?|refactor|admin|staff|claude\.md|inkborn health check|lighter on the database)\b|^(fix(e[sd])? )?(the )?(deploy|workflow|ci|tests?|typecheck|lint)\b/i;
 
 /** Parse `git log --format=%H%x1f%s%x1f%b%x1e` output into [{ sha, subject, notes }]. */
 export function parseLog(raw) {
   return raw.split('\x1e').map((c) => c.trim()).filter(Boolean).map((c) => {
-    const [sha, subject = '', body = ''] = c.split('\x1f');
-    return { sha: sha.trim(), subject: subject.trim(), notes: bullets(body) };
+    const [sha, subject = '', body = '', date = ''] = c.split('\x1f');
+    return { sha: sha.trim(), subject: subject.trim(), notes: bullets(body), ...(date.trim() ? { date: date.trim() } : {}) };
   });
 }
 
@@ -57,4 +57,47 @@ ${log}`;
 export function sqlJson(obj) {
   const json = JSON.stringify(obj).replace(/\$/g, '\\u0024');
   return `$lvjson$${json}$lvjson$::jsonb`;
+}
+
+// ---- rich announcements ------------------------------------------------------------------------------
+const THEMES = [
+  ['business', /business|lemonade|corporation|tycoon|stock|haggle/i, '🍋', 'Open for business', '/plots'],
+  ['farm', /farm|crop|harvest|tractor|barn|chores?\b/i, '🌾', 'Fresh from the fields', '/plots'],
+  ['inkborn', /inkborn|creature|habitat|sanctuar|keeper|egg|playdate|companion/i, '🐾', 'For keepers and their creatures', '/inkborn'],
+  ['space', /planet|moon|space|rover|rocket|dig|shaft|core|base|world|meteor|orbit/i, '🪐', 'Out among the planets', '/space'],
+  ['art', /paint|art\b|canvas|draw|brush|autosave|mural/i, '🎨', 'For artists', '/create'],
+  ['social', /chat|friend|notification|pop-up|social|feed|warp/i, '💬', 'Better together', '/social'],
+  ['world', /map|plot|gps|explorer|title screen|ios|android|app/i, '🗺️', 'Around the world', '/world'],
+];
+const ICONS = [
+  [/level|xp|progress/i, '📈'], [/minigame|\bgames?\b/i, '🎮'], [/3d/i, '🧊'], [/coin|cash|money|ink\b|glimmer|pay/i, '💰'],
+  [/upgrade/i, '⬆️'], [/build|building/i, '🏗️'], [/egg/i, '🥚'], [/treasure|rare|golden/i, '💎'], [/wish/i, '💭'], [/expedition|explore|travel|warp/i, '🧭'],
+  [/chat|message/i, '💬'], [/friend|visit/i, '🤝'], [/notification|pop-up|toast/i, '🔔'], [/tap|click/i, '👆'], [/daily|today|once a day/i, '📅'],
+  [/map/i, '🗺️'], [/fast|smooth|quick/i, '⚡'], [/save|autosave/i, '💾'], [/dig|shaft|core/i, '⛏️'], [/rover|drive|van|tractor/i, '🚜'],
+  [/crop|plant|seed|harvest/i, '🌱'], [/cook|kitchen|bake|treat|recipe/i, '🍳'], [/creature|inkborn/i, '🐾'], [/planet|moon|space/i, '🪐'],
+];
+const iconFor = (t, i) => (ICONS.find(([re]) => re.test(t)) ?? [null, ['✨', '⭐', '🎉', '🚀', '🌟', '🎁'][i % 6]])[1];
+
+/** A real-looking announcement from one update: a theme and big emoji, a subtitle, and a card per feature. */
+export function richContent(commit) {
+  const all = `${commit.subject} ${commit.notes.join(' ')}`;
+  const th = THEMES.find(([, re]) => re.test(commit.subject)) ?? THEMES.find(([, re]) => re.test(all)) ?? ['update', null, '✨', 'Something new to try', null];
+  const notes = commit.notes.length ? commit.notes : [commit.subject];
+  const features = notes.slice(0, 12).map((n, i) => {
+    const t = tidy(n);
+    // "Name: what it does" becomes a bold title and a line of text
+    const m = /^([^:]{3,42}):\s+(.+)$/.exec(t);
+    return m ? { emoji: iconFor(t, i), title: tidy(m[1]), text: tidy(m[2]) } : { emoji: iconFor(t, i), text: t };
+  });
+  return { theme: th[0], emoji: th[2], subtitle: th[3], features, cta: th[4] ? 'Take a look' : null };
+}
+
+/** One draft per player-facing commit: [{sha, title, body, notes, content, built_at}]. */
+export function draftsFor(commits) {
+  return commits.filter((c) => c.subject && !PLUMBING.test(c.subject)).map((c) => {
+    const s = summarize([c]);
+    const content = richContent(c);
+    const link = (THEMES.find(([t]) => t === content.theme) ?? [])[4] ?? null;
+    return { sha: c.sha, title: s.title, body: s.body, notes: s.notes, content, link, built_at: c.date ?? null };
+  });
 }

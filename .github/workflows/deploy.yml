@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 50 # enough history to read this push's commit notes for the update draft
+          fetch-depth: 0 # the whole history: every update, including past ones never announced, becomes a draft
       - uses: actions/setup-node@v4
         with:
           node-version: 22
