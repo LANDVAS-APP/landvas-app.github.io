@@ -24,7 +24,7 @@ describe('Digging', () => {
     await expectError(db.rpc(dee, 'planet_dig', { p_world: 'moon', p_gx: 10, p_gy: 10, p_taps: 5 }), 'land_first');
     await putOn(dee, 'moon'); await own(dee, 'moon', 10, 10);
     const s = await db.rpc(dee, 'planet_dig_state', { p_world: 'moon', p_gx: 10, p_gy: 10 });
-    expect(s).toMatchObject({ depth: 0, tools: ['shovel'], power: 1, energy: 240 });
+    expect(s).toMatchObject({ depth: 0, tools: ['shovel'], power: 1, energy: 600 });
   });
 
   it('taps dig (no faster than a person), turn up materials and pay Ink for each new layer', async () => {
@@ -45,7 +45,7 @@ describe('Digging', () => {
     expect(s.layers_reached).toBe(2);
     const found = Object.values(s.items as Record<string, number>).reduce((a, b) => a + Number(b), 0);
     expect(found).toBeGreaterThan(5);
-    expect(s.energy).toBeLessThan(240 - 100);
+    expect(s.energy).toBeLessThan(600 - 100);
   });
 
   it('energy runs out (and refills over time)', async () => {
@@ -53,7 +53,7 @@ describe('Digging', () => {
     await unthrottle(dee);
     await expectError(db.rpc(dee, 'planet_dig', { p_world: 'moon', p_gx: 10, p_gy: 10, p_taps: 5 }), 'no_energy');
     await db.sql(`update planet_miners set energy_at = now() - interval '10 minutes' where player_id = $1`, [dee]);
-    expect((await db.rpc(dee, 'planet_dig_state', { p_world: 'moon', p_gx: 10, p_gy: 10 })).energy).toBe(20);
+    expect((await db.rpc(dee, 'planet_dig_state', { p_world: 'moon', p_gx: 10, p_gy: 10 })).energy).toBe(60);
   });
 
   it('tools cost materials and Ink, and dig faster', async () => {

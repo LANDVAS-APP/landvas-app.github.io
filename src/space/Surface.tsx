@@ -325,9 +325,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         {high && <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.findMe()} aria-label="Find me"><Crosshair className="h-5 w-5" /></button>}
         {!high && ready && <RoverControls rover={rover} onGarage={() => setGarageOpen(true)} />}
         {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => {
-          if (here?.mine) { setDigPlot(here); scene.current?.peekShaft(here, 0.14); }
+          if (here?.mine) { setDigPlot(here); scene.current?.setPaused(true); }
           else toast(here ? 'You can only dig into your own plots.' : 'Stand on one of your plots to dig — claim one first!', { description: 'Every plot you own has its own shaft, all the way down to the core.' });
-        }} aria-label="Dig" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">Dig</span></button>}
+        }} aria-label="Enter your shaft" data-testid="dig-open"><Pickaxe className="h-5 w-5" /><span className="lbl">{here?.shaft ? 'Enter' : 'Dig'}</span></button>}
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
 
@@ -372,7 +372,8 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       <QuestsDialog world={world} worldName={w.name.replace('The ', 'the ')} q={quests.data} open={questsOpen} onOpenChange={setQuestsOpen} />
       <AnimatePresence>{digPlot && <DigPanel world={world} w={w} plot={digPlot} pose={() => scene.current?.pose().d ?? null}
         onDug={(depth, cored) => scene.current?.setShaft(digPlot.gx, digPlot.gy, depth, cored)}
-        onClose={() => { setDigPlot(null); scene.current?.peekShaft(null); void near.refetch(); void map.refetch(); void qc.invalidateQueries({ queryKey: questsKey(world) }); }} />}</AnimatePresence>
+        explorerUrl={svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184))}
+        onClose={() => { setDigPlot(null); scene.current?.setPaused(false); void near.refetch(); void map.refetch(); void qc.invalidateQueries({ queryKey: questsKey(world) }); }} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
           {(s.warps ?? []).map((d) => {

@@ -484,9 +484,11 @@ export type MineTool = { id: string; name: string; power: number; cost: Record<s
 export type DigState = {
   world: string | null; depth: number; shaft: number[] | null; layers_reached: number; tools: string[]; power: number;
   energy: number; energy_max: number; regen_per_minute: number; items: Record<string, number>;
-  config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number } };
+  refills?: { free_left: number; ink_left: number };
+  config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number };
+    refills?: { free_per_day: number; ink: { cost: number; energy: number; per_day: number }; ration: { cost: Record<string, number>; energy: number } } };
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
-  gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number;
+  gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number; refilled?: string; added?: number;
 };
 export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other';
 export type Whereabouts = {

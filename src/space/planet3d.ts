@@ -43,6 +43,7 @@ export type PlanetScene = {
   /** a speech bubble over an explorer (id, or 'me') for a few seconds */ say(id: string, text: string): void;
   /** one plot's shaft got deeper (the hole in the ground follows) */ setShaft(gx: number, gy: number, depth: number, cored: boolean): void;
   /** look down into a plot's shaft from above (null: back to normal); `lift` shifts the picture up (0..0.5) for a sheet below */ peekShaft(c: Cell | null, lift?: number): void;
+  /** stop drawing while another full-screen 3D view is up (the shaft) */ setPaused(p: boolean): void;
   /** 0 = on your feet … 1 = the whole planet */ setZoom(level: number): void; zoom(f: number): void;
   /** look back at yourself */ findMe(): void;
   walkTo(c: Cell): void;
@@ -911,8 +912,10 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   let lastArea: { gx: number; gy: number } | null = null;
   // adaptive resolution: if frames run slow, render fewer pixels (and more again when there's room)
   let perfT = 0, perfN = 0;
+  let paused = false;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (paused) { last = now; return; }
     const raw = (now - last) / 1000; last = now;
     const dt = Math.min(0.05, raw); t += dt;
     perfT += raw; perfN++;
@@ -1084,7 +1087,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   };
   raf = requestAnimationFrame(frame);
   const api: PlanetScene = {
-    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say, setShaft,
+    joy, jump: () => { jumpQueued = true; }, setPlots, setSectors, setMeteors, burst, setLive, remote, zoom, setZoom, setBuddy, setRover, say, setShaft, setPaused: (p) => { paused = p; },
     peekShaft: (c, lift = 0.25) => {
       if (!c) {
         peek = null; distTo = 8.5; camera.clearViewOffset(); return;

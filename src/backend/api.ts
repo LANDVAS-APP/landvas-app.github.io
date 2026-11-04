@@ -179,6 +179,7 @@ export const api = {
   planetSectors: (world: string, size: number) => rpc<[number, number, number, boolean][]>('planet_sectors', { p_world: world, p_size: size }),
   digState: (world: string, gx?: number, gy?: number) => rpc<import('./types').DigState>('planet_dig_state', { p_world: world, p_gx: gx ?? null, p_gy: gy ?? null }),
   dig: (world: string, taps: number, d: number[] | null, gx: number, gy: number) => rpc<import('./types').DigState>('planet_dig', { p_world: world, p_taps: taps, p_d: d, p_gx: gx, p_gy: gy }),
+  digRefill: (kind: 'free' | 'ink' | 'ration', world: string, gx: number, gy: number) => rpc<import('./types').DigState>('planet_dig_refill', { p_kind: kind, p_world: world, p_gx: gx, p_gy: gy }),
   craftTool: (tool: string) => rpc<import('./types').DigState>('planet_craft_tool', { p_tool: tool }),
   setActivity: (kind: import('./types').ActivityKind, detail: Record<string, string> = {}) => rpc<{ ok: true }>('set_activity', { p_kind: kind, p_detail: detail }),
   warpToPlayer: (player: string) => rpc<import('./types').SpaceState & { spawn: { d: number[]; player: string } | null; with: Profile }>('space_warp_to_player', { p_player: player }),
