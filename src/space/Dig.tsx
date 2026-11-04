@@ -160,6 +160,11 @@ export function DigPanel({ world, w, plot, pose, onClose, onDug }: { world: stri
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#FFC93D]" style={{ width: `${energyPct}%` }} /></div>
           <span className="tnum">{state.energy}/{state.energy_max}</span>
         </div>
+        {!!state.party && (
+          <div className="mt-1.5 flex items-center gap-1.5 rounded-full bg-[#8B5CFF]/30 px-2.5 py-1 text-[11px] font-bold" data-testid="dig-party">
+            🎉 Dig party · {state.party} digging with you · ×{state.party_mult} speed
+          </div>
+        )}
         {/* every layer, down to the crust */}
         <div className="mt-2 flex h-2 overflow-hidden rounded-full" title="Layers">
           {layers.map((l, i) => <div key={l.id} className={cn('h-full', i <= li ? '' : 'opacity-30')} style={{ background: l.color, flex: Math.log(l.to - (layers[i - 1]?.to ?? 0) + 10) }} />)}

@@ -24,6 +24,7 @@ import { savedPose, usePlanetLive } from './live';
 import { DigPanel } from './Dig';
 import { RoverControls, RoverGarage, useRover } from './Rover';
 import { PlanetChatBox, usePlanetChat } from './PlanetChat';
+import { QuestsChip, QuestsDialog, questsKey, useQuests } from './Quests';
 import { BaseBuilder, BaseVisit } from './BaseBuilder';
 import { createPlanetScene, type PlanetScene, type ZoomInfo } from './planet3d';
 import { PLANET_GAMES } from './planetGames';
@@ -87,6 +88,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [warpOpen, setWarpOpen] = useState(false);
   const [digPlot, setDigPlot] = useState<PlanetPlot | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
+  const [questsOpen, setQuestsOpen] = useState(false);
   const [building, setBuilding] = useState<PlanetPlot | null>(null);
   const [visiting, setVisiting] = useState<{ gx: number; gy: number } | null>(null);
   const collecting = useRef(false);
@@ -202,6 +204,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const mine = (map.data?.plots ?? []).filter((p) => p.mine);
   const high = zoom.mode !== 'walk';
   const rover = useRover(world, scene, ready, high);
+  const quests = useQuests(world, ready);
   const R = radiusFor(builtRows);
   const around = 2 * Math.PI * R, plotM = (R * Math.PI * 144) / (180 * builtRows);
 
@@ -287,6 +290,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
               ☄️ {metLeft ? `Meteor shower by the landing site · ${metLeft} left` : 'Shower’s over'} · next {Math.floor(nextIn / 60)}:{String(Math.floor(nextIn % 60)).padStart(2, '0')}
             </span>
           )}
+          <QuestsChip q={quests.data} onOpen={() => setQuestsOpen(true)} />
           {canPlots && map.data && (
             <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setListOpen(true)} data-testid="my-planet-plots">
               <Flag className="h-3 w-3" /> {mine.length ? `My plots here (${mine.length})` : `${map.data.claimed.toLocaleString()} plots claimed`}
@@ -365,9 +369,10 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       <AnimatePresence>{building && <BaseBuilder world={world} plot={building} mine={shownPlots.filter((p) => p.mine)} onClose={() => setBuilding(null)} onSaved={() => { void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
       <AnimatePresence>{visiting && <BaseVisit world={world} gx={visiting.gx} gy={visiting.gy} onClose={() => setVisiting(null)} />}</AnimatePresence>
       <RoverGarage open={garageOpen} onOpenChange={setGarageOpen} rover={rover} />
+      <QuestsDialog world={world} worldName={w.name.replace('The ', 'the ')} q={quests.data} open={questsOpen} onOpenChange={setQuestsOpen} />
       <AnimatePresence>{digPlot && <DigPanel world={world} w={w} plot={digPlot} pose={() => scene.current?.pose().d ?? null}
         onDug={(depth, cored) => scene.current?.setShaft(digPlot.gx, digPlot.gy, depth, cored)}
-        onClose={() => { setDigPlot(null); scene.current?.peekShaft(null); void near.refetch(); void map.refetch(); }} />}</AnimatePresence>
+        onClose={() => { setDigPlot(null); scene.current?.peekShaft(null); void near.refetch(); void map.refetch(); void qc.invalidateQueries({ queryKey: questsKey(world) }); }} />}</AnimatePresence>
       <Dialog open={warpOpen} onOpenChange={setWarpOpen} title="Warp" description="Free and instant to anywhere you’ve unlocked or been.">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" data-testid="warp-list">
           {(s.warps ?? []).map((d) => {

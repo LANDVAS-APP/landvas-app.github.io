@@ -486,7 +486,7 @@ export type DigState = {
   energy: number; energy_max: number; regen_per_minute: number; items: Record<string, number>;
   config: { taps_per_second: number; find_chance: number; layers: MineLayer[]; tools: MineTool[]; items: Record<string, { name: string; emoji: string }>; energy: { max: number; per_tap: number; regen_per_minute: number } };
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
-  gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number;
+  gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number;
 };
 export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other';
 export type Whereabouts = {
@@ -502,6 +502,12 @@ export type SpaceSocial = {
 export type BaseCatalog = {
   config: { max_modules: number; refund: number; palette: string[]; modules: Record<string, { name: string; emoji: string; w: number; d: number; cost: Record<string, number> }> };
   items: Record<string, number>; item_info: Record<string, { name: string; emoji: string }>; plot_m: number;
+};
+export type PlanetQuest = { id: string; metric: string; target: number; title: string; emoji?: string; ink: number; items: Record<string, number>; progress: number; done: boolean; claimed: boolean };
+export type PlanetQuests = {
+  world: string; day: string; resets_at: string; solo: PlanetQuest[]; item_info: Record<string, { name: string; emoji: string }>;
+  crew: (PlanetQuest & { min_share: number; mine: number; can_claim: boolean; crew: (Profile & { amount: number })[]; crew_size: number }) | null;
+  claimed_quest?: string; paid?: number; earned?: number; items_got?: Record<string, number>;
 };
 export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile };
 export type RoverModel = { id: string; name: string; emoji: string; speed: number; tank: number; burn_per_km: number; cost: Record<string, number> };
