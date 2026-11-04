@@ -213,6 +213,7 @@ export type CanvasGroup = {
   id: string;
   kind?: PlotKind;
   habitat_id?: string | null;
+  farm_id?: string | null;
   name: string;
   status: string;
   plot_count: number;
@@ -404,7 +405,17 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat';
+export type PlotKind = 'canvas' | 'habitat' | 'farm';
+export type FarmCrop = { name: string; emoji: string; seed: number; minutes: number; yield: [number, number]; sell: number; color: string };
+export type FarmGameInfo = { name: string; emoji: string; dim: '2d' | '3d'; seconds: number; max_score: number; points_per_ink: number; max_ink: number };
+export type FarmConfig = { beds_base: number; beds_per_plot: number; beds_max: number; daily_cap: number; water_speedup: number; golden_chance: number; golden_mult: number;
+  crops: Record<string, FarmCrop>; games: Record<string, FarmGameInfo> };
+export type FarmBed = { idx: number; crop: string; planted_at: string; ready_at: string; watered: boolean; ready: boolean };
+export type Farm = {
+  id: string; group_id: string | null; seed: number; name: string; plots: number; owner: Profile; mine: boolean; harvests: number; cells: [number, number][];
+  beds_count: number; beds: FarmBed[]; items: Record<string, number> | null; ink_today: number | null; config: FarmConfig; server_time: string;
+  harvested?: Record<string, number>; beds_harvested?: number; golden?: number;
+};
 export type Inkborn = {
   id: string; name: string; source: 'drawn' | 'random' | 'custom' | 'bred'; genome: import('../inkborn/genome').Genome; personality: string;
   habitat_id: string | null; bond: number; happiness: number; energy: number; created_at: string; mine: boolean;

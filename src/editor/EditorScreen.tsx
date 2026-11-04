@@ -53,6 +53,7 @@ export default function EditorScreen() {
   if (!group.data) return <div className="flex h-full items-center justify-center"><Spinner /></div>;
   // an Inkborn Habitat isn't painted — it's a sanctuary (its artwork is kept for when it's a canvas again)
   if (group.data.kind === 'habitat' && group.data.habitat_id) return <Navigate to={`/habitat/${group.data.habitat_id}`} replace />;
+  if (group.data.kind === 'farm' && group.data.farm_id) return <Navigate to={`/farm/${group.data.farm_id}`} replace />;
   if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
   return <PaintEditor />;
 }

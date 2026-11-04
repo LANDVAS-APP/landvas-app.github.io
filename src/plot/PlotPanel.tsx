@@ -25,6 +25,7 @@ import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
 import { PlotKindControl } from '../inkborn/PlotKindPicker';
 
+const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
@@ -194,7 +195,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<PlotKind>(() => (safeStorage<string>('landvas.plotKind', 'canvas') === 'habitat' ? 'habitat' : 'canvas'));
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' ? k : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -213,8 +214,9 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const gpsOn = ex.gps === 'on';
   // what the new plot becomes is the player's choice; a habitat is the same plot at the same price
   const becomeHabitat = async (groupId: string) => {
-    if (kind !== 'habitat') return null;
-    try { return (await api.setGroupKind(groupId, 'habitat')).habitat_id ?? null; } catch (e) { toast.error(toGameError(e).message); return null; }
+    if (kind === 'canvas') return null;
+    try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; } return g.habitat_id ?? null; }
+    catch (e) { toast.error(toGameError(e).message); return null; }
   };
   const run = async () => {
     setBusy('claim');
@@ -291,11 +293,12 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
   const opts = [
     { k: 'canvas' as const, icon: '🎨', title: 'Art Canvas', body: 'Paint and publish artwork', color: '#7B5CFF' },
     { k: 'habitat' as const, icon: '🌳', title: 'Inkborn Habitat', body: 'A sanctuary for your creatures', color: '#3DDC97' },
+    { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
   ];
   return (
     <div className="grid gap-1.5" data-testid="plot-kind-choice">
       <div className="text-xs font-bold text-muted">What should this plot become?</div>
-      <div className="grid grid-cols-2 gap-2" role="radiogroup">
+      <div className="grid grid-cols-3 gap-2" role="radiogroup">
         {opts.map((o) => (
           <motion.button key={o.k} type="button" role="radio" aria-checked={kind === o.k} whileTap={{ scale: 0.96 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
             className={cn('grid gap-0.5 rounded-2xl border-2 p-2.5 text-left transition', kind === o.k ? 'bg-surface-2' : 'border-line bg-surface/40 opacity-75')}
@@ -306,6 +309,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           </motion.button>
         ))}
       </div>
+      {kind === 'farm' && <p className="text-[11px] text-muted">Same price and rent. A farm plot has 6 soil beds and every connected farm plot adds 4 more. Switch types any time without losing anything.</p>}
       {kind === 'habitat' && <p className="text-[11px] text-muted">Same price and rent. Merge neighbouring habitat plots to grow it: 1 plot is a small glade, 4 a woodland, 16 a big sanctuary. You can switch types any time without losing anything.</p>}
     </div>
   );
@@ -421,12 +425,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   const hab = useHabitatAt(d.gx, d.gy, true).data;
+  const farm = useFarmAt(d.gx, d.gy, true).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : 'canvas', habitat_id: hab?.habitat_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
+        {farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
+          : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>
@@ -469,6 +475,17 @@ function UpgradeRow({ title, desc, cost, busy, onClick, balances }: { title: str
 
 function HabitatVisit({ d }: { d: PlotDetails }) {
   const hab = useHabitatAt(d.gx, d.gy, true).data;
+  const farm = useFarmAt(d.gx, d.gy, true).data;
+  if (farm) return (
+    <Link to={`/farm/${farm.farm_id}`} className="flex items-center gap-3 rounded-2xl border border-[#E0A800]/40 bg-[#F5C842]/10 p-3 hover:border-[#E0A800]" data-testid="visit-farm">
+      <span className="text-2xl">🌾</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">Farm</div>
+        <div className="truncate text-sm font-semibold">{farm.name} · 🌱 {farm.growing} growing</div>
+      </div>
+      <span className="text-xs font-bold text-[#E0A800]">Visit →</span>
+    </Link>
+  );
   if (!hab) return null;
   return (
     <Link to={`/habitat/${hab.habitat_id}`} className="flex items-center gap-3 rounded-2xl border border-[#3DDC97]/40 bg-[#3DDC97]/10 p-3 hover:border-[#3DDC97]" data-testid="visit-habitat">

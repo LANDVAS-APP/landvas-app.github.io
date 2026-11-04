@@ -269,6 +269,35 @@ export function drawHabitatPlot(ctx: CanvasRenderingContext2D, gx: number, gy: n
   ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
 }
 
+/** A farm plot from above: soil beds in rows with crops, a grass edge and a little red barn on some. */
+export function drawFarmPlot(ctx: CanvasRenderingContext2D, gx: number, gy: number, px: number, py: number, cs: number) {
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#7CC95A'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#8A5A34'; ctx.fillRect(px + cs * 0.15, py + cs * 0.15, cs * 0.7, cs * 0.7); return; }
+  const crops = ['#FF8A3D', '#E8433A', '#F5C842', '#7BD957', '#FF4D6D', '#F08A24'];
+  const rows = cs >= 24 ? 4 : 3, m = cs * 0.1, rh = (cs - m * 2) / rows;
+  const barn = hash(gx, gy, 5) < 0.3 && cs >= 16;
+  for (let r = 0; r < rows; r++) {
+    const y = py + m + r * rh;
+    const w = barn && r === 0 ? cs * 0.5 : cs - m * 2;
+    ctx.fillStyle = '#8A5A34'; ctx.fillRect(px + m, y + rh * 0.12, w, rh * 0.76);
+    ctx.fillStyle = '#6E4426'; ctx.fillRect(px + m, y + rh * 0.45, w, Math.max(0.6, rh * 0.08));
+    if (cs >= 10) {
+      ctx.fillStyle = crops[Math.floor(hash(gx, gy, 10 + r) * crops.length)];
+      const n = Math.max(3, Math.floor(w / Math.max(3, cs * 0.09)));
+      for (let i = 0; i < n; i++) { ctx.fillStyle = i % 3 === 0 ? '#3E9A44' : crops[Math.floor(hash(gx, gy, 10 + r) * crops.length)]; ctx.beginPath(); ctx.arc(px + m + (i + 0.5) * (w / n), y + rh * 0.42, Math.max(0.8, rh * 0.18), 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+  if (barn) {
+    const bx = px + cs * 0.66, by = py + m, bw = cs * 0.26, bh = rh * 0.9;
+    ctx.fillStyle = '#C8352C'; ctx.fillRect(bx, by + bh * 0.3, bw, bh * 0.7);
+    ctx.fillStyle = '#6B2A22'; ctx.beginPath(); ctx.moveTo(bx - bw * 0.08, by + bh * 0.32); ctx.lineTo(bx + bw / 2, by); ctx.lineTo(bx + bw * 1.08, by + bh * 0.32); ctx.fill();
+    ctx.fillStyle = '#F5EEDC'; ctx.fillRect(bx + bw * 0.35, by + bh * 0.6, bw * 0.3, bh * 0.4);
+  }
+  ctx.strokeStyle = 'rgba(176,122,71,0.9)'; ctx.lineWidth = Math.max(1, cs * 0.03);
+  ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+}
+
 async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number): Promise<ImageBitmap | ArrayBuffer | null> {
   const shift = GRID_LEVEL - z;
   if (shift < 0) return null;
@@ -276,11 +305,14 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   const bx0 = gx0 >> BLOCK_SHIFT, by0 = gy0 >> BLOCK_SHIFT, bn = Math.max(1, n >> BLOCK_SHIFT);
   const lists: PlotRow[][] = [];
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
-  const rows = lists.flat().filter((r) => r[11] === 'habitat' && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
+  const rows = lists.flat().filter((r) => (r[11] === 'habitat' || r[11] === 'farm') && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
   if (!rows.length) return null;
   const cs = PX / n;
   const ctx = ctx2d();
-  for (const r of rows) drawHabitatPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs, r[8] || '#7B5CFF');
+  for (const r of rows) {
+    if (r[11] === 'farm') drawFarmPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
+    else drawHabitatPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs, r[8] || '#7B5CFF');
+  }
   return snapshot(canvas!);
 }
 

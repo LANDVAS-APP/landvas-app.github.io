@@ -59,6 +59,8 @@ const Playdate = lazy(() => import('../inkborn/Playdate'));
 const VisitSanctuaries = lazy(() => import('../inkborn/Visit'));
 const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
+const FarmScreen = lazy(() => import('../farm/FarmScreen'));
+const FarmGame = lazy(() => import('../farm/FarmGame'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
 const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
 const PlotsScreen = lazy(() => import('../plots/PlotsScreen'));
@@ -163,6 +165,8 @@ const routes: RouteObject[] = [
       { path: '/inkborn/play/:game/:id', element: player(<InkbornGame />) },
       { path: '/inkborn/playdate/:theirs', element: player(<Playdate />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
+      { path: '/farm/:id', element: player(<FarmScreen />) },
+      { path: '/farm/:id/play/:game', element: player(<FarmGame />) },
       { path: '/space/surface', element: player(<SpaceSurface />) },
       { path: '/space/play/:game', element: player(<SpaceGame />) },
       { path: '/space/planet/:world/:gx/:gy/:game', element: player(<PlanetGame />) },
