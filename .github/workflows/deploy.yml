@@ -35,6 +35,14 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping database deploy"; exit 0; fi
           node scripts/deploy-db.mjs
+      - name: Database health check (read-only counts and timings)
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then exit 0; fi
+          node scripts/diag-health.mjs
       - name: Inkborn health check (read-only counts)
         continue-on-error: true
         env:
@@ -66,6 +74,8 @@ jobs:
           npx vite build --mode production
           printf '{"build":"%s","at":"%s"}\n' "$LANDVAS_BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
       - name: Link previews for shared art
+        continue-on-error: true
+        timeout-minutes: 3
         run: node scripts/prerender-share.mjs dist || echo "::warning::link previews skipped"
       - name: Publish to GitHub Pages (main branch)
         run: |
