@@ -276,26 +276,29 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
               <button className="whitespace-nowrap rounded-xl bg-white/10 px-2 py-1.5 text-[11px] font-bold hover:bg-white/20" onClick={() => setWarpOpen(true)} title="Warp to another world — free and instant" data-testid="warp-open">⚡ Warp</button>
             </div>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="planet-scale">
+          {/* one tidy row of status chips (it scrolls sideways if there are many), instead of a tall stack over the view */}
+          <div className="pointer-events-auto no-scrollbar -mx-3 flex max-w-[100vw] items-center gap-1.5 overflow-x-auto px-3 [&>*]:shrink-0 [&>*]:whitespace-nowrap" data-testid="planet-chips">
+          <span className="hidden items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px] sm:flex" data-testid="planet-scale">
             🧭 {distance(around)} around · {((map.data?.rows ?? builtRows) * (map.data?.cols ?? builtRows * 2.5) / 1e6).toFixed(1)}M plots, {Math.round(plotM)} m wide
           </span>
           {live && (
             <span className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" data-testid="live-group">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#4FD18B]" /><Users className="h-3 w-3" />
-              {live.with ? `${live.with + 1}/${live.size} exploring together` : 'Just you here right now'}{live.onWorld > live.with + 1 ? ` · ${live.onWorld} on ${w.name.replace('The ', 'the ')}` : ''}
+              {live.with ? `${live.with + 1}/${live.size} here` : 'Just you'}{live.onWorld > live.with + 1 ? ` · ${live.onWorld} on ${w.name.replace('The ', 'the ')}` : ''}
             </span>
           )}
           {shower.data && (
-            <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', metLeft ? 'bg-[#FF7A3D]/70' : 'bg-black/50')} data-testid="meteor-chip">
-              ☄️ {metLeft ? `Meteor shower by the landing site · ${metLeft} left` : 'Shower’s over'} · next {Math.floor(nextIn / 60)}:{String(Math.floor(nextIn % 60)).padStart(2, '0')}
+            <span className={cn('flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', metLeft ? 'bg-[#FF7A3D]/80' : 'bg-black/50')} data-testid="meteor-chip" title="Meteor shower by the landing site">
+              ☄️ {metLeft ? `${metLeft} meteors` : 'next shower'} · {Math.floor(nextIn / 60)}:{String(Math.floor(nextIn % 60)).padStart(2, '0')}
             </span>
           )}
           <QuestsChip q={quests.data} onOpen={() => setQuestsOpen(true)} />
           {canPlots && map.data && (
             <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setListOpen(true)} data-testid="my-planet-plots">
-              <Flag className="h-3 w-3" /> {mine.length ? `My plots here (${mine.length})` : `${map.data.claimed.toLocaleString()} plots claimed`}
+              <Flag className="h-3 w-3" /> {mine.length ? `My plots (${mine.length})` : `${map.data.claimed.toLocaleString()} claimed`}
             </button>
           )}
+          </div>
         </div>
       </div>
 
@@ -314,14 +317,14 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       )}
 
       {/* right: zoom rail (feet ↔ orbit) and rocket */}
-      <div className={cn('pointer-events-none absolute right-3 z-10 flex flex-col items-center gap-2', embedded ? 'top-[34%]' : 'top-[30%]')}>
-        <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.zoom(0.55)} aria-label="Closer" data-testid="zoom-in"><Plus className="h-5 w-5" /></button>
+      <div className={cn('pointer-events-none absolute right-3 z-10 flex flex-col items-center gap-2', embedded ? 'top-[30%]' : 'top-[24%]')}>
+        <button className="lv-gbtn round pointer-events-auto max-sm:!hidden" onClick={() => scene.current?.zoom(0.55)} aria-label="Closer" data-testid="zoom-in"><Plus className="h-5 w-5" /></button>
         <button className="pointer-events-auto grid w-12 justify-items-center gap-0.5 rounded-2xl bg-black/55 py-1.5 text-[9.5px] font-bold uppercase tracking-wide backdrop-blur"
           onClick={() => scene.current?.setZoom(high ? 0.08 : 0.85)} aria-label={high ? 'Back down on foot' : 'Up to orbit'} data-testid="zoom-mode">
           <span className="relative h-12 w-1.5 rounded-full bg-white/20"><span className="absolute left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-[#FFE36B] shadow" style={{ bottom: `calc(${Math.round(zoom.level * 100)}% - 6px)` }} /></span>
           <span>{modeLabel}</span>
         </button>
-        <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.zoom(1.8)} aria-label="Higher" data-testid="zoom-out"><Minus className="h-5 w-5" /></button>
+        <button className="lv-gbtn round pointer-events-auto max-sm:!hidden" onClick={() => scene.current?.zoom(1.8)} aria-label="Higher" data-testid="zoom-out"><Minus className="h-5 w-5" /></button>
         {high && <button className="lv-gbtn round pointer-events-auto" onClick={() => scene.current?.findMe()} aria-label="Find me"><Crosshair className="h-5 w-5" /></button>}
         {!high && ready && <RoverControls rover={rover} onGarage={() => setGarageOpen(true)} />}
         {!high && ready && <button className="lv-gbtn round go pointer-events-auto" onClick={() => {
@@ -335,7 +338,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       {ready && !high && <PlanetChatBox chat={chat} myId={me?.profile.id} className={cn('absolute left-3 z-10', embedded ? 'top-[40%]' : 'top-[38%]')} />}
 
       {/* the plot under you (or the one you tapped from above) */}
-      <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center px-3', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+140px)] md:bottom-[150px]' : 'bottom-[calc(max(16px,env(safe-area-inset-bottom,0px))+140px)] sm:bottom-[max(16px,env(safe-area-inset-bottom,0px))]')}>
+      <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center pl-3 pr-[68px] sm:px-3', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+140px)] md:bottom-[150px]' : 'bottom-[calc(max(16px,env(safe-area-inset-bottom,0px))+140px)] sm:bottom-[max(16px,env(safe-area-inset-bottom,0px))]')}>
         {ready && canPlots && map.data && (
           <PlotCard map={map.data} cell={cell} plot={here} high={high} busy={busy} rows={builtRows} rarityOf={rarityOf}
             onClaim={claim} onWalk={() => cell && scene.current?.walkTo(cell)}

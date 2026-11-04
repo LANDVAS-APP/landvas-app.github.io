@@ -6,6 +6,7 @@
 //      Sheep Round-up (you're the sheepdog: herd the flock into the pen)
 //      Pollinator (fly a bee through the flowers and bank the pollen at the hive)
 import { useEffect, useRef, useState } from 'react';
+import { sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
 
@@ -200,7 +201,7 @@ export function PestPop({ seed, seconds, onEnd, haptics, reduce }: ArenaProps) {
 // ======================================================================================================
 export function three(c: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: !/Mobi|Android/i.test(navigator.userAgent) });
-  renderer.setPixelRatio(dpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#8FD3FF'); scene.fog = new THREE.Fog('#8FD3FF', 40, 120);
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
   scene.add(new THREE.HemisphereLight('#ffffff', '#4E7A33', 0.9));

@@ -1,6 +1,7 @@
 // Mission control's solar system in 3D: the Sun, every world on its orbit (rings, the Moon going round
 // the Earth), your rocket parked or on its way between two worlds. Drag to swing round, pinch or
 // scroll to zoom, tap a world to plan a trip — the camera glides over to it.
+import { sceneAntialias, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { rng } from '../inkborn/world';
 import { WORLDS, type World, type WorldId } from './worlds';
@@ -51,8 +52,8 @@ function label(text: string) {
 }
 
 export function createSystemScene(canvas: HTMLCanvasElement, live: { current: SystemLive }, accent: string, reduce: boolean, onPick: (id: string) => void): SystemScene {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), alpha: false });
+  renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();

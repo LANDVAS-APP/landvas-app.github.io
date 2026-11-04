@@ -26,7 +26,7 @@ export function QuestsChip({ q, onOpen }: { q?: PlanetQuests; onOpen(): void }) 
   const done = q.solo.filter((x) => x.claimed).length;
   return (
     <button className={cn('pointer-events-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', ready ? 'bg-[#FFB13D]/85 text-black' : 'bg-black/50')} onClick={onOpen} data-testid="quests-open">
-      <ScrollText className="h-3 w-3" /> {ready ? `${ready} quest${ready === 1 ? '' : 's'} to claim!` : `Quests ${done}/${q.solo.length}`}{q.crew ? ` · crew ${Math.min(100, Math.round((q.crew.progress / q.crew.target) * 100))}%` : ''}
+      <ScrollText className="h-3 w-3" /> {ready ? `${ready} to claim!` : `Quests ${done}/${q.solo.length}`}
     </button>
   );
 }

@@ -1065,3 +1065,31 @@ button, a, [role="button"] { touch-action: manipulation; }
 /* your companion Inkborn, beside your explorer on the map */
 .lv-explorer .lv-companion { position: absolute; z-index: 0; width: 42px; height: 42px; left: -30px; bottom: 0; pointer-events: none; }
 .lv-explorer.left .lv-companion { left: auto; right: -30px; }
+
+/* ===== phones and tablets (iOS and Android, browser and installed app): feel native, stay fast ===== */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (pointer: coarse) {
+  /* frosted blur over a moving map or a 3D scene re-renders every frame: the biggest cause of jank on
+     iPhones. Panels keep their tint and simply don't blur what's behind them. */
+  [class*="backdrop-blur"], [class*="backdrop-saturate"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  /* no text-selection loupe, callouts or grey tap flashes on game UI; inputs still work as normal */
+  body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  input, textarea, select, [contenteditable], .selectable, .selectable * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+  * { -webkit-tap-highlight-color: transparent; }
+  img { -webkit-user-drag: none; }
+  /* iOS zooms into any field under 16px — keep them at 16px so it doesn't */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select { font-size: max(16px, 1em) !important; }
+  /* buttons press in like native ones */
+  button:active:not(:disabled), [role=button]:active, [role=tab]:active, a.glass:active { transform: scale(0.97); transition: transform 0.05s; }
+  /* scrolling areas don't drag the whole page (or the map) with them */
+  .overflow-y-auto, .overflow-auto, .overflow-x-auto { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+}
+
+/* bottom sheets on phones (dialogs), centred cards on bigger screens */
+@keyframes lv-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (max-width: 639.98px) {
+  .lv-dialog { animation: lv-sheet-up 0.26s cubic-bezier(0.2, 0.9, 0.25, 1) both !important; }
+}
+@media (min-width: 640px) {
+  .lv-dialog { animation: lv-pop 0.18s ease-out both; }
+}

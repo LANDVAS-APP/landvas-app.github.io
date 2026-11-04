@@ -2,6 +2,7 @@
 // street behind it (cookie cart, food truck, coffee shop … bank, a rocket on its pad). Buildings grow as you own
 // more, customers stroll the pavement (more of them as you earn more), and cash pops out of every business.
 // Drag to look along the street.
+import { adaptiveDpr, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 
 export type StreetOpts = { canvas: HTMLCanvasElement; seed: number; reduceMotion?: boolean };
@@ -36,7 +37,7 @@ const disposeSprite = (s: THREE.Sprite) => { s.material.map?.dispose(); s.materi
 export function createStreet(o: StreetOpts): StreetScene {
   const mobile = /Mobi|Android/i.test(navigator.userAgent);
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !mobile, alpha: false });
-  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1)); renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = !mobile;
   const scene = new THREE.Scene();
   const R = rng(o.seed);
@@ -241,10 +242,12 @@ export function createStreet(o: StreetOpts): StreetScene {
   place('lemonade', 0);
   let standBounce = 0, frenzy = false;
 
+  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); });
   let raf = 0, last = performance.now(), t = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const rawDt = (now - last) / 1000; const dt = Math.min(0.05, rawDt); last = now; t += dt;
+    tune(rawDt);
     if (follow) camXTo = Math.min(maxX, Math.max(0, maxX - SPACING * 0.5));
     camX += (camXTo - camX) * Math.min(1, dt * 3);
     const portrait = camera.aspect < 1;

@@ -100,7 +100,8 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
   const skew = useRef(new Date(b.state!.server_time).getTime() - Date.now());
   const pending = useRef(0);
   const [, force] = useState(0);
-  useEffect(() => { const t = setInterval(() => force((x) => x + 1), 100); return () => clearInterval(t); }, []);
+  // the panel only needs to catch up a couple of times a second; the cash itself ticks smoothly on its own
+  useEffect(() => { const t = setInterval(() => force((x) => x + 1), 500); return () => clearInterval(t); }, []);
   const now = Date.now() + skew.current;
   const buffOn = s.buff && new Date(s.buff.until).getTime() > now ? s.buff : null;
   const frenzyMult = buffOn?.kind === 'frenzy' ? buffOn.mult : 1;
@@ -183,7 +184,7 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
       {/* the money */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center pt-[max(12px,env(safe-area-inset-top,0px))]">
         <div className="ml-14 mr-3 flex flex-col items-center rounded-3xl bg-black/50 px-4 py-1.5 text-center backdrop-blur" data-testid="biz-cash-box">
-          <div className="font-display text-3xl font-black leading-tight tnum" data-testid="biz-cash">{money(cash, { cents: cash < 1000 })}</div>
+          <LiveCash data-testid="biz-cash" calc={() => s.cash + (s.income * frenzyMult * (Date.now() - recv.current)) / 1000 + pending.current * s.tap_value * stormMult} />
           <div className="flex items-center gap-2 text-xs font-bold text-[#B8F5A0]">
             <span data-testid="biz-income">{perSec(s.income * frenzyMult)}</span>
             {s.shares > 0 && <span className="rounded-full bg-[#7B5CFF]/60 px-1.5 text-[10px] text-white">📈 +{Math.round(s.shares * 2)}%</span>}
@@ -382,6 +383,19 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
       </Dialog>
     </>
   );
+}
+
+/** The cash counter: updates its own text every frame (no React re-render), so it's smooth and cheap. */
+function LiveCash({ calc, ...rest }: { calc(): number; 'data-testid'?: string }) {
+  const el = useRef<HTMLDivElement>(null);
+  const f = useRef(calc); f.current = calc;
+  useEffect(() => {
+    let raf = 0, last = '';
+    const tick = () => { raf = requestAnimationFrame(tick); const v = f.current(); const t = money(v, { cents: v < 1000 }); if (t !== last && el.current) { el.current.textContent = t; last = t; } };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <div ref={el} className="font-display text-3xl font-black leading-tight tnum" {...rest} />;
 }
 
 // ======================================================================================================

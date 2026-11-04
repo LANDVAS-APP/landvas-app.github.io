@@ -45,23 +45,36 @@ export const Spinner = ({ className }: { className?: string }) => <Loader2 class
 export function Dialog({ open, onOpenChange, title, description, children, wide, footer }: {
   open: boolean; onOpenChange(o: boolean): void; title: ReactNode; description?: ReactNode; children?: ReactNode; wide?: boolean; footer?: ReactNode;
 }) {
+  // on phones it's a bottom sheet: drag the handle (or the top of it) down to close
+  const drag = useRef<{ y0: number; dy: number } | null>(null);
+  const [dy, setDy] = useState(0);
+  const down = (e: React.PointerEvent) => { if (window.innerWidth >= 640) return; drag.current = { y0: e.clientY, dy: 0 }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
+  const move = (e: React.PointerEvent) => { if (!drag.current) return; drag.current.dy = Math.max(0, e.clientY - drag.current.y0); setDy(drag.current.dy); };
+  const up = () => { if (!drag.current) return; const far = drag.current.dy > 90; drag.current = null; setDy(0); if (far) onOpenChange(false); };
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal>
-        <RDialog.Overlay className="fixed inset-0 z-[60] bg-[var(--scrim)] backdrop-blur-[2px]" />
+        <RDialog.Overlay className="fixed inset-0 z-[60] bg-[var(--scrim)]" />
         <RDialog.Content
           className={cn(
-            'glass fixed left-1/2 top-1/2 z-[61] max-h-[min(88dvh,820px)] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl p-5 scroll-thin',
-            wide ? 'max-w-3xl' : 'max-w-md',
+            'glass lv-dialog fixed z-[61] overflow-y-auto overscroll-contain scroll-thin !bg-[var(--bg-2)]',
+            // phones: a sheet from the bottom, clear of the home indicator
+            'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[28px] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-2',
+            // bigger screens: a centred card
+            'sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[min(88dvh,820px)] sm:w-[calc(100vw-32px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl sm:p-5',
+            wide ? 'sm:max-w-3xl' : 'sm:max-w-md',
           )}
-          style={{ animation: 'lv-pop .18s ease-out' }}
+          style={dy ? { transform: `translateY(${dy}px)`, transition: 'none' } : undefined}
         >
-          <div className="mb-3 flex items-start justify-between gap-4">
+          <div className="-mx-5 mb-1 flex touch-none justify-center pb-1 pt-1 sm:hidden" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} aria-hidden>
+            <span className="h-1.5 w-10 rounded-full bg-[var(--line-strong)]" />
+          </div>
+          <div className="mb-3 flex items-start justify-between gap-4" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
             <div className="min-w-0">
               <RDialog.Title className="font-display text-lg font-semibold">{title}</RDialog.Title>
               {description ? <RDialog.Description className="mt-1 text-sm text-muted">{description}</RDialog.Description> : <RDialog.Description className="sr-only">{String(title)}</RDialog.Description>}
             </div>
-            <RDialog.Close className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close">
+            <RDialog.Close className="-mr-1 rounded-full bg-surface-2/70 p-1.5 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" onPointerDown={(e) => e.stopPropagation()}>
               <X className="h-5 w-5" />
             </RDialog.Close>
           </div>

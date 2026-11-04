@@ -2,6 +2,7 @@
 // ripe crop with a sparkle), a red barn and silo, fences, trees, a pond, a scarecrow, clouds, and
 // chickens and sheep pottering about. Drag to look around, pinch or scroll to zoom, tap a bed.
 // The sky follows the time of day where you are.
+import { adaptiveDpr, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import type { FarmBed, FarmCrop } from '../backend/types';
 
@@ -34,7 +35,7 @@ function emojiSprite(e: string, size = 0.8) {
 
 export function createFarm(o: FarmSceneOpts): FarmScene {
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !/Mobi|Android/i.test(navigator.userAgent), powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = !/Mobi|Android/i.test(navigator.userAgent);
   const scene = new THREE.Scene();
@@ -388,10 +389,12 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
   const pops: Pop[] = [];
   const dropGeo = T(new THREE.SphereGeometry(0.07, 6, 4)), dropMat = T(new THREE.MeshStandardMaterial({ color: '#6EC6FF', transparent: true, opacity: 0.85 }));
 
+  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); });
   let raf = 0, last = performance.now(), t = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const rawDt = (now - last) / 1000; const dt = Math.min(0.05, rawDt); last = now; t += dt;
+    tune(rawDt);
     dist += (distTo - dist) * Math.min(1, dt * 6);
     for (const sp of spin) sp.o.rotation[sp.axis] += sp.speed * dt;
     for (const b of bob) { b.ph += dt * b.speed; b.o.position.set(b.base.x + Math.cos(b.ph) * b.r, b.base.y + Math.abs(Math.sin(b.ph * 2)) * 0.12, b.base.z + Math.sin(b.ph) * b.r * 0.6); }
