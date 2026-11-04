@@ -1,8 +1,9 @@
 // Your farm: the 3D farmyard with a bed sheet for planting, watering and harvesting, one-tap
-// "harvest all" and "plant all", the market (sell produce for Ink) and the farm games.
+// "harvest all" and "plant all", the market (sell for coins and Ink), the farm games, your farm level
+// with its upgrades, buildings, kitchen and orders, the daily chores, and a tractor to drive round.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Droplets, Gamepad2, ShoppingBasket, Sprout, Wheat } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Droplets, Gamepad2, ShoppingBasket, Sprout, TrendingUp, Tractor, Wheat } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,6 +18,8 @@ import { buzz } from '../native/native';
 import { Button, Dialog, PlayerAvatar, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { createFarm, type FarmScene } from './farm3d';
+import { ChoresDialog, choresLeft } from './Chores';
+import { Coin, coinFmt, FarmHub, itemInfo, LevelBadge, type HubTab } from './FarmHub';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const farmKey = (id: string) => ['farm', id] as const;
@@ -50,6 +53,10 @@ function FarmView({ f }: { f: Farm }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [market, setMarket] = useState(false);
   const [games, setGames] = useState(false);
+  const [hub, setHub] = useState(false);
+  const [hubTab, setHubTab] = useState<HubTab>('orders');
+  const [chores, setChores] = useState(false);
+  const [drive, setDrive] = useState(false);
   const [lastCrop, setLastCrop] = useState(() => safeStorage<string>(LAST_CROP, 'carrot'));
   // server time, so the countdowns are right whatever the phone's clock says
   const skew = useMemo(() => new Date(f.server_time).getTime() - Date.now(), [f.server_time]);
@@ -60,11 +67,42 @@ function FarmView({ f }: { f: Farm }) {
   const isReady = (b: FarmBed) => b.ready || now >= new Date(b.ready_at).getTime();
   const readyCount = f.beds.filter(isReady).length;
   const emptyCount = f.beds_count - f.beds.length;
-  const set = (r: Farm) => qc.setQueryData(farmKey(f.id), r);
+  const set = (r: Farm) => qc.setQueryData(farmKey(f.id), (old: Farm | undefined) => ({ ...r, progress: r.progress ?? old?.progress }));
+  const lvl = f.progress?.level ?? 1;
+  const needLvl = (crop: string) => f.config.progression?.crop_levels[crop] ?? 1;
+  const levelUp = (n?: number, level?: number) => { if (n) { confettiCannons(); toast.success(`🌾 Farm level ${level ?? ''}!`, { description: 'New crops, upgrades and buildings may have unlocked — tap 📈 Grow.' }); } };
+  // the tractor: plant, water or harvest whatever bed it rolls onto
+  const fRef = useRef(f); fRef.current = f;
+  const cropRef = useRef(lastCrop); cropRef.current = lastCrop;
+  const tractorBusy = useRef(new Set<number>());
+  const tally = useRef(0);
+  const flushTally = () => { const n = tally.current; tally.current = 0; if (n > 0) api.farmTractorTally(n).then((c) => qc.setQueryData(farmKey(f.id), (old: Farm | undefined) => old?.progress ? { ...old, progress: { ...old.progress, chores: c } } : old)).catch(() => undefined); };
+  const onTractor = useRef<(i: number) => void>(() => undefined);
+  onTractor.current = (i: number) => {
+    const cur = fRef.current; if (!cur.mine || tractorBusy.current.has(i)) return;
+    const bed = cur.beds.find((b) => b.idx === i);
+    const nowS = Date.now() + skew;
+    let call: (() => Promise<Farm>) | null = null, kind: 'plant' | 'water' | 'harvest' = 'plant';
+    if (!bed) { call = () => api.farmPlant(cur.id, i, cropRef.current); kind = 'plant'; }
+    else if (bed.ready || nowS >= new Date(bed.ready_at).getTime()) { call = () => api.farmHarvest(cur.id, i); kind = 'harvest'; }
+    else if (!bed.watered) { call = () => api.farmWater(cur.id, i); kind = 'water'; }
+    if (!call) return;
+    tractorBusy.current.add(i);
+    call().then((r) => {
+      set(r);
+      if (kind === 'harvest') { const got = Object.entries(r.harvested ?? {}); scene.current?.burst(i, 'harvest', got.map(([k]) => itemInfo(cur.config, k).emoji)); levelUp(r.level_up, r.level); }
+      else scene.current?.burst(i, kind === 'water' ? 'water' : 'plant');
+      if (kind !== 'water') { tally.current++; if (tally.current >= 5) flushTally(); }
+      if (haptics) buzz('light');
+    }).catch((e) => { const ge = toGameError(e); if (ge.code !== 'bed_taken' && ge.code !== 'not_ready') toast.error(ge.message, { id: 'tractor-err' }); })
+      .finally(() => { tractorBusy.current.delete(i); });
+  };
+  useEffect(() => { scene.current?.setTractor(drive); if (!drive) { flushTally(); invalidateGame(qc); } }, [drive]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => flushTally(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const c = cv.current; if (!c) return;
-    const sc = createFarm({ canvas: c, beds: f.beds_count, seed: f.seed, reduceMotion: reduce, explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)), onPick: (i) => setSel(i) });
+    const sc = createFarm({ canvas: c, beds: f.beds_count, seed: f.seed, reduceMotion: reduce, explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)), onPick: (i) => setSel(i), onTractorOver: (i) => onTractor.current(i) });
     scene.current = sc;
     if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window as any, { __landvasFarm: sc, __landvasFarmPick: (i: number | null) => setSel(i) });
     return () => { sc.dispose(); scene.current = null; };
@@ -72,6 +110,8 @@ function FarmView({ f }: { f: Farm }) {
   useEffect(() => { scene.current?.setBedCount(f.beds_count); }, [f.beds_count]);
   useEffect(() => { scene.current?.setBeds(f.beds, crops, now); }, [f.beds, crops, now]);
   useEffect(() => { scene.current?.select(sel); }, [sel]);
+  const bKey = JSON.stringify(Object.fromEntries(Object.entries(f.progress?.buildings ?? {}).map(([k, b]) => [k, [b.lvl, b.ready > 0]])));
+  useEffect(() => { scene.current?.setBuildings(f.progress?.buildings ?? {}); }, [bKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = async (key: string, fn: () => Promise<Farm>, after?: (r: Farm) => void) => {
     setBusy(key);
@@ -88,10 +128,12 @@ function FarmView({ f }: { f: Farm }) {
     for (const i of idxs) { const b = bedAt(i); if (b) scene.current?.burst(i, 'harvest', Array(3).fill(crops[b.crop]?.emoji ?? '🌾')); }
     if (r.golden) { confettiCannons(); toast.success(`✨ ${r.golden} golden harvest${r.golden === 1 ? '' : 's'}!`, { description: 'Golden produce sells for 5x at the market.' }); }
     else toast.success(`Harvested ${got.map(([k, n]) => `${n} ${crops[k.replace('golden_', '')]?.emoji ?? k}`).join(' ')}`);
+    levelUp(r.level_up, r.level);
     if (haptics) buzz('success');
     setSel(null);
   });
   const plantAll = async () => {
+    if (lvl < needLvl(lastCrop)) { toast.error('Pick a crop you’ve unlocked first.'); return; }
     const empties = Array.from({ length: f.beds_count }, (_, i) => i).filter((i) => !bedAt(i));
     if (!empties.length) return;
     setBusy('plant-all');
@@ -113,13 +155,14 @@ function FarmView({ f }: { f: Farm }) {
             {!f.mine && <PlayerAvatar p={f.owner} size={22} />}
             <div className="truncate font-display text-lg font-bold leading-tight">{f.mine ? f.name : `@${f.owner.username}’s farm`}</div>
           </div>
-          <div className="text-[11px] text-white/75">🌱 {f.beds.length}/{f.beds_count} beds growing · {f.harvests} harvested{f.plots > 1 ? ` · ${f.plots} plots` : ''}</div>
+          <div className="text-[11px] text-white/75">🌱 {f.beds.length}/{f.beds_count} beds growing · {f.harvests} harvested{f.plots > 1 ? ` · ${f.plots} plots` : ''}{!f.mine && f.owner_level ? ` · farm level ${f.owner_level}` : ''}</div>
         </div>
+        {f.mine && f.progress && <LevelBadge p={f.progress} onClick={() => { setHubTab('upgrades'); setHub(true); }} />}
       </div>
       {f.mine && f.items && (
         <div className="no-scrollbar pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+64px)] flex gap-1.5 overflow-x-auto px-3" data-testid="farm-items">
           {Object.entries(f.items).map(([k, n]) => (
-            <span key={k} className={cn('shrink-0 rounded-full px-2.5 py-1 text-xs font-bold backdrop-blur', k.startsWith('golden_') ? 'bg-[#FFC93D]/80 text-black' : 'bg-black/45')}>{k.startsWith('golden_') ? '✨' : ''}{crops[k.replace('golden_', '')]?.emoji} {n}</span>
+            <span key={k} title={itemInfo(f.config, k).name} className={cn('shrink-0 rounded-full px-2.5 py-1 text-xs font-bold backdrop-blur', k.startsWith('golden_') ? 'bg-[#FFC93D]/80 text-black' : 'bg-black/45')}>{k.startsWith('golden_') ? '✨' : ''}{itemInfo(f.config, k).emoji} {n}</span>
           ))}
         </div>
       )}
@@ -132,14 +175,17 @@ function FarmView({ f }: { f: Farm }) {
               <>
                 <div className="mb-2 flex items-center justify-between text-sm font-bold"><span>🌱 Plant bed {sel + 1}</span><button className="text-xs text-white/60" onClick={() => setSel(null)}>Close</button></div>
                 <div className="grid grid-cols-4 gap-1.5" data-testid="crop-picker">
-                  {Object.entries(crops).sort((a, b) => a[1].minutes - b[1].minutes).map(([k, c]) => (
-                    <button key={k} onClick={() => plant(sel, k)} disabled={!!busy} data-testid={`plant-${k}`}
-                      className={cn('grid justify-items-center gap-0.5 rounded-2xl p-2 text-center', lastCrop === k ? 'bg-white/20 ring-1 ring-white/50' : 'bg-white/10', 'hover:bg-white/25 disabled:opacity-50')}>
-                      <span className="text-2xl">{c.emoji}</span>
-                      <span className="w-full truncate text-[10.5px] font-bold">{c.name}</span>
-                      <span className="text-[9.5px] text-white/65">{c.minutes < 60 ? `${c.minutes}m` : `${c.minutes / 60}h`} · {c.seed ? <>{c.seed}💧</> : 'free'}</span>
-                    </button>
-                  ))}
+                  {Object.entries(crops).sort((a, b) => a[1].minutes - b[1].minutes).map(([k, c]) => {
+                    const locked = lvl < needLvl(k);
+                    return (
+                      <button key={k} onClick={() => plant(sel, k)} disabled={!!busy || locked} data-testid={`plant-${k}`}
+                        className={cn('grid justify-items-center gap-0.5 rounded-2xl p-2 text-center', lastCrop === k ? 'bg-white/20 ring-1 ring-white/50' : 'bg-white/10', 'hover:bg-white/25 disabled:opacity-50')}>
+                        <span className={cn('text-2xl', locked && 'grayscale')}>{c.emoji}</span>
+                        <span className="w-full truncate text-[10.5px] font-bold">{c.name}</span>
+                        <span className="text-[9.5px] text-white/65">{locked ? `🔒 level ${needLvl(k)}` : <>{c.minutes < 60 ? `${c.minutes}m` : `${c.minutes / 60}h`} · {c.seed ? <>{c.seed}💧</> : 'free'}</>}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : isReady(selBed) ? (
@@ -168,18 +214,38 @@ function FarmView({ f }: { f: Farm }) {
       </AnimatePresence>
       {/* the bar */}
       {f.mine ? (
-        <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))]">
-          {readyCount > 0 && <Button variant="rainbow" loading={busy === 'harvest-all'} onClick={() => harvest(null)} data-testid="farm-harvest-all"><Wheat className="h-4 w-4" /> Harvest all ({readyCount})</Button>}
-          {emptyCount > 0 && <Button variant="secondary" loading={busy === 'plant-all'} onClick={plantAll} data-testid="farm-plant-all"><Sprout className="h-4 w-4" /> Plant all {crops[lastCrop]?.emoji}</Button>}
-          <Button variant="secondary" onClick={() => setMarket(true)} data-testid="farm-market"><ShoppingBasket className="h-4 w-4" /> Market</Button>
-          <Button variant="secondary" onClick={() => setGames(true)} data-testid="farm-games"><Gamepad2 className="h-4 w-4" /> Games</Button>
+        <div className="absolute inset-x-0 bottom-0 grid justify-items-center gap-2 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))]">
+          {drive ? (
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-black/55 px-3 py-1.5 text-xs font-bold backdrop-blur" data-testid="tractor-hint">🚜 Drag any way to drive · rolls over beds to plant {crops[lastCrop]?.emoji}, water and harvest</span>
+              <Button variant="rainbow" onClick={() => setDrive(false)} data-testid="tractor-off">Park</Button>
+            </div>
+          ) : (
+            <>
+              {(readyCount > 0 || emptyCount > 0) && (
+                <div className="flex justify-center gap-2">
+                  {readyCount > 0 && <Button variant="rainbow" loading={busy === 'harvest-all'} onClick={() => harvest(null)} data-testid="farm-harvest-all"><Wheat className="h-4 w-4" /> Harvest all ({readyCount})</Button>}
+                  {emptyCount > 0 && <Button variant="secondary" loading={busy === 'plant-all'} onClick={plantAll} data-testid="farm-plant-all"><Sprout className="h-4 w-4" /> Plant all {crops[lastCrop]?.emoji}</Button>}
+                </div>
+              )}
+              <div className="flex max-w-full flex-wrap justify-center gap-1.5">
+                <Button size="sm" variant="secondary" onClick={() => { setSel(null); setDrive(true); }} data-testid="farm-tractor"><Tractor className="h-4 w-4" /> Tractor</Button>
+                <Button size="sm" variant="secondary" onClick={() => setChores(true)} data-testid="farm-chores-btn"><ClipboardList className="h-4 w-4" /> Chores{choresLeft(f.progress?.chores) ? <span className="ml-0.5 rounded-full bg-[#FF4D6D] px-1.5 text-[10px] text-white">{choresLeft(f.progress?.chores)}</span> : null}</Button>
+                <Button size="sm" variant="secondary" onClick={() => { setHubTab('orders'); setHub(true); }} data-testid="farm-hub-btn"><TrendingUp className="h-4 w-4" /> Grow{f.progress?.orders.some((o) => o.ready && o.can_fill) ? <span className="ml-0.5 h-2 w-2 rounded-full bg-[#FF4D6D]" /> : null}</Button>
+                <Button size="sm" variant="secondary" onClick={() => setMarket(true)} data-testid="farm-market"><ShoppingBasket className="h-4 w-4" /> Market</Button>
+                <Button size="sm" variant="secondary" onClick={() => setGames(true)} data-testid="farm-games"><Gamepad2 className="h-4 w-4" /> Games</Button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="absolute inset-x-0 bottom-0 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))] text-center text-xs text-white/85"><span className="rounded-full bg-black/45 px-3 py-1.5 backdrop-blur">You’re visiting — @{f.owner.username} will see you dropped by 🌾</span></div>
       )}
       {f.mine && <Market open={market} onOpenChange={setMarket} f={f} />}
+      {f.mine && f.progress && <FarmHub open={hub} onOpenChange={setHub} f={f} tab={hubTab} setTab={setHubTab} />}
+      {f.mine && f.progress && <ChoresDialog open={chores} onOpenChange={setChores} f={f} haptics={haptics} />}
       {f.mine && (
-        <Dialog open={games} onOpenChange={setGames} title="🎮 Farm games" description="Quick, easy and fun. Every game pays Ink and a basket of produce.">
+        <Dialog open={games} onOpenChange={setGames} title="🎮 Farm games" description="Quick, easy and fun. Every game pays Ink, Farm Coins, XP and a basket of produce.">
           <div className="grid grid-cols-2 gap-2" data-testid="farm-games-list">
             {Object.entries(f.config.games).map(([k, g]) => (
               <button key={k} onClick={() => nav(`/farm/${f.id}/play/${k}`)} data-testid={`farm-game-${k}`} className="grid justify-items-center gap-1 rounded-2xl bg-surface-2 p-3 text-center hover:bg-surface-3">
@@ -202,29 +268,30 @@ function Market({ open, onOpenChange, f }: { open: boolean; onOpenChange(o: bool
   useEffect(() => setToday(f.ink_today ?? 0), [f.ink_today]);
   const crops = f.config.crops;
   const items = Object.entries(f.items ?? {}).filter(([, n]) => n > 0);
-  const priceOf = (k: string) => (crops[k.replace('golden_', '')]?.sell ?? 1) * (k.startsWith('golden_') ? f.config.golden_mult : 1);
+  const priceOf = (k: string) => itemInfo(f.config, k).sell;
   const sell = async (k: string, n: number) => {
     setBusy(k);
     try {
       const r = await api.farmSell(k, n);
-      qc.setQueryData(farmKey(f.id), { ...f, items: r.items, ink_today: r.ink_today }); setToday(r.ink_today); invalidateGame(qc);
-      toast.success(`Sold ${r.sold} ${crops[k.replace('golden_', '')]?.emoji} for ${r.paid} Ink`);
+      qc.setQueryData(farmKey(f.id), (old: Farm | undefined) => old && ({ ...old, items: r.items, ink_today: r.ink_today, progress: r.progress })); setToday(r.ink_today); invalidateGame(qc);
+      toast.success(`Sold ${r.sold} ${itemInfo(f.config, k).emoji} for ${r.coins} 🪙${r.paid ? ` + ${r.paid} Ink` : ''}`);
+      if (r.level_up) { confettiCannons(); toast.success(`🌾 Farm level ${r.progress.level}!`); }
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   const capLeft = Math.max(0, f.config.daily_cap - today);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🧺 Farmers’ market" description={`Sell your harvest for Ink — ${today}/${f.config.daily_cap} farm Ink today.`}>
+    <Dialog open={open} onOpenChange={onOpenChange} title="🧺 Farmers’ market" description={`Sell for Farm Coins 🪙 (always) and Ink (${today}/${f.config.daily_cap} farm Ink today).`}>
       <div className="grid gap-2" data-testid="market">
         <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ok" style={{ width: `${Math.min(100, (today / f.config.daily_cap) * 100)}%` }} /></div>
         {!items.length && <p className="py-4 text-center text-sm text-muted">Nothing to sell yet — harvest some crops (or win a farm game).</p>}
         {items.map(([k, n]) => (
           <div key={k} className={cn('flex items-center gap-3 rounded-2xl p-2.5', k.startsWith('golden_') ? 'bg-[#FFC93D]/15' : 'bg-surface-2')}>
-            <span className="text-2xl">{crops[k.replace('golden_', '')]?.emoji}</span>
-            <div className="min-w-0 flex-1"><div className="text-sm font-semibold">{k.startsWith('golden_') ? '✨ Golden ' : ''}{crops[k.replace('golden_', '')]?.name} × {n}</div><div className="flex items-center gap-0.5 text-[11px] text-muted">{priceOf(k)} <ResourceIcon r="ink" className="h-3 w-3" /> each</div></div>
-            <Button size="sm" variant="rainbow" disabled={!capLeft} loading={busy === k} onClick={() => sell(k, n)} data-testid={`sell-${k}`}>Sell all</Button>
+            <span className="text-2xl">{itemInfo(f.config, k).emoji}</span>
+            <div className="min-w-0 flex-1"><div className="text-sm font-semibold">{k.startsWith('golden_') ? '✨ ' : ''}{itemInfo(f.config, k).name} × {n}</div><div className="flex items-center gap-0.5 text-[11px] text-muted"><Coin /> {coinFmt(priceOf(k))}{capLeft ? <> + <ResourceIcon r="ink" className="h-3 w-3" /></> : null} each</div></div>
+            <Button size="sm" variant="rainbow" loading={busy === k} onClick={() => sell(k, n)} data-testid={`sell-${k}`}>Sell all</Button>
           </div>
         ))}
-        {!capLeft && items.length > 0 && <p className="text-center text-xs text-muted">The market’s done buying for today — come back tomorrow (your produce keeps).</p>}
+        {!capLeft && items.length > 0 && <p className="text-center text-xs text-muted">You’ve had today’s farm Ink — sales still pay Farm Coins for upgrades.</p>}
       </div>
     </Dialog>
   );

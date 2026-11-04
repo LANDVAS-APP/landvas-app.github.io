@@ -14,6 +14,7 @@ beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
   kai = await db.newPlayer('kai_keeper');
   lee = await db.newPlayer('lee_visits');
+  await db.giveInk(kai, 500);
   await db.rpc(kai, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });
   await db.rpc(kai, 'acquire_plot', { p_gx: B.gx, p_gy: B.gy, p_idempotency_key: 'ink-acquire-b-00001' });
 });

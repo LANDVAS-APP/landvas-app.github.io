@@ -409,12 +409,30 @@ export type PlotKind = 'canvas' | 'habitat' | 'farm';
 export type FarmCrop = { name: string; emoji: string; seed: number; minutes: number; yield: [number, number]; sell: number; color: string };
 export type FarmGameInfo = { name: string; emoji: string; dim: '2d' | '3d'; seconds: number; max_score: number; points_per_ink: number; max_ink: number };
 export type FarmConfig = { beds_base: number; beds_per_plot: number; beds_max: number; daily_cap: number; water_speedup: number; golden_chance: number; golden_mult: number;
-  crops: Record<string, FarmCrop>; games: Record<string, FarmGameInfo> };
+  crops: Record<string, FarmCrop>; games: Record<string, FarmGameInfo>;
+  progression?: { crop_levels: Record<string, number>; level_coins: number; price_per_level: number };
+  upgrades?: Record<string, FarmUpgradeInfo>; buildings?: Record<string, FarmBuildingInfo>;
+  products?: Record<string, { name: string; emoji: string; sell: number }>; recipes?: Record<string, FarmRecipe>;
+  orders?: { slots: number; per_day: number; wait_minutes: number } };
+export type FarmUpgradeInfo = { name: string; emoji: string; desc: string; level: number; base: number; growth: number; max: number };
+export type FarmBuildingInfo = { name: string; emoji: string; item?: string; level: number; build: number; minutes?: number; cap?: number; upgrade: number; growth: number; max: number };
+export type FarmRecipe = { name: string; emoji: string; building: string; needs: Record<string, number>; makes: number; sell: number };
+export type FarmBuildingState = { key: string; lvl: number; ready: number; every_min: number | null; cap: number | null; since: string | null; cost: number };
+export type FarmOrder = { slot: number; wants: Record<string, number>; coins: number; xp: number; ink: number; available_at: string; ready: boolean; can_fill: boolean };
+export type FarmProgress = {
+  level: number; xp: number; level_xp: number; next_xp: number; coins: number; upgrades: Record<string, number>; upgrade_costs: Record<string, number>;
+  buildings: Record<string, FarmBuildingState>; orders: FarmOrder[]; orders_left: number; chores?: FarmChores;
+};
+export type FarmChore = { key: string; name: string; emoji: string; kind: 'tap' | 'count'; seconds?: number; target?: number; ink: number; progress: number; done: boolean; ready: boolean };
+export type FarmChores = { list: FarmChore[]; bonus_ink: number; bonus_coins: number; resets_at: string };
+export type FarmProgressResult = FarmProgress & { items?: Record<string, number>; level_up?: number; balances?: unknown;
+  bought?: string; built?: string; to?: number; spent?: number; collected?: Record<string, number>; crafted?: string; times?: number; filled?: { coins: number; xp: number; ink: number } };
 export type FarmBed = { idx: number; crop: string; planted_at: string; ready_at: string; watered: boolean; ready: boolean };
 export type Farm = {
   id: string; group_id: string | null; seed: number; name: string; plots: number; owner: Profile; mine: boolean; harvests: number; cells: [number, number][];
   beds_count: number; beds: FarmBed[]; items: Record<string, number> | null; ink_today: number | null; config: FarmConfig; server_time: string;
-  harvested?: Record<string, number>; beds_harvested?: number; golden?: number;
+  harvested?: Record<string, number>; beds_harvested?: number; golden?: number; level_up?: number; level?: number; sprinkled?: boolean;
+  progress?: FarmProgress; owner_level?: number; buildings_built?: string[];
 };
 export type Inkborn = {
   id: string; name: string; source: 'drawn' | 'random' | 'custom' | 'bred'; genome: import('../inkborn/genome').Genome; personality: string;

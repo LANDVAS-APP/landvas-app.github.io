@@ -8,11 +8,15 @@ import type { FarmBed, FarmCrop } from '../backend/types';
 export type FarmSceneOpts = {
   canvas: HTMLCanvasElement; beds: number; explorerUrl: string; seed: number; reduceMotion?: boolean;
   onPick(idx: number | null): void;
+  /** the tractor drove onto a bed */ onTractorOver?(idx: number): void;
 };
 export type FarmScene = {
   /** what's in every bed now (progress worked out from the times) */ setBeds(beds: FarmBed[], crops: Record<string, FarmCrop>, now: number): void;
   setBedCount(n: number): void;
+  /** the coop, hive, windmill, kitchen and dairy you've built (with how much is waiting in each) */ setBuildings(b: Record<string, { lvl: number; ready?: number }>): void;
   select(idx: number | null): void;
+  /** drive the tractor round the farm (drag to steer, or the arrow keys) */ setTractor(on: boolean): void;
+  tractorDebug(): { x: number; z: number; lastBed: number; beds: number[][] };
   /** a little burst over a bed: water drops or what you harvested */ burst(idx: number, kind: 'water' | 'harvest' | 'plant', emojis?: string[]): void;
   dispose(): void;
 };
@@ -126,7 +130,60 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
     const head = new THREE.Mesh(T(new THREE.SphereGeometry(0.3, 10, 8)), mat('#E8C98A')); head.position.y = 2.4; sc.add(head);
     const hat = new THREE.Mesh(T(new THREE.ConeGeometry(0.45, 0.4, 10)), mat('#C9A24A')); hat.position.y = 2.75; sc.add(hat);
     sc.position.set(fw / 2 - 1, 0, -fd / 2 + 3); extras.add(sc);
+    placeBuildings();
     fitCamera();
+  };
+
+  // ---- buildings you've built, in a row behind the field ------------------------------------------------
+  const bGroup = new THREE.Group(); scene.add(bGroup);
+  const spin: { o: THREE.Object3D; axis: 'x' | 'y' | 'z'; speed: number }[] = [];
+  const bob: { o: THREE.Object3D; base: THREE.Vector3; r: number; speed: number; ph: number }[] = [];
+  let bState: Record<string, { lvl: number; ready?: number }> = {};
+  const buildingModel = (key: string, lvl: number) => {
+    const g = new THREE.Group();
+    const roofM = mat('#6B2A22'), woodM = mat('#B07A47'), white = mat('#F5EEDC');
+    if (key === 'coop') {
+      const h = new THREE.Mesh(T(new THREE.BoxGeometry(2.4, 1.6, 1.8)), mat('#E8C55A')); h.position.y = 1.1; g.add(h);
+      const legs = new THREE.Mesh(T(new THREE.BoxGeometry(2.2, 0.3, 1.6)), woodM); legs.position.y = 0.15; g.add(legs);
+      const rf = new THREE.Mesh(T(new THREE.ConeGeometry(1.9, 1, 4)), roofM); rf.rotation.y = Math.PI / 4; rf.position.y = 2.4; rf.scale.set(1, 1, 0.8); g.add(rf);
+      const ramp = new THREE.Mesh(T(new THREE.BoxGeometry(0.5, 0.06, 1.4)), woodM); ramp.position.set(0, 0.4, 1.4); ramp.rotation.x = 0.5; g.add(ramp);
+      for (let i = 0; i < 2 + lvl; i++) { const hen = emojiSprite('🐔', 0.9); const base = new THREE.Vector3(-2 + (i % 4) * 1.3, 0.45, 2 + Math.floor(i / 4) * 0.9); hen.position.copy(base); g.add(hen); bob.push({ o: hen, base, r: 0.5, speed: 0.6 + R(), ph: R() * 6 }); }
+    } else if (key === 'hive') {
+      const stand = new THREE.Mesh(T(new THREE.BoxGeometry(1.2, 0.6, 1.2)), woodM); stand.position.y = 0.3; g.add(stand);
+      for (let i = 0; i < 3 + Math.min(3, lvl - 1); i++) { const box = new THREE.Mesh(T(new THREE.BoxGeometry(1.1, 0.42, 1.1)), mat(i % 2 ? '#F2B33D' : '#E8A33A')); box.position.y = 0.82 + i * 0.44; g.add(box); }
+      for (let i = 0; i < 3 + lvl; i++) { const b = emojiSprite('🐝', 0.5); const base = new THREE.Vector3(0, 2.4, 0); b.position.copy(base); g.add(b); bob.push({ o: b, base, r: 1.4, speed: 2 + R() * 2, ph: R() * 6 }); }
+    } else if (key === 'mill') {
+      const tower = new THREE.Mesh(T(new THREE.CylinderGeometry(0.9, 1.4, 5, 8)), white); tower.position.y = 2.5; g.add(tower);
+      const cap = new THREE.Mesh(T(new THREE.ConeGeometry(1.1, 1.2, 8)), roofM); cap.position.y = 5.6; g.add(cap);
+      const hub = new THREE.Group(); hub.position.set(0, 4.8, 1.05);
+      for (let i = 0; i < 4; i++) { const blade = new THREE.Mesh(T(new THREE.BoxGeometry(0.5, 3, 0.05)), woodM); blade.position.y = 1.5; const arm = new THREE.Group(); arm.rotation.z = (i * Math.PI) / 2; arm.add(blade); hub.add(arm); }
+      g.add(hub); spin.push({ o: hub, axis: 'z', speed: 0.9 + lvl * 0.2 });
+    } else if (key === 'kitchen') {
+      const h = new THREE.Mesh(T(new THREE.BoxGeometry(3.2, 2.2, 2.4)), mat('#F5EEDC')); h.position.y = 1.1; g.add(h);
+      const rf = new THREE.Mesh(T(new THREE.CylinderGeometry(0.01, 2.6, 1.4, 4, 1)), mat('#3E6FB0')); rf.rotation.y = Math.PI / 4; rf.scale.set(1, 1, 0.8); rf.position.y = 2.9; g.add(rf);
+      const chim = new THREE.Mesh(T(new THREE.BoxGeometry(0.4, 1.2, 0.4)), mat('#9A5B44')); chim.position.set(0.9, 3.2, 0); g.add(chim);
+      const smoke = emojiSprite('💨', 0.9); const base = new THREE.Vector3(0.9, 4.2, 0); smoke.position.copy(base); g.add(smoke); bob.push({ o: smoke, base, r: 0.2, speed: 1.2, ph: 0 });
+      const sign = emojiSprite('🍳', 1); sign.position.set(0, 1.4, 1.3); g.add(sign);
+    } else if (key === 'dairy') {
+      const h = new THREE.Mesh(T(new THREE.BoxGeometry(3.6, 2.4, 2.6)), mat('#FFFFFF')); h.position.y = 1.2; g.add(h);
+      const rf = new THREE.Mesh(T(new THREE.CylinderGeometry(0.01, 2.9, 1.4, 4, 1)), mat('#2A2E38')); rf.rotation.y = Math.PI / 4; rf.scale.set(1, 1, 0.8); rf.position.y = 3.1; g.add(rf);
+      for (let i = 0; i < 1 + lvl; i++) { const cow = emojiSprite('🐄', 1.3); const base = new THREE.Vector3(-1.6 + (i % 3) * 1.6, 0.65, 2.4 + Math.floor(i / 3) * 1.4); cow.position.copy(base); g.add(cow); bob.push({ o: cow, base, r: 0.25, speed: 0.3, ph: R() * 6 }); }
+    }
+    g.traverse((m) => { if ((m as THREE.Mesh).isMesh) (m as THREE.Mesh).castShadow = true; });
+    return g;
+  };
+  const ORDER = ['coop', 'hive', 'mill', 'kitchen', 'dairy'];
+  const placeBuildings = () => {
+    for (const c of [...bGroup.children]) { bGroup.remove(c); c.traverse((m) => { const sm = (m as THREE.Sprite).material as THREE.SpriteMaterial | undefined; if ((m as THREE.Sprite).isSprite && sm) { sm.map?.dispose(); sm.dispose(); } }); }
+    spin.length = 0; bob.length = 0;
+    const keys = ORDER.filter((k) => (bState[k]?.lvl ?? 0) > 0);
+    keys.forEach((k, i) => {
+      const m = buildingModel(k, bState[k].lvl);
+      m.position.set(-fieldW / 2 + 9 + i * 5.2, 0, -fieldD / 2 - 5);
+      const ready = bState[k].ready ?? 0;
+      if (ready > 0) { const s = emojiSprite(k === 'coop' ? '🥚' : k === 'hive' ? '🍯' : '🥛', 1.1); const base = new THREE.Vector3(0, 6.6, 0); s.position.copy(base); m.add(s); bob.push({ o: s, base, r: 0, speed: 3, ph: 0 }); }
+      bGroup.add(m);
+    });
   };
 
   // ---- crops: shared shapes -----------------------------------------------------------------------
@@ -225,21 +282,87 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
   const cloudMat = T(new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: day > 0.2 ? 0.9 : 0.25, flatShading: true }));
   for (let i = 0; i < 9; i++) { const c = new THREE.Group(); for (let k = 0; k < 4; k++) c.add(mesh(G.ball, cloudMat, k * 1.4 - 2, (k % 2) * 0.4, R() * 0.6, 2 + R() * 1.4)); c.position.set((R() - 0.5) * 160, 28 + R() * 14, (R() - 0.5) * 120); clouds.add(c); }
 
+  // ---- the tractor -------------------------------------------------------------------------------------------
+  const tractor = new THREE.Group(); tractor.visible = false; scene.add(tractor);
+  const tWheels: THREE.Mesh[] = [];
+  {
+    const green = mat('#2E9E4E'), tyre = mat('#2A2E38'), glass = mat('#9FE3FF', { roughness: 0.2 }), hub = mat('#FFD23F');
+    const body = mesh(T(new THREE.BoxGeometry(1.3, 0.8, 2.1)), green, 0, 0.95, 0.2); tractor.add(body);
+    const hood = mesh(T(new THREE.BoxGeometry(1.1, 0.6, 1)), green, 0, 1.0, 1.4); tractor.add(hood);
+    const grill = mesh(T(new THREE.BoxGeometry(0.9, 0.45, 0.05)), mat('#555'), 0, 1.0, 1.92); tractor.add(grill);
+    const cab = mesh(T(new THREE.BoxGeometry(1.15, 1.0, 0.95)), green, 0, 1.85, -0.35); tractor.add(cab);
+    const win = mesh(T(new THREE.BoxGeometry(1.2, 0.55, 0.85)), glass, 0, 1.95, -0.35); tractor.add(win);
+    const roofT = mesh(T(new THREE.BoxGeometry(1.35, 0.1, 1.15)), mat('#F5EEDC'), 0, 2.4, -0.35); tractor.add(roofT);
+    const pipe = mesh(T(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6)), mat('#444'), 0.38, 1.7, 1.3); tractor.add(pipe);
+    const wg = T(new THREE.CylinderGeometry(0.62, 0.62, 0.38, 14)), hg = T(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 10));
+    for (const [x, z, sc] of [[-0.82, -0.45, 1.15], [0.82, -0.45, 1.15], [-0.72, 1.35, 0.68], [0.72, 1.35, 0.68]] as const) {
+      const w = new THREE.Group(); const tm = mesh(wg, tyre); tm.rotation.z = Math.PI / 2; w.add(tm); const hm = mesh(hg, hub); hm.rotation.z = Math.PI / 2; w.add(hm);
+      w.scale.setScalar(sc); w.position.set(x, 0.62 * sc, z); tractor.add(w); tWheels.push(tm);
+    }
+    // the seeder rig behind
+    const rig = mesh(T(new THREE.BoxGeometry(2.2, 0.25, 0.4)), mat('#C8352C'), 0, 0.45, -1.3); tractor.add(rig);
+    for (const x of [-0.8, -0.27, 0.27, 0.8]) tractor.add(mesh(T(new THREE.ConeGeometry(0.1, 0.35, 5)), mat('#777'), x, 0.25, -1.3));
+    const driver = new THREE.Sprite(me.material); driver.center.set(0.5, 0); driver.scale.set(1.1, 1.1, 1); driver.position.set(0, 1.35, -0.35); tractor.add(driver);
+  }
+  let tractorOn = false, tSpeed = 0, lastBed = -1, puff = 0;
+  // drag like a joystick: the direction you drag from where you pressed is where it drives
+  let tJoy: { x0: number; y0: number; x: number; y: number } | null = null; let tAiming = false;
+  const tKeys = { x: 0, z: 0 };
+  const tKey = (e: KeyboardEvent, on: boolean) => { if (!tractorOn) return; const v = on ? 1 : 0; if (e.key === 'ArrowLeft' || e.key === 'a') tKeys.x = -v; if (e.key === 'ArrowRight' || e.key === 'd') tKeys.x = v; if (e.key === 'ArrowUp' || e.key === 'w') tKeys.z = -v; if (e.key === 'ArrowDown' || e.key === 's') tKeys.z = v; };
+  const tkd = (e: KeyboardEvent) => tKey(e, true), tku = (e: KeyboardEvent) => tKey(e, false);
+  window.addEventListener('keydown', tkd); window.addEventListener('keyup', tku);
+  const aimAt = (cx: number, cy: number) => { if (!tJoy) tJoy = { x0: cx, y0: cy, x: cx, y: cy }; else { tJoy.x = cx; tJoy.y = cy; } tAiming = true; };
+  const driveStep = (dt: number) => {
+    const want = new THREE.Vector3();
+    // keys and the drag are relative to the camera
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    if (tAiming && tJoy) { const dx = tJoy.x - tJoy.x0, dy = tJoy.y - tJoy.y0, l = Math.hypot(dx, dy); if (l > 12) { const k = Math.min(1, l / 90) * 3.2; want.addScaledVector(fwd, (-dy / l) * k).addScaledVector(right, (dx / l) * k); } }
+    else if (tKeys.x || tKeys.z) want.addScaledVector(fwd, -tKeys.z * 8).addScaledVector(right, tKeys.x * 8);
+    const target2 = want.length() > 0.6 ? Math.min(5, want.length() * 1.8) : 0;
+    tSpeed += (target2 - tSpeed) * Math.min(1, dt * 3);
+    if (want.length() > 0.6) {
+      const ang = Math.atan2(want.x, want.z); let d = ang - tractor.rotation.y; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+      tractor.rotation.y += d * Math.min(1, dt * 4);
+    }
+    tractor.position.x += Math.sin(tractor.rotation.y) * tSpeed * dt; tractor.position.z += Math.cos(tractor.rotation.y) * tSpeed * dt;
+    // stay inside the fence
+    const lx = fieldW / 2 + 1.2, lz = fieldD / 2 + 1.2;
+    tractor.position.x = Math.max(-lx, Math.min(lx, tractor.position.x)); tractor.position.z = Math.max(2 - lz, Math.min(2 + lz, tractor.position.z));
+    tractor.position.y = o.reduceMotion ? 0 : Math.abs(Math.sin(t * 20)) * 0.03 * Math.min(1, tSpeed);
+    for (const w of tWheels) w.rotation.x += tSpeed * dt * 1.6;
+    target.lerp(new THREE.Vector3(tractor.position.x, 0, tractor.position.z), Math.min(1, dt * 3));
+    // the bed under the seeder
+    let over = -1;
+    // the seeder rig trails behind the cab, so check there as well as under the tractor
+    const rigX = tractor.position.x - Math.sin(tractor.rotation.y) * 1.3, rigZ = tractor.position.z - Math.cos(tractor.rotation.y) * 1.3;
+    for (let i = 0; i < beds.length; i++) { const b = beds[i]; const reach = BED / 2 + 0.35; if ((Math.abs(b.pos.x - tractor.position.x) < reach && Math.abs(b.pos.z - tractor.position.z) < reach) || (Math.abs(b.pos.x - rigX) < reach && Math.abs(b.pos.z - rigZ) < reach)) { over = i; break; } }
+    if (over !== lastBed) { lastBed = over; if (over >= 0) o.onTractorOver?.(over); }
+    // a puff of smoke now and then
+    puff -= dt;
+    if (puff <= 0 && tSpeed > 0.5 && !o.reduceMotion) {
+      puff = 0.35; const s = emojiSprite('💨', 0.7);
+      s.position.copy(tractor.position).add(new THREE.Vector3(Math.sin(tractor.rotation.y) * 1.3 + Math.cos(tractor.rotation.y) * 0.38, 2.2, Math.cos(tractor.rotation.y) * 1.3 - Math.sin(tractor.rotation.y) * 0.38));
+      scene.add(s); pops.push({ s, v: new THREE.Vector3(0, 0.8, 0), life: 0.9, sprite: true });
+    }
+  };
+
   // ---- camera: orbit round the farm ---------------------------------------------------------------
   let yaw = 0.35, pitch = 0.9, dist = 26, distTo = 26;
   const target = new THREE.Vector3(0, 0, 2);
   function fitCamera() { const portrait = Math.max(1, 1 / Math.max(0.3, camera.aspect)); distTo = Math.max(16, Math.min(90, (Math.max(fieldW, fieldD) * 1.25 + 8) * Math.min(2, portrait * 0.85))); dist = distTo; }
   const pointers = new Map<number, { x: number; y: number }>();
   let downAt: { x: number; y: number; t: number } | null = null, pinch = 0;
-  const pd = (e: PointerEvent) => { o.canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); downAt = pointers.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } };
+  const pd = (e: PointerEvent) => { if (tractorOn && pointers.size === 0) { aimAt(e.clientX, e.clientY); } o.canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); downAt = pointers.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } };
   const pm = (e: PointerEvent) => {
     const p = pointers.get(e.pointerId); if (!p) return;
-    if (pointers.size === 2) { p.x = e.clientX; p.y = e.clientY; const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) distTo = Math.max(10, Math.min(90, distTo * (pinch / d))); pinch = d; return; }
+    if (pointers.size === 2) { tAiming = false; p.x = e.clientX; p.y = e.clientY; const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) distTo = Math.max(10, Math.min(90, distTo * (pinch / d))); pinch = d; return; }
+    if (tractorOn) { aimAt(e.clientX, e.clientY); p.x = e.clientX; p.y = e.clientY; return; }
     yaw -= (e.clientX - p.x) * 0.006; pitch = Math.max(0.25, Math.min(1.35, pitch + (e.clientY - p.y) * 0.004)); p.x = e.clientX; p.y = e.clientY;
   };
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   const pu = (e: PointerEvent) => {
     pointers.delete(e.pointerId);
+    if (tractorOn) { tAiming = false; tJoy = null; downAt = null; pinch = 0; return; }
     if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 8 && performance.now() - downAt.t < 450) {
       const r = o.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
@@ -270,10 +393,12 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     dist += (distTo - dist) * Math.min(1, dt * 6);
+    for (const sp of spin) sp.o.rotation[sp.axis] += sp.speed * dt;
+    for (const b of bob) { b.ph += dt * b.speed; b.o.position.set(b.base.x + Math.cos(b.ph) * b.r, b.base.y + Math.abs(Math.sin(b.ph * 2)) * 0.12, b.base.z + Math.sin(b.ph) * b.r * 0.6); }
     camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist);
     camera.lookAt(target);
-    // you walk over to the bed you picked
-    me.position.lerp(meTo, Math.min(1, dt * 2.2));
+    // you walk over to the bed you picked (or drive the tractor)
+    if (tractorOn) driveStep(dt); else me.position.lerp(meTo, Math.min(1, dt * 2.2));
     if (!o.reduceMotion) {
       clouds.children.forEach((c, i) => { c.position.x += dt * (0.6 + (i % 3) * 0.2); if (c.position.x > 90) c.position.x = -90; });
       for (const b of beds) if (b.sparkle) { b.sparkle.position.y = 2.1 + Math.sin(t * 3 + b.pos.x) * 0.15; (b.sparkle.material as THREE.SpriteMaterial).rotation = t; }
@@ -307,6 +432,14 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
       }
     },
     setBedCount(n) { if (n !== bedCount) buildField(n); },
+    /** for tests */ tractorDebug: () => ({ x: tractor.position.x, z: tractor.position.z, lastBed, beds: beds.map((b) => [b.pos.x, b.pos.z]) }),
+    setTractor(on) {
+      if (on === tractorOn) return;
+      tractorOn = on; tractor.visible = on; me.visible = !on; tAiming = false; tJoy = null; tSpeed = 0; lastBed = -1;
+      if (on) { tractor.position.set(me.position.x, 0, me.position.z + 1); tractor.rotation.y = Math.PI; distTo = 24; pitch = 0.95; yaw = 0; }
+      else { me.position.copy(tractor.position); meTo.copy(tractor.position); target.set(0, 0, 2); fitCamera(); }
+    },
+    setBuildings(b) { const key = (x: typeof b) => ORDER.map((k) => `${x[k]?.lvl ?? 0}:${(x[k]?.ready ?? 0) > 0}`).join(','); if (key(b) === key(bState)) return; bState = b; placeBuildings(); },
     select(idx) {
       sel = idx;
       for (const b of beds) { b.key = ''; }
@@ -319,7 +452,7 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
       list.slice(0, 6).forEach((e, i) => { const s = emojiSprite(e, 1); s.position.copy(b.pos).add(new THREE.Vector3((i - list.length / 2) * 0.5, 1.2, 0)); scene.add(s); pops.push({ s, v: new THREE.Vector3((R() - 0.5) * 0.6, 2.4, 0), life: 1.6, sprite: true }); });
     },
     dispose() {
-      cancelAnimationFrame(raf); ro.disconnect();
+      cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('keydown', tkd); window.removeEventListener('keyup', tku);
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); o.canvas.removeEventListener('pointerup', pu); o.canvas.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel);
       for (const b of beds) if (b.sparkle) { b.sparkle.material.map?.dispose(); b.sparkle.material.dispose(); }
       for (const p of pops) if (p.sprite) { const sm = (p.s as THREE.Sprite).material; sm.map?.dispose(); sm.dispose(); }

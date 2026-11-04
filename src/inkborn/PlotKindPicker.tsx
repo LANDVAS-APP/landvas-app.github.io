@@ -121,6 +121,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
     try {
       const r = await api.setGroupKind(g.id, choice);
       invalidateGame(qc);
+      if ((r as { fee?: number }).fee) toast(`Switched for ${(r as { fee?: number }).fee} Ink`);
       void qc.invalidateQueries({ queryKey: qk.groups });
       void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
       void qc.invalidateQueries({ queryKey: ['plot'] });
@@ -189,7 +190,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
               <li>🌲 The sanctuary’s decorations are kept, ready for next time.</li>
             </ul>
           )}
-          <p className="flex items-center gap-2 rounded-2xl bg-ok/10 p-3 text-xs text-ok"><ShieldCheck className="h-4 w-4 shrink-0" /> Switching is free and doesn’t change your Ink, rent or plot ownership.</p>
+          <p className="flex items-center gap-2 rounded-2xl bg-ok/10 p-3 text-xs text-ok"><ShieldCheck className="h-4 w-4 shrink-0" /> Switching costs 20 Ink (free for a plot you’ve just claimed). It doesn’t change your rent or plot ownership, and nothing is lost.</p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
             <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : 'Art Canvas'}</Button>

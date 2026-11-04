@@ -1,8 +1,10 @@
 // The farm minigames. Each one is quick (35-60 s), easy to pick up, and gets a little harder as it goes.
 //  2D: Veggie Catch (move the basket, catch what falls, dodge rocks and bugs)
 //      Pest Pop (bonk the pests popping out of the garden, leave the ladybugs and bees alone)
+//      Recipe Rush (cook what customers order from the pantry, fast)
 //  3D: Tractor Rush (swipe between lanes, collect crop crates, dodge hay bales)
 //      Sheep Round-up (you're the sheepdog: herd the flock into the pen)
+//      Pollinator (fly a bee through the flowers and bank the pollen at the hive)
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
@@ -436,12 +438,222 @@ export function SheepRoundup({ seed, seconds, onEnd, haptics }: ArenaProps) {
   );
 }
 
+// ======================================================================================================
+// Recipe Rush (2D): customers order dishes; tap the ingredients each one needs, then serve
+// ======================================================================================================
+const RR_DISHES: { e: string; name: string; needs: string[] }[] = [
+  { e: '🥗', name: 'Salad', needs: ['🥬', '🥬', '🍅'] },
+  { e: '🍳', name: 'Omelette', needs: ['🥚', '🥚', '🍅'] },
+  { e: '🍞', name: 'Honey toast', needs: ['🍯', '🌾'] },
+  { e: '🫙', name: 'Jam', needs: ['🍓', '🍓', '🍓', '🍯'] },
+  { e: '🍰', name: 'Carrot cake', needs: ['🥕', '🥕', '🥚', '🌾'] },
+  { e: '🥧', name: 'Pumpkin pie', needs: ['🎃', '🥚', '🌾', '🥛'] },
+  { e: '🥤', name: 'Smoothie', needs: ['🍈', '🍓', '🍯', '🥛'] },
+];
+const RR_PANTRY = ['🥬', '🍅', '🥚', '🍯', '🌾', '🍓', '🥕', '🎃', '🥛', '🍈'];
+const RR_FACES = ['🧑‍🌾', '👵', '🧔', '👩‍🦰', '🧒', '👨‍🍳', '🤠', '👩‍🎤'];
+type RRTicket = { id: number; dish: number; face: string; patience: number; max: number };
+export function RecipeRush({ seed, seconds, onEnd, haptics }: ArenaProps) {
+  const S = useRef({ score: 0, combo: 0 });
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [tickets, setTickets] = useState<RRTicket[]>([]);
+  const [active, setActive] = useState(0);
+  const [plate, setPlate] = useState<string[]>([]);
+  const [pop, setPop] = useState<{ t: string; c: string; k: number } | null>(null);
+  const r = useRef(rng(seed));
+  const nextId = useRef(1);
+  const t0 = useRef(performance.now());
+  const left = useClock(seconds, () => onEnd(S.current.score));
+  const unlocked = (t: number) => Math.min(RR_DISHES.length, 3 + Math.floor(t / 9));
+  const newTicket = (t: number): RRTicket => { const max = Math.max(9, 17 - t / 6); return { id: nextId.current++, dish: Math.floor(r.current() * unlocked(t)), face: RR_FACES[Math.floor(r.current() * RR_FACES.length)], patience: max, max }; };
+  useEffect(() => { setTickets([newTicket(0), newTicket(0)]); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // patience ticks down; impatient customers walk off; more turn up as it gets busy
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const t = (performance.now() - t0.current) / 1000;
+      setTickets((ts) => {
+        let out = ts.map((x) => ({ ...x, patience: x.patience - 0.2 }));
+        if (out.some((x) => x.patience <= 0)) { S.current.combo = 0; setCombo(0); }
+        out = out.filter((x) => x.patience > 0);
+        const want = t > 30 ? 4 : t > 12 ? 3 : 2;
+        while (out.length < want) out.push(newTicket(t));
+        return out;
+      });
+    }, 200);
+    return () => clearInterval(iv);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const cur = tickets.find((x) => x.id === active) ?? tickets[0];
+  const dish = cur ? RR_DISHES[cur.dish] : null;
+  const flash = (t: string, c: string) => setPop({ t, c, k: Math.random() });
+  const add = (e: string) => {
+    if (!dish) return;
+    const need = [...dish.needs]; for (const p of plate) { const i = need.indexOf(p); if (i >= 0) need.splice(i, 1); }
+    if (!need.includes(e)) { setPlate([]); S.current.combo = 0; setCombo(0); flash('Oops — wrong one!', '#FF6B6B'); if (haptics) buzz('warning'); return; }
+    const next = [...plate, e]; setPlate(next); if (haptics) buzz('light');
+    if (next.length === dish.needs.length) {
+      S.current.combo++;
+      const tip = Math.round((cur!.patience / cur!.max) * 10);
+      const pts = 10 + dish.needs.length * 3 + tip + Math.min(10, S.current.combo * 2);
+      S.current.score += pts; setScore(S.current.score); setCombo(S.current.combo);
+      flash(`${dish.e} +${pts}${tip >= 6 ? ' 💨 fast!' : ''}`, '#FFE36B');
+      setTickets((ts) => ts.filter((x) => x.id !== cur!.id));
+      setPlate([]); setActive(0); if (haptics) buzz('success');
+    }
+  };
+  return (
+    <div className="fixed inset-0 select-none overflow-hidden text-white" style={{ background: 'linear-gradient(#FFDDB0, #E89A5B)' }} data-testid="farm-arena">
+      <div className="absolute inset-x-0 top-0 h-28" style={{ background: 'repeating-linear-gradient(90deg,#E8433A 0 28px,#fff 28px 56px)', clipPath: 'polygon(0 0,100% 0,100% 70%,96% 100%,92% 70%,88% 100%,84% 70%,80% 100%,76% 70%,72% 100%,68% 70%,64% 100%,60% 70%,56% 100%,52% 70%,48% 100%,44% 70%,40% 100%,36% 70%,32% 100%,28% 70%,24% 100%,20% 70%,16% 100%,12% 70%,8% 100%,4% 70%,0 100%)' }} />
+      <Hud score={score} left={left} extra={combo >= 3 ? <div className="rounded-full bg-[#FFC93D] px-3 py-1 text-sm font-black text-black">🔥 {combo} served</div> : null} />
+      <div className="absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+70px)] mx-auto flex max-w-md justify-center gap-2 px-3" data-testid="rr-tickets">
+        {tickets.map((x) => {
+          const d = RR_DISHES[x.dish]; const on = cur?.id === x.id; const frac = x.patience / x.max;
+          return (
+            <button key={x.id} onClick={() => { setActive(x.id); setPlate([]); }} data-testid="rr-ticket"
+              className={`grid w-[23%] max-w-24 justify-items-center gap-0.5 rounded-2xl bg-white p-1.5 text-black shadow-lg transition ${on ? 'scale-105 ring-4 ring-[#FFC93D]' : 'opacity-85'}`}>
+              <span className="text-2xl">{x.face}</span>
+              <span className="text-3xl">{d.e}</span>
+              <span className="w-full truncate text-center text-[10px] font-bold">{d.name}</span>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${frac * 100}%`, background: frac > 0.5 ? '#3BB273' : frac > 0.25 ? '#FFB020' : '#E8433A' }} /></div>
+            </button>
+          );
+        })}
+      </div>
+      {dish && (
+        <div className="absolute inset-x-0 top-[44%] mx-auto grid max-w-md -translate-y-1/2 justify-items-center gap-2 px-4">
+          <div className="text-sm font-bold text-black/70">Make a {dish.name.toLowerCase()}: {dish.needs.join(' ')}</div>
+          <div className="relative grid h-28 w-56 place-items-center rounded-[50%] border-8 border-white bg-[#F5EEDC] shadow-xl" data-testid="rr-plate">
+            <div className="flex flex-wrap justify-center gap-0.5 text-4xl">{plate.map((p, i) => <span key={i}>{p}</span>)}</div>
+            {pop && <div key={pop.k} className="pointer-events-none absolute -bottom-12 animate-bounce font-display text-2xl font-black drop-shadow" style={{ color: pop.c }}>{pop.t}</div>}
+          </div>
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 mx-auto grid max-w-md grid-cols-5 gap-2 p-3 pb-[max(14px,env(safe-area-inset-bottom,0px))]" data-testid="rr-pantry">
+        {RR_PANTRY.map((e) => (
+          <button key={e} onClick={() => add(e)} data-testid={`rr-${e}`} className="grid aspect-square place-items-center rounded-2xl bg-[#7A4B2A] text-4xl shadow-[0_5px_0_#4E2E18] active:translate-y-1 active:shadow-none">{e}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ======================================================================================================
+// Pollinator (3D): you're a bee flying over the meadow; fly through flowers, take the pollen home
+// ======================================================================================================
+export function Pollinator({ seed, seconds, onEnd, haptics, reduce }: ArenaProps) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const [score, setScore] = useState(0);
+  const [pollen, setPollen] = useState(0);
+  const S = useRef({ score: 0, pollen: 0, aim: { x: 0, y: 0.5 }, keys: { x: 0, y: 0 } });
+  const left = useClock(seconds, () => onEnd(S.current.score));
+  useEffect(() => {
+    const c = cv.current!; const k = three(c); const r = rng(seed);
+    const { scene, camera, mat, T } = k;
+    scene.background = new THREE.Color('#A9E1FF'); scene.fog = new THREE.Fog('#A9E1FF', 30, 110);
+    const ground = new THREE.Mesh(T(new THREE.PlaneGeometry(200, 600)), mat('#79C957')); ground.rotation.x = -Math.PI / 2; ground.position.z = -250; scene.add(ground);
+    // grass tufts going past
+    const tuft = new THREE.InstancedMesh(T(new THREE.ConeGeometry(0.25, 0.8, 4)), mat('#4FA640'), 500); scene.add(tuft);
+    const o3 = new THREE.Object3D();
+    for (let i = 0; i < 500; i++) { o3.position.set((r() - 0.5) * 40, 0.4, 20 - r() * 260); o3.updateMatrix(); tuft.setMatrixAt(i, o3.matrix); }
+    // the bee
+    const bee = new THREE.Group();
+    const body = new THREE.Mesh(T(new THREE.SphereGeometry(0.5, 14, 10)), mat('#FFC93D', { flatShading: false })); body.scale.set(1, 0.9, 1.3); bee.add(body);
+    for (const z of [-0.15, 0.25]) { const st = new THREE.Mesh(T(new THREE.TorusGeometry(0.47, 0.07, 6, 16)), mat('#2A2E38')); st.position.z = z; st.scale.set(1, 0.9, 1); bee.add(st); }
+    const head = new THREE.Mesh(T(new THREE.SphereGeometry(0.3, 10, 8)), mat('#2A2E38')); head.position.z = -0.7; bee.add(head);
+    const wingM = mat('#FFFFFF', { transparent: true, opacity: 0.7 });
+    const wings = [-1, 1].map((sx) => { const w = new THREE.Mesh(T(new THREE.SphereGeometry(0.45, 8, 6)), wingM); w.scale.set(1, 0.08, 0.6); w.position.set(sx * 0.5, 0.45, 0); bee.add(w); return w; });
+    scene.add(bee);
+    // the hive at the end of each run of flowers
+    type Thing = { g: THREE.Object3D; x: number; y: number; z: number; kind: 'flower' | 'gold' | 'wasp' | 'hive'; dx?: number };
+    const things: Thing[] = []; const pops: { s: THREE.Sprite; life: number }[] = [];
+    const stemG = T(new THREE.CylinderGeometry(0.06, 0.08, 1, 5)), stemM = mat('#3E9A44'), petalG = T(new THREE.SphereGeometry(0.35, 8, 6)), midG = T(new THREE.SphereGeometry(0.3, 8, 6)), midM = mat('#FFB020');
+    const PETALS = ['#FF6FA8', '#B76BFF', '#FFFFFF', '#FF8A3D', '#4FA8FF'];
+    const flower = (x: number, y: number, z: number, gold: boolean) => {
+      const g = new THREE.Group();
+      const stem = new THREE.Mesh(stemG, stemM); stem.scale.y = y; stem.position.y = y / 2; g.add(stem);
+      const pm = gold ? mat('#FFD23F', { emissive: '#FFB020', emissiveIntensity: 0.7 }) : mat(PETALS[Math.floor(r() * PETALS.length)]);
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const p = new THREE.Mesh(petalG, pm); p.scale.set(1, 0.4, 0.6); p.position.set(Math.cos(a) * 0.5, y, Math.sin(a) * 0.5); g.add(p); }
+      const m = new THREE.Mesh(midG, midM); m.position.y = y + 0.05; g.add(m);
+      g.position.set(x, 0, z); scene.add(g); things.push({ g, x, y, z, kind: gold ? 'gold' : 'flower' });
+    };
+    const wasp = (x: number, y: number, z: number) => { const s = k.sprite('🐝', 1.6); s.material.color = new THREE.Color('#FF7070'); s.position.set(x, y, z); scene.add(s); things.push({ g: s, x, y, z, kind: 'wasp', dx: (r() - 0.5) * 3 }); };
+    const hive = (z: number) => { const g = new THREE.Group(); for (let i = 0; i < 4; i++) { const ring = new THREE.Mesh(T(new THREE.TorusGeometry(1.5 - i * 0.18, 0.3, 8, 18)), mat('#E8A33A')); ring.rotation.x = Math.PI / 2; ring.position.y = 3 + i * 0.5; g.add(ring); } const s = k.sprite('🍯', 1.8); s.position.y = 5.3; g.add(s); const x = (r() - 0.5) * 6; g.position.set(x, 0, z); scene.add(g); things.push({ g, x, y: 4, z, kind: 'hive' }); };
+    let nextZ = -12, sinceHive = 0;
+    const spawnRow = (z: number, level: number) => {
+      const roll = r();
+      if (sinceHive > 9 && roll < 0.35) { hive(z); sinceHive = 0; return; }
+      sinceHive++;
+      const n = 1 + Math.floor(r() * 2);
+      for (let i = 0; i < n; i++) flower((r() - 0.5) * 9, 1 + r() * 4, z - i * 2.5, r() < 0.08);
+      if (r() < 0.2 + level * 0.25) wasp((r() - 0.5) * 8, 1.5 + r() * 3.5, z - 4);
+    };
+    // steer: point where the bee should be (or keys)
+    const pm = (e: PointerEvent) => { const b = c.getBoundingClientRect(); S.current.aim = { x: ((e.clientX - b.left) / b.width) * 2 - 1, y: 1 - (e.clientY - b.top) / b.height }; };
+    const keys = (e: KeyboardEvent, on: boolean) => { const v = on ? 1 : 0; if (e.key === 'ArrowLeft' || e.key === 'a') S.current.keys.x = -v; if (e.key === 'ArrowRight' || e.key === 'd') S.current.keys.x = v; if (e.key === 'ArrowUp' || e.key === 'w') S.current.keys.y = v; if (e.key === 'ArrowDown' || e.key === 's') S.current.keys.y = -v; };
+    const kd = (e: KeyboardEvent) => keys(e, true), ku = (e: KeyboardEvent) => keys(e, false);
+    c.addEventListener('pointermove', pm); c.addEventListener('pointerdown', pm); window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+    let raf = 0, last = performance.now(), t = 0, dist = 0, bx = 0, by = 2.5, slow = 0;
+    const popAt = (text: string, x: number, y: number, z: number) => { const s = k.sprite(text, 1.4); s.position.set(x, y + 1, z); scene.add(s); pops.push({ s, life: 0.8 }); };
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      const level = Math.min(1, t / seconds);
+      slow = Math.max(0, slow - dt);
+      const v = (9 + level * 7) * (slow > 0 ? 0.5 : 1); dist += v * dt;
+      const a = S.current.aim; S.current.aim = { x: Math.max(-1, Math.min(1, a.x + S.current.keys.x * dt * 1.6)), y: Math.max(0, Math.min(1, a.y + S.current.keys.y * dt * 1.6)) };
+      const tx = S.current.aim.x * 5, ty = 0.8 + S.current.aim.y * 5;
+      const px = bx; bx += (tx - bx) * Math.min(1, dt * 6); by += (ty - by) * Math.min(1, dt * 6);
+      bee.position.set(bx, by + (reduce ? 0 : Math.sin(t * 6) * 0.08), -dist); bee.rotation.z = (px - bx) * 4; bee.rotation.x = 0;
+      wings.forEach((w, i) => { w.rotation.z = Math.sin(t * 60) * 0.6 * (i ? 1 : -1); });
+      camera.position.set(bx * 0.6, by * 0.55 + 3.4, -dist + 10.5); camera.lookAt(bx * 0.7, by * 0.75, -dist - 10);
+      while (nextZ > -dist - 90) { spawnRow(nextZ, level); nextZ -= Math.max(4, 7 - level * 3); }
+      tuft.position.z = -Math.floor(dist / 150) * 150; ground.position.z = -dist - 200;
+      for (let i = things.length - 1; i >= 0; i--) {
+        const th = things[i];
+        if (th.kind === 'wasp') { th.x += (th.dx ?? 0) * dt; if (Math.abs(th.x) > 5) th.dx = -(th.dx ?? 0); th.g.position.x = th.x; th.g.position.y = th.y + Math.sin(t * 5 + i) * 0.3; }
+        const dz = th.z + dist;
+        const near = (rad: number, hy: number) => Math.abs(dz) < 1.2 && Math.hypot(th.x - bx, hy - by) < rad;
+        if (th.kind === 'flower' || th.kind === 'gold') {
+          if (near(1.3, th.y)) {
+            scene.remove(th.g); things.splice(i, 1);
+            const n = th.kind === 'gold' ? 3 : 1; S.current.pollen += n; S.current.score += th.kind === 'gold' ? 15 : 5; setPollen(S.current.pollen); setScore(S.current.score);
+            popAt(th.kind === 'gold' ? '🌟' : '🌼', th.x, th.y, th.z); if (haptics) buzz('light'); continue;
+          }
+        } else if (th.kind === 'wasp') {
+          if (near(1.1, th.g.position.y)) { scene.remove(th.g); things.splice(i, 1); slow = 1; S.current.pollen = Math.floor(S.current.pollen / 2); setPollen(S.current.pollen); popAt('💥', bx, by, -dist); if (haptics) buzz('warning'); continue; }
+        } else if (th.kind === 'hive') {
+          if (Math.abs(dz) < 1.4 && Math.hypot(th.x - bx, 4 - by) < 2.6) {
+            scene.remove(th.g); things.splice(i, 1);
+            const pts = S.current.pollen * 4 + (S.current.pollen >= 10 ? 20 : 0); S.current.score += pts; setScore(S.current.score);
+            popAt(S.current.pollen ? `🍯 +${pts}` : '🍯', th.x, 4, th.z); S.current.pollen = 0; setPollen(0); if (haptics) buzz('success'); continue;
+          }
+        }
+        if (dz > 8) { scene.remove(th.g); things.splice(i, 1); }
+      }
+      for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i]; p.life -= dt; p.s.position.y += dt * 2; if (p.life <= 0) { scene.remove(p.s); pops.splice(i, 1); } }
+      k.renderer.render(scene, camera);
+    };
+    raf = requestAnimationFrame(frame);
+    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasBee = { get things() { return things.length; } };
+    return () => { cancelAnimationFrame(raf); c.removeEventListener('pointermove', pm); c.removeEventListener('pointerdown', pm); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); k.dispose(); };
+  }, [seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="fixed inset-0 select-none" data-testid="farm-arena">
+      <canvas ref={cv} className="absolute inset-0 h-full w-full touch-none" />
+      <Hud score={score} left={left} extra={<div className="rounded-full bg-black/45 px-3 py-1 text-sm font-bold text-white backdrop-blur" data-testid="bee-pollen">🌼 {pollen} pollen</div>} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 text-center text-sm font-bold text-white drop-shadow">Point where to fly · touch flowers for pollen, fly through the 🍯 hive to bank it · dodge wasps</div>
+    </div>
+  );
+}
+
 export const FARM_ARENAS: Record<string, (p: ArenaProps) => React.ReactElement> = {
-  veggie_catch: VeggieCatch, pest_pop: PestPop, tractor: TractorRush, sheep: SheepRoundup,
+  veggie_catch: VeggieCatch, pest_pop: PestPop, tractor: TractorRush, sheep: SheepRoundup, recipe_rush: RecipeRush, pollinator: Pollinator,
 };
 export const FARM_HOW: Record<string, string> = {
   veggie_catch: 'Slide your finger to move the basket. Catch the falling veggies — stars are worth extra — and dodge the rocks, bugs and boots. Catch lots in a row for a bonus.',
   pest_pop: 'Pests keep popping out of the garden: tap them to bonk them away. Don’t tap the ladybugs or bees — they’re helping! The golden beetle is a big bonus.',
   tractor: 'Your tractor drives itself. Swipe (or tap left or right) to change lanes: collect crop crates and golden crates, and dodge the hay bales and rocks.',
+  recipe_rush: 'Customers line up with orders. Tap a ticket, then tap the ingredients that dish needs from the pantry — the plate serves itself when it’s right. Serve fast for tips; a wrong ingredient spills the plate. Pays a dish or two from your kitchen, too.',
+  pollinator: 'You’re a bee! Point where to fly. Touch flowers to collect pollen (golden ones are worth triple), then fly through a 🍯 hive to bank it — the more you carry, the bigger the bonus. Wasps knock half your pollen off. Pays real honey, too.',
   sheep: 'You’re the sheepdog! Hold your finger where you want to run: sheep run away from you, so get behind them and steer them into the pen. Pen the whole flock for a bonus.',
 };

@@ -30,6 +30,8 @@ describe('Farms', () => {
 
   it('plant (carrots are free, others cost a little Ink), water to grow faster', async () => {
     const before = await ink(fay);
+    await expectError(db.rpc(fay, 'farm_plant', { p_farm: farmId, p_bed: 1, p_crop: 'tomato' }), 'farm_level_needed');
+    await db.sql(`update farm_progress set xp = 200 where player_id = $1`, [fay]); // level 3
     await db.rpc(fay, 'farm_plant', { p_farm: farmId, p_bed: 0, p_crop: 'carrot' });
     const r = await db.rpc(fay, 'farm_plant', { p_farm: farmId, p_bed: 1, p_crop: 'tomato' });
     expect(await ink(fay)).toBe(before - 4);
@@ -44,7 +46,7 @@ describe('Farms', () => {
     expect(new Date(w.beds[1].ready_at).getTime()).toBeLessThan(t0 - 9 * 60_000); // 30 min, 40% sooner
   });
 
-  it('harvest when ready, then sell at the market (up to the daily cap)', async () => {
+  it('harvest when ready, then sell at the market (Ink up to the daily cap, coins always)', async () => {
     await expectError(db.rpc(fay, 'farm_harvest', { p_farm: farmId, p_bed: 0 }), 'not_ready');
     await ripen();
     const h = await db.rpc(fay, 'farm_harvest', { p_farm: farmId });
@@ -61,9 +63,9 @@ describe('Farms', () => {
     // the cap
     await db.sql(`insert into farm_items (player_id, item, qty) values ($1, 'golden_pumpkin', 10)`, [fay]);
     const big = await db.rpc(fay, 'farm_sell', { p_item: 'golden_pumpkin', p_qty: 10 });
-    expect(big.ink_today).toBeLessThanOrEqual(120);
-    expect(big.sold).toBeLessThan(10);
-    await expectError(db.rpc(fay, 'farm_sell', { p_item: 'golden_pumpkin', p_qty: 1 }), 'farm_cap_reached');
+    expect(big.ink_today).toBe(120);
+    expect(big.sold).toBe(10); // past the Ink cap you still get Farm Coins
+    expect(big.coins).toBeGreaterThanOrEqual(900);
   });
 
   it('farm games: no faster than the timer, a basket of produce for a good round', async () => {
