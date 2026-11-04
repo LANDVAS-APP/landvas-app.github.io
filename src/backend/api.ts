@@ -193,8 +193,9 @@ export const api = {
   sanctuaryVisitPing: (habitat: string) => rpc<{ ok: boolean }>('sanctuary_visit_ping', { p_habitat: habitat }),
   baseVisitPing: (world: string, gx: number, gy: number) => rpc<{ ok: boolean }>('planet_base_visit_ping', { p_world: world, p_gx: gx, p_gy: gy }),
   baseCatalog: () => rpc<import('./types').BaseCatalog>('planet_base_catalog'),
-  baseSave: (world: string, gx: number, gy: number, layout: import('./types').BaseModule[], rev: number) =>
-    rpc<{ layout: import('./types').BaseModule[]; rev: number; spent: Record<string, number>; refunded: Record<string, number>; items: Record<string, number> }>('planet_base_save', { p_world: world, p_gx: gx, p_gy: gy, p_layout: layout, p_rev: rev }),
+  baseSave: (world: string, gx: number, gy: number, layout: import('./types').BaseModule[], rev: number, w = 1, h = 1) =>
+    rpc<{ layout: import('./types').BaseModule[]; rev: number; w: number; h: number; spent: Record<string, number>; refunded: Record<string, number>; items: Record<string, number> }>('planet_base_save', { p_world: world, p_gx: gx, p_gy: gy, p_layout: layout, p_rev: rev, p_w: w, p_h: h }),
+  baseView: (world: string, gx: number, gy: number) => rpc<import('./types').BaseView>('planet_base_view', { p_world: world, p_gx: gx, p_gy: gy }),
   planetMap: (world: string) => rpc<import('./types').PlanetMap>('planet_map', { p_world: world }),
   planetMeteors: (world: string) => rpc<import('./types').MeteorShower>('planet_meteors', { p_world: world }),
   planetMeteorGrab: (world: string, idx: number, d: number[] | null) => rpc<{ paid: number; earned: number; golden: boolean; capped: boolean }>('planet_meteor_grab', { p_world: world, p_idx: idx, p_d: d }),

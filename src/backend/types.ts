@@ -450,7 +450,8 @@ export type SpaceState = {
 
 export type CosmicRarity = { id: string; name: string; weight: number; mult: number; color: string };
 export type BaseModule = { id: string; k: string; x: number; y: number; r?: number; c?: string };
-export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number } | null; shaft?: { depth: number; cored: boolean } | null };
+export type BaseView = { world: string; gx: number; gy: number; w: number; h: number; layout: BaseModule[]; rev: number; mine: boolean; owner: Profile; name: string | null; modules: number; plot_m: number; catalog: { modules: Record<string, { name: string; emoji: string; w: number; d: number }> } };
+export type PlanetPlot = { gx: number; gy: number; name: string | null; mine: boolean; rarity: string; owner: { username: string; accent: string | null }; base?: { layout: BaseModule[]; rev: number; w?: number; h?: number } | null; in_base?: [number, number] | null; shaft?: { depth: number; cored: boolean } | null };
 export type PlanetMap = {
   world: string; rows: number; cols: number; radius: number; claimed: number; games: string[]; bonus_game: string; rarities: CosmicRarity[]; bonus_from: number; luck: number; price: number; landed: boolean;
   plots: PlanetPlot[]; pilots: (Profile & { explorer_style?: unknown })[]; ink_today: number; daily_cap: number;

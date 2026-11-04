@@ -620,6 +620,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       const lay = p.base?.layout; if (!lay?.length) return;
       if (plotList[i].d.angleTo(patchC.lengthSq() ? patchC : P.d) * R > 700) return;
       const b = cellBounds(p, rows);
+      // metres from the south-west corner: a merged base's modules just carry on into the plots beyond
       for (const m of lay) {
         const d = V(dirOf(b.lat0 + (m.y / PLOT_M) * (b.lat1 - b.lat0), b.lon0 + (m.x / PLOT_M) * (b.lon1 - b.lon0)));
         east.crossVectors(UP, d); if (east.lengthSq() < 1e-8) east.set(1, 0, 0); east.normalize();
