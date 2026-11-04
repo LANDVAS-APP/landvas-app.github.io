@@ -26,6 +26,11 @@ describe('Planet Ink per world', () => {
     expect(Number((await db.sql(`select private.planet_pay_world($1, 'mars', 80, 'c', 'c1') n`, [ann]))[0].n)).toBe(80);
     expect((await db.rpc(ann, 'planet_map', { p_world: 'moon' }))).toMatchObject({ ink_today: 100, daily_cap: 100 });
   });
+  it('and all worlds together cap at 300 a day', async () => {
+    expect(Number((await db.sql(`select private.planet_pay_world($1, 'venus', 100, 'd', 'd1') n`, [ann]))[0].n)).toBe(100);
+    expect(Number((await db.sql(`select private.planet_pay_world($1, 'jupiter', 100, 'e', 'e1') n`, [ann]))[0].n)).toBe(20);
+    expect(Number((await db.sql(`select private.planet_pay_world($1, 'saturn', 100, 'f', 'f1') n`, [ann]))[0].n)).toBe(0);
+  });
 });
 
 describe('Settling', () => {

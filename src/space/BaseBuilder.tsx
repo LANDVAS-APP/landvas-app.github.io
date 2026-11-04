@@ -57,12 +57,13 @@ export function pieceCost(m: BaseModule, def: BaseModDef | undefined) {
   return out;
 }
 /** What a building does, in a few chips. */
-function fxChips(def: BaseModDef, info: BaseCatalog['item_info'], mult = 1) {
+function fxChips(def: BaseModDef, info: BaseCatalog['item_info'], mult = 1, drain = 1) {
   const fx = def.fx; if (!fx) return [];
   const out: string[] = [];
   const r = (n: number) => (Math.round(n * mult * 10) / 10).toString();
-  if (fx.power) out.push(`${fx.power > 0 ? '+' : ''}${r(fx.power)} ⚡`);
-  if (fx.crew) out.push(`${fx.crew > 0 ? '+' : ''}${r(fx.crew)} 👩‍🚀`);
+  const d = (n: number) => (Math.round(n * drain * 10) / 10).toString();
+  if (fx.power) out.push(fx.power > 0 ? `+${r(fx.power)} ⚡` : `${d(fx.power)} ⚡`);
+  if (fx.crew) out.push(fx.crew > 0 ? `+${r(fx.crew)} 👩‍🚀` : `${d(fx.crew)} 👩‍🚀`);
   for (const [k, n] of Object.entries(fx.out ?? {})) out.push(`${r(n)} ${info[k]?.emoji ?? k}/h`);
   if (fx.ink) out.push(`${r(fx.ink)} 💧/h`);
   if (fx.research) out.push(`${r(fx.research)} 🔬/h`);
@@ -494,7 +495,7 @@ function Economy({ world, plot, layout, cat, dirty }: { world: string; plot: Pla
                 <span className="text-xl">{b.def.emoji}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold">{b.def.name} <span className="rounded-full bg-[#8B5CFF]/60 px-1.5 text-[10px]">Lv {b.lv}</span></div>
-                  <div className="truncate text-[10px] text-white/60">{fxChips(b.def, info, Math.pow(1.5, b.lv - 1)).join(' · ')}</div>
+                  <div className="truncate text-[10px] text-white/60">{fxChips(b.def, info, Math.pow(1.5, b.lv - 1), 1 + 0.2 * (b.lv - 1)).join(' · ')}</div>
                 </div>
                 {max ? <span className="text-[10px] text-white/60">Max</span> : (
                   <Button size="sm" variant="secondary" disabled={!can} loading={busy === b.id} data-testid={`base-up-${b.id}`}

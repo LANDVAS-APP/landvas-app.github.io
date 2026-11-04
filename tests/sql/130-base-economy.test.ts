@@ -98,7 +98,16 @@ describe('Bases that work', () => {
     const e = await db.sql(`select private.base_econ($1::jsonb, '{}'::jsonb, $2) e`, [JSON.stringify([
       { id: 'h', k: 'dome' }, { id: 'g1', k: 'solar' }, { id: 'g2', k: 'solar' }, { id: 'g3', k: 'solar' }, { id: 'rf', k: 'refinery' }, { id: 'mk', k: 'market' }]), kai]);
     expect(e[0].e.efficiency).toBe(1);
-    expect(e[0].e.convert[0]).toMatchObject({ from: { stone: 8 }, to: { iron: 2 } });
+    expect(e[0].e.convert[0]).toMatchObject({ from: { stone: 4 }, to: { iron: 1 }, rate: 2 });
     expect(e[0].e.sell).toHaveLength(1);
+  });
+
+  it('a levelled-up building needs only a little more power and crew', async () => {
+    const lay = JSON.stringify([{ id: 'h', k: 'dome' }, { id: 'g1', k: 'solar' }, { id: 'g2', k: 'solar' }, { id: 'c', k: 'condenser' }]);
+    const one = (await db.sql(`select private.base_econ($1::jsonb, '{}'::jsonb, $2) e`, [lay, kai]))[0].e;
+    const three = (await db.sql(`select private.base_econ($1::jsonb, '{"c": 3}'::jsonb, $2) e`, [lay, kai]))[0].e;
+    expect(one.power.demand).toBe(3);
+    expect(three.power.demand).toBeCloseTo(4.2);
+    expect(three.out.ice).toBeCloseTo(one.out.ice * 2.25);
   });
 });
