@@ -55,7 +55,7 @@ export default function PlotsScreen() {
       if (filter === 'canvas' && kindOf(r) !== 'canvas') return false;
       if (filter === 'habitat' && kindOf(r) !== 'habitat') return false;
       if (filter === 'art' && !r.has_art) return false;
-      if (filter === 'blank' && (r.has_art || kindOf(r) === 'habitat' || kindOf(r) === 'farm')) return false;
+      if (filter === 'blank' && (r.has_art || kindOf(r) === 'habitat' || kindOf(r) === 'farm' || kindOf(r) === 'business')) return false;
       if (!s) return true;
       const g = r.group_id ? byGroup.get(r.group_id) : null;
       return plotTitle(r).toLowerCase().includes(s) || `${r.gx} ${r.gy}`.includes(s) || r.plot_type.includes(s) || r.rarity.includes(s) || (g?.name ?? '').toLowerCase().includes(s);
@@ -124,7 +124,7 @@ export default function PlotsScreen() {
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
                       <span>{PLOT_TYPES[r.plot_type]?.name ?? r.plot_type}</span>
                       <span>Lv {r.level}</span>
-                      <span>{kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
+                      <span>{kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
                       {g && g.plot_count > 1 && <span>part of {g.plot_count}</span>}
                       {d !== null && <span>{d <= 1 ? 'right here' : `${d} plots away`}</span>}
                     </div>
@@ -157,7 +157,7 @@ function PlotTile({ r, kind, size = 48 }: { r: Row; kind: string; size?: number 
   const ri = rarityInfo(r.rarity);
   return (
     <span className="relative grid shrink-0 place-items-center rounded-2xl text-lg" style={{ width: size, height: size, background: kind === 'habitat' ? 'linear-gradient(135deg,#6CC463,#2F7D3A)' : `linear-gradient(135deg, ${t?.a ?? '#888'}, ${t?.b ?? '#444'})`, boxShadow: `0 0 0 2px ${ri.color}, 0 6px 16px -8px ${ri.color}` }}>
-      {kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : r.has_art ? '🖼️' : ''}
+      {kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : r.has_art ? '🖼️' : ''}
       {r.level > 1 && <span className="absolute -bottom-1 -right-1 rounded-full bg-bg px-1 text-[9px] font-black text-gold">Lv{r.level}</span>}
     </span>
   );
@@ -204,7 +204,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">
-          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : '🎨 Art Canvas'}</span>
+          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : '🎨 Art Canvas'}</span>
           {group && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{group.plot_count > 1 ? `Part of “${group.name}” (${group.plot_count} plots)` : 'A single plot'}</span>}
           {d.data?.art && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">🖼️ “{d.data.art.title}”</span>}
           <span className="rounded-full bg-surface-2/70 px-2.5 py-1">Claimed {timeAgo(r.claimed_at)}</span>
@@ -213,7 +213,8 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
         <div className="grid grid-cols-2 gap-2">
           <Button variant="rainbow" onClick={show} data-testid="sheet-map"><MapPin className="h-4 w-4" /> Show on map</Button>
           {d.data?.type_info && <Button variant="secondary" onClick={() => nav(`/play/${d.data!.type_info!.minigame}?gx=${r.gx}&gy=${r.gy}`)}><Gamepad2 className="h-4 w-4" /> Play {d.data.type_info.minigame_name}</Button>}
-          {kind === 'farm' && group?.farm_id ? <Button variant="secondary" onClick={() => nav(`/farm/${group.farm_id}`)}>🌾 Enter farm</Button>
+          {kind === 'business' && group?.business_id ? <Button variant="secondary" onClick={() => nav(`/business/${group.business_id}`)}>🍋 Open business</Button>
+          : kind === 'farm' && group?.farm_id ? <Button variant="secondary" onClick={() => nav(`/farm/${group.farm_id}`)}>🌾 Enter farm</Button>
             : kind === 'habitat' && group?.habitat_id ? <Button variant="secondary" onClick={() => nav(`/habitat/${group.habitat_id}`)}><PawPrint className="h-4 w-4" /> Enter sanctuary</Button>
             : group ? <Button variant="secondary" onClick={() => nav(`/create/${group.id}`)}><Brush className="h-4 w-4" /> Paint canvas</Button> : null}
           {group && <Button variant="secondary" onClick={() => { startMerge(group.id); show(); }}><Combine className="h-4 w-4" /> Merge</Button>}

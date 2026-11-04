@@ -10,11 +10,11 @@ import * as THREE from 'three';
 import { buzz } from '../native/native';
 
 export type ArenaProps = { seed: number; seconds: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean };
-const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
+export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
 const dpr = () => Math.min(2, devicePixelRatio || 1);
 
 /** Score and time along the top. */
-function Hud({ score, left, extra }: { score: number; left: number; extra?: React.ReactNode }) {
+export function Hud({ score, left, extra }: { score: number; left: number; extra?: React.ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))] text-white">
       <div className="rounded-2xl bg-black/45 px-3 py-1.5 font-display text-2xl font-black tnum backdrop-blur" data-testid="farm-game-score">{score}</div>
@@ -24,7 +24,7 @@ function Hud({ score, left, extra }: { score: number; left: number; extra?: Reac
   );
 }
 /** A timer that ends the game once. */
-function useClock(seconds: number, onEnd: () => void) {
+export function useClock(seconds: number, onEnd: () => void) {
   const [left, setLeft] = useState(seconds);
   const done = useRef(false);
   useEffect(() => {
@@ -38,15 +38,15 @@ function useClock(seconds: number, onEnd: () => void) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return left;
 }
-type Float = { x: number; y: number; text: string; life: number; color: string };
-const drawFloats = (g: CanvasRenderingContext2D, fl: Float[], dt: number) => {
+export type Float = { x: number; y: number; text: string; life: number; color: string };
+export const drawFloats = (g: CanvasRenderingContext2D, fl: Float[], dt: number) => {
   for (let i = fl.length - 1; i >= 0; i--) {
     const f = fl[i]; f.life -= dt; f.y -= 40 * dt; if (f.life <= 0) { fl.splice(i, 1); continue; }
     g.globalAlpha = Math.min(1, f.life * 2); g.font = '900 22px ui-rounded, system-ui'; g.textAlign = 'center';
     g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,0.45)'; g.strokeText(f.text, f.x, f.y); g.fillStyle = f.color; g.fillText(f.text, f.x, f.y); g.globalAlpha = 1;
   }
 };
-const emoji = (g: CanvasRenderingContext2D, e: string, x: number, y: number, size: number) => { g.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, x, y); };
+export const emoji = (g: CanvasRenderingContext2D, e: string, x: number, y: number, size: number) => { g.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, x, y); };
 function sceneryBg(g: CanvasRenderingContext2D, W: number, H: number, t: number) {
   const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#7FD1FF'); sky.addColorStop(0.7, '#CFF0FF'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
   g.fillStyle = 'rgba(255,255,255,0.85)'; for (let i = 0; i < 4; i++) { const x = ((t * 12 + i * 260) % (W + 200)) - 100, y = 60 + i * 38; g.beginPath(); g.ellipse(x, y, 46, 16, 0, 0, Math.PI * 2); g.ellipse(x + 30, y - 8, 30, 14, 0, 0, Math.PI * 2); g.fill(); }
@@ -198,7 +198,7 @@ export function PestPop({ seed, seconds, onEnd, haptics, reduce }: ArenaProps) {
 // ======================================================================================================
 // 3D helpers
 // ======================================================================================================
-function three(c: HTMLCanvasElement) {
+export function three(c: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: !/Mobi|Android/i.test(navigator.userAgent) });
   renderer.setPixelRatio(dpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#8FD3FF'); scene.fog = new THREE.Fog('#8FD3FF', 40, 120);

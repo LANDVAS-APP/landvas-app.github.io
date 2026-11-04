@@ -214,6 +214,7 @@ export type CanvasGroup = {
   kind?: PlotKind;
   habitat_id?: string | null;
   farm_id?: string | null;
+  business_id?: string | null;
   name: string;
   status: string;
   plot_count: number;
@@ -405,7 +406,24 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm';
+export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business';
+export type BizVenture = { key: string; name: string; emoji: string; owned: number; cost: number; cost10: number; max_q: number; rate: number; each: number; next_milestone: number | null; revealed: boolean };
+export type BizUpgrade = { key: string; kind: 'venture' | 'tap' | 'global'; venture: string | null; name: string; emoji: string; cost: number; x?: number; pct?: number; golden?: number; golden_dur?: number; need?: number };
+export type BizBuff = { kind: 'frenzy' | 'storm'; mult: number; until: string };
+export type BizState = {
+  cash: number; income: number; tap_value: number; run_earned: number; alltime: number; shares: number; shares_on_ipo: number; next_share_at: number; ipos: number;
+  taps: number; multiplier: number; plots: number; ventures: BizVenture[]; upgrades_owned: number; upgrades: BizUpgrade[]; upgrades_next: BizUpgrade[];
+  golden_at: string; golden_window: number; buff: BizBuff | null; dividend_ready: boolean; dividend_ink: number; ink_today: number; daily_cap: number; server_time: string;
+  tapped?: number; tap_gain?: number; away?: { seconds: number; earned: number } | null;
+  bought?: string; qty?: number; spent?: number; milestones?: number[]; ink?: number; upgraded?: string; name?: string;
+  golden?: { kind: 'lucky' | 'frenzy' | 'storm'; gain: number; ink: number }; ipo?: { new_shares: number; shares: number; ink: number }; dividend?: { ink: number; cash: number };
+};
+export type BizGameInfo = { name: string; emoji: string; dim: '2d' | '3d'; seconds: number; max_score: number; points_per_ink: number; max_ink: number };
+export type Business = {
+  id: string; group_id: string | null; seed: number; name: string; plots: number; owner: Profile; mine: boolean; tips: number; games: Record<string, BizGameInfo>;
+  state?: BizState; away?: { seconds: number; earned: number } | null;
+  public?: { alltime: number; shares: number; ipos: number; income: number; ventures: Record<string, number> }; tipped_today?: boolean;
+};
 export type FarmCrop = { name: string; emoji: string; seed: number; minutes: number; yield: [number, number]; sell: number; color: string };
 export type FarmGameInfo = { name: string; emoji: string; dim: '2d' | '3d'; seconds: number; max_score: number; points_per_ink: number; max_ink: number };
 export type FarmConfig = { beds_base: number; beds_per_plot: number; beds_max: number; daily_cap: number; water_speedup: number; golden_chance: number; golden_mult: number;

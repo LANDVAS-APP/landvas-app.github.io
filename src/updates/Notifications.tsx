@@ -117,7 +117,9 @@ function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: b
 
 const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(a: Alert): React.ReactNode; to(a: Alert): string | null }> = {
   stamp: { icon: Stamp, color: '#FFB23F', text: (a) => <>collected stamp <b>#{a.data.serial}</b> of “{a.data.title}”{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => `/art/${a.data.publication_id}` },
-  visit: { icon: DoorOpen, color: '#7B5CFF', text: () => <>visited your room</>, to: (a) => (a.actor ? `/u/${a.actor.username}/room` : null) },
+  visit: { icon: DoorOpen, color: '#7B5CFF',
+    text: (a) => (a.data.business ? (a.data.tip ? <>bought a lemonade at your business 🍋</> : <>is looking round your business</>) : a.data.farm ? <>is looking round your farm 🌾</> : <>visited your room</>),
+    to: (a) => (a.data.business ? `/business/${a.data.business}` : a.data.farm ? `/farm/${a.data.farm}` : a.actor ? `/u/${a.actor.username}/room` : null) },
   checkin: { icon: DoorOpen, color: '#3DDC97', text: (a) => <>checked into your room{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => (a.actor ? `/u/${a.actor.username}/room` : null) },
   inspire: { icon: Sparkles, color: '#3DDC97', text: (a) => <>was inspired by “{a.data.title}”</>, to: (a) => `/art/${a.data.publication_id}` },
   sketch_vote: { icon: Heart, color: '#FF4D6D', text: (a) => <>Someone voted for your sketch of “{a.data.word}”</>, to: () => '/sketch' },

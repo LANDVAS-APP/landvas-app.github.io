@@ -26,6 +26,7 @@ import { useCelebration } from './ClaimCelebration';
 import { PlotKindControl } from '../inkborn/PlotKindPicker';
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
+const useBizAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'business', gx, gy], queryFn: () => api.bizForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
@@ -195,7 +196,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' ? k : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' ? k : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -215,7 +216,8 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   // what the new plot becomes is the player's choice; a habitat is the same plot at the same price
   const becomeHabitat = async (groupId: string) => {
     if (kind === 'canvas') return null;
-    try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; } return g.habitat_id ?? null; }
+    try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; }
+      if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; } return g.habitat_id ?? null; }
     catch (e) { toast.error(toGameError(e).message); return null; }
   };
   const run = async () => {
@@ -294,11 +296,12 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
     { k: 'canvas' as const, icon: '🎨', title: 'Art Canvas', body: 'Paint and publish artwork', color: '#7B5CFF' },
     { k: 'habitat' as const, icon: '🌳', title: 'Inkborn Habitat', body: 'A sanctuary for your creatures', color: '#3DDC97' },
     { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
+    { k: 'business' as const, icon: '🍋', title: 'Business', body: 'Lemonade stand to corporation', color: '#D4A500' },
   ];
   return (
     <div className="grid gap-1.5" data-testid="plot-kind-choice">
       <div className="text-xs font-bold text-muted">What should this plot become?</div>
-      <div className="grid grid-cols-3 gap-2" role="radiogroup">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup">
         {opts.map((o) => (
           <motion.button key={o.k} type="button" role="radio" aria-checked={kind === o.k} whileTap={{ scale: 0.96 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
             className={cn('grid gap-0.5 rounded-2xl border-2 p-2.5 text-left transition', kind === o.k ? 'bg-surface-2' : 'border-line bg-surface/40 opacity-75')}
@@ -309,6 +312,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           </motion.button>
         ))}
       </div>
+      {kind === 'business' && <p className="text-[11px] text-muted">Same price and rent. Start with a lemonade stand and grow an empire that earns while you’re away. Every business plot you own adds 10% to all your income.</p>}
       {kind === 'farm' && <p className="text-[11px] text-muted">Same price and rent. A farm plot has 6 soil beds and every connected farm plot adds 4 more. Switch types any time without losing anything.</p>}
       {kind === 'habitat' && <p className="text-[11px] text-muted">Same price and rent. Merge neighbouring habitat plots to grow it: 1 plot is a small glade, 4 a woodland, 16 a big sanctuary. You can switch types any time without losing anything.</p>}
     </div>
@@ -426,12 +430,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
   };
   const hab = useHabitatAt(d.gx, d.gy, true).data;
   const farm = useFarmAt(d.gx, d.gy, true).data;
+  const biz = useBizAt(d.gx, d.gy, true).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
+        {biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
+          : farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
           : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
@@ -476,6 +482,17 @@ function UpgradeRow({ title, desc, cost, busy, onClick, balances }: { title: str
 function HabitatVisit({ d }: { d: PlotDetails }) {
   const hab = useHabitatAt(d.gx, d.gy, true).data;
   const farm = useFarmAt(d.gx, d.gy, true).data;
+  const biz = useBizAt(d.gx, d.gy, true).data;
+  if (biz) return (
+    <Link to={`/business/${biz.business_id}`} className="flex items-center gap-3 rounded-2xl border border-[#D4A500]/40 bg-[#FFE14D]/10 p-3 hover:border-[#D4A500]" data-testid="visit-business">
+      <span className="text-2xl">🍋</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">Business</div>
+        <div className="truncate text-sm font-semibold">{biz.name} · @{biz.owner.username}</div>
+      </div>
+      <span className="text-xs font-bold text-[#D4A500]">Buy a lemonade →</span>
+    </Link>
+  );
   if (farm) return (
     <Link to={`/farm/${farm.farm_id}`} className="flex items-center gap-3 rounded-2xl border border-[#E0A800]/40 bg-[#F5C842]/10 p-3 hover:border-[#E0A800]" data-testid="visit-farm">
       <span className="text-2xl">🌾</span>

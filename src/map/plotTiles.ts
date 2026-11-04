@@ -298,6 +298,29 @@ export function drawFarmPlot(ctx: CanvasRenderingContext2D, gx: number, gy: numb
   ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
 }
 
+/** A business plot from above: a shop front with a striped awning on a bit of pavement (taller towers on some). */
+export function drawBusinessPlot(ctx: CanvasRenderingContext2D, gx: number, gy: number, px: number, py: number, cs: number) {
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#D9D2C4'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#FFE14D'; ctx.fillRect(px + cs * 0.2, py + cs * 0.2, cs * 0.6, cs * 0.6); return; }
+  const tower = hash(gx, gy, 3) < 0.35 && cs >= 14;
+  const roofs = ['#F2E6D0', '#E8C55A', '#FF8A3D', '#7BD957', '#4FA8FF', '#B76BFF', '#ECE6DA'];
+  const m = cs * 0.1;
+  // the building (a roof seen from above)
+  ctx.fillStyle = tower ? '#5FB8FF' : roofs[Math.floor(hash(gx, gy, 4) * roofs.length)];
+  ctx.fillRect(px + m, py + m, cs - m * 2, cs * (tower ? 0.62 : 0.5));
+  if (tower) { ctx.fillStyle = 'rgba(255,255,255,0.45)'; for (let i = 1; i < 4; i++) ctx.fillRect(px + m, py + m + (cs * 0.62 * i) / 4, cs - m * 2, Math.max(0.6, cs * 0.02)); }
+  // the striped awning over the door
+  if (cs >= 10) {
+    const ay = py + m + cs * (tower ? 0.62 : 0.5), n = 6, aw = (cs - m * 2) / n;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? '#FFFFFF' : hash(gx, gy, 6) < 0.5 ? '#FFE14D' : '#E8433A'; ctx.fillRect(px + m + i * aw, ay, aw + 0.5, cs * 0.1); }
+    // a little lemonade stand on the pavement
+    if (!tower) { ctx.fillStyle = '#E2B46B'; ctx.fillRect(px + cs * 0.38, py + cs * 0.74, cs * 0.24, cs * 0.12); ctx.fillStyle = '#FFE14D'; ctx.beginPath(); ctx.arc(px + cs * 0.5, py + cs * 0.72, Math.max(1, cs * 0.05), 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.strokeStyle = 'rgba(212,165,0,0.9)'; ctx.lineWidth = Math.max(1, cs * 0.03);
+  ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+}
+
 async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number): Promise<ImageBitmap | ArrayBuffer | null> {
   const shift = GRID_LEVEL - z;
   if (shift < 0) return null;
@@ -305,12 +328,13 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   const bx0 = gx0 >> BLOCK_SHIFT, by0 = gy0 >> BLOCK_SHIFT, bn = Math.max(1, n >> BLOCK_SHIFT);
   const lists: PlotRow[][] = [];
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
-  const rows = lists.flat().filter((r) => (r[11] === 'habitat' || r[11] === 'farm') && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
+  const rows = lists.flat().filter((r) => (r[11] === 'habitat' || r[11] === 'farm' || r[11] === 'business') && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
   if (!rows.length) return null;
   const cs = PX / n;
   const ctx = ctx2d();
   for (const r of rows) {
-    if (r[11] === 'farm') drawFarmPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
+    if (r[11] === 'business') drawBusinessPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
+    else if (r[11] === 'farm') drawFarmPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
     else drawHabitatPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs, r[8] || '#7B5CFF');
   }
   return snapshot(canvas!);

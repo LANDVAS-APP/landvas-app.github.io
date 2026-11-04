@@ -1,0 +1,90 @@
+// A business game: the intro, a 3-2-1, the game, then your score, Ink and the cash it made.
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { api } from '../backend/api';
+import { toGameError } from '../backend/backend';
+import { invalidateGame } from '../lib/queries';
+import { useUi } from '../lib/store';
+import { Button, ResourceIcon, Spinner } from '../ui';
+import { confettiCannons } from '../ui/confetti';
+import { BIZ_ARENAS, BIZ_HOW } from './games';
+import { bizKey } from './BusinessScreen';
+import { money } from './money';
+
+type Phase = { k: 'intro' } | { k: 'count'; n: number; session: string; seed: number; seconds: number } | { k: 'play'; session: string; seed: number; seconds: number }
+  | { k: 'done'; score: number; paid: number; capped: boolean; best: number | null; cash: number };
+
+export default function BusinessGame() {
+  const { id, game } = useParams();
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  const haptics = useUi((s) => s.settings.haptics);
+  const reduce = useUi((s) => s.settings.reduceMotion);
+  const f = useQuery({ queryKey: bizKey(id!), queryFn: () => api.bizGet(id!), staleTime: Infinity });
+  const [phase, setPhase] = useState<Phase>({ k: 'intro' });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setPhase({ k: 'intro' }); }, [game]);
+  const info = f.data?.games[game!];
+  const Arena = BIZ_ARENAS[game!];
+  const back = () => nav(`/business/${id}`);
+  const start = async () => {
+    setBusy(true);
+    try { const r = await api.bizGameStart(id!, game!); setPhase({ k: 'count', n: 3, session: r.session, seed: r.seed, seconds: r.seconds }); }
+    catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  useEffect(() => {
+    if (phase.k !== 'count') return;
+    const t = setTimeout(() => setPhase(phase.n > 1 ? { ...phase, n: phase.n - 1 } : { k: 'play', session: phase.session, seed: phase.seed, seconds: phase.seconds }), 700);
+    return () => clearTimeout(t);
+  }, [phase]);
+  const finish = async (session: string, score: number) => {
+    try {
+      const r = await api.bizGameFinish(session, score);
+      invalidateGame(qc); void qc.invalidateQueries({ queryKey: bizKey(id!) });
+      if (r.paid > 0) confettiCannons();
+      setPhase({ k: 'done', score: r.score, paid: r.paid, capped: r.capped, best: r.best, cash: r.cash ?? 0 });
+    } catch (e) { toast.error(toGameError(e).message); setPhase({ k: 'done', score, paid: 0, capped: false, best: null, cash: 0 }); }
+  };
+  if (f.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#8FD3FF]"><Spinner /></div>;
+  if (!info || !Arena) return <div className="fixed inset-0 grid place-content-center gap-3 bg-[#6CB84A] p-6 text-center text-white"><p>That game doesn’t exist.</p><Button onClick={back}>Back to the business</Button></div>;
+  if (phase.k === 'play') return <Arena key={phase.session} seed={phase.seed} seconds={phase.seconds} haptics={haptics} reduce={reduce} onEnd={(sc) => void finish(phase.session, sc)} />;
+  return (
+    <div className="fixed inset-0 overflow-y-auto text-white" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #FFE14D 0%, #2E9E4E 80%)' }} data-testid="biz-game">
+      <div className="mx-auto grid min-h-full max-w-md content-center gap-4 p-5 pb-[max(20px,env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]">
+        <button onClick={back} className="flex w-fit items-center gap-1 rounded-full bg-black/25 px-3 py-1.5 text-sm font-bold"><ArrowLeft className="h-4 w-4" /> Back to the business</button>
+        <AnimatePresence mode="wait">
+          {phase.k === 'intro' && (
+            <motion.div key="intro" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} className="grid justify-items-center gap-3 text-center">
+              <div className="text-7xl">{info.emoji}</div>
+              <h1 className="font-display text-3xl font-bold">{info.name}</h1>
+              <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-xs font-bold uppercase">{info.dim} · {info.seconds} seconds</span>
+              <p className="rounded-2xl bg-black/25 p-3 text-sm text-white/90">{BIZ_HOW[game!]}</p>
+              <p className="text-[11px] text-white/75">Pays up to {info.max_ink} Ink a round (business Ink is capped a day), plus cash for your company — a good round is worth minutes of income.</p>
+              <Button variant="rainbow" size="lg" loading={busy} onClick={start} data-testid="biz-game-start"><Play className="h-5 w-5" /> Play</Button>
+            </motion.div>
+          )}
+          {phase.k === 'count' && <motion.div key={`c${phase.n}`} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="py-24 text-center font-display text-8xl font-black">{phase.n}</motion.div>}
+          {phase.k === 'done' && (
+            <motion.div key="done" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="grid justify-items-center gap-3 text-center" data-testid="biz-game-done">
+              <div className="text-6xl">{info.emoji}</div>
+              <div className="text-sm uppercase tracking-widest text-white/75">Score</div>
+              <div className="font-display text-6xl font-black">{phase.score}</div>
+              {phase.best != null && <div className="text-xs text-white/75">Best: {phase.best}</div>}
+              <div className="flex items-center gap-2 rounded-2xl bg-black/25 px-4 py-2 text-lg font-bold"><ResourceIcon r="ink" className="h-5 w-5" /> +{phase.paid} Ink</div>
+              <div className="rounded-2xl bg-black/20 px-4 py-1.5 text-sm font-bold">💵 +{money(phase.cash)} for your company</div>
+              {phase.capped && <p className="text-xs text-white/80">You’ve hit today’s business Ink limit — it resets tomorrow (you still get the cash).</p>}
+              <div className="flex gap-2">
+                <Button variant="rainbow" onClick={() => setPhase({ k: 'intro' })} data-testid="biz-game-again"><RotateCcw className="h-4 w-4" /> Again</Button>
+                <Button variant="secondary" onClick={back}>Back to the business</Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}

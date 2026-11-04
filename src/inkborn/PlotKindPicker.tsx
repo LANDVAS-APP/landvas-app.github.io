@@ -3,7 +3,7 @@
 // remembers who lived there — so switching back brings it all back.
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { ArrowRight, Brush, PawPrint, ShieldCheck, TreePine, Wheat } from 'lucide-react';
+import { ArrowRight, Brush, Citrus, PawPrint, ShieldCheck, TreePine, Wheat } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,9 +17,10 @@ import { drawHabitatPlot } from '../map/plotTiles';
 import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
 
-type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; name: string };
+type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; name: string };
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
+  if (kind === 'business') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE14D]/20 px-2 py-0.5 text-[11px] font-bold text-[#D4A500]"><Citrus className="h-3 w-3" /> Business</span>;
   if (kind === 'farm') return <span className="inline-flex items-center gap-1 rounded-full bg-[#F5C842]/20 px-2 py-0.5 text-[11px] font-bold text-[#E0A800]"><Wheat className="h-3 w-3" /> Farm</span>;
   return kind === 'habitat'
     ? <span className="inline-flex items-center gap-1 rounded-full bg-[#3DDC97]/15 px-2 py-0.5 text-[11px] font-bold text-[#3DDC97]"><PawPrint className="h-3 w-3" /> Inkborn Habitat</span>
@@ -108,6 +109,35 @@ function FarmPreview() {
   return <canvas ref={ref} width={160} height={110} className="h-[110px] w-[160px] rounded-2xl shadow-lg" />;
 }
 
+function BusinessPreview() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const g = ref.current!.getContext('2d')!;
+    let raf = 0; const t0 = performance.now();
+    const shops = ['🍋', '🍪', '🚚', '☕', '🏨', '🏦', '🚀'];
+    const frame = (now: number) => {
+      const t = (now - t0) / 1000;
+      g.fillStyle = '#9AD8FF'; g.fillRect(0, 0, 160, 110); g.fillStyle = '#3C4150'; g.fillRect(0, 84, 160, 26); g.fillStyle = '#D9D2C4'; g.fillRect(0, 76, 160, 8);
+      // the street grows: a new business every second
+      const n = Math.min(shops.length, 1 + Math.floor((t % 9) / 1.1));
+      for (let i = 0; i < n; i++) {
+        const x = 8 + i * 21, h = 18 + i * 7;
+        g.fillStyle = ['#FFE14D', '#C27C4E', '#FF8A3D', '#F2E6D0', '#E8DCC6', '#ECE6DA', '#F5F5F5'][i]; g.fillRect(x, 76 - h, 18, h);
+        g.font = '12px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(shops[i], x + 9, 76 - h - 7);
+      }
+      // cash floating up
+      for (let k = 0; k < 4; k++) { const p = ((t * 0.7 + k * 0.25) % 1); g.globalAlpha = 1 - p; g.font = '11px system-ui'; g.fillText('💵', 20 + k * 36, 60 - p * 50); }
+      g.globalAlpha = 1;
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.roundRect(44, 4, 72, 18, 9); g.fill(); g.fillStyle = '#B8F5A0'; g.font = '900 11px ui-rounded, system-ui';
+      g.fillText(`$${Math.floor(12 * 1.9 ** (t % 9)).toLocaleString()}`, 80, 13);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <canvas ref={ref} width={160} height={110} className="h-[110px] w-[160px] rounded-2xl shadow-lg" />;
+}
+
 export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean; onOpenChange(v: boolean): void }) {
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -129,6 +159,9 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       if (choice === 'habitat') {
         toast.success(`${g.name} is now an Inkborn Habitat`, { description: 'A little woodland has grown on your plot.' });
         if (r.habitat_id) nav(`/habitat/${r.habitat_id}`);
+      } else if (choice === 'business') {
+        toast.success(`${g.name} is now a Business 🍋`, { description: 'Your lemonade stand is open!' });
+        if (r.business_id) nav(`/business/${r.business_id}`);
       } else if (choice === 'farm') {
         toast.success(`${g.name} is now a Farm 🌾`, { description: 'Fresh soil beds are ready to plant.' });
         if (r.farm_id) nav(`/farm/${r.farm_id}`);
@@ -141,13 +174,15 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
     { k: 'habitat', title: 'Inkborn Habitat', body: 'Build a living biome and raise creatures.', color: '#3DDC97', icon: <TreePine className="h-4 w-4" />, preview: <HabitatPreview />,
       perks: ['A woodland sanctuary you can walk around', `Room for ${3 + 2 * (g.plot_count - 1)} Inkborn here`, 'Decorate with trees, nests and lanterns', 'Merge habitats into a bigger sanctuary'] },
     { k: 'farm', title: 'Farm', body: 'Grow crops, harvest, sell and play farm games.', color: '#E0A800', icon: <Wheat className="h-4 w-4" />, preview: <FarmPreview />,
-      perks: [`${Math.min(48, 6 + 4 * (g.plot_count - 1))} soil beds in a 3D farmyard`, '8 crops, from 3-minute carrots to golden melons', 'Sell your harvest at the market for Ink', '4 farm games (2D and 3D)'] },
+      perks: [`${Math.min(48, 6 + 4 * (g.plot_count - 1))} soil beds in a 3D farmyard`, 'Farm levels, buildings, a kitchen and orders', 'Daily chores and a tractor to drive', '6 farm games (2D and 3D)'] },
+    { k: 'business', title: 'Business', body: 'Start with a lemonade stand and build a corporation.', color: '#D4A500', icon: <Citrus className="h-4 w-4" />, preview: <BusinessPreview />,
+      perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange} wide title={step === 'pick' ? 'What should this land become?' : 'Before you switch'} description={step === 'pick' ? `${g.name} · ${g.plot_count} plot${g.plot_count === 1 ? '' : 's'}` : undefined}>
       {step === 'pick' ? (
         <div className="grid gap-4" data-testid="plot-kind-dialog">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {cards.map((c) => (
               <motion.button key={c.k} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setChoice(c.k)} aria-pressed={choice === c.k} data-testid={`kind-${c.k}`}
                 className={cn('relative grid justify-items-center gap-2 overflow-hidden rounded-3xl border-2 p-4 text-center transition', choice === c.k ? 'bg-surface-2' : 'border-line bg-surface/40')}
@@ -164,14 +199,22 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
             <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
             {choice === cur ? (
               cur === 'habitat' && g.habitat_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/habitat/${g.habitat_id}`); }}>Enter sanctuary <ArrowRight className="h-4 w-4" /></Button>
+                : cur === 'business' && g.business_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/business/${g.business_id}`); }}>Open business <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'farm' && g.farm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/farm/${g.farm_id}`); }}>Enter farm <ArrowRight className="h-4 w-4" /></Button>
                 : <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/create/${g.id}`); }}>Keep painting <ArrowRight className="h-4 w-4" /></Button>
-            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {choice === 'habitat' ? 'a Habitat' : choice === 'farm' ? 'a Farm' : 'an Art Canvas'} <ArrowRight className="h-4 w-4" /></Button>}
+            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {choice === 'habitat' ? 'a Habitat' : choice === 'farm' ? 'a Farm' : choice === 'business' ? 'a Business' : 'an Art Canvas'} <ArrowRight className="h-4 w-4" /></Button>}
           </div>
         </div>
       ) : (
         <div className="grid gap-3 text-sm" data-testid="plot-kind-confirm">
-          {choice === 'farm' ? (
+          {choice === 'business' ? (
+            <ul className="grid gap-2">
+              <li>🍋 <b>{g.name}</b> becomes a business, starting with a lemonade stand. On the map it shows as a little shop front instead of your painting.</li>
+              <li>🏢 Your business empire is yours, not the plot’s: every business plot you own adds 10% to all of it.</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was{cur === 'habitat' ? ', and your creatures wait safely in your starter sanctuary' : ''}.</li>
+              <li>🖌️ While it’s a business you can’t paint or publish art here.</li>
+            </ul>
+          ) : choice === 'farm' ? (
             <ul className="grid gap-2">
               <li>🌾 <b>{g.name}</b> becomes a farm with {Math.min(48, 6 + 4 * (g.plot_count - 1))} soil beds. On the map it shows as rows of crops instead of your painting.</li>
               <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was{cur === 'habitat' ? ', and your creatures wait safely in your starter sanctuary' : ''}.</li>
@@ -193,7 +236,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
           <p className="flex items-center gap-2 rounded-2xl bg-ok/10 p-3 text-xs text-ok"><ShieldCheck className="h-4 w-4 shrink-0" /> Switching costs 20 Ink (free for a plot you’ve just claimed). It doesn’t change your rent or plot ownership, and nothing is lost.</p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
-            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : 'Art Canvas'}</Button>
+            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : choice === 'business' ? 'Business' : 'Art Canvas'}</Button>
           </div>
         </div>
       )}
