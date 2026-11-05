@@ -6,12 +6,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, BookHeart, Check, DoorOpen, Lock, Paintbrush, RotateCw, Trash2, Volume2, VolumeX } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
-import type { ExplorerStyle, HomeData, HomeGame, HomeLive, HomePlaced, HomeStyleData } from '../backend/types';
+import type { ExplorerStyle, HomeData, HomeGame, HomeLive, HomePlaced, HomeStyleData, PlanetChatMsg } from '../backend/types';
+import { PlanetChatBox } from '../space/PlanetChat';
 import { TRACKS, music } from '../arcade/music';
 import { GuestBook } from './GuestBook';
 import { PartyGame } from './party/PartyGame';
@@ -79,7 +80,7 @@ export default function HomeScreen() {
 
 type Prof = { achievements?: { icon?: string; unlocked_at?: string | null }[]; gallery?: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] } | undefined;
 
-function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void) {
+function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
   const [live, setLive] = useState<HomeLive | null>(null);
   const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
   const recRef = useRef(onRec); recRef.current = onRec;
@@ -92,6 +93,7 @@ function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefOb
       const m = raw as { t: string; id: string; x: number; z: number; f: number; rec?: string };
       if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f);
       if (m?.t === 'rec' && typeof m.rec === 'string') recRef.current(m.rec, m.id);
+      if (m?.t === 'chat' && members.has(m.id)) chatRef.current?.((raw as { m: unknown }).m);
     };
     const beat = async () => {
       if (stopped) return;
@@ -120,6 +122,33 @@ function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefOb
     return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); void api.homeLeave().catch(() => {}); };
   }, [hostId, myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return { live, refresh: () => api2.current.refresh(), send: (m: unknown) => api2.current.send(m) };
+}
+
+/** chat for everyone in the house: a chat box, and speech bubbles over whoever said it */
+function useHomeChat(home: string, myId: string | undefined, scene: { current: HomeScene | null }, send: (m: unknown) => void) {
+  const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
+  const [unread, setUnread] = useState(0);
+  const last = useRef(0), seen = useRef(new Set<number>()), first = useRef(true), open = useRef(false);
+  const add = useCallback((list: PlanetChatMsg[], bubbles: boolean, fromList = false) => {
+    const fresh = list.filter((m) => m && typeof m.id === 'number' && !seen.current.has(m.id) && typeof m.body === 'string' && m.player?.id);
+    if (!fresh.length) return;
+    for (const m of fresh) { seen.current.add(m.id); if (fromList) last.current = Math.max(last.current, m.id); if (bubbles) scene.current?.say(m.player.id === myId ? 'me' : m.player.id, m.body); }
+    setMsgs((cur) => [...cur, ...fresh].sort((a, b) => a.id - b.id).slice(-40));
+    if (!open.current) setUnread((u) => u + fresh.filter((m) => m.player.id !== myId).length);
+  }, [scene, myId]);
+  useEffect(() => {
+    if (!myId) return;
+    let stop = false;
+    const tick = async () => { try { const r = await api.homeChatList(home, last.current); if (!stop) { add(r.items, !first.current, true); first.current = false; } } catch { /* next time */ } };
+    const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(tick, 6000);
+    return () => { stop = true; clearTimeout(t0); clearInterval(t); };
+  }, [home, myId, add]);
+  return {
+    msgs, unread,
+    send: async (body: string) => { const m = await api.homeChatSend(home, body); add([m], true); send({ t: 'chat', id: myId, m }); return m; },
+    onChat: (m: unknown) => add([m as PlanetChatMsg], true),
+    setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
+  };
 }
 
 function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
@@ -175,10 +204,13 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
     hall.current?.setHome({ style: h.style, layout: startLayout, doors, art, achievements, inkborn: h.inkborn });
   }, [h, startLayout, doors, art, achievements, edit]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const chatIn = useRef<((m: unknown) => void) | null>(null);
   const room = useHomeLive(host.id, me?.user_id, hall, (id, by) => {
     setRec(id); const who = room.live?.members.find((m) => m.id === by);
     if (who) toast(`🎶 @${who.username} put on ${id === 'off' ? 'silence' : TRACKS.find((t) => t.id === id)?.name ?? 'a record'}`, { duration: 2000 });
-  });
+  }, chatIn);
+  const chat = useHomeChat(host.id, me?.user_id, hall, room.send);
+  chatIn.current = chat.onChat;
   const live = room.live;
   const here = (live?.members.length ?? 0) + 1;
   // the host started your table: in you go
@@ -281,6 +313,9 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         <div className="pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+118px)] z-20 flex justify-center px-3">
           {lobby ? <TableLobby t={lobby} myId={me.user_id} onChange={room.refresh} /> : invite && <TableInvite t={invite} onJoined={room.refresh} />}
         </div>
+      )}
+      {!edit && !game && !guests && (
+        <PlanetChatBox chat={chat} myId={me?.user_id} className="absolute bottom-[104px] left-3 z-20" title="House chat" sub={`${here} here`} placeholder="Say something to the house…" empty="Say hi to everyone here 👋" notHere="One moment — still stepping inside…" />
       )}
       {picker && <GamePicker home={host.id} here={here} onClose={() => setPicker(false)} onMade={room.refresh} />}
       {game && me && <PartyGame game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />}

@@ -374,6 +374,26 @@ export function createHome(o: HomeOpts) {
   };
   const moveOther = (id: string, x: number, z: number, face?: number) => { const ot = others.get(id); if (!ot) return; ot.tx = x; ot.tz = z; ot.fresh = performance.now(); if (face) ot.face = face; };
 
+  // speech bubbles over whoever's talking
+  const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
+  const say = (id: string, text: string) => {
+    const old = bubbles.get(id); if (old) { scene.remove(old.s); old.s.material.map?.dispose(); old.s.material.dispose(); }
+    const c = document.createElement('canvas'); c.width = 512; c.height = 160; const g = c.getContext('2d')!;
+    g.font = '600 30px ui-rounded, system-ui, sans-serif';
+    const words = text.split(/\s+/), lines: string[] = []; let cur = '';
+    for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (g.measureText(t).width > 440 && cur) { lines.push(cur); cur = w; } else cur = t; }
+    if (cur) lines.push(cur);
+    const ls = lines.slice(0, 3); if (lines.length > 3) ls[2] = ls[2].slice(0, -1) + '…';
+    const w = Math.min(490, Math.max(...ls.map((l) => g.measureText(l).width)) + 40), h = ls.length * 36 + 26;
+    g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect((512 - w) / 2, 4, w, h, 22); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(240, h + 3); g.lineTo(256, h + 22); g.lineTo(272, h + 3); g.fill();
+    g.fillStyle = '#1C1512'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    ls.forEach((l, i) => g.fillText(l, 256, 4 + 13 + 18 + i * 36));
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false })); sp.center.set(0.5, 0); sp.scale.set(1.9, 1.9 * (160 / 512), 1); sp.renderOrder = 6;
+    scene.add(sp); bubbles.set(id, { s: sp, until: performance.now() + 5500 + text.length * 40 });
+  };
   let critters: Critter[] = [];
   const hearts: { s: THREE.Sprite; t: number; vx: number }[] = [];
   const heartTex = kit.canvasTex(64, 64, (g) => { g.font = '48px system-ui, "Apple Color Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('💗', 32, 36); });
@@ -569,7 +589,7 @@ export function createHome(o: HomeOpts) {
     }
     if (ray.ray.intersectPlane(plane, hit)) go(hit.x, hit.z);
   };
-  const kd = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.tagName === 'INPUT') return; const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
+  const kd = (e: KeyboardEvent) => { const tg = (e.target as HTMLElement)?.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA') return; const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
   const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (['a', 'd', 'arrowleft', 'arrowright'].includes(k)) P.keys.x = 0; if (['w', 's', 'arrowup', 'arrowdown'].includes(k)) P.keys.z = 0; };
   o.canvas.addEventListener('pointerdown', pd); window.addEventListener('pointermove', pm); window.addEventListener('pointerup', pu); window.addEventListener('pointercancel', pu);
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
@@ -693,6 +713,12 @@ export function createHome(o: HomeOpts) {
         c.tx.needsUpdate = true;
       }
     }
+    for (const [id, b] of bubbles) {
+      const who = id === 'me' ? { x: P.x, z: P.z } : others.get(id);
+      const left = b.until - performance.now();
+      if (!who || left <= 0) { scene.remove(b.s); b.s.material.map?.dispose(); b.s.material.dispose(); bubbles.delete(id); continue; }
+      b.s.position.set(who.x, 1.45 + (id === 'me' ? 0 : 0.18), who.z); b.s.material.opacity = Math.min(1, left / 400);
+    }
     for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i]; h.t += dt; h.s.position.y += dt * 0.8; h.s.position.x += h.vx * dt; h.s.material.opacity = Math.max(0, 1 - h.t / 1.2); if (h.t > 1.2) { scene.remove(h.s); h.s.material.dispose(); hearts.splice(i, 1); } }
     // furniture comes alive
     if (!o.reduceMotion) for (const it of items) it.built.tick?.(t, dt);
@@ -737,7 +763,7 @@ export function createHome(o: HomeOpts) {
       else if (s.kind === 'art') go(artSpots[s.i].x, artSpots[s.i].z);
       else { const it = items.find((x) => x.p.i === s.id); if (it) { const [w, d] = rot(it.p); const sm = ITEM[it.p.i]?.small; const base = sm ? items.find((b) => ITEM[b.p.i]?.top && Math.abs(b.p.x - it.p.x) < 1 && Math.abs(b.p.z - it.p.z) < 1) : null; const bd = base ? rot(base.p)[1] : d; go(it.p.x, (base ? base.p.z : it.p.z) + bd / 2 + 0.45); void w; } }
     },
-    setOthers, moveOther,
+    setOthers, moveOther, say,
     pose: () => ({ x: P.x, z: P.z, face: P.face }),
     setPaused(p: boolean) { paused = p; },
     debug: () => ({ P: { x: P.x, z: P.z }, near, items: items.length, sel, editing, critters: critters.map((c) => ({ x: c.x, z: c.z, st: c.st })), others: [...others.keys()], path: P.path.length }),

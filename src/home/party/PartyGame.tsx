@@ -1,6 +1,6 @@
 // A house party game, full screen. The host's device keeps the game and checks every move; it sends the game to
 // everyone whenever it changes (and every couple of seconds anyway); everyone else sends their moves. At the end the
-// host reports the places and the server pays a few tickets.
+// host reports the places and the server pays a little Ink (up to 100 a day).
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +8,7 @@ import { api } from '../../backend/api';
 import { getBackend, toGameError } from '../../backend/backend';
 import type { HomeGame } from '../../backend/types';
 import { cn } from '../../lib/utils';
-import { Button, PlayerAvatar } from '../../ui';
+import { Button, PlayerAvatar, ResourceIcon } from '../../ui';
 import { sfx } from '../../arcade/sfx';
 import { PARTY } from './games';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
@@ -139,11 +139,12 @@ function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: string; 
             <div key={p.id} className={cn('flex items-center gap-2 rounded-xl px-2 py-2 text-sm', p.id === myId ? 'bg-white/20' : 'bg-white/10')}>
               <b className="w-6 text-center">{p.place === 1 ? '👑' : p.place}</b><PlayerAvatar p={p} size={24} />
               <span className="min-w-0 flex-1 truncate font-bold">{p.id === myId ? 'You' : `@${p.username}`}</span>
-              <span className="lv-arc-ticket text-[11px]">+{p.tickets} 🎟️</span>
+              <span className="flex items-center gap-1 text-sm font-black text-[#7DFFB2]" data-testid="party-ink"><ResourceIcon r="ink" className="h-4 w-4" />+{p.ink}</span>
             </div>
           ))}
         </div>
-        {(g.result?.boost ?? 1) > 1 && <p className="text-xs text-[#7DFFB2]">🎉 Party of {g.result?.players}: +{Math.round(((g.result?.boost ?? 1) - 1) * 100)}% tickets</p>}
+        {(g.result?.boost ?? 1) > 1 && <p className="text-xs text-[#7DFFB2]">🎉 Party of {g.result?.players}: +{Math.round(((g.result?.boost ?? 1) - 1) * 100)}% Ink</p>}
+        {me && !me.ink && <p className="max-w-xs text-center text-[11px] text-white/60">House games pay up to 100 Ink a day, to accounts at least a day old that own land.</p>}
         <Button variant="rainbow" onClick={onClose} data-testid="party-close">Back to the party</Button>
       </div>
     </motion.div>
