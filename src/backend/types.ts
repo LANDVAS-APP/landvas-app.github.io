@@ -185,6 +185,13 @@ export type FriendsList = {
 };
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
 /** A player's places, for their profile. */
+export type ArcadeMember = Profile & { explorer_style?: unknown; x: number; z: number; playing: string | null };
+export type ArcadeMatchPlayer = Profile & { explorer_style?: unknown; score: number | null; finished: boolean; bonus: number; session: string | null };
+export type ArcadeMatch = {
+  id: string; arcade_id: string; game: string; mode: 'versus' | 'team'; status: 'lobby' | 'playing' | 'done' | 'cancelled'; host: string;
+  seed: number | null; target: number | null; created_at: string; started_at: string | null; server_time: string; players: ArcadeMatchPlayer[]; level: number;
+};
+export type ArcadeLive = { arcade_id: string; shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_arcade: number; lobbies: ArcadeMatch[]; match: ArcadeMatch | null };
 export type PlayerPlaces = {
   arcades: { id: string; name: string; plots: number; level: number; plays: number; neon: string; machines: number; emojis: string[]; rarity: string | null; playing: number }[];
   habitats: { id: string; name: string; plots: number; starter: boolean; residents: number; genomes: unknown[]; rarity: string | null }[];

@@ -482,6 +482,39 @@ export function createHall(o: HallOpts) {
     });
   };
 
+  // ---- other visitors: live players in the same room, gliding to where they last said they were ---------------
+  type Other = { s: THREE.Sprite; tex: THREE.Texture; tag: THREE.Sprite; badge: THREE.Sprite; x: number; z: number; tx: number; tz: number; face: number; walk: number; playing: string | null; fresh: number };
+  const others = new Map<string, Other>();
+  const nameTag = (name: string) => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 56; const g = c.getContext('2d')!;
+    g.font = '800 26px ui-rounded, system-ui, sans-serif'; const w = Math.min(250, g.measureText(name).width + 24);
+    g.fillStyle = 'rgba(10,6,30,0.75)'; g.beginPath(); g.roundRect((256 - w) / 2, 6, w, 42, 21); g.fill();
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, 128, 28);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false })); sp.scale.set(1.3, 0.28, 1); sp.renderOrder = 5; return sp;
+  };
+  const setOthers = (list: { id: string; url: string; name: string; x: number; z: number; playing?: string | null }[]) => {
+    const keep = new Set(list.map((o) => o.id));
+    for (const [id, o] of others) if (!keep.has(id)) { scene.remove(o.s, o.tag, o.badge); o.tex.dispose(); o.s.material.dispose(); o.tag.material.map?.dispose(); o.tag.material.dispose(); others.delete(id); }
+    for (const it of list) {
+      let o = others.get(it.id);
+      if (!o) {
+        const tex = new THREE.TextureLoader().load(it.url); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping;
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 })); sp.center.set(0.5, 0); sp.scale.set(1.3 * (46 / 68), 1.3, 1);
+        const tag = nameTag(it.name), badge = emojiSprite('🎮', 0.4); badge.visible = false;
+        scene.add(sp, tag, badge);
+        o = { s: sp, tex, tag, badge, x: it.x, z: it.z, tx: it.x, tz: it.z, face: 1, walk: 0, playing: null, fresh: 0 };
+        others.set(it.id, o);
+      }
+      // the heartbeat's position is a few seconds old: only use it when the live stream has gone quiet
+      if (performance.now() - o.fresh > 3000) { o.tx = it.x; o.tz = it.z; o.playing = it.playing ?? null; }
+    }
+  };
+  const moveOther = (id: string, x: number, z: number, face?: number, playing?: string | null) => {
+    const o = others.get(id); if (!o) return;
+    o.tx = x; o.tz = z; o.fresh = performance.now(); if (face) o.face = face; if (playing !== undefined) o.playing = playing;
+  };
+
   // ---- walking: a drag is a joystick, a tap walks you there (round the rows) -------------------------------------
   const solids = () => {
     const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
@@ -627,6 +660,16 @@ export function createHall(o: HallOpts) {
     const hc = hotId ? cabs.get(hotId) : null;
     hotFx.visible = !!hc; if (hc) hotFx.position.set(hc.g.position.x, 3.85 + Math.sin(t * 3) * 0.1, hc.g.position.z + 0.2);
     for (const r of regulars) r.s.position.y = o.reduceMotion ? 0 : Math.abs(Math.sin(t * 3 + r.bob)) * 0.04;
+    for (const ot of others.values()) {
+      const dx = ot.tx - ot.x, dz = ot.tz - ot.z, d = Math.hypot(dx, dz);
+      // far jumps (they just arrived, or warped) snap; small ones glide at walking speed
+      if (d > 6) { ot.x = ot.tx; ot.z = ot.tz; } else if (d > 0.02) { const s2 = Math.min(d, 5 * dt); ot.x += (dx / d) * s2; ot.z += (dz / d) * s2; ot.walk += dt * 10; if (Math.abs(dx) > 0.02) ot.face = dx > 0 ? 1 : -1; }
+      const moving = d > 0.02;
+      ot.s.position.set(ot.x, moving && !o.reduceMotion ? Math.abs(Math.sin(ot.walk)) * 0.08 : 0, ot.z);
+      ot.tex.repeat.x = ot.face; ot.tex.offset.x = ot.face < 0 ? 1 : 0;
+      ot.tag.position.set(ot.x, 1.55, ot.z);
+      ot.badge.visible = !!ot.playing; ot.badge.position.set(ot.x + 0.35, 1.25 + Math.sin(t * 4) * 0.05, ot.z);
+    }
     if (!o.reduceMotion) {
       pl.forEach((l, i) => { l.intensity = (phone ? 22 : 26) * (0.85 + 0.15 * Math.sin(t * 1.3 + i * 1.7)); });
       if (lights !== 'steady') { const on = Math.floor(t * 12); bulbs.forEach((b, i) => { b.material = (i + on) % 4 === 0 ? bulbOn : bulbOff; }); }
@@ -666,12 +709,14 @@ export function createHall(o: HallOpts) {
     zoomOut() { zoom.on = false; zoom.resolve = null; near = null; },
     walkTo(s: HallSpot) { if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else go(bonusSpot.x, bonusSpot.z); },
     setPaused(p: boolean) { paused = p; },
-    debug: () => ({ P: { x: P.x, z: P.z }, near, cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length }),
+    setOthers, moveOther,
+    /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),
+    debug: () => ({ P: { x: P.x, z: P.z }, near, cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
-      setRegulars([]); setShelf([]);
+      setRegulars([]); setShelf([]); setOthers([]);
       floorMat.map?.dispose(); signMat.map?.dispose(); hotFx.material.map?.dispose(); hotFx.material.dispose();
       for (const x of bag) x.dispose();
       renderer.dispose();

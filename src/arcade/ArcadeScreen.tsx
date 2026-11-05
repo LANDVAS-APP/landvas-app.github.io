@@ -11,7 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { Arcade, ArcadeCosmetic, ArcadeFinish, ArcadeMe, ArcadeMode, ExplorerStyle } from '../backend/types';
+import type { Arcade, ArcadeCosmetic, ArcadeFinish, ArcadeMatch, ArcadeMe, ArcadeMode, ExplorerStyle } from '../backend/types';
 import { explorerSvg } from '../explorer/character';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
@@ -22,6 +22,8 @@ import { ARENAS as ARENAS1, BONUS as BONUS1, ENDLESS as ENDLESS1, HOW as HOW1 } 
 import { ARENAS2, BONUS2, ENDLESS2, HOW2 } from './games2';
 import { createHall, type HallScene, type HallSpot } from './hall3d';
 import { music } from './music';
+import { InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, useArcadeLive } from './party';
+import { scoreBus } from './games';
 import { isMuted, setMuted, sfx } from './sfx';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
@@ -109,6 +111,24 @@ function ArcadeView({ a }: { a: Arcade }) {
   useEffect(() => { music.setDuck(!!playing); }, [playing]);
   useEffect(() => { hall.current?.setMusic(music.playing && !!music.current); }, [tune]);
   const hotGame = a.hot?.game && a.games[a.hot.game] && a.hot.game in a.machines ? a.games[a.hot.game] : null;
+  // together: the live room (others walking about), open lobbies and your match
+  const myId = me?.user_id;
+  const liveRoom = useArcadeLive({ arcadeId: a.id, myId, hall, playing });
+  const live = liveRoom.live;
+  const [matchOn, setMatchOn] = useState<ArcadeMatch | null>(null);
+  const handled = useRef(new Set<string>());
+  useEffect(() => {
+    // the host pressed Start: everyone in the match steps up to the cabinet together
+    const m = live?.match;
+    if (!m || m.status !== 'playing' || handled.current.has(m.id) || !myId) return;
+    const mine = m.players.find((p) => p.id === myId);
+    if (!mine?.session || mine.finished) return;
+    handled.current.add(m.id);
+    setMatchOn(m);
+    setSheet(null);
+    void (async () => { if (playing !== m.game) { hall.current?.walkTo({ kind: 'machine', id: m.game }); await hall.current?.zoomIn(m.game); } setPlaying(m.game); })();
+  }, [live?.match, myId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lobby = live?.match?.status === 'lobby' ? live.match : null;
 
   const refresh = (next?: Arcade) => { if (next) qc.setQueryData(arcadeKey(a.id), next); else void qc.invalidateQueries({ queryKey: arcadeKey(a.id) }); };
   const play = async (id: string) => {
@@ -116,7 +136,7 @@ function ArcadeView({ a }: { a: Arcade }) {
     await hall.current?.zoomIn(id);
     setPlaying(id);
   };
-  const stopPlaying = () => { setPlaying(null); hall.current?.zoomOut(); refresh(); };
+  const stopPlaying = () => { setPlaying(null); setMatchOn(null); hall.current?.zoomOut(); refresh(); };
   const daily = async () => {
     try {
       const r = await api.arcadeDaily();
@@ -142,6 +162,7 @@ function ArcadeView({ a }: { a: Arcade }) {
             <div className="h-full rounded-full bg-gradient-to-r from-[#FF3D9A] to-[#22E3FF]" style={{ width: a.level.max ? '100%' : `${(a.level.into / Math.max(1, a.level.need)) * 100}%` }} />
           </div>
           {!a.mine && <div className="mt-0.5 flex items-center gap-1 text-[10px] text-white/60"><PlayerAvatar p={a.owner} size={14} /> @{a.owner.username}’s arcade</div>}
+          {live && <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-[#3DDC97]" data-testid="arcade-here"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3DDC97]" /> {live.members.length + 1}/{live.room_size} in this room{live.in_arcade > live.members.length + 1 ? ` · ${live.in_arcade} in the arcade` : ''}</div>}
           {hotGame && <div className="mt-1 text-[10px] font-bold text-[#FFB13D]" data-testid="arcade-hot">🔥 Hot this hour: {hotGame.emoji} {hotGame.name} — ×{a.hot!.tickets} tickets</div>}
         </div>
         <div className="pointer-events-auto grid justify-items-end gap-1.5">
@@ -150,6 +171,11 @@ function ArcadeView({ a }: { a: Arcade }) {
           <button onClick={() => { setMuted(!mute); setMute(!mute); if (!mute) music.stop(false); else if (music.current) music.play(); }} className="rounded-xl bg-black/55 p-1.5" aria-label={mute ? 'Sound on' : 'Sound off'}>{mute ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
         </div>
       </div>
+      {!playing && live && myId && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+86px)] z-20 px-16">
+          <InviteBanner a={a} live={live} myId={myId} onJoined={() => liveRoom.refresh()} />
+        </div>
+      )}
       {/* side buttons */}
       {!playing && (
         <div className="absolute right-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+92px)] grid gap-2">
@@ -161,9 +187,14 @@ function ArcadeView({ a }: { a: Arcade }) {
       )}
       {/* what you're standing at */}
       <AnimatePresence>
-        {!playing && near && (
+        {!playing && lobby && myId && (
+          <motion.div key="lobby" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            <LobbyPanel a={a} m={lobby} myId={myId} onChange={() => liveRoom.refresh()} />
+          </motion.div>
+        )}
+        {!playing && !lobby && near && (
           <motion.div key={near.kind === 'machine' ? near.id : near.kind} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-            className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             {near.kind === 'machine' && nearGame && !nearLocked && (
               <button onClick={() => void play(near.id)} className="lv-arc-play flex items-center gap-3 rounded-3xl px-5 py-3 text-left shadow-2xl" style={{ background: `linear-gradient(135deg, ${nearGame.color}, #8B5CFF)`, boxShadow: `0 0 40px ${nearGame.color}` }} data-testid="arcade-play">
                 <span className="text-4xl">{nearGame.emoji}</span>
@@ -172,6 +203,7 @@ function ArcadeView({ a }: { a: Arcade }) {
                   {a.hot?.game === near.id && <span className="mt-0.5 block text-[11px] font-black text-[#FFE14D]">🔥 HOT — ×{a.hot.tickets} tickets this hour</span>}</span>
               </button>
             )}
+            {near.kind === 'machine' && nearGame && !nearLocked && myId && <MatchButtons arcade={a.id} game={near.id} onMatch={() => liveRoom.refresh()} />}
             {near.kind === 'machine' && nearGame && nearLocked && (
               <div className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3">
                 <Lock className="h-6 w-6 text-white/60" />
@@ -195,13 +227,14 @@ function ArcadeView({ a }: { a: Arcade }) {
             )}
           </motion.div>
         )}
-        {!playing && !near && (
+        {!playing && !near && !lobby && (
           <motion.div key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             <div className="rounded-full bg-black/60 px-4 py-2 text-xs text-white/80">Drag to walk · tap a machine to go to it{meState.bonus_ready ? ' · 🎟️ free tickets by the door!' : ''}</div>
           </motion.div>
         )}
       </AnimatePresence>
-      {playing && <Cabinet a={a} me={meState} game={playing} haptics={haptics} reduce={reduce} onExit={stopPlaying} onMe={setMeState} />}
+      {playing && <Cabinet a={a} me={meState} game={playing} haptics={haptics} reduce={reduce} onExit={stopPlaying} onMe={setMeState}
+        match={matchOn && matchOn.game === playing ? { m: live?.match?.id === matchOn.id ? live.match : matchOn, myId: myId!, scores: liveRoom.scores, send: (s) => liveRoom.send({ t: 'score', m: matchOn.id, id: myId!, s }) } : null} />}
       {sheet === 'prizes' && <PrizeCounter a={a} me={meState} onMe={setMeState} onClose={() => setSheet(null)} onShelf={() => refresh()} />}
       {sheet === 'scores' && <Scores a={a} me={meState} onClose={() => setSheet(null)} />}
       {sheet === 'jukebox' && <Jukebox onClose={() => setSheet(null)} muted={mute} onUnmute={() => { setMuted(false); setMute(false); }} />}
@@ -221,12 +254,40 @@ function InkMeter({ p }: { p: number }) {
   );
 }
 
-type Phase = { k: 'attract' } | { k: 'count'; n: number; session: string; seed: number; level: number } | { k: 'play'; session: string; seed: number; level: number } | { k: 'done'; r: ArcadeFinish | null; score: number };
-function Cabinet({ a, me, game, haptics, reduce, onExit, onMe }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void }) {
+type Phase = { k: 'attract' } | { k: 'count'; n: number; session: string; seed: number; level: number } | { k: 'play'; session: string; seed: number; level: number } | { k: 'done'; r: ArcadeFinish | null; score: number }
+  | { k: 'mwait' } | { k: 'mdone'; r: ArcadeFinish | null; score: number };
+type MatchCtx = { m: ArcadeMatch; myId: string; scores: Record<string, number>; send(score: number): void };
+function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void; match: MatchCtx | null }) {
   const qc = useQueryClient();
   const info = a.games[game];
   const Arena = ARENAS[game];
-  const [phase, setPhase] = useState<Phase>({ k: 'attract' });
+  const [phase, setPhase] = useState<Phase>(match ? { k: 'mwait' } : { k: 'attract' });
+  // a match: count down to the shared start time (the server's clock), then everyone plays the same round
+  const mId = match?.m.id;
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!match || phase.k !== 'mwait' || !match.m.started_at) return;
+    const offset = new Date(match.m.server_time).getTime() - Date.now();
+    const at = new Date(match.m.started_at).getTime();
+    const mine = match.m.players.find((p) => p.id === match.myId);
+    const t = setInterval(() => {
+      const ms = at - (Date.now() + offset);
+      const n = Math.ceil(ms / 1000);
+      setLeft((o) => { if (o !== n && n > 0) sfx.blip(n === 1 ? 12 : 0); return n; });
+      if (ms <= 0 && mine?.session) { clearInterval(t); setPhase({ k: 'play', session: mine.session, seed: match.m.seed!, level: match.m.level }); }
+    }, 100);
+    return () => clearInterval(t);
+  }, [mId, phase.k]); // eslint-disable-line react-hooks/exhaustive-deps
+  // stream your score to the others while you play
+  const [myScore, setMyScore] = useState(0);
+  const sendRef = useRef(match?.send); sendRef.current = match?.send;
+  useEffect(() => {
+    if (!match || phase.k !== 'play') return;
+    let lastSent = 0, pending: number | null = null;
+    const off = scoreBus.on((n) => { setMyScore(n); pending = n; const now = performance.now(); if (now - lastSent > 300) { lastSent = now; sendRef.current?.(n); pending = null; } });
+    const t = setInterval(() => { if (pending != null) { sendRef.current?.(pending); pending = null; lastSent = performance.now(); } }, 400);
+    return () => { off(); clearInterval(t); };
+  }, [mId, phase.k]); // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false);
   const [counted, setCounted] = useState(0);
   const [mode, setMode] = useState<ArcadeMode>('classic');
@@ -245,9 +306,10 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe }: { a: Arcade; me
     try {
       const r = await api.arcadeFinish(session, score);
       onMe(r.me); invalidateGame(qc);
+      if (match) { match.send(r.score); setPhase({ k: 'mdone', r, score: r.score }); return; }
       setCounted(0); setPhase({ k: 'done', r, score: r.score });
       if (r.new_record || r.level_up) confettiCannons();
-    } catch (e) { toast.error(toGameError(e).message); setPhase({ k: 'done', r: null, score }); }
+    } catch (e) { toast.error(toGameError(e).message); setPhase(match ? { k: 'mdone', r: null, score } : { k: 'done', r: null, score }); }
   };
   // tickets spill out, counted up one by one
   useEffect(() => {
@@ -266,8 +328,9 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe }: { a: Arcade; me
         <div className="lv-arc-marquee min-w-0 flex-1 truncate text-center text-xl">{info.emoji} {info.name}</div>
         <div className="lv-arc-ticket text-xs">🎟️ {tix(me.tickets)}</div>
       </div>
+      {match && <div className="mb-2 flex w-full justify-center"><MatchStrip m={match.m} scores={match.scores} myId={match.myId} myScore={phase.k === 'mdone' ? phase.score : myScore} /></div>}
       <div className="lv-arc-crt min-h-0 w-full max-w-[560px] flex-1">
-        {phase.k === 'play' && Arena && <Arena key={phase.session} seed={phase.seed} level={phase.level} mode={mode} haptics={haptics} reduce={reduce} onEnd={(s) => void finish(phase.session, s)} />}
+        {phase.k === 'play' && Arena && <Arena key={phase.session} seed={phase.seed} level={phase.level} mode={match ? 'classic' : mode} haptics={haptics} reduce={reduce} onEnd={(s) => void finish(phase.session, s)} />}
         {phase.k !== 'play' && (
           <div className="absolute inset-0 grid place-items-center overflow-y-auto p-5 text-center" style={{ background: `radial-gradient(120% 90% at 50% 10%, ${info.color}55, #05030C 70%)` }}>
             <AnimatePresence mode="wait">
@@ -291,6 +354,21 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe }: { a: Arcade; me
                     : <>YOUR BEST {me.best[game] ?? 0} · HIGH SCORE {a.boards[game]?.[0]?.score ?? 0}</>}</div>
                   <button onClick={start} disabled={busy} className="lv-arc-bigbtn !h-20 !w-auto !rounded-3xl px-8 text-lg" data-testid="arcade-start">{busy ? '…' : '▶ PRESS START'}</button>
                   <div className="font-mono text-[11px] text-[#FFE14D] opacity-80">FREE PLAY · WIN TICKETS 🎟️</div>
+                </motion.div>
+              )}
+              {phase.k === 'mwait' && match && (
+                <motion.div key="mwait" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-3" data-testid="match-countdown">
+                  <div className="lv-arc-marquee text-2xl" style={{ ['--glow' as string]: match.m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>{match.m.mode === 'versus' ? '⚔️ VERSUS' : '🤝 TEAM'}</div>
+                  <div className="text-sm text-white/80">{match.m.players.length} players · same round, same time{match.m.mode === 'team' && match.m.target ? ` · team target ${match.m.target}` : ''}</div>
+                  <motion.div key={left ?? 'x'} initial={{ scale: 2.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="lv-arc-marquee text-9xl">{left && left > 0 ? left : 'GO'}</motion.div>
+                </motion.div>
+              )}
+              {phase.k === 'mdone' && match && (
+                <motion.div key="mdone" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-3">
+                  <div className="font-mono text-5xl font-black text-[#FFE14D]" style={{ textShadow: '0 0 24px #FFB13D' }}>{phase.score}</div>
+                  {phase.r && <div className="lv-arc-ticket text-lg">🎟️ +{phase.r.tickets}{phase.r.paid ? ` · +${phase.r.paid} Ink` : ''}</div>}
+                  <MatchResults a={a} matchId={match.m.id} myId={match.myId} onDone={() => { qc.invalidateQueries({ queryKey: arcadeKey(a.id) }); confettiCannons(); }} />
+                  <button onClick={onExit} className="rounded-2xl bg-white/10 px-5 py-2 text-sm font-bold" data-testid="match-back">Back to the arcade</button>
                 </motion.div>
               )}
               {phase.k === 'count' && <motion.div key={`c${phase.n}`} initial={{ scale: 2.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} className="lv-arc-marquee text-9xl">{phase.n}</motion.div>}

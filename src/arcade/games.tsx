@@ -39,7 +39,11 @@ export function usePops() {
   );
   return { add, el };
 }
+/** Every game's score display reports here, so a multiplayer match can stream live scores for any game. */
+const scoreListeners = new Set<(n: number) => void>();
+export const scoreBus = { on(f: (n: number) => void) { scoreListeners.add(f); return () => { scoreListeners.delete(f); }; } };
 export function Hud({ score, left, right }: { score: number; left?: React.ReactNode; right?: React.ReactNode }) {
+  useEffect(() => { for (const f of scoreListeners) f(score); }, [score]);
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 font-mono text-white">
       <div className="lv-arc-led" data-testid="arc-score"><span className="text-[9px] opacity-70">SCORE</span><b>{String(score).padStart(4, '0')}</b></div>
