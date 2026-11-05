@@ -103,6 +103,7 @@ export const api = {
   playersDirectory: (query: string, sort: string, limit = 30, offset = 0) =>
     rpc<{ total: number; rows: DirectoryPlayer[]; sort: string }>('players_directory', { p_query: query, p_sort: sort, p_limit: limit, p_offset: offset }),
   playerLand: (username: string) => rpc<PlayerLand>('player_land', { p_username: username }),
+  playerPlaces: (username: string) => rpc<import('./types').PlayerPlaces>('player_places', { p_username: username }),
 
   // profile picture & explorer
   setAvatarImage: (path: string | null) => rpc<Profile>('set_avatar_image', { p_path: path }),

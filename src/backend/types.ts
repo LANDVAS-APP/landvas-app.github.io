@@ -184,10 +184,17 @@ export type FriendsList = {
   outgoing: { player: Profile; at: string }[];
 };
 export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
+/** A player's places, for their profile. */
+export type PlayerPlaces = {
+  arcades: { id: string; name: string; plots: number; level: number; plays: number; neon: string; machines: number; emojis: string[]; rarity: string | null; playing: number }[];
+  habitats: { id: string; name: string; plots: number; starter: boolean; residents: number; genomes: unknown[]; rarity: string | null }[];
+  farms: { id: string; name: string; plots: number; harvests: number; rarity: string | null }[];
+  businesses: { id: string; name: string; plots: number; tips: number; alltime: number; rarity: string | null }[];
+};
 export type FeedEvent = {
   id: number;
   kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
-    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core';
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core' | 'harvest' | 'ipo' | 'arcade';
   data: Record<string, any>;
   created_at: string;
   player: Profile;

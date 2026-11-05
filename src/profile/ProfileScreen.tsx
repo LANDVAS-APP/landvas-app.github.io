@@ -17,12 +17,14 @@ import { LandMosaic } from '../land/LandMosaic';
 import { FriendButton } from '../social/FriendButton';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import type { PlayerLand } from '../backend/types';
+import { ProfilePlaces } from './Places';
 
 export default function ProfileScreen() {
   const { username = '' } = useParams();
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username) });
   const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!q.data });
+  const places = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), enabled: !!q.data, refetchInterval: 30_000 });
   const nav = useNavigate();
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (q.error || !q.data) return <Page><Empty title="Profile not found">This artist doesn't exist or isn't visible to you.</Empty></Page>;
@@ -45,6 +47,11 @@ export default function ProfileScreen() {
           <Button variant="rainbow" size="sm" data-testid="profile-visit" onClick={() => nav(`/u/${p.username}/room`)}>
             <DoorOpen className="h-4 w-4" /> {d.is_me ? 'My room' : 'Visit their room'}
           </Button>
+          {me && places.data?.arcades[0] && (() => {
+            // their busiest arcade, one tap away (and flagged when people are playing there right now)
+            const a = [...places.data.arcades].sort((x, y) => y.playing - x.playing || y.plays - x.plays)[0];
+            return <Button variant={a.playing > 0 ? 'rainbow' : 'secondary'} size="sm" data-testid="profile-join-arcade" onClick={() => nav(`/arcade/${a.id}`)}>🕹️ {d.is_me ? 'My arcade' : a.playing > 0 ? `Join their arcade · ${a.playing} playing` : 'Their arcade'}</Button>;
+          })()}
           <FriendButton playerId={p.id} username={p.username} />
           {me && !d.is_me && (
             <Button variant="ghost" size="sm" onClick={async () => {
@@ -61,6 +68,7 @@ export default function ProfileScreen() {
           ))}
         </div>
       </section>
+      <ProfilePlaces username={p.username} isMe={!!d.is_me} />
       {Object.keys(d.minigames ?? {}).length > 0 && (
         <section className="mt-5">
           <h2 className="mb-3 font-display text-lg font-semibold">Minigames</h2>

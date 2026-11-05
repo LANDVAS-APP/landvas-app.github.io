@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -120,6 +120,7 @@ function FeedRow({ e }: { e: FeedEvent }) {
   const p = e.player;
   const me = useOnboardedMe();
   const warpTo = useWarpTo();
+  const nav = useNavigate();
   const who = <Link to={`/u/${p.username}`} className="font-bold hover:underline">@{p.username}</Link>;
   let icon = <Sparkles className="h-4 w-4 text-accent-2" />;
   let body: React.ReactNode = null;
@@ -215,6 +216,33 @@ function FeedRow({ e }: { e: FeedEvent }) {
       icon = <Sparkles className="h-4 w-4 text-[#7FE3FF]" />;
       body = <>{who} built a base on {worldOf(e.data.world as string)?.name ?? 'a far-off world'} 🏗️ <span className="text-muted">· {e.data.modules} modules</span></>;
       break;
+    case 'harvest':
+      icon = <Sparkles className="h-4 w-4 text-[#E0A800]" />;
+      body = <>{who} harvested <b className="text-gold">{Number(e.data.golden)} golden crop{Number(e.data.golden) === 1 ? '' : 's'}</b> 🌾</>;
+      extra = e.data.farm && me ? <Button size="sm" variant="secondary" onClick={() => nav(`/farm/${e.data.farm}`)}>Visit</Button> : null;
+      break;
+    case 'ipo':
+      icon = <Sparkles className="h-4 w-4 text-[#D4A500]" />;
+      body = <>{who} took their business public 📈{Number(e.data.ipos) > 1 ? <span className="text-muted"> · IPO #{Number(e.data.ipos)}</span> : null}</>;
+      break;
+    case 'arcade': {
+      // arcade moments: playing now (join them!), records, big prizes, arcade gear, levels and new machines
+      const d = e.data as Record<string, any>;
+      const where = d.arcade_id ? <Link to={`/arcade/${d.arcade_id}`} className="font-semibold hover:underline">{d.owner_id === p.id ? 'their arcade' : d.arcade}</Link> : null;
+      const fresh = Date.now() - new Date(e.created_at).getTime() < 20 * 60_000;
+      icon = <Gamepad2 className="h-4 w-4 text-[#FF3D9A]" />;
+      if (d.sub === 'playing') body = <>{who} is playing <b>{d.emoji} {d.game_name}</b>{d.mode === 'endless' ? <span className="text-muted"> (endless)</span> : null} at {where}{fresh ? <span className="ml-1 rounded-full bg-[#FF3D9A]/15 px-1.5 text-[10px] font-black uppercase text-[#FF3D9A]">live</span> : null}</>;
+      else if (d.sub === 'record') { icon = <Trophy className="h-4 w-4 text-gold" />; body = <>{who} set {d.world ? <b className="text-gold">the top score anywhere</b> : 'a new high score'} on <b>{d.emoji} {d.game_name}</b> at {where} · <b className="tnum">{fmt(Number(d.score))}</b>{d.mode === 'endless' ? <span className="text-muted"> endless</span> : null}</>; }
+      else if (d.sub === 'prize') body = <>{who} won a <b>{d.emoji} {d.prize}</b> at the prize counter <span className="text-muted">· {fmt(Number(d.tickets))} 🎟️</span></>;
+      else if (d.sub === 'cosmetic') { icon = <Sparkles className="h-4 w-4 text-[#FF3D9A]" />; body = <>{who} unlocked arcade {d.for === 'inkborn' ? 'Inkborn wear' : 'gear'}: <b>{d.emoji} {d.name}</b></>; }
+      else if (d.sub === 'level') { icon = <Star className="h-4 w-4 text-[#8B5CFF]" />; body = <>{where} reached <b>arcade level {d.level}</b> 🕹️</>; }
+      else if (d.sub === 'install') body = <>{who} installed <b>{d.emoji} {d.game_name}</b> in {where}</>;
+      if (d.arcade_id && ['playing', 'record', 'install', 'level'].includes(d.sub)) {
+        const live = d.sub === 'playing' && fresh;
+        extra = me ? <Button size="sm" variant={live ? 'rainbow' : 'secondary'} onClick={() => nav(`/arcade/${d.arcade_id}`)} data-testid="feed-join-arcade">{live ? '🕹️ Join' : 'Visit'}</Button> : null;
+      }
+      break;
+    }
     case 'stamp':
       icon = <Star className="h-4 w-4 text-gold" />;
       body = <>{who} collected stamp <b>#{e.data.serial}</b> of <Link to={`/art/${e.data.publication_id}`} className="font-semibold hover:underline">“{e.data.title}”</Link></>;

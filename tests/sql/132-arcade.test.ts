@@ -177,4 +177,36 @@ describe('Arcade plots', () => {
     await age(e.session, 600);
     expect((await db.rpc(ow, 'arcade_finish', { p_session: e.session, p_score: 12000 })).score).toBe(12000);
   });
+
+  it('arcade moments reach the live feed (with somewhere to join) and arcades show on profiles', async () => {
+    const feed = async () => (await db.rpc(vi, 'feed_recent', { p_limit: 100 })).filter((e: any) => e.kind === 'arcade');
+    const before = (await feed()).length;
+    // a visitor starts playing: one "playing" post (not one per round)
+    await play(vi, 'stacker', 1, 60);
+    await play(vi, 'stacker', 2, 60);
+    let f = await feed();
+    const playing = f.filter((e: any) => e.data.sub === 'playing' && e.player.id === vi);
+    expect(playing.length).toBe(1);
+    expect(playing[0].data).toMatchObject({ arcade_id: arcId, game: expect.any(String), game_name: expect.any(String), emoji: expect.any(String), owner: expect.any(String) });
+    // beating this arcade's record posts a record
+    const top = (await db.sql(`select max(score)::int s from arcade_plays where arcade_id = $1 and game = 'cyclone' and mode = 'classic' and finished_at is not null`, [arcId]))[0].s ?? 0;
+    if (!top) await play(ow, 'cyclone', 10, 60);
+    await play(vi, 'cyclone', Math.max(top, 10) + 40, 60);
+    f = await feed();
+    expect(f.some((e: any) => e.data.sub === 'record' && e.player.id === vi && e.data.game === 'cyclone')).toBe(true);
+    // installs and big prizes post too
+    expect(f.some((e: any) => e.data.sub === 'install')).toBe(true);
+    await db.sql(`update arcade_players set tickets = tickets + 5000 where player_id = $1`, [vi]);
+    await db.rpc(vi, 'arcade_prize', { p_prize: 'unicorn' });
+    f = await feed();
+    expect(f.some((e: any) => e.data.sub === 'prize' && e.data.prize === 'Giant unicorn')).toBe(true);
+    expect(f.length).toBeGreaterThan(before);
+    // profiles list the places
+    const uname = (await db.sql(`select username from profiles where id = $1`, [ow]))[0].username;
+    const pl = await db.rpc(vi, 'player_places', { p_username: uname });
+    expect(pl.arcades[0]).toMatchObject({ id: arcId, level: expect.any(Number), machines: expect.any(Number) });
+    expect(pl.arcades[0].emojis.length).toBe(pl.arcades[0].machines);
+    expect(pl).toMatchObject({ habitats: expect.any(Array), farms: expect.any(Array), businesses: expect.any(Array) });
+    await expectError(db.rpc(vi, 'player_places', { p_username: 'nobody_by_that_name' }), 'not_found');
+  });
 });
