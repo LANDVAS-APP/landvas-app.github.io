@@ -35,7 +35,7 @@ export default function MeHub() {
     { to: '/invite', label: 'Invite friends', icon: Gift, hint: 'Earn Ink for every friend' },
     { to: '/inventory', label: 'Studio & shop', icon: Package, hint: 'Brushes, colours, tools' },
     { to: '/explorer', label: 'My explorer', icon: Shirt, hint: 'Hats, outfits, trails' },
-    { to: `/u/${p.username}/room`, label: 'My room', icon: DoorOpen, hint: 'What visitors see' },
+    { to: `/u/${p.username}/home`, label: 'My home', icon: DoorOpen, hint: 'Your 3D home — decorate it' },
     { to: '/social', label: 'Social', icon: MessagesSquare, hint: 'Feed, chat, friends' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top players' },

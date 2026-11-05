@@ -315,7 +315,7 @@ try {
 
   // every screen renders without crashing
   await page.evaluate(async () => { await window.__landvasApi.devGrantSelfAdmin(); });
-  const screens = ['/', '/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/u/ava_explorer/room', '/social', '/social?tab=chat', '/social?tab=friends', '/invite', '/explorer', '/admin'];
+  const screens = ['/', '/canvases', '/play', '/gallery', '/players', '/achievements', '/leaderboards', '/inventory', '/events', '/settings', '/legal/rent', '/me', '/u/ava_explorer', '/social', '/social?tab=chat', '/social?tab=friends', '/invite', '/explorer', '/admin'];
   const broken = [];
   for (const sc of screens) {
     await page.evaluate((p) => window.__landvasNav(p), sc);
@@ -344,24 +344,20 @@ try {
   await shot('12-players');
   check('players page lists real players', (await page.locator('[data-testid=player-card]').count()) >= 1);
 
-  // the visit room shows land and art without any location
-  await page.evaluate(() => window.__landvasNav('/u/ava_explorer/room'));
-  await page.waitForSelector('[data-testid=room-canvases]', { timeout: 15000 });
-  await page.waitForTimeout(1200);
-  await shot('13-visit-room');
+  // their home (the 3D room visitors walk into) never gives away where their land is
+  await page.evaluate(() => window.__landvasNav('/u/ava_explorer/home'));
+  await page.waitForSelector('[data-testid=home-canvas]', { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  await shot('13-visit-home');
   const room = await page.evaluate(async () => {
-    const land = await window.__landvasApi.playerLand('ava_explorer');
-    const text = document.querySelector('[data-testid=visit-room]')?.textContent ?? '';
-    const shapes = land.canvases.map(({ art, ...c }) => c);
+    const home = await window.__landvasApi.homeGet('ava_explorer');
+    const text = document.querySelector('[data-testid=home]')?.textContent ?? '';
     return {
-      canvases: document.querySelectorAll('[data-testid=room-canvases] canvas').length,
-      // canvases carry shapes relative to their own corner, never map coordinates
-      coordsInData: JSON.stringify(shapes).match(/"(gx|gy|min_gx|min_gy|max_gx|max_gy|center_lng|center_lat|lng|lat)"/g) ?? [],
-      relative: land.canvases.every((c) => c.cells.every((x) => x[0] < c.width && x[1] < c.height)),
+      coordsInData: JSON.stringify(home).match(/"(gx|gy|min_gx|min_gy|max_gx|max_gy|center_lng|center_lat|lng|lat)"/g) ?? [],
       coordsOnPage: /-?\d{1,3}\.\d{3,}°/.test(text),
     };
   });
-  check('visit room shows their canvases with no coordinates anywhere', room.canvases >= 1 && !room.coordsInData.length && room.relative && !room.coordsOnPage, JSON.stringify(room));
+  check('their home shows no coordinates anywhere', !room.coordsInData.length && !room.coordsOnPage, JSON.stringify(room));
 
   // USD rent converts to Ink at $1 = 100 Ink, from a single cent
   const conv = await page.evaluate(async () => {

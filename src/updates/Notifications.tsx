@@ -120,8 +120,8 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   stamp: { icon: Stamp, color: '#FFB23F', text: (a) => <>collected stamp <b>#{a.data.serial}</b> of “{a.data.title}”{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => `/art/${a.data.publication_id}` },
   visit: { icon: DoorOpen, color: '#7B5CFF',
     text: (a) => (a.data.arcade ? <>walked into your arcade 🕹️</> : a.data.business ? (a.data.tip ? <>bought a lemonade at your business 🍋</> : <>is looking round your business</>) : a.data.farm ? <>is looking round your farm 🌾</> : <>visited your room</>),
-    to: (a) => (a.data.arcade ? `/arcade/${a.data.arcade}` : a.data.business ? `/business/${a.data.business}` : a.data.farm ? `/farm/${a.data.farm}` : a.actor ? `/u/${a.actor.username}/room` : null) },
-  checkin: { icon: DoorOpen, color: '#3DDC97', text: (a) => <>checked into your room{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => (a.actor ? `/u/${a.actor.username}/room` : null) },
+    to: (a) => (a.data.arcade ? `/arcade/${a.data.arcade}` : a.data.business ? `/business/${a.data.business}` : a.data.farm ? `/farm/${a.data.farm}` : a.actor ? `/u/${a.actor.username}/home` : null) },
+  checkin: { icon: DoorOpen, color: '#3DDC97', text: (a) => <>checked into your room{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => (a.actor ? `/u/${a.actor.username}/home` : null) },
   inspire: { icon: Sparkles, color: '#3DDC97', text: (a) => <>was inspired by “{a.data.title}”</>, to: (a) => `/art/${a.data.publication_id}` },
   sketch_vote: { icon: Heart, color: '#FF4D6D', text: (a) => <>Someone voted for your sketch of “{a.data.word}”</>, to: () => '/sketch' },
   note: { icon: MessageSquareHeart, color: '#FF4FD8', text: (a) => <>signed your guestbook: “{a.data.body}”</>, to: () => null },
@@ -169,7 +169,7 @@ export function AlertPopups() {
     buzz('light');
     for (const a of pop) {
       const k = ALERT[a.kind];
-      const to = a.kind === 'note' ? `/u/${me.profile.username}/room` : k.to(a);
+      const to = a.kind === 'note' ? `/u/${me.profile.username}/home` : k.to(a);
       toast.custom((id) => (
         <button data-testid="alert-popup" data-kind={a.kind} onClick={() => { toast.dismiss(id); if (to) nav(to); }}
           className="glass flex w-[min(92vw,380px)] items-center gap-3 rounded-2xl border border-line p-3 text-left text-sm text-fg shadow-xl">
@@ -196,7 +196,7 @@ function ActivityList({ onLink }: { onLink(to: string): void }) {
       {items.map((a) => {
         const k = ALERT[a.kind];
         if (!k) return null;
-        const to = a.kind === 'note' && me ? `/u/${me.profile.username}/room` : k.to(a);
+        const to = a.kind === 'note' && me ? `/u/${me.profile.username}/home` : k.to(a);
         return (
           <button key={a.id} onClick={() => to && onLink(to)} className={cn('flex items-center gap-3 rounded-2xl p-2.5 text-left text-sm transition hover:bg-surface-2', !a.read && 'bg-accent/10')}>
             <span className="relative shrink-0">

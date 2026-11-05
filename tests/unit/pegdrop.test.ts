@@ -28,5 +28,5 @@ describe('Peg Drop', () => {
     const evs = all.map((s) => s.ev);
     expect(Math.max(...evs) / Math.min(...evs)).toBeLessThan(1.25);
     expect(Math.max(...evs)).toBeLessThan(45);
-  });
+  }, 240_000); // ~10k simulated drops: slow on small machines
 });

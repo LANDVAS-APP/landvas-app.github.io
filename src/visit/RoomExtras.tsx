@@ -102,7 +102,7 @@ export function RoomGuests({ username }: { username: string }) {
           <div className="flex flex-wrap gap-2">
             {d.visitors.map((v, k) => (
               <motion.div key={v.player.id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(k, 15) * 0.03 }}>
-                <Link to={`/u/${v.player.username}/room`} className="flex items-center gap-1.5 rounded-full border border-line bg-surface/50 py-1 pl-1 pr-2.5 text-xs font-semibold hover:border-line-strong" title={`${v.checked_in ? 'Checked in' : 'Visited'} ${timeAgo(v.at)}`}>
+                <Link to={`/u/${v.player.username}/home`} className="flex items-center gap-1.5 rounded-full border border-line bg-surface/50 py-1 pl-1 pr-2.5 text-xs font-semibold hover:border-line-strong" title={`${v.checked_in ? 'Checked in' : 'Visited'} ${timeAgo(v.at)}`}>
                   <PlayerAvatar p={v.player} size={22} />@{v.player.username}{v.checked_in && <span className="text-ok">✓</span>}
                 </Link>
               </motion.div>
@@ -122,7 +122,7 @@ export function RoomGuests({ username }: { username: string }) {
           {!d.notes.length && <p className="text-sm text-muted">{d.is_host ? 'Notes from visitors appear here.' : 'Nobody has signed yet.'}</p>}
           {d.notes.map((n) => (
             <div key={n.id} className="flex items-start gap-2 rounded-2xl bg-surface/50 p-2.5">
-              <Link to={`/u/${n.author.username}/room`}><PlayerAvatar p={n.author} size={28} /></Link>
+              <Link to={`/u/${n.author.username}/home`}><PlayerAvatar p={n.author} size={28} /></Link>
               <div className="min-w-0 flex-1 text-sm"><b>@{n.author.username}</b> <span className="text-xs text-faint">{timeAgo(n.at)}</span><div className="break-words">{n.body}</div></div>
               {(d.is_host || n.mine) && (
                 <button onClick={async () => { try { await api.roomNoteDelete(n.id); void q.refetch(); } catch (e) { toast.error(toGameError(e).message); } }} className="rounded-lg p-1 text-faint hover:text-bad" aria-label="Remove note"><Trash2 className="h-3.5 w-3.5" /></button>

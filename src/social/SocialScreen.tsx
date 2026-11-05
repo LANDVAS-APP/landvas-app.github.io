@@ -480,7 +480,7 @@ function FriendsTab() {
                   {f.now?.space?.home_name && !f.now.space.at_home && <div className="truncate text-[11px] text-faint">🏡 home world: {f.now.space.home_name}</div>}
                 </div>
                 {canWarpTo(f.now, true) && <Button size="sm" variant="rainbow" onClick={() => void warpTo(f.player)} data-testid="warp-to-friend">⚡ Warp</Button>}
-                <Link to={`/u/${f.player.username}/room`} className="flex h-8 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold hover:border-line-strong" aria-label={`Visit @${f.player.username}'s room`}><DoorOpen className="h-3.5 w-3.5" /> Room</Link>
+                <Link to={`/u/${f.player.username}/home`} className="flex h-8 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold hover:border-line-strong" aria-label={`Visit @${f.player.username}'s home`}><DoorOpen className="h-3.5 w-3.5" /> Home</Link>
               </div>
             ))}
           </div>

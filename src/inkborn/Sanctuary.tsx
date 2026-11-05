@@ -1079,6 +1079,7 @@ function Game({ h }: { h: Habitat }) {
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))]">
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-2xl bg-black/55 p-1.5 pr-3">
           <button onClick={() => (dirty && mode === 'decor' ? toast('Save or cancel your decorating first') : (window.history.length > 1 ? nav(-1) : nav('/inkborn')))} className="rounded-xl p-2 hover:bg-white/10" aria-label="Leave the sanctuary"><ArrowLeft className="h-5 w-5" /></button>
+          <button onClick={() => nav('/home')} className="rounded-xl p-2 hover:bg-white/10 text-lg leading-none" aria-label="Go home" title="Your home" data-testid="go-home">🏠</button>
           <div className="min-w-0">
             <div className="truncate font-display text-sm font-bold">{h.name}</div>
             <div className="truncate text-[11px] text-white/70">{owner ? 'Your sanctuary' : `@${h.owner.username}’s sanctuary`} · 🐾 {h.creatures.length}/{h.capacity} · {h.kind === 'starter' ? 'starter' : `${sizeName(h.plots)}, ${h.plots} plot${h.plots === 1 ? '' : 's'}`}</div>

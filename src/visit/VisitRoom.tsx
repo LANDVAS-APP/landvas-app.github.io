@@ -218,7 +218,7 @@ function SectionTitle({ title, note, icon }: { title: string; note?: string; ico
 
 
 /** Check into someone's room: after a short look around, you both earn a little Ink (once a day). */
-function CheckIn({ username }: { username: string }) {
+export function CheckIn({ username }: { username: string }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
   const st = useQuery({ queryKey: ['room-enter', username], queryFn: () => api.roomEnter(username), enabled: !!me, staleTime: 60_000, retry: false });

@@ -192,6 +192,19 @@ export type ArcadeMatch = {
   seed: number | null; target: number | null; created_at: string; started_at: string | null; server_time: string; players: ArcadeMatchPlayer[]; level: number;
 };
 export type ArcadeLive = { arcade_id: string; shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_arcade: number; lobbies: ArcadeMatch[]; match: ArcadeMatch | null };
+export type HomePlace = { id: string; name: string; plots: number; rarity?: string | null; level?: number; score?: number; starter?: boolean; here?: number };
+export type HomeDoorInfo = { privacy: 'public' | 'friends' | 'hidden'; open: boolean; count: number; places: HomePlace[] };
+export type HomePlaced = { i: string; x: number; z: number; r: number; c?: number };
+export type HomeStyleData = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string };
+export type HomeData = {
+  host: Profile & { explorer_style?: unknown }; own: boolean; name: string | null; style: HomeStyleData; layout: HomePlaced[];
+  doors: Record<'arcade' | 'habitat' | 'farm' | 'business', HomeDoorInfo>;
+  careers: { arcade: number; keeper: number; farmer: number; merchant: number; creatures: number; plots: number };
+  inkborn: { id: string; name: string; genome: unknown; companion: boolean }[];
+  items: Record<string, number> | null; tickets: number | null;
+  catalog: { max_items: number; free_each: number; styles: Record<'wall' | 'floor' | 'view' | 'mood', string[]>; items: Record<string, { price: { ink?: number; tickets?: number }; mount: string }> };
+};
+export type HomeLive = { shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_home: number };
 export type ArenaMode = 'duel' | 'teams' | 'ffa' | 'coop';
 export type ArenaMatchPlayer = Profile & { explorer_style?: unknown; slot: number | null; team: number | null; place: number | null; tickets: number; ink: number };
 export type ArenaMatch = {

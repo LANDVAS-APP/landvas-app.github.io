@@ -355,7 +355,7 @@ function PlayerDetail({ id }: { id: string }) {
     <div className="grid gap-4">
       <Card title={`@${pr.username}`} actions={<div className="flex gap-2">
         <Button size="sm" variant="ghost" onClick={() => nav(`/u/${pr.username}`)}><Eye className="h-4 w-4" /> Profile</Button>
-        {d.plots > 0 && <Button size="sm" variant="secondary" onClick={() => nav(`/u/${pr.username}/room`)}><DoorOpen className="h-4 w-4" /> Visit room</Button>}
+        {d.plots > 0 && <Button size="sm" variant="secondary" onClick={() => nav(`/u/${pr.username}/home`)}><DoorOpen className="h-4 w-4" /> Visit home</Button>}
       </div>}>
         <div className="grid gap-2 text-sm">
           <div className="flex flex-wrap items-center gap-2"><PlayerAvatar p={pr} size={36} /><span>{d.email}</span> · <b className={d.player.status === 'active' ? 'text-ok' : 'text-bad'}>{d.player.status}</b> · strikes {d.player.strikes} · joined {new Date(d.player.created_at).toLocaleDateString()} · seen {timeAgo(d.player.last_active_at)}{muted ? <> · <b className="text-warn">chat muted until {new Date(d.player.chat_muted_until).toLocaleString()}</b></> : null}</div>

@@ -161,6 +161,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
       {/* top bar */}
       <div className={cn('pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))] transition-opacity', playing && 'opacity-0')}>
         <button onClick={() => nav(-1)} className="pointer-events-auto rounded-xl bg-black/55 p-2" aria-label="Leave the arcade"><ArrowLeft className="h-5 w-5" /></button>
+        <button onClick={() => nav('/home')} className="pointer-events-auto rounded-xl bg-black/55 p-2 text-lg leading-none" aria-label="Go home" title="Your home" data-testid="go-home">🏠</button>
         <div className="pointer-events-auto min-w-0 flex-1 rounded-2xl bg-black/55 px-3 py-1.5">
           <div className="flex items-center gap-2">
             <div className="lv-arc-marquee min-w-0 truncate text-base" style={{ ['--glow' as string]: '#FF3D9A' }}>{title}</div>

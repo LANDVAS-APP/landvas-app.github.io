@@ -1,5 +1,6 @@
 // /plots — every plot you own, in one place: sort, filter and search them, see what each one
 // earns and does, and jump straight to it (on the map, into its sanctuary or canvas, or its game).
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowDownUp, Brush, ChevronRight, Combine, Gamepad2, MapPin, PawPrint, Search, Sparkles, X } from 'lucide-react';
@@ -86,6 +87,7 @@ export default function PlotsScreen() {
   return (
     <Page wide>
       <PageHeader eyebrow="Your land" title="My Plots">Every plot you own — sort, filter and tap one for everything about it.</PageHeader>
+      <Link to="/home" className="glass mb-4 flex items-center gap-3 rounded-3xl p-3 hover:border-line-strong" data-testid="plots-home"><span className="text-3xl">🏠</span><span className="min-w-0 flex-1"><b className="block font-display">Your home</b><span className="text-xs text-muted">A door to each of your places — and the place visitors see. Decorate it your way.</span></span><span className="text-sm font-bold text-accent-2">Go →</span></Link>
       <Button variant="secondary" className="mb-4 w-full sm:w-auto" onClick={() => setPlaces(true)} data-testid="plots-places">🪐 All my plots, on Earth and every world — warp to any</Button>
       {places && <PlacesSheet open onOpenChange={setPlaces} />}
       {rows.length === 0 ? (

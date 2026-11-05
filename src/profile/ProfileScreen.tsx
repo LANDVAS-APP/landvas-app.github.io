@@ -44,8 +44,8 @@ export default function ProfileScreen() {
           <ExplorerFigure style={p.explorer_style} accent={p.accent_color} size={52} className="hidden sm:block" label={`@${p.username}'s explorer`} />
         </div>
         <div className="relative mt-4 flex flex-wrap gap-2">
-          <Button variant="rainbow" size="sm" data-testid="profile-visit" onClick={() => nav(`/u/${p.username}/room`)}>
-            <DoorOpen className="h-4 w-4" /> {d.is_me ? 'My room' : 'Visit their room'}
+          <Button variant="rainbow" size="sm" data-testid="profile-visit" onClick={() => nav(`/u/${p.username}/home`)}>
+            <DoorOpen className="h-4 w-4" /> {d.is_me ? '🏠 My home' : '🏠 Visit their home'}
           </Button>
           {me && places.data?.arcades[0] && (() => {
             // their busiest arcade, one tap away (and flagged when people are playing there right now)
@@ -120,13 +120,13 @@ function LandSection({ land, username }: { land: PlayerLand; username: string })
         <span className="text-xs text-muted tnum">{fmt(land.total_plots)} plots · earns {formatRate(Number(land.usd_per_second))}</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">{counts.map(([r, n]) => <span key={r} className="flex items-center gap-1.5"><RarityBadge r={r} small /><b className="text-sm tnum">{n}</b></span>)}</div>
-      <Link to={`/u/${username}/room`} className="glass flex flex-wrap items-center gap-3 rounded-3xl p-3 hover:border-line-strong">
+      <Link to={`/u/${username}/home`} className="glass flex flex-wrap items-center gap-3 rounded-3xl p-3 hover:border-line-strong">
         {land.canvases.slice(0, 5).map((c) => (
           <div key={c.id} className="flex h-20 w-20 items-center justify-center rounded-2xl bg-bg-2/70 p-1.5 shadow-[inset_0_0_0_1px_var(--line)]">
             <LandMosaic canvas={c} size={64} />
           </div>
         ))}
-        <span className="flex items-center gap-1.5 px-2 text-sm font-bold text-accent-2"><DoorOpen className="h-4 w-4" /> See everything in their room</span>
+        <span className="flex items-center gap-1.5 px-2 text-sm font-bold text-accent-2"><DoorOpen className="h-4 w-4" /> Step into their home</span>
       </Link>
     </section>
   );

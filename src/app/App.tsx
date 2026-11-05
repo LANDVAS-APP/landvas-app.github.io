@@ -48,7 +48,7 @@ function RootRoute() {
   if (isNative()) return <Navigate to={getBackend().session() ? '/world' : '/welcome'} replace />;
   return p(<HomePage />);
 }
-const VisitRoom = lazy(() => import('../visit/VisitRoom'));
+const HomeScreen = lazy(() => import('../home/HomeScreen'));
 const SocialScreen = lazy(() => import('../social/SocialScreen'));
 const InviteScreen = lazy(() => import('../social/InviteScreen'));
 const ExplorerScreen = lazy(() => import('../explorer/ExplorerScreen'));
@@ -174,6 +174,9 @@ const routes: RouteObject[] = [
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },
       { path: '/business/:id', element: player(<BusinessScreen />) },
       { path: '/arcade/:id', element: player(<ArcadeScreen />) },
+      { path: '/home', element: player(<HomeScreen />) },
+      { path: '/u/:username/home', element: player(<HomeScreen />) },
+      { path: '/u/:username/room', element: player(<HomeScreen />) },
       { path: '/business/:id/play/:game', element: player(<BusinessGame />) },
       { path: '/space/surface', element: player(<SpaceSurface />) },
       { path: '/space/play/:game', element: player(<SpaceGame />) },
@@ -190,7 +193,6 @@ const routes: RouteObject[] = [
           { path: '/gallery', element: p(<GalleryScreen />) },
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },
-          { path: '/u/:username/room', element: p(<VisitRoom />) },
           { path: '/social', element: p(<SocialScreen />) },
           { path: '/invite', element: player(<InviteScreen />) },
           { path: '/explorer', element: player(<ExplorerScreen />) },

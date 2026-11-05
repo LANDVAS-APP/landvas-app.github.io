@@ -95,7 +95,7 @@ function PlayerCard({ r }: { r: DirectoryPlayer }) {
           {r.best_rarity && r.best_rarity !== 'common' && <RarityBadge r={r.best_rarity} small />}
         </div>
         <div className="mt-auto flex gap-2 pt-2">
-          <Button size="sm" variant="secondary" data-testid="visit-player" onClick={() => nav(`/u/${p.username}/room`)}><DoorOpen className="h-4 w-4" /> {isMe ? 'My room' : 'Visit room'}</Button>
+          <Button size="sm" variant="secondary" data-testid="visit-player" onClick={() => nav(`/u/${p.username}/home`)}><DoorOpen className="h-4 w-4" /> {isMe ? 'My home' : 'Visit home'}</Button>
           {!isMe && <FriendButton playerId={p.id} username={p.username} />}
         </div>
       </div>

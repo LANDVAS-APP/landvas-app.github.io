@@ -71,6 +71,7 @@ function BusinessView({ b }: { b: Business }) {
       <canvas ref={cv} className="absolute inset-x-0 top-0 h-[44%] w-full touch-pan-y" data-testid="street-canvas" />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))]">
         <button onClick={() => nav(-1)} className="pointer-events-auto rounded-2xl bg-black/45 p-2.5 backdrop-blur" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+        <button onClick={() => nav('/home')} className="pointer-events-auto rounded-2xl bg-black/45 p-2.5 backdrop-blur text-lg leading-none" aria-label="Go home" title="Your home" data-testid="go-home">🏠</button>
         {!b.mine && (
           <div className="min-w-0 flex-1 rounded-2xl bg-black/45 px-3 py-2 backdrop-blur">
             <div className="flex items-center gap-2"><PlayerAvatar p={b.owner} size={22} /><div className="truncate font-display text-lg font-bold">@{b.owner.username}’s business</div></div>
