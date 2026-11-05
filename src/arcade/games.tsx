@@ -3,7 +3,7 @@
 //                      the next block is smaller. Perfect drops keep it whole (and grow it back). Prize lines at
 //                      10 (MINOR), 20 (MAJOR) and 30 (MEGA)
 //  Cyclone (2D neon)   a light races round a ring of bulbs; stop it on the JACKPOT. Seven spins, each faster
-//  Skee-Ball (3D)      flick the ball up the lane: how hard decides how high it lands, the angle where. Rings
+//  Ring Roll (3D)      flick the ball up the lane: how hard decides how high it lands, the angle where. Rings
 //                      score 10-50, the corner pockets 100. Nine balls
 //  Hoop Shot (3D)      flick basketballs at the hoop, as fast as you like, for 40 seconds. Three in a row and
 //                      you're ON FIRE (double points); after 20 seconds the hoop starts moving
@@ -296,7 +296,7 @@ export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
 }
 
 // ======================================================================================================
-// Skee-Ball
+// Ring Roll
 // ======================================================================================================
 const SKEE_CENTER = 1.55;
 /** Where a ball lands on the target board (x across, y up it) decides its score. */

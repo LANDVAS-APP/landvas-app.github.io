@@ -1,6 +1,6 @@
 // The arcade hall in 3D. Cabinets stand in rows across the room, facing you, with aisles between them; the
 // prize counter, the jukebox and the ticket machine are along the back wall. Every game has its own machine:
-// a tall LED tower for Tower Stacker, a ring of bulbs for Cyclone, a lane for Skee-Ball, a caged hoop for Hoop
+// a tall LED tower for Tower Stacker, a ring of bulbs for Cyclone, a lane for Ring Roll, a caged hoop for Hoop
 // Shot, a pop-up table for Bop-a-Bot, a glass box full of plushies for the Claw Crane (and a classic upright for
 // anything else).
 // Walking: drag anywhere to walk that way (like a joystick), or tap the floor or a machine to walk there (round
@@ -86,11 +86,13 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
     }
     g.fillStyle = '#22E3FF'; g.font = '900 11px ui-monospace'; g.fillText('MINOR', 20, H - 14 - 10 * 12); g.fillStyle = '#FFE14D'; g.fillText('MAJOR', 20, H - 14 - 14 * 12);
   } else if (id === 'maze') {
-    g.strokeStyle = '#3D5AFE'; g.lineWidth = 3; g.strokeRect(20, 30, Wd - 40, H - 60); g.strokeRect(60, 70, Wd - 120, H - 140);
-    const k = (t * 0.25) % 1, px = 40 + k * (Wd - 80);
-    for (let x = 40; x < Wd - 40; x += 16) if (x > px) { g.fillStyle = '#FFE9C9'; g.fillRect(x, 48, 3, 3); }
-    g.fillStyle = '#FFE14D'; g.beginPath(); const m = Math.abs(Math.sin(t * 10)) * 0.6; g.moveTo(px, 50); g.arc(px, 50, 12, m, Math.PI * 2 - m); g.fill();
-    for (let i = 0; i < 3; i++) { g.fillStyle = ['#FF3D3D', '#FF9FCB', '#22E3FF'][i]; g.beginPath(); g.arc(px - 40 - i * 28, 50, 11, Math.PI, 0); g.lineTo(px - 29 - i * 28, 62); g.lineTo(px - 51 - i * 28, 62); g.fill(); }
+    // an ink blob chased round a paint-stroke maze by spiky smudges
+    g.lineCap = 'round'; g.strokeStyle = '#7B5CFF'; g.lineWidth = 10; g.strokeRect(24, 30, Wd - 48, H - 60); g.strokeStyle = '#22C7B5'; g.strokeRect(70, 74, Wd - 140, H - 148);
+    const k = (t * 0.25) % 1, px = 46 + k * (Wd - 92);
+    for (let x = 46; x < Wd - 46; x += 16) if (x > px) { g.fillStyle = ['#FF4D6D', '#FFE14D', '#3DDC97', '#22E3FF'][(x / 16) % 4 | 0]; g.beginPath(); g.arc(x, 52, 3, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#7B5CFF'; g.beginPath(); for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI * 2; g.lineTo(px + Math.cos(a) * 12 * (1 + Math.sin(a * 3 + t * 9) * 0.08), 52 + Math.sin(a) * 12); } g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(px + 4, 48, 3.5, 0, Math.PI * 2); g.arc(px + 4, 57, 3.5, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 3; i++) { const sx = px - 40 - i * 28; g.fillStyle = ['#3DDC97', '#FFB13D', '#B6FF3D'][i]; g.beginPath(); for (let j = 0; j <= 14; j++) { const a = (j / 14) * Math.PI * 2 + t * 2, r = j % 2 ? 7 : 11; g.lineTo(sx + Math.cos(a) * r, 52 + Math.sin(a) * r); } g.fill(); }
   } else if (id === 'blaster') {
     for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { g.fillStyle = ['#FF3D9A', '#B6FF3D', '#22E3FF'][r]; g.fillRect(40 + c * 30 + Math.sin(t * 2) * 14, 30 + r * 22, 18, 12); }
     const sx = Wd / 2 + Math.sin(t * 1.7) * 70; g.fillStyle = '#3DDC97'; g.beginPath(); g.moveTo(sx, H - 34); g.lineTo(sx + 14, H - 16); g.lineTo(sx - 14, H - 16); g.fill();
@@ -403,7 +405,7 @@ export function createHall(o: HallOpts) {
       case 'maze': case 'blaster': case 'snake': {
         upright();
         // a little character standing on top of the cabinet
-        const top = emojiSprite(m.id === 'maze' ? '🟡' : m.id === 'blaster' ? '👾' : '🐍', 0.5); top.position.set(0, 2.95, -0.1); g.add(top); parts.push(top);
+        const top = emojiSprite(m.id === 'maze' ? '🖌️' : m.id === 'blaster' ? '👾' : '🐍', 0.5); top.position.set(0, 2.95, -0.1); g.add(top); parts.push(top);
         break;
       }
       default: upright();

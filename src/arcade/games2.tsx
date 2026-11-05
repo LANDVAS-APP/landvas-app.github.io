@@ -3,10 +3,11 @@
 //  Air Hockey     drag your mallet, beat the CPU to 7. Every 3rd puck is GOLD (a goal with it is worth triple)
 //  Pinball        tap left/right for the flippers. Light all three targets for MULTIBALL (bumpers pay double)
 //  Coin Pusher    tap to drop coins in front of the pusher; push them off the front ledge. Gold coins cause a SHOWER
-//  Maze Muncher   swipe round the maze eating dots; power pellets turn the ghosts. GOLDEN FRUIT is worth 500
+//  Ink Maze       swipe your ink blob round the maze slurping paint drops; a paint bucket lets you wash away the
+//                 smudges chasing you. The GOLDEN BRUSH is worth 500
 //  Space Blaster  drag to steer, it fires by itself. Shoot the UFO for 150; grab TRIPLE-SHOT power-ups
 //  Rhythm Rush    tap the four lanes as the notes hit the line. A 30 combo starts FEVER (double points)
-//  Plinko         aim and drop chips through the pegs. Touch the glowing GOLD PEG for double
+//  Peg Drop       aim and drop chips through the pegs. Touch the glowing GOLD PEG for double
 //  Neon Racer     swipe between lanes, dodge the traffic, grab orbs. NITRO doubles points and makes you invincible
 //  Fruit Slash    swipe through fruit, never the bombs. Slice 3+ at once for a COMBO; a golden fruit starts a FRENZY
 //  Neon Snake     swipe to steer and eat. Golden apples are worth 50 and shrink your tail
@@ -421,7 +422,7 @@ export function CoinPusher({ seed, onEnd, haptics, mode }: ArenaProps) {
 }
 
 // ======================================================================================================
-// Maze Muncher
+// Ink Maze (an ink blob slurping paint drops, chased by smudges)
 // ======================================================================================================
 const MAZE = [
   '###############',
@@ -442,7 +443,7 @@ const MAZE = [
   '#.............#',
   '###############',
 ];
-export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
+export function InkMaze({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useHud({ score: 0, lives: 3, lvl: 1 });
@@ -453,19 +454,19 @@ export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) 
     let grid: string[][] = [], dots = 0, eaten = 0, score = 0, lives = 3, lvl = 1, over = false, power = 0, chain = 0, fruitT = 0, fruits = 0, fruit: { x: number; y: number; gold: boolean } | null = null, pause = 1;
     const wallAt = (x: number, y: number) => { const yy = ((y % H0) + H0) % H0, xx = ((x % W0) + W0) % W0; return grid[yy][xx] === '#'; };
     type Mover = { x: number; y: number; fx: number; fy: number; dir: number; want: number; speed: number; home: [number, number]; mode?: 'chase' | 'scared' | 'eaten'; col?: string };
-    let pac: Mover, ghosts: Mover[] = [];
+    let blob: Mover, smudges: Mover[] = [];
     const load = () => {
       grid = MAZE.map((row) => row.split('')); dots = 0;
       let ps: [number, number] = [7, 9]; const gs: [number, number] = [7, 7];
       for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) { const c = grid[y][x]; if (c === '.' || c === 'o') dots++; if (c === 'P') { ps = [x, y]; grid[y][x] = ' '; } if (c === 'G') grid[y][x] = ' '; }
-      pac = { x: ps[0], y: ps[1], fx: ps[0], fy: ps[1], dir: 3, want: 3, speed: 5.2, home: ps };
+      blob = { x: ps[0], y: ps[1], fx: ps[0], fy: ps[1], dir: 3, want: 3, speed: 5.2, home: ps };
       const sp = 3.6 + (lvl - 1) * 0.45;
-      ghosts = ['#FF3D3D', '#FF9FCB', '#22E3FF', '#FFB13D'].slice(0, lvl > 1 ? 4 : 3).map((col, i) => ({ x: gs[0] + (i - 1), y: gs[1], fx: gs[0] + (i - 1), fy: gs[1], dir: 0, want: 0, speed: sp, home: [gs[0], gs[1]] as [number, number], mode: 'chase', col }));
+      smudges = ['#3DDC97', '#FFB13D', '#B6FF3D', '#FF3D6E'].slice(0, lvl > 1 ? 4 : 3).map((col, i) => ({ x: gs[0] + (i - 1), y: gs[1], fx: gs[0] + (i - 1), fy: gs[1], dir: 0, want: 0, speed: sp, home: [gs[0], gs[1]] as [number, number], mode: 'chase', col }));
       eaten = 0; fruit = null; fruits = 0; pause = 1.2;
     };
     load();
-    const reset = () => { pac.x = pac.fx = pac.home[0]; pac.y = pac.fy = pac.home[1]; pac.dir = pac.want = 3; ghosts.forEach((g2, i) => { g2.x = g2.fx = g2.home[0] + (i - 1); g2.y = g2.fy = g2.home[1]; g2.mode = 'chase'; }); power = 0; pause = 1.2; };
-    const canGo = (m: Mover, d: number, ghost = false) => { const [dx, dy] = DIRS[d]; const nx = m.x + dx, ny = m.y + dy; if (ny < 0 || ny >= H0) return false; const c = grid[ny][((nx % W0) + W0) % W0]; return c !== '#' && (ghost || c !== '-'); };
+    const reset = () => { blob.x = blob.fx = blob.home[0]; blob.y = blob.fy = blob.home[1]; blob.dir = blob.want = 3; smudges.forEach((g2, i) => { g2.x = g2.fx = g2.home[0] + (i - 1); g2.y = g2.fy = g2.home[1]; g2.mode = 'chase'; }); power = 0; pause = 1.2; };
+    const canGo = (m: Mover, d: number, smudge = false) => { const [dx, dy] = DIRS[d]; const nx = m.x + dx, ny = m.y + dy; if (ny < 0 || ny >= H0) return false; const c = grid[ny][((nx % W0) + W0) % W0]; return c !== '#' && (smudge || c !== '-'); };
     const step = (m: Mover, dt: number, choose: () => void) => {
       // moves cell to cell; picks the next direction at each cell centre
       const [dx, dy] = DIRS[m.dir];
@@ -477,14 +478,14 @@ export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) 
         else { m.fx += (ddx / d) * sp; m.fy += (ddy / d) * sp; }
       } else choose();
     };
-    const wallAtMover = (m: Mover, d: number) => !canGo(m, d, m !== pac);
-    const pacChoose = () => { if (canGo(pac, pac.want)) pac.dir = pac.want; eatAt(pac.x, pac.y); };
-    const ghostChoose = (gh: Mover, i: number) => () => {
+    const wallAtMover = (m: Mover, d: number) => !canGo(m, d, m !== blob);
+    const blobChoose = () => { if (canGo(blob, blob.want)) blob.dir = blob.want; eatAt(blob.x, blob.y); };
+    const smudgeChoose = (gh: Mover, i: number) => () => {
       if (gh.mode === 'eaten' && gh.x === gh.home[0] && gh.y === gh.home[1]) gh.mode = 'chase';
       const opts = [0, 1, 2, 3].filter((d) => d !== (gh.dir + 2) % 4 && canGo(gh, d, true));
       const choices = opts.length ? opts : [(gh.dir + 2) % 4];
-      let target: [number, number] = [pac.x, pac.y];
-      if (i === 1) target = [pac.x + DIRS[pac.dir][0] * 3, pac.y + DIRS[pac.dir][1] * 3];
+      let target: [number, number] = [blob.x, blob.y];
+      if (i === 1) target = [blob.x + DIRS[blob.dir][0] * 3, blob.y + DIRS[blob.dir][1] * 3];
       if (i === 2 && r() < 0.5) target = [Math.floor(r() * W0), Math.floor(r() * H0)];
       if (gh.mode === 'eaten') target = gh.home;
       if (gh.mode === 'scared') { gh.dir = choices[Math.floor(r() * choices.length)]; return; }
@@ -493,7 +494,7 @@ export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) 
     const eatAt = (x: number, y: number) => {
       const c = grid[y]?.[x];
       if (c === '.') { grid[y][x] = ' '; score += 2; eaten++; if (eaten % 4 === 0) sfx.tick(); }
-      else if (c === 'o') { grid[y][x] = ' '; score += 10; eaten++; power = Math.max(4, 8 - lvl); chain = 0; ghosts.forEach((g2) => { if (g2.mode !== 'eaten') { g2.mode = 'scared'; g2.dir = (g2.dir + 2) % 4; } }); sfx.win(3); }
+      else if (c === 'o') { grid[y][x] = ' '; score += 10; eaten++; power = Math.max(4, 8 - lvl); chain = 0; smudges.forEach((g2) => { if (g2.mode !== 'eaten') { g2.mode = 'scared'; g2.dir = (g2.dir + 2) % 4; } }); sfx.win(3); }
       else return;
       if (eaten === 40 || eaten === 100) { fruits++; fruit = { x: 7, y: 9, gold: fruits % 2 === 0 || (lvl > 1 && r() < 0.3) }; fruitT = 9; }
       setHud({ score });
@@ -502,65 +503,104 @@ export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) 
         if (endless) { lvl++; setHud({ lvl }); load(); } else { over = true; setTimeout(() => onEnd(score), 1300); }
       }
     };
-    const dir = swipe((d) => { pac.want = d; if (canGo(pac, d) && (d + 2) % 4 === pac.dir) pac.dir = d; });
+    const dir = swipe((d) => { blob.want = d; if (canGo(blob, d) && (d + 2) % 4 === blob.dir) blob.dir = d; });
     const eng: Engine = {
       frame(g, W, H, dt, t) {
         const cs = Math.min(W / W0, (H - 60) / H0), ox = (W - cs * W0) / 2, oy = Math.max(30, (H - cs * H0) / 2);
         if (!over) {
           if (pause > 0) pause -= dt;
           else {
-            step(pac, dt, pacChoose);
-            power = Math.max(0, power - dt); if (!power) ghosts.forEach((g2) => { if (g2.mode === 'scared') g2.mode = 'chase'; });
-            ghosts.forEach((gh, i) => { const sp = gh.speed; if (gh.mode === 'scared') gh.speed = sp * 0.55; if (gh.mode === 'eaten') gh.speed = sp * 2.2; step(gh, dt, ghostChoose(gh, i)); gh.speed = sp; });
-            if (fruit) { fruitT -= dt; if (fruitT <= 0) fruit = null; else if (Math.hypot(pac.fx - fruit.x, pac.fy - fruit.y) < 0.6) { const pts = fruit.gold ? 500 : 100; score += pts; setHud({ score }); pops.add(fruit.gold ? `GOLDEN FRUIT +${pts}` : `+${pts}`, fruit.gold ? '#FFD84D' : '#FF3D6E', 50, 50, fruit.gold); fx.burst(ox + (fruit.x + 0.5) * cs, oy + (fruit.y + 0.5) * cs, fruit.gold ? '#FFD84D' : '#FF3D6E', 24); sfx.win(fruit.gold ? 5 : 3); fruit = null; } }
-            for (const gh of ghosts) {
-              if (Math.hypot(gh.fx - pac.fx, gh.fy - pac.fy) > 0.6) continue;
+            step(blob, dt, blobChoose);
+            power = Math.max(0, power - dt); if (!power) smudges.forEach((g2) => { if (g2.mode === 'scared') g2.mode = 'chase'; });
+            smudges.forEach((gh, i) => { const sp = gh.speed; if (gh.mode === 'scared') gh.speed = sp * 0.55; if (gh.mode === 'eaten') gh.speed = sp * 2.2; step(gh, dt, smudgeChoose(gh, i)); gh.speed = sp; });
+            if (fruit) { fruitT -= dt; if (fruitT <= 0) fruit = null; else if (Math.hypot(blob.fx - fruit.x, blob.fy - fruit.y) < 0.6) { const pts = fruit.gold ? 500 : 100; score += pts; setHud({ score }); pops.add(fruit.gold ? `GOLDEN BRUSH +${pts}` : `PALETTE +${pts}`, fruit.gold ? '#FFD84D' : '#22E3FF', 50, 50, fruit.gold); fx.burst(ox + (fruit.x + 0.5) * cs, oy + (fruit.y + 0.5) * cs, fruit.gold ? '#FFD84D' : RAINBOW, 24); sfx.win(fruit.gold ? 5 : 3); fruit = null; } }
+            for (const gh of smudges) {
+              if (Math.hypot(gh.fx - blob.fx, gh.fy - blob.fy) > 0.6) continue;
               if (gh.mode === 'scared') { chain++; const pts = 50 * Math.pow(2, Math.min(3, chain - 1)); score += pts; gh.mode = 'eaten'; setHud({ score }); pops.add(`+${pts}`, '#22E3FF', 50, 45, true); sfx.perfect(chain * 3); tap(haptics, 'medium'); }
               else if (gh.mode === 'chase') {
                 lives--; setHud({ lives }); sfx.fail(); tap(haptics, 'heavy');
-                fx.burst(ox + (pac.fx + 0.5) * cs, oy + (pac.fy + 0.5) * cs, '#FFE14D', 30, 200);
+                fx.burst(ox + (blob.fx + 0.5) * cs, oy + (blob.fy + 0.5) * cs, '#FFE14D', 30, 200);
                 if (lives <= 0) { over = true; pops.add('GAME OVER', '#FF3D6E', 50, 45, true); setTimeout(() => onEnd(score), 1300); } else { pops.add('OUCH!', '#FF3D6E', 50, 45, true); reset(); }
                 break;
               }
             }
           }
         }
-        bg(g, W, H, '#020210', '#05051A');
-        // walls: neon outlines
-        g.strokeStyle = '#3D5AFE'; g.lineWidth = 2.5; g.shadowColor = '#3D5AFE'; g.shadowBlur = 8;
-        g.beginPath();
+        bg(g, W, H, '#14081F', '#0A0412');
+        // walls: thick strokes of paint (one connected stroke per run of wall), with a lighter highlight
+        const wallPath = new Path2D();
         for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) {
           if (grid[y][x] !== '#') continue;
-          const X = ox + x * cs, Y = oy + y * cs;
-          if (!wallAt(x, y - 1) || y === 0) { g.moveTo(X, Y + 2); g.lineTo(X + cs, Y + 2); }
-          if (y === H0 - 1 || !wallAt(x, y + 1)) { g.moveTo(X, Y + cs - 2); g.lineTo(X + cs, Y + cs - 2); }
-          if (x === 0 || !wallAt(x - 1, y)) { g.moveTo(X + 2, Y); g.lineTo(X + 2, Y + cs); }
-          if (x === W0 - 1 || !wallAt(x + 1, y)) { g.moveTo(X + cs - 2, Y); g.lineTo(X + cs - 2, Y + cs); }
+          const X = ox + (x + 0.5) * cs, Y = oy + (y + 0.5) * cs;
+          wallPath.moveTo(X, Y); wallPath.lineTo(X + 0.01, Y);
+          if (x + 1 < W0 && grid[y][x + 1] === '#') { wallPath.moveTo(X, Y); wallPath.lineTo(X + cs, Y); }
+          if (y + 1 < H0 && grid[y + 1][x] === '#') { wallPath.moveTo(X, Y); wallPath.lineTo(X, Y + cs); }
         }
-        g.stroke(); g.shadowBlur = 0;
+        const wg = g.createLinearGradient(ox, oy, ox + cs * W0, oy + cs * H0); wg.addColorStop(0, '#22C7B5'); wg.addColorStop(0.5, '#7B5CFF'); wg.addColorStop(1, '#FF4D9A');
+        g.lineCap = 'round'; g.lineJoin = 'round';
+        g.strokeStyle = wg; g.lineWidth = cs * 0.62; g.stroke(wallPath);
+        g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = cs * 0.16; g.stroke(wallPath);
+        const DROP = ['#FF4D6D', '#FFB13D', '#FFE14D', '#3DDC97', '#22E3FF', '#B57BFF'];
         for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) {
           const c = grid[y][x], X = ox + (x + 0.5) * cs, Y = oy + (y + 0.5) * cs;
-          if (c === '.') { g.fillStyle = '#FFE9C9'; g.fillRect(X - 1.5, Y - 1.5, 3, 3); }
-          if (c === 'o') glowCircle(g, X, Y, cs * (0.22 + (reduce ? 0 : Math.sin(t * 8) * 0.05)), '#FFE9C9', 10);
-          if (c === '-') { g.fillStyle = '#FF9FCB'; g.fillRect(X - cs / 2, Y - 1, cs, 2); }
+          if (c === '.') {
+            // a little paint drop
+            const r0 = cs * 0.1; g.fillStyle = DROP[(x * 7 + y * 3) % DROP.length];
+            g.beginPath(); g.moveTo(X, Y - r0 * 1.9); g.quadraticCurveTo(X + r0 * 1.1, Y - r0 * 0.2, X, Y + r0); g.quadraticCurveTo(X - r0 * 1.1, Y - r0 * 0.2, X, Y - r0 * 1.9); g.fill();
+          }
+          if (c === 'o') {
+            // a paint bucket, sloshing
+            const k = reduce ? 0 : Math.sin(t * 6 + x) * 0.06, bw = cs * 0.56, bh = cs * 0.5;
+            g.fillStyle = '#E6ECF5'; g.beginPath(); g.moveTo(X - bw / 2, Y - bh / 2); g.lineTo(X + bw / 2, Y - bh / 2); g.lineTo(X + bw * 0.38, Y + bh / 2); g.lineTo(X - bw * 0.38, Y + bh / 2); g.closePath(); g.fill();
+            g.fillStyle = DROP[(x + y) % DROP.length]; g.shadowColor = g.fillStyle; g.shadowBlur = 10;
+            g.beginPath(); g.ellipse(X, Y - bh / 2, bw / 2, bh * (0.18 + k), 0, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+            g.strokeStyle = '#9AA8BE'; g.lineWidth = 1.5; g.beginPath(); g.arc(X, Y - bh * 0.4, bw * 0.45, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+          }
+          if (c === '-') { g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(X - cs / 2, Y - 1, cs, 2); }
         }
-        if (fruit) { g.font = `${cs * 0.9}px system-ui, "Apple Color Emoji"`; g.textAlign = 'center'; g.textBaseline = 'middle'; if (fruit.gold) { g.shadowColor = '#FFD84D'; g.shadowBlur = 18; } g.fillText(fruit.gold ? '🌟' : '🍒', ox + (fruit.x + 0.5) * cs, oy + (fruit.y + 0.5) * cs); g.shadowBlur = 0; }
-        // the muncher
-        const px = ox + (pac.fx + 0.5) * cs, py = oy + (pac.fy + 0.5) * cs, mouth = reduce ? 0.25 : 0.05 + Math.abs(Math.sin(t * 12)) * 0.3, ang = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][pac.dir];
-        g.fillStyle = '#FFE14D'; g.shadowColor = '#FFE14D'; g.shadowBlur = 12; g.beginPath(); g.moveTo(px, py); g.arc(px, py, cs * 0.42, ang + mouth * Math.PI, ang - mouth * Math.PI + Math.PI * 2); g.closePath(); g.fill(); g.shadowBlur = 0;
-        for (const gh of ghosts) {
+        // you: a wobbly purple ink blob with big eyes, squashing as it moves and leaving a few drips
+        {
+          const px = ox + (blob.fx + 0.5) * cs, py = oy + (blob.fy + 0.5) * cs, rr = cs * 0.4, [ddx, ddy] = DIRS[blob.dir];
+          const sq = reduce ? 0 : Math.sin(t * 14) * 0.08;
+          g.save(); g.translate(px, py);
+          g.fillStyle = '#7B5CFF'; g.shadowColor = '#B57BFF'; g.shadowBlur = 14;
+          g.beginPath();
+          for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI * 2, wob = 1 + (reduce ? 0 : Math.sin(a * 3 + t * 9) * 0.07); const sx = 1 + (ddx ? sq : -sq), sy = 1 + (ddy ? sq : -sq); g.lineTo(Math.cos(a) * rr * wob * sx, Math.sin(a) * rr * wob * sy); }
+          g.closePath(); g.fill(); g.shadowBlur = 0;
+          g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(-rr * 0.35, -rr * 0.4, rr * 0.22, rr * 0.13, -0.6, 0, Math.PI * 2); g.fill();
+          for (const sgn of [-1, 1]) {
+            const ex = ddy ? sgn * rr * 0.32 : ddx * rr * 0.18, ey = ddx ? sgn * rr * 0.32 - rr * 0.1 : ddy * rr * 0.18 - rr * 0.1;
+            g.fillStyle = '#fff'; g.beginPath(); g.arc(ex + (ddy ? 0 : 0), ey, rr * 0.2, 0, Math.PI * 2); g.fill();
+            g.fillStyle = '#140A26'; g.beginPath(); g.arc(ex + ddx * rr * 0.07, ey + ddy * rr * 0.07, rr * 0.1, 0, Math.PI * 2); g.fill();
+          }
+          g.restore();
+        }
+        // the smudges: spiky scribbles with cross little eyes; a paint bucket turns them pale and wobbly
+        smudges.forEach((gh, gi) => {
           const X = ox + (gh.fx + 0.5) * cs, Y = oy + (gh.fy + 0.5) * cs, rr = cs * 0.42;
           if (gh.mode !== 'eaten') {
-            g.fillStyle = gh.mode === 'scared' ? (power < 2 && Math.sin(t * 20) > 0 ? '#FFFFFF' : '#2340FF') : gh.col!;
-            g.beginPath(); g.arc(X, Y - rr * 0.1, rr, Math.PI, 0); g.lineTo(X + rr, Y + rr * 0.8);
-            for (let k = 0; k < 4; k++) g.lineTo(X + rr - (k + 0.5) * (rr / 2), Y + rr * (k % 2 ? 0.8 : 0.5));
-            g.lineTo(X - rr, Y + rr * 0.8); g.closePath(); g.fill();
+            const scared = gh.mode === 'scared';
+            g.fillStyle = scared ? (power < 2 && Math.sin(t * 20) > 0 ? '#FFFFFF' : '#C9D3E6') : gh.col!;
+            g.globalAlpha = scared ? 0.75 : 1;
+            g.beginPath();
+            const spikes = 9;
+            for (let i = 0; i <= spikes * 2; i++) {
+              const a = (i / (spikes * 2)) * Math.PI * 2 + (reduce ? 0 : t * (scared ? 0.6 : 2) + gi), rad = i % 2 ? rr * (scared ? 0.78 : 0.62) : rr * (1 + (reduce ? 0 : Math.sin(t * 7 + i + gi) * 0.08));
+              g.lineTo(X + Math.cos(a) * rad, Y + Math.sin(a) * rad);
+            }
+            g.closePath(); g.fill(); g.globalAlpha = 1;
+            if (!scared) { g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1.2; g.beginPath(); for (let i = 0; i < 3; i++) { g.moveTo(X - rr * 0.5, Y + rr * (0.1 + i * 0.12)); g.lineTo(X + rr * 0.5, Y + rr * (0.05 + i * 0.12)); } g.stroke(); }
           }
-          g.fillStyle = '#fff'; for (const s of [-1, 1]) { g.beginPath(); g.arc(X + s * rr * 0.35, Y - rr * 0.15, rr * 0.22, 0, Math.PI * 2); g.fill(); }
-          g.fillStyle = '#1A1AFF'; for (const s of [-1, 1]) { g.beginPath(); g.arc(X + s * rr * 0.35 + DIRS[gh.dir][0] * rr * 0.1, Y - rr * 0.15 + DIRS[gh.dir][1] * rr * 0.1, rr * 0.1, 0, Math.PI * 2); g.fill(); }
-        }
+          // eyes: angry slants when hunting, little worried dots when washed out
+          for (const sg of [-1, 1]) {
+            const ex = X + sg * rr * 0.28, ey = Y - rr * 0.12;
+            g.fillStyle = '#fff'; g.beginPath(); g.arc(ex, ey, rr * 0.18, 0, Math.PI * 2); g.fill();
+            g.fillStyle = '#140A26'; g.beginPath(); g.arc(ex + DIRS[gh.dir][0] * rr * 0.07, ey + DIRS[gh.dir][1] * rr * 0.07, rr * 0.09, 0, Math.PI * 2); g.fill();
+            if (gh.mode === 'chase') { g.strokeStyle = '#140A26'; g.lineWidth = 2; g.beginPath(); g.moveTo(ex - sg * rr * 0.2, ey - rr * 0.3); g.lineTo(ex + sg * rr * 0.12, ey - rr * 0.18); g.stroke(); }
+          }
+        });
         fx.draw(g, dt, 0);
-        if (pause > 0 && !over) { g.font = '900 22px ui-rounded, system-ui'; g.textAlign = 'center'; g.fillStyle = '#FFE14D'; g.fillText(lvl > 1 ? `MAZE ${lvl}` : 'READY!', W / 2, oy + 9.6 * cs); }
+        if (pause > 0 && !over) { g.font = '900 22px ui-rounded, system-ui'; g.textAlign = 'center'; g.fillStyle = '#B57BFF'; g.fillText(lvl > 1 ? `MAZE ${lvl}` : 'GO!', W / 2, oy + 9.6 * cs); }
       },
       ...dir,
     };
@@ -569,7 +609,7 @@ export function MazeMuncher({ seed, onEnd, haptics, reduce, mode }: ArenaProps) 
   return (
     <Screen id="maze" cv={cv}>
       <Hud score={hud.score} left={endless ? <Led label="MAZE" v={hud.lvl} /> : undefined} right={<Lives n={hud.lives} max={3} />} />
-      <Tip>SWIPE TO TURN · eat the big dots, then the ghosts</Tip>
+      <Tip>SWIPE TO STEER · grab a paint bucket, then wash the smudges away</Tip>
       {pops.el}
     </Screen>
   );
@@ -809,10 +849,10 @@ export function RhythmRush({ seed, onEnd, haptics, mode }: ArenaProps) {
 }
 
 // ======================================================================================================
-// Plinko
+// Peg Drop
 // ======================================================================================================
 const PLINKO_SLOTS = [100, 10, 50, 25, 250, 25, 50, 10, 100];
-export function Plinko({ seed, onEnd, haptics, mode }: ArenaProps) {
+export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
   const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useHud({ score: 0, chips: 10 });
@@ -1181,14 +1221,14 @@ export function NeonSnake({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
 }
 
 export const ARENAS2: Record<string, (p: ArenaProps) => React.ReactElement> = {
-  airhockey: AirHockey, pinball: Pinball, pusher: CoinPusher, maze: MazeMuncher, blaster: SpaceBlaster,
-  rhythm: RhythmRush, plinko: Plinko, racer: NeonRacer, fruit: FruitSlash, snake: NeonSnake,
+  airhockey: AirHockey, pinball: Pinball, pusher: CoinPusher, maze: InkMaze, blaster: SpaceBlaster,
+  rhythm: RhythmRush, plinko: PegDrop, racer: NeonRacer, fruit: FruitSlash, snake: NeonSnake,
 };
 export const HOW2: Record<string, string> = {
   airhockey: 'Drag your mallet to smash the puck into the CPU’s goal. First to 7 wins.',
   pinball: 'Tap the left or right side to flip. Bumpers, slingshots and targets all score. Three balls.',
   pusher: 'Tap to drop a coin in front of the pusher. Coins shoved off the front ledge score. 30 coins.',
-  maze: 'Swipe to steer round the maze eating every dot. Big dots turn the ghosts blue — eat them! Three lives.',
+  maze: 'Swipe your ink blob round the maze and slurp up every paint drop. Dodge the smudges — or grab a paint bucket and wash them away! Three lives.',
   blaster: 'Drag to steer your ship; it fires by itself. Clear five waves of aliens. Three lives.',
   rhythm: 'Tap each lane as its note hits the circle. Perfect timing scores double, and combos multiply.',
   plinko: 'Drag to aim, let go to drop. Chips bounce down the pegs into the slots. Ten chips.',
@@ -1200,7 +1240,7 @@ export const BONUS2: Record<string, string> = {
   airhockey: '🥇 Every 3rd puck is GOLD — a goal with it is worth 300!',
   pinball: '🎯 Light all three targets for MULTIBALL: two more balls, bumpers pay double.',
   pusher: '🪙 Every 10th coin is GOLD — push it off for a COIN SHOWER. 💎 gems are worth 50.',
-  maze: '🌟 Fruit appears as you eat — every other one is a GOLDEN FRUIT worth 500.',
+  maze: '🖌️ Palettes pop up as you eat — every other one is a GOLDEN BRUSH worth 500.',
   blaster: '🛸 Shoot the UFO for 150. Catch 🔱 for TRIPLE SHOT.',
   rhythm: '🔥 Hit a 30 combo for FEVER: double points for 8 seconds.',
   plinko: '✨ Bounce off the glowing GOLD PEG and that chip pays double.',
@@ -1212,7 +1252,7 @@ export const ENDLESS2: Record<string, string> = {
   airhockey: 'No score limit — every CPU goal costs a life, and the CPU gets faster each time you score.',
   pinball: 'Earn an extra ball every 1,500 points and keep going.',
   pusher: 'Every coin you win drops back into your tray — keep pushing until you run dry.',
-  maze: 'Clear a maze and the next one starts, with faster ghosts (and a fourth one).',
+  maze: 'Clear a maze and the next one starts, with faster smudges (and a fourth one).',
   blaster: 'Wave after wave, faster and tougher, until you’re out of lives.',
   rhythm: 'The song never ends — it speeds up every 30 seconds. Five misses and you’re out.',
   plinko: 'Land in a 100 or 250 slot and you get the chip back.',
