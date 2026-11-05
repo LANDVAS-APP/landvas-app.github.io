@@ -1122,3 +1122,21 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-arc-play { animation: lv-arc-bob 1.6s ease-in-out infinite; }
 @keyframes lv-arc-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .lv-arc-pop, .lv-arc-pop-big, .lv-arc-marquee, .lv-arc-play { animation: none; } }
+/* arcade-only explorer looks */
+.aura-neon .lv-figure-aura, .lv-explorer.aura-neon .lv-explorer-ring {
+  border-color: #FF3D9A; box-shadow: 0 0 22px #FF3D9A, 0 0 34px #22E3FF, inset 0 0 14px #22E3FF;
+}
+.aura-neon .lv-figure-svg, .lv-explorer.aura-neon svg { filter: drop-shadow(0 0 5px rgba(255, 61, 154, 0.8)) drop-shadow(0 0 9px rgba(34, 227, 255, 0.55)); }
+.aura-arcade .lv-figure-aura, .lv-explorer.aura-arcade .lv-explorer-ring {
+  border: 3px dotted #FFE14D; box-shadow: 0 0 20px #FFB13D, inset 0 0 10px #FF3D9A; animation-duration: 1.2s;
+}
+.aura-arcade .lv-figure-svg, .lv-explorer.aura-arcade svg { animation: lv-arcade-hue 2.4s linear infinite; }
+@keyframes lv-arcade-hue { from { filter: drop-shadow(0 0 6px #FF3D9A) hue-rotate(0deg); } to { filter: drop-shadow(0 0 6px #FF3D9A) hue-rotate(360deg); } }
+.trail-tickets .lv-trail i { width: 12px; height: 6px; border-radius: 2px; background: linear-gradient(90deg, #FFE14D, #FFB13D); box-shadow: 0 0 6px #FFB13D; }
+.trail-pixels .lv-trail i { width: 6px; height: 6px; border-radius: 0; }
+.trail-pixels .lv-trail i:nth-child(3n + 1) { background: #FF3D9A; }
+.trail-pixels .lv-trail i:nth-child(3n + 2) { background: #22E3FF; }
+.trail-pixels .lv-trail i:nth-child(3n + 3) { background: #B6FF3D; }
+.lv-explorer .spin, .lv-figure .spin { animation: lv-prop 0.4s linear infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes lv-prop { from { transform: scaleX(1); } 50% { transform: scaleX(-1); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .aura-arcade .lv-figure-svg, .lv-explorer.aura-arcade svg, .lv-explorer .spin, .lv-figure .spin { animation: none; } }

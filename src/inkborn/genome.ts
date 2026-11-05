@@ -39,6 +39,8 @@ export type Genome = {
   cheeks: boolean;
   size: number; // 0.8 – 1.25
   mood: (typeof MOODS)[number];
+  /** arcade wear (won with tickets): on the head, over the eyes, round the neck, and a glow */
+  whead?: string; wface?: string; wneck?: string; waura?: string;
 };
 
 export const MOOD_INFO: Record<Genome['mood'], { label: string; text: string; emoji: string }> = {
@@ -321,6 +323,7 @@ export function cleanGenome(g: Partial<Genome>): Genome {
     gait: 'walk',
   };
   out.gait = out.legs > 0 ? 'walk' : one(g.gait, GAITS, defaultGait(out.body, out.wings));
+  for (const k of ['whead', 'wface', 'wneck', 'waura'] as const) if (typeof g[k] === 'string' && /^[a-z]{2,12}$/.test(g[k]!)) out[k] = g[k];
   if (out.gait === 'walk' && out.legs === 0) out.gait = defaultGait(out.body, out.wings);
   return out;
 }

@@ -106,7 +106,9 @@ export default function ExplorerScreen() {
                   </div>
                   <div className="min-h-[2.5em] text-[13px] font-bold leading-tight">{it.name}</div>
                   <div className="text-xs">
-                    {saved[part] === it.id ? <span className="font-bold text-ok">Wearing</span> : own ? <span className="flex items-center gap-1 text-muted"><Check className="h-3.5 w-3.5" /> Owned</span> : <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-gold" /><Cost cost={it.cost} /></span>}
+                    {saved[part] === it.id ? <span className="font-bold text-ok">Wearing</span> : own ? <span className="flex items-center gap-1 text-muted"><Check className="h-3.5 w-3.5" /> Owned</span>
+                      : (it as ShopItem & { arcade?: boolean }).arcade ? <span className="flex items-center gap-1 font-bold text-[#FF3D9A]"><Lock className="h-3 w-3" />🎟️ {Number((it.cost as Record<string, number>).tickets ?? 0).toLocaleString()} · Arcade</span>
+                      : <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-gold" /><Cost cost={it.cost} /></span>}
                   </div>
                 </button>
               );
@@ -118,6 +120,7 @@ export default function ExplorerScreen() {
                 <div className="text-sm"><b>Buy to wear this look:</b> <span className="text-muted">{missing.map((m) => m.name).join(', ')}</span></div>
                 <div className="flex flex-wrap gap-2">
                   {missing.map((m) => {
+                    if ((m as ShopItem & { arcade?: boolean }).arcade) return <span key={m.key} className="rounded-xl bg-[#FF3D9A]/15 px-3 py-2 text-xs font-bold text-[#FF3D9A]">🕹️ {m.name}: win it with {Number((m.cost as Record<string, number>).tickets ?? 0).toLocaleString()} tickets at any arcade’s prize counter</span>;
                     const ink = Number(m.cost.ink ?? 0);
                     const can = Number(me.balances.ink) >= ink;
                     return (

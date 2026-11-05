@@ -633,13 +633,16 @@ export type PlanetHere = { player: Profile; d: number[]; friend: boolean; with_y
 
 export type ArcadeGameInfo = { order: number; name: string; emoji: string; color: string; level: number; cost: number; min_seconds: number; max_score: number; tickets_per_point: number; points_per_ink: number; max_ink: number };
 export type ArcadePrize = { id: string; name: string; emoji: string; tickets: number; tier: number };
-export type ArcadeMe = { tickets: number; lifetime: number; prizes: Record<string, number>; bonus_ready: boolean; streak: number; ink_today: number; daily_cap: number; best: Record<string, number> };
+export type ArcadeMe = { tickets: number; lifetime: number; prizes: Record<string, number>; bonus_ready: boolean; streak: number; ink_today: number; daily_cap: number | null; ink_progress?: number; best: Record<string, number>; best_endless?: Record<string, number>; played_today?: string[]; owned?: string[] };
+export type ArcadeCosmetic = { key: string; name: string; emoji: string; tickets: number; kind: 'explorer' | 'inkborn'; part: string; id?: string };
+export type ArcadeMode = 'classic' | 'endless';
 export type Arcade = {
   id: string; group_id: string; seed: number; name: string; plots: number; owner: Profile; mine: boolean;
   level: { level: number; xp: number; into: number; need: number; max: boolean }; plays: number;
   machines: Record<string, number>; decor: { floor: string; neon: string; lights: string }; decor_owned: string[]; shelf: Record<string, number>;
   games: Record<string, ArcadeGameInfo>; prizes: ArcadePrize[]; decor_catalog: Record<'floor' | 'neon' | 'lights', { id: string; name: string; tickets: number }[]>;
   upgrade: { max: number; bonus: number; costs: Record<string, number> };
-  boards: Record<string, { player: Profile; score: number }[]>; me: ArcadeMe; server_time: string;
+  boards: Record<string, { player: Profile; score: number }[]>; boards_endless?: Record<string, { player: Profile; score: number }[]>; me: ArcadeMe; server_time: string;
+  cosmetics?: ArcadeCosmetic[]; hot?: { game: string | null; until: string; tickets: number; ink: number }; first_play_tickets?: number;
 };
-export type ArcadeFinish = { score: number; tickets: number; earned: number; paid: number; capped: boolean; best: number; new_best: boolean; record: number; new_record: boolean; owner_cut: number; level_up: number | null; me: ArcadeMe; repeat?: boolean };
+export type ArcadeFinish = { mode?: ArcadeMode; ink_progress?: number; bonus?: string[]; hot?: boolean; score: number; tickets: number; earned: number; paid: number; capped: boolean; best: number; new_best: boolean; record: number; new_record: boolean; owner_cut: number; level_up: number | null; me: ArcadeMe; repeat?: boolean };

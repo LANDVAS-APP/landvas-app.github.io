@@ -16,7 +16,8 @@ import { isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buzz } from '../native/native';
 import { sfx } from './sfx';
 
-export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean };
+export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
+  /** classic: the usual round (scores capped); endless: keep going until you run out of lives */ mode?: 'classic' | 'endless' };
 export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -46,6 +47,10 @@ function Hud({ score, left, right }: { score: number; left?: React.ReactNode; ri
       {right}
     </div>
   );
+}
+/** Lives left in endless mode. */
+function Lives({ n, max }: { n: number; max: number }) {
+  return <div className="lv-arc-led" data-testid="arc-lives"><span className="text-[9px] opacity-70">LIVES</span><b className="tracking-tighter">{Array.from({ length: max }, (_, i) => (i < n ? '❤' : '·')).join('')}</b></div>;
 }
 function three(canvas: HTMLCanvasElement, bg: string, fov = 50) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias() });
@@ -82,7 +87,8 @@ function burster(scene: THREE.Scene, T: <X extends { dispose(): void }>(x: X) =>
 // ======================================================================================================
 // Tower Stacker
 // ======================================================================================================
-export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
+export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useState({ score: 0, level: 0, combo: 0, size: 100 });
   const press = useRef<() => void>(() => {});
@@ -95,7 +101,9 @@ export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
     const fx = burster(scene, T);
     const H = 0.5, START = 3;
     const geo = T(new THREE.BoxGeometry(1, 1, 1));
-    const mat = (lv: number) => T(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(((lv * 0.045) + seed % 100 / 100) % 1, 0.8, 0.58), roughness: 0.35, emissive: new THREE.Color().setHSL(((lv * 0.045) + seed % 100 / 100) % 1, 0.9, 0.2) }));
+    const goldMat = T(new THREE.MeshStandardMaterial({ color: '#FFD84D', metalness: 0.7, roughness: 0.2, emissive: '#7A5A00', emissiveIntensity: 0.6 }));
+    const GOLD = 7; // every 7th block is gold: land it perfectly for a bonus
+    const mat = (lv: number) => lv > 0 && lv % GOLD === 0 ? goldMat : T(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(((lv * 0.045) + seed % 100 / 100) % 1, 0.8, 0.58), roughness: 0.35, emissive: new THREE.Color().setHSL(((lv * 0.045) + seed % 100 / 100) % 1, 0.9, 0.2) }));
     const block = (w: number, d: number, x: number, y: number, z: number, lv: number) => { const m = new THREE.Mesh(geo, mat(lv)); m.scale.set(w, H, d); m.position.set(x, y, z); scene.add(m); return m; };
     // pedestal and prize lines
     const ped = new THREE.Mesh(T(new THREE.BoxGeometry(START + 0.6, 4, START + 0.6)), T(new THREE.MeshStandardMaterial({ color: '#1C1640', roughness: 0.5 }))); ped.position.y = -2 - H / 2; scene.add(ped);
@@ -137,6 +145,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
         score += 2 + Math.min(5, combo - 1);
         sfx.perfect(combo); tap(haptics, 'medium');
         pops.add(combo > 1 ? `PERFECT ×${combo}` : 'PERFECT!', '#FFE14D', 50, 30);
+        if (lv % GOLD === 0) { score += 15; sfx.jackpot(); pops.add('GOLD BLOCK +15', '#FFD84D', 50, 48, true); }
         fx.burst(new THREE.Vector3(top.x, lv * H + 0.3, top.z), reduce ? 6 : 18, 3);
       } else {
         const overlap = size - Math.abs(delta);
@@ -159,10 +168,12 @@ export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
         debris.push({ m: piece, v: new THREE.Vector3(c.axis === 'x' ? Math.sign(delta) * 1.5 : 0, 1, c.axis === 'z' ? Math.sign(delta) * 1.5 : 0), r: new THREE.Vector3(Math.random() * 3, 0, Math.random() * 3), life: 2.5 });
         score += 1; shake = 0.25; sfx.cut(); tap(haptics, 'light');
       }
-      const L = LINES.find((l) => l.lv === stack.length - 1);
+      const reached = stack.length - 1;
+      // endless: past MEGA, every 10 levels is another (bigger) ULTRA prize
+      const L = LINES.find((l) => l.lv === reached) ?? (endless && reached > 30 && reached % 10 === 0 ? { lv: reached, name: 'ULTRA', bonus: 150 + (reached - 30) * 5, c: '#B6FF3D' } : undefined);
       if (L) { score += L.bonus; sfx.jackpot(); tap(haptics, 'success'); pops.add(`${L.name} PRIZE! +${L.bonus}`, L.c, 50, 22, true); fx.burst(new THREE.Vector3(0, L.lv * H, 0), reduce ? 10 : 60, 6); }
       setHud({ score, level: stack.length - 1, combo, size: Math.round((stack[stack.length - 1].w * stack[stack.length - 1].d) / (START * START) * 100) });
-      if (stack.length > 40) { over = true; pops.add('TOP OF THE TOWER!', '#FFE14D', 50, 30, true); sfx.jackpot(); setTimeout(() => onEnd(score), 1500); return; }
+      if (!endless && stack.length > 40) { over = true; pops.add('TOP OF THE TOWER!', '#FFE14D', 50, 30, true); sfx.jackpot(); setTimeout(() => onEnd(score), 1500); return; }
       spawn();
     };
     press.current = drop;
@@ -197,7 +208,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
   return (
     <div className="relative h-full w-full select-none" onPointerDown={(e) => { e.preventDefault(); press.current(); }} data-testid="arc-stacker">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" />
-      <Hud score={hud.score} right={<div className="lv-arc-led"><span className="text-[9px] opacity-70">LEVEL</span><b>{hud.level}</b></div>} />
+      <Hud score={hud.score} left={endless ? <div className="lv-arc-led !text-[#B6FF3D]"><b>∞</b></div> : undefined} right={<div className="lv-arc-led"><span className="text-[9px] opacity-70">LEVEL</span><b>{hud.level}</b></div>} />
       {hud.combo > 1 && <div className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-full bg-[#FFE14D] px-3 py-0.5 text-xs font-black text-black">COMBO ×{hud.combo}</div>}
       <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] font-bold text-white/70">TAP ANYWHERE TO DROP · block {hud.size}%</div>
       {pops.el}
@@ -208,24 +219,26 @@ export function TowerStacker({ seed, onEnd, haptics, reduce }: ArenaProps) {
 // ======================================================================================================
 // Cyclone
 // ======================================================================================================
-export function Cyclone({ seed, onEnd, haptics, reduce }: ArenaProps) {
+export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
-  const [hud, setHud] = useState({ score: 0, spin: 1 });
+  const [hud, setHud] = useState({ score: 0, spin: 1, lives: 3, sup: false });
   const press = useRef<() => void>(() => {});
   const pops = usePops();
   useEffect(() => {
     const c = cv.current!; const g = c.getContext('2d')!; const r = rng(seed);
     const N = 36, SPINS = 7;
-    let pos = r() * N, speed = 13, stopped = -1, hold = 0, spin = 1, score = 0, raf = 0, last = performance.now(), t = 0, flash = 0, over = false;
-    const value = (i: number) => (i === 0 ? 150 : i === 1 || i === N - 1 ? 40 : i === N / 4 || i === (3 * N) / 4 ? 25 : i === N / 2 ? 60 : 5);
+    // a JACKPOT earns a SUPER spin straight after (a free extra go, the jackpot worth double)
+    let pos = r() * N, speed = 13, stopped = -1, hold = 0, spin = 1, score = 0, raf = 0, last = performance.now(), t = 0, flash = 0, over = false, sup = false, nextSup = false, lives = 3;
+    const value = (i: number) => (i === 0 ? (sup ? 300 : 150) : i === 1 || i === N - 1 ? 40 : i === N / 4 || i === (3 * N) / 4 ? 25 : i === N / 2 ? 60 : 5);
     const stop = () => {
       if (stopped >= 0 || over) return;
       stopped = Math.round(pos) % N; hold = 1.3;
       const v = value(stopped); score += v;
-      if (v >= 150) { sfx.jackpot(); tap(haptics, 'success'); pops.add('JACKPOT! +150', '#FFE14D', 50, 45, true); flash = 1.2; }
+      if (v >= 150) { sfx.jackpot(); tap(haptics, 'success'); pops.add(sup ? 'SUPER JACKPOT! +300' : 'JACKPOT! +150', '#FFE14D', 50, 45, true); flash = 1.2; if (!sup) { nextSup = true; pops.add('BONUS SPIN!', '#FF3D9A', 50, 62, true); } }
       else if (v >= 25) { sfx.win(4); tap(haptics, 'medium'); pops.add(`+${v}`, '#22E3FF', 50, 45, true); }
-      else { sfx.blip(-5); tap(haptics); pops.add(`+${v}`, '#fff', 50, 45); }
-      setHud({ score, spin });
+      else { sfx.blip(-5); tap(haptics); pops.add(`+${v}`, '#fff', 50, 45); if (endless && !sup) { lives--; pops.add(lives > 0 ? '−1 LIFE' : 'OUT OF LIVES', '#FF3D6E', 50, 62, true); sfx.fail(); } }
+      setHud({ score, spin, lives, sup });
     };
     press.current = stop;
     const kd = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); stop(); } };
@@ -243,13 +256,14 @@ export function Cyclone({ seed, onEnd, haptics, reduce }: ArenaProps) {
         hold -= dt;
         if (hold <= 0) {
           stopped = -1;
-          if (spin >= SPINS) { over = true; setTimeout(() => onEnd(score), 600); }
-          else { spin++; speed = 13 + spin * 3.4; pos = r() * N; setHud({ score, spin }); }
+          if (nextSup) { nextSup = false; sup = true; pos = r() * N; setHud({ score, spin, lives, sup }); }
+          else if (endless ? lives <= 0 : spin >= SPINS) { over = true; setTimeout(() => onEnd(score), 600); }
+          else { sup = false; spin++; speed = Math.min(endless ? 52 : 40, 13 + spin * (endless ? 1.6 : 3.4)); pos = r() * N; setHud({ score, spin, lives, sup }); }
         }
       }
       flash = Math.max(0, flash - dt);
       // cabinet glass
-      const bg = g.createRadialGradient(cx, cy, 10, cx, cy, R * 1.6); bg.addColorStop(0, flash > 0 && Math.sin(t * 30) > 0 ? '#5A3A00' : '#1A0B3A'); bg.addColorStop(1, '#05030E'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+      const bg = g.createRadialGradient(cx, cy, 10, cx, cy, R * 1.6); bg.addColorStop(0, flash > 0 && Math.sin(t * 30) > 0 ? '#5A3A00' : sup ? '#3A0B2A' : '#1A0B3A'); bg.addColorStop(1, '#05030E'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
       const lit = stopped >= 0 ? stopped : Math.floor(pos) % N;
       for (let i = 0; i < N; i++) {
         const a = (i / N) * Math.PI * 2 - Math.PI / 2, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
@@ -260,11 +274,11 @@ export function Cyclone({ seed, onEnd, haptics, reduce }: ArenaProps) {
         g.fillStyle = on ? (blink ? col : '#ffffff') : col; g.globalAlpha = on ? 1 : 0.55;
         g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
         g.globalAlpha = 1; g.shadowBlur = 0;
-        if (v >= 25 && v !== 40) { g.font = `900 ${v >= 150 ? 13 : 10}px ui-rounded, system-ui`; g.textAlign = 'center'; g.fillStyle = v >= 150 ? '#FFE14D' : '#fff'; const off = v >= 150 ? 34 : 30; const lx = cx + Math.cos(a) * (R - off), ly = cy + Math.sin(a) * (R - off); g.fillText(v >= 150 ? 'JACKPOT' : String(v), lx, ly + 4); }
+        if (v >= 25 && v !== 40) { g.font = `900 ${v >= 150 ? 13 : 10}px ui-rounded, system-ui`; g.textAlign = 'center'; g.fillStyle = v >= 150 ? '#FFE14D' : '#fff'; const off = v >= 150 ? 34 : 30; const lx = cx + Math.cos(a) * (R - off), ly = cy + Math.sin(a) * (R - off); g.fillText(v >= 150 ? (sup ? 'SUPER' : 'JACKPOT') : String(v), lx, ly + 4); }
       }
       // the centre: the big score and spins left
       g.textAlign = 'center'; g.fillStyle = '#FFE14D'; g.shadowColor = '#FFB13D'; g.shadowBlur = 20; g.font = '900 48px ui-rounded, system-ui'; g.fillText(String(score), cx, cy + 10); g.shadowBlur = 0;
-      g.font = '800 13px ui-monospace, monospace'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillText(`SPIN ${Math.min(spin, SPINS)} / ${SPINS}`, cx, cy + 34);
+      g.font = '800 13px ui-monospace, monospace'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillText(sup ? '★ BONUS SPIN ★' : endless ? `SPIN ${spin}` : `SPIN ${Math.min(spin, SPINS)} / ${SPINS}`, cx, cy + 34);
       g.font = '800 11px ui-monospace, monospace'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('BESIDE THE JACKPOT = 40', cx, cy + R + 34);
     };
     raf = requestAnimationFrame(loop);
@@ -273,7 +287,8 @@ export function Cyclone({ seed, onEnd, haptics, reduce }: ArenaProps) {
   return (
     <div className="relative h-full w-full select-none" data-testid="arc-cyclone">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" onPointerDown={(e) => { e.preventDefault(); press.current(); }} />
-      <Hud score={hud.score} right={<div className="lv-arc-led"><span className="text-[9px] opacity-70">SPIN</span><b>{hud.spin}/7</b></div>} />
+      <Hud score={hud.score} left={hud.sup ? <div className="lv-arc-led !text-[#FF3D9A]"><b>SUPER!</b></div> : undefined}
+        right={endless ? <Lives n={hud.lives} max={3} /> : <div className="lv-arc-led"><span className="text-[9px] opacity-70">SPIN</span><b>{hud.spin}/7</b></div>} />
       <button onPointerDown={(e) => { e.preventDefault(); press.current(); }} className="lv-arc-bigbtn absolute bottom-4 left-1/2 -translate-x-1/2" data-testid="arc-stop">STOP</button>
       {pops.el}
     </div>
@@ -292,9 +307,10 @@ export function skeeScore(x: number, y: number) {
   if (d < 0.2) return 50; if (d < 0.42) return 40; if (d < 0.64) return 30; if (d < 0.88) return 20;
   return 10;
 }
-export function SkeeBall({ onEnd, haptics, reduce }: ArenaProps) {
+export function SkeeBall({ onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
-  const [hud, setHud] = useState({ score: 0, balls: 9 });
+  const [hud, setHud] = useState({ score: 0, balls: 9, lives: 3, gold: false });
   const [meter, setMeter] = useState<number | null>(null);
   const pops = usePops();
   useEffect(() => {
@@ -321,20 +337,25 @@ export function SkeeBall({ onEnd, haptics, reduce }: ArenaProps) {
     const tilt = 0.75; board.rotation.x = -tilt; board.position.set(0, 0.35 + Math.sin(tilt) * 1.5, -7.6 - Math.cos(tilt) * 1.5); scene.add(board);
     const boardPoint = (x: number, y: number) => new THREE.Vector3(x, 0.35 + Math.sin(tilt) * y, -7.6 - Math.cos(tilt) * y);
     const ballGeo = T(new THREE.SphereGeometry(0.16, 20, 14)), ballMat = T(new THREE.MeshStandardMaterial({ color: '#F4E6D0', roughness: 0.35 }));
+    const goldMat = T(new THREE.MeshStandardMaterial({ color: '#FFD84D', metalness: 0.7, roughness: 0.2, emissive: '#7A5A00', emissiveIntensity: 0.7 }));
     camera.position.set(0, 2.6, 2.6); camera.lookAt(0, 0.6, -5.5);
-    type Ball = { m: THREE.Mesh; t: number; x: number; y: number; pts: number; done: boolean; dur: number };
+    // every third ball is a golden BONUS BALL: double points. Endless: roll for as long as you like; a score under
+    // 20 costs a life (three lives)
+    type Ball = { m: THREE.Mesh; t: number; x: number; y: number; pts: number; done: boolean; dur: number; gold: boolean };
     const balls: Ball[] = [];
-    let left = 9, score = 0, over = false;
+    let left = 9, score = 0, over = false, rolled = 0, lives = 3;
+    const isGold = () => (rolled + 1) % 3 === 0;
     const roll = (aim: number, power: number) => {
-      if (over || left <= 0) return;
-      left--;
+      if (over || (!endless && left <= 0) || (endless && lives <= 0)) return;
+      if (!endless) left--;
+      const gold = isGold(); rolled++;
       // where it lands: power sets how high up the board, the flick's angle where across
       const y = clamp(power, 0, 1.1) * 3.0, x = clamp(aim, -1.4, 1.4);
-      const pts = skeeScore(x, y);
-      const m = new THREE.Mesh(ballGeo, ballMat); m.position.set(0, 0.25, 0.6); scene.add(m);
-      balls.push({ m, t: 0, x, y, pts, done: false, dur: 0.9 + power * 0.25 });
+      const pts = skeeScore(x, y) * (gold ? 2 : 1);
+      const m = new THREE.Mesh(ballGeo, gold ? goldMat : ballMat); m.position.set(0, 0.25, 0.6); scene.add(m);
+      balls.push({ m, t: 0, x, y, pts, done: false, dur: 0.9 + power * 0.25, gold });
       sfx.roll(); tap(haptics);
-      setHud({ score, balls: left });
+      setHud({ score, balls: left, lives, gold: isGold() });
     };
     let raf = 0, last = performance.now();
     const loop = (now: number) => {
@@ -351,12 +372,14 @@ export function SkeeBall({ onEnd, haptics, reduce }: ArenaProps) {
         else {
           b.done = true; scene.remove(b.m);
           score += b.pts;
+          if (b.gold && b.pts > 0) pops.add('BONUS BALL ×2', '#FFD84D', 50, 48, true);
+          if (endless && b.pts < (b.gold ? 40 : 20)) { lives--; pops.add(lives > 0 ? '−1 LIFE' : 'OUT OF LIVES', '#FF3D6E', 50, 60, true); }
           if (b.pts >= 100) { sfx.jackpot(); tap(haptics, 'success'); pops.add('+100!!', '#FFD84D', 50, 30, true); fx.burst(land, reduce ? 8 : 40, 4); }
           else if (b.pts >= 40) { sfx.win(4); tap(haptics, 'medium'); pops.add(`+${b.pts}`, '#FF3D9A', 50, 30, true); fx.burst(land, reduce ? 6 : 20, 3); }
           else if (b.pts > 0) { sfx.win(2); pops.add(`+${b.pts}`, '#22E3FF', 50, 32); }
           else { sfx.thud(); pops.add('MISS', '#888', 50, 32); }
-          setHud({ score, balls: left });
-          if (left <= 0 && balls.every((x) => x.done) && !over) { over = true; setTimeout(() => onEnd(score), 900); }
+          setHud({ score, balls: left, lives, gold: isGold() });
+          if ((endless ? lives <= 0 : left <= 0) && balls.every((x) => x.done) && !over) { over = true; setTimeout(() => onEnd(score), 900); }
         }
       }
       fx.step(dt);
@@ -380,7 +403,8 @@ export function SkeeBall({ onEnd, haptics, reduce }: ArenaProps) {
   return (
     <div className="relative h-full w-full touch-none select-none" data-testid="arc-skeeball">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" />
-      <Hud score={hud.score} right={<div className="lv-arc-led"><span className="text-[9px] opacity-70">BALLS</span><b>{hud.balls}</b></div>} />
+      <Hud score={hud.score} left={hud.gold ? <div className="lv-arc-led !text-[#FFD84D]"><b>★ ×2 BALL</b></div> : undefined}
+        right={endless ? <Lives n={hud.lives} max={3} /> : <div className="lv-arc-led"><span className="text-[9px] opacity-70">BALLS</span><b>{hud.balls}</b></div>} />
       {meter != null && <div className="pointer-events-none absolute bottom-6 right-3 h-40 w-3 overflow-hidden rounded-full bg-white/15"><div className="absolute inset-x-0 bottom-0 rounded-full" style={{ height: `${Math.min(100, meter * 91)}%`, background: 'linear-gradient(#FF3D9A,#FFE14D,#3DDC97)' }} /></div>}
       <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] font-bold text-white/70">FLICK UP TO ROLL · harder = higher</div>
       {pops.el}
@@ -391,9 +415,10 @@ export function SkeeBall({ onEnd, haptics, reduce }: ArenaProps) {
 // ======================================================================================================
 // Hoop Shot
 // ======================================================================================================
-export function HoopShot({ onEnd, haptics, reduce }: ArenaProps) {
+export function HoopShot({ onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
-  const [hud, setHud] = useState({ score: 0, left: 40, streak: 0 });
+  const [hud, setHud] = useState({ score: 0, left: endless ? 30 : 40, streak: 0, money: false });
   const pops = usePops();
   useEffect(() => {
     const el = cv.current!;
@@ -414,30 +439,35 @@ export function HoopShot({ onEnd, haptics, reduce }: ArenaProps) {
     for (const s of [-1, 1]) { const net2 = new THREE.Mesh(T(new THREE.BoxGeometry(0.05, 3, 12)), T(new THREE.MeshStandardMaterial({ color: '#22E3FF', emissive: '#22E3FF', emissiveIntensity: 1.2 }))); net2.position.set(s * 2.4, 1.5, -4); scene.add(net2); }
     camera.position.set(0, 2.3, 2.2); camera.lookAt(0, 2.2, -6);
     const ballGeo = T(new THREE.SphereGeometry(BALL_R, 18, 12));
+    const moneyMat = T(new THREE.MeshStandardMaterial({ color: '#3DDC97', roughness: 0.4, emissive: '#0A6A3A', emissiveIntensity: 0.8 }));
     const ballMat = T(new THREE.MeshStandardMaterial({ color: '#FF7A1F', roughness: 0.6 })), fireMat = T(new THREE.MeshStandardMaterial({ color: '#FFB13D', emissive: '#FF3D00', emissiveIntensity: 1.5 }));
-    type Ball = { m: THREE.Mesh; v: THREE.Vector3; checked: boolean; life: number; made?: boolean };
+    // every fifth ball is a green MONEY BALL (worth double); endless starts with 30 seconds and every basket adds 2
+    type Ball = { m: THREE.Mesh; v: THREE.Vector3; checked: boolean; life: number; made?: boolean; money: boolean };
     const balls: Ball[] = [];
-    let score = 0, streak = 0, over = false, t = 0;
-    const T0 = performance.now(), DUR = 40;
+    let score = 0, streak = 0, over = false, t = 0, shots = 0, extra = 0;
+    const T0 = performance.now(), DUR = endless ? 30 : 40;
     const shoot = (dx: number, dy: number, W: number, H: number) => {
       if (over) return;
       // the flick picks where the ball comes down: length → how far, sideways → where across
       const dist = 2.5 + clamp(dy / (H * 0.55), 0, 1.3) * 5.2, x = clamp((dx / W) * 3.2, -2, 2);
       const TF = 0.9, from = new THREE.Vector3(0, 1.0, 0.4);
       const v = new THREE.Vector3(x / TF, (RIM_Y - from.y + 4.9 * TF * TF) / TF, (-dist - from.z) / TF);
-      const m = new THREE.Mesh(ballGeo, streak >= 3 ? fireMat : ballMat); m.position.copy(from); scene.add(m);
-      balls.push({ m, v, checked: false, life: 3 });
+      shots++; const money = shots % 5 === 0;
+      const m = new THREE.Mesh(ballGeo, money ? moneyMat : streak >= 3 ? fireMat : ballMat); m.position.copy(from); scene.add(m);
+      balls.push({ m, v, checked: false, life: 3, money });
+      setHud((h) => ({ ...h, money: (shots + 1) % 5 === 0 }));
       sfx.blip(-12); tap(haptics);
     };
     let raf = 0, last = performance.now();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min(0.033, (now - last) / 1000); last = now; t += dt;
-      const left = Math.max(0, DUR - (now - T0) / 1000);
+      const played = (now - T0) / 1000, left = Math.max(0, DUR + extra - played);
       if (left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
-      if (left > 0 && Math.floor(left * 10) % 5 === 0) setHud((h) => (Math.ceil(left) !== h.left ? { ...h, left: Math.ceil(left) } : h));
-      // after 20 seconds the hoop starts moving
-      if (left < 20) hoop.position.x = Math.sin((20 - left) * 1.1) * 1.1;
+      if (left > 0) setHud((h) => (Math.ceil(left) !== h.left ? { ...h, left: Math.ceil(left) } : h));
+      // after 20 seconds the hoop starts moving (in endless it gets faster and wider the longer you last)
+      const moving = played > 20;
+      if (moving) { const k = endless ? Math.min(2.2, 1 + (played - 20) / 60) : 1; hoop.position.x = Math.sin((played - 20) * 1.1 * k) * Math.min(1.6, 1.1 * k); }
       backboard.position.x = square.position.x = hoop.position.x;
       for (let i = balls.length - 1; i >= 0; i--) {
         const b = balls[i]; b.life -= dt;
@@ -451,10 +481,11 @@ export function HoopShot({ onEnd, haptics, reduce }: ArenaProps) {
           const d = Math.hypot(b.m.position.x - hoop.position.x, b.m.position.z - RIM_Z);
           if (d < RIM_R - BALL_R * 0.55) {
             b.made = true; streak++;
-            const pts = (left < 20 ? 3 : 2) * (streak >= 3 ? 2 : 1); // a moving hoop is worth 3
+            const pts = (moving ? 3 : 2) * (streak >= 3 ? 2 : 1) * (b.money ? 2 : 1); // a moving hoop is worth 3
             score += pts; b.v.set(0, -2, 0);
+            if (endless) { extra += 2; pops.add('+2s', '#22E3FF', 80, 14); }
             sfx.swish(); tap(haptics, 'medium');
-            pops.add(streak >= 3 ? `🔥 +${pts}` : `+${pts}`, streak >= 3 ? '#FFB13D' : '#fff', 50, 30, streak === 3);
+            pops.add(b.money ? `💵 MONEY BALL +${pts}` : streak >= 3 ? `🔥 +${pts}` : `+${pts}`, b.money ? '#3DDC97' : streak >= 3 ? '#FFB13D' : '#fff', 50, 30, streak === 3 || b.money);
             if (streak === 3) { sfx.jackpot(); pops.add('ON FIRE!', '#FF3D00', 50, 22, true); }
             fx.burst(new THREE.Vector3(hoop.position.x, RIM_Y, RIM_Z), reduce ? 4 : 14, 2.5);
             net.scale.y = 1.5;
@@ -482,9 +513,9 @@ export function HoopShot({ onEnd, haptics, reduce }: ArenaProps) {
   return (
     <div className="relative h-full w-full touch-none select-none" data-testid="arc-hoops">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" />
-      <Hud score={hud.score} left={hud.streak >= 3 ? <div className="lv-arc-led !text-[#FFB13D]"><b>🔥 ×2</b></div> : undefined}
+      <Hud score={hud.score} left={hud.streak >= 3 ? <div className="lv-arc-led !text-[#FFB13D]"><b>🔥 ×2</b></div> : hud.money ? <div className="lv-arc-led !text-[#3DDC97]"><b>💵 NEXT</b></div> : undefined}
         right={<div className={`lv-arc-led ${hud.left <= 10 ? '!text-[#FF3D6E]' : ''}`}><span className="text-[9px] opacity-70">TIME</span><b>{hud.left}</b></div>} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] font-bold text-white/70">FLICK UP TO SHOOT · as fast as you can</div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] font-bold text-white/70">FLICK UP TO SHOOT · {endless ? 'every basket +2s' : 'as fast as you can'} · 💵 every 5th ball ×2</div>
       {pops.el}
     </div>
   );
@@ -493,9 +524,10 @@ export function HoopShot({ onEnd, haptics, reduce }: ArenaProps) {
 // ======================================================================================================
 // Bop-a-Bot
 // ======================================================================================================
-export function BopABot({ seed, onEnd, haptics, reduce }: ArenaProps) {
+export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
-  const [hud, setHud] = useState({ score: 0, left: 40, combo: 0 });
+  const [hud, setHud] = useState({ score: 0, left: 40, combo: 0, lives: 5, frenzy: 0 });
   const pops = usePops();
   useEffect(() => {
     const el = cv.current!; const r = rng(seed);
@@ -532,16 +564,24 @@ export function BopABot({ seed, onEnd, haptics, reduce }: ArenaProps) {
       }
       holes.push({ g, kind: 'bot', up: 0, target: 0, timer: 0.4 + r() * 1.5, hit: false, x, z, parts });
     }
-    let score = 0, combo = 0, over = false;
+    // a 15-bop combo starts a FRENZY: 5 seconds of bots everywhere, every bop worth double, no kitties.
+    // Endless: no clock, but every bot that gets away (or kitty you bop) costs one of five lives
+    let score = 0, combo = 0, over = false, frenzy = 0, lives = 5;
     const T0 = performance.now(), DUR = 40;
+    const lose = (why: string) => {
+      if (!endless || over) return;
+      lives--; setHud((x) => ({ ...x, lives })); pops.add(lives > 0 ? why : 'OUT OF LIVES', '#FF3D6E', 50, 55, true);
+      if (lives <= 0) { over = true; sfx.fail(); setTimeout(() => onEnd(score), 1200); }
+    };
     const bop = (h: Hole) => {
       if (over || h.up < 0.4 || h.hit) return;
       h.hit = true; h.target = 0; h.timer = 0.5 + r() * 0.6;
       const at = new THREE.Vector3(h.x, 1, h.z);
-      if (h.kind === 'kitty') { score = Math.max(0, score - 3); combo = 0; sfx.fail(); tap(haptics, 'warning'); pops.add('NOT THE KITTY! −3', '#FF7AB8', 50, 35, true); }
+      if (h.kind === 'kitty') { score = Math.max(0, score - 3); combo = 0; sfx.fail(); tap(haptics, 'warning'); pops.add('NOT THE KITTY! −3', '#FF7AB8', 50, 35, true); lose('−1 LIFE'); }
       else {
         combo++;
-        const pts = (h.kind === 'gold' ? 5 : 1) + Math.min(4, Math.floor(combo / 5));
+        if (combo % 15 === 0 && frenzy <= 0) { frenzy = 5; sfx.jackpot(); pops.add('FRENZY! ×2', '#FF3D9A', 50, 20, true); for (const q of holes) if (!q.target) q.timer = Math.random() * 0.3; }
+        const pts = ((h.kind === 'gold' ? 5 : 1) + Math.min(4, Math.floor(combo / 5))) * (frenzy > 0 ? 2 : 1);
         score += pts; sfx.bonk(); tap(haptics, 'medium');
         pops.add(h.kind === 'gold' ? `GOLD +${pts}` : `+${pts}`, h.kind === 'gold' ? '#FFD84D' : '#fff', 50, 35, h.kind === 'gold');
         fx.burst(at, reduce ? 4 : h.kind === 'gold' ? 26 : 10, 3);
@@ -567,20 +607,24 @@ export function BopABot({ seed, onEnd, haptics, reduce }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
-      const left = Math.max(0, DUR - (now - T0) / 1000);
-      if (left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
-      setHud((h) => (Math.ceil(left) !== h.left ? { ...h, left: Math.ceil(left) } : h));
+      const played = (now - T0) / 1000, left = endless ? 0 : Math.max(0, DUR - played);
+      if (!endless && left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
+      if (frenzy > 0) { frenzy = Math.max(0, frenzy - dt); setHud((h) => (Math.ceil(frenzy) !== h.frenzy ? { ...h, frenzy: Math.ceil(frenzy) } : h)); }
+      if (!endless) setHud((h) => (Math.ceil(left) !== h.left ? { ...h, left: Math.ceil(left) } : h));
       const kf = camera.aspect < 1 ? Math.min(2.1, 0.82 / camera.aspect) : 1; // fit a tall phone screen
       camera.position.set(0, 6.2 * kf, 4.4 * kf); camera.lookAt(0, 0, 0.25);
-      const pace = 1 + (DUR - left) / DUR * 1.4; // faster as it goes
+      const pace = (endless ? 1 + Math.min(2.2, played / 50) : 1 + (DUR - left) / DUR * 1.4) * (frenzy > 0 ? 2 : 1); // faster as it goes
       for (const h of holes) {
         h.timer -= dt * pace;
         if (h.timer <= 0 && !over) {
           if (h.target === 0 && h.up < 0.05) {
-            const roll = r(); h.kind = roll < 0.12 ? 'gold' : roll < 0.3 ? 'kitty' : 'bot';
+            const roll = r(); h.kind = roll < 0.12 ? 'gold' : roll < 0.3 && frenzy <= 0 ? 'kitty' : 'bot';
             for (const k of Object.keys(h.parts) as Kind[]) h.parts[k].visible = k === h.kind;
             h.target = 1; h.hit = false; h.timer = 0.7 + r() * 0.9;
-          } else { if (h.target === 1 && !h.hit && h.kind !== 'kitty' && combo) { combo = 0; setHud((x) => ({ ...x, combo })); } h.target = 0; h.timer = 0.3 + r() * 1.4; }
+          } else {
+            if (h.target === 1 && !h.hit && h.kind !== 'kitty') { if (combo) { combo = 0; setHud((x) => ({ ...x, combo })); } if (frenzy <= 0) lose('ONE GOT AWAY! −1'); }
+            h.target = 0; h.timer = 0.3 + r() * 1.4;
+          }
         }
         h.up += (h.target - h.up) * Math.min(1, dt * (h.hit ? 16 : 11));
         h.g.position.y = -1.95 + h.up * 1.85;
@@ -596,8 +640,8 @@ export function BopABot({ seed, onEnd, haptics, reduce }: ArenaProps) {
   return (
     <div className="relative h-full w-full touch-none select-none" data-testid="arc-bop">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" />
-      <Hud score={hud.score} left={hud.combo >= 5 ? <div className="lv-arc-led !text-[#3DDC97]"><b>×{hud.combo}</b></div> : undefined}
-        right={<div className={`lv-arc-led ${hud.left <= 10 ? '!text-[#FF3D6E]' : ''}`}><span className="text-[9px] opacity-70">TIME</span><b>{hud.left}</b></div>} />
+      <Hud score={hud.score} left={hud.frenzy > 0 ? <div className="lv-arc-led !text-[#FF3D9A]"><b>FRENZY {hud.frenzy}</b></div> : hud.combo >= 5 ? <div className="lv-arc-led !text-[#3DDC97]"><b>×{hud.combo}</b></div> : undefined}
+        right={endless ? <Lives n={hud.lives} max={5} /> : <div className={`lv-arc-led ${hud.left <= 10 ? '!text-[#FF3D6E]' : ''}`}><span className="text-[9px] opacity-70">TIME</span><b>{hud.left}</b></div>} />
       <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[11px] font-bold text-white/70">BOP THE BOTS · GOLD = 5 · LEAVE THE KITTIES 🐱</div>
       {pops.el}
     </div>
@@ -608,7 +652,8 @@ export function BopABot({ seed, onEnd, haptics, reduce }: ArenaProps) {
 // Claw Crane
 // ======================================================================================================
 const CLAW_PRIZES = [['🧸', 60, '#C98A4E'], ['🦄', 120, '#FFB3E6'], ['🐙', 80, '#FF7AB8'], ['👾', 150, '#8B5CFF'], ['🦖', 100, '#3DDC97'], ['🦆', 30, '#FFE14D'], ['🐻‍❄️', 70, '#E9F4FF'], ['🐸', 50, '#4FD18B']] as const;
-export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
+export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
+  const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useState({ score: 0, tries: 5, phase: 'x' as 'x' | 'z' | 'busy', left: 15 });
   const hold = useRef<{ x: boolean; z: boolean }>({ x: false, z: false });
@@ -630,20 +675,25 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
     for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const p = new THREE.Mesh(T(new THREE.BoxGeometry(0.07, 3.2, 0.07)), frameMat); p.position.set(x * (AX + 0.2), 1.6, z * (AZ + 0.2)); scene.add(p); }
     camera.position.set(0, 2.6, 4.1); camera.lookAt(0, 0.7, -0.1);
     // prizes: a squishy ball each, with its face on top
-    type Prize = { g: THREE.Group; e: string; pts: number; x: number; z: number; r: number; held: boolean; gone: boolean; vy: number };
+    type Prize = { g: THREE.Group; e: string; pts: number; x: number; z: number; r: number; held: boolean; gone: boolean; vy: number; golden: boolean };
     const prizes: Prize[] = [];
     const ballGeo = T(new THREE.SphereGeometry(1, 18, 12));
-    for (let i = 0; i < 14; i++) {
-      const [e, pts, col] = CLAW_PRIZES[Math.floor(r() * CLAW_PRIZES.length)];
+    // one GOLDEN prize in every machine: smaller and slippery (line it up dead centre) but worth 250
+    const goldBody = T(new THREE.MeshStandardMaterial({ color: '#FFD84D', metalness: 0.8, roughness: 0.2, emissive: '#7A5A00', emissiveIntensity: 0.7 }));
+    const addPrize = (golden: boolean) => {
+      const [e, pts, col] = golden ? ['⭐', 250, '#FFD84D'] as const : CLAW_PRIZES[Math.floor(r() * CLAW_PRIZES.length)];
       let x = 0, z = 0, ok = false;
-      for (let k = 0; k < 30 && !ok; k++) { x = -AX + 0.3 + r() * (AX * 2 - 0.6); z = -AZ + 0.3 + r() * (AZ * 2 - 0.6); ok = Math.hypot(x - (-AX + 0.25), z - (AZ - 0.25)) > 0.75 && prizes.every((p) => Math.hypot(p.x - x, p.z - z) > 0.48); }
-      if (!ok) continue;
-      const rad = 0.22 + (pts / 150) * 0.05;
+      for (let k = 0; k < 30 && !ok; k++) { x = -AX + 0.3 + r() * (AX * 2 - 0.6); z = -AZ + 0.3 + r() * (AZ * 2 - 0.6); ok = Math.hypot(x - (-AX + 0.25), z - (AZ - 0.25)) > 0.75 && prizes.every((p) => p.gone || Math.hypot(p.x - x, p.z - z) > 0.48); }
+      if (!ok) return;
+      const rad = golden ? 0.19 : 0.22 + (pts / 150) * 0.05;
       const g = new THREE.Group(); g.position.set(x, rad, z);
-      const body = new THREE.Mesh(ballGeo, T(new THREE.MeshStandardMaterial({ color: col, roughness: 0.9 }))); body.scale.set(rad, rad * 0.9, rad); g.add(body);
+      const body = new THREE.Mesh(ballGeo, golden ? goldBody : T(new THREE.MeshStandardMaterial({ color: col, roughness: 0.9 }))); body.scale.set(rad, rad * 0.9, rad); g.add(body);
       const face = new THREE.Sprite(T(new THREE.SpriteMaterial({ map: T(emojiTex(e)), transparent: true, depthWrite: false }))); face.scale.setScalar(rad * 2.4); face.position.y = rad * 0.2; g.add(face);
-      scene.add(g); prizes.push({ g, e, pts, x, z, r: rad, held: false, gone: false, vy: 0 });
-    }
+      if (golden) { const glowS = new THREE.PointLight('#FFD84D', 2, 1.2); glowS.position.y = 0.3; g.add(glowS); }
+      scene.add(g); prizes.push({ g, e, pts, x, z, r: rad, held: false, gone: false, vy: 0, golden });
+    };
+    addPrize(true);
+    for (let i = 0; i < 13; i++) addPrize(false);
     // the claw: a gantry rail, a cable, a hub and three fingers
     const claw = new THREE.Group(); scene.add(claw);
     const metal = T(new THREE.MeshStandardMaterial({ color: '#D7DCE6', metalness: 0.9, roughness: 0.25 }));
@@ -655,7 +705,8 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
     const TOP = 2.4;
     const C = { x: -AX + 0.25, z: AZ - 0.25, y: TOP, open: 1 };
     type Phase = 'x' | 'z' | 'drop' | 'grab' | 'lift' | 'home' | 'release' | 'over';
-    let phase: Phase = 'x', held: Prize | null = null, tries = 5, score = 0, wait = 0, tryT = 0;
+    // endless: three lives, and only a miss costs one; the machine restocks when it runs low
+    let phase: Phase = 'x', held: Prize | null = null, tries = endless ? 3 : 5, score = 0, wait = 0, tryT = 0, grabbed = false;
     const startTry = () => { phase = 'x'; tryT = 15; C.x = -AX + 0.25; C.z = AZ - 0.25; setHud({ score, tries, phase: 'x', left: 15 }); };
     const release = (axis: 'x' | 'z') => {
       if (phase === 'x' && axis === 'x') { phase = 'z'; setHud((h) => ({ ...h, phase: 'z' })); sfx.blip(2); }
@@ -684,7 +735,8 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
         if (wait <= 0) {
           // a grab works when the claw is lined up over the prize's middle
           const tgt = prizes.filter((p) => !p.gone).map((p) => ({ p, d: Math.hypot(p.x - C.x, p.z - C.z) })).sort((a, b) => a.d - b.d)[0];
-          if (tgt && tgt.d < tgt.p.r * 0.75) { held = tgt.p; held.held = true; sfx.blip(5); tap(haptics, 'medium'); }
+          grabbed = false;
+          if (tgt && tgt.d < tgt.p.r * (tgt.p.golden ? 0.5 : 0.75)) { held = tgt.p; held.held = true; grabbed = true; sfx.blip(5); tap(haptics, 'medium'); }
           else { sfx.thud(); }
           phase = 'lift';
         }
@@ -698,10 +750,15 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
       } else if (phase === 'release') {
         C.open = Math.min(1, C.open + dt * 3); wait -= dt;
         if (held && C.open > 0.5) { held.held = false; held.vy = 0; const p = held; held = null; p.gone = true; setTimeout(() => {
-          score += p.pts; sfx.win(5); tap(haptics, 'success'); pops.add(`${p.e} +${p.pts}`, '#FFE14D', 50, 30, true); fx.burst(new THREE.Vector3(C.x, 0.4, C.z), reduce ? 8 : 34, 3.5); setHud((h) => ({ ...h, score }));
+          score += p.pts; if (p.golden) { sfx.jackpot(); pops.add('GOLDEN PRIZE!', '#FFD84D', 50, 18, true); } else sfx.win(5); tap(haptics, 'success'); pops.add(`${p.e} +${p.pts}`, '#FFE14D', 50, 30, true); fx.burst(new THREE.Vector3(C.x, 0.4, C.z), reduce ? 8 : 34, 3.5); setHud((h) => ({ ...h, score }));
         }, 450); }
         if (wait <= 0) {
-          tries--;
+          if (!endless || !grabbed) tries--;
+          if (endless && tries > 0) {
+            const left = prizes.filter((p) => !p.gone);
+            if (left.length < 6) { for (let i = 0; i < 6; i++) addPrize(false); pops.add('RESTOCKED!', '#22E3FF', 50, 40, true); }
+            if (!left.some((p) => p.golden) && grabbed) addPrize(true);
+          }
           if (tries <= 0) { phase = 'over'; setHud((h) => ({ ...h, tries: 0, phase: 'busy' })); setTimeout(() => onEnd(score), 1400); }
           else startTry();
         }
@@ -735,7 +792,7 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
     <div className="relative h-full w-full touch-none select-none" data-testid="arc-claw">
       <canvas ref={cv} className="absolute inset-0 h-full w-full" />
       <Hud score={hud.score} left={<div className="lv-arc-led"><span className="text-[9px] opacity-70">TIME</span><b>{hud.phase === 'busy' ? '--' : hud.left}</b></div>}
-        right={<div className="lv-arc-led"><span className="text-[9px] opacity-70">TRIES</span><b>{hud.tries}</b></div>} />
+        right={endless ? <Lives n={hud.tries} max={3} /> : <div className="lv-arc-led"><span className="text-[9px] opacity-70">TRIES</span><b>{hud.tries}</b></div>} />
       <div className="absolute inset-x-0 bottom-3 flex items-end justify-center gap-6">
         {btn('x', '→', hud.phase === 'x')}
         {btn('z', '↑', hud.phase === 'z')}
@@ -747,6 +804,24 @@ export function ClawCrane({ seed, onEnd, haptics, reduce }: ArenaProps) {
 }
 
 export const ARENAS: Record<string, (p: ArenaProps) => React.ReactElement> = { stacker: TowerStacker, cyclone: Cyclone, skeeball: SkeeBall, hoops: HoopShot, bop: BopABot, claw: ClawCrane };
+/** Each machine's special bonus, shown on its attract screen. */
+export const BONUS: Record<string, string> = {
+  stacker: '🟨 Every 7th block is GOLD — land it perfectly for +15. Endless: ULTRA prizes every 10 levels past 30.',
+  cyclone: '★ Hit the JACKPOT and win a BONUS SPIN where the jackpot pays double (300)!',
+  skeeball: '★ Every third ball is a golden BONUS BALL — double points.',
+  hoops: '💵 Every fifth ball is a MONEY BALL worth double. Three in a row and you’re ON FIRE.',
+  bop: '⚡ Bop 15 in a row for a FRENZY: 5 seconds of bots everywhere at double points.',
+  claw: '⭐ One GOLDEN prize hides in the pile — trickier to grab, worth 250.',
+};
+/** How endless mode works on each machine. */
+export const ENDLESS: Record<string, string> = {
+  stacker: 'No top to the tower — keep stacking until you miss.',
+  cyclone: 'Spin forever: every 5 you land on costs a life. Three lives.',
+  skeeball: 'Roll forever: anything under 20 costs a life. Three lives.',
+  hoops: '30 seconds on the clock, +2 for every basket. The hoop speeds up.',
+  bop: 'No clock — every bot that gets away (or kitty you bop) costs a life. Five lives.',
+  claw: 'Three lives — only a miss costs one. The machine restocks.',
+};
 export const HOW: Record<string, string> = {
   stacker: 'Tap to drop the sliding block on the tower. Whatever hangs over gets sliced off — land it perfectly to keep it whole. Prize lines at 10, 20 and 30!',
   cyclone: 'A light races round the ring. Hit STOP to land it on the JACKPOT. Seven spins, each one faster.',

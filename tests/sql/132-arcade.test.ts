@@ -39,11 +39,14 @@ describe('Arcade plots', () => {
   it('playing is free and pays tickets, a little Ink and arcade XP', async () => {
     const before = await ink(ow);
     const r = await play(ow, 'stacker', 60);
-    expect(r).toMatchObject({ score: 60, tickets: 60, paid: 2, new_best: true });
-    expect(await ink(ow)).toBe(before + 2);
+    // 60 points: 15 tickets (+15 for the first round of the day; x2 if it's the hot cabinet), 60/160 of an Ink
+    const hot = r.hot ? 2 : 1;
+    expect(r).toMatchObject({ score: 60, tickets: 15 * hot + 15, paid: 0, new_best: true });
+    expect(r.bonus).toContain('first');
+    expect(await ink(ow)).toBe(before);
     const a = await db.rpc(ow, 'arcade_get', { p_id: arcId });
-    expect(a.level.xp).toBe(60);
-    expect(a.me.tickets).toBe(60);
+    expect(a.level.xp).toBe(15 * hot + 15);
+    expect(a.me.tickets).toBe(15 * hot + 15);
     expect(a.boards.stacker[0]).toMatchObject({ score: 60 });
   });
 
@@ -58,10 +61,11 @@ describe('Arcade plots', () => {
 
   it('visitors play too, and the owner gets a cut', async () => {
     const before = (await db.rpc(ow, 'arcade_get', { p_id: arcId })).me.tickets;
-    const r = await play(vi, 'cyclone', 300);
-    expect(r.tickets).toBe(90);
-    expect(r.owner_cut).toBe(9);
-    expect((await db.rpc(ow, 'arcade_get', { p_id: arcId })).me.tickets).toBe(before + 9);
+    const r = await play(vi, 'cyclone', 1000);
+    const hot = r.hot ? 2 : 1;
+    expect(r.tickets).toBe(40 * hot + 15);
+    expect(r.owner_cut).toBe(Math.floor(r.tickets * 0.1));
+    expect((await db.rpc(ow, 'arcade_get', { p_id: arcId })).me.tickets).toBe(before + r.owner_cut);
   });
 
   it('levels unlock cabinets; tickets buy them, upgrade them, decorate and win prizes', async () => {
@@ -73,8 +77,11 @@ describe('Arcade plots', () => {
     expect(a.me.tickets).toBe(5000 - 700);
     a = await db.rpc(ow, 'arcade_upgrade', { p_arcade: arcId, p_game: 'stacker' });
     expect(a.machines.stacker).toBe(2);
-    const r = await play(ow, 'stacker', 50);
-    expect(r.tickets).toBe(60); // +20% on a level 2 cabinet
+    await db.sql(`update arcades set machines = machines - 'cyclone' - 'claw' where id = $1`, [arcId]); // make stacker the only (so hot) cabinet
+    const r = await play(ow, 'stacker', 100);
+    expect(r.hot).toBe(true);
+    expect(r.tickets).toBe(60); // 100 x 0.25, +20% on a level 2 cabinet, x2 hot
+    await db.sql(`update arcades set machines = machines || '{"cyclone": 1, "claw": 1}' where id = $1`, [arcId]);
     a = await db.rpc(ow, 'arcade_decor', { p_arcade: arcId, p_slot: 'neon', p_id: 'cyan' });
     expect(a.decor.neon).toBe('cyan');
     const t = a.me.tickets;
@@ -94,11 +101,50 @@ describe('Arcade plots', () => {
     expect((await db.rpc(vi, 'arcade_daily', {})).streak).toBe(2);
   });
 
-  it('Ink is capped a day', async () => {
-    await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 119) on conflict (player_id, day) do update set ink = 119`, [vi]);
-    const r = await play(vi, 'stacker', 300);
-    expect(r).toMatchObject({ earned: 10, paid: 1, capped: true });
-    expect((await db.rpc(vi, 'arcade_hall_of_fame', { p_game: 'stacker' }))[0].score).toBe(300);
+  it('Ink has no daily limit, but comes a little at a time (fractions carry over)', async () => {
+    await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 5000) on conflict (player_id, day) do update set ink = 5000`, [vi]);
+    await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
+    const before = await ink(vi);
+    const r1 = await play(vi, 'stacker', 600, 120);
+    const k = r1.hot ? 1.5 : 1;
+    expect(r1.paid).toBe(Math.floor((600 / 160) * k));
+    expect(await ink(vi)).toBe(before + r1.paid);
+    expect(r1.ink_progress).toBeCloseTo(((600 / 160) * k) % 1, 2);
+  });
+
+  it('Endless mode has no top score and its own boards', async () => {
+    const s = await db.rpc(vi, 'arcade_start', { p_arcade: arcId, p_game: 'stacker', p_mode: 'endless' });
+    await age(s.session, 300);
+    const r = await db.rpc(vi, 'arcade_finish', { p_session: s.session, p_score: 2000 });
+    expect(r).toMatchObject({ score: 2000, mode: 'endless' });
+    const a = await db.rpc(vi, 'arcade_get', { p_id: arcId });
+    expect(a.boards_endless.stacker[0].score).toBe(2000);
+    expect(a.me.best_endless.stacker).toBe(2000);
+    expect((await db.rpc(vi, 'arcade_hall_of_fame', { p_game: 'stacker', p_mode: 'endless' }))[0].score).toBe(2000);
+    // Classic still stops at the cabinet's top
+    const c = await play(vi, 'stacker', 5000, 3000);
+    expect(c.score).toBe(900);
+  });
+
+  it('tickets buy arcade-only cosmetics (never Ink), and Inkborn can wear them', async () => {
+    await db.sql(`update arcade_players set tickets = 10000 where player_id = $1`, [vi]);
+    await expectError(db.rpc(vi, 'purchase_unlock', { p_key: 'explorer.hat.pixelcrown', p_idempotency_key: 'arcade-pc-0001-abcdef' }), 'arcade_only');
+    const c = await db.rpc(vi, 'arcade_cosmetic', { p_key: 'explorer.hat.pixelcrown' });
+    expect(c.me.tickets).toBe(10000 - 2400);
+    expect(c.me.owned).toContain('explorer.hat.pixelcrown');
+    expect((await db.rpc(vi, 'equip_explorer', { p_style: { hat: 'pixelcrown' } })).explorer_style.hat).toBe('pixelcrown');
+    await expectError(db.rpc(vi, 'arcade_cosmetic', { p_key: 'explorer.hat.pixelcrown' }), 'already_unlocked');
+    // a creature, and its party hat
+    const cr = await db.rpc(vi, 'inkborn_create', { p_client_key: 'arc-creature-1', p_name: 'Blip', p_source: 'random', p_genome: { body: 'round', color: '#FF3D9A', whead: 'crown' }, p_drawing: null });
+    expect(cr.genome.whead).toBeUndefined(); // can't sneak it on
+    await expectError(db.rpc(vi, 'inkborn_wear', { p_id: cr.id, p_slot: 'whead', p_item: 'party' }), 'not_owned');
+    await db.rpc(vi, 'arcade_cosmetic', { p_key: 'inkborn.whead.party' });
+    const w = await db.rpc(vi, 'inkborn_wear', { p_id: cr.id, p_slot: 'whead', p_item: 'party' });
+    expect(w.genome.whead).toBe('party');
+    // editing the creature keeps what it's wearing (and can't change it)
+    const u = await db.rpc(vi, 'inkborn_update', { p_id: cr.id, p_name: 'Blip', p_genome: { body: 'bean', color: '#22E3FF', whead: 'crown' } });
+    expect(u.genome).toMatchObject({ body: 'bean', whead: 'party' });
+    expect((await db.rpc(vi, 'inkborn_wear', { p_id: cr.id, p_slot: 'whead', p_item: null })).genome.whead).toBeUndefined();
   });
 
   it('explorers can be male or female', async () => {

@@ -114,6 +114,7 @@ const MESSAGES: Record<string, string> = {
   meteor_taken: 'Someone got to that meteorite first!',
   meteor_gone: 'That meteorite has burned out — a new shower is on its way.',
   too_far: 'Get closer — walk right up to it.',
+  arcade_only: 'That’s an arcade prize — win it with tickets at any arcade’s prize counter.',
   machine_locked: 'That cabinet isn’t in this arcade yet.',
   not_enough_tickets: 'Not enough tickets yet — play a few rounds!',
   level_too_low: 'Level your arcade up first — every game played in it gives XP.',

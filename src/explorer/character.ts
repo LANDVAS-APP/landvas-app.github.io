@@ -37,7 +37,7 @@ export function styleOf(s?: ExplorerStyle | null): Required<ExplorerStyle> {
   return { ...DEFAULT_STYLE, ...(s ?? {}) } as Required<ExplorerStyle>;
 }
 
-export const AURA_COLORS: Record<string, string> = { ice: '#7FE8FF', fire: '#FF6B2C', gold: '#FFC93D', rainbow: '#FF3D9A' };
+export const AURA_COLORS: Record<string, string> = { ice: '#7FE8FF', fire: '#FF6B2C', gold: '#FFC93D', rainbow: '#FF3D9A', neon: '#FF3D9A', arcade: '#22E3FF' };
 
 let uid = 0;
 
@@ -69,6 +69,24 @@ function outfit(id: string, accent: string, k: string): { defs: string; fill: st
         fill: `url(#g${k})`,
         extra: `<path d="M15 31 L19 29" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>`,
       };
+    case 'pixel': // an 8-bit checker jacket
+      return {
+        defs: `<clipPath id="c${k}"><rect x="12" y="25.5" width="22" height="19" rx="9.5"/></clipPath>`,
+        fill: '#22E3FF',
+        extra: `<g clip-path="url(#c${k})">${Array.from({ length: 30 }, (_, i) => { const x = 12 + (i % 6) * 3.7, y = 25.5 + Math.floor(i / 6) * 3.8; return (i + Math.floor(i / 6)) % 2 ? `<rect x="${x}" y="${y}" width="3.7" height="3.8" fill="${['#FF3D9A', '#8B5CFF', '#FFE14D'][i % 3]}"/>` : ''; }).join('')}</g>`,
+      };
+    case 'synth': // synthwave: a sunset gradient with neon grid lines
+      return {
+        defs: `<linearGradient id="g${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3D9A"/><stop offset="0.5" stop-color="#8B2BE2"/><stop offset="1" stop-color="#1B0F4A"/></linearGradient><clipPath id="c${k}"><rect x="12" y="25.5" width="22" height="19" rx="9.5"/></clipPath>`,
+        fill: `url(#g${k})`,
+        extra: `<g clip-path="url(#c${k})" stroke="#22E3FF" stroke-width="0.6" opacity="0.85"><line x1="12" y1="38" x2="34" y2="38"/><line x1="12" y1="41" x2="34" y2="41"/><line x1="12" y1="44" x2="34" y2="44"/><line x1="23" y1="36" x2="17" y2="45"/><line x1="23" y1="36" x2="29" y2="45"/><line x1="23" y1="36" x2="23" y2="45"/></g><circle cx="23" cy="31.5" r="3.2" fill="#FFE14D" opacity="0.9"/>`,
+      };
+    case 'champion': // a gold-trimmed winner's jacket with a star
+      return {
+        defs: `<linearGradient id="g${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14162B"/><stop offset="1" stop-color="#2B2F5A"/></linearGradient>`,
+        fill: `url(#g${k})`,
+        extra: `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="none" stroke="#FFC93D" stroke-width="1.4"/><path d="M23 29 L24.4 32 L27.6 32.3 L25.2 34.4 L25.9 37.6 L23 36 L20.1 37.6 L20.8 34.4 L18.4 32.3 L21.6 32Z" fill="#FFC93D"/>`,
+      };
     default:
       return { defs: '', fill: accent, extra: '' };
   }
@@ -94,6 +112,15 @@ function hat(id: string, k: string): { defs: string; svg: string } {
         defs: `<linearGradient id="cr${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF1A8"/><stop offset="1" stop-color="#E5A112"/></linearGradient>`,
         svg: `<path d="M12.5 12.5 L12.5 3 L17.5 8 L23 1 L28.5 8 L33.5 3 L33.5 12.5 Z" fill="url(#cr${k})" stroke="#B87A0B" stroke-width="0.6"/><circle cx="23" cy="8.5" r="1.6" fill="#FF3D9A"/><circle cx="16.5" cy="10" r="1" fill="#22E3FF"/><circle cx="29.5" cy="10" r="1" fill="#3DDC97"/>`,
       };
+    case 'pixelcrown':
+      return { defs: '', svg: `<g shape-rendering="crispEdges"><rect x="12" y="8" width="22" height="5" fill="#FFC93D"/><rect x="12" y="4" width="3" height="4" fill="#FFC93D"/><rect x="21.5" y="2" width="3" height="6" fill="#FFC93D"/><rect x="31" y="4" width="3" height="4" fill="#FFC93D"/><rect x="16" y="9.5" width="2" height="2" fill="#FF3D9A"/><rect x="22" y="9.5" width="2" height="2" fill="#22E3FF"/><rect x="28" y="9.5" width="2" height="2" fill="#3DDC97"/><rect x="12" y="12" width="22" height="1.2" fill="#B87A0B"/></g>` };
+    case 'propeller':
+      return { defs: '', svg: `<path d="M12 13.5 Q12.5 5 23 5 Q33.5 5 34 13.5Z" fill="#FF3D9A"/><path d="M12.6 10 Q23 6 33.4 10" stroke="#FFE14D" stroke-width="1.6" fill="none"/><rect x="22.3" y="1.5" width="1.4" height="4" fill="#2B2F4A"/><g class="spin"><ellipse cx="18.5" cy="1.4" rx="4.6" ry="1.2" fill="#22E3FF"/><ellipse cx="27.5" cy="1.4" rx="4.6" ry="1.2" fill="#3DDC97"/></g><circle cx="23" cy="1.4" r="1.2" fill="#FFE14D"/>` };
+    case 'visor':
+      return { defs: `<linearGradient id="v${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22E3FF"/><stop offset="0.5" stop-color="#8B5CFF"/><stop offset="1" stop-color="#FF3D9A"/></linearGradient>`,
+        svg: `<path d="M11.5 14.5 Q23 9 34.5 14.5" stroke="#2B2F4A" stroke-width="2" fill="none"/><rect x="13" y="14" width="20" height="6.6" rx="3.3" fill="#14162B"/><rect x="14" y="15" width="18" height="4.6" rx="2.3" fill="url(#v${k})" opacity="0.92"/><rect x="15" y="15.6" width="7" height="1" rx="0.5" fill="#fff" opacity="0.6"/>` };
+    case 'antennae':
+      return { defs: '', svg: `<path d="M18 9 Q15 3 12.5 1" stroke="#3DDC97" stroke-width="1.3" fill="none"/><path d="M28 9 Q31 3 33.5 1" stroke="#3DDC97" stroke-width="1.3" fill="none"/><circle class="spark" cx="12.5" cy="1" r="2" fill="#B6FF3D"/><circle class="spark" cx="33.5" cy="1" r="2" fill="#B6FF3D"/><path d="M12.5 13.5 Q22 7 33.5 13.5" stroke="#3DDC97" stroke-width="2" fill="none"/>` };
     case 'halo':
       return { defs: '', svg: `<ellipse class="halo" cx="23" cy="1.8" rx="9" ry="2.6" fill="none" stroke="#FFE14D" stroke-width="2"/>` };
     default: // beret
@@ -113,6 +140,12 @@ function hold(id: string): string {
       return `<g transform="rotate(-10 37 29)"><ellipse cx="37.5" cy="29" rx="7" ry="5.4" fill="#E8C9A0"/><circle cx="34.8" cy="27.5" r="1.3" fill="#FF3D9A"/><circle cx="37.8" cy="26.3" r="1.3" fill="#2FB8FF"/><circle cx="40.6" cy="28" r="1.3" fill="#FFE14D"/><circle cx="38.5" cy="31.3" r="1.3" fill="#3DDC97"/><circle cx="35.4" cy="31" r="1" fill="#C9A26B"/></g>`;
     case 'wand':
       return `<g transform="rotate(28 36 30)"><rect x="35.2" y="18" width="1.8" height="18" rx="0.9" fill="#2B2F4A"/><path class="spark" d="M36.1 12 L37.3 15.3 L40.6 15.6 L38 17.6 L38.9 20.9 L36.1 19 L33.3 20.9 L34.2 17.6 L31.6 15.6 L34.9 15.3Z" fill="#FFE14D"/></g>`;
+    case 'joystick':
+      return `<g transform="rotate(8 37 30)"><rect x="32.5" y="30" width="9" height="4.2" rx="1.2" fill="#14162B"/><rect x="36.4" y="22" width="1.3" height="8.5" fill="#9AA3C7"/><circle cx="37" cy="21.3" r="2.6" fill="#FF3D3D"/><circle cx="36.2" cy="20.5" r="0.8" fill="#fff" opacity="0.7"/><circle cx="34.5" cy="32" r="0.8" fill="#22E3FF"/><circle cx="39.8" cy="32" r="0.8" fill="#FFE14D"/></g>`;
+    case 'plush':
+      return `<g transform="rotate(-8 37 29)"><circle cx="37.5" cy="29.5" r="4.6" fill="#C98A4E"/><circle cx="34.2" cy="25.6" r="1.7" fill="#C98A4E"/><circle cx="40.8" cy="25.6" r="1.7" fill="#C98A4E"/><circle cx="37.5" cy="30.8" r="2" fill="#F2D2A9"/><circle cx="36" cy="28.6" r="0.6" fill="#1b1f3d"/><circle cx="39" cy="28.6" r="0.6" fill="#1b1f3d"/><path d="M36.8 30.6 L38.2 30.6 L37.5 31.4Z" fill="#1b1f3d"/><path d="M34.5 33.4 L37.5 34.8 L40.5 33.4 L40 35.6 L35 35.6Z" fill="#FF3D9A"/></g>`;
+    case 'tickets':
+      return `<g class="spark"><path d="M34 33 Q38 28 36 22 Q34 17 39 13" stroke="#FFC93D" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-dasharray="3 1.2"/><path d="M34 33 Q38 28 36 22 Q34 17 39 13" stroke="#B36B00" stroke-width="0.5" fill="none" stroke-dasharray="0.6 3.6"/></g>`;
     default: // brush
       return `<g transform="rotate(28 36 30)"><rect x="34.8" y="22" width="2.6" height="15" rx="1.2" fill="#8B5A2B"/><path d="M34.4 22 Q36.1 15.5 37.8 22Z" fill="#22E3FF"/></g>`;
   }

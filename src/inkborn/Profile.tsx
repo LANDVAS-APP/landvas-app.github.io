@@ -15,6 +15,8 @@ import { bondLevel, energyWord, moodWord } from './care';
 import { CreatureView } from './CreatureView';
 import { CreatureWork } from './Earn';
 import { MOOD_INFO, cleanGenome } from './genome';
+import { WEAR, WEAR_SLOTS } from '../arcade/cosmetics';
+import { useOnboardedMe } from '../lib/queries';
 
 export function Meter({ icon, label, value, color, hint }: { icon: React.ReactNode; label: string; value: number; color: string; hint?: string }) {
   return (
@@ -32,6 +34,7 @@ export function CreatureProfile({ c, open, onOpenChange, sanct, onChanged }: {
   const [rename, setRename] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const me = useOnboardedMe();
   if (!c) return null;
   const g = cleanGenome(c.genome);
   const b = bondLevel(c.bond);
@@ -65,6 +68,26 @@ export function CreatureProfile({ c, open, onOpenChange, sanct, onChanged }: {
           <div className="rounded-xl bg-surface-2/60 p-2"><dt className="text-muted">Bond points</dt><dd className="font-bold">{c.bond}</dd></div>
           <div className="rounded-xl bg-surface-2/60 p-2"><dt className="text-muted">Home</dt><dd className="truncate font-bold">{homes.find((h) => h.id === c.habitat_id)?.name ?? (c.habitat_id ? 'Sanctuary' : 'No room yet')}</dd></div>
         </dl>
+        {c.mine && (
+          <div className="grid gap-2 rounded-2xl border border-[#FF3D9A]/30 bg-[#FF3D9A]/5 p-3" data-testid="creature-wear">
+            <div className="flex items-center justify-between text-xs font-bold"><span>🕹️ Arcade wear</span><span className="font-normal text-muted">Win more with tickets at any arcade</span></div>
+            {WEAR_SLOTS.map(({ slot, label }) => {
+              const owned = WEAR[slot].filter((w) => me?.unlocks.includes(`inkborn.${slot}.${w.id}`));
+              const on = (c.genome as Record<string, unknown>)[slot] as string | undefined;
+              return (
+                <div key={slot} className="flex items-center gap-1.5 overflow-x-auto text-xs">
+                  <span className="w-10 shrink-0 text-muted">{label}</span>
+                  <button disabled={busy || !on} onClick={() => void run(() => api.inkbornWear(c.id, slot, null), 'Taken off')} className={cn('shrink-0 rounded-full px-2.5 py-1', !on ? 'bg-accent text-white' : 'bg-surface-2')}>None</button>
+                  {owned.map((w) => (
+                    <button key={w.id} disabled={busy || on === w.id} onClick={() => void run(() => api.inkbornWear(c.id, slot, w.id), `${c.name} looks great`)} data-testid={`wear-${slot}-${w.id}`}
+                      className={cn('shrink-0 rounded-full px-2.5 py-1 font-bold', on === w.id ? 'bg-accent text-white' : 'bg-surface-2')}>{w.emoji} {w.name}</button>
+                  ))}
+                  {!owned.length && <span className="text-faint">Nothing yet</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
         {c.mine && <div className="rounded-2xl bg-[#13261a] p-2 text-white"><CreatureWork c={c} onChanged={(n) => onChanged?.(n)} /></div>}
         {c.portrait_status === 'unconfigured' && <p className="text-center text-[11px] text-faint">AI-painted portraits aren’t switched on yet — {c.name} is shown on the Inkborn animation rig.</p>}
         {c.mine && (
