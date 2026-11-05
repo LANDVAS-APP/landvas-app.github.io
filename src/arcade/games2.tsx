@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Hud, Lives, clamp, rng, tap, usePops, type ArenaProps } from './games';
 import { sfx } from './sfx';
+import { CHIP_R, DROP_MAX, DROP_MIN, PEG_R, PEG_SLOTS, clampAim, newChip, pegLayout, stepChip, type Chip as PegChip } from './pegdrop';
 
 // ---- a little 2D engine: a sized canvas, a loop and pointer input in CSS pixels ----------------------------------
 type Ptr = { x: number; y: number; id: number };
@@ -108,6 +109,9 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
   useEffect(() => {
     const r = rng(seed), fx = sparks();
     let W = 0, H = 0, score = 0, you = 0, cpu = 0, lives = 3, over = false, pucks = 0, wait = 1, hitCd = 0, cpuSpeed = 1, shake = 0;
+    // the CPU: defends its goal, lines up behind a puck in its half and strikes through it, then backs off
+    let aiMode: 'defend' | 'line' | 'strike' | 'back' = 'defend', aiT = 0, slow = 0;
+    const aiDir = { x: 0, y: 1 };
     const P = { x: 0, y: 0, vx: 0, vy: 0, gold: false };
     const me = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
     const ai = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -120,9 +124,15 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
     };
     let first = true;
     const finish = () => { over = true; setTimeout(() => onEnd(score), 1300); };
+    let lastG: ReturnType<typeof geo> | null = null;
+    // tests: put the puck somewhere and see where it ends up (in table fractions)
+    if (location.search.includes('e2e=1')) (window as unknown as { __arcHockey: unknown }).__arcHockey = {
+      put: (fx: number, fy: number) => { if (!lastG) return; P.x = lastG.x0 + fx * lastG.tw; P.y = lastG.y0 + fy * lastG.th; P.vx = 0; P.vy = 0; wait = 0; },
+      where: () => (lastG ? { x: (P.x - lastG.x0) / lastG.tw, y: (P.y - lastG.y0) / lastG.th, you, cpu } : null),
+    };
     const eng: Engine = {
       frame(g, w, h, dt, t) {
-        W = w; H = h; const G = geo();
+        W = w; H = h; const G = geo(); lastG = G;
         if (first) { first = false; me.x = me.tx = G.x0 + G.tw / 2; me.y = me.ty = G.y0 + G.th * 0.82; ai.x = G.x0 + G.tw / 2; ai.y = G.y0 + G.th * 0.18; serve(-1); }
         // your mallet chases your finger (quick but not instant), the CPU tracks the puck
         me.px = me.x; me.py = me.y;
@@ -130,10 +140,40 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
         me.y += (clamp(me.ty, G.y0 + G.th / 2 + G.R, G.y0 + G.th - G.R) - me.y) * Math.min(1, dt * 22);
         me.vx = (me.x - me.px) / Math.max(dt, 0.001); me.vy = (me.y - me.py) / Math.max(dt, 0.001);
         const cmax = G.tw * (1.1 + (cpuSpeed - 1) * 0.9), inMine = P.y < G.y0 + G.th / 2;
-        const ttx = inMine ? P.x : G.x0 + G.tw / 2 + (P.x - (G.x0 + G.tw / 2)) * 0.4, tty = inMine && P.vy < 60 ? P.y - G.pr * 1.5 : G.y0 + G.th * 0.14;
-        const dx = ttx - ai.x, dy = tty - ai.y, d = Math.hypot(dx, dy);
-        ai.vx = d > 1 ? (dx / d) * Math.min(cmax, d * 8) : 0; ai.vy = d > 1 ? (dy / d) * Math.min(cmax, d * 8) : 0;
+        const cx = G.x0 + G.tw / 2, cy = G.y0 + G.th / 2, home = { x: cx + (P.x - cx) * 0.4, y: G.y0 + G.th * 0.14 };
+        const pSpeed = Math.hypot(P.vx, P.vy);
+        aiT -= dt;
+        let tx = home.x, ty = home.y, sp = cmax;
+        if (wait > 0 || over) { aiMode = 'defend'; }
+        else if (aiMode === 'strike') {
+          // drive straight through the puck
+          tx = P.x + aiDir.x * G.R * 2; ty = P.y + aiDir.y * G.R * 2; sp = cmax * 1.35;
+          if (aiT <= 0 || !inMine) { aiMode = 'back'; aiT = 0.35; }
+        } else if (aiMode === 'back') {
+          if (aiT <= 0) aiMode = 'defend';
+        } else if (inMine && (pSpeed < G.th * 0.6 || P.vy < 0)) {
+          // line up behind the puck: aim at the player's goal, or (from a corner or the top wall, where there's no
+          // room behind it) toward the middle of the table, so it always comes back out
+          const gx = cx, gy = G.y0 + G.th;
+          let dx = gx - P.x, dy = gy - P.y, dl = Math.hypot(dx, dy) || 1;
+          dx /= dl; dy /= dl;
+          const back = G.R + G.pr + 4;
+          const roomy = P.y - dy * back > G.y0 + G.R && P.x - dx * back > G.x0 + G.R && P.x - dx * back < G.x0 + G.tw - G.R;
+          if (!roomy) { dx = cx - P.x; dy = cy - P.y; dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl; }
+          aiDir.x = dx; aiDir.y = dy;
+          tx = P.x - dx * back; ty = P.y - dy * back;
+          if (aiMode !== 'line') { aiMode = 'line'; aiT = 1.4; }
+          const near = Math.hypot(tx - ai.x, ty - ai.y) < G.R * 0.35;
+          if (near || aiT <= 0) { aiMode = 'strike'; aiT = 0.28; }
+        } else aiMode = 'defend';
+        const dx = tx - ai.x, dy = ty - ai.y, d = Math.hypot(dx, dy);
+        ai.vx = d > 1 ? (dx / d) * Math.min(sp, d * 9) : 0; ai.vy = d > 1 ? (dy / d) * Math.min(sp, d * 9) : 0;
         ai.x = clamp(ai.x + ai.vx * dt, G.x0 + G.R, G.x0 + G.tw - G.R); ai.y = clamp(ai.y + ai.vy * dt, G.y0 + G.R, G.y0 + G.th / 2 - G.R);
+        // a puck that's sat still for a while gets a puff of table air toward the middle
+        if (!over && wait <= 0) {
+          slow = pSpeed < G.th * 0.08 ? slow + dt : 0;
+          if (slow > (inMine ? 2.2 : 4)) { slow = 0; const ex = cx - P.x, ey = cy - P.y, el = Math.hypot(ex, ey) || 1; P.vx += (ex / el) * G.th * 0.45; P.vy += (ey / el) * G.th * 0.45; aiMode = 'back'; aiT = 0.5; }
+        }
         if (!over) {
           if (wait > 0) wait -= dt;
           else {
@@ -157,6 +197,8 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
                   if (sp > cap) { P.vx *= cap / sp; P.vy *= cap / sp; }
                   if (mine && hitCd <= 0) { score += 2; hitCd = 0.3; sfx.bonk(); tap(haptics); fx.burst(P.x, P.y, '#22E3FF', 6, 90); setHud({ score }); }
                   else if (!mine && hitCd <= 0) { sfx.thud(); hitCd = 0.2; }
+                  // never pin the puck against a wall: back off and come again
+                  if (!mine && (P.x < G.x0 + G.pr + 3 || P.x > G.x0 + G.tw - G.pr - 3 || P.y < G.y0 + G.pr + 3)) { aiMode = 'back'; aiT = 0.4; }
                 }
               }
             }
@@ -866,7 +908,7 @@ export function RhythmRush({ seed, onEnd, haptics, mode }: ArenaProps) {
 // ======================================================================================================
 // Peg Drop
 // ======================================================================================================
-const PLINKO_SLOTS = [100, 10, 50, 25, 250, 25, 50, 10, 100];
+const PLINKO_SLOTS = PEG_SLOTS;
 export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
   const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
@@ -875,16 +917,14 @@ export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
   useEffect(() => {
     const r = rng(seed), fx = sparks();
     // board units: x 0..1, y 0..1.3
-    const pegs: { x: number; y: number; flash: number }[] = [];
-    for (let row = 0; row < 11; row++) { const n = row % 2 ? 8 : 9; for (let i = 0; i < n; i++) pegs.push({ x: (row % 2 ? 0.15 : 0.1) + i * 0.1, y: 0.22 + row * 0.08, flash: 0 }); }
+    const pegs = pegLayout();
     let goldPeg = Math.floor(r() * pegs.length);
-    type Chip = { x: number; y: number; vx: number; vy: number; gold: boolean; done: boolean };
-    const chips: Chip[] = [];
+    const chips: PegChip[] = [];
     let left = 10, score = 0, aim = 0.5, over = false, idle = 0;
-    const PR = 0.012, CR = 0.03;
+    const PR = PEG_R, CR = CHIP_R;
     const drop = () => {
       if (over || left <= 0 || chips.some((c) => !c.done && c.y < 0.2)) return;
-      left--; idle = 0; chips.push({ x: aim + (r() - 0.5) * 0.004, y: 0.1, vx: 0, vy: 0, gold: false, done: false }); sfx.drop(); tap(haptics); setHud({ chips: left });
+      left--; idle = 0; chips.push(newChip(aim, r)); sfx.drop(); tap(haptics); setHud({ chips: left });
     };
     let sc = 1, ox = 0, oy = 0;
     const eng: Engine = {
@@ -894,28 +934,19 @@ export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
           const SUB = 4, sd = dt / SUB;
           for (let s = 0; s < SUB; s++) for (const c of chips) {
             if (c.done) continue;
-            c.vy += 1.6 * sd; c.x += c.vx * sd; c.y += c.vy * sd; c.vx *= 0.999;
-            if (c.x < CR) { c.x = CR; c.vx = Math.abs(c.vx) * 0.5; } if (c.x > 1 - CR) { c.x = 1 - CR; c.vx = -Math.abs(c.vx) * 0.5; }
-            pegs.forEach((p, i) => {
-              const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy);
-              if (d < PR + CR && d > 0) {
-                const nx = dx / d, ny = dy / d; c.x = p.x + nx * (PR + CR); c.y = p.y + ny * (PR + CR);
-                const rv = c.vx * nx + c.vy * ny; if (rv < 0) { c.vx -= 1.45 * rv * nx; c.vy -= 1.45 * rv * ny; }
-                c.vx += (r() - 0.5) * 0.06; if (Math.abs(c.vx) < 0.03) c.vx += (r() < 0.5 ? -1 : 1) * 0.05;
-                if (p.flash <= 0) { sfx.tick(); p.flash = 0.15; }
-                if (i === goldPeg && !c.gold) { c.gold = true; pops.add('GOLD PEG ×2!', '#FFD84D', 50, 30, true); sfx.win(4); goldPeg = Math.floor(r() * pegs.length); }
-              }
+            stepChip(c, pegs, sd, r, (i) => {
+              const p = pegs[i];
+              if (p.flash <= 0) { sfx.tick(); p.flash = 0.15; }
+              if (i === goldPeg && !c.gold) { c.gold = true; pops.add('GOLD PEG ×2!', '#FFD84D', 50, 30, true); sfx.win(4); goldPeg = Math.floor(r() * pegs.length); }
             });
-            // slot dividers
-            if (c.y > 1.12) { const k = Math.round(c.x * 9); const wx = k / 9; if (Math.abs(c.x - wx) < CR && k > 0 && k < 9) { c.x = wx + Math.sign(c.x - wx || 1) * CR; c.vx = -c.vx * 0.4; } }
-            if (c.y > 1.25) {
-              c.done = true; const slot = clamp(Math.floor(c.x * 9), 0, 8), base = PLINKO_SLOTS[slot], pts = base * (c.gold ? 2 : 1);
+            if (c.done) {
+              const slot = c.slot ?? 4, base = PLINKO_SLOTS[slot], pts = base * (c.gold ? 2 : 1);
               score += pts; setHud({ score });
               const big = base >= 100;
               pops.add(`${c.gold ? '★ ' : ''}+${pts}`, big ? '#FFE14D' : '#fff', 6 + slot * 11, 82, big || c.gold);
               fx.burst(ox + (slot + 0.5) / 9 * sc, oy + 1.25 * sc, big ? RAINBOW : '#22E3FF', big ? 40 : 10, big ? 260 : 120);
               if (big) { sfx.jackpot(); tap(haptics, 'success'); } else sfx.win(2);
-              if (endless && base >= 100) { left++; setHud({ chips: left }); pops.add('+1 CHIP', '#3DDC97', 6 + slot * 11, 70); }
+              if (endless && big) { left++; setHud({ chips: left }); pops.add('+1 CHIP', '#3DDC97', 6 + slot * 11, 70); }
             }
           }
           if (left <= 0 && chips.every((c) => c.done)) { idle += dt; if (idle > 0.8) { over = true; setTimeout(() => onEnd(score), 1000); } }
@@ -923,6 +954,9 @@ export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
         bg(g, W, H, '#140A33', '#05020F');
         g.save(); g.translate(ox, oy); g.scale(sc, sc);
         // the aim marker
+        // the drop zone: chips can only be dropped from the middle of the board
+        g.fillStyle = 'rgba(255,225,77,0.08)'; g.fillRect(DROP_MIN - CR, 0.06, DROP_MAX - DROP_MIN + CR * 2, 0.09);
+        g.strokeStyle = 'rgba(255,225,77,0.45)'; g.lineWidth = 0.004; g.setLineDash([0.012, 0.01]); g.strokeRect(DROP_MIN - CR, 0.06, DROP_MAX - DROP_MIN + CR * 2, 0.09); g.setLineDash([]);
         if (!over && left > 0) { g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(aim - 0.002, 0.04, 0.004, 0.14); glowCircle(g, aim, 0.1, CR, '#FFE14D', 12); }
         pegs.forEach((p, i) => { p.flash = Math.max(0, p.flash - dt); const gold = i === goldPeg; glowCircle(g, p.x, p.y, PR * (gold ? 1.6 + Math.sin(t * 8) * 0.3 : 1), gold ? '#FFD84D' : p.flash > 0 ? '#FFFFFF' : '#B57BFF', gold ? 14 : 6); });
         // slots
@@ -940,17 +974,17 @@ export function PegDrop({ seed, onEnd, haptics, mode }: ArenaProps) {
         g.restore();
         fx.draw(g, dt);
       },
-      down: (p) => { aim = clamp((p.x - ox) / sc, 0.05, 0.95); },
-      move: (p) => { aim = clamp((p.x - ox) / sc, 0.05, 0.95); },
+      down: (p) => { aim = clampAim((p.x - ox) / sc); },
+      move: (p) => { aim = clampAim((p.x - ox) / sc); },
       up: () => drop(),
-      key: (k, d) => { if (!d) return; if (k === 'ArrowLeft') aim = clamp(aim - 0.03, 0.05, 0.95); if (k === 'ArrowRight') aim = clamp(aim + 0.03, 0.05, 0.95); if (k === ' ' || k === 'Enter') drop(); },
+      key: (k, d) => { if (!d) return; if (k === 'ArrowLeft') aim = clampAim(aim - 0.03); if (k === 'ArrowRight') aim = clampAim(aim + 0.03); if (k === ' ' || k === 'Enter') drop(); },
     };
     return run2d(cv.current!, eng);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Screen id="plinko" cv={cv}>
       <Hud score={hud.score} right={<Led label="CHIPS" v={hud.chips} c="#FF3D9A" />} />
-      <Tip>DRAG TO AIM · LET GO TO DROP{endless ? ' · 100+ slots give a chip back' : ''}</Tip>
+      <Tip>DRAG TO AIM · LET GO TO DROP{endless ? ' · the 100 slot gives a chip back' : ''}</Tip>
       {pops.el}
     </Screen>
   );
@@ -1246,7 +1280,7 @@ export const HOW2: Record<string, string> = {
   maze: 'Swipe your ink blob round the maze and slurp up every paint drop. Dodge the smudges — or grab a paint bucket and wash them away! Three lives.',
   blaster: 'Drag to steer your ship; it fires by itself. Clear five waves of neon drones. Three lives.',
   rhythm: 'Tap each lane as its note hits the circle. Perfect timing scores double, and combos multiply.',
-  plinko: 'Drag to aim, let go to drop. Chips bounce down the pegs into the slots. Ten chips.',
+  plinko: 'Drag to aim inside the drop zone, let go to drop. Chips bounce down the pegs — the middle slot pays 100. Ten chips.',
   racer: 'Tap left or right to change lanes. Dodge the traffic and grab the orbs. 60 seconds.',
   fruit: 'Swipe through the fruit as it flies up — but never the bombs. 60 seconds.',
   snake: 'Swipe to steer. Eat to grow (and speed up) — don’t hit the walls or yourself. 90 seconds.',
@@ -1270,7 +1304,7 @@ export const ENDLESS2: Record<string, string> = {
   maze: 'Clear a maze and the next one starts, with faster smudges (and a fourth one).',
   blaster: 'Wave after wave, faster and tougher, until you’re out of lives.',
   rhythm: 'The song never ends — it speeds up every 30 seconds. Five misses and you’re out.',
-  plinko: 'Land in a 100 or 250 slot and you get the chip back.',
+  plinko: 'Land in the 100 slot in the middle and you get the chip back.',
   racer: 'No clock — race until you’ve crashed three times. It keeps getting faster.',
   fruit: 'No clock — drop a fruit or hit a bomb and you lose a life.',
   snake: 'No clock and no walls — the edges wrap round. Grow as long as you can.',
