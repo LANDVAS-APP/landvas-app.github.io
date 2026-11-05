@@ -16,12 +16,14 @@ import { Button } from '../ui';
 import { cn } from '../lib/utils';
 import { useMapFx } from '../map/MapFx';
 import { buzz } from '../native/native';
+import { KIND_LABEL, kindOf, pickKind } from './mergeKind';
 
 const cellsOf = (gs: CanvasGroup[]) => gs.flatMap((g) => g.cells.map((c) => [c[0], c[1]] as CellTuple));
 
-/** Every one of your canvases that touches the picked ones (directly or through each other). */
+/** Every one of your canvases of the same type that touches the picked ones (directly or through each other). */
 export function touchingGroups(all: CanvasGroup[], picked: string[]): string[] {
-  const active = all.filter((g) => g.status === 'active');
+  const kind = picked.length ? kindOf(all, picked[0]) : null;
+  const active = all.filter((g) => g.status === 'active' && (!kind || (g.kind ?? 'canvas') === kind));
   const owner = new Map<string, string>();
   for (const g of active) for (const c of g.cells) owner.set(`${c[0]}_${c[1]}`, g.id);
   const out = new Set(picked);
@@ -63,12 +65,14 @@ export function MergeBar() {
   const [busy, setBusy] = useState(false);
   const all = (groups.data ?? []).filter((g) => g.status === 'active');
   const picked = merge ? all.filter((g) => merge.includes(g.id)) : [];
-  const pickedConnected = picked.length >= 2 && isConnected(cellsOf(picked));
+  const kind = pickKind(all, merge ?? []);
+  const mixed = picked.some((g) => (g.kind ?? 'canvas') !== kind);
+  const pickedConnected = !mixed && picked.length >= 2 && isConnected(cellsOf(picked));
   // hooks run before any early return
   const cost = useFuseCost(picked.map((x) => x.id), pickedConnected);
   if (!merge) return null;
   const plots = picked.reduce((n, g) => n + g.plot_count, 0);
-  const connected = picked.length >= 2 && isConnected(cellsOf(picked));
+  const connected = pickedConnected;
   const pieces = picked.length >= 2 ? components(cellsOf(picked)).length : 0;
   const price = cost.data?.ink ?? 0;
   const short = !!cost.data && price > cost.data.balance;
@@ -95,10 +99,11 @@ export function MergeBar() {
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent-2/15 text-accent-2"><Combine className="h-5 w-5" /></span>
           <div className="min-w-0 flex-1">
-            <div className="font-display font-semibold">Merge plots</div>
+            <div className="font-display font-semibold">Merge {kind ? KIND_LABEL[kind].many : 'plots'} {kind ? KIND_LABEL[kind].emoji : ''}</div>
             <p className="text-xs text-muted">
               {picked.length === 0 ? <><MousePointerClick className="mr-1 inline h-3.5 w-3.5" />Drag across your plots (or tap them) to pick them.</>
-                : picked.length === 1 ? 'Now tap the plots next to it — or select everything touching.'
+                : picked.length === 1 ? `Now tap the ${KIND_LABEL[kind ?? 'canvas'].many} next to it — or select everything touching. Only the same type of plot can merge.`
+                : mixed ? <span className="text-warn">Only plots of the same type can merge — take out the others.</span>
                 : connected ? <><b className="text-fg">{picked.length} canvases · {plots} plots</b> ready to become one{price > 0 ? <> for <b className="text-fg tnum">{price} Ink</b></> : ''}.{short && <span className="text-warn"> You need {price - (cost.data?.balance ?? 0)} more Ink.</span>}</>
                 : <span className="text-warn">These are in {pieces} separate groups — merged plots must touch.</span>}
             </p>

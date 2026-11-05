@@ -109,7 +109,7 @@ export default function CanvasesScreen() {
                       nav('/world');
                     }}><MapPin className="h-4 w-4" /> Map</Button>
                   </div>
-                  {g.adjacent_groups.length > 0 && (
+                  {g.adjacent_groups.length > 0 && touchingGroups(groups, [g.id]).length > 1 && (
                     <button className="mt-2 flex items-center gap-1.5 text-left text-xs font-semibold text-accent-2 hover:underline" onClick={() => openMerge(g, touchingGroups(groups, [g.id]))} data-testid="merge-touching">
                       <Combine className="h-3.5 w-3.5" /> Merge with the {touchingGroups(groups, [g.id]).length - 1} canvas{touchingGroups(groups, [g.id]).length - 1 === 1 ? '' : 'es'} touching it
                     </button>

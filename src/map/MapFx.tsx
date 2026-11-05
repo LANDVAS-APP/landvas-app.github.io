@@ -15,6 +15,8 @@ import type { Resident } from '../backend/types';
 import { drawCreature, heart, type CreatureState } from '../inkborn/rig';
 import { cleanGenome, type Genome } from '../inkborn/genome';
 import { useUi } from '../lib/store';
+import { sfx } from '../arcade/sfx';
+import { buzz } from '../native/native';
 import { outlineEdges } from '../shared/fusion';
 import { GRID_LEVEL, GRID_SIZE, type CellTuple, xToLng, yToLat } from '../shared/grid';
 import type { PlotBlocks } from './plotTiles';
@@ -29,7 +31,8 @@ export const useMapFx = create<{ merges: MergeFx[]; playMerge(groups: CellTuple[
   merges: [],
   playMerge: (groups) => {
     const reduce = useUi.getState().settings.reduceMotion;
-    set({ merges: [...get().merges, { id: Date.now() + Math.random(), groups: groups.filter((g) => g.length), start: performance.now(), dur: reduce ? 900 : 2700 }] });
+    set({ merges: [...get().merges, { id: Date.now() + Math.random(), groups: groups.filter((g) => g.length), start: performance.now(), dur: reduce ? 900 : 3200 }] });
+    if (!reduce) sfx.fuse();
     kick();
   },
   done: (id) => set({ merges: get().merges.filter((m) => m.id !== id) }),
@@ -184,6 +187,12 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     const sparks: Spark[] = [];
     const burst = new Set<number>(); // merges that have thrown their confetti
     const seams = new Map<number, { x: number; y: number }[]>(); // per merge: seam midpoints, for sparkles
+    const shook = new Set<number>();
+    const shake = () => {
+      const el = map.getContainer();
+      if (useUi.getState().settings.reduceMotion) return;
+      el.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-5px,3px)' }, { transform: 'translate(4px,-4px)' }, { transform: 'translate(-3px,2px)' }, { transform: 'translate(0,0)' }], { duration: 280, easing: 'ease-out' });
+    };
     const P = (gx: number, gy: number) => { const p = map.project([xToLng(gx / GRID_SIZE), yToLat(gy / GRID_SIZE)]); return [p.x, p.y] as const; };
     const quad = (gx: number, gy: number, k = 1, cx = 0, cy = 0) => {
       // a plot, optionally pulled toward (cx, cy) by factor k
@@ -193,7 +202,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
 
     const drawMerge = (m: MergeFx, now: number) => {
       const t = (now - m.start) / m.dur;
-      if (t >= 1) { useMapFx.getState().done(m.id); seams.delete(m.id); burst.delete(m.id); return; }
+      if (t >= 1) { useMapFx.getState().done(m.id); seams.delete(m.id); burst.delete(m.id); shook.delete(m.id); return; }
       const all = m.groups.flat();
       if (!all.length) return;
       const quick = m.dur < 1500;
@@ -203,7 +212,8 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
       cx /= all.length; cy /= all.length;
       const fadeOut = 1 - seg(t, 0.78, 1);
       // A. pull together: every piece squeezes in toward the middle, then settles
-      const pull = quick ? 0 : Math.sin(Math.PI * seg(t, 0, 0.42)) * 0.14;
+      // pieces lean in, then snap together hard (with a little overshoot) as they weld
+      const pull = quick ? 0 : t < 0.46 ? ease(seg(t, 0, 0.46)) * 0.16 : 0.16 * (1 - ease(seg(t, 0.46, 0.6))) * Math.cos(seg(t, 0.46, 0.6) * Math.PI * 3);
       const unify = quick ? 1 : ease(seg(t, 0.32, 0.6));
       g.save();
       m.groups.forEach((cells, i) => {
@@ -258,7 +268,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
         g.stroke();
         g.shadowBlur = 0;
       }
-      if (!burst.has(m.id) && t > (quick ? 0 : 0.5)) {
+      if (!burst.has(m.id) && t > (quick ? 0 : 0.48)) {
         burst.add(m.id);
         if (!quick) {
           for (const s of mids.slice(0, 40)) {
@@ -267,6 +277,72 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
           }
           const [x, y] = P(cx, cy);
           for (let i = 0; i < 70; i++) { const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 260; sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 160, life: 0, max: 1 + Math.random() * 0.8, c: RAINBOW[i % 5], r: 3 + Math.random() * 3, shape: 1 }); }
+        }
+      }
+      // B2. molten bridges grow across every seam from both sides and weld the pieces together, with
+      // energy arcs crackling over them; then the whole thing flashes white-hot as one
+      if (!quick) {
+        const bk = seg(t, 0.12, 0.5), fade = 1 - seg(t, 0.55, 0.72);
+        if (bk > 0 && fade > 0) {
+          const [ax0] = P(0, 0), [ax1] = P(1, 0);
+          const plotPx = Math.max(4, Math.hypot(ax1 - ax0, P(1, 0)[1] - P(0, 0)[1]));
+          g.lineCap = 'round';
+          // three welds per seam, growing in from both sides until they meet: one path, one glow (cheap on phones)
+          const reach = 0.5 * ease(bk);
+          const welds = new Path2D();
+          for (const s of mids.slice(0, 160)) {
+            const horiz = s.x % 1 !== 0;
+            for (const o of [-0.28, 0, 0.28]) {
+              const r = reach * (o ? 0.8 : 1);
+              const [ax, ay] = P(horiz ? s.x + o : s.x - r, horiz ? s.y - r : s.y + o), [bx, by] = P(horiz ? s.x + o : s.x + r, horiz ? s.y + r : s.y + o);
+              welds.moveTo(ax, ay); welds.lineTo(bx, by);
+            }
+          }
+          const [mx0, my0] = P(cx - 3, cy), [mx1, my1] = P(cx + 3, cy);
+          const wg = g.createLinearGradient(mx0, my0, mx1, my1); RAINBOW.forEach((c, i) => wg.addColorStop(i / (RAINBOW.length - 1), c));
+          g.globalAlpha = 0.7 * fade; g.strokeStyle = wg; g.shadowColor = '#FFC93D'; g.shadowBlur = 16; g.lineWidth = plotPx * 0.2 * ease(bk);
+          g.stroke(welds);
+          g.shadowBlur = 0; g.globalAlpha = 0.95 * fade; g.strokeStyle = '#FFF6D8'; g.lineWidth = plotPx * 0.07 * ease(bk);
+          g.stroke(welds);
+          // electric arcs jumping across the seams
+          if (bk < 1 || t < 0.55) {
+            g.strokeStyle = '#CFF8FF'; g.lineWidth = 1.6; g.globalAlpha = 0.9 * fade; g.shadowColor = '#22E3FF'; g.shadowBlur = 10;
+            g.beginPath();
+            for (const s of mids.slice(0, 60)) {
+              if (Math.random() < 0.45) continue;
+              const horiz = s.x % 1 !== 0, along = (Math.random() - 0.5) * 0.8;
+              let [x, y] = P(horiz ? s.x + along : s.x - 0.45, horiz ? s.y - 0.45 : s.y + along);
+              const [ex, ey] = P(horiz ? s.x + along + (Math.random() - 0.5) * 0.3 : s.x + 0.45, horiz ? s.y + 0.45 : s.y + along + (Math.random() - 0.5) * 0.3);
+              g.moveTo(x, y);
+              for (let k = 1; k <= 5; k++) { const q = k / 5; x = x + (ex - x) / (6 - k) + (Math.random() - 0.5) * plotPx * 0.15; y = y + (ey - y) / (6 - k) + (Math.random() - 0.5) * plotPx * 0.15; g.lineTo(q === 1 ? ex : x, q === 1 ? ey : y); }
+            }
+            g.stroke(); g.shadowBlur = 0;
+          }
+        }
+        // the flash: the whole new shape glows white-hot and cools into its own colours
+        const fl = seg(t, 0.46, 0.5) * (1 - seg(t, 0.5, 0.8));
+        if (fl > 0) {
+          const shape = new Path2D();
+          for (const [x, y] of all) { const pts = [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)]; shape.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < 4; i++) shape.lineTo(pts[i][0], pts[i][1]); shape.closePath(); }
+          g.globalAlpha = 0.85 * fl; g.fillStyle = '#FFFFFF'; g.shadowColor = '#FFF1B8'; g.shadowBlur = all.length > 60 ? 0 : 24;
+          g.fill(shape);
+          g.shadowBlur = 0;
+        }
+        // a little shake as they weld
+        if (t > 0.46 && t < 0.56 && !shook.has(m.id)) { shook.add(m.id); shake(); if (useUi.getState().settings.haptics) buzz('heavy'); }
+        // "FUSED!" over the middle, popping in and floating up
+        const lt = seg(t, 0.5, 1);
+        if (lt > 0) {
+          const [mx, my] = P(cx, cy);
+          const pop = lt < 0.15 ? 0.4 + (lt / 0.15) * 0.8 : lt < 0.25 ? 1.2 - ((lt - 0.15) / 0.1) * 0.2 : 1;
+          g.save(); g.translate(mx, my - 30 - lt * 40); g.scale(pop, pop);
+          g.globalAlpha = Math.min(1, (1 - lt) * 3);
+          g.font = '900 30px ui-rounded, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.lineWidth = 6; g.strokeStyle = 'rgba(20,10,40,0.85)'; g.strokeText('FUSED!', 0, 0);
+          const tg = g.createLinearGradient(-60, 0, 60, 0); RAINBOW.forEach((c, i) => tg.addColorStop(i / (RAINBOW.length - 1), c));
+          g.fillStyle = tg; g.fillText('FUSED!', 0, 0);
+          g.font = '800 14px ui-rounded, system-ui, sans-serif'; g.lineWidth = 4; g.strokeText(`${all.length} plots · one place`, 0, 26); g.fillStyle = '#fff'; g.fillText(`${all.length} plots · one place`, 0, 26);
+          g.restore();
         }
       }
       // C. one rainbow outline traces itself around the new canvas, with a shockwave from the middle

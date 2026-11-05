@@ -1,3 +1,4 @@
+import { useUi as __ui } from '../lib/store';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { isNative } from '../native/native';
@@ -249,7 +250,7 @@ if (config.router !== 'memory' && !getBackend().session()) {
 }
 
 if (config.e2e || import.meta.env.DEV) {
-  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasBackend: getBackend(), __landvasQc: queryClient });
+  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasBackend: getBackend(), __landvasQc: queryClient, __landvasUi: __ui });
 }
 
 export function App() {

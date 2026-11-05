@@ -19,12 +19,12 @@ import { sfx } from './sfx';
 export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
   /** classic: the usual round (scores capped); endless: keep going until you run out of lives */ mode?: 'classic' | 'endless' };
 export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
-const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 // ---- shared bits ---------------------------------------------------------------------------------------------
 type Pop = { id: number; text: string; color: string; x: number; y: number; big?: boolean };
 let popId = 0;
-function usePops() {
+export function usePops() {
   const [pops, setPops] = useState<Pop[]>([]);
   const add = (text: string, color = '#fff', x = 50, y = 40, big = false) => {
     const id = ++popId; setPops((p) => [...p.slice(-6), { id, text, color, x, y, big }]);
@@ -39,7 +39,7 @@ function usePops() {
   );
   return { add, el };
 }
-function Hud({ score, left, right }: { score: number; left?: React.ReactNode; right?: React.ReactNode }) {
+export function Hud({ score, left, right }: { score: number; left?: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 font-mono text-white">
       <div className="lv-arc-led" data-testid="arc-score"><span className="text-[9px] opacity-70">SCORE</span><b>{String(score).padStart(4, '0')}</b></div>
@@ -49,7 +49,7 @@ function Hud({ score, left, right }: { score: number; left?: React.ReactNode; ri
   );
 }
 /** Lives left in endless mode. */
-function Lives({ n, max }: { n: number; max: number }) {
+export function Lives({ n, max }: { n: number; max: number }) {
   return <div className="lv-arc-led" data-testid="arc-lives"><span className="text-[9px] opacity-70">LIVES</span><b className="tracking-tighter">{Array.from({ length: max }, (_, i) => (i < n ? '❤' : '·')).join('')}</b></div>;
 }
 function three(canvas: HTMLCanvasElement, bg: string, fov = 50) {
@@ -63,7 +63,7 @@ function three(canvas: HTMLCanvasElement, bg: string, fov = 50) {
   const ro = new ResizeObserver(resize); ro.observe(canvas); resize();
   return { renderer, scene, camera, T, dispose: () => { ro.disconnect(); for (const x of bag) x.dispose(); renderer.dispose(); } };
 }
-const tap = (h?: boolean, k: 'light' | 'medium' | 'heavy' | 'success' | 'warning' = 'light') => { if (h) buzz(k); };
+export const tap = (h?: boolean, k: 'light' | 'medium' | 'heavy' | 'success' | 'warning' = 'light') => { if (h) buzz(k); };
 function emojiTex(e: string) {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
   g.font = '100px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 64, 72);

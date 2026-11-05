@@ -18,11 +18,13 @@ import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
-import { ARENAS, BONUS, ENDLESS, HOW } from './games';
+import { ARENAS as ARENAS1, BONUS as BONUS1, ENDLESS as ENDLESS1, HOW as HOW1 } from './games';
+import { ARENAS2, BONUS2, ENDLESS2, HOW2 } from './games2';
 import { createHall, type HallScene, type HallSpot } from './hall3d';
 import { music } from './music';
 import { isMuted, setMuted, sfx } from './sfx';
 
+const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
 export const arcadeKey = (id: string) => ['arcade', id] as const;
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 const tix = (n: number) => Math.round(n).toLocaleString();

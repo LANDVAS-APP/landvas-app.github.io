@@ -7,7 +7,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
-import type { CanvasGroup, PlotRow } from '../backend/types';
+import type { CanvasGroup, PlotKind, PlotRow } from '../backend/types';
+import { toast } from 'sonner';
+import { canPick, pickKind, sameKindMessage } from '../plot/mergeKind';
 import { config } from '../env';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { effectiveDark, useUi, type MapMode } from '../lib/store';
@@ -44,6 +46,8 @@ const setData = (map: MLMap, id: string, data: GeoJSON.GeoJSON) => (map.getSourc
 
 export const artIndex = new ArtIndex();
 let lastMergePaint = 0;
+let lastKindNotice = 0;
+const mergeKindNotice = (k: PlotKind) => { if (performance.now() - lastKindNotice > 2500) { lastKindNotice = performance.now(); toast(sameKindMessage(k)); } };
 export const plotBlocks = new PlotBlocks();
 
 export function WorldMap() {
@@ -162,7 +166,11 @@ export function WorldMap() {
           // merge mode: tapping one of your plots adds or removes its canvas (a drag-pick already did)
           if (performance.now() - lastMergePaint < 700) return;
           const g = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined)?.find((x) => x.cells.some((c) => c[0] === cell.gx && c[1] === cell.gy));
-          if (g) ui.toggleMerge(g.id);
+          if (g) {
+            const all = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
+            if (!canPick(all, ui.merge, g.id)) { mergeKindNotice(pickKind(all, ui.merge)!); return; }
+            ui.toggleMerge(g.id);
+          }
           return;
         }
         ui.select(cell);
@@ -451,6 +459,8 @@ export function WorldMap() {
     const apply = (id: string) => {
       touched.add(id);
       const ui = useUi.getState(), cur = ui.merge ?? [];
+      const all = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
+      if (add && !canPick(all, cur, id)) { mergeKindNotice(pickKind(all, cur)!); return; }
       if (add && !cur.includes(id)) ui.setMerge([...cur, id]);
       if (!add && cur.includes(id)) ui.setMerge(cur.filter((x) => x !== id));
       lastMergePaint = performance.now();
@@ -481,7 +491,9 @@ export function WorldMap() {
     if (!ready || !map) return;
     if ((!merge && !mergeHover?.length) || !groups.data) { setData(map, 'lv-merge', EMPTY); return; }
     // s: 0 = your other canvases (merge mode), 1 = picked, 2 = the canvas you're pointing at / about to connect
-    const feats: GeoJSON.Feature[] = groups.data.filter((g) => g.status === 'active' && (merge || mergeHover?.includes(g.id)))
+    // once something's picked, only plots of the same type light up
+    const lock = merge ? pickKind(groups.data, merge) : null;
+    const feats: GeoJSON.Feature[] = groups.data.filter((g) => g.status === 'active' && (merge || mergeHover?.includes(g.id)) && (!lock || (g.kind ?? 'canvas') === lock))
       .flatMap((g) => g.cells.map((c) => poly(c[0], c[1], { s: mergeHover?.includes(g.id) && !merge?.includes(g.id) ? 2 : merge?.includes(g.id) ? 1 : merge ? 0 : 1 })));
     setData(map, 'lv-merge', { type: 'FeatureCollection', features: feats });
   }, [merge, mergeHover, groups.data, ready]);

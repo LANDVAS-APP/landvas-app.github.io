@@ -39,5 +39,12 @@ export const sfx = {
   win: (n = 3) => { for (let i = 0; i < n; i++) tone(523 * Math.pow(2, [0, 4, 7, 12, 16][i % 5] / 12), 0.14, 'square', 0.05, i * 0.08); },
   jackpot: () => { for (let i = 0; i < 14; i++) tone(523 * Math.pow(2, [0, 4, 7, 12, 7, 12, 16, 19, 16, 19, 24, 19, 24, 28][i] / 12), 0.12, 'square', 0.055, i * 0.07); },
   tickets: (n: number) => { for (let i = 0; i < Math.min(18, n); i++) tone(1500 + (i % 3) * 120, 0.025, 'square', 0.025, i * 0.045); },
+  /** plots fusing: a rising charge, crackles, a boom and a sparkly chord */
+  fuse: () => {
+    tone(110, 1.45, 'sawtooth', 0.035, 0, 880); tone(165, 1.45, 'triangle', 0.04, 0.05, 1320);
+    for (let i = 0; i < 9; i++) noise(0.04, 0.03, 0.35 + i * 0.1);
+    tone(70, 0.5, 'sine', 0.22, 1.47, 35); noise(0.45, 0.12, 1.47);
+    [0, 4, 7, 12, 16].forEach((n, i) => tone(523 * Math.pow(2, n / 12), 0.5, 'square', 0.04, 1.58 + i * 0.06));
+  },
   coin: () => { tone(988, 0.07, 'square', 0.05); tone(1319, 0.25, 'square', 0.05, 0.07); },
 };

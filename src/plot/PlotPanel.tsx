@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
+import { kindOf } from './mergeKind';
 import { mergePieces, useMapFx } from '../map/MapFx';
 import { diveInto } from '../map/Hud';
 import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
@@ -409,6 +410,9 @@ function MineBlock({ d }: { d: PlotDetails }) {
       invalidateGame(qc);
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  // only plots of the same type can merge
+  const myGroups = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
+  const sameKind = (d.connections ?? []).filter((c) => !d.group || kindOf(myGroups, c.group_id) === kindOf(myGroups, d.group.id));
   const fuse = async (other: string) => {
     if (!d.group) return;
     setBusy('fuse');
@@ -451,10 +455,10 @@ function MineBlock({ d }: { d: PlotDetails }) {
       {d.group && d.group.plot_count > 1 && (
         <p className="text-xs text-muted">Part of <b className="text-fg">{d.group.name}</b> — a {d.group.max_gx - d.group.min_gx + 1}×{d.group.max_gy - d.group.min_gy + 1} canvas of {d.group.plot_count} plots.</p>
       )}
-      {(d.connections?.length ?? 0) > 0 && (
+      {sameKind.length > 0 && (
         <div className="grid gap-2 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3">
           <div className="text-sm font-bold">Your canvas can grow</div>
-          {d.connections!.map((c) => <ConnectButton key={c.group_id} c={c} mine={d.group?.id ?? null} busy={busy === 'fuse'} onGo={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }} />)}
+          {sameKind.map((c) => <ConnectButton key={c.group_id} c={c} mine={d.group?.id ?? null} busy={busy === 'fuse'} onGo={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }} />)}
           <p className="text-[11px] text-muted">Bigger murals earn bigger craft bonuses — merging costs Ink for each plot that joins.</p>
         </div>
       )}

@@ -80,7 +80,7 @@ const MESSAGES: Record<string, string> = {
   already_checked_in: 'You’ve already checked in here today.',
   challenge_closed: 'That challenge isn’t taking entries or votes right now.',
   not_your_artwork: 'Pick one of your own published artworks.',
-  mixed_plot_kinds: 'Art canvases merge with art canvases and habitats with habitats — change one first.',
+  mixed_plot_kinds: 'Only plots of the same type can merge (art with art, arcades with arcades…) — switch one first.',
   habitat_plot: 'This plot is an Inkborn Habitat. Switch it back to an Art Canvas to publish art.',
   invalid_plot_kind: 'That plot type isn’t available.',
   daily_ad_cap: 'That’s all the bonus ads for today — more after the evening reset.',

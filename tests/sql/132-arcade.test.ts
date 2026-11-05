@@ -154,4 +154,27 @@ describe('Arcade plots', () => {
     const q = await db.rpc(ow, 'equip_explorer', { p_style: { hat: 'beret' } });
     expect(q.explorer_style.sex).toBeUndefined();
   });
+
+  it('sixteen cabinets: the ten new ones unlock with arcade level and play like the rest', async () => {
+    const a = await db.rpc(ow, 'arcade_get', { p_id: arcId });
+    const NEW = ['airhockey', 'plinko', 'snake', 'pusher', 'fruit', 'blaster', 'maze', 'rhythm', 'racer', 'pinball'];
+    expect(Object.keys(a.games).length).toBe(16);
+    for (const k of NEW) expect(a.games[k]).toMatchObject({ name: expect.any(String), points_per_ink: expect.any(Number) });
+    if (a.level.level < 12) await expectError(db.rpc(ow, 'arcade_unlock', { p_arcade: arcId, p_game: 'pinball' }), 'level_too_low');
+    await db.sql(`update arcades set xp = 9999999 where id = $1`, [arcId]);
+    await db.sql(`update arcade_players set tickets = tickets + 100000 where player_id = $1`, [ow]);
+    for (const k of NEW) await db.rpc(ow, 'arcade_unlock', { p_arcade: arcId, p_game: k });
+    const b = await db.rpc(ow, 'arcade_get', { p_id: arcId });
+    expect(Object.keys(b.machines).length).toBeGreaterThanOrEqual(12);
+    for (const k of NEW) expect(b.machines[k]).toBe(1);
+    // an endless snake run that ends early (out of lives) just scores nothing instead of failing
+    const s = await db.rpc(ow, 'arcade_start', { p_arcade: arcId, p_game: 'snake', p_mode: 'endless' });
+    expect((await db.rpc(ow, 'arcade_finish', { p_session: s.session, p_score: 40 })).score).toBe(0);
+    // classic pinball stops at its top score; endless doesn't
+    const c = await play(ow, 'pinball', 99999, 600);
+    expect(c.score).toBe(8000);
+    const e = await db.rpc(ow, 'arcade_start', { p_arcade: arcId, p_game: 'pinball', p_mode: 'endless' });
+    await age(e.session, 600);
+    expect((await db.rpc(ow, 'arcade_finish', { p_session: e.session, p_score: 12000 })).score).toBe(12000);
+  });
 });

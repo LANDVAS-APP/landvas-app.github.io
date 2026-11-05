@@ -85,6 +85,27 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
       g.fillStyle = on ? (r >= 10 ? '#FFE14D' : '#FF3D9A') : 'rgba(255,61,154,0.08)'; g.fillRect(70 + c * 17, H - 14 - r * 12, 14, 10);
     }
     g.fillStyle = '#22E3FF'; g.font = '900 11px ui-monospace'; g.fillText('MINOR', 20, H - 14 - 10 * 12); g.fillStyle = '#FFE14D'; g.fillText('MAJOR', 20, H - 14 - 14 * 12);
+  } else if (id === 'maze') {
+    g.strokeStyle = '#3D5AFE'; g.lineWidth = 3; g.strokeRect(20, 30, Wd - 40, H - 60); g.strokeRect(60, 70, Wd - 120, H - 140);
+    const k = (t * 0.25) % 1, px = 40 + k * (Wd - 80);
+    for (let x = 40; x < Wd - 40; x += 16) if (x > px) { g.fillStyle = '#FFE9C9'; g.fillRect(x, 48, 3, 3); }
+    g.fillStyle = '#FFE14D'; g.beginPath(); const m = Math.abs(Math.sin(t * 10)) * 0.6; g.moveTo(px, 50); g.arc(px, 50, 12, m, Math.PI * 2 - m); g.fill();
+    for (let i = 0; i < 3; i++) { g.fillStyle = ['#FF3D3D', '#FF9FCB', '#22E3FF'][i]; g.beginPath(); g.arc(px - 40 - i * 28, 50, 11, Math.PI, 0); g.lineTo(px - 29 - i * 28, 62); g.lineTo(px - 51 - i * 28, 62); g.fill(); }
+  } else if (id === 'blaster') {
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { g.fillStyle = ['#FF3D9A', '#B6FF3D', '#22E3FF'][r]; g.fillRect(40 + c * 30 + Math.sin(t * 2) * 14, 30 + r * 22, 18, 12); }
+    const sx = Wd / 2 + Math.sin(t * 1.7) * 70; g.fillStyle = '#3DDC97'; g.beginPath(); g.moveTo(sx, H - 34); g.lineTo(sx + 14, H - 16); g.lineTo(sx - 14, H - 16); g.fill();
+    g.fillStyle = '#FFE14D'; for (let i = 0; i < 4; i++) g.fillRect(sx - 1, H - 40 - ((t * 200 + i * 40) % 120), 3, 8);
+  } else if (id === 'snake') {
+    for (let i = 0; i < 14; i++) { const a = t * 2 - i * 0.25; g.fillStyle = `hsl(${(140 + i * 8) % 360} 90% 55%)`; g.fillRect(Wd / 2 + Math.cos(a) * 70 - 6, H / 2 + Math.sin(a * 1.5) * 45 - 6, 12, 12); }
+    g.fillStyle = '#FF3D9A'; g.beginPath(); g.arc(Wd / 2 + 50, H / 2 - 20, 6, 0, Math.PI * 2); g.fill();
+  } else if (id === 'rhythm') {
+    const cols = ['#FF3D9A', '#22E3FF', '#B6FF3D', '#FFB13D'];
+    for (let l = 0; l < 4; l++) { g.strokeStyle = cols[l]; g.globalAlpha = 0.4; g.strokeRect(48 + l * 42, 0, 38, H); g.globalAlpha = 1; for (let n = 0; n < 3; n++) { const y = ((t * 90 + n * 70 + l * 37) % (H + 20)) - 10; g.fillStyle = cols[l]; g.fillRect(52 + l * 42, y, 30, 10); } g.beginPath(); g.arc(67 + l * 42, H - 22, 12, 0, Math.PI * 2); g.stroke(); }
+  } else if (id === 'fruit' || id === 'pusher' || id === 'plinko' || id === 'racer' || id === 'pinball' || id === 'airhockey') {
+    const em = { fruit: ['🍉', '🍊', '🍎', '🍇'], pusher: ['🪙', '🪙', '💎', '🪙'], plinko: ['🔴', '🟡', '🔵', '🟢'], racer: ['🏎️', '🚗', '⚡', '🚙'], pinball: ['⚪', '✨', '🎯', '⚪'], airhockey: ['🏒', '⚪', '🥅', '🏒'] }[id]!;
+    g.font = '40px system-ui, "Apple Color Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    em.forEach((e, i) => { const a = t * 1.3 + i * 1.57; g.fillText(e, Wd / 2 + Math.cos(a) * 70, H / 2 + Math.sin(a * (id === 'fruit' ? 2 : 1)) * 40); });
+    g.strokeStyle = color; g.lineWidth = 4; g.globalAlpha = 0.6 + 0.4 * Math.sin(t * 4); g.strokeRect(8, 8, Wd - 16, H - 16); g.globalAlpha = 1;
   } else {
     // a generic attract screen: the game's emoji bouncing over a starfield, and its colour pulsing
     for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + (i % 3) * 0.2})`; g.fillRect((i * 53 + t * 40 * (1 + (i % 3))) % Wd, (i * 37) % H, 2, 2); }
@@ -300,6 +321,91 @@ export function createHall(o: HallOpts) {
         focus = new THREE.Vector3(0, 1.6, 0.1); focusN = new THREE.Vector3(0, 0.25, 1).normalize(); focusDist = 1.7; hd = 0.7;
         break;
       }
+      case 'airhockey': {
+        // a long glowing table with a puck sliding between two mallets
+        const legs = box(1.3, 0.8, 2.2, body); legs.position.set(0, 0.4, -0.65); g.add(legs);
+        const top = box(1.4, 0.08, 2.3, std('#0D1A3A', { emissive: '#22E3FF', emissiveIntensity: 0.12 })); top.position.set(0, 0.84, -0.65); g.add(top);
+        for (const sx of [-1, 1]) { const rail = box(0.06, 0.1, 2.3, side); rail.position.set(sx * 0.7, 0.92, -0.65); g.add(rail); }
+        for (const sz of [-1, 1]) { const rail = box(1.4, 0.1, 0.06, side); rail.position.set(0, 0.92, -0.65 + sz * 1.15); g.add(rail); }
+        const line = box(1.3, 0.01, 0.02, glow('#FF3D9A', 1.5)); line.position.set(0, 0.885, -0.65); g.add(line);
+        const puck = cyl(0.07, 0.07, 0.03, glow('#FFFFFF', 0.8), 20); puck.position.set(0, 0.9, -0.65); g.add(puck); parts.push(puck);
+        for (const [z, c] of [[0.25, '#22E3FF'], [-1.55, '#FF3D6E']] as const) { const m = cyl(0.11, 0.12, 0.08, glow(c, 0.9), 20); m.position.set(0, 0.92, z); g.add(m); }
+        const sign = box(0.08, 1.6, 0.08, side); sign.position.set(0, 1.6, -1.8); g.add(sign);
+        marquee = marqueeOn(g, m, 2.5, 1.4); marquee.position.z = -1.72; (g.children[g.children.length - 1] as THREE.Mesh).position.z = -1.88;
+        focus = new THREE.Vector3(0, 0.9, -0.65); focusN = new THREE.Vector3(0, 1.6, 0.9).normalize(); focusDist = 2.2; hd = 1.25;
+        break;
+      }
+      case 'pinball': {
+        // a tilted glass playfield on legs, the backbox standing up at the back
+        const legs = box(0.9, 0.85, 1.6, body); legs.position.set(0, 0.42, -0.55); g.add(legs);
+        const field = box(0.95, 0.12, 1.7, std('#1A0B30', { emissive: '#8B5CFF', emissiveIntensity: 0.25 })); field.position.set(0, 1.0, -0.55); field.rotation.x = 0.12; g.add(field);
+        const glassP = box(0.92, 0.02, 1.66, T(new THREE.MeshStandardMaterial({ color: '#BFE3FF', transparent: true, opacity: 0.18, roughness: 0.05 }))); glassP.position.set(0, 1.08, -0.55); glassP.rotation.x = 0.12; g.add(glassP);
+        for (const [x, z, c] of [[-0.2, -0.8, '#FF3D9A'], [0.2, -0.8, '#22E3FF'], [0, -0.55, '#FFE14D']] as const) { const b = cyl(0.07, 0.07, 0.08, glow(c, 1.6), 16); b.position.set(x, 1.12 + (-z - 0.55) * 0.12, z); g.add(b); }
+        const ball = new THREE.Mesh(T(new THREE.SphereGeometry(0.035, 12, 10)), std('#E6ECF5', { metalness: 1, roughness: 0.15 })); ball.position.set(0, 1.12, -0.4); g.add(ball); parts.push(ball);
+        const back = box(0.95, 0.9, 0.2, body); back.position.set(0, 1.7, -1.35); g.add(back);
+        screen = document.createElement('canvas'); screen.width = 256; screen.height = 192;
+        tex = T(new THREE.CanvasTexture(screen)); tex.colorSpace = THREE.SRGBColorSpace;
+        const sc = new THREE.Mesh(T(new THREE.PlaneGeometry(0.82, 0.62)), T(new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }))); sc.position.set(0, 1.72, -1.24); g.add(sc);
+        marquee = marqueeOn(g, m, 2.32, 0.95); marquee.position.z = -1.22; (g.children[g.children.length - 1] as THREE.Mesh).position.z = -1.38;
+        focus = new THREE.Vector3(0, 1.05, -0.55); focusN = new THREE.Vector3(0, 1.5, 1).normalize(); focusDist = 1.8; hw = 0.6; hd = 1.0;
+        break;
+      }
+      case 'pusher': {
+        // a wide coin pusher: glass front, stacks of gold behind it, lights round the top
+        const base = box(1.6, 1.0, 1.1, body); base.position.set(0, 0.5, -0.1); g.add(base);
+        const glassC = box(1.5, 0.9, 0.9, T(new THREE.MeshStandardMaterial({ color: '#FFE9A8', transparent: true, opacity: 0.15, roughness: 0.05 }))); glassC.position.set(0, 1.45, -0.1); g.add(glassC);
+        const shelf = box(1.4, 0.05, 0.8, std('#5A4A8A')); shelf.position.set(0, 1.05, -0.1); g.add(shelf);
+        const pushr = box(1.4, 0.18, 0.3, std('#C9BEFF', { metalness: 0.5 })); pushr.position.set(0, 1.15, -0.4); g.add(pushr); parts.push(pushr);
+        const gold = std('#E0A800', { metalness: 0.9, roughness: 0.25, emissive: '#7A5A00', emissiveIntensity: 0.3 });
+        for (let i = 0; i < 14; i++) { const c = cyl(0.07, 0.07, 0.02 + (i % 3) * 0.03, gold, 14); c.position.set(-0.55 + (i % 7) * 0.18, 1.09 + (i % 3) * 0.015, -0.05 + Math.floor(i / 7) * 0.2); g.add(c); }
+        const roof = box(1.65, 0.3, 1.15, body); roof.position.set(0, 2.05, -0.1); g.add(roof);
+        for (let i = 0; i < 10; i++) { const b = new THREE.Mesh(T(new THREE.SphereGeometry(0.035, 8, 6)), glow(i % 2 ? '#FFE14D' : '#FF3D9A', 2)); b.position.set(-0.72 + i * 0.16, 1.92, 0.48); g.add(b); }
+        marquee = marqueeOn(g, m, 2.42, 1.6);
+        focus = new THREE.Vector3(0, 1.3, 0.2); focusN = new THREE.Vector3(0, 0.9, 1).normalize(); focusDist = 1.6; hw = 0.82; hd = 0.7;
+        break;
+      }
+      case 'plinko': {
+        // a tall pegboard with glowing slots along the bottom
+        const base = box(1.4, 0.7, 0.8, body); base.position.set(0, 0.35, -0.1); g.add(base);
+        const board = box(1.35, 2.3, 0.12, std('#140A33', { emissive: '#FF3D9A', emissiveIntensity: 0.06 })); board.position.set(0, 1.85, -0.3); g.add(board);
+        const pegM = glow('#B57BFF', 1.4);
+        for (let r2 = 0; r2 < 9; r2++) for (let c2 = 0; c2 < (r2 % 2 ? 6 : 7); c2++) { const p2 = new THREE.Mesh(T(new THREE.SphereGeometry(0.025, 6, 4)), pegM); p2.position.set((r2 % 2 ? -0.5 : -0.6) + c2 * 0.2, 2.75 - r2 * 0.2, -0.22); g.add(p2); }
+        for (let i = 0; i < 7; i++) { const sl = box(0.16, 0.18, 0.04, glow(['#3DDC97', '#22E3FF', '#FFE14D', '#FF3D9A', '#FFE14D', '#22E3FF', '#3DDC97'][i], 1.2)); sl.position.set(-0.6 + i * 0.2, 0.86, -0.22); g.add(sl); }
+        const chip = new THREE.Mesh(T(new THREE.SphereGeometry(0.06, 14, 10)), glow('#FF3D9A', 0.8)); chip.position.set(0, 2.8, -0.15); g.add(chip); parts.push(chip);
+        for (const sx of [-1, 1]) { const p2 = box(0.06, 2.5, 0.2, side); p2.position.set(sx * 0.7, 1.8, -0.3); g.add(p2); }
+        marquee = marqueeOn(g, m, 3.15, 1.4); marquee.position.z = -0.15; (g.children[g.children.length - 1] as THREE.Mesh).position.z = -0.31;
+        focus = new THREE.Vector3(0, 1.85, -0.22); focusN = new THREE.Vector3(0, 0, 1); focusDist = 2.2;
+        break;
+      }
+      case 'racer': {
+        // a sit-down racer: a seat, a steering wheel and a big screen
+        upright(1.4, 1.75);
+        const seat = box(0.7, 0.45, 0.6, std('#1A1830')); seat.position.set(0, 0.42, 1.05); g.add(seat);
+        const back = box(0.7, 0.7, 0.12, std(c0, { emissive: m.color, emissiveIntensity: 0.2 })); back.position.set(0, 0.95, 1.33); back.rotation.x = -0.2; g.add(back);
+        const wheel = new THREE.Mesh(T(new THREE.TorusGeometry(0.17, 0.025, 8, 24)), std('#222', { roughness: 0.5 })); wheel.position.set(0, 1.25, 0.55); wheel.rotation.x = -0.9; g.add(wheel); parts.push(wheel);
+        hd = 0.9;
+        break;
+      }
+      case 'rhythm': {
+        // four glowing pads on the floor in front of the screen
+        upright(1.2, 1.6);
+        const cols2 = ['#FF3D9A', '#22E3FF', '#B6FF3D', '#FFB13D'];
+        const pads = new THREE.Group(); pads.position.set(0, 0.03, 0.95); g.add(pads); parts.push(pads);
+        cols2.forEach((c, i) => { const p2 = box(0.28, 0.04, 0.4, glow(c, 0.6)); p2.position.set(-0.45 + i * 0.3, 0, 0); pads.add(p2); });
+        break;
+      }
+      case 'fruit': {
+        // an extra-wide screen with fruit sitting on top
+        upright(1.2, 1.6);
+        ['🍉', '🍊', '🍎'].forEach((e, i) => { const sp = emojiSprite(e, 0.36); sp.position.set(-0.4 + i * 0.4, 2.85, 0.1); g.add(sp); });
+        break;
+      }
+      case 'maze': case 'blaster': case 'snake': {
+        upright();
+        // a little character standing on top of the cabinet
+        const top = emojiSprite(m.id === 'maze' ? '🟡' : m.id === 'blaster' ? '👾' : '🐍', 0.5); top.position.set(0, 2.95, -0.1); g.add(top); parts.push(top);
+        break;
+      }
       default: upright();
     }
     let label: THREE.Sprite | null = null;
@@ -500,6 +606,13 @@ export function createHall(o: HallOpts) {
         if (c.m.id === 'claw') { c.parts[0].position.x = Math.sin(t * 0.7) * 0.4; c.parts[0].position.y = 2.2 - Math.max(0, Math.sin(t * 0.5)) * 0.5; }
         if (c.m.id === 'hoops') c.parts[0].scale.setScalar(1 + Math.max(0, Math.sin(t * 2)) * 0.05);
         if (c.m.id === 'stacker') (c.parts[0] as THREE.Mesh).scale.y = 1 + Math.max(0, Math.sin(t * 6)) * 0.3;
+        if (c.m.id === 'airhockey') { c.parts[0].position.z = -0.65 + Math.sin(t * 2.2) * 0.8; c.parts[0].position.x = Math.sin(t * 3.1) * 0.5; }
+        if (c.m.id === 'pinball') { c.parts[0].position.x = Math.sin(t * 2.7) * 0.35; c.parts[0].position.z = -0.55 + Math.cos(t * 1.9) * 0.6; }
+        if (c.m.id === 'pusher') c.parts[0].position.z = -0.4 + Math.sin(t * 1.6) * 0.12;
+        if (c.m.id === 'plinko') { const k = (t * 0.5) % 1; c.parts[0].position.y = 2.8 - k * 1.85; c.parts[0].position.x = Math.sin(k * 20) * 0.1; }
+        if (c.m.id === 'racer') c.parts[0].rotation.z = Math.sin(t * 1.5) * 0.4;
+        if (c.m.id === 'rhythm') c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = Math.floor(t * 4 + i * 1.7) % 4 === i ? 2.4 : 0.4; });
+        if (c.m.id === 'maze' || c.m.id === 'blaster' || c.m.id === 'snake') c.parts[0].position.y = 2.95 + Math.abs(Math.sin(t * 3)) * 0.12;
       }
       if (c.label) c.label.position.y = 3.0 + Math.sin(t * 2) * 0.05;
     }
