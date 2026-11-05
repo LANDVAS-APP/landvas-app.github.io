@@ -493,7 +493,7 @@ function Jukebox({ onClose, muted, onUnmute }: { onClose(): void; muted: boolean
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }} title="🎵 Jukebox" description="Pick the music for the arcade. It keeps playing (a little quieter) while you’re on a machine.">
       {muted && <button onClick={() => { onUnmute(); if (music.current) music.play(); }} className="mb-2 w-full rounded-xl bg-[#FF3D9A]/20 py-2 text-xs font-bold">Sound is off — tap to turn it on</button>}
       <div className="grid gap-1.5" data-testid="jukebox-tracks">
-        {music.tracks.map((t) => {
+        {music.tracks.filter((t) => !t.home).map((t) => {
           const on = music.current === t.id;
           return (
             <button key={t.id} onClick={() => { if (muted) onUnmute(); music.play(t.id); sfx.coin(); }} data-testid={`track-${t.id}`}

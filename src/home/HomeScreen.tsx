@@ -5,20 +5,23 @@
 // and choose who may use each door.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, BookHeart, Check, DoorOpen, Lock, Paintbrush, RotateCw, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, BookHeart, Check, DoorOpen, Lock, Paintbrush, RotateCw, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
-import type { ExplorerStyle, HomeData, HomeLive, HomePlaced, HomeStyleData } from '../backend/types';
+import type { ExplorerStyle, HomeData, HomeGame, HomeLive, HomePlaced, HomeStyleData } from '../backend/types';
+import { TRACKS, music } from '../arcade/music';
+import { GuestBook } from './GuestBook';
+import { PartyGame } from './party/PartyGame';
+import { GamePicker, TableInvite, TableLobby } from './party/Tables';
 import { explorerSvg } from '../explorer/character';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { FriendButton } from '../social/FriendButton';
 import { Button, ResourceIcon, Spinner } from '../ui';
-import { RoomGuests } from '../visit/RoomExtras';
 import { CheckIn } from '../visit/VisitRoom';
 import { randomGenome } from '../inkborn/genome';
 import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
@@ -52,6 +55,7 @@ export const DEFAULT_LAYOUT: Placed[] = [
   { i: 'dining_table', x: 2.4, z: 2.6, r: 0 }, { i: 'dining_chair', x: 1.9, z: 1.85, r: 0 }, { i: 'dining_chair', x: 2.9, z: 1.85, r: 0 },
   { i: 'dining_chair', x: 1.9, z: 3.35, r: 2 }, { i: 'dining_chair', x: 2.9, z: 3.35, r: 2 },
   { i: 'wall_clock', x: 6.9, z: 3.9, r: 3 }, { i: 'wall_shelf', x: 6.9, z: 2.3, r: 3 },
+  { i: 'game_table', x: -2.25, z: 1.5, r: 0 }, { i: 'guestbook', x: -3.0, z: 4.9, r: 0 }, { i: 'record_player', x: -3.45, z: -3.75, r: 0 },
 ];
 const isFresh = (h: HomeData) => !h.layout.length && !Object.keys(h.style ?? {}).length && !h.name;
 
@@ -75,14 +79,20 @@ export default function HomeScreen() {
 
 type Prof = { achievements?: { icon?: string; unlocked_at?: string | null }[]; gallery?: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] } | undefined;
 
-function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>) {
+function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void) {
   const [live, setLive] = useState<HomeLive | null>(null);
+  const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
+  const recRef = useRef(onRec); recRef.current = onRec;
   useEffect(() => {
     if (!myId) return;
     const backend = getBackend();
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', members = new Set<string>();
     const urls = new Map<string, string>();
-    const onMsg = (raw: unknown) => { const m = raw as { t: string; id: string; x: number; z: number; f: number }; if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f); };
+    const onMsg = (raw: unknown) => {
+      const m = raw as { t: string; id: string; x: number; z: number; f: number; rec?: string };
+      if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f);
+      if (m?.t === 'rec' && typeof m.rec === 'string') recRef.current(m.rec, m.id);
+    };
     const beat = async () => {
       if (stopped) return;
       const p = hall.current?.pose();
@@ -99,6 +109,7 @@ function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefOb
       } catch { /* next beat */ }
     };
     void beat();
+    api2.current = { refresh: () => void beat(), send: (m) => ch?.send(m) };
     const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2500);
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
@@ -108,7 +119,7 @@ function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefOb
     }, 120);
     return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); void api.homeLeave().catch(() => {}); };
   }, [hostId, myId]); // eslint-disable-line react-hooks/exhaustive-deps
-  return live;
+  return { live, refresh: () => api2.current.refresh(), send: (m: unknown) => api2.current.send(m) };
 }
 
 function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
@@ -122,6 +133,11 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
   const [art, setArt] = useState<string[]>([]);
   const [edit, setEdit] = useState(false);
   const [guests, setGuests] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [game, setGame] = useState<HomeGame | null>(null);
+  const [rec, setRec] = useState<string>(h.style.music ?? 'jazz');
+  const [musicOn, setMusicOn] = useState(true);
+  const [recPanel, setRecPanel] = useState(false);
   const host = h.host, own = h.own;
   const startLayout = useMemo(() => (isFresh(h) ? DEFAULT_LAYOUT : h.layout) as Placed[], [h]);
   const gallery = profile?.gallery ?? [];
@@ -159,11 +175,42 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
     hall.current?.setHome({ style: h.style, layout: startLayout, doors, art, achievements, inkborn: h.inkborn });
   }, [h, startLayout, doors, art, achievements, edit]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const live = useHomeLive(host.id, me?.user_id, hall);
+  const room = useHomeLive(host.id, me?.user_id, hall, (id, by) => {
+    setRec(id); const who = room.live?.members.find((m) => m.id === by);
+    if (who) toast(`🎶 @${who.username} put on ${id === 'off' ? 'silence' : TRACKS.find((t) => t.id === id)?.name ?? 'a record'}`, { duration: 2000 });
+  });
+  const live = room.live;
   const here = (live?.members.length ?? 0) + 1;
+  // the host started your table: in you go
+  const handled = useRef(new Set<string>());
+  useEffect(() => {
+    const g = live?.game; if (!g || g.status !== 'playing' || handled.current.has(g.id)) return;
+    handled.current.add(g.id); setGame(g); setRecPanel(false); setPicker(false);
+  }, [live?.game]);
+  const lobby = live?.game?.status === 'lobby' ? live.game : null;
+  const invite = !lobby ? live?.tables.find((t) => !t.players.some((p) => p.id === me?.user_id)) : null;
+  // the record player: music for the whole house (it starts on your first tap; browsers insist)
+  const hasPlayer = useMemo(() => (edit ? [] : startLayout).some((p) => p.i === 'record_player' || p.i === 'jukebox') || h.layout.some((p) => p.i === 'record_player' || p.i === 'jukebox'), [startLayout, h.layout, edit]);
+  const started = useRef(false);
+  useEffect(() => {
+    if (!hasPlayer || !musicOn || rec === 'off') { if (started.current) music.stop(); return; }
+    const go = () => { started.current = true; music.play(rec, false); };
+    if (started.current) { go(); return; }
+    const once = () => { go(); window.removeEventListener('pointerdown', once); };
+    window.addEventListener('pointerdown', once);
+    return () => window.removeEventListener('pointerdown', once);
+  }, [hasPlayer, musicOn, rec]);
+  useEffect(() => { music.setDuck(!!game); }, [game]);
+  useEffect(() => () => { music.stop(); music.setDuck(false); }, []);
+  const putOn = async (id: string) => {
+    setRec(id); setMusicOn(true); music.play(id === 'off' ? null : id, false); if (id === 'off') music.stop();
+    room.send({ t: 'rec', id: me?.user_id, rec: id });
+    if (own) { try { qc.setQueryData(['home', host.username.toLowerCase()], await api.homeSave(h.name, { ...h.style, music: id }, (hall.current?.layout() ?? h.layout) as HomePlaced[])); } catch { /* it still plays */ } }
+  };
   const title = h.name || `${host.display_name || host.username}’s home`;
   const nd = near?.kind === 'door' ? (near.door as Kind) : null;
   const nArt = near?.kind === 'art' ? gallery[near.i] : null;
+  const nItem = near?.kind === 'item' ? near.id : null;
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#2A1F1A] text-white" data-testid="home">
@@ -181,7 +228,9 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         {!edit && (
           <div className="pointer-events-auto flex flex-col gap-2">
             {own && <button onClick={() => { setEdit(true); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#FFB13D] to-[#FF5FA2] text-[9px] font-black shadow-lg" data-testid="home-decorate"><Paintbrush className="h-5 w-5" />Decorate</button>}
-            <button onClick={() => setGuests(true)} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" data-testid="home-guestbook"><BookHeart className="h-5 w-5 text-[#FF9FB2]" />Guests</button>
+            <button onClick={() => setPicker(true)} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" data-testid="home-games"><span className="text-lg leading-none">🎲</span>Games</button>
+            <button onClick={() => setGuests(true)} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" data-testid="home-guestbook"><BookHeart className="h-5 w-5 text-[#FF9FB2]" />Book</button>
+            {hasPlayer && <button onClick={() => { const on = !musicOn; setMusicOn(on); if (on && rec !== 'off') { started.current = true; music.play(rec, false); } else music.stop(); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" aria-label={musicOn ? 'Music off' : 'Music on'} data-testid="home-music">{musicOn && rec !== 'off' ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}{musicOn && rec !== 'off' ? 'Music' : 'Muted'}</button>}
           </div>
         )}
       </div>}
@@ -204,6 +253,23 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
             <Link to={`/art/${nArt.id}`} className="flex items-center gap-3 rounded-3xl bg-black/70 px-5 py-3 shadow-2xl backdrop-blur" data-testid="home-art"><span className="text-3xl">🖼️</span><span><span className="block font-display text-lg font-black">{nArt.title || 'Untitled'}</span><span className="text-xs text-white/70">View the artwork</span></span></Link>
           </motion.div>
         )}
+        {!edit && !game && nItem && (nItem === 'game_table' || nItem === 'card_table') && !lobby && (
+          <motion.div key="table" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            <button onClick={() => setPicker(true)} className="flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFB13D] to-[#FF5FA2] px-5 py-3 text-left text-[#2A0A1A] shadow-2xl" data-testid="home-table"><span className="text-4xl">🎲</span>
+              <span><span className="block font-display text-2xl font-black">Play a game</span><span className="block text-xs font-bold">Board games & party games with everyone here</span></span></button>
+          </motion.div>
+        )}
+        {!edit && !game && (nItem === 'record_player' || nItem === 'jukebox') && (
+          <motion.div key="rec" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            <RecordPanel rec={musicOn ? rec : 'off'} onPick={(id) => void putOn(id)} own={own} />
+          </motion.div>
+        )}
+        {!edit && !game && nItem === 'guestbook' && !guests && (
+          <motion.div key="gb" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            <button onClick={() => setGuests(true)} className="flex items-center gap-3 rounded-3xl bg-[#6B2E2E] px-5 py-3 text-left text-[#F4E3B5] shadow-2xl" data-testid="home-open-book"><span className="text-4xl">📖</span>
+              <span><span className="block font-display text-2xl font-black">{own ? 'Read your guestbook' : 'Sign the guestbook'}</span><span className="block text-xs">Leave @{host.username} a note</span></span></button>
+          </motion.div>
+        )}
         {!edit && !near && (
           <motion.div key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             <div className="rounded-full bg-black/55 px-4 py-2 text-center text-xs text-white/85 backdrop-blur">{own ? 'Tap the floor to walk · the doors lead to your places · Decorate to make it yours' : `Walk round · the doors lead to @${host.username}’s places · tap an Inkborn to say hi`}</div>
@@ -211,18 +277,18 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         )}
       </AnimatePresence>
 
+      {!edit && !game && me && (invite || lobby) && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+118px)] z-20 flex justify-center px-3">
+          {lobby ? <TableLobby t={lobby} myId={me.user_id} onChange={room.refresh} /> : invite && <TableInvite t={invite} onJoined={room.refresh} />}
+        </div>
+      )}
+      {picker && <GamePicker home={host.id} here={here} onClose={() => setPicker(false)} onMade={room.refresh} />}
+      {game && me && <PartyGame game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />}
       {edit && hall.current && own && <Decorator h={h} start={startLayout} scene={hall.current} onClose={(saved) => {
         setEdit(false);
         if (saved) { qc.setQueryData(['home', host.username.toLowerCase()], saved); invalidateGame(qc); }
       }} />}
-      {guests && (
-        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setGuests(false)}>
-          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-4 text-fg shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} data-testid="home-guests">
-            <div className="mb-2 flex items-center gap-2"><Users className="h-5 w-5" /><b className="flex-1 font-display text-lg">Visitors & guestbook</b><button onClick={() => setGuests(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
-            <RoomGuests username={host.username} />
-          </div>
-        </div>
-      )}
+      {guests && <GuestBook username={host.username} hostName={host.display_name || host.username} own={own} onClose={() => setGuests(false)} />}
     </div>
   );
 }
@@ -418,6 +484,24 @@ function Swatches({ label, cols, v, on }: { label: string; cols: string[]; v?: s
   return (
     <div className="grid gap-1"><span className="text-xs font-bold text-white/70">{label}</span>
       <div className="flex flex-wrap gap-1.5">{cols.map((c) => <button key={c} onClick={() => on(c)} aria-label={c} className={cn('h-7 w-7 rounded-full border-2', v?.toUpperCase() === c.toUpperCase() ? 'border-white' : 'border-white/20')} style={{ background: c }} />)}</div>
+    </div>
+  );
+}
+
+function RecordPanel({ rec, onPick, own }: { rec: string; onPick(id: string): void; own: boolean }) {
+  const recs = TRACKS.filter((t) => t.home).concat(TRACKS.filter((t) => !t.home));
+  return (
+    <div className="w-full max-w-md rounded-3xl bg-[#1C1512]/90 p-4 text-white shadow-2xl backdrop-blur" data-testid="home-records">
+      <div className="mb-2 flex items-center gap-2"><motion.span animate={{ rotate: rec !== 'off' ? 360 : 0 }} transition={{ repeat: rec !== 'off' ? Infinity : 0, duration: 2.4, ease: 'linear' }} className="grid h-9 w-9 place-items-center rounded-full bg-[#111] text-lg ring-4 ring-[#2B2B33]">🎵</motion.span>
+        <b className="flex-1 font-display text-lg">Record player</b><span className="text-[10px] text-white/60">{own ? 'Your pick plays for every visitor' : 'Everyone here hears it'}</span></div>
+      <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto">
+        {recs.map((t) => (
+          <button key={t.id} onClick={() => onPick(t.id)} className={cn('flex items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-bold', rec === t.id ? 'bg-[#FFB13D] text-[#2A1A08]' : 'bg-white/10')} data-testid={`rec-${t.id}`}>
+            <span className="text-lg">{t.emoji}</span><span className="truncate">{t.name}</span>
+          </button>
+        ))}
+        <button onClick={() => onPick('off')} className={cn('rounded-xl px-2.5 py-2 text-sm font-bold', rec === 'off' ? 'bg-white text-[#1C1512]' : 'bg-white/10')} data-testid="rec-off">⏹ Off</button>
+      </div>
     </div>
   );
 }

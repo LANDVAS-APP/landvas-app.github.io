@@ -49,7 +49,7 @@ export const CATALOG: CatItem[] = [
   { id: 'fridge', name: 'Fridge', cat: 'Kitchen', emoji: '🧊', mount: 'floor', w: 0.75, d: 0.7, tint: 'paint' },
   { id: 'fireplace', name: 'Fireplace', cat: 'Fun', emoji: '🔥', mount: 'floor', w: 1.6, d: 0.55, tint: 'paint', top: 1.12, light: ['#FF8A3D', 6, 0.5] },
   { id: 'piano', name: 'Piano', cat: 'Fun', emoji: '🎹', mount: 'floor', w: 1.5, d: 0.65, tint: 'paint' },
-  { id: 'record_player', name: 'Record player', cat: 'Fun', emoji: '🎶', mount: 'floor', w: 0.45, d: 0.4, tint: 'wood', small: true },
+  { id: 'record_player', name: 'Record player', cat: 'Fun', emoji: '🎶', mount: 'floor', w: 0.45, d: 0.4, tint: 'wood', small: true, blurb: 'Plays music for everyone in the house. Walk up to it to pick a record.' },
   { id: 'tv_console', name: 'TV & console', cat: 'Fun', emoji: '📺', mount: 'floor', w: 1.7, d: 0.48, tint: 'wood' },
   { id: 'aquarium', name: 'Aquarium', cat: 'Fun', emoji: '🐠', mount: 'floor', w: 1.4, d: 0.5, tint: 'wood' },
   { id: 'easel', name: 'Easel', cat: 'Fun', emoji: '🎨', mount: 'floor', w: 0.8, d: 0.6, tint: 'wood', blurb: 'Shows your latest art.' },
@@ -57,6 +57,9 @@ export const CATALOG: CatItem[] = [
   { id: 'globe', name: 'Globe', cat: 'Fun', emoji: '🌍', mount: 'floor', w: 0.4, d: 0.4, tint: 'wood', small: true },
   { id: 'grandfather_clock', name: 'Grandfather clock', cat: 'Fun', emoji: '🕰️', mount: 'floor', w: 0.6, d: 0.42, tint: 'wood' },
   { id: 'fountain', name: 'Fountain', cat: 'Fun', emoji: '⛲', mount: 'floor', w: 1.2, d: 1.2, tint: 'paint' },
+  { id: 'game_table', name: 'Games table', cat: 'Fun', emoji: '🎲', mount: 'floor', w: 2.2, d: 2.2, tint: 'wood', blurb: 'Walk up to it to start a board game or party game with whoever’s here.' },
+  { id: 'card_table', name: 'Card table', cat: 'Fun', emoji: '🃏', mount: 'floor', w: 1.9, d: 1.9, tint: 'fabric', blurb: 'Green felt, four seats — another place to start a game.' },
+  { id: 'guestbook', name: 'Guestbook stand', cat: 'Fun', emoji: '📖', mount: 'floor', w: 0.6, d: 0.5, tint: 'wood', blurb: 'Visitors sign it; tap it to read.' },
   { id: 'wall_clock', name: 'Wall clock', cat: 'Wall', emoji: '🕒', mount: 'wall', w: 0.6, d: 0.08, tint: 'paint', blurb: 'Tells the real time.' },
   { id: 'wall_shelf', name: 'Wall shelf', cat: 'Wall', emoji: '🪵', mount: 'wall', w: 1.2, d: 0.25, tint: 'wood' },
   { id: 'wall_mirror', name: 'Mirror', cat: 'Wall', emoji: '🪞', mount: 'wall', w: 0.8, d: 0.06, tint: 'paint' },
@@ -76,7 +79,7 @@ export const WOODS = ['#C69C6D', '#8B5A3C', '#5C3A21', '#E3C69A', '#3B2A20', '#A
 export const PAINTS = ['#FFFFFF', '#2B2B33', '#FF6B6B', '#FFB13D', '#FFE14D', '#3DDC97', '#22B8CF', '#4C6EF5', '#8B5CFF', '#FF5FA2', '#9AA5B1', '#1E7F5C'];
 export const swatches = (t: Tint) => (t === 'fabric' ? FABRICS : t === 'wood' ? WOODS : t === 'paint' ? PAINTS : []);
 /** the colour a piece starts in */
-export const DEFAULT_C: Record<string, number> = { sofa: 1, armchair: 6, beanbag: 9, rug_rect: 7, rug_round: 3, bed: 2, pet_bed: 8, floor_lamp: 1, table_lamp: 4, lava_lamp: 9,
+export const DEFAULT_C: Record<string, number> = { card_table: 4, sofa: 1, armchair: 6, beanbag: 9, rug_rect: 7, rug_round: 3, bed: 2, pet_bed: 8, floor_lamp: 1, table_lamp: 4, lava_lamp: 9,
   monstera: 0, cactus: 6, bonsai: 1, flower_vase: 7, hanging_plant: 0, kitchen: 0, fridge: 0, fireplace: 0, piano: 1, telescope: 7, fountain: 0, wall_clock: 1, wall_mirror: 3,
   poster: 8, mini_arcade: 8, neon_heart: 9, gumball: 2, jukebox: 2, bar_stool: 1, toy_chest: 6 };
 export const colorOf = (id: string, c: number | undefined) => { const sw = swatches(ITEM[id]?.tint ?? null); return sw.length ? sw[(c ?? DEFAULT_C[id] ?? 0) % sw.length] : '#ffffff'; };
@@ -590,6 +593,44 @@ export function buildItem(id: string, c: number | undefined, k: Kit, ctx: Ctx): 
         drops.forEach((d, i) => { const a = (i / 10) * Math.PI * 2, p = (t * 0.8 + i * 0.1) % 1; d.position.set(Math.cos(a) * (0.05 + p * 0.3), 0.97 + Math.sin(p * Math.PI) * 0.15 - p * 0.62, Math.sin(a) * (0.05 + p * 0.3)); });
         const p = (t * 0.5) % 1; rip.scale.setScalar(0.5 + p * 1.8); (rip.material as THREE.MeshStandardMaterial).opacity = 0.4 * (1 - p);
       };
+      break;
+    }
+    case 'game_table': case 'card_table': {
+      const card = id === 'card_table', R = card ? 0.55 : 0.68;
+      put(g, cy(R, R, 0.06, 32), card ? k.std('#5C3A21', { roughness: 0.5 }) : wood, 0, 0.74, 0);
+      put(g, cy(R - 0.06, R - 0.06, 0.012, 32), card ? k.std(c == null ? '#2E7D4F' : col, { roughness: 1 }) : woodD, 0, 0.775, 0, false);
+      put(g, cy(0.08, 0.12, 0.7, 12), card ? k.std('#3B2A20') : woodD, 0, 0.37, 0);
+      put(g, cy(0.32, 0.36, 0.04, 20), card ? k.std('#3B2A20') : woodD, 0, 0.02, 0);
+      // four stools round it
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4, x = Math.cos(a) * (R + 0.32), z = Math.sin(a) * (R + 0.32);
+        put(g, cy(0.17, 0.17, 0.06, 18), k.std(['#FF6B6B', '#22B8CF', '#FFB13D', '#3DDC97'][i], { roughness: 0.8 }), x, 0.47, z);
+        put(g, cy(0.025, 0.025, 0.44, 8), metal, x, 0.22, z);
+      }
+      if (card) {
+        // a spread of cards and some chips
+        for (let i = 0; i < 5; i++) { const cd = put(g, bx(0.1, 0.004, 0.14), white, -0.2 + i * 0.1, 0.785, 0.05, false); cd.rotation.y = (i - 2) * 0.15; }
+        for (const [x, z, cc] of [[0.25, -0.2, '#E63946'], [0.3, -0.15, '#22B8CF'], [-0.3, -0.2, '#FFD21F']] as const) for (let j = 0; j < 3; j++) put(g, cy(0.03, 0.03, 0.012, 12), k.std(cc), x, 0.79 + j * 0.013, z, false);
+      } else {
+        // a board game laid out: a checkered board, some pieces and dice
+        const tx = k.canvasTex(128, 128, (gg) => { for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { gg.fillStyle = (x + y) % 2 ? '#7A5230' : '#EAD7B0'; gg.fillRect(x * 16, y * 16, 16, 16); } });
+        put(g, bx(0.5, 0.015, 0.5), k.std('#ffffff', { map: tx, roughness: 0.6 }), -0.05, 0.785, 0.02, false).rotation.y = 0.3;
+        for (let i = 0; i < 6; i++) put(g, cy(0.025, 0.025, 0.015, 12), k.std(i % 2 ? '#FF3D6E' : '#22B8CF'), -0.2 + (i % 3) * 0.12, 0.8, -0.12 + Math.floor(i / 3) * 0.26, false);
+        const dice = [0, 1].map((i) => { const d2 = put(g, rbox(0.06, 0.06, 0.06, 0.012), white, 0.32 + i * 0.09, 0.81, 0.25); d2.rotation.y = i * 0.6; return d2; });
+        tick = (t) => { const b = Math.max(0, Math.sin(t * 1.3)) ** 8; dice.forEach((d2, i) => { d2.position.y = 0.81 + b * 0.18; d2.rotation.x = b * (3 + i); }); };
+      }
+      break;
+    }
+    case 'guestbook': {
+      put(g, cy(0.04, 0.05, 1.0, 10), wood, 0, 0.5, -0.05);
+      put(g, cy(0.22, 0.25, 0.04, 20), woodD, 0, 0.02, -0.05);
+      const top = new THREE.Group(); top.position.set(0, 1.02, 0); top.rotation.x = -0.45; g.add(top);
+      put(top, rbox(0.55, 0.04, 0.42, 0.015), wood, 0, 0, 0);
+      put(top, bx(0.5, 0.03, 0.36), k.std('#6B2E2E', { roughness: 0.6 }), 0, 0.03, 0);
+      for (const s2 of [-1, 1]) { const pg = put(top, bx(0.23, 0.02, 0.33), k.std('#FBF5E6', { roughness: 0.9 }), s2 * 0.12, 0.055, 0, false); pg.rotation.z = s2 * 0.06; }
+      put(top, cy(0.006, 0.006, 0.22, 6), k.std('#1F3A5F'), 0.16, 0.08, 0.06, false).rotation.set(0, 0.6, Math.PI / 2);
+      const quill = put(top, G('quill', () => new THREE.ConeGeometry(0.03, 0.2, 6)), k.std('#F4F1EA'), 0.22, 0.13, -0.05, false); quill.rotation.z = -0.6;
+      tick = (t) => { quill.rotation.z = -0.6 + Math.sin(t * 2) * 0.05; };
       break;
     }
     case 'wall_clock': {

@@ -32,6 +32,7 @@ export const DEFAULT_STYLE: Required<HomeStyle> = { wall: 'paint', floor: 'oak',
 const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
 const shade = (hex: string, k: number) => { const c = new THREE.Color(hex); const h = { h: 0, s: 0, l: 0 }; c.getHSL(h); c.setHSL(h.h, h.s, Math.max(0, Math.min(1, h.l + k))); return '#' + c.getHexString(); };
 const rot = (p: Placed) => (p.r % 2 ? [ITEM[p.i]?.d ?? 1, ITEM[p.i]?.w ?? 1] : [ITEM[p.i]?.w ?? 1, ITEM[p.i]?.d ?? 1]);
+export const INTERACT = new Set(['game_table', 'card_table', 'record_player', 'jukebox', 'guestbook']);
 const solidItem = (id: string) => { const m = ITEM[id]?.mount; return m === 'floor' && !ITEM[id]?.small; };
 
 /** Where wall pieces hang: the right wall, or the bits of the back wall the window and the art leave free. */
@@ -559,7 +560,13 @@ export function createHome(o: HomeOpts) {
     for (const d of doors) if (ray.intersectObject(d.g, true).length) { go(d.spot.x, d.spot.z); return; }
     for (let i = 0; i < artGroups.length; i++) if (ray.intersectObject(artGroups[i], true).length) { go(artSpots[i].x, artSpots[i].z); return; }
     const j = itemAt();
-    if (j >= 0) { const it = items[j]; const [, d] = rot(it.p); const f = new THREE.Vector2(Math.sin(it.p.r * Math.PI / 2), Math.cos(it.p.r * Math.PI / 2)); go(it.p.x + f.x * (d / 2 + 0.5), it.p.z + f.y * (d / 2 + 0.5)); return; }
+    if (j >= 0) {
+      const it = items[j]; const [w, d] = rot(it.p);
+      // the side of it nearest you
+      const dx = P.x - it.p.x, dz = P.z - it.p.z;
+      if (Math.abs(dx) / w > Math.abs(dz) / d) go(it.p.x + Math.sign(dx || 1) * (w / 2 + 0.45), it.p.z); else go(it.p.x, it.p.z + Math.sign(dz || 1) * (d / 2 + 0.45));
+      return;
+    }
     if (ray.ray.intersectPlane(plane, hit)) go(hit.x, hit.z);
   };
   const kd = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.tagName === 'INPUT') return; const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
@@ -642,6 +649,13 @@ export function createHome(o: HomeOpts) {
     if (!P.moving && !editing) {
       for (const d of doors) if (Math.hypot(d.spot.x - P.x, d.spot.z - P.z) < 1.0) s = { kind: 'door', door: d.kind };
       for (let i = 0; i < artSpots.length; i++) if (Math.hypot(artSpots[i].x - P.x, artSpots[i].z - P.z) < 1.0 && artUrls[i]) s = { kind: 'art', i };
+      // things you can use: the games tables, the record player / jukebox, the guestbook
+      let best = 0.9;
+      items.forEach((it, i) => {
+        if (!INTERACT.has(it.p.i)) return;
+        const [w, d] = rot(it.p), dx = Math.max(0, Math.abs(P.x - it.p.x) - w / 2), dz = Math.max(0, Math.abs(P.z - it.p.z) - d / 2), dd = Math.hypot(dx, dz);
+        if (dd < best) { best = dd; s = { kind: 'item', i, id: it.p.i }; }
+      });
     }
     const nk = !s ? null : s.kind === 'door' ? `d:${s.door}` : s.kind === 'art' ? `a:${s.i}` : `i:${s.i}`;
     if (nk !== near) { near = nk; o.onNear?.(s); }
@@ -718,7 +732,11 @@ export function createHome(o: HomeOpts) {
     addItem, rotateSel, removeSel, recolorSel, deselect: () => select(-1),
     listen(l: { onSelect?(i: number | null): void; onLayout?(l: Placed[]): void }) { o.onSelect = l.onSelect; o.onLayout = l.onLayout; },
     selected: () => (sel >= 0 ? { index: sel, ...items[sel].p, overlap: overlaps(sel) } : null),
-    walkTo(s: HomeSpot) { if (s.kind === 'door') { const d = doors.find((x) => x.kind === s.door); if (d) go(d.spot.x, d.spot.z); } else if (s.kind === 'art') go(artSpots[s.i].x, artSpots[s.i].z); },
+    walkTo(s: HomeSpot | { kind: 'item'; id: string }) {
+      if (s.kind === 'door') { const d = doors.find((x) => x.kind === s.door); if (d) go(d.spot.x, d.spot.z); }
+      else if (s.kind === 'art') go(artSpots[s.i].x, artSpots[s.i].z);
+      else { const it = items.find((x) => x.p.i === s.id); if (it) { const [w, d] = rot(it.p); const sm = ITEM[it.p.i]?.small; const base = sm ? items.find((b) => ITEM[b.p.i]?.top && Math.abs(b.p.x - it.p.x) < 1 && Math.abs(b.p.z - it.p.z) < 1) : null; const bd = base ? rot(base.p)[1] : d; go(it.p.x, (base ? base.p.z : it.p.z) + bd / 2 + 0.45); void w; } }
+    },
     setOthers, moveOther,
     pose: () => ({ x: P.x, z: P.z, face: P.face }),
     setPaused(p: boolean) { paused = p; },

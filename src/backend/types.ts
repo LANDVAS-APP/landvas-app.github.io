@@ -195,7 +195,7 @@ export type ArcadeLive = { arcade_id: string; shard: number; joined: boolean; ro
 export type HomePlace = { id: string; name: string; plots: number; rarity?: string | null; level?: number; score?: number; starter?: boolean; here?: number };
 export type HomeDoorInfo = { privacy: 'public' | 'friends' | 'hidden'; open: boolean; count: number; places: HomePlace[] };
 export type HomePlaced = { i: string; x: number; z: number; r: number; c?: number };
-export type HomeStyleData = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string };
+export type HomeStyleData = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string; music?: string };
 export type HomeData = {
   host: Profile & { explorer_style?: unknown }; own: boolean; name: string | null; style: HomeStyleData; layout: HomePlaced[];
   doors: Record<'arcade' | 'habitat' | 'farm' | 'business', HomeDoorInfo>;
@@ -204,7 +204,13 @@ export type HomeData = {
   items: Record<string, number> | null; tickets: number | null;
   catalog: { max_items: number; free_each: number; styles: Record<'wall' | 'floor' | 'view' | 'mood', string[]>; items: Record<string, { price: { ink?: number; tickets?: number }; mount: string }> };
 };
-export type HomeLive = { shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_home: number };
+export type HomeGame = {
+  id: string; game: string; status: 'lobby' | 'playing' | 'done' | 'cancelled'; host: string; home: string; seed: number | null;
+  result: { places?: Record<string, number>; players?: number; boost?: number } | null;
+  created_at: string; started_at: string | null; server_time: string;
+  players: (Profile & { slot: number | null; place: number | null; tickets: number })[];
+};
+export type HomeLive = { shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_home: number; tables: HomeGame[]; game: HomeGame | null };
 export type ArenaMode = 'duel' | 'teams' | 'ffa' | 'coop';
 export type ArenaMatchPlayer = Profile & { explorer_style?: unknown; slot: number | null; team: number | null; place: number | null; tickets: number; ink: number };
 export type ArenaMatch = {

@@ -4,7 +4,7 @@
 type Track = { id: string; name: string; emoji: string; bpm: number; swing?: number;
   // 16 steps a bar, 4 bars: notes are semitones from the root (null = rest)
   root: number; chords: number[][]; bass: (number | null)[]; lead: (number | null)[]; arp?: boolean;
-  kick: string; snare: string; hat: string; wave: OscillatorType; leadWave: OscillatorType };
+  kick: string; snare: string; hat: string; wave: OscillatorType; leadWave: OscillatorType; home?: boolean };
 
 const X = null;
 export const TRACKS: Track[] = [
@@ -33,12 +33,39 @@ export const TRACKS: Track[] = [
     bass: [0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12, 13, 12],
     lead: [12, X, 15, X, 19, X, 18, X, 19, X, 22, X, 24, X, X, X, 13, X, 17, X, 20, X, 19, X, 17, X, 15, X, 13, X, X, X, 12, X, 15, X, 19, X, 24, X, 22, X, 19, X, 15, X, X, X, 10, X, 14, X, 17, X, 22, X, 19, X, 17, X, 14, X, X, X],
     kick: 'x.x.x.x.x.x.x.x.', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx' },
+  // records for the record player at home: softer, cosier
+  { id: 'jazz', name: 'Sunday Jazz', emoji: '🎷', bpm: 92, swing: 0.22, root: 48, wave: 'triangle', leadWave: 'sine', home: true,
+    chords: [[0, 4, 7, 11], [2, 5, 9, 12], [-1, 2, 5, 9], [0, 4, 7, 11]],
+    bass: [0, X, 7, X, 12, X, 7, X, 0, X, 4, X, 7, X, 9, X],
+    lead: [16, X, 14, 12, X, X, 11, X, 12, X, X, X, 7, X, X, X, 17, X, 16, 14, X, X, 12, X, 14, X, X, X, X, X, X, X, 14, X, 12, 11, X, X, 9, X, 11, X, 12, X, 14, X, X, X, 12, X, X, X, 11, X, 12, X, X, X, X, X, X, X, X, X],
+    kick: 'x.........x.....', snare: '....x.......x...', hat: 'x.xx.xx.x.xx.xx.' },
+  { id: 'rain', name: 'Rainy Window', emoji: '🌧️', bpm: 70, swing: 0.15, root: 52, wave: 'sine', leadWave: 'triangle', home: true,
+    chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-7, -3, 0, 3], [-5, -2, 2, 5]],
+    bass: [0, X, X, X, X, X, X, X, -5, X, X, X, X, X, X, X],
+    lead: [15, X, X, X, 14, X, X, X, 12, X, X, X, X, X, 10, X, 12, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, 10, X, X, X, 12, X, X, X, 14, X, X, X, 15, X, X, X, 14, X, X, X, X, X, 12, X, X, X, X, X, X, X, X, X],
+    kick: 'x.......x.......', snare: '........x.......', hat: '..x...x...x...x.' },
+  { id: 'garden', name: 'Garden Party', emoji: '🌻', bpm: 118, root: 55, wave: 'triangle', leadWave: 'square', arp: true, home: true,
+    chords: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [7, 11, 14]],
+    bass: [0, X, 7, X, 0, X, 7, X, 0, X, 7, X, 0, 2, 4, 5],
+    lead: [12, X, 16, X, 19, X, 16, X, 17, X, 21, X, 19, X, X, X, 16, X, 19, X, 24, X, 19, X, 21, X, 19, X, 17, X, X, X, 12, X, 16, X, 19, X, 21, X, 19, X, 17, X, 16, X, 14, X, 12, X, 14, X, 16, X, 17, X, 19, X, X, X, X, X, X, X],
+    kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.' },
+  { id: 'disco', name: 'Disco Dinner', emoji: '🪩', bpm: 120, root: 45, wave: 'sawtooth', leadWave: 'square', home: true,
+    chords: [[0, 3, 7, 10], [5, 8, 12, 15], [3, 7, 10, 14], [-2, 2, 5, 8]],
+    bass: [0, 12, 0, 12, 0, 12, 0, 12, 5, 17, 5, 17, 7, 19, 7, 19],
+    lead: [X, X, 19, X, 22, X, 19, X, 24, X, X, X, 22, X, X, X, X, X, 17, X, 19, X, 22, X, 19, X, X, X, 17, X, 15, X, X, X, 19, X, 22, X, 24, X, 27, X, X, X, 24, X, X, X, 22, X, 19, X, 17, X, 15, X, 17, X, X, X, X, X, X, X],
+    kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.' },
+  { id: 'lullaby', name: 'Night Light', emoji: '🌙', bpm: 64, root: 60, wave: 'sine', leadWave: 'sine', arp: true, home: true,
+    chords: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]],
+    bass: [0, X, X, X, X, X, X, X, 7, X, X, X, X, X, X, X],
+    lead: [12, X, X, X, 16, X, X, X, 19, X, X, X, 16, X, X, X, 14, X, X, X, 12, X, X, X, 9, X, X, X, X, X, X, X, 11, X, X, X, 14, X, X, X, 17, X, X, X, 14, X, X, X, 12, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X],
+    kick: '................', snare: '................', hat: '........x.......' },
 ];
 
 let ctx: AudioContext | null = null, master: GainNode | null = null, timer: number | null = null;
 let track: Track | null = null, step = 0, nextAt = 0, volume = 0.5, duck = 1;
 const saved = (() => { try { return JSON.parse(localStorage.getItem('landvas.arcade.music') ?? 'null') as { id: string | null; vol: number } | null; } catch { return null; } })();
 let chosen: string | null = saved ? saved.id : 'neon';
+let playing: string | null = null;
 volume = saved?.vol ?? 0.5;
 const listeners = new Set<() => void>();
 const emit = () => { for (const f of listeners) f(); };
@@ -80,11 +107,13 @@ function apply() { if (master && ctx) master.gain.setTargetAtTime(volume * duck 
 export const music = {
   tracks: TRACKS,
   get current() { return chosen; },
+  /** what's on right now (the arcade's pick, or a record at someone's home) */ get nowPlaying() { return timer ? playing : null; },
   get volume() { return volume; },
   subscribe(f: () => void) { listeners.add(f); return () => { listeners.delete(f); }; },
   /** Start (or switch to) a track; null = jukebox off. Needs a tap first on phones (browsers only allow sound after one). */
-  play(id: string | null = chosen) {
-    chosen = id; save(); emit();
+  play(id: string | null = chosen, remember = true) {
+    if (remember) { chosen = id; save(); }
+    playing = id; emit();
     if (!id) { this.stop(false); return; }
     try {
       ctx ??= new AudioContext();
@@ -99,7 +128,7 @@ export const music = {
   stop(forget = false) {
     if (timer) { clearInterval(timer); timer = null; }
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
-    track = null;
+    track = null; playing = null; emit();
     if (forget) { chosen = null; save(); emit(); }
   },
   setVolume(v: number) { volume = Math.max(0, Math.min(1, v)); save(); apply(); emit(); },
