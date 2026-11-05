@@ -3,7 +3,7 @@
 // visit room, so a cosmetic looks the same everywhere.
 import type { ExplorerStyle } from '../backend/types';
 
-export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic' };
+export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic', sex: '' };
 
 export const SKIN: Record<string, string> = { peach: '#FFE2C4', light: '#FFEEDD', tan: '#E9B98C', brown: '#B97F55', deep: '#7A4E31' };
 export const HAIR_COLOR: Record<string, string> = { brown: '#6B3E26', black: '#23201F', blonde: '#F2CF6B', red: '#C8452B', pink: '#FF7AB8', blue: '#3E7BFF', silver: '#D9DCE6' };
@@ -127,12 +127,18 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
   const skin = SKIN[s.skin] ?? SKIN.peach;
   const hr = hair(s.hair, HAIR_COLOR[s.hairc] ?? HAIR_COLOR.brown);
   const dress = s.body === 'dress' || s.body === 'skirt';
-  const lashes = dress || ['long', 'ponytail', 'pigtails', 'bun', 'braid', 'bob'].includes(s.hair);
+  // male or female (older looks that never chose: lashes follow the hair, as before)
+  const female = s.sex === 'f' || (s.sex !== 'm' && (dress || ['long', 'ponytail', 'pigtails', 'bun', 'braid', 'bob'].includes(s.hair)));
+  const lashes = female;
   const torso = s.body === 'dress'
     ? `<path d="M14 27.5 Q23 23.5 32 27.5 L36 46 Q23 49.5 10 46Z" fill="${o.fill}"/>`
     : s.body === 'skirt'
       ? `<rect x="13" y="25.5" width="20" height="12" rx="7" fill="${o.fill}"/><path d="M13 35 L33 35 L36 45 Q23 48 10 45Z" fill="${o.fill}"/><rect x="13" y="34.2" width="20" height="2" fill="rgba(0,0,0,0.18)"/>`
-      : `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${o.fill}"/>`;
+      : s.sex === 'f'
+        ? `<path d="M13.5 30 Q13.5 25.5 18 25.5 L28 25.5 Q32.5 25.5 32.5 30 Q31 35 32.5 40 Q33 44.5 28 44.5 L18 44.5 Q13 44.5 13.5 40 Q15 35 13.5 30Z" fill="${o.fill}"/>`
+        : s.sex === 'm'
+          ? `<path d="M11 31 Q11 25.5 16.5 25.5 L29.5 25.5 Q35 25.5 35 31 L34 40 Q33.5 44.5 29 44.5 L17 44.5 Q12.5 44.5 12 40Z" fill="${o.fill}"/>`
+          : `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${o.fill}"/>`;
   return `<svg viewBox="0 -10 46 68" width="${size}" height="${Math.round(size * 68 / 46)}" aria-hidden="true">
     <defs>${o.defs}${h.defs}</defs>
     <ellipse class="shadow" cx="23" cy="54" rx="11" ry="3.4" fill="rgba(0,0,0,0.45)"/>
@@ -150,7 +156,8 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
       <circle cx="19.3" cy="18" r="1.9" fill="#1b1f3d"/><circle cx="27" cy="18" r="1.9" fill="#1b1f3d"/>
       <circle cx="19.9" cy="17.4" r="0.6" fill="#fff"/><circle cx="27.6" cy="17.4" r="0.6" fill="#fff"/>
       ${lashes ? '<path d="M17.2 16.4 L16.2 15.4 M17.8 15.9 L17.3 14.7 M28.8 16.4 L29.8 15.4 M28.2 15.9 L28.7 14.7" stroke="#1b1f3d" stroke-width="0.8" stroke-linecap="round"/>' : ''}
-      <path d="M19.6 22.2 Q23 25.2 26.6 22.2" stroke="#1b1f3d" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      ${s.sex === 'm' ? '<path d="M17.3 14.6 L21.2 14.1 M25.1 14.1 L29 14.6" stroke="#1b1f3d" stroke-width="1.1" stroke-linecap="round" opacity="0.75"/>' : ''}
+      <path d="M19.6 22.2 Q23 25.2 26.6 22.2" stroke="${s.sex === 'f' ? '#D9456B' : '#1b1f3d'}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
       <circle cx="16.8" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/><circle cx="29.4" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/>
       ${hold(s.hold)}
     </g></g>

@@ -3,7 +3,7 @@
 // remembers who lived there — so switching back brings it all back.
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { ArrowRight, Brush, Citrus, PawPrint, ShieldCheck, TreePine, Wheat } from 'lucide-react';
+import { ArrowRight, Brush, Citrus, Gamepad2, PawPrint, ShieldCheck, TreePine, Wheat } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,9 +17,10 @@ import { drawHabitatPlot } from '../map/plotTiles';
 import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
 
-type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; name: string };
+type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; name: string };
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
+  if (kind === 'arcade') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FF3D9A]/15 px-2 py-0.5 text-[11px] font-bold text-[#FF3D9A]"><Gamepad2 className="h-3 w-3" /> Arcade</span>;
   if (kind === 'business') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE14D]/20 px-2 py-0.5 text-[11px] font-bold text-[#D4A500]"><Citrus className="h-3 w-3" /> Business</span>;
   if (kind === 'farm') return <span className="inline-flex items-center gap-1 rounded-full bg-[#F5C842]/20 px-2 py-0.5 text-[11px] font-bold text-[#E0A800]"><Wheat className="h-3 w-3" /> Farm</span>;
   return kind === 'habitat'
@@ -109,6 +110,32 @@ function FarmPreview() {
   return <canvas ref={ref} width={160} height={110} className="h-[110px] w-[160px] rounded-2xl shadow-lg" />;
 }
 
+function ArcadePreview() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const g = ref.current!.getContext('2d')!;
+    let raf = 0; const t0 = performance.now();
+    const cols = ['#FF3D9A', '#22E3FF', '#FFE14D', '#3DDC97', '#B57BFF'];
+    const frame = (now: number) => {
+      const t = (now - t0) / 1000;
+      g.fillStyle = '#0B0820'; g.fillRect(0, 0, 160, 110);
+      g.fillStyle = '#1A1240'; g.fillRect(0, 86, 160, 24);
+      for (let i = 0; i < 5; i++) {
+        const x = 10 + i * 30, c = cols[i];
+        g.fillStyle = '#1E1838'; g.fillRect(x, 30, 22, 56);
+        g.fillStyle = c; g.globalAlpha = 0.85 + 0.15 * Math.sin(t * 6 + i); g.fillRect(x + 3, 40, 16, 13); g.globalAlpha = 1;
+        g.shadowColor = c; g.shadowBlur = 10; g.fillStyle = c; g.fillRect(x, 26, 22, 5); g.shadowBlur = 0;
+      }
+      // a little stacker tower on one screen and tickets streaming out
+      for (let k = 0; k < 5; k++) { const y = 98 - ((t * 40 + k * 14) % 60); g.fillStyle = '#FFE14D'; g.fillRect(140 + Math.sin(t * 3 + k) * 4, y, 10, 5); }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <canvas ref={ref} width={160} height={110} className="h-[110px] w-[160px] rounded-2xl" />;
+}
+
 function BusinessPreview() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -162,6 +189,9 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       } else if (choice === 'business') {
         toast.success(`${g.name} is now a Business 🍋`, { description: 'Your lemonade stand is open!' });
         if (r.business_id) nav(`/business/${r.business_id}`);
+      } else if (choice === 'arcade') {
+        toast.success(`${g.name} is now an Arcade 🕹️`, { description: 'The lights are on and the cabinets are humming.' });
+        if (r.arcade_id) nav(`/arcade/${r.arcade_id}`);
       } else if (choice === 'farm') {
         toast.success(`${g.name} is now a Farm 🌾`, { description: 'Fresh soil beds are ready to plant.' });
         if (r.farm_id) nav(`/farm/${r.farm_id}`);
@@ -177,6 +207,8 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: [`${Math.min(48, 6 + 4 * (g.plot_count - 1))} soil beds in a 3D farmyard`, 'Farm levels, buildings, a kitchen and orders', 'Daily chores and a tractor to drive', '6 farm games (2D and 3D)'] },
     { k: 'business', title: 'Business', body: 'Start with a lemonade stand and build a corporation.', color: '#D4A500', icon: <Citrus className="h-4 w-4" />, preview: <BusinessPreview />,
       perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
+    { k: 'arcade', title: 'Arcade', body: 'A neon arcade you walk round with your explorer.', color: '#FF3D9A', icon: <Gamepad2 className="h-4 w-4" />, preview: <ArcadePreview />,
+      perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange} wide title={step === 'pick' ? 'What should this land become?' : 'Before you switch'} description={step === 'pick' ? `${g.name} · ${g.plot_count} plot${g.plot_count === 1 ? '' : 's'}` : undefined}>
@@ -200,14 +232,22 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
             {choice === cur ? (
               cur === 'habitat' && g.habitat_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/habitat/${g.habitat_id}`); }}>Enter sanctuary <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'business' && g.business_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/business/${g.business_id}`); }}>Open business <ArrowRight className="h-4 w-4" /></Button>
+                : cur === 'arcade' && g.arcade_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/arcade/${g.arcade_id}`); }}>Enter arcade <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'farm' && g.farm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/farm/${g.farm_id}`); }}>Enter farm <ArrowRight className="h-4 w-4" /></Button>
                 : <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/create/${g.id}`); }}>Keep painting <ArrowRight className="h-4 w-4" /></Button>
-            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {choice === 'habitat' ? 'a Habitat' : choice === 'farm' ? 'a Farm' : choice === 'business' ? 'a Business' : 'an Art Canvas'} <ArrowRight className="h-4 w-4" /></Button>}
+            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {choice === 'habitat' ? 'a Habitat' : choice === 'farm' ? 'a Farm' : choice === 'business' ? 'a Business' : choice === 'arcade' ? 'an Arcade' : 'an Art Canvas'} <ArrowRight className="h-4 w-4" /></Button>}
           </div>
         </div>
       ) : (
         <div className="grid gap-3 text-sm" data-testid="plot-kind-confirm">
-          {choice === 'business' ? (
+          {choice === 'arcade' ? (
+            <ul className="grid gap-2">
+              <li>🕹️ <b>{g.name}</b> becomes a neon arcade with Tower Stacker and Cyclone ready to play. On the map it shows as a glowing arcade front instead of your painting.</li>
+              <li>🎟️ Every game is free and won by skill. Scores win tickets for prizes and upgrades, and a little Ink.</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was{cur === 'habitat' ? ', and your creatures wait safely in your starter sanctuary' : ''}.</li>
+              <li>🖌️ While it’s an arcade you can’t paint or publish art here.</li>
+            </ul>
+          ) : choice === 'business' ? (
             <ul className="grid gap-2">
               <li>🍋 <b>{g.name}</b> becomes a business, starting with a lemonade stand. On the map it shows as a little shop front instead of your painting.</li>
               <li>🏢 Your business empire is yours, not the plot’s: every business plot you own adds 10% to all of it.</li>
@@ -236,7 +276,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
           <p className="flex items-center gap-2 rounded-2xl bg-ok/10 p-3 text-xs text-ok"><ShieldCheck className="h-4 w-4 shrink-0" /> Switching costs 20 Ink (free for a plot you’ve just claimed). It doesn’t change your rent or plot ownership, and nothing is lost.</p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
-            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : choice === 'business' ? 'Business' : 'Art Canvas'}</Button>
+            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : choice === 'business' ? 'Business' : choice === 'arcade' ? 'Arcade' : 'Art Canvas'}</Button>
           </div>
         </div>
       )}

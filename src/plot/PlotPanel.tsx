@@ -26,6 +26,7 @@ import { useCelebration } from './ClaimCelebration';
 import { PlotKindControl } from '../inkborn/PlotKindPicker';
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
+const useArcadeAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'arcade', gx, gy], queryFn: () => api.arcadeForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useBizAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'business', gx, gy], queryFn: () => api.bizForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 
@@ -196,7 +197,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' ? k : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' ? k : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -217,7 +218,8 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const becomeHabitat = async (groupId: string) => {
     if (kind === 'canvas') return null;
     try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; }
-      if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; } return g.habitat_id ?? null; }
+      if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; }
+      if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; } return g.habitat_id ?? null; }
     catch (e) { toast.error(toGameError(e).message); return null; }
   };
   const run = async () => {
@@ -297,6 +299,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
     { k: 'habitat' as const, icon: '🌳', title: 'Inkborn Habitat', body: 'A sanctuary for your creatures', color: '#3DDC97' },
     { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
     { k: 'business' as const, icon: '🍋', title: 'Business', body: 'Lemonade stand to corporation', color: '#D4A500' },
+    { k: 'arcade' as const, icon: '🕹️', title: 'Arcade', body: 'Neon cabinets, tickets, prizes', color: '#FF3D9A' },
   ];
   return (
     <div className="grid gap-1.5" data-testid="plot-kind-choice">
@@ -312,6 +315,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           </motion.button>
         ))}
       </div>
+      {kind === 'arcade' && <p className="text-[11px] text-muted">Same price and rent. Walk your explorer round a neon arcade: Tower Stacker, Claw Crane, Skee-Ball and more. Free to play, win tickets for prizes. You get 10% of the tickets visitors win.</p>}
       {kind === 'business' && <p className="text-[11px] text-muted">Same price and rent. Start with a lemonade stand and grow an empire that earns while you’re away. Every business plot you own adds 10% to all your income.</p>}
       {kind === 'farm' && <p className="text-[11px] text-muted">Same price and rent. A farm plot has 6 soil beds and every connected farm plot adds 4 more. Switch types any time without losing anything.</p>}
       {kind === 'habitat' && <p className="text-[11px] text-muted">Same price and rent. Merge neighbouring habitat plots to grow it: 1 plot is a small glade, 4 a woodland, 16 a big sanctuary. You can switch types any time without losing anything.</p>}
@@ -431,12 +435,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const hab = useHabitatAt(d.gx, d.gy, true).data;
   const farm = useFarmAt(d.gx, d.gy, true).data;
   const biz = useBizAt(d.gx, d.gy, true).data;
+  const arc = useArcadeAt(d.gx, d.gy, true).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
+        {arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-arcade">🕹️ Enter arcade</Button>
+          : biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
           : farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
           : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
@@ -483,6 +489,17 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
   const hab = useHabitatAt(d.gx, d.gy, true).data;
   const farm = useFarmAt(d.gx, d.gy, true).data;
   const biz = useBizAt(d.gx, d.gy, true).data;
+  const arc = useArcadeAt(d.gx, d.gy, true).data;
+  if (arc) return (
+    <Link to={`/arcade/${arc.arcade_id}`} className="flex items-center gap-3 rounded-2xl border border-[#FF3D9A]/40 bg-[#FF3D9A]/10 p-3 hover:border-[#FF3D9A]" data-testid="visit-arcade">
+      <span className="text-2xl">🕹️</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">Arcade · level {arc.level}</div>
+        <div className="truncate text-sm font-semibold">{arc.name} · @{arc.owner.username}</div>
+      </div>
+      <span className="text-xs font-bold text-[#FF3D9A]">Walk in & play →</span>
+    </Link>
+  );
   if (biz) return (
     <Link to={`/business/${biz.business_id}`} className="flex items-center gap-3 rounded-2xl border border-[#D4A500]/40 bg-[#FFE14D]/10 p-3 hover:border-[#D4A500]" data-testid="visit-business">
       <span className="text-2xl">🍋</span>

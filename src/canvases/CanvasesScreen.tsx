@@ -96,7 +96,8 @@ export default function CanvasesScreen() {
                   <PlotKindControl g={g} className="mt-1" />
                   {st && <div className={cn('mt-1 text-xs font-semibold', st.cls)}>{st.label}{pub?.decision_reason ? ` — ${pub.decision_reason}` : ''}</div>}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {g.kind === 'business' && g.business_id ? <Button size="sm" variant="primary" onClick={() => nav(`/business/${g.business_id}`)}>🍋 Open business</Button>
+                    {g.kind === 'arcade' && g.arcade_id ? <Button size="sm" variant="primary" onClick={() => nav(`/arcade/${g.arcade_id}`)}>🕹️ Enter arcade</Button>
+                    : g.kind === 'business' && g.business_id ? <Button size="sm" variant="primary" onClick={() => nav(`/business/${g.business_id}`)}>🍋 Open business</Button>
                     : g.kind === 'farm' && g.farm_id ? <Button size="sm" variant="primary" onClick={() => nav(`/farm/${g.farm_id}`)}>🌾 Enter farm</Button>
                       : g.kind === 'habitat' && g.habitat_id
                       ? <Button size="sm" variant="primary" onClick={() => nav(`/habitat/${g.habitat_id}`)}>🐾 Enter sanctuary</Button>

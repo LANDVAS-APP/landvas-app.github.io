@@ -21,7 +21,7 @@ export type Profile = {
   created_at: string;
 };
 
-export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body';
+export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body' | 'sex';
 export type ExplorerStyle = Partial<Record<ExplorerPart, string>>;
 
 export type PlotTypeInfo = {
@@ -215,6 +215,7 @@ export type CanvasGroup = {
   habitat_id?: string | null;
   farm_id?: string | null;
   business_id?: string | null;
+  arcade_id?: string | null;
   name: string;
   status: string;
   plot_count: number;
@@ -407,7 +408,7 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business';
+export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade';
 export type BizVenture = { key: string; name: string; emoji: string; owned: number; cost: number; cost10: number; max_q: number; rate: number; each: number; next_milestone: number | null; revealed: boolean };
 export type BizUpgrade = { key: string; kind: 'venture' | 'tap' | 'global'; venture: string | null; name: string; emoji: string; cost: number; x?: number; pct?: number; golden?: number; golden_dur?: number; need?: number };
 export type BizBuff = { kind: 'frenzy' | 'storm'; mult: number; until: string };
@@ -629,3 +630,16 @@ export type PlanetOverview = {
   plots: { world: string; gx: number; gy: number; name: string | null; rarity: string; rows: number; base: number }[];
 };
 export type PlanetHere = { player: Profile; d: number[]; friend: boolean; with_you: boolean; seen: number }[];
+
+export type ArcadeGameInfo = { order: number; name: string; emoji: string; color: string; level: number; cost: number; min_seconds: number; max_score: number; tickets_per_point: number; points_per_ink: number; max_ink: number };
+export type ArcadePrize = { id: string; name: string; emoji: string; tickets: number; tier: number };
+export type ArcadeMe = { tickets: number; lifetime: number; prizes: Record<string, number>; bonus_ready: boolean; streak: number; ink_today: number; daily_cap: number; best: Record<string, number> };
+export type Arcade = {
+  id: string; group_id: string; seed: number; name: string; plots: number; owner: Profile; mine: boolean;
+  level: { level: number; xp: number; into: number; need: number; max: boolean }; plays: number;
+  machines: Record<string, number>; decor: { floor: string; neon: string; lights: string }; decor_owned: string[]; shelf: Record<string, number>;
+  games: Record<string, ArcadeGameInfo>; prizes: ArcadePrize[]; decor_catalog: Record<'floor' | 'neon' | 'lights', { id: string; name: string; tickets: number }[]>;
+  upgrade: { max: number; bonus: number; costs: Record<string, number> };
+  boards: Record<string, { player: Profile; score: number }[]>; me: ArcadeMe; server_time: string;
+};
+export type ArcadeFinish = { score: number; tickets: number; earned: number; paid: number; capped: boolean; best: number; new_best: boolean; record: number; new_record: boolean; owner_cut: number; level_up: number | null; me: ArcadeMe; repeat?: boolean };

@@ -321,6 +321,32 @@ export function drawBusinessPlot(ctx: CanvasRenderingContext2D, gx: number, gy: 
   ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
 }
 
+/** An arcade from above: a dark roof ringed with neon, a marquee over the door and a glowing star on top. */
+export function drawArcadePlot(ctx: CanvasRenderingContext2D, gx: number, gy: number, px: number, py: number, cs: number) {
+  const neon = ['#FF3D9A', '#22E3FF', '#B6FF3D', '#8B5CFF', '#FFB13D'][Math.floor(hash(gx, gy, 7) * 5)];
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#140F2A'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = neon; ctx.fillRect(px + cs * 0.25, py + cs * 0.25, cs * 0.5, cs * 0.5); return; }
+  const m = cs * 0.1;
+  ctx.fillStyle = '#231A48'; ctx.fillRect(px + m, py + m, cs - m * 2, cs * 0.62);
+  ctx.strokeStyle = neon; ctx.lineWidth = Math.max(1, cs * 0.04); ctx.shadowColor = neon; ctx.shadowBlur = cs * 0.15;
+  ctx.strokeRect(px + m, py + m, cs - m * 2, cs * 0.62);
+  if (cs >= 10) {
+    // marquee and a row of bulbs over the door
+    ctx.fillStyle = neon; ctx.fillRect(px + cs * 0.22, py + m + cs * 0.62, cs * 0.56, cs * 0.1);
+    ctx.shadowBlur = 0; ctx.fillStyle = '#FFE9A8';
+    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(px + cs * 0.25 + i * cs * 0.1, py + m + cs * 0.78, Math.max(0.6, cs * 0.02), 0, Math.PI * 2); ctx.fill(); }
+    // a joystick star on the roof
+    ctx.fillStyle = '#FFE14D'; ctx.beginPath();
+    const cx = px + cs / 2, cy = py + m + cs * 0.3, r1 = cs * 0.12, r2 = cs * 0.05;
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? r2 : r1; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,61,154,0.9)'; ctx.lineWidth = Math.max(1, cs * 0.03);
+  ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+}
+
 async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number): Promise<ImageBitmap | ArrayBuffer | null> {
   const shift = GRID_LEVEL - z;
   if (shift < 0) return null;
@@ -328,12 +354,13 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   const bx0 = gx0 >> BLOCK_SHIFT, by0 = gy0 >> BLOCK_SHIFT, bn = Math.max(1, n >> BLOCK_SHIFT);
   const lists: PlotRow[][] = [];
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
-  const rows = lists.flat().filter((r) => (r[11] === 'habitat' || r[11] === 'farm' || r[11] === 'business') && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
+  const rows = lists.flat().filter((r) => (r[11] === 'habitat' || r[11] === 'farm' || r[11] === 'business' || r[11] === 'arcade') && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
   if (!rows.length) return null;
   const cs = PX / n;
   const ctx = ctx2d();
   for (const r of rows) {
-    if (r[11] === 'business') drawBusinessPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
+    if (r[11] === 'arcade') drawArcadePlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
+    else if (r[11] === 'business') drawBusinessPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
     else if (r[11] === 'farm') drawFarmPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs);
     else drawHabitatPlot(ctx, r[0], r[1], (r[0] - gx0) * cs, (r[1] - gy0) * cs, cs, r[8] || '#7B5CFF');
   }

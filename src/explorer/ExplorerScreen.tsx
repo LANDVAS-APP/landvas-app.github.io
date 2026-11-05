@@ -14,6 +14,7 @@ import { ExplorerFigure } from './ExplorerFigure';
 import { styleOf } from './character';
 
 const PARTS: { id: ExplorerPart; label: string }[] = [
+  { id: 'sex', label: 'Male / Female' },
   { id: 'body', label: 'Body' },
   { id: 'hair', label: 'Hair' },
   { id: 'hairc', label: 'Hair colour' },
@@ -31,7 +32,7 @@ export default function ExplorerScreen() {
   const me = useOnboardedMe();
   const world = useWorld();
   const qc = useQueryClient();
-  const [part, setPart] = useState<ExplorerPart>('body');
+  const [part, setPart] = useState<ExplorerPart>('sex');
   const [draft, setDraft] = useState<Required<ExplorerStyle> | null>(null);
   const [walking, setWalking] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,9 +79,19 @@ export default function ExplorerScreen() {
             <ExplorerFigure style={draft} accent={accent} size={96} walking={walking} className="lv-room-explorer" />
           </div>
         </section>
-        <div className="grid content-start gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Tabs value={part} onValueChange={(v) => setPart(v as ExplorerPart)} items={PARTS.map((p) => ({ value: p.id, label: p.label }))} />
+        <div className="grid min-w-0 content-start gap-4">
+          <div className="glass flex flex-wrap items-center gap-3 rounded-3xl p-3" data-testid="explorer-sex">
+            <div className="min-w-[180px] flex-1"><div className="text-sm font-bold">Your explorer is</div><div className="text-xs text-muted">Shown everywhere you go — the map, planets, farms, arcades.</div></div>
+            <div className="flex gap-2">
+            {([['m', '♂ Male'], ['f', '♀ Female']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setDraft({ ...draft, sex: id, ...(id === 'f' && draft.hair === 'short' && saved.sex !== 'f' ? { hair: 'long' } : {}), ...(id === 'm' && draft.hair === 'long' && saved.sex !== 'm' ? { hair: 'short' } : {}) })}
+                aria-pressed={draft.sex === id} data-testid={`explorer-sex-${id}`}
+                className={cn('rounded-2xl px-4 py-2.5 text-sm font-bold transition', draft.sex === id ? 'bg-accent text-white shadow-lg' : 'bg-bg-2/70')}>{label}</button>
+            ))}
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="min-w-0 max-w-full flex-1"><Tabs value={part} onValueChange={(v) => setPart(v as ExplorerPart)} items={PARTS.map((p) => ({ value: p.id, label: p.label }))} /></div>
             <Button size="sm" variant={walking ? 'secondary' : 'ghost'} onClick={() => setWalking((w) => !w)} aria-pressed={walking}><Footprints className="h-4 w-4" /> {walking ? 'Walking' : 'Standing'}</Button>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" data-testid="explorer-items">

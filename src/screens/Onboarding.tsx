@@ -19,14 +19,14 @@ import { Avatar, Button, Field, Spinner, Wordmark, inputCls } from '../ui';
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
 /** Starting explorers to pick from — every part can be changed later in the Explorer screen. */
 const PRESETS: ExplorerStyle[] = [
-  { body: 'dress', hair: 'long', hairc: 'brown', skin: 'peach', hat: 'none' },
-  { body: 'classic', hair: 'short', hairc: 'brown', skin: 'peach', hat: 'beret' },
-  { body: 'skirt', hair: 'ponytail', hairc: 'blonde', skin: 'light', hat: 'none' },
-  { body: 'classic', hair: 'spiky', hairc: 'black', skin: 'tan', hat: 'none' },
-  { body: 'dress', hair: 'curly', hairc: 'black', skin: 'deep', hat: 'none' },
-  { body: 'classic', hair: 'curly', hairc: 'black', skin: 'brown', hat: 'none' },
-  { body: 'skirt', hair: 'pigtails', hairc: 'red', skin: 'peach', hat: 'none' },
-  { body: 'dress', hair: 'bun', hairc: 'pink', skin: 'brown', hat: 'none' },
+  { sex: 'f', body: 'dress', hair: 'long', hairc: 'brown', skin: 'peach', hat: 'none' },
+  { sex: 'm', body: 'classic', hair: 'short', hairc: 'brown', skin: 'peach', hat: 'beret' },
+  { sex: 'f', body: 'skirt', hair: 'ponytail', hairc: 'blonde', skin: 'light', hat: 'none' },
+  { sex: 'm', body: 'classic', hair: 'spiky', hairc: 'black', skin: 'tan', hat: 'none' },
+  { sex: 'f', body: 'dress', hair: 'curly', hairc: 'black', skin: 'deep', hat: 'none' },
+  { sex: 'm', body: 'classic', hair: 'curly', hairc: 'black', skin: 'brown', hat: 'none' },
+  { sex: 'f', body: 'skirt', hair: 'pigtails', hairc: 'red', skin: 'peach', hat: 'none' },
+  { sex: 'f', body: 'dress', hair: 'bun', hairc: 'pink', skin: 'brown', hat: 'none' },
 ];
 const ACCENTS = ['#7B5CFF', '#FF4D6D', '#FF9F1C', '#22C7B5', '#34C3FF', '#FF4FD8', '#3DDC97', '#0B1230'];
 
@@ -145,7 +145,7 @@ export function Onboarding() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass grid gap-3 rounded-[28px] p-5" data-testid="explorer-presets">
           <div>
             <div className="font-display text-lg font-semibold">Choose your explorer</div>
-            <p className="text-sm text-muted">They walk the map for you and greet visitors in your room. Change hair, skin, outfit and more any time.</p>
+            <p className="text-sm text-muted">They walk the map for you and greet visitors in your room. Pick a male or female explorer — change hair, skin, outfit and more any time.</p>
           </div>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             {PRESETS.map((p, i) => (
