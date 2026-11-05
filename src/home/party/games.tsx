@@ -2,11 +2,11 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '../../lib/utils';
-import { type PartyDef, type Seat, placesBy, rng } from './kit';
+import { type PartyDef, type Seat, dec, enc, norm, placesBy, rng, seatOf, secs } from './kit';
+export { dec };
 import { WORDS } from './words';
 
-const seatOf = (seats: Seat[], id: string) => seats.find((x) => x.id === id);
-const Turn = ({ seats, id, me, extra }: { seats: Seat[]; id: string | null; me: string; extra?: string }) => {
+export const Turn = ({ seats, id, me, extra }: { seats: Seat[]; id: string | null; me: string; extra?: string }) => {
   const s = id ? seatOf(seats, id) : null;
   if (!s) return null;
   return (
@@ -15,7 +15,6 @@ const Turn = ({ seats, id, me, extra }: { seats: Seat[]; id: string | null; me: 
     </div>
   );
 };
-const secs = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
 // ======================================================================================================================
 // Four in a Row
@@ -312,9 +311,6 @@ type Stroke = { id: string; c: string; w: number; p: number[] };
 type DG = { ids: string[]; round: number; rounds: number; drawer: number; wz: string; len: number; hint: number[]; phase: 'draw' | 'reveal' | 'done'; ends: number; drawFor: number;
   strokes: Stroke[]; got: Record<string, number>; chat: { id: string; t: string; ok?: boolean }[]; pts: Record<string, number>; seed: number; used: number[] };
 const DG_DRAW = 70_000, DG_REVEAL = 4500;
-const enc = (w: string) => btoa(unescape(encodeURIComponent(w.split('').reverse().join(''))));
-export const dec = (z: string) => { try { return decodeURIComponent(escape(atob(z))).split('').reverse().join(''); } catch { return ''; } };
-const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
 function dgStart(s: DG, now: number) {
   const r = rng(s.seed + s.round * 31);
   let k = Math.floor(r() * WORDS.length); while (s.used.includes(k)) k = (k + 1) % WORDS.length;
@@ -496,5 +492,3 @@ export const rush: PartyDef<CR, { k: 'tap'; r: number; c: number }> = {
   },
 };
 
-export const PARTY: Record<string, PartyDef> = { fourrow, checkers, dots, ladders, doodle, rush };
-export const PARTY_ORDER = ['doodle', 'rush', 'ladders', 'dots', 'fourrow', 'checkers'];

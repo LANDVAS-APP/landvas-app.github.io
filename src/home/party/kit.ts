@@ -27,3 +27,10 @@ export function placesBy(points: Record<string, number>, higherWins = true): Pla
   ids.forEach((id, i) => { if (points[id] !== prev) { place = i + 1; prev = points[id]; } out[id] = place; });
   return out;
 }
+
+export const seatOf = (seats: Seat[], id: string) => seats.find((x) => x.id === id);
+export const secs = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
+/** secrets in the shared state are only lightly hidden (it's a party game, not a bank) */
+export const enc = (w: string) => btoa(unescape(encodeURIComponent(w.split('').reverse().join(''))));
+export const dec = (z: string) => { try { return decodeURIComponent(escape(atob(z))).split('').reverse().join(''); } catch { return ''; } };
+export const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');

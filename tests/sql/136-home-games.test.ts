@@ -51,6 +51,15 @@ describe('House party games', () => {
     expect((await ink(P[2])) - t[2]).toBe(13);
   });
 
+  it('the new party games need three', async () => {
+    for (const game of ['chain', 'spy', 'samebrain', 'bluff']) {
+      const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: game });
+      await db.rpc(P[1], 'home_game_join', { p_game: g.id });
+      await expectError(db.rpc(P[0], 'home_game_start', { p_game: g.id }), 'need_players');
+      await db.rpc(P[0], 'home_game_leave', { p_game: g.id });
+    }
+  });
+
   it('two-player games take two', async () => {
     const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: 'fourrow' });
     await db.rpc(P[1], 'home_game_join', { p_game: g.id });
@@ -59,8 +68,8 @@ describe('House party games', () => {
     await expectError(db.rpc(P[1], 'home_game_start', { p_game: g.id }), 'match_closed');
   });
 
-  it('house games stop paying at 100 Ink a day', async () => {
-    await db.sql(`insert into home_game_days (player_id, day, ink) values ($1, private.day_start(now()), 95) on conflict (player_id, day) do update set ink = 95`, [P[2]]);
+  it('house games stop paying at 500 Ink a day', async () => {
+    await db.sql(`insert into home_game_days (player_id, day, ink) values ($1, private.day_start(now()), 495) on conflict (player_id, day) do update set ink = 495`, [P[2]]);
     const g = await db.rpc(P[2], 'home_game_create', { p_home: P[0], p_game: 'rush' });
     await db.rpc(P[1], 'home_game_join', { p_game: g.id });
     await db.rpc(P[2], 'home_game_start', { p_game: g.id });
@@ -68,7 +77,7 @@ describe('House party games', () => {
     const t0 = await ink(P[2]);
     await db.rpc(P[2], 'home_game_report', { p_game: g.id, p_places: { [P[2]]: 1, [P[1]]: 2 } });
     expect((await ink(P[2])) - t0).toBe(5);
-    expect(Number((await db.sql(`select ink from home_game_days where player_id = $1`, [P[2]]))[0].ink)).toBe(100);
+    expect(Number((await db.sql(`select ink from home_game_days where player_id = $1`, [P[2]]))[0].ink)).toBe(500);
   });
 
   it('the record player saves its record with the home', async () => {

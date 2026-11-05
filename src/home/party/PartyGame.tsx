@@ -10,7 +10,7 @@ import type { HomeGame } from '../../backend/types';
 import { cn } from '../../lib/utils';
 import { Button, PlayerAvatar, ResourceIcon } from '../../ui';
 import { sfx } from '../../arcade/sfx';
-import { PARTY } from './games';
+import { PARTY } from './index';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
 
 type Msg = { t: 'gs'; k: number; s: unknown; now: number } | { t: 'gm'; id: string; m: unknown } | { t: 'end'; r: Places };
@@ -144,7 +144,7 @@ function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: string; 
           ))}
         </div>
         {(g.result?.boost ?? 1) > 1 && <p className="text-xs text-[#7DFFB2]">🎉 Party of {g.result?.players}: +{Math.round(((g.result?.boost ?? 1) - 1) * 100)}% Ink</p>}
-        {me && !me.ink && <p className="max-w-xs text-center text-[11px] text-white/60">House games pay up to 100 Ink a day, to accounts at least a day old that own land.</p>}
+        {me && !me.ink && <p className="max-w-xs text-center text-[11px] text-white/60">House games pay up to 500 Ink a day, to accounts at least a day old that own land.</p>}
         <Button variant="rainbow" onClick={onClose} data-testid="party-close">Back to the party</Button>
       </div>
     </motion.div>

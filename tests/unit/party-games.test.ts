@@ -1,6 +1,8 @@
 // House party games: each one plays to a finish with legal moves, refuses illegal ones, and hands out valid places.
 import { describe, expect, it } from 'vitest';
-import { PARTY, ckLegal, dec } from '../../src/home/party/games';
+import { ckLegal, dec } from '../../src/home/party/games';
+import { enc } from '../../src/home/party/kit';
+import { PARTY } from '../../src/home/party/index';
 import { rng, type Seat } from '../../src/home/party/kit';
 
 const seats = (n: number): Seat[] => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, slot: i, name: `P${i}`, color: '#fff', p: {} as never }));
@@ -78,6 +80,67 @@ describe('house party games', () => {
     def.move(s, 'p2', { k: 'tap', r: s.round, c: wrong }, 5300);
     expect(s.pts).toEqual({ p0: 3, p1: 1, p2: 0 });
     const { res, ids } = play('rush', 5, 9, (s, ids, r) => (s.phase === 'ask' ? [ids[Math.floor(r() * ids.length)], { k: 'tap', r: s.round, c: s.choices[Math.floor(r() * 4)] }] : null));
+    validPlaces(res, ids);
+  });
+
+  it('Scribble Chain: every chain gets written, drawn and guessed, then votes decide', () => {
+    for (const n of [3, 4, 6]) {
+      const { res, ids, s } = play('chain', n, n, (s, ids, r) => {
+        if (s.phase === 'vote') { const voter = ids.find((id) => !s.votes[id]); if (!voter) return null; const key = s.chains.flatMap((ch: any[], ci: number) => ch.map((l: any, k: number) => ({ l, key: `${ci}:${k}` }))).find((x: any) => x.l.d && x.l.by !== voter)?.key; return key ? [voter, { k: 'vote', c: key }] : null; } // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (!['write', 'draw', 'guess'].includes(s.phase) || r() < 0.3) return null;
+        const who = ids[Math.floor(r() * ids.length)];
+        return [who, s.phase === 'draw' ? { k: 'draw', d: [{ c: '#000000', w: 6, p: [1, 2, 300, 400, 900, 900] }] } : { k: 'text', t: 'a cat on a skateboard' }];
+      });
+      validPlaces(res, ids);
+      expect(s.chains.every((ch: unknown[]) => ch.length === s.steps)).toBe(true);
+      expect(s.steps % 2).toBe(1); // ends on a guess
+      // what goes over the wire mid-game drops old drawings
+    }
+    const def = PARTY.chain, t = def.init(seats(5), 3);
+    for (const id of t.ids) def.move(t, id, { k: 'text', t: 'hello there' }, 100);
+    expect(t.phase).toBe('draw');
+    expect(def.move(t, 'p0', { k: 'text', t: 'no' }, 200)).toBe(false);
+  });
+  it('Word Spy: one spy, clues in turn, votes catch (or miss) them', () => {
+    const def = PARTY.spy, s = def.init(seats(4), 8);
+    const spyId = dec(s.spy);
+    expect(dec(s.wz)).not.toBe(dec(s.sz));
+    expect(def.move(s, s.ids[(s.turn + 1) % 4], { k: 'clue', t: 'x' }, 10)).toBe(false); // not your turn
+    expect(def.move(s, s.ids[s.turn], { k: 'clue', t: s.ids[s.turn] === spyId ? dec(s.sz) : dec(s.wz) }, 10)).toBe(false); // not the word itself
+    while (s.phase === 'clue') def.move(s, s.ids[s.turn], { k: 'clue', t: 'thing' }, 20);
+    expect(s.clues.length).toBe(8); // two laps for four players
+    for (const id of s.ids) def.move(s, id, { k: 'vote', who: id === spyId ? s.ids.find((x: string) => x !== spyId) : spyId }, 30);
+    expect(s.caught).toBe(true);
+    expect(s.pts[spyId]).toBe(0);
+    for (const id of s.ids.filter((x: string) => x !== spyId)) expect(s.pts[id]).toBe(3);
+    const { res, ids } = play('spy', 6, 2, (s, ids, r) => (s.phase === 'clue' ? [ids[s.turn], { k: 'clue', t: 'hmm' }] : s.phase === 'vote' ? [ids[Math.floor(r() * 6)], { k: 'vote', who: ids[Math.floor(r() * 6)] }] : null));
+    validPlaces(res, ids);
+  });
+  it('Same Brain: matching answers score for each match', () => {
+    const def = PARTY.samebrain, s = def.init(seats(4), 1);
+    def.move(s, 'p0', { k: 'say', t: 'Pepperoni' }, 10); def.move(s, 'p1', { k: 'say', t: 'pepperonis!' }, 10);
+    def.move(s, 'p2', { k: 'say', t: 'pepperoni' }, 10); def.move(s, 'p3', { k: 'say', t: 'pineapple' }, 10);
+    expect(s.phase).toBe('reveal');
+    expect(s.pts).toEqual({ p0: 2, p1: 2, p2: 2, p3: 0 });
+    const { res, ids } = play('samebrain', 5, 3, (s, ids, r) => (s.phase === 'answer' ? [ids[Math.floor(r() * 5)], { k: 'say', t: ['cheese', 'ham', 'olives'][Math.floor(r() * 3)] }] : null));
+    validPlaces(res, ids);
+  });
+  it('Bluff Buffet: the truth is in the options, fooling people pays', () => {
+    const def = PARTY.bluff, s = def.init(seats(3), 5);
+    const truth = (globalThis as any).__noop ?? null; void truth; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(def.move(s, 'p0', { k: 'lie', t: 'spoons' }, 10)).toBe(true);
+    def.move(s, 'p1', { k: 'lie', t: 'forks' }, 10); def.move(s, 'p2', { k: 'lie', t: 'ladles' }, 10);
+    expect(s.phase).toBe('pick');
+    expect(s.opts.length).toBeGreaterThanOrEqual(4);
+    const fork = s.opts.findIndex((o: any) => dec(o.t) === 'forks'); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const spoon = s.opts.findIndex((o: any) => dec(o.t) === 'spoons'); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(def.move(s, 'p1', { k: 'pick', o: fork }, 20)).toBe(false); // not your own
+    def.move(s, 'p0', { k: 'pick', o: fork }, 20); def.move(s, 'p1', { k: 'pick', o: spoon }, 20);
+    const real = s.opts.findIndex((o: any) => !o.by.length && ['spoon', 'banana', 'seven', 'pickles', 'Tuesday', 'a wizard'].indexOf(dec(o.t)) < 0); // eslint-disable-line @typescript-eslint/no-explicit-any
+    def.move(s, 'p2', { k: 'pick', o: real }, 20);
+    expect(s.pts).toEqual({ p0: 2, p1: 2, p2: 3 });
+    void enc;
+    const { res, ids } = play('bluff', 4, 6, (s, ids, r) => (s.phase === 'write' ? [ids[Math.floor(r() * 4)], { k: 'lie', t: `fake${Math.floor(r() * 3)}` }] : s.phase === 'pick' ? [ids[Math.floor(r() * 4)], { k: 'pick', o: Math.floor(r() * s.opts.length) }] : null));
     validPlaces(res, ids);
   });
 });

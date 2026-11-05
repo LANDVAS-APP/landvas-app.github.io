@@ -10,7 +10,7 @@ import type { HomeGame } from '../../backend/types';
 import { cn } from '../../lib/utils';
 import { Button, PlayerAvatar } from '../../ui';
 import { sfx } from '../../arcade/sfx';
-import { PARTY, PARTY_ORDER } from './games';
+import { PARTY, PARTY_ORDER } from './index';
 import { SEAT_COLORS } from './kit';
 
 export function GamePicker({ home, here, onClose, onMade }: { home: string; here: number; onClose(): void; onMade(): void }) {
@@ -37,7 +37,7 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
             </div>
           </div>
         ))}
-        <p className="text-center text-[10px] text-white/50">Win Ink — bigger parties pay more · up to 100 Ink a day</p>
+        <p className="text-center text-[10px] text-white/50">Win Ink — bigger parties pay more · up to 500 Ink a day</p>
       </motion.div>
     </div>
   );
