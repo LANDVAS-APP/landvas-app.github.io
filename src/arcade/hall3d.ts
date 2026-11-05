@@ -1,6 +1,6 @@
 // The arcade hall in 3D. Cabinets stand in rows across the room, facing you, with aisles between them; the
 // prize counter, the jukebox and the ticket machine are along the back wall. Every game has its own machine:
-// a tall LED tower for Tower Stacker, a ring of bulbs for Cyclone, a lane for Ring Roll, a caged hoop for Hoop
+// a tall LED tower for Ink Tower, a ring of bulbs for Prism Ring, a lane for Ring Roll, a caged hoop for Hoop
 // Shot, a pop-up table for Bop-a-Bot, a glass box full of plushies for the Claw Crane (and a classic upright for
 // anything else).
 // Walking: drag anywhere to walk that way (like a joystick), or tap the floor or a machine to walk there (round
@@ -84,7 +84,7 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
       const on = r < lv ? c >= 2 && c <= 4 - Math.floor(r / 6) + 0 : r === lv ? Math.abs(c - (3 + Math.round(Math.sin(t * 5) * 3))) <= 1 : false;
       g.fillStyle = on ? (r >= 10 ? '#FFE14D' : '#FF3D9A') : 'rgba(255,61,154,0.08)'; g.fillRect(70 + c * 17, H - 14 - r * 12, 14, 10);
     }
-    g.fillStyle = '#22E3FF'; g.font = '900 11px ui-monospace'; g.fillText('MINOR', 20, H - 14 - 10 * 12); g.fillStyle = '#FFE14D'; g.fillText('MAJOR', 20, H - 14 - 14 * 12);
+    g.fillStyle = '#C9D3E6'; g.font = '900 11px ui-monospace'; g.fillText('SILVER', 20, H - 14 - 10 * 12); g.fillStyle = '#FFE14D'; g.fillText('GOLD', 20, H - 14 - 14 * 12);
   } else if (id === 'maze') {
     // an ink blob chased round a paint-stroke maze by spiky smudges
     g.lineCap = 'round'; g.strokeStyle = '#7B5CFF'; g.lineWidth = 10; g.strokeRect(24, 30, Wd - 48, H - 60); g.strokeStyle = '#22C7B5'; g.strokeRect(70, 74, Wd - 140, H - 148);
@@ -94,7 +94,13 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
     g.fillStyle = '#fff'; g.beginPath(); g.arc(px + 4, 48, 3.5, 0, Math.PI * 2); g.arc(px + 4, 57, 3.5, 0, Math.PI * 2); g.fill();
     for (let i = 0; i < 3; i++) { const sx = px - 40 - i * 28; g.fillStyle = ['#3DDC97', '#FFB13D', '#B6FF3D'][i]; g.beginPath(); for (let j = 0; j <= 14; j++) { const a = (j / 14) * Math.PI * 2 + t * 2, r = j % 2 ? 7 : 11; g.lineTo(sx + Math.cos(a) * r, 52 + Math.sin(a) * r); } g.fill(); }
   } else if (id === 'blaster') {
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { g.fillStyle = ['#FF3D9A', '#B6FF3D', '#22E3FF'][r]; g.fillRect(40 + c * 30 + Math.sin(t * 2) * 14, 30 + r * 22, 18, 12); }
+    const cols = ['#FF3D9A', '#B6FF3D', '#22E3FF'];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) {
+      const x = 46 + c * 32 + Math.sin(t * 2) * 14, y = 34 + r * 24, sides = [4, 6, 3][r];
+      g.strokeStyle = cols[r]; g.lineWidth = 2; g.beginPath();
+      for (let k = 0; k <= sides; k++) { const a = t + (k / sides) * Math.PI * 2; g.lineTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9); }
+      g.stroke(); g.fillStyle = '#fff'; g.fillRect(x - 2, y - 2, 4, 4);
+    }
     const sx = Wd / 2 + Math.sin(t * 1.7) * 70; g.fillStyle = '#3DDC97'; g.beginPath(); g.moveTo(sx, H - 34); g.lineTo(sx + 14, H - 16); g.lineTo(sx - 14, H - 16); g.fill();
     g.fillStyle = '#FFE14D'; for (let i = 0; i < 4; i++) g.fillRect(sx - 1, H - 40 - ((t * 200 + i * 40) % 120), 3, 8);
   } else if (id === 'snake') {
@@ -233,7 +239,7 @@ export function createHall(o: HallOpts) {
     };
     switch (m.locked ? 'upright' : m.id) {
       case 'stacker': {
-        // a tall tower: the LED playfield all the way up, MINOR and MAJOR marked on it
+        // a tall tower: the LED playfield all the way up, the SILVER and GOLD lines marked on it
         const base = box(1.4, 1.0, 1.0, body); base.position.set(0, 0.5, 0); g.add(base);
         const tower = box(1.4, 2.6, 0.7, body); tower.position.set(0, 2.3, -0.15); g.add(tower);
         for (const s of [-1, 1]) { const p = box(0.08, 3.7, 1.05, side); p.position.set(s * 0.74, 1.85, -0.02); g.add(p); }
@@ -405,7 +411,7 @@ export function createHall(o: HallOpts) {
       case 'maze': case 'blaster': case 'snake': {
         upright();
         // a little character standing on top of the cabinet
-        const top = emojiSprite(m.id === 'maze' ? '🖌️' : m.id === 'blaster' ? '👾' : '🐍', 0.5); top.position.set(0, 2.95, -0.1); g.add(top); parts.push(top);
+        const top = emojiSprite(m.id === 'maze' ? '🖌️' : m.id === 'blaster' ? '🚀' : '🐍', 0.5); top.position.set(0, 2.95, -0.1); g.add(top); parts.push(top);
         break;
       }
       default: upright();

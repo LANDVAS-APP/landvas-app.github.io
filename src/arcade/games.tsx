@@ -1,8 +1,8 @@
 // The arcade cabinets. All free to play and won by skill and timing:
-//  Tower Stacker (3D)  a block slides back and forth; drop it on the tower. Whatever hangs over is sliced off, so
+//  Ink Tower (3D)      a block slides back and forth; drop it on the tower. Whatever hangs over is sliced off, so
 //                      the next block is smaller. Perfect drops keep it whole (and grow it back). Prize lines at
-//                      10 (MINOR), 20 (MAJOR) and 30 (MEGA)
-//  Cyclone (2D neon)   a light races round a ring of bulbs; stop it on the JACKPOT. Seven spins, each faster
+//                      10 (SILVER), 20 (GOLD) and 30 (PRISM)
+//  Prism Ring (2D)     a light races round a ring of bulbs; stop it on the JACKPOT. Seven spins, each faster
 //  Ring Roll (3D)      flick the ball up the lane: how hard decides how high it lands, the angle where. Rings
 //                      score 10-50, the corner pockets 100. Nine balls
 //  Hoop Shot (3D)      flick basketballs at the hoop, as fast as you like, for 40 seconds. Three in a row and
@@ -85,7 +85,7 @@ function burster(scene: THREE.Scene, T: <X extends { dispose(): void }>(x: X) =>
 }
 
 // ======================================================================================================
-// Tower Stacker
+// Ink Tower
 // ======================================================================================================
 export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const endless = mode === 'endless';
@@ -107,7 +107,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
     const block = (w: number, d: number, x: number, y: number, z: number, lv: number) => { const m = new THREE.Mesh(geo, mat(lv)); m.scale.set(w, H, d); m.position.set(x, y, z); scene.add(m); return m; };
     // pedestal and prize lines
     const ped = new THREE.Mesh(T(new THREE.BoxGeometry(START + 0.6, 4, START + 0.6)), T(new THREE.MeshStandardMaterial({ color: '#1C1640', roughness: 0.5 }))); ped.position.y = -2 - H / 2; scene.add(ped);
-    const LINES = [{ lv: 10, name: 'MINOR', bonus: 25, c: '#22E3FF' }, { lv: 20, name: 'MAJOR', bonus: 60, c: '#FFE14D' }, { lv: 30, name: 'MEGA', bonus: 150, c: '#FF3D9A' }];
+    const LINES = [{ lv: 10, name: 'SILVER', bonus: 25, c: '#C9D3E6' }, { lv: 20, name: 'GOLD', bonus: 60, c: '#FFE14D' }, { lv: 30, name: 'PRISM', bonus: 150, c: '#FF3D9A' }];
     for (const L of LINES) {
       const frame = new THREE.LineSegments(T(new THREE.EdgesGeometry(T(new THREE.BoxGeometry(START + 1.6, 0.02, START + 1.6)))), T(new THREE.LineBasicMaterial({ color: L.c })));
       frame.position.y = L.lv * H; scene.add(frame);
@@ -169,7 +169,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
         score += 1; shake = 0.25; sfx.cut(); tap(haptics, 'light');
       }
       const reached = stack.length - 1;
-      // endless: past MEGA, every 10 levels is another (bigger) ULTRA prize
+      // endless: past PRISM, every 10 levels is another (bigger) ULTRA prize
       const L = LINES.find((l) => l.lv === reached) ?? (endless && reached > 30 && reached % 10 === 0 ? { lv: reached, name: 'ULTRA', bonus: 150 + (reached - 30) * 5, c: '#B6FF3D' } : undefined);
       if (L) { score += L.bonus; sfx.jackpot(); tap(haptics, 'success'); pops.add(`${L.name} PRIZE! +${L.bonus}`, L.c, 50, 22, true); fx.burst(new THREE.Vector3(0, L.lv * H, 0), reduce ? 10 : 60, 6); }
       setHud({ score, level: stack.length - 1, combo, size: Math.round((stack[stack.length - 1].w * stack[stack.length - 1].d) / (START * START) * 100) });
@@ -217,7 +217,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
 }
 
 // ======================================================================================================
-// Cyclone
+// Prism Ring
 // ======================================================================================================
 export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const endless = mode === 'endless';

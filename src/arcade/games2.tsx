@@ -5,7 +5,7 @@
 //  Coin Pusher    tap to drop coins in front of the pusher; push them off the front ledge. Gold coins cause a SHOWER
 //  Ink Maze       swipe your ink blob round the maze slurping paint drops; a paint bucket lets you wash away the
 //                 smudges chasing you. The GOLDEN BRUSH is worth 500
-//  Space Blaster  drag to steer, it fires by itself. Shoot the UFO for 150; grab TRIPLE-SHOT power-ups
+//  Space Blaster  drag to steer, it fires by itself, at waves of neon drones. Hit the PRISM DRONE for 150; grab TRIPLE SHOT
 //  Rhythm Rush    tap the four lanes as the notes hit the line. A 30 combo starts FEVER (double points)
 //  Peg Drop       aim and drop chips through the pegs. Touch the glowing GOLD PEG for double
 //  Neon Racer     swipe between lanes, dodge the traffic, grab orbs. NITRO doubles points and makes you invincible
@@ -618,7 +618,7 @@ export function InkMaze({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
 // ======================================================================================================
 // Space Blaster
 // ======================================================================================================
-export function SpaceBlaster({ seed, onEnd, haptics, mode }: ArenaProps) {
+export function SpaceBlaster({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
   const [hud, setHud] = useHud({ score: 0, lives: 3, wave: 1, triple: false });
@@ -661,7 +661,7 @@ export function SpaceBlaster({ seed, onEnd, haptics, mode }: ArenaProps) {
           }
           for (let i = shots.length - 1; i >= 0; i--) {
             const s = shots[i]; s.y -= 1.4 * dt; s.x += s.vx * dt; if (s.y < -0.05) { shots.splice(i, 1); continue; }
-            if (ufo && Math.abs(s.x - ufo.x) < 0.06 && Math.abs(s.y - 0.06) < 0.03) { score += 150; setHud({ score }); pops.add('UFO +150!', '#FF3D9A', ufo.x * 100, 10, true); fx.burst(ufo.x * W, 0.06 * H, RAINBOW, 40, 240); sfx.jackpot(); tap(haptics, 'success'); ufo = null; shots.splice(i, 1); continue; }
+            if (ufo && Math.abs(s.x - ufo.x) < 0.06 && Math.abs(s.y - 0.06) < 0.03) { score += 150; setHud({ score }); pops.add('PRISM DRONE +150!', '#FF3D9A', ufo.x * 100, 10, true); fx.burst(ufo.x * W, 0.06 * H, RAINBOW, 40, 240); sfx.jackpot(); tap(haptics, 'success'); ufo = null; shots.splice(i, 1); continue; }
             const hit = aliens.find((a) => Math.abs(a.x + march - s.x) < 0.045 && Math.abs(a.y - s.y) < 0.03);
             if (hit) {
               shots.splice(i, 1); hit.hp--; hit.hit = 0.1;
@@ -685,18 +685,33 @@ export function SpaceBlaster({ seed, onEnd, haptics, mode }: ArenaProps) {
         bg(g, W, H, '#02010A', '#0A0420');
         for (const s of stars) { s.y = (s.y + dt * 0.05 * s.s) % 1; g.fillStyle = `rgba(255,255,255,${0.3 + s.s * 0.4})`; g.fillRect(s.x * W, s.y * H, s.s * 2, s.s * 2); }
         const AW = Math.min(W * 0.085, 34);
+        // neon drones: a different shape for each row, each with one eye that watches your ship
         for (const a of aliens) {
-          const x = (a.x + march) * W, y = a.y * H, c = a.hit > 0 ? '#fff' : ['#FF3D9A', '#B6FF3D', '#22E3FF', '#B57BFF'][a.row];
+          const x = (a.x + march) * W, y = a.y * H + (reduce ? 0 : Math.sin(t * 3 + a.x * 20) * 2), c = a.hit > 0 ? '#fff' : ['#FF3D9A', '#B6FF3D', '#22E3FF', '#B57BFF'][a.row];
           a.hit = Math.max(0, a.hit - dt);
-          const flap = Math.floor(t * 3) % 2;
-          g.fillStyle = c; g.shadowColor = c; g.shadowBlur = 8;
-          // a chunky pixel alien
-          const px = AW / 8;
-          const rows = a.row === 0 ? ['..XXXX..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', flap ? '.X.XX.X.' : 'X.X..X.X'] : ['.X....X.', '..XXXX..', '.XX..XX.', 'XXXXXXXX', flap ? 'X.X..X.X' : '.X....X.'];
-          rows.forEach((row, ry) => row.split('').forEach((ch, rx) => { if (ch === 'X') g.fillRect(x - AW / 2 + rx * px, y - AW * 0.3 + ry * px, px + 0.5, px + 0.5); }));
+          const R = AW * 0.42, sides = [4, 6, 3, 0][a.row], spin = reduce ? 0 : t * (a.row % 2 ? 0.8 : -0.8);
+          g.strokeStyle = c; g.lineWidth = 2.2; g.shadowColor = c; g.shadowBlur = 10; g.fillStyle = 'rgba(10,4,32,0.85)';
+          g.beginPath();
+          if (sides) for (let k = 0; k <= sides; k++) { const an = spin + (k / sides) * Math.PI * 2 - Math.PI / 2; g.lineTo(x + Math.cos(an) * R, y + Math.sin(an) * R); }
+          else g.arc(x, y, R * 0.8, 0, Math.PI * 2);
+          g.closePath(); g.fill(); g.stroke();
+          if (!sides) { g.beginPath(); g.ellipse(x, y, R * 1.2, R * 0.35, spin, 0, Math.PI * 2); g.stroke(); }
+          if (a.hp > 1) { g.beginPath(); g.arc(x, y, R * 0.62, 0, Math.PI * 2); g.stroke(); }
           g.shadowBlur = 0;
+          const lx = clamp((ship.x * W - x) / W, -0.5, 0.5) * R * 0.5;
+          g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, R * 0.3, 0, Math.PI * 2); g.fill();
+          g.fillStyle = c; g.beginPath(); g.arc(x + lx, y + R * 0.08, R * 0.15, 0, Math.PI * 2); g.fill();
         }
-        if (ufo) { const x = ufo.x * W, y = 0.06 * H; g.fillStyle = '#FF3D9A'; g.shadowColor = '#FF3D9A'; g.shadowBlur = 16; g.beginPath(); g.ellipse(x, y, AW * 0.9, AW * 0.3, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7FF3FF'; g.beginPath(); g.ellipse(x, y - AW * 0.2, AW * 0.4, AW * 0.3, 0, Math.PI, 0); g.fill(); g.shadowBlur = 0; }
+        // the prism drone: a spinning rainbow crystal
+        if (ufo) {
+          const x = ufo.x * W, y = 0.06 * H, R = AW * 0.6;
+          for (let k = 0; k < 6; k++) {
+            const a0 = t * 3 + (k / 6) * Math.PI * 2, a1 = a0 + Math.PI / 3;
+            g.fillStyle = RAINBOW[k % RAINBOW.length]; g.shadowColor = g.fillStyle; g.shadowBlur = 12;
+            g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a0) * R * 1.4, y + Math.sin(a0) * R * 0.7); g.lineTo(x + Math.cos(a1) * R * 1.4, y + Math.sin(a1) * R * 0.7); g.closePath(); g.fill();
+          }
+          g.shadowBlur = 0; g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, R * 0.25, 0, Math.PI * 2); g.fill();
+        }
         g.fillStyle = '#FFE14D'; for (const s of shots) g.fillRect(s.x * W - 1.5, s.y * H - 8, 3, 12);
         g.fillStyle = '#FF3D6E'; for (const b of bombs) { g.beginPath(); g.arc(b.x * W, b.y * H, 3.5, 0, Math.PI * 2); g.fill(); }
         for (const d of drops) { g.font = '18px system-ui, "Apple Color Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🔱', d.x * W, d.y * H); }
@@ -719,7 +734,7 @@ export function SpaceBlaster({ seed, onEnd, haptics, mode }: ArenaProps) {
   return (
     <Screen id="blaster" cv={cv}>
       <Hud score={hud.score} left={<Led label="WAVE" v={endless ? hud.wave : `${hud.wave}/5`} c={hud.triple ? '#22E3FF' : undefined} />} right={<Lives n={hud.lives} max={3} />} />
-      <Tip>DRAG TO STEER · it fires by itself · shoot the UFO!</Tip>
+      <Tip>DRAG TO STEER · it fires by itself · hit the prism drone!</Tip>
       {pops.el}
     </Screen>
   );
@@ -1229,7 +1244,7 @@ export const HOW2: Record<string, string> = {
   pinball: 'Tap the left or right side to flip. Bumpers, slingshots and targets all score. Three balls.',
   pusher: 'Tap to drop a coin in front of the pusher. Coins shoved off the front ledge score. 30 coins.',
   maze: 'Swipe your ink blob round the maze and slurp up every paint drop. Dodge the smudges — or grab a paint bucket and wash them away! Three lives.',
-  blaster: 'Drag to steer your ship; it fires by itself. Clear five waves of aliens. Three lives.',
+  blaster: 'Drag to steer your ship; it fires by itself. Clear five waves of neon drones. Three lives.',
   rhythm: 'Tap each lane as its note hits the circle. Perfect timing scores double, and combos multiply.',
   plinko: 'Drag to aim, let go to drop. Chips bounce down the pegs into the slots. Ten chips.',
   racer: 'Tap left or right to change lanes. Dodge the traffic and grab the orbs. 60 seconds.',
@@ -1241,7 +1256,7 @@ export const BONUS2: Record<string, string> = {
   pinball: '🎯 Light all three targets for MULTIBALL: two more balls, bumpers pay double.',
   pusher: '🪙 Every 10th coin is GOLD — push it off for a COIN SHOWER. 💎 gems are worth 50.',
   maze: '🖌️ Palettes pop up as you eat — every other one is a GOLDEN BRUSH worth 500.',
-  blaster: '🛸 Shoot the UFO for 150. Catch 🔱 for TRIPLE SHOT.',
+  blaster: '💎 Hit the spinning PRISM DRONE for 150. Catch 🔱 for TRIPLE SHOT.',
   rhythm: '🔥 Hit a 30 combo for FEVER: double points for 8 seconds.',
   plinko: '✨ Bounce off the glowing GOLD PEG and that chip pays double.',
   racer: '⚡ Grab NITRO: double points, extra speed and you smash straight through traffic.',
