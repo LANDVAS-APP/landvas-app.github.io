@@ -25,6 +25,7 @@ import { music } from './music';
 import { InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, useArcadeLive } from './party';
 import { scoreBus } from './games';
 import { isMuted, setMuted, sfx } from './sfx';
+import { ArenaRoom } from './live/ArenaRoom';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
 export const arcadeKey = (id: string) => ['arcade', id] as const;
@@ -46,7 +47,14 @@ export default function ArcadeScreen() {
       </div>
     );
   }
-  return <ArcadeView a={q.data} />;
+  return <ArcadeOrArena a={q.data} />;
+}
+
+/** The arcade, or (through its portal) the shared Live Arena. */
+function ArcadeOrArena({ a }: { a: Arcade }) {
+  const [room, setRoom] = useState<'arcade' | 'arena'>(() => (new URLSearchParams(location.search).get('room') === 'arena' ? 'arena' : 'arcade'));
+  useEffect(() => { sfx.blip(14); }, [room]);
+  return room === 'arena' ? <ArenaRoom from={a.id} onBack={() => setRoom('arcade')} /> : <ArcadeView a={a} onArena={() => setRoom('arena')} />;
 }
 
 /** A handful of regulars hanging round the cabinets (more as the arcade levels up). */
@@ -61,7 +69,7 @@ function regulars(seed: number, n: number) {
   return out;
 }
 
-function ArcadeView({ a }: { a: Arcade }) {
+function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   const nav = useNavigate();
   const qc = useQueryClient();
   const me = useOnboardedMe();
@@ -179,6 +187,7 @@ function ArcadeView({ a }: { a: Arcade }) {
       {/* side buttons */}
       {!playing && (
         <div className="absolute right-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+92px)] grid gap-2">
+          <button onClick={onArena} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #FFE14D' }} data-testid="arcade-arena-btn"><span className="text-lg leading-none">⚔️</span>Live</button>
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-scores"><Trophy className="h-5 w-5 text-[#FFE14D]" />Scores</button>
           <button onClick={() => setSheet('prizes')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-prizes-btn"><span className="text-lg leading-none">🎁</span>Prizes</button>
           <button onClick={() => setSheet('jukebox')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-jukebox-btn"><Music className="h-5 w-5 text-[#22E3FF]" />Music</button>
@@ -212,6 +221,10 @@ function ArcadeView({ a }: { a: Arcade }) {
                 {a.mine && a.level.level >= nearGame.level && <Button size="sm" variant="rainbow" disabled={meState.tickets < nearGame.cost} onClick={async () => { try { const n = await api.arcadeUnlock(a.id, near.id); refresh(n); sfx.jackpot(); confettiCannons(); toast.success(`${nearGame.name} installed!`); } catch (e) { toast.error(toGameError(e).message); } }} data-testid="arcade-install">Install</Button>}
               </div>
             )}
+            {near.kind === 'door' && (
+              <button onClick={onArena} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFE14D] to-[#FF3D9A] px-5 py-3 text-left text-[#2A0A1A] shadow-2xl" data-testid="arcade-door"><span className="text-4xl">⚔️</span>
+                <span><span className="block font-display text-2xl font-black">Enter the Live Arena</span><span className="block text-xs font-bold">Live 1v1, 2v2, free-for-all & co-op games with players from every arcade</span></span></button>
+            )}
             {near.kind === 'prizes' && (
               <button onClick={() => setSheet('prizes')} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFB13D] to-[#FF3D9A] px-5 py-3 shadow-2xl" data-testid="arcade-counter"><span className="text-4xl">🎁</span><span className="font-display text-2xl font-black">Prize counter</span></button>
             )}
@@ -229,7 +242,7 @@ function ArcadeView({ a }: { a: Arcade }) {
         )}
         {!playing && !near && !lobby && (
           <motion.div key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
-            <div className="rounded-full bg-black/60 px-4 py-2 text-xs text-white/80">Drag to walk · tap a machine to go to it{meState.bonus_ready ? ' · 🎟️ free tickets by the door!' : ''}</div>
+            <div className="rounded-full bg-black/60 px-4 py-2 text-xs text-white/80">Drag to walk · tap a machine to go to it · ⚔️ the glowing portal leads to the Live Arena{meState.bonus_ready ? ' · 🎟️ free tickets by the door!' : ''}</div>
           </motion.div>
         )}
       </AnimatePresence>

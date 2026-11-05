@@ -80,6 +80,7 @@ const MESSAGES: Record<string, string> = {
   already_checked_in: 'You’ve already checked in here today.',
   challenge_closed: 'That challenge isn’t taking entries or votes right now.',
   not_your_artwork: 'Pick one of your own published artworks.',
+  invalid_result: 'That result didn’t add up — the game wasn’t counted.',
   not_in_arcade: 'Step into the arcade first (and stay in the same room as the others).',
   match_closed: 'That game has already started or closed.',
   match_full: 'That game is full (4 players).',

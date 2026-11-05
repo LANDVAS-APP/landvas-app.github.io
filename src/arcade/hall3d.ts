@@ -10,9 +10,10 @@ import * as THREE from 'three';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 
 export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string };
-export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' };
+export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' } | { kind: 'door' };
 export type HallOpts = {
   canvas: HTMLCanvasElement; explorerUrl: string; seed: number; reduceMotion?: boolean;
+  /** the shared Live Arena room: pods for the live games, no prize counter / ticket machine / jukebox */ arena?: boolean;
   /** you're standing at something you can use (or walked away: null) */ onNear?(s: HallSpot | null): void;
 };
 export type Decor = { floor: string; neon: string; lights: string };
@@ -77,6 +78,15 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
   const Wd = 256, H = 192;
   g.fillStyle = '#04040C'; g.fillRect(0, 0, Wd, H);
   if (locked) { g.fillStyle = 'rgba(255,255,255,0.08)'; for (let y = 0; y < H; y += 4) g.fillRect(0, y, Wd, 2); g.font = '900 30px ui-rounded, system-ui'; g.textAlign = 'center'; g.fillStyle = '#666'; g.fillText('OUT OF ORDER', Wd / 2, H / 2); return; }
+  if (id.startsWith('live:')) {
+    // a live pod: the game's emoji, LIVE blinking, little players darting about
+    const gr = g.createRadialGradient(Wd / 2, H / 2, 10, Wd / 2, H / 2, 160); gr.addColorStop(0, color + '55'); gr.addColorStop(1, '#04040C'); g.fillStyle = gr; g.fillRect(0, 0, Wd, H);
+    const cols = ['#FF3D9A', '#22E3FF', '#B6FF3D', '#FFB13D'];
+    for (let i = 0; i < 4; i++) { g.fillStyle = cols[i]; g.shadowColor = cols[i]; g.shadowBlur = 10; g.beginPath(); g.arc(Wd / 2 + Math.sin(t * (1.3 + i * 0.4) + i * 2) * 90, H / 2 + 20 + Math.cos(t * (1.1 + i * 0.3) + i) * 40, 9, 0, Math.PI * 2); g.fill(); } g.shadowBlur = 0;
+    g.font = '58px system-ui, "Apple Color Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(emoji, Wd / 2, H / 2 + 6 + Math.sin(t * 3) * 6);
+    g.font = '900 22px ui-rounded, system-ui'; g.fillStyle = Math.sin(t * 5) > 0 ? '#FF3D3D' : '#fff'; g.fillText('● LIVE', Wd / 2, H - 20); g.textBaseline = 'alphabetic';
+    return;
+  }
   if (id === 'stacker') {
     // the classic stacker: rows of lit squares climbing the screen
     const lv = Math.floor(t * 2) % 15;
@@ -402,6 +412,14 @@ export function createHall(o: HallOpts) {
         cols2.forEach((c, i) => { const p2 = box(0.28, 0.04, 0.4, glow(c, 0.6)); p2.position.set(-0.45 + i * 0.3, 0, 0); pads.add(p2); });
         break;
       }
+      case 'live:paintwars': case 'live:bumper': case 'live:trails': case 'live:volley': case 'live:meteor': {
+        // a live pod: a cabinet with four glowing player pads in front of it
+        upright(1.25, 1.62);
+        const pads = new THREE.Group(); pads.position.set(0, 0.03, 1.15); g.add(pads); parts.push(pads);
+        ['#FF3D9A', '#22E3FF', '#B6FF3D', '#FFB13D'].forEach((c, i) => { const p2 = cyl(0.16, 0.16, 0.04, glow(c, 0.9), 16); p2.position.set(-0.54 + i * 0.36, 0, 0); pads.add(p2); });
+        const top = emojiSprite(m.emoji, 0.55); top.position.set(0, 3.05, -0.1); g.add(top); parts.push(top);
+        break;
+      }
       case 'fruit': {
         // an extra-wide screen with fruit sitting on top
         upright(1.2, 1.6);
@@ -462,6 +480,16 @@ export function createHall(o: HallOpts) {
   let bonusReady = false;
   const bonusTicket = emojiSprite('✨', 0.5); bonusTicket.position.set(0, 2.6, 0); bonus.add(bonusTicket);
   let musicOn = false;
+  // the portal between the arcade and the shared Live Arena (on the right wall, by the front aisle)
+  const portal = new THREE.Group(); portal.position.set(W / 2 - 0.4, 0, 4.4); portal.rotation.y = -Math.PI / 2; scene.add(portal);
+  const portalCol = o.arena ? '#FFE14D' : '#22E3FF';
+  const portalRing = new THREE.Mesh(T(new THREE.TorusGeometry(1.05, 0.09, 10, 40)), glow(portalCol, 2.4)); portalRing.position.y = 1.35; portal.add(portalRing);
+  const portalFill = new THREE.Mesh(T(new THREE.CircleGeometry(1.0, 40)), T(new THREE.MeshBasicMaterial({ color: portalCol, transparent: true, opacity: 0.25, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })));
+  portalFill.position.y = 1.35; portal.add(portalFill);
+  const portalSign = new THREE.Mesh(T(new THREE.PlaneGeometry(2.2, 0.55)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(o.arena ? '← ARCADE' : 'LIVE ARENA', portalCol)), toneMapped: false })));
+  portalSign.position.set(0, 2.75, 0); portal.add(portalSign);
+  const portalSpot = new THREE.Vector3(portal.position.x - 1.3, 0, portal.position.z);
+  if (o.arena) { counter.visible = false; juke.visible = false; bonus.visible = false; }
 
   // ---- you, and a few regulars ------------------------------------------------------------------------------
   const meTex = T(new THREE.TextureLoader().load(o.explorerUrl)); meTex.colorSpace = THREE.SRGBColorSpace; meTex.wrapS = THREE.RepeatWrapping;
@@ -519,8 +547,11 @@ export function createHall(o: HallOpts) {
   const solids = () => {
     const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
     for (const c of cabs.values()) out.push({ x0: c.g.position.x - c.hw - 0.25, x1: c.g.position.x + c.hw + 0.25, z0: c.g.position.z - c.hd * (c.hd > 1 ? 1.7 : 1) - 0.25, z1: c.g.position.z + 0.55 + 0.2 });
-    out.push({ x0: -3.1, x1: 3.1, z0: -D / 2, z1: -D / 2 + 2.25 });
-    out.push({ x0: -W / 2, x1: -W / 2 + 2.4, z0: -D / 2, z1: -D / 2 + 1.75 }, { x0: W / 2 - 2.2, x1: W / 2, z0: -D / 2, z1: -D / 2 + 1.75 });
+    if (!o.arena) {
+      out.push({ x0: -3.1, x1: 3.1, z0: -D / 2, z1: -D / 2 + 2.25 });
+      out.push({ x0: -W / 2, x1: -W / 2 + 2.4, z0: -D / 2, z1: -D / 2 + 1.75 }, { x0: W / 2 - 2.2, x1: W / 2, z0: -D / 2, z1: -D / 2 + 1.75 });
+    }
+    out.push({ x0: W / 2 - 0.9, x1: W / 2, z0: 3.2, z1: 5.6 });
     return out;
   };
   let walls = solids();
@@ -557,9 +588,12 @@ export function createHall(o: HallOpts) {
     const r = o.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     for (const c of cabs.values()) if (ray.intersectObject(c.g, true).length) { go(c.spot.x, c.spot.z); return; }
-    if (ray.intersectObject(counter, true).length) { go(prizeSpot.x, prizeSpot.z); return; }
-    if (ray.intersectObject(bonus, true).length) { go(bonusSpot.x, bonusSpot.z); return; }
-    if (ray.intersectObject(juke, true).length) { go(jukeSpot.x, jukeSpot.z); return; }
+    if (ray.intersectObject(portal, true).length) { go(portalSpot.x, portalSpot.z); return; }
+    if (!o.arena) {
+      if (ray.intersectObject(counter, true).length) { go(prizeSpot.x, prizeSpot.z); return; }
+      if (ray.intersectObject(bonus, true).length) { go(bonusSpot.x, bonusSpot.z); return; }
+      if (ray.intersectObject(juke, true).length) { go(jukeSpot.x, jukeSpot.z); return; }
+    }
     const h = ray.intersectObject(floor)[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
   };
   const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
@@ -613,9 +647,12 @@ export function createHall(o: HallOpts) {
     if (!P.moving) {
       let best = 1.0;
       for (const c of cabs.values()) { const d = Math.hypot(c.spot.x - P.x, c.spot.z - P.z); if (d < best) { best = d; s = { kind: 'machine', id: c.m.id }; } }
-      if (Math.hypot(prizeSpot.x - P.x, prizeSpot.z - P.z) < 1.5) s = { kind: 'prizes' };
-      if (Math.hypot(bonusSpot.x - P.x, bonusSpot.z - P.z) < 1.2) s = { kind: 'bonus' };
-      if (Math.hypot(jukeSpot.x - P.x, jukeSpot.z - P.z) < 1.2) s = { kind: 'jukebox' };
+      if (!o.arena) {
+        if (Math.hypot(prizeSpot.x - P.x, prizeSpot.z - P.z) < 1.5) s = { kind: 'prizes' };
+        if (Math.hypot(bonusSpot.x - P.x, bonusSpot.z - P.z) < 1.2) s = { kind: 'bonus' };
+        if (Math.hypot(jukeSpot.x - P.x, jukeSpot.z - P.z) < 1.2) s = { kind: 'jukebox' };
+      }
+      if (Math.hypot(portalSpot.x - P.x, portalSpot.z - P.z) < 1.2) s = { kind: 'door' };
     }
     const nk = nearKey(s);
     if (nk !== near && !zoom.on) { near = nk; o.onNear?.(s); }
@@ -653,6 +690,7 @@ export function createHall(o: HallOpts) {
         if (c.m.id === 'plinko') { const k = (t * 0.5) % 1; c.parts[0].position.y = 2.8 - k * 1.85; c.parts[0].position.x = Math.sin(k * 20) * 0.1; }
         if (c.m.id === 'racer') c.parts[0].rotation.z = Math.sin(t * 1.5) * 0.4;
         if (c.m.id === 'rhythm') c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = Math.floor(t * 4 + i * 1.7) % 4 === i ? 2.4 : 0.4; });
+        if (c.m.id.startsWith('live:')) { c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5 + Math.max(0, Math.sin(t * 3 + i * 1.6)) * 1.6; }); c.parts[1].position.y = 3.05 + Math.abs(Math.sin(t * 2.4)) * 0.12; }
         if (c.m.id === 'maze' || c.m.id === 'blaster' || c.m.id === 'snake') c.parts[0].position.y = 2.95 + Math.abs(Math.sin(t * 3)) * 0.12;
       }
       if (c.label) c.label.position.y = 3.0 + Math.sin(t * 2) * 0.05;
@@ -680,6 +718,7 @@ export function createHall(o: HallOpts) {
       jukeLights.forEach((m, i) => { m.emissiveIntensity = musicOn ? 1.2 + Math.sin(t * 6 + i) * 0.8 : 0.4; });
       const note = juke.getObjectByName('note'); if (note) { note.visible = musicOn; note.position.y = 2.45 + Math.sin(t * 4) * 0.1; }
     }
+    if (!o.reduceMotion) { portalRing.rotation.z = t * 0.6; (portalFill.material as THREE.MeshBasicMaterial).opacity = 0.18 + Math.sin(t * 3) * 0.08; }
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -707,7 +746,7 @@ export function createHall(o: HallOpts) {
     /** glide the camera up to a machine's play area; resolves when it fills the view */
     zoomIn(id: string) { const c = cabs.get(id); if (!c) return Promise.resolve(); zoom.cab = c; zoom.on = true; P.path = []; P.stick = null; P.x = c.spot.x; P.z = c.spot.z; return new Promise<void>((res) => { zoom.resolve = res; }); },
     zoomOut() { zoom.on = false; zoom.resolve = null; near = null; },
-    walkTo(s: HallSpot) { if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else go(bonusSpot.x, bonusSpot.z); },
+    walkTo(s: HallSpot) { if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else if (s.kind === 'door') go(portalSpot.x, portalSpot.z); else go(bonusSpot.x, bonusSpot.z); },
     setPaused(p: boolean) { paused = p; },
     setOthers, moveOther,
     /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),

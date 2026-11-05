@@ -68,7 +68,7 @@ describe('Live arcades', () => {
     const bRow = res.players.find((p: any) => p.id === b), oRow = res.players.find((p: any) => p.id === ow);
     expect(bRow).toMatchObject({ score: 80, finished: true });
     expect(bRow.bonus).toBeGreaterThanOrEqual(10);
-    expect(oRow.bonus).toBe(0);
+    expect(oRow.bonus).toBeLessThan(bRow.bonus); // just the little squad boost
     const after = Number((await db.sql(`select tickets from arcade_players where player_id = $1`, [b]))[0].tickets);
     expect(after - before).toBe(fb.tickets + bRow.bonus);
     // settling again pays nothing more
