@@ -528,7 +528,7 @@ function Swatches({ label, cols, v, on }: { label: string; cols: string[]; v?: s
 }
 
 function RecordPanel({ rec, onPick, own }: { rec: string; onPick(id: string): void; own: boolean }) {
-  const recs = TRACKS.filter((t) => t.home).concat(TRACKS.filter((t) => !t.home));
+  const recs = TRACKS.filter((t) => t.home).concat(TRACKS.filter((t) => !t.home && !t.game));
   return (
     <div className="w-full max-w-md rounded-3xl bg-[#1C1512]/90 p-4 text-white shadow-2xl backdrop-blur" data-testid="home-records">
       <div className="mb-2 flex items-center gap-2"><motion.span animate={{ rotate: rec !== 'off' ? 360 : 0 }} transition={{ repeat: rec !== 'off' ? Infinity : 0, duration: 2.4, ease: 'linear' }} className="grid h-9 w-9 place-items-center rounded-full bg-[#111] text-lg ring-4 ring-[#2B2B33]">🎵</motion.span>

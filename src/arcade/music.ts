@@ -4,7 +4,8 @@
 type Track = { id: string; name: string; emoji: string; bpm: number; swing?: number;
   // 16 steps a bar, 4 bars: notes are semitones from the root (null = rest)
   root: number; chords: number[][]; bass: (number | null)[]; lead: (number | null)[]; arp?: boolean;
-  kick: string; snare: string; hat: string; wave: OscillatorType; leadWave: OscillatorType; home?: boolean };
+  kick: string; snare: string; hat: string; wave: OscillatorType; leadWave: OscillatorType; home?: boolean;
+  /** soundtracks for the 3D party games (not on the jukebox or the record player) */ game?: boolean; pad?: boolean };
 
 const X = null;
 export const TRACKS: Track[] = [
@@ -59,10 +60,36 @@ export const TRACKS: Track[] = [
     bass: [0, X, X, X, X, X, X, X, 7, X, X, X, X, X, X, X],
     lead: [12, X, X, X, 16, X, X, X, 19, X, X, X, 16, X, X, X, 14, X, X, X, 12, X, X, X, 9, X, X, X, X, X, X, X, 11, X, X, X, 14, X, X, X, 17, X, X, X, 14, X, X, X, 12, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X],
     kick: '................', snare: '................', hat: '........x.......' },
+  // ---- the 3D party games' soundtracks ----
+  { id: 'chase', name: 'Ink Chase', emoji: '🏃', bpm: 156, root: 45, wave: 'sawtooth', leadWave: 'square', arp: true, game: true,
+    chords: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]],
+    bass: [0, X, 0, 12, X, 0, 12, X, 0, X, 0, 12, X, 0, 10, 12],
+    lead: [12, X, 15, X, 19, X, 15, 19, 22, X, 19, X, 15, X, 14, X, 8, X, 12, X, 15, X, 12, 15, 20, X, 19, X, 15, X, 12, X, 10, X, 14, X, 17, X, 14, 17, 22, X, 21, X, 17, X, 14, X, 7, X, 11, X, 14, X, 17, X, 19, X, 23, X, 24, X, X, X],
+    kick: 'x...x...x...x.x.', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx' },
+  { id: 'sneak', name: 'Tiptoe', emoji: '🙈', bpm: 100, root: 50, wave: 'triangle', leadWave: 'triangle', game: true,
+    chords: [[0, 3, 7], [0, 3, 7], [-4, 0, 3], [-5, -2, 2]],
+    bass: [0, X, X, X, 7, X, X, X, 0, X, X, X, 6, X, 7, X],
+    lead: [12, X, X, 15, X, X, 14, X, X, 12, X, X, 11, X, X, X, 12, X, X, 15, X, X, 19, X, X, 18, X, X, 17, X, X, X, 8, X, X, 12, X, X, 11, X, X, 8, X, X, 7, X, X, X, 7, X, 8, X, 10, X, 11, X, X, X, 14, X, X, X, X, X],
+    kick: 'x.......x.......', snare: '................', hat: '..x...x...x...x.' },
+  { id: 'stalk', name: 'The Lantern', emoji: '🏮', bpm: 76, root: 38, wave: 'sawtooth', leadWave: 'sine', game: true, pad: true,
+    chords: [[0, 3, 7], [1, 4, 8], [0, 3, 6], [-1, 3, 6]],
+    bass: [0, X, X, 0, X, X, X, X, 0, X, X, 0, X, X, 1, X],
+    lead: [X, X, X, X, 15, X, X, X, X, X, 14, X, X, X, X, X, X, X, X, X, 16, X, X, X, X, X, 15, X, X, X, X, X, X, X, X, X, 15, X, X, X, 18, X, X, X, 15, X, X, X, X, X, X, X, 14, X, X, X, 11, X, X, X, X, X, X, X],
+    kick: 'x..x............', snare: '............x...', hat: '................' },
+  { id: 'magma', name: 'Magma Run', emoji: '🌋', bpm: 140, root: 43, wave: 'square', leadWave: 'sawtooth', arp: true, game: true,
+    chords: [[0, 3, 7], [3, 7, 10], [5, 8, 12], [-2, 2, 5]],
+    bass: [0, 0, 12, 0, 0, 12, 0, 10, 0, 0, 12, 0, 0, 12, 13, 12],
+    lead: [19, X, X, 17, X, X, 15, X, 14, X, 15, X, 17, X, X, X, 22, X, X, 20, X, X, 19, X, 17, X, 19, X, 20, X, X, X, 24, X, X, 22, X, X, 20, X, 19, X, 17, X, 15, X, X, X, 14, X, 15, X, 17, X, 19, X, 22, X, 19, X, 26, X, X, X],
+    kick: 'x..x..x.x..x..x.', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx' },
+  { id: 'swing', name: 'Ballroom Swing', emoji: '🎩', bpm: 132, swing: 0.2, root: 46, wave: 'triangle', leadWave: 'square', game: true,
+    chords: [[0, 4, 7, 9], [5, 9, 12, 14], [7, 11, 14, 17], [0, 4, 7, 10]],
+    bass: [0, X, 4, X, 7, X, 9, X, 12, X, 9, X, 7, X, 4, X],
+    lead: [12, 14, 16, X, 19, X, 16, X, 21, X, 19, X, 16, X, X, X, 17, X, 21, X, 24, X, 21, X, 19, X, 17, X, 14, X, X, X, 19, X, 23, X, 26, X, 23, X, 21, X, 19, X, 17, X, 14, X, 16, X, 19, X, 22, X, 19, X, 16, X, 12, X, X, X, X, X],
+    kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xx.xx.x.xx.xx.' },
 ];
 
 let ctx: AudioContext | null = null, master: GainNode | null = null, timer: number | null = null;
-let track: Track | null = null, step = 0, nextAt = 0, volume = 0.5, duck = 1;
+let track: Track | null = null, step = 0, nextAt = 0, volume = 0.5, duck = 1, tempo = 1, heat = 0;
 const saved = (() => { try { return JSON.parse(localStorage.getItem('landvas.arcade.music') ?? 'null') as { id: string | null; vol: number } | null; } catch { return null; } })();
 let chosen: string | null = saved ? saved.id : 'neon';
 let playing: string | null = null;
@@ -88,12 +115,16 @@ function noise(t: number, dur: number, vol: number, hp: number) {
 }
 function schedule() {
   if (!ctx || !track) return;
-  const sp = 60 / track.bpm / 4;
+  const sp = 60 / (track.bpm * tempo) / 4;
   while (nextAt < ctx.currentTime + 0.12) {
     const i = step % 16, bar = Math.floor(step / 16) % 4, t = nextAt + (i % 2 ? (track.swing ?? 0) * sp : 0);
     if (track.kick[i] === 'x') voice(t, 150, 0.18, 'sine', 0.55, 40);
     if (track.snare[i] === 'x') { noise(t, 0.16, 0.22, 1200); voice(t, 190, 0.08, 'triangle', 0.12); }
-    if (track.hat[i] === 'x') noise(t, 0.04, 0.06, 7000);
+    if (track.hat[i] === 'x' || (heat > 0.35 && i % 2 === 0)) noise(t, 0.04, track.hat[i] === 'x' ? 0.06 : 0.035, 7000);
+    // the heartbeat when someone's close (lub-dub every half bar)
+    if (heat > 0.7 && (i % 8 === 0 || i % 8 === 2)) voice(t, i % 8 ? 52 : 62, 0.22, 'sine', 0.7 * heat, 34);
+    // a long dark pad under the creepy ones
+    if (track.pad && i === 0) for (const n of track.chords[bar]) voice(t, hz(track.root + n), sp * 15, 'sine', 0.05);
     const b = track.bass[i]; if (b != null) voice(t, hz(track.root - 12 + b + track.chords[bar][0]), sp * 1.8, track.wave === 'sawtooth' ? 'sawtooth' : 'triangle', 0.13);
     const ch = track.chords[bar];
     if (track.arp) { const n = ch[i % ch.length]; voice(t, hz(track.root + 12 + n), sp * 0.9, track.wave, 0.035); }
@@ -115,6 +146,7 @@ export const music = {
     if (remember) { chosen = id; save(); }
     playing = id; emit();
     if (!id) { this.stop(false); return; }
+    if (remember) { tempo = 1; heat = 0; }
     try {
       ctx ??= new AudioContext();
       if (ctx.state === 'suspended') void ctx.resume();
@@ -128,10 +160,12 @@ export const music = {
   stop(forget = false) {
     if (timer) { clearInterval(timer); timer = null; }
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
-    track = null; playing = null; emit();
+    track = null; playing = null; tempo = 1; heat = 0; emit();
     if (forget) { chosen = null; save(); emit(); }
   },
   setVolume(v: number) { volume = Math.max(0, Math.min(1, v)); save(); apply(); emit(); },
+  /** speed the music up (1 = as written), for the tense last seconds */ setTempo(x: number) { tempo = Math.max(0.5, Math.min(1.6, x)); },
+  /** 0..1: more hats from 0.35, a heartbeat from 0.7 (someone's close!) */ setHeat(x: number) { heat = Math.max(0, Math.min(1, x)); },
   /** a bit quieter while a game is running */ setDuck(on: boolean) { duck = on ? 0.45 : 1; apply(); },
   get playing() { return !!timer; },
 };

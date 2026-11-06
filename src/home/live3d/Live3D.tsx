@@ -14,12 +14,20 @@ import { cn } from '../../lib/utils';
 import { useUi } from '../../lib/store';
 import { Button } from '../../ui';
 import { PartyResults, seatsOf } from '../party/PartyGame';
-import { SIMS3, snap3, type ChairW, type HSW, type In3, type LavaW, type TagW, type W3 } from './sims';
+import { LAVA, SIMS3, snap3, type ChairW, type HSW, type In3, type LavaW, type P3, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
-const STEP = 1 / 30, SNAP_MS = 80, GONE_MS = 7000;
+const STEP = 1 / 30, SNAP_MS = 80, GONE_MS = 7000, DELAY = 0.11;
 type Msg = { t: 's'; k: number; w: W3 } | { t: 'i'; id: string; i: In3 } | { t: 'end'; r: Record<string, number> };
+const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+const lerpAng = (a: number, b: number, k: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
+/** a world to draw, with everyone's position blended between two moments */
+function blend(a: W3, b: W3, k: number): W3 {
+  return { ...b, ps: b.ps.map((q) => { const p = a.ps.find((x) => x.id === q.id); return p ? { ...q, x: lerp(p.x, q.x, k), z: lerp(p.z, q.z, k), y: lerp(p.y, q.y, k), face: lerpAng(p.face, q.face, k) } : q; }) };
+}
+/** sticks are rounded to 16 directions and 3 speeds, so holding one steady sends nothing */
+const quant = (i: In3): In3 => { const l = Math.min(1, Math.hypot(i.x, i.y)); if (l < 0.2) return { x: 0, y: 0, b: i.b }; const a = Math.round(Math.atan2(i.y, i.x) / (Math.PI / 8)) * (Math.PI / 8), m = l > 0.75 ? 1 : 0.55; return { x: Math.round(Math.cos(a) * m * 100) / 100, y: Math.round(Math.sin(a) * m * 100) / 100, b: i.b }; };
 
 export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
   const sim = SIMS3[game.game];
@@ -42,10 +50,16 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
     const ids = seats.map((s) => s.id);
     const base = sim.init(ids, game.seed ?? 1);
     const world: World3D = createWorld3D({
-      canvas: cv.current, game: game.game, me: myId, obs: base.obs, reduceMotion: reduce,
+      canvas: cv.current, game: game.game, me: myId, world: base, reduceMotion: reduce,
       seats: seats.map((s) => ({ id: s.id, name: s.name, color: s.color, url: svgUrl(explorerSvg((game.players.find((p) => p.id === s.id) as { explorer_style?: ExplorerStyle } | undefined)?.explorer_style, s.p.accent_color ?? s.color, 184)) })),
     });
-    let w: W3 = base, prev: W3 | null = null, gotAt = performance.now(), lastSnap = 0, seq = 0, ended: Record<string, number> | null = null, stop = false, acc = 0, last = performance.now(), raf = 0, hudAt = 0;
+    // host: the real world, stepped 30 times a second (and the one before the last step, to draw smoothly between)
+    let w: W3 = base, hostPrev: W3 | null = null;
+    // guests: the snapshots so far (drawn a tenth of a second behind, so there's always one either side), your
+    // own explorer moved on your device straight away, and how far that's drifted from what the host says
+    const buf: { t: number; w: W3 }[] = [{ t: 0, w: base }];
+    let clock = NaN, mine: P3 | null = null, fixX = 0, fixZ = 0;
+    let lastSnap = 0, seq = 0, ended: Record<string, number> | null = null, stop = false, acc = 0, last = performance.now(), raf = 0, hudAt = 0;
     const inputs: Record<string, In3> = {};
     const finish = () => {
       setPhase('end'); sfx.jackpot?.();
@@ -57,49 +71,92 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       };
       void poll();
     };
+    const onSnap = (sw: W3) => {
+      const now = performance.now() / 1000, nw: W3 = { ...sw, obs: base.obs };
+      // the host's clock, as seen here: snapshots that arrive quickly pull it in straight away, slow ones only a little
+      const off = now - nw.t; clock = Number.isNaN(clock) || off < clock ? off : clock + (off - clock) * 0.02;
+      buf.push({ t: nw.t, w: nw }); while (buf.length > 12) buf.shift();
+      w = nw; lastSnap = performance.now();
+      // your own explorer: keep the one moved here, unless the host disagrees by a lot (bumped, tagged, round reset, fell)
+      const S = nw.ps.find((p) => p.id === myId);
+      if (S) {
+        if (!mine) mine = { ...S };
+        const ex = S.x - mine.x, ez = S.z - mine.z, err = Math.hypot(ex, ez), sp = Math.hypot(S.vx, S.vz);
+        const big = err > 3.5 || Math.abs(S.y - mine.y) > 1.6 || !S.alive || S.alive !== mine.alive || (S.stun > 0.2 && mine.stun <= 0) || S.dash > mine.dash + 0.1;
+        if (big) { if (err < 3.5) { fixX += mine.x - S.x; fixZ += mine.z - S.z; } else fixX = fixZ = 0; mine = { ...S }; }
+        else {
+          // nudge towards the host (more when standing still, when there's no excuse for being apart)
+          const k = err > 0.3 + sp * 0.18 ? 0.25 : 0.06;
+          mine.x += ex * k; mine.z += ez * k; fixX -= ex * k; fixZ -= ez * k;
+          Object.assign(mine, { alive: S.alive, outAt: S.outAt });
+        }
+      }
+    };
     const onMsg = (raw: unknown) => {
       const m = raw as Msg; if (!m || typeof m !== 'object') return;
       if (host && m.t === 'i' && ids.includes(m.id)) inputs[m.id] = m.i;
-      else if (!host && m.t === 's' && m.k > seq) { seq = m.k; prev = w; w = { ...m.w, obs: base.obs }; gotAt = performance.now(); lastSnap = gotAt; }
+      else if (!host && m.t === 's' && m.k > seq) { seq = m.k; onSnap(m.w); }
       else if (!host && m.t === 'end' && !ended) { ended = m.r; finish(); }
     };
     const ch = backend.liveChannel?.(`hg:${game.id}`, onMsg) ?? { send() {}, close() {} };
     const tick = () => {
       if (stop) return;
       raf = requestAnimationFrame(tick);
-      const now = performance.now(), since = Date.now() - startAt;
+      const now = performance.now(), since = Date.now() - startAt, dtF = Math.min(0.25, (now - last) / 1000);
+      last = now;
       if (since < 0) setCount(Math.ceil(-since / 1000));
       else if (phaseRef.current === 'count') { phaseRef.current = 'play'; setPhase('play'); sfx.coin(); }
-      if (host && since >= 0 && !ended) {
-        acc += Math.min(0.25, (now - last) / 1000);
-        inputs[myId] = input.current;
-        while (acc >= STEP) { prev = null; sim.step(w, inputs, STEP); acc -= STEP; const r = sim.result(w); if (r) { ended = r; break; } }
-        if (now - lastSnap >= SNAP_MS || ended) { lastSnap = now; ch.send({ t: 's', k: ++seq, w: snap3(w) }); }
-        if (ended) { const r = ended; ch.send({ t: 'end', r }); setTimeout(() => ch.send({ t: 'end', r }), 700); setTimeout(() => ch.send({ t: 'end', r }), 1800); finish(); }
+      let view: W3 = w;
+      if (host) {
+        if (since >= 0 && !ended) {
+          acc += dtF;
+          inputs[myId] = input.current;
+          while (acc >= STEP) { hostPrev = { ...w, ps: w.ps.map((p) => ({ ...p })) }; sim.step(w, inputs, STEP); acc -= STEP; const r = sim.result(w); if (r) { ended = r; break; } }
+          if (now - lastSnap >= SNAP_MS || ended) { lastSnap = now; ch.send({ t: 's', k: ++seq, w: snap3(w) }); }
+          if (ended) { const r = ended; ch.send({ t: 'end', r }); setTimeout(() => ch.send({ t: 'end', r }), 700); setTimeout(() => ch.send({ t: 'end', r }), 1800); finish(); }
+        }
+        view = hostPrev && !ended ? blend(hostPrev, w, Math.min(1, acc / STEP)) : w;
+      } else {
+        // everyone else: drawn a moment in the past, between the two snapshots either side
+        const rt = Number.isNaN(clock) ? 0 : now / 1000 - clock - DELAY;
+        let a = buf[0], b = buf[buf.length - 1];
+        for (let i = buf.length - 1; i > 0; i--) if (buf[i - 1].t <= rt) { a = buf[i - 1]; b = buf[i]; break; }
+        view = rt >= b.t || a === b ? b.w : blend(a.w, b.w, Math.max(0, Math.min(1, (rt - a.t) / (b.t - a.t || 1))));
+        // you: moved here, right away
+        if (mine && since >= 0 && !ended) {
+          acc += dtF;
+          const live = w;
+          while (acc >= STEP) { sim.move(live, mine, input.current, STEP); acc -= STEP; }
+          fixX *= Math.pow(0.002, dtF); fixZ *= Math.pow(0.002, dtF);
+        }
+        if (mine) { const me = mine; view = { ...view, ps: view.ps.map((p) => (p.id === myId ? { ...p, x: me.x + fixX, z: me.z + fixZ, y: me.y, face: me.face, on: me.on, alive: p.alive } : p)) }; }
       }
       if (!host && since > 2500 && !ended && now - lastSnap > GONE_MS) { ended = {}; setPhase('gone'); }
-      last = now;
-      const a = host ? 1 : Math.min(1, (now - gotAt) / SNAP_MS);
-      world.frame(w, prev, a, now / 1000, since < 0 ? Math.min(1, -since / 4000) : 0);
-      if (now - hudAt > 150) { hudAt = now; setHud(w); }
+      world.frame(view, now / 1000, since < 0 ? Math.min(1, -since / 4000) : 0);
+      if (now - hudAt > 150) { hudAt = now; setHud(view); }
       (window as unknown as { __live3d: unknown }).__live3d = { w, host, input: input.current };
     };
     raf = requestAnimationFrame(tick);
-    // guests: send the stick when it changes
+    // guests: send the stick when it changes (rounded, so a steady stick sends nothing new)
     let sentKey = '', sentAt = 0;
     const tx = setInterval(() => {
       if (host || ended || Date.now() < startAt - 300) return;
-      const i = input.current, key = `${i.x.toFixed(1)},${i.y.toFixed(1)},${i.b}`, n = performance.now();
-      if (key !== sentKey || n - sentAt > 900) { sentKey = key; sentAt = n; ch.send({ t: 'i', id: myId, i: { x: +i.x.toFixed(2), y: +i.y.toFixed(2), b: i.b } }); }
-    }, 70);
+      const i = quant(input.current), key = `${i.x},${i.y},${i.b}`, n = performance.now();
+      if (key !== sentKey || n - sentAt > 1000) { sentKey = key; sentAt = n; ch.send({ t: 'i', id: myId, i }); }
+    }, 50);
     return () => { stop = true; cancelAnimationFrame(raf); clearInterval(tx); ch.close(); world.dispose(); delete (window as unknown as { __live3d?: unknown }).__live3d; };
   }, [game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // the ballroom's music: it plays while you dance and stops when it's time to grab a chair
+  // the soundtrack: a chase for tag, tiptoeing then a dark lantern theme for hide & seek, a rumble for the lava,
+  // and the ballroom band (which stops dead when it's time to grab a chair). It speeds up near the end, and you
+  // hear your heart pound when someone's coming for you.
   const before = useRef(music.nowPlaying);
-  const chairPhase = game.game === 'chairs' ? (hud as ChairW | null)?.phase : null;
-  useEffect(() => { if (game.game !== 'chairs') return; if (chairPhase === 'music') music.play('disco', false); else music.stop(); }, [chairPhase, game.game]);
-  useEffect(() => () => { if (game.game === 'chairs') { music.stop(); if (before.current) music.play(before.current, false); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const sound = soundtrack(game.game, hud, myId);
+  useEffect(() => { if (phase === 'end' || phase === 'gone') { music.stop(); return; } if (sound.track) music.play(sound.track, false); else music.stop(); }, [sound.track, phase]);
+  useEffect(() => { music.setTempo(sound.tempo); music.setHeat(sound.heat); }, [sound.tempo, sound.heat]);
+  const prevChairs = useRef<string | null>(null);
+  useEffect(() => { const ph = game.game === 'chairs' ? (hud as ChairW | null)?.phase ?? null : null; if (ph === 'grab' && prevChairs.current === 'music') sfx.fail(); prevChairs.current = ph; }, [hud, game.game]);
+  useEffect(() => () => { music.stop(); if (before.current) music.play(before.current, false); }, []);
 
   // keyboard
   useEffect(() => {
@@ -168,7 +225,35 @@ function statusLine(game: string, w: W3 | null, me: string, seats: { id: string;
     if (h.phase === 'seek') return { text: h.seeker === me ? `Find them! ${found}/${hiders}` : h.found[me] != null ? 'Found! 👻' : `Stay hidden… ${left}s`, sub: `${left}s left · round ${h.round + 1}/${h.rounds}` };
     return { text: h.phase === 'done' ? 'All done!' : `Round over — ${found}/${hiders} found` };
   }
-  if (game === 'lava') { const l = w as LavaW; return { text: `${l.ps.filter((p) => p.alive).length} still standing`, sub: '🌋 keep moving!' }; }
+  if (game === 'lava') { const l = w as LavaW, rising = l.t > LAVA.RISE_AT, soon = !rising && l.t > LAVA.RISE_AT - 8; return { text: `${l.ps.filter((p) => p.alive).length} still standing`, sub: rising ? '🌋 THE LAVA IS RISING!' : soon ? `🌋 lava rises in ${Math.ceil(LAVA.RISE_AT - l.t)}s` : '🌋 keep moving!', hot: rising || soon }; }
   if (game === 'chairs') { const c = w as ChairW; return c.phase === 'music' ? { text: '🎶 Dance!', sub: `${c.ps.filter((p) => p.alive).length} dancers` } : c.phase === 'grab' ? { text: '🪑 GRAB A CHAIR!', hot: true } : { text: c.lost.length ? `${c.lost.map(name).join(', ')} ${c.lost.includes(me) ? 'are' : 'is'} out!` : '…' }; }
   return null;
+}
+
+/** which tune, how fast, and how hot (0..1: more drums, then a heartbeat) */
+function soundtrack(game: string, w: W3 | null, me: string): { track: string | null; tempo: number; heat: number } {
+  if (!w) return { track: null, tempo: 1, heat: 0 };
+  const meP = w.ps.find((p) => p.id === me);
+  const near = (id: string) => { const o = w.ps.find((p) => p.id === id); return o && meP ? Math.hypot(o.x - meP.x, o.z - meP.z) : 99; };
+  const q = (x: number) => Math.round(x * 4) / 4; // only change in steps, so the music isn't fiddled with every frame
+  if (game === 'tag') {
+    const t = w as TagW, left = t.dur - t.t, d = t.it === me ? 99 : near(t.it);
+    return { track: 'chase', tempo: left < 15 ? 1.15 : 1, heat: q(t.it === me ? 0.45 : d < 4 ? 1 : d < 8 ? 0.5 : 0) };
+  }
+  if (game === 'hide') {
+    const h = w as HSW, left = h.ends - h.t;
+    if (h.phase === 'hide') return { track: 'sneak', tempo: left < 5 ? 1.15 : 1, heat: 0 };
+    if (h.phase === 'seek') {
+      if (h.seeker === me) return { track: 'stalk', tempo: left < 15 ? 1.2 : 1, heat: left < 15 ? 0.5 : 0.25 };
+      const d = h.found[me] != null ? 99 : near(h.seeker);
+      return { track: 'stalk', tempo: left < 15 ? 1.2 : 1, heat: q(d < 4 ? 1 : d < 8 ? 0.75 : d < 12 ? 0.4 : 0) };
+    }
+    return { track: 'sneak', tempo: 0.9, heat: 0 };
+  }
+  if (game === 'lava') {
+    const l = w as LavaW, out = l.ps.filter((p) => !p.alive).length / Math.max(1, l.ps.length);
+    return { track: 'magma', tempo: q(1 + out * 0.2 + (l.t > LAVA.RISE_AT ? 0.1 : 0)), heat: l.t > LAVA.RISE_AT ? 0.5 : 0 };
+  }
+  if (game === 'chairs') { const c = w as ChairW; return { track: c.phase === 'music' ? (c.round % 2 ? 'swing' : 'disco') : null, tempo: 1 + Math.min(0.25, c.round * 0.06), heat: 0 }; }
+  return { track: null, tempo: 1, heat: 0 };
 }
