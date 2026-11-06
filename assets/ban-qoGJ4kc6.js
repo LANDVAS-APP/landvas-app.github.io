@@ -1,0 +1,2 @@
+import{F as e}from"./index-Co9kBwOD.js";var t={name:`ban`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M4.929 4.929 19.07 19.071`,key:`196cmz`}]]};t.node;var n=e(t);export{n as t};
+//# sourceMappingURL=ban-qoGJ4kc6.js.map

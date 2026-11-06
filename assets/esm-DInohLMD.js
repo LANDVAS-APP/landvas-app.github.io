@@ -1,0 +1,3 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-Dh_XiUrT.js","assets/index-Co9kBwOD.js","assets/rolldown-runtime-XKyaHtl9.js","assets/index-Dl6Sa1Lq.css"])))=>i.map(i=>d[i]);
+import{d as e,q as t}from"./index-Co9kBwOD.js";var n=e(`App`,{web:()=>t(()=>import(`./web-Dh_XiUrT.js`).then(e=>new e.AppWeb),__vite__mapDeps([0,1,2,3]))});export{n as App};
+//# sourceMappingURL=esm-DInohLMD.js.map

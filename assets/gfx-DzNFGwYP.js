@@ -1,0 +1,2 @@
+var e=typeof navigator<`u`&&/iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent),t=()=>e||typeof window<`u`&&Math.min(window.innerWidth,window.innerHeight)<600&&matchMedia(`(pointer: coarse)`).matches,n=(e=2)=>Math.min(typeof devicePixelRatio==`number`?devicePixelRatio:1,t()?1.5:e),r=()=>!t();function i(e,t=n()){let r=t,i=0,a=0;return n=>{if(i+=n,a++,i<2)return;let o=i/a;i=0,a=0;let s=o>.024?Math.max(.75,r-.25):o<.0145?Math.min(t,r+.1):r;Math.abs(s-r)>.01&&(r=s,e(r))}}export{n as i,t as n,r,i as t};
+//# sourceMappingURL=gfx-DzNFGwYP.js.map
