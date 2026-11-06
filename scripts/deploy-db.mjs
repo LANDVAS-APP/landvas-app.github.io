@@ -12,7 +12,18 @@ if (!token || !ref) {
   process.exit(1);
 }
 
-async function query(sql) {
+// the Management API sometimes times out reaching the database (HTTP 5xx, e.g. 544): wait and try again
+async function query(sql, tries = 5) {
+  for (let i = 1; ; i++) {
+    try { return await queryOnce(sql); }
+    catch (e) {
+      if (i >= tries || !/^HTTP 5\d\d/.test(String(e.message))) throw e;
+      console.log(`  (${String(e.message).slice(0, 80)} — retrying in ${i * 15}s)`);
+      await new Promise((r) => setTimeout(r, i * 15000));
+    }
+  }
+}
+async function queryOnce(sql) {
   const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
