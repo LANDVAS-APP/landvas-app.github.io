@@ -27,6 +27,7 @@ import { REALM_META } from './kinds';
 import MineScreen from './mine/MineScreen';
 import SkyScreen from './sky/SkyScreen';
 import WorkshopScreen from './workshop/WorkshopScreen';
+import DinerScreen from './diner/DinerScreen';
 import { createRealm3D, STATIONS, type RealmScene, type Station } from './realm3d';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
@@ -40,6 +41,7 @@ export default function RealmScreen() {
   if (q.data.kind === 'mine') return <MineScreen id={q.data.id} />;
   if (q.data.kind === 'sky') return <SkyScreen id={q.data.id} />;
   if (q.data.kind === 'workshop') return <WorkshopScreen id={q.data.id} />;
+  if (q.data.kind === 'diner') return <DinerScreen id={q.data.id} />;
   return <RealmView key={q.data.id} r={q.data} />;
 }
 
