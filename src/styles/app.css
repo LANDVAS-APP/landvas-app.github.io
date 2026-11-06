@@ -370,6 +370,10 @@ h1, h2, h3 {
   0%, 100% { transform: scaleX(1); opacity: 1; }
   50% { transform: scaleX(0.78); opacity: 0.7; }
 }
+@keyframes lv-idle-whole {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
 @keyframes lv-idle {
   0%, 100% { transform: translateY(0) scaleY(1); }
   50% { transform: translateY(-1.5px) scaleY(1.02); }
@@ -1072,6 +1076,14 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   /* frosted blur over a moving map or a 3D scene re-renders every frame: the biggest cause of jank on
      iPhones. Panels keep their tint and simply don't blur what's behind them. */
   [class*="backdrop-blur"], [class*="backdrop-saturate"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  /* sliding gradients repaint every frame (the GPU can't move a background by itself): on phones they hold
+     still. Same for little animations inside the explorer's SVG, which Safari repaints per frame — the
+     idle bob moves the whole figure instead (that the GPU does for free); the walk cycle runs only while
+     walking, when the map is redrawing anyway. */
+  .shimmer, [data-shimmer] { animation: none !important; }
+  .lv-explorer:not(.walking) .body, .lv-explorer:not(.walking) .halo, .lv-explorer:not(.walking) .spark, .lv-explorer:not(.walking) .shadow { animation: none !important; }
+  .lv-explorer:not(.walking) svg { animation: lv-idle-whole 2.8s ease-in-out infinite; will-change: transform; }
+  .lv-explorer.aura-fire svg { animation: none !important; }
   /* no text-selection loupe, callouts or grey tap flashes on game UI; inputs still work as normal */
   body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   input, textarea, select, [contenteditable], .selectable, .selectable * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }

@@ -32,15 +32,19 @@ export function useRent(): { rent: RentState | null; offset: number; update(r: R
 export function LiveUsd({ rent, offset, decimals = 10, className }: { rent: RentState; offset: number; decimals?: number; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    let raf = 0;
-    const loop = () => {
-      if (ref.current) ref.current.textContent = formatUsd(liveRent(rent, Date.now() + offset), decimals);
-      raf = requestAnimationFrame(loop);
+    // ~12 updates a second still reads as a live, ticking counter, without re-laying-out the screen on
+    // every frame (on a phone that fought the map for every frame of a pan)
+    let last = '';
+    const tick = () => {
+      if (document.hidden || !ref.current) return;
+      const t = formatUsd(liveRent(rent, Date.now() + offset), decimals);
+      if (t !== last) { ref.current.textContent = t; last = t; }
     };
-    loop();
-    return () => cancelAnimationFrame(raf);
+    tick();
+    const iv = setInterval(tick, 85);
+    return () => clearInterval(iv);
   }, [rent, offset, decimals]);
-  return <span ref={ref} className={cn('tnum', className)} data-testid="usd-live">{formatUsd(liveRent(rent, Date.now() + offset), decimals)}</span>;
+  return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint' }} data-testid="usd-live">{formatUsd(liveRent(rent, Date.now() + offset), decimals)}</span>;
 }
 
 export async function boost(update: (r: RentState) => void) {
@@ -74,6 +78,7 @@ export function BoostButton({ compact }: { compact?: boolean }) {
       className={cn('relative flex h-10 shrink-0 items-center gap-1.5 overflow-hidden rounded-2xl px-3 text-[12.5px] font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:cursor-not-allowed',
         active ? 'shadow-[0_0_24px_-2px_#FFB31F]' : 'shadow-[0_10px_30px_-12px_#FF3D9A]', (none || capped) && !active && 'opacity-60')}
       style={{ background: active ? 'linear-gradient(90deg,#FF6A00,#FFB31F,#FF3D9A,#FF6A00)' : 'linear-gradient(135deg,#FF3D9A,#A45CFF)', backgroundSize: active ? '300% 100%' : undefined, animation: active ? 'lv-shimmer 2.5s linear infinite' : undefined }}
+      data-shimmer={active ? '1' : undefined}
     >
       {busy ? <Spinner className="h-4 w-4 text-white" /> : <Zap className={cn('h-4 w-4', active && 'fill-white')} />}
       {active ? (

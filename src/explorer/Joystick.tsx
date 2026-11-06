@@ -231,11 +231,15 @@ export function Joystick({ onClose }: { onClose(): void }) {
         if (wasMoving) void send(true);
         wasMoving = false;
       }
-      raf = requestAnimationFrame(loop);
+      // nothing pressed: check back shortly instead of running every frame (idle frames cost a phone)
+      if (wasMoving || pressing || stepRef.current || freshPress || keyTap) raf = requestAnimationFrame(loop);
+      else { raf = 0; idle = setTimeout(() => { last = performance.now(); loop(); }, 40); }
     };
+    let idle: ReturnType<typeof setTimeout> | null = null;
     raf = requestAnimationFrame(loop);
-    const tick = setInterval(() => setSecs(secsRef.current), 250);
-    return () => { cancelAnimationFrame(raf); clearInterval(tick); };
+    const tick = setInterval(() => { if (secsRef.current !== lastSecs) { lastSecs = secsRef.current; setSecs(secsRef.current); } }, 250);
+    let lastSecs = -1;
+    return () => { cancelAnimationFrame(raf); if (idle) clearTimeout(idle); clearInterval(tick); };
   }, [speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const feel = () => { if (settings.haptics) { buzz('light'); navigator.vibrate?.(8); } };

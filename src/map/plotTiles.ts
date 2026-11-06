@@ -1,5 +1,5 @@
 // Owned plots and the plot grid, drawn as map image tiles (custom protocols
-// lvplots:// and lvgrid://) instead of GeoJSON.
+// lvplots://, which draws the plot grid too) instead of GeoJSON.
 //
 // Why: GeoJSON had to be rebuilt and re-tiled for the whole viewport after every
 // pan, which got slower with every plot in view and made phones stutter. Tiles
@@ -14,6 +14,7 @@ import type { MapMode } from '../lib/store';
 import { GRID_LEVEL, GRID_SIZE, type PlotTypeId } from '../shared/grid';
 import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
 import { PLOT_TYPES, drawPlotDesign } from './plotStyle';
+import { isPhone } from '../lib/gfx';
 
 const BLOCK_SHIFT = 6; // 64x64 plots per block (matches world_plots.bx/by)
 const BLOCKS = GRID_SIZE >> BLOCK_SHIFT;
@@ -24,6 +25,8 @@ export const CELLS_MIN_ZOOM = GRID_LEVEL - 3.8;
 export const GRIDLINES_MIN_ZOOM = GRID_LEVEL - 4.8;
 
 // tiles are drawn at 2x on high-density screens so lines stay crisp
+// canvas shadows are very slow in Safari: phones draw the glows as soft strokes instead
+const SHADOW = !isPhone();
 const SCALE = typeof devicePixelRatio === 'number' && devicePixelRatio >= 1.5 ? 2 : 1;
 const PX = 256 * SCALE;
 
@@ -170,11 +173,14 @@ async function drawPlotTile(blocks: PlotBlocks, z: number, x: number, y: number,
   const lists: PlotRow[][] = [];
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
   const rows = lists.flat().filter((r) => r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
-  if (!rows.length) return null;
+  // the plot grid is drawn into these same tiles (one image layer for the phone to fill, not two)
+  const grid = opts.mode !== 'canvas' && z >= Math.floor(GRIDLINES_MIN_ZOOM) && shift <= 6;
+  if (!rows.length && !grid) return null;
   const started = performance.now();
   const cs = PX / n; // canvas pixels per plot
   const look = LOOKS[opts.mode] ?? LOOKS.atlas;
   const ctx = ctx2d();
+  if (grid) { drawGrid(ctx, z); ctx.globalAlpha = 1; }
   const pat = cs >= 12 * SCALE;
   for (const r of rows) {
     if (r[6]) continue; // plots with art show only their art
@@ -359,7 +365,7 @@ function businessCell(ctx: CanvasRenderingContext2D, c: KCell) {
   if (tower) { ctx.fillStyle = 'rgba(255,255,255,0.45)'; for (let i = 1; i < 4; i++) ctx.fillRect(b.x0, py + m + (roofH * i) / 4, b.x1 - b.x0, Math.max(0.6, cs * 0.02)); }
   // roof trim in the rarity colour (gold on legendary, glowing on mythic)
   ctx.strokeStyle = c.tier >= 3 ? (c.tier === 4 ? c.rc : '#E0A82E') : c.rc; ctx.lineWidth = Math.max(1, cs * (0.02 + c.tier * 0.006));
-  if (c.tier === 4) { ctx.shadowColor = c.glow; ctx.shadowBlur = cs * 0.12; }
+  if (c.tier === 4) { ctx.shadowColor = c.glow; ctx.shadowBlur = SHADOW ? cs * 0.12 : 0; }
   ctx.beginPath();
   if (!c.join.n) { ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x1, b.y0); }
   if (!c.join.w) { ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x0, y1); }
@@ -387,12 +393,13 @@ function arcadeCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
   // roof vents / tiles, plus neon in the rarity colour round the outside of the roof
   if (cs >= 14) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; for (let i = 0; i < 3; i++) ctx.fillRect(b.x0, py + m + cs * (0.12 + i * 0.18), b.x1 - b.x0, Math.max(0.6, cs * 0.015)); }
   const lw = Math.max(1, cs * (0.035 + c.tier * 0.006));
-  ctx.strokeStyle = neon; ctx.lineWidth = lw; ctx.shadowColor = neon; ctx.shadowBlur = cs * (0.1 + c.tier * 0.04); ctx.lineCap = 'round';
+  ctx.strokeStyle = neon; ctx.lineWidth = lw; ctx.shadowColor = neon; ctx.shadowBlur = SHADOW ? cs * (0.1 + c.tier * 0.04) : 0; ctx.lineCap = 'round';
   ctx.beginPath();
   if (!c.join.n) { ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x1, b.y0); }
   if (!c.join.w) { ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x0, roofBottom); }
   if (!c.join.e) { ctx.moveTo(b.x1, b.y0); ctx.lineTo(b.x1, roofBottom); }
   if (!c.join.s) { ctx.moveTo(b.x0, roofBottom); ctx.lineTo(b.x1, roofBottom); }
+  if (!SHADOW) { const a = ctx.globalAlpha; ctx.globalAlpha = a * 0.35; ctx.lineWidth = lw * 3.2; ctx.stroke(); ctx.globalAlpha = a; ctx.lineWidth = lw; }
   ctx.stroke();
   // epic and up: a second inner neon line in the rarity's glow colour
   if (c.tier >= 2 && cs >= 12) { ctx.strokeStyle = c.glow; ctx.lineWidth = lw * 0.5; ctx.shadowBlur = 0; ctx.globalAlpha = 0.8;
@@ -485,15 +492,15 @@ function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, 
   if (kind === 'arcade') {
     // a big joystick star on the roof, in gold (rarity colour on mythic), with the rarity's glow
     const r1 = s * 0.14, my = y0 + h * 0.38;
-    ctx.shadowColor = glow; ctx.shadowBlur = s * (0.08 + tier * 0.04);
+    ctx.shadowColor = glow; ctx.shadowBlur = SHADOW ? s * (0.08 + tier * 0.04) : 0;
     ctx.fillStyle = tier === 4 ? rc : '#FFE14D'; star(ctx, cx, my, r1, r1 * 0.42); ctx.fill();
     ctx.shadowBlur = 0;
-    if (s >= 60) { ctx.font = `900 ${Math.round(s * 0.11)}px ui-rounded, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = rc; ctx.shadowColor = rc; ctx.shadowBlur = s * 0.08; ctx.fillText('ARCADE', cx, my + r1 * 1.75); ctx.shadowBlur = 0; }
+    if (s >= 60) { ctx.font = `900 ${Math.round(s * 0.11)}px ui-rounded, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = rc; ctx.shadowColor = rc; ctx.shadowBlur = SHADOW ? s * 0.08 : 0; ctx.fillText('ARCADE', cx, my + r1 * 1.75); ctx.shadowBlur = 0; }
   } else if (REALM_SIGN[kind]) {
     // a round sign with the place's emblem, ringed in the rarity colour
     const r = s * 0.13, my = y0 + h * 0.35;
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.arc(cx, my, r, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = Math.max(1, r * 0.2); ctx.strokeStyle = tier ? rc : '#FFFFFF'; ctx.shadowColor = glow; ctx.shadowBlur = s * 0.04 * tier; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(1, r * 0.2); ctx.strokeStyle = tier ? rc : '#FFFFFF'; ctx.shadowColor = glow; ctx.shadowBlur = SHADOW ? s * 0.04 * tier : 0; ctx.stroke(); ctx.shadowBlur = 0;
     ctx.font = `${Math.round(r * 1.15)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(REALM_SIGN[kind]!, cx, my + r * 0.08);
   } else if (kind === 'business') {
@@ -610,40 +617,33 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
 }
 const seenHidden = (h: { gx: number; gy: number }, x0: number, y0: number, x1: number, y1: number) => h.gx >= x0 && h.gx <= x1 && h.gy >= y0 && h.gy <= y1;
 
-// every grid tile at a zoom looks the same (plots line up with tiles), so draw it once per zoom
-const gridImages = new Map<number, Promise<ImageBitmap | ArrayBuffer>>();
-function gridTile(z: number): Promise<ImageBitmap | ArrayBuffer> | null {
+/** The plot grid for a tile at zoom z: every tile at a zoom looks the same (plots line up with tiles). */
+function drawGrid(ctx: CanvasRenderingContext2D, z: number) {
   const shift = GRID_LEVEL - z;
-  if (shift < 0 || shift > 6) return null;
-  let p = gridImages.get(z);
-  if (!p) {
-    const ctx = ctx2d();
-    const n = 1 << shift, cs = PX / n;
-    const cells = z + 0.5 >= CELLS_MIN_ZOOM;
-    if (cells) {
-      // unclaimed plots: a faint, identical square each — what's inside is a surprise until claimed
-      ctx.fillStyle = 'rgba(255,255,255,0.035)';
-      ctx.fillRect(0, 0, PX, PX);
-      ctx.strokeStyle = '#ffffff';
-      ctx.globalAlpha = lerp(z, CELLS_MIN_ZOOM, 0.12, GRID_LEVEL - 2, 0.3);
-      ctx.lineWidth = Math.max(1, lerp(z, CELLS_MIN_ZOOM, 0.5, GRID_LEVEL, 1.4) * SCALE);
-    } else {
-      ctx.strokeStyle = '#c7b8ff';
-      ctx.globalAlpha = 0.25;
-      ctx.lineWidth = Math.max(1, 0.6 * SCALE);
-    }
-    ctx.beginPath();
-    // each tile draws its top and left edges; neighbours supply the rest
-    for (let i = 0; i < n; i++) {
-      const o = i * cs + ctx.lineWidth / 2;
-      ctx.moveTo(o, 0); ctx.lineTo(o, PX);
-      ctx.moveTo(0, o); ctx.lineTo(PX, o);
-    }
-    ctx.stroke();
-    p = snapshot(canvas!);
-    gridImages.set(z, p);
+  const n = 1 << shift, cs = PX / n;
+  const cells = z + 0.5 >= CELLS_MIN_ZOOM;
+  ctx.save();
+  if (cells) {
+    // unclaimed plots: a faint, identical square each — what's inside is a surprise until claimed
+    ctx.fillStyle = 'rgba(255,255,255,0.035)';
+    ctx.fillRect(0, 0, PX, PX);
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = lerp(z, CELLS_MIN_ZOOM, 0.12, GRID_LEVEL - 2, 0.3);
+    ctx.lineWidth = Math.max(1, lerp(z, CELLS_MIN_ZOOM, 0.5, GRID_LEVEL, 1.4) * SCALE);
+  } else {
+    ctx.strokeStyle = '#c7b8ff';
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth = Math.max(1, 0.6 * SCALE);
   }
-  return p;
+  ctx.beginPath();
+  // each tile draws its top and left edges; neighbours supply the rest
+  for (let i = 0; i < n; i++) {
+    const o = i * cs + ctx.lineWidth / 2;
+    ctx.moveTo(o, 0); ctx.lineTo(o, PX);
+    ctx.moveTo(0, o); ctx.lineTo(PX, o);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ---- protocols ------------------------------------------------------------------------
@@ -673,10 +673,5 @@ export function registerPlotProtocols(blocks: PlotBlocks, opts: () => PlotTileOp
       return { data: new ArrayBuffer(0) };
     }
   });
-  addProtocol('lvgrid', async (params) => {
-    const m = /^lvgrid:\/\/(\d+)\//.exec(params.url);
-    const img = m ? gridTile(Number(m[1])) : null;
-    const data = img ? await img : new ArrayBuffer(0);
-    return { data: (data instanceof ArrayBuffer ? data.slice(0) : data) as any };
-  });
+
 }

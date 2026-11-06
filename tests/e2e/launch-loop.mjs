@@ -128,8 +128,8 @@ try {
   const hidden = await page.evaluate(async ([gx, gy]) => {
     const d = await window.__landvasApi.plotDetails(gx, gy);
     // unclaimed plots are one identical grid image: there is nothing per plot to read
-    const src = window.__landvasMap.getSource('lv-gridtiles');
-    return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: !src || src.type !== 'raster' || !/^lvgrid:/.test(src.tiles[0]), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
+    const src = window.__landvasMap.getSource('lv-plots');
+    return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: !src || src.type !== 'raster' || !/^lvplots:/.test(src.tiles[0]), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
   }, [START.gx, START.gy]);
   check('unclaimed plots keep their rarity secret', hidden.rarity == null && hidden.hidden === true && hidden.rent == null && hidden.acquireRarity == null && !hidden.mapRarity && hidden.panel, JSON.stringify(hidden));
   await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
@@ -219,7 +219,8 @@ try {
   // every small plot in view is drawn as a plain mystery square
   const layers = await page.evaluate(() => {
     const m = window.__landvasMap;
-    return { gridLayer: !!m.getLayer('lv-grid'), visible: m.getLayoutProperty('lv-grid', 'visibility') !== 'none', loaded: m.isSourceLoaded('lv-gridtiles'), zoomOk: m.getZoom() >= m.getLayer('lv-grid').minzoom };
+    // the grid is drawn into the plot image tiles
+    return { gridLayer: !!m.getLayer('lv-plots'), visible: m.getLayoutProperty('lv-plots', 'visibility') !== 'none', loaded: m.isSourceLoaded('lv-plots'), zoomOk: m.getZoom() >= 17 };
   });
   check('every unclaimed plot in view is drawn as the same plain square', layers.gridLayer && layers.visible && layers.loaded && layers.zoomOk, JSON.stringify(layers));
   const metres = (40075016.7 / G) * Math.cos((center(START.gx, START.gy).lat * Math.PI) / 180);

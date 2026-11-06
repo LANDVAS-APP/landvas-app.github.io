@@ -284,6 +284,13 @@ export function WorldMap() {
   function updateNames(map: MLMap, rows: PlotRow[], z: number) {
     const markers = nameMarkers.current;
     const show = z >= NAMES_MIN_ZOOM && modeRef.current !== 'canvas';
+    // with map fonts, the map draws the names itself (on the GPU, nothing to move per frame)
+    if (map.getSource('lv-names')) {
+      const named = show ? rows.filter((r) => r[10]).slice(0, 120) : [];
+      setData(map, 'lv-names', { type: 'FeatureCollection', features: named.map((r) => ({ type: 'Feature', properties: { name: String(r[10]), r: r[9] ?? 'common' },
+        geometry: { type: 'Point', coordinates: [xToLng((r[0] + 0.5) / GRID_SIZE), yToLat((r[1] + 0.5) / GRID_SIZE)] } })) });
+      return;
+    }
     const named = show ? rows.filter((r) => r[10]).slice(0, 40) : [];
     const keep = new Set(named.map((r) => `${r[0]}_${r[1]}_${r[10]}`));
     for (const [k, m] of markers) if (!keep.has(k)) { m.remove(); markers.delete(k); }
@@ -345,7 +352,11 @@ export function WorldMap() {
     let lastLng = NaN, lastLat = NaN;
     const cls = { walking: false, left: false, gps: false };
     const toggle = (k: keyof typeof cls, on: boolean) => { if (cls[k] !== on) { cls[k] = on; el.classList.toggle(k, on); } };
+    // runs every frame only while something's moving; standing still it checks a few times a second
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastPet = 0;
     const loop = () => {
+      raf = 0; timer = null;
       const { state, offset, heading, following, gps } = useExplorer.getState();
       const p = explorerNow(state, offset);
       if (p) {
@@ -356,7 +367,10 @@ export function WorldMap() {
         toggle('walking', p.traveling || performance.now() < movingUntil);
         toggle('left', heading < 0);
         toggle('gps', gps === 'on');
-        if (pet && companion && (pet.n++ % 3 === 0)) {
+        const t = performance.now();
+        // the companion animates at 20 fps walking, 8 standing still, and holds while the map moves
+        if (pet && companion && t - lastPet > (cls.walking ? 50 : 125) && !container.current?.classList.contains('lv-map-moving')) {
+          lastPet = t; pet.n++;
           pet.g.clearRect(0, 0, 96, 96);
           drawCreature(pet.g, companion.g, 48, 92, 46, { t: performance.now() / 1000, state: cls.walking ? 'walk' : 'idle', dir: cls.left ? -1 : 1 });
         }
@@ -384,7 +398,9 @@ export function WorldMap() {
           lastRoute = 0;
           setData(map, 'lv-route', EMPTY);
         }
-        if (following && now - lastFollow > 900) {
+        // follow only when the explorer has drifted from the middle of the screen (re-centring on the same
+        // spot every second kept the map animating — and redrawing — non-stop while standing still)
+        if (following && now - lastFollow > 900 && !map.isMoving() && offCentre(map, p.lng, p.lat) > 6) {
           lastFollow = now;
           // keep the 3D tilt while following (a plain easeTo would cancel a tilt in progress)
           map.easeTo({ center: [p.lng, p.lat], pitch: useUi.getState().settings.tilt3d ? 55 : 0, duration: 850, easing: (t) => t });
@@ -395,11 +411,16 @@ export function WorldMap() {
         lastCell = '';
         setData(map, 'lv-reach', EMPTY);
       }
-      raf = requestAnimationFrame(loop);
+      const ex = useExplorer.getState();
+      const busy = !!p && (p.traveling || performance.now() < movingUntil) || ex.following && !!p?.traveling;
+      if (busy) raf = requestAnimationFrame(loop);
+      else timer = setTimeout(loop, companion ? 120 : 250);
     };
+    // the joystick and GPS wake it straight away
+    const unsubEx = useExplorer.subscribe(() => { if (!raf) { if (timer) clearTimeout(timer); timer = null; raf = requestAnimationFrame(loop); } });
     loop();
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf); if (timer) clearTimeout(timer); unsubEx();
       marker.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -591,10 +612,9 @@ export function WorldMap() {
 
 function addLayers(map: MLMap, glyphs: boolean) {
   // Canvas mode lays a veil over the base map so the art leads
-  map.addLayer({ id: 'lv-veil', type: 'background', paint: { 'background-color': themeColors().bg || '#0b0820', 'background-opacity': 0 } });
+  map.addLayer({ id: 'lv-veil', type: 'background', layout: { visibility: 'none' }, paint: { 'background-color': themeColors().bg || '#0b0820', 'background-opacity': 0 } });
   map.addSource('lv-density', { type: 'geojson', data: EMPTY });
   // the plot grid and owned plots are image tiles drawn on the device (plotTiles.ts)
-  map.addSource('lv-gridtiles', { type: 'raster', tiles: ['lvgrid://{z}/{x}/{y}'], tileSize: 256, minzoom: Math.floor(GRIDLINES_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-plots', { type: 'raster', tiles: PLOT_TILES(1), tileSize: 256, minzoom: Math.floor(PLOTS_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-habitats', { type: 'raster', tiles: HAB_TILES(1), tileSize: 256, minzoom: Math.floor(PLOTS_MIN_ZOOM), maxzoom: GRID_LEVEL });
   map.addSource('lv-art', { type: 'raster', tiles: ART_TILES(1), tileSize: 256, minzoom: ART_MIN_ZOOM, maxzoom: ART_MAX_ZOOM });
@@ -614,9 +634,8 @@ function addLayers(map: MLMap, glyphs: boolean) {
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.35,
     },
   });
-  // unclaimed plots: a faint, identical square each — what's inside is a surprise until it's claimed
-  map.addLayer({ id: 'lv-grid', type: 'raster', source: 'lv-gridtiles', minzoom: GRIDLINES_MIN_ZOOM, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
-  // claimed plots: owner colour + plot-type pattern; plots with art show nothing but the art
+  // the plot grid (unclaimed plots: a faint, identical square each) and claimed plots — owner colour + plot-type
+  // pattern; plots with art show nothing but the art — share one image layer
   map.addLayer({ id: 'lv-plots', type: 'raster', source: 'lv-plots', minzoom: PLOTS_MIN_ZOOM, paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
   map.addLayer({ id: 'lv-groups-glow', type: 'line', source: 'lv-groups', paint: { 'line-color': '#22E3FF', 'line-width': 7, 'line-blur': 6, 'line-opacity': 0.45 } });
   map.addLayer({ id: 'lv-groups-line', type: 'line', source: 'lv-groups', paint: { 'line-color': '#C9F6FF', 'line-width': 1.6, 'line-opacity': 0.9 } });
@@ -634,6 +653,15 @@ function addLayers(map: MLMap, glyphs: boolean) {
   map.addLayer({ id: 'lv-sel-glow', type: 'line', source: 'lv-sel', paint: { 'line-color': '#FFE14D', 'line-width': 10, 'line-blur': 7, 'line-opacity': 0.6 } });
   map.addLayer({ id: 'lv-sel-line', type: 'line', source: 'lv-sel', paint: { 'line-color': '#FFE14D', 'line-width': 2.4 } });
   if (glyphs) {
+    // plot names: a dark pill with a rim in the plot's rarity colour (one stretchable image per rarity)
+    for (const r of rarities()) addPill(map, `lv-pill-${r.id}`, r.color);
+    map.addSource('lv-names', { type: 'geojson', data: EMPTY });
+    map.addLayer({
+      id: 'lv-names', type: 'symbol', source: 'lv-names', minzoom: NAMES_MIN_ZOOM,
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11.5, 'text-max-width': 12, 'icon-image': ['concat', 'lv-pill-', ['get', 'r']],
+        'icon-text-fit': 'both', 'icon-text-fit-padding': [3, 9, 3, 9], 'text-allow-overlap': false, 'icon-allow-overlap': false, 'text-padding': 4, 'text-optional': false },
+      paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,0.55)', 'text-halo-width': 0.8 },
+    });
     map.addSource('lv-cities', { type: 'geojson', data: EMPTY });
     map.addLayer({
       id: 'lv-cities', type: 'symbol', source: 'lv-cities',
@@ -642,6 +670,22 @@ function addLayers(map: MLMap, glyphs: boolean) {
     });
   }
   applySky(map);
+}
+
+/** How far (in screen pixels) a point is from the middle of the map. */
+function offCentre(map: MLMap, lng: number, lat: number) {
+  const a = map.project([lng, lat]), c = map.getCanvas();
+  return Math.hypot(a.x - c.clientWidth / 2, a.y - c.clientHeight / 2);
+}
+
+/** A stretchable pill (9-slice) with a coloured rim, drawn once per rarity. */
+function addPill(map: MLMap, id: string, rim: string) {
+  if (map.hasImage(id)) return;
+  const W = 64, H = 40, R = 20, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(14,10,36,0.82)'; g.strokeStyle = rim; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(1.5, 1.5, W - 3, H - 3, R - 1.5); g.fill(); g.stroke();
+  map.addImage(id, g.getImageData(0, 0, W, H), { pixelRatio: 2, stretchX: [[R, W - R]], stretchY: [[R - 2, H - R + 2]], content: [R - 6, 8, W - R + 6, H - 8] });
 }
 
 const cssVar = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
@@ -673,14 +717,16 @@ function applyProjection(map: MLMap, globe: boolean) {
 
 /** Dim the base map (Canvas mode lets the art lead). */
 function dimBase(map: MLMap, dim: boolean, _online: boolean) {
-  if (map.getLayer('lv-veil')) map.setPaintProperty('lv-veil', 'background-opacity', dim ? 0.6 : 0);
+  if (!map.getLayer('lv-veil')) return;
+  // a hidden layer costs nothing; an invisible one still fills every pixel of every frame
+  map.setLayoutProperty('lv-veil', 'visibility', dim ? 'visible' : 'none');
+  map.setPaintProperty('lv-veil', 'background-opacity', dim ? 0.6 : 0);
 }
 
 export function applyMode(map: MLMap, mode: MapMode, online: boolean) {
   const vis = (id: string, on: boolean) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   const p = (id: string, prop: string, v: unknown) => map.getLayer(id) && map.setPaintProperty(id, prop as any, v as any);
   dimBase(map, mode === 'canvas', online);
-  vis('lv-grid', mode !== 'canvas');
   vis('lv-density', true);
   // the art itself is never tinted or faded: modes only change the overlays around it
   p('lv-art', 'raster-opacity', 1);

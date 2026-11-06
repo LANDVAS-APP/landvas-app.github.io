@@ -10,7 +10,10 @@ const DENSITY = Number(process.env.DENSITY ?? 0.45); // share of plots owned in 
 const THROTTLE = Number(process.env.THROTTLE ?? 4);
 const server = await serve(DIST, PORT);
 const browser = await launch();
-const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, colorScheme: 'dark' });
+// a phone (touch screen, phone browser): the phone-only paths are what's measured. PHONE=0 for a desktop.
+const PHONE = process.env.PHONE !== '0';
+const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 1, isMobile: PHONE, hasTouch: PHONE, colorScheme: 'dark', geolocation: { longitude: -111.8929, latitude: 40.7608, accuracy: 8 }, permissions: ['geolocation'],
+  ...(PHONE ? { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' } : {}) });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -25,7 +28,9 @@ await page.check('input[type=checkbox]');
 await page.click('button[type=submit]');
 await page.waitForSelector('[data-testid=world-map]', { timeout: 20000 });
 await page.waitForFunction(() => !!window.__landvasMap?.getSource('lv-plots'), null, { timeout: 30000 });
-// close any first-visit prompt so it doesn't sit over the map
+// put the explorer on the map (as a real player has it), then close any first-visit prompt
+await page.waitForSelector('[data-testid=place-gps]', { timeout: 8000 }).then(() => page.click('[data-testid=place-gps]')).catch(() => {});
+await page.waitForFunction(() => !!document.querySelector('.lv-explorer'), null, { timeout: 15000 }).catch(() => console.log('(no explorer)'));
 await page.keyboard.press('Escape').catch(() => {});
 
 // dense synthetic world: a deterministic ~45% of plots owned around Salt Lake City, many with names and canvases
@@ -147,7 +152,32 @@ const countRenders = async (name, zoom) => {
   const b = await page.evaluate(() => window.__renders);
   console.log(`${name.padEnd(28)} map redraws while idle: ${((b - a) / 4).toFixed(1)}/s`);
 };
+// standing still on the map: how much the page works when nothing is happening
+const idleCpu = async (name, zoom) => {
+  await page.evaluate(([c, z]) => { window.__landvasMap.jumpTo({ center: c, zoom: z }); }, [ll(START.gx, START.gy), zoom]);
+  await page.waitForTimeout(4000);
+  await page.evaluate(() => { window.__idleR = 0; window.__landvasMap.on('render', () => window.__idleR++); });
+  if (process.env.PROFILE) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.start'); }
+  const a = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+  await page.waitForTimeout(5000);
+  if (process.env.PROFILE) {
+    const { profile } = await cdp.send('Profiler.stop'); const self = new Map(), byId = new Map(profile.nodes.map((n) => [n.id, n])), dt = new Map();
+    for (let i = 0; i < profile.samples.length; i++) dt.set(profile.samples[i], (dt.get(profile.samples[i]) ?? 0) + (profile.timeDeltas[i] ?? 0));
+    for (const [id, t] of dt) { const n = byId.get(id); const k = `${n.callFrame.functionName || '(anon)'} ${n.callFrame.url.split('/').pop()}:${n.callFrame.lineNumber}`; self.set(k, (self.get(k) ?? 0) + t / 1000); }
+    console.log([...self.entries()].sort((x, y) => y[1] - x[1]).slice(0, 12).map(([k, v]) => `   ${v.toFixed(0).padStart(6)} ms  ${k}`).join('\n'));
+  }
+  console.log(`   map redraws while idle: ${(await page.evaluate(() => window.__idleR)) / 5}/s`);
+  const b = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+  const busy = (b.TaskDuration - a.TaskDuration) / (b.Timestamp - a.Timestamp), lay = (b.LayoutCount - a.LayoutCount) / 5, sty = (b.RecalcStyleCount - a.RecalcStyleCount) / 5;
+  if (process.env.ANIMS) console.log(await page.evaluate(() => document.getAnimations().map((a) => { const t = a.effect?.target; const kf = a.effect?.getKeyframes?.() ?? []; return `${a.animationName ?? a.constructor.name} on ${t?.tagName}.${(t?.getAttribute?.('class') ?? '').slice(0, 60)} props=${[...new Set(kf.flatMap((k) => Object.keys(k).filter((x) => !['offset', 'easing', 'composite', 'computedOffset'].includes(x))))].join(',')} state=${a.playState}`; }).join('\n')));
+  console.log(`${name.padEnd(28)} idle main thread busy ${(busy * 100).toFixed(1)}%  style recalcs ${sty.toFixed(0)}/s  layouts ${lay.toFixed(0)}/s  explorer ${!!(await page.$('.lv-explorer'))}`);
+};
+if (process.env.HIDE) await page.evaluate((h) => { const m = window.__landvasMap; for (const l of m.getStyle().layers) if (h.split(',').some((p) => l.id.startsWith(p))) m.setLayoutProperty(l.id, 'visibility', 'none'); }, process.env.HIDE);
+if (process.env.LAYERS) console.log(await page.evaluate(() => window.__landvasMap.getStyle().layers.map((l) => l.id).join(' ')));
 const all = {};
+await idleCpu('idle CPU @ z18.7', 18.7);
+if (process.env.ONLY === 'idle') { await browser.close(); server.close(); process.exit(0); }
+if (process.env.ONLY === 'pan1') { all.p = await scenario('pan @ z18.7', 18.7, pans); await browser.close(); server.close(); process.exit(0); }
 if (process.env.ONLY !== 'pan') { await countRenders('idle @ z18.7', 18.7); await countRenders('idle @ z4', 4); }
 all['plots, street level pan'] = await scenario('pan @ z18.7 (plots ~26px)', 18.7, pans);
 all['plots, zoomed out pan'] = await scenario('pan @ z17 (plots ~8px)', 17, pans);

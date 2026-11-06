@@ -20,6 +20,11 @@ import { buzz } from '../native/native';
 import { outlineEdges } from '../shared/fusion';
 import { GRID_LEVEL, GRID_SIZE, type CellTuple, xToLng, yToLat } from '../shared/grid';
 import type { PlotBlocks } from './plotTiles';
+import { isPhone } from '../lib/gfx';
+
+// canvas shadows (glows) are very slow in Safari: phones get the same strokes without the blur
+const PHONE = isPhone();
+const SHADOW = !PHONE;
 
 /** Inkborn show on the map from this zoom (a plot is ~22 px across). */
 export const RESIDENTS_MIN_ZOOM = GRID_LEVEL - 3.5;
@@ -177,7 +182,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     let W = 0, H = 0, dpr = 1;
     const resize = () => {
       const c = map.getCanvas();
-      W = c.clientWidth; H = c.clientHeight; dpr = Math.min(2, devicePixelRatio || 1);
+      W = c.clientWidth; H = c.clientHeight; dpr = Math.min(PHONE ? 1.5 : 2, devicePixelRatio || 1);
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       cv.style.width = `${W}px`; cv.style.height = `${H}px`;
     };
@@ -232,7 +237,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
         }
         // each piece glows in its own colour until they become one
         if (unify < 1) {
-          g.globalAlpha = (1 - unify) * fadeOut; g.strokeStyle = col; g.lineWidth = 3; g.shadowColor = col; g.shadowBlur = 12;
+          g.globalAlpha = (1 - unify) * fadeOut; g.strokeStyle = col; g.lineWidth = 3; g.shadowColor = col; g.shadowBlur = SHADOW ? 12 : 0;
           g.beginPath();
           for (const [[x1, y1], [x2, y2]] of outlineEdges(cells)) { const a = P(x1 + ox, y1 + oy), b = P(x2 + ox, y2 + oy); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
           g.stroke(); g.shadowBlur = 0;
@@ -255,7 +260,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
       const sk = quick ? 1 : seg(t, 0.2, 0.55);
       if (sk < 1) {
         g.lineCap = 'round';
-        g.strokeStyle = '#FFFFFF'; g.shadowColor = '#FFFFFF'; g.shadowBlur = 14;
+        g.strokeStyle = '#FFFFFF'; g.shadowColor = '#FFFFFF'; g.shadowBlur = SHADOW ? 14 : 0;
         g.lineWidth = Math.max(2, 5 * (1 - sk));
         g.globalAlpha = 0.95 * (1 - sk * 0.4);
         g.beginPath();
@@ -300,13 +305,13 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
           }
           const [mx0, my0] = P(cx - 3, cy), [mx1, my1] = P(cx + 3, cy);
           const wg = g.createLinearGradient(mx0, my0, mx1, my1); RAINBOW.forEach((c, i) => wg.addColorStop(i / (RAINBOW.length - 1), c));
-          g.globalAlpha = 0.7 * fade; g.strokeStyle = wg; g.shadowColor = '#FFC93D'; g.shadowBlur = 16; g.lineWidth = plotPx * 0.2 * ease(bk);
+          g.globalAlpha = 0.7 * fade; g.strokeStyle = wg; g.shadowColor = '#FFC93D'; g.shadowBlur = SHADOW ? 16 : 0; g.lineWidth = plotPx * 0.2 * ease(bk);
           g.stroke(welds);
           g.shadowBlur = 0; g.globalAlpha = 0.95 * fade; g.strokeStyle = '#FFF6D8'; g.lineWidth = plotPx * 0.07 * ease(bk);
           g.stroke(welds);
           // electric arcs jumping across the seams
           if (bk < 1 || t < 0.55) {
-            g.strokeStyle = '#CFF8FF'; g.lineWidth = 1.6; g.globalAlpha = 0.9 * fade; g.shadowColor = '#22E3FF'; g.shadowBlur = 10;
+            g.strokeStyle = '#CFF8FF'; g.lineWidth = 1.6; g.globalAlpha = 0.9 * fade; g.shadowColor = '#22E3FF'; g.shadowBlur = SHADOW ? 10 : 0;
             g.beginPath();
             for (const s of mids.slice(0, 60)) {
               if (Math.random() < 0.45) continue;
@@ -324,7 +329,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
         if (fl > 0) {
           const shape = new Path2D();
           for (const [x, y] of all) { const pts = [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)]; shape.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < 4; i++) shape.lineTo(pts[i][0], pts[i][1]); shape.closePath(); }
-          g.globalAlpha = 0.85 * fl; g.fillStyle = '#FFFFFF'; g.shadowColor = '#FFF1B8'; g.shadowBlur = all.length > 60 ? 0 : 24;
+          g.globalAlpha = 0.85 * fl; g.fillStyle = '#FFFFFF'; g.shadowColor = '#FFF1B8'; g.shadowBlur = SHADOW ? all.length > 60 ? 0 : 24 : 0;
           g.fill(shape);
           g.shadowBlur = 0;
         }
@@ -359,7 +364,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
         g.globalAlpha = fadeOut;
         g.lineCap = 'round';
         for (const [w, blur, a] of [[9, 18, 0.45], [3.5, 0, 1]] as const) {
-          g.strokeStyle = gr; g.lineWidth = w; g.shadowColor = '#8B5CFF'; g.shadowBlur = blur; g.globalAlpha = a * fadeOut;
+          g.strokeStyle = gr; g.lineWidth = w; g.shadowColor = '#8B5CFF'; g.shadowBlur = SHADOW ? blur : 0; g.globalAlpha = a * fadeOut;
           g.beginPath();
           for (const s of segs) if (s.ang <= lim) { g.moveTo(s.a[0], s.a[1]); g.lineTo(s.b[0], s.b[1]); }
           g.stroke();
@@ -433,8 +438,10 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
       return items.length > 0;
     };
 
-    let raf = 0, last = performance.now(), running = false;
+    let raf = 0, last = performance.now(), running = false, moving = false;
     const frame = (now: number) => {
+      // phones: creatures wandering about need only 30 fps (the map moving still gets every frame)
+      if (PHONE && !moving && now - last < 30 && !useMapFx.getState().merges.length) { raf = requestAnimationFrame(frame); return; }
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, W, H);
@@ -451,6 +458,8 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     const load = () => void loadResidents(blocks, map).then(wake);
     map.on('moveend', load);
     map.on('move', wake);
+    const ms = () => { moving = true; }, me = () => { moving = false; };
+    map.on('movestart', ms); map.on('moveend', me);
     const timer = setInterval(load, 30_000);
     const unsubMode = useUi.subscribe((s, p) => { if (s.mode !== p.mode) load(); });
     const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); running = false; } else wake(); };
@@ -458,7 +467,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     if (map.loaded()) load(); else map.once('load', load);
     return () => {
       cancelAnimationFrame(raf); running = false; kick = () => {};
-      map.off('resize', resize); map.off('moveend', load); map.off('move', wake);
+      map.off('resize', resize); map.off('moveend', load); map.off('move', wake); map.off('movestart', ms); map.off('moveend', me);
       clearInterval(timer); unsubMode();
       document.removeEventListener('visibilitychange', vis);
       cv.remove();
