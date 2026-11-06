@@ -2,7 +2,7 @@
 // (seats filling up, the host's Start button).
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../../backend/api';
 import { toGameError } from '../../backend/backend';
@@ -10,11 +10,12 @@ import type { HomeGame } from '../../backend/types';
 import { cn } from '../../lib/utils';
 import { Button, PlayerAvatar } from '../../ui';
 import { sfx } from '../../arcade/sfx';
-import { PARTY, PARTY_ORDER } from './index';
+import { GAME_META, PARTY_ORDER } from './index';
 import { SEAT_COLORS } from './kit';
 
 export function GamePicker({ home, here, onClose, onMade }: { home: string; here: number; onClose(): void; onMade(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   const make = async (id: string) => {
     setBusy(id);
     try { await api.homeGameCreate(home, id); sfx.coin(); onMade(); onClose(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
@@ -24,14 +25,15 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
       <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-[#1C1512] p-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] text-white shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} data-testid="party-picker">
         <div className="mb-1 flex items-center gap-2"><span className="text-2xl">🎲</span><b className="flex-1 font-display text-xl">Party games</b><button onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button></div>
         <p className="mb-3 text-xs text-white/70">Pick a game — everyone in the house gets an invite. {here > 1 ? `${here} people are here.` : 'Nobody else is here yet: invite some friends over!'}</p>
-        {(['party', 'board'] as const).map((kind) => (
+        {(['3d', 'party', 'board'] as const).map((kind) => (
           <div key={kind} className="mb-3">
-            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/50">{kind === 'party' ? 'Party games' : 'Board games'}</div>
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/50">{kind === '3d' ? '🌍 Live 3D games — off somewhere new' : kind === 'party' ? 'Party games' : 'Board games'}</div>
             <div className="grid grid-cols-2 gap-2">
-              {PARTY_ORDER.map((id) => PARTY[id]).filter((d) => d.kind === kind).map((d) => (
+              {PARTY_ORDER.map((id) => GAME_META[id]).filter((d) => d && d.kind === kind).map((d) => (
                 <button key={d.id} disabled={!!busy} onClick={() => void make(d.id)} className="grid gap-1 rounded-2xl bg-white/10 p-3 text-left hover:bg-white/15 disabled:opacity-60" style={{ boxShadow: `inset 0 0 0 1.5px ${d.color}66` }} data-testid={`party-new-${d.id}`}>
                   <div className="flex items-center gap-2"><span className="text-3xl">{d.emoji}</span><span className="min-w-0"><b className="block truncate">{busy === d.id ? '…' : d.name}</b><span className="text-[10px] text-white/60">{d.min === d.max ? `${d.min} players` : `${d.min}–${d.max} players`}</span></span></div>
                   <span className="text-[11px] leading-snug text-white/70">{d.blurb}</span>
+                  {d.place && <span className="text-[10px] font-bold" style={{ color: d.color }}>📍 {d.place}</span>}
                 </button>
               ))}
             </div>
@@ -46,7 +48,7 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
 /** someone opened a table: one tap to sit down, wherever you are in the house */
 export function TableInvite({ t, onJoined }: { t: HomeGame; onJoined(): void }) {
   const [busy, setBusy] = useState(false);
-  const d = PARTY[t.game]; if (!d) return null;
+  const d = GAME_META[t.game]; if (!d) return null;
   const host = t.players.find((p) => p.id === t.host) ?? t.players[0];
   return (
     <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-black/75 p-2 pl-3 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 20px ${d.color}55, inset 0 0 0 1.5px ${d.color}` }} data-testid="party-invite">
@@ -59,7 +61,7 @@ export function TableInvite({ t, onJoined }: { t: HomeGame; onJoined(): void }) 
 
 export function TableLobby({ t, myId, onChange }: { t: HomeGame; myId: string; onChange(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const d = PARTY[t.game]; if (!d) return null;
+  const d = GAME_META[t.game]; if (!d) return null;
   const host = t.host === myId, ready = t.players.length >= d.min;
   const run = async (k: string, f: () => Promise<unknown>) => { setBusy(k); try { await f(); onChange(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); } };
   return (

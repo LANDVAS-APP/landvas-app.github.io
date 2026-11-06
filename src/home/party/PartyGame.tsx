@@ -125,7 +125,7 @@ export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: strin
   );
 }
 
-function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: string; onClose(): void }) {
+export function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: string; onClose(): void }) {
   if (!g) return <div className="absolute inset-0 grid place-items-center bg-black/50"><div className="lv-arc-marquee text-3xl">GAME OVER!</div></div>;
   if (g.status === 'cancelled') return <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center"><div className="grid gap-3"><b>That game didn’t count</b><Button variant="rainbow" onClick={onClose}>Back to the party</Button></div></div>;
   const rows = [...g.players].sort((a, b) => (a.place ?? 9) - (b.place ?? 9));

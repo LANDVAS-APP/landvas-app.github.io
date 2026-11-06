@@ -16,6 +16,8 @@ import { PlanetChatBox } from '../space/PlanetChat';
 import { TRACKS, music } from '../arcade/music';
 import { GuestBook } from './GuestBook';
 import { PartyGame } from './party/PartyGame';
+import { Live3D } from './live3d/Live3D';
+import { SIMS3 } from './live3d/sims';
 import { GamePicker, TableInvite, TableLobby } from './party/Tables';
 import { explorerSvg } from '../explorer/character';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
@@ -318,7 +320,9 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         <PlanetChatBox chat={chat} myId={me?.user_id} className="absolute bottom-[104px] left-3 z-20" title="House chat" sub={`${here} here`} placeholder="Say something to the house…" empty="Say hi to everyone here 👋" notHere="One moment — still stepping inside…" />
       )}
       {picker && <GamePicker home={host.id} here={here} onClose={() => setPicker(false)} onMade={room.refresh} />}
-      {game && me && <PartyGame game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />}
+      {game && me && (SIMS3[game.game]
+        ? <Live3D game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />
+        : <PartyGame game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />)}
       {edit && hall.current && own && <Decorator h={h} start={startLayout} scene={hall.current} onClose={(saved) => {
         setEdit(false);
         if (saved) { qc.setQueryData(['home', host.username.toLowerCase()], saved); invalidateGame(qc); }
