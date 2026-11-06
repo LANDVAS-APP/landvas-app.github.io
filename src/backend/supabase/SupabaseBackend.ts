@@ -184,6 +184,13 @@ export class SupabaseBackend implements Backend {
     }
   }
 
+  private sendOnly = new Map<string, ReturnType<SupabaseClient['channel']>>();
+  async liveSend(name: string, m: unknown) {
+    let ch = this.sendOnly.get(name);
+    if (!ch) { ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false } } }); this.sendOnly.set(name, ch); }
+    try { const r = await ch.httpSend('m', m as object, { timeout: 4000 }); return r.success; } catch { return false; }
+  }
+
   liveChannel(name: string, onMessage: (m: unknown) => void) {
     let ready = false;
     const ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false } } })

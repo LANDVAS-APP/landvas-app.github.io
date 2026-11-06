@@ -18,8 +18,19 @@ import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type
 import { createWorld3D, type World3D } from './worlds';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
-const STEP = 1 / 30, SNAP_MS = 80, GONE_MS = 7000, DELAY = 0.11;
-type Msg = { t: 's'; k: number; w: W3 } | { t: 'i'; id: string; i: In3 } | { t: 'end'; r: Record<string, number> };
+const STEP = 1 / 30, SNAP_MS = 100, DELAY = 0.14;
+// the host going quiet: after QUIET_MS the next player in line asks to take over (the server lets them once the host
+// has missed its pings for a few seconds); after LOST_MS with nobody running it, we stop waiting
+const QUIET_MS = 2500, LOST_MS = 30000, PING_MS = 2000, DROP_MS = 8000;
+type Msg = { t: 's'; e?: number; k: number; h?: string; w: W3 } | { t: 'i'; id: string; i: In3 } | { t: 'end'; r: Record<string, number> };
+/** a steady tick from a worker: keeps the host's game running even when its tab is in the background */
+function workerTicker(ms: number, f: () => void) {
+  try {
+    const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
+    const wk = new Worker(url); wk.onmessage = f;
+    return () => { wk.terminate(); URL.revokeObjectURL(url); };
+  } catch { const t = setInterval(f, ms); return () => clearInterval(t); }
+}
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const lerpAng = (a: number, b: number, k: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
 /** a world to draw, with everyone's position blended between two moments */
@@ -39,6 +50,7 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
   const [count, setCount] = useState(4);
   const [final, setFinal] = useState<HomeGame | null>(null);
   const [hud, setHud] = useState<W3 | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const host = game.host === myId;
   const seats = useRef(seatsOf(game)).current;
 
@@ -53,31 +65,41 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       canvas: cv.current, game: game.game, me: myId, world: base, reduceMotion: reduce,
       seats: seats.map((s) => ({ id: s.id, name: s.name, color: s.color, url: svgUrl(explorerSvg((game.players.find((p) => p.id === s.id) as { explorer_style?: ExplorerStyle } | undefined)?.explorer_style, s.p.accent_color ?? s.color, 184)) })),
     });
+    // who's running the game right now (it can change hands if the host drops out), and which hand-over we're on
+    let amHost = game.host === myId, hostId = game.host, epoch = 0;
     // host: the real world, stepped 30 times a second (and the one before the last step, to draw smoothly between)
     let w: W3 = base, hostPrev: W3 | null = null;
-    // guests: the snapshots so far (drawn a tenth of a second behind, so there's always one either side), your
-    // own explorer moved on your device straight away, and how far that's drifted from what the host says
+    // guests: the snapshots so far (drawn a moment behind, so there's always one either side), your own explorer
+    // moved on your device straight away, and how far that's drifted from what the host says
     const buf: { t: number; w: W3 }[] = [{ t: 0, w: base }];
     let clock = NaN, mine: P3 | null = null, fixX = 0, fixZ = 0;
-    let lastSnap = 0, seq = 0, ended: Record<string, number> | null = null, stop = false, acc = 0, last = performance.now(), raf = 0, hudAt = 0;
-    const inputs: Record<string, In3> = {};
+    let lastSnap = performance.now() + Math.max(0, startAt - Date.now()), lastSent = 0, seq = 0, ended: Record<string, number> | null = null, stop = false;
+    let waiting = false, acc = 0, accG = 0, hostLast = performance.now(), last = performance.now(), raf = 0, hudAt = 0, tryAt = 0, trying = false;
+    const inputs: Record<string, In3> = {}, heard: Record<string, number> = {}, dropped = new Set<string>();
+    for (const id of ids) heard[id] = lastSnap;
     const finish = () => {
       setPhase('end'); sfx.jackpot?.();
       const poll = async (tries = 0) => {
         if (stop) return;
-        try { const r = host ? await api.homeGameReport(game.id, ended!) : await api.homeGameGet(game.id); if (r.status === 'done' || r.status === 'cancelled') { setFinal(r); return; } }
-        catch (e) { if (host && toGameError(e).code !== 'game_too_fast' && tries > 3) { setFinal({ ...game, status: 'cancelled' }); return; } }
+        try { const r = amHost && ended && Object.keys(ended).length ? await api.homeGameReport(game.id, ended) : await api.homeGameGet(game.id); if (r.status === 'done' || r.status === 'cancelled') { setFinal(r); return; } }
+        catch (e) { const c = toGameError(e).code; if (c === 'not_host') amHost = false; else if (amHost && c !== 'game_too_fast' && tries > 5) { setFinal({ ...game, status: 'cancelled' }); return; } }
         setTimeout(() => void poll(tries + 1), 1500);
       };
       void poll();
     };
-    const onSnap = (sw: W3) => {
-      const now = performance.now() / 1000, nw: W3 = { ...sw, obs: base.obs };
+    const onSnap = (m: Extract<Msg, { t: 's' }>) => {
+      const e = m.e ?? 0;
+      if (m.h === myId || e < epoch || (e === epoch && m.k <= seq)) return;
+      // someone else is running it now (we were away, or there was a hand-over)
+      if (amHost) { amHost = false; inCh?.close(); inCh = null; mine = null; }
+      if (e > epoch || (m.h && m.h !== hostId)) { epoch = e; hostId = m.h ?? hostId; setNote(null); }
+      seq = m.k;
+      if (waiting) { waiting = false; setNote(null); }
+      const now = performance.now() / 1000, nw: W3 = { ...m.w, obs: base.obs };
       // the host's clock, as seen here: snapshots that arrive quickly pull it in straight away, slow ones only a little
       const off = now - nw.t; clock = Number.isNaN(clock) || off < clock ? off : clock + (off - clock) * 0.02;
       buf.push({ t: nw.t, w: nw }); while (buf.length > 12) buf.shift();
       w = nw; lastSnap = performance.now();
-      // your own explorer: keep the one moved here, unless the host disagrees by a lot (bumped, tagged, round reset, fell)
       const S = nw.ps.find((p) => p.id === myId);
       if (S) {
         if (!mine) mine = { ...S };
@@ -85,7 +107,6 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
         const big = err > 3.5 || Math.abs(S.y - mine.y) > 1.6 || !S.alive || S.alive !== mine.alive || (S.stun > 0.2 && mine.stun <= 0) || S.dash > mine.dash + 0.1;
         if (big) { if (err < 3.5) { fixX += mine.x - S.x; fixZ += mine.z - S.z; } else fixX = fixZ = 0; mine = { ...S }; }
         else {
-          // nudge towards the host (more when standing still, when there's no excuse for being apart)
           const k = err > 0.3 + sp * 0.18 ? 0.25 : 0.06;
           mine.x += ex * k; mine.z += ez * k; fixX -= ex * k; fixZ -= ez * k;
           Object.assign(mine, { alive: S.alive, outAt: S.outAt });
@@ -94,11 +115,50 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
     };
     const onMsg = (raw: unknown) => {
       const m = raw as Msg; if (!m || typeof m !== 'object') return;
-      if (host && m.t === 'i' && ids.includes(m.id)) inputs[m.id] = m.i;
-      else if (!host && m.t === 's' && m.k > seq) { seq = m.k; onSnap(m.w); }
-      else if (!host && m.t === 'end' && !ended) { ended = m.r; finish(); }
+      if (m.t === 'i') { if (amHost && ids.includes(m.id)) { inputs[m.id] = m.i; heard[m.id] = performance.now(); if (!sim.knockout) dropped.delete(m.id); } }
+      else if (m.t === 's') onSnap(m);
+      else if (m.t === 'end' && !ended) { ended = m.r; finish(); }
     };
     const ch = backend.liveChannel?.(`hg:${game.id}`, onMsg) ?? { send() {}, close() {} };
+    // the host listens for sticks on a channel of their own, so guests don't all get each other's sticks too
+    let inCh: { close(): void } | null = null;
+    const listenInputs = () => { inCh ??= backend.liveChannel?.(`hgi:${game.id}`, onMsg) ?? null; };
+    if (amHost) listenInputs();
+
+    const takeOver = (oldHost: string) => {
+      amHost = true; hostId = myId; epoch += 1; seq = 0; acc = 0; hostPrev = null; hostLast = performance.now();
+      w = { ...w, obs: base.obs, ps: w.ps.map((p) => ({ ...p })) };
+      const me = w.ps.find((p) => p.id === myId); if (me && mine) Object.assign(me, { x: mine.x, z: mine.z, y: mine.y, vx: mine.vx, vz: mine.vz, vy: mine.vy, face: mine.face, on: mine.on });
+      const now = performance.now(); for (const id of ids) heard[id] = now; heard[oldHost] = 0;
+      listenInputs();
+      waiting = false; setNote('📡 The host dropped out — the game carries on with you running it'); setTimeout(() => setNote(null), 5000);
+    };
+
+    // the host's game loop (on a worker tick, so it keeps going in a background tab)
+    const hostStep = () => {
+      if (!amHost || ended || stop) return;
+      const now = performance.now(), since = Date.now() - startAt, dt = Math.min(0.25, (now - hostLast) / 1000); hostLast = now;
+      if (since < 0) return;
+      acc += dt;
+      inputs[myId] = input.current; heard[myId] = now;
+      // anyone we haven't heard from in a while has gone: they stand still (or, in a knock-out game, they're out)
+      for (const id of ids) if (id !== myId && now - (heard[id] ?? 0) > DROP_MS && !dropped.has(id)) {
+        dropped.add(id); inputs[id] = { x: 0, y: 0, b: false };
+        if (sim.knockout) { const p = w.ps.find((q) => q.id === id); if (p?.alive) { p.alive = false; p.outAt = w.t; } }
+      }
+      while (acc >= STEP) { hostPrev = { ...w, ps: w.ps.map((p) => ({ ...p })) }; sim.step(w, inputs, STEP); acc -= STEP; const r = sim.result(w); if (r) { ended = r; break; } }
+      // nobody left to play with: it ends now, places as they stand (and the Ink's paid)
+      if (!ended && ids.length > 1 && ids.every((id) => id === myId || dropped.has(id))) ended = sim.standings(w);
+      if (now - lastSent >= SNAP_MS || ended) { lastSent = now; ch.send({ t: 's', e: epoch, k: ++seq, h: myId, w: snap3(w) }); }
+      if (ended) { const r = ended; ch.send({ t: 'end', r }); setTimeout(() => ch.send({ t: 'end', r }), 700); setTimeout(() => ch.send({ t: 'end', r }), 1800); finish(); }
+    };
+    const stopTicker = workerTicker(1000 / 30, hostStep);
+    // the host says it's still here; if someone else has taken over meanwhile, it steps down
+    const pinger = setInterval(() => {
+      if (!amHost || ended || stop) return;
+      api.homeGamePing(game.id).then((r) => { if (r.host && r.host !== myId && amHost) { amHost = false; inCh?.close(); inCh = null; mine = null; lastSnap = performance.now(); } }).catch(() => {});
+    }, PING_MS);
+
     const tick = () => {
       if (stop) return;
       raf = requestAnimationFrame(tick);
@@ -107,14 +167,8 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       if (since < 0) setCount(Math.ceil(-since / 1000));
       else if (phaseRef.current === 'count') { phaseRef.current = 'play'; setPhase('play'); sfx.coin(); }
       let view: W3 = w;
-      if (host) {
-        if (since >= 0 && !ended) {
-          acc += dtF;
-          inputs[myId] = input.current;
-          while (acc >= STEP) { hostPrev = { ...w, ps: w.ps.map((p) => ({ ...p })) }; sim.step(w, inputs, STEP); acc -= STEP; const r = sim.result(w); if (r) { ended = r; break; } }
-          if (now - lastSnap >= SNAP_MS || ended) { lastSnap = now; ch.send({ t: 's', k: ++seq, w: snap3(w) }); }
-          if (ended) { const r = ended; ch.send({ t: 'end', r }); setTimeout(() => ch.send({ t: 'end', r }), 700); setTimeout(() => ch.send({ t: 'end', r }), 1800); finish(); }
-        }
+      if (amHost) {
+        hostStep();
         view = hostPrev && !ended ? blend(hostPrev, w, Math.min(1, acc / STEP)) : w;
       } else {
         // everyone else: drawn a moment in the past, between the two snapshots either side
@@ -124,27 +178,41 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
         view = rt >= b.t || a === b ? b.w : blend(a.w, b.w, Math.max(0, Math.min(1, (rt - a.t) / (b.t - a.t || 1))));
         // you: moved here, right away
         if (mine && since >= 0 && !ended) {
-          acc += dtF;
-          const live = w;
-          while (acc >= STEP) { sim.move(live, mine, input.current, STEP); acc -= STEP; }
+          accG += dtF;
+          while (accG >= STEP) { sim.move(w, mine, input.current, STEP); accG -= STEP; }
           fixX *= Math.pow(0.002, dtF); fixZ *= Math.pow(0.002, dtF);
         }
         if (mine) { const me = mine; view = { ...view, ps: view.ps.map((p) => (p.id === myId ? { ...p, x: me.x + fixX, z: me.z + fixZ, y: me.y, face: me.face, on: me.on, alive: p.alive } : p)) }; }
+        // the host's gone quiet: the next one in line offers to take over
+        const quiet = now - lastSnap;
+        if (since > 1500 && !ended) {
+          const line = ids.filter((id) => id !== hostId), rank = Math.max(0, line.indexOf(myId));
+          if (quiet > 1800 && !waiting) { waiting = true; setNote('📡 Waiting for the host…'); }
+          if (quiet > QUIET_MS + rank * 1500 && !trying && now - tryAt > 1500) {
+            trying = true; tryAt = now;
+            const oldHost = hostId;
+            api.homeGameTakeover(game.id)
+              .then((g) => { trying = false; if (!stop && !ended && g.host === myId && !amHost && performance.now() - lastSnap > QUIET_MS) takeOver(oldHost); })
+              .catch((e) => { trying = false; if (toGameError(e).code === 'match_closed' && !ended) { ended = {}; finish(); } });
+          }
+          if (quiet > LOST_MS) { ended = {}; setPhase('gone'); void (async () => { for (let k = 0; k < 40 && !stop; k++) { try { const r = await api.homeGameGet(game.id); if (r.status === 'done' || r.status === 'cancelled') { setFinal(r); setPhase('end'); return; } } catch { /* keep trying */ } await new Promise((res) => setTimeout(res, 3000)); } })(); }
+        }
       }
-      if (!host && since > 2500 && !ended && now - lastSnap > GONE_MS) { ended = {}; setPhase('gone'); }
       world.frame(view, now / 1000, since < 0 ? Math.min(1, -since / 4000) : 0);
       if (now - hudAt > 150) { hudAt = now; setHud(view); }
-      (window as unknown as { __live3d: unknown }).__live3d = { w, host, input: input.current };
+      (window as unknown as { __live3d: unknown }).__live3d = { w, host: amHost, input: input.current, epoch };
     };
     raf = requestAnimationFrame(tick);
-    // guests: send the stick when it changes (rounded, so a steady stick sends nothing new)
-    let sentKey = '', sentAt = 0;
+    // guests: send the stick to the host when it changes (rounded, so a steady stick sends nothing new), and a
+    // little "still here" every second
+    let sentKey = '', sentAt = 0, viaMain = !backend.liveSend;
+    const send = (m: Msg) => { if (viaMain) { ch.send(m); return; } void backend.liveSend!(`hgi:${game.id}`, m).then((ok) => { if (!ok) { viaMain = true; ch.send(m); } }); };
     const tx = setInterval(() => {
-      if (host || ended || Date.now() < startAt - 300) return;
+      if (amHost || ended || Date.now() < startAt - 300) return;
       const i = quant(input.current), key = `${i.x},${i.y},${i.b}`, n = performance.now();
-      if (key !== sentKey || n - sentAt > 1000) { sentKey = key; sentAt = n; ch.send({ t: 'i', id: myId, i }); }
-    }, 50);
-    return () => { stop = true; cancelAnimationFrame(raf); clearInterval(tx); ch.close(); world.dispose(); delete (window as unknown as { __live3d?: unknown }).__live3d; };
+      if ((key !== sentKey && n - sentAt >= 90) || n - sentAt > 1000) { sentKey = key; sentAt = n; send({ t: 'i', id: myId, i }); }
+    }, 45);
+    return () => { stop = true; cancelAnimationFrame(raf); clearInterval(tx); clearInterval(pinger); stopTicker(); ch.close(); inCh?.close(); world.dispose(); delete (window as unknown as { __live3d?: unknown }).__live3d; };
   }, [game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the soundtrack: a chase for tag, tiptoeing then a dark lantern theme for hide & seek, a rumble for the lava,
@@ -209,7 +277,8 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
           </motion.div>
         )}
       </AnimatePresence>
-      {phase === 'gone' && <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center"><div className="grid gap-3"><div className="text-4xl">📡</div><b>The host dropped out</b><Button variant="rainbow" onClick={onClose}>Back to the house</Button></div></div>}
+      {note && phase === 'play' && <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center" data-testid="live3d-note"><span className="rounded-full bg-black/70 px-4 py-2 text-xs font-bold">{note}</span></div>}
+      {phase === 'gone' && <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center"><div className="grid gap-3"><div className="text-4xl">📡</div><b>Lost the connection to this game</b><span className="text-sm text-white/70">If it finishes, your places and Ink still count.</span><Button variant="rainbow" onClick={onClose}>Back to the house</Button></div></div>}
       {phase === 'end' && <PartyResults g={final} myId={myId} onClose={onClose} />}
     </div>
   );

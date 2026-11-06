@@ -50,6 +50,8 @@ export interface Backend {
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;
   /** A low-latency message channel shared by everyone in one live group (positions on a planet). */
   liveChannel?(name: string, onMessage: (m: unknown) => void): { send(m: unknown): void; close(): void };
+  /** send to a live channel without listening to it (so you don't get everyone else's messages too) */
+  liveSend?(name: string, m: unknown): Promise<boolean>;
   resetLocalData?(): Promise<void>;
 }
 
@@ -86,6 +88,7 @@ const MESSAGES: Record<string, string> = {
   match_closed: 'That game has already started or closed.',
   match_full: 'That game is full (4 players).',
   not_host: 'Only the player who set it up can start it.',
+  host_here: 'The host is still here.',
   need_players: 'Wait for at least one more player to join.',
   mixed_plot_kinds: 'Only plots of the same type can merge (art with art, arcades with arcades…) — switch one first.',
   habitat_plot: 'This plot is an Inkborn Habitat. Switch it back to an Art Canvas to publish art.',

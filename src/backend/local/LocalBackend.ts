@@ -303,6 +303,13 @@ export class LocalBackend implements Backend {
   }
 
   /** Same-device stand-in for realtime: other tabs of this browser. */
+  private sendOnly = new Map<string, BroadcastChannel>();
+  async liveSend(name: string, m: unknown) {
+    if (typeof BroadcastChannel === 'undefined') return false;
+    let ch = this.sendOnly.get(name); if (!ch) { ch = new BroadcastChannel(`landvas-live:${name}`); this.sendOnly.set(name, ch); }
+    ch.postMessage(m); return true;
+  }
+
   liveChannel(name: string, onMessage: (m: unknown) => void) {
     if (typeof BroadcastChannel === 'undefined') return { send() {}, close() {} };
     const ch = new BroadcastChannel(`landvas-live:${name}`);

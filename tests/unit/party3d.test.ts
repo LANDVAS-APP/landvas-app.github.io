@@ -25,6 +25,7 @@ describe('3D party games', () => {
     it(`${id} with ${n} finishes`, () => {
       const { res, ids, maxSnap, w } = run(id, n, n * 7);
       valid(res, ids);
+      valid(SIMS3[id].standings(w), ids);
       expect(maxSnap).toBeLessThan(4500);
       for (const p of w.ps) { expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true); }
     });

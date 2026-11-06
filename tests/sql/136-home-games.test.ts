@@ -70,6 +70,24 @@ describe('House party games', () => {
     }
   });
 
+  it('if the host goes quiet, another player can take over (but not while the host is still pinging)', async () => {
+    const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: 'snow' });
+    await db.rpc(P[1], 'home_game_join', { p_game: g.id });
+    await db.rpc(P[0], 'home_game_start', { p_game: g.id });
+    await db.sql(`update home_games set started_at = now() - interval '30 seconds' where id = $1`, [g.id]);
+    expect((await db.rpc(P[0], 'home_game_ping', { p_game: g.id })).host).toBe(P[0]);
+    await expectError(db.rpc(P[1], 'home_game_takeover', { p_game: g.id }), 'host_here');
+    await expectError(db.rpc(P[2], 'home_game_takeover', { p_game: g.id }), 'not_found');
+    await db.sql(`update home_games set host_seen_at = now() - interval '10 seconds' where id = $1`, [g.id]);
+    expect((await db.rpc(P[1], 'home_game_takeover', { p_game: g.id })).host).toBe(P[1]);
+    // the old host finds out, and can't report any more; the new one can
+    expect((await db.rpc(P[0], 'home_game_ping', { p_game: g.id })).host).toBe(P[1]);
+    await expectError(db.rpc(P[0], 'home_game_report', { p_game: g.id, p_places: { [P[0]]: 1, [P[1]]: 2 } }), 'not_host');
+    const done = await db.rpc(P[1], 'home_game_report', { p_game: g.id, p_places: { [P[0]]: 2, [P[1]]: 1 } });
+    expect(done.status).toBe('done');
+    await expectError(db.rpc(P[1], 'home_game_takeover', { p_game: g.id }), 'match_closed');
+  });
+
   it('two-player games take two', async () => {
     const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: 'fourrow' });
     await db.rpc(P[1], 'home_game_join', { p_game: g.id });

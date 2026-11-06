@@ -24,6 +24,10 @@ export type Sim3<W extends W3 = W3> = {
    *  straight away instead of waiting for the host */
   move(w: W, p: P3, i: In3 | undefined, dt: number): void;
   result(w: W): Record<string, number> | null;
+  /** the places right now (for ending early when people have gone) */
+  standings(w: W): Record<string, number>;
+  /** knock-out games: someone who's left counts as out */
+  knockout?: boolean;
 };
 
 const G = 24, RAD = 0.42;
@@ -184,6 +188,7 @@ export const tag: Sim3<TagW> = {
     if (w.t >= w.dur) w.over = true;
   },
   result: (w) => (w.over ? placesBy(Object.fromEntries(Object.entries(w.pts).map(([k, v]) => [k, Math.round(v)]))) : null),
+  standings: (w) => placesBy(Object.fromEntries(Object.entries(w.pts).map(([k, v]) => [k, Math.round(v)]))),
 };
 
 // ======================================================================================================================
@@ -291,6 +296,7 @@ export const hide: Sim3<HSW> = {
     } else if (w.phase === 'between' && w.t >= w.ends) { w.round++; if (w.round >= w.rounds) { w.phase = 'done'; w.over = true; } else hsStart(w); }
   },
   result: (w) => (w.phase === 'done' ? placesBy(w.pts) : null),
+  standings: (w) => placesBy(w.pts),
 };
 
 // ======================================================================================================================
@@ -327,7 +333,7 @@ function lavaGround(w: LavaW, p: P3, py: number) {
 }
 const setTile = (w: LavaW, L: number, i: number, c: string) => { const s = w.tiles[L]; w.tiles[L] = s.slice(0, i) + c + s.slice(i + 1); };
 export const lava: Sim3<LavaW> = {
-  id: 'lava', name: 'Floor is Lava', emoji: '🌋', color: '#FF7A3D', min: 2, max: 8, action: '⬆ Jump', place: 'Volcano Lake',
+  id: 'lava', knockout: true, name: 'Floor is Lava', emoji: '🌋', color: '#FF7A3D', min: 2, max: 8, action: '⬆ Jump', place: 'Volcano Lake',
   blurb: 'Every tile you touch crumbles into the lava. Keep moving — last one standing wins!', how: 'Run and jump across the tiles. Each one cracks and falls a moment after you step on it. Drop through and you land on the floor below — red mushrooms bounce you back up. Then the lava starts rising…',
   init(ids, seed) { const m = lavaMap(seed, ids.length); return { t: 0, ps: ring(ids, 3.6, rng(seed)() * 6), seed, tiles: m.tiles, N: m.N, crack: {}, done: false, lava: LAVA.LAVA }; },
   move(w, p, i, dt) {
@@ -355,6 +361,7 @@ export const lava: Sim3<LavaW> = {
     if (alive <= (w.ps.length > 1 ? 1 : 0) || w.t > 200) w.over = true;
   },
   result: (w) => (w.over ? byLasting(w) : null),
+  standings: (w) => byLasting(w),
 };
 
 // ======================================================================================================================
@@ -374,7 +381,7 @@ function chairsDeal(w: ChairW) {
   const r = rng(w.seed + w.round * 97); w.phase = 'music'; w.ends = w.t + 6 + r() * 7; w.chairs = []; w.lost = [];
 }
 export const chairs: Sim3<ChairW> = {
-  id: 'chairs', name: 'Musical Chairs', emoji: '🪑', color: '#FFB13D', min: 3, max: 8, action: '💨 Shove', place: 'Grand Ballroom',
+  id: 'chairs', knockout: true, name: 'Musical Chairs', emoji: '🪑', color: '#FFB13D', min: 3, max: 8, action: '💨 Shove', place: 'Grand Ballroom',
   blurb: 'Dance while the music plays. When it stops — grab a chair! There’s always one too few.', how: 'Move round the ballroom while the music plays. The moment it stops, chairs appear: run and sit on one. Whoever’s left standing is out. Watch out for the polished floor — it’s slippery! 💨 Shove to bump people out of the way.',
   init(ids, seed) { const m = ballMap(seed, ids.length); const w: ChairW = { t: 0, ps: ring(ids, 2.4, rng(seed)() * 6), obs: m.obs, R: m.R, seed, phase: 'music', ends: 0, round: 0, chairs: [], lost: [] }; chairsDeal(w); return w; },
   move(w, p, i, dt) {
@@ -416,6 +423,7 @@ export const chairs: Sim3<ChairW> = {
     }
   },
   result: (w) => (w.over ? byLasting(w) : null),
+  standings: (w) => byLasting(w),
 };
 
 // ======================================================================================================================
@@ -431,7 +439,7 @@ export function floeMap(seed: number, n: number) {
   return { R0, obs };
 }
 export const sumo: Sim3<SumoW> = {
-  id: 'sumo', name: 'Iceberg Sumo', emoji: '🧊', color: '#4FC3F7', min: 2, max: 8, action: '💥 Bump', place: 'Frosty Floe',
+  id: 'sumo', knockout: true, name: 'Iceberg Sumo', emoji: '🧊', color: '#4FC3F7', min: 2, max: 8, action: '💥 Bump', place: 'Frosty Floe',
   blurb: 'A slippery iceberg that keeps shrinking. Bump everyone else into the sea — last one on the ice wins!', how: 'Slide about on the ice (it’s slippery!). 💥 Bump charges forward and sends anyone you hit flying. Snow drifts give you grip. The iceberg melts smaller and smaller — don’t fall in!',
   init(ids, seed) { const m = floeMap(seed, ids.length); return { t: 0, ps: ring(ids, m.R0 * 0.6, rng(seed)() * 6), obs: m.obs, seed, R0: m.R0, Rmin: 3.4, ice: m.R0 }; },
   move(w, p, i, dt) {
@@ -451,6 +459,7 @@ export const sumo: Sim3<SumoW> = {
     if (w.ps.filter((p) => p.alive).length <= (w.ps.length > 1 ? 1 : 0) || w.t > 150) w.over = true;
   },
   result: (w) => (w.over ? byLasting(w) : null),
+  standings: (w) => byLasting(w),
 };
 
 // ======================================================================================================================
@@ -498,6 +507,7 @@ export const paint: Sim3<PaintW> = {
     if (w.t >= w.dur) w.over = true;
   },
   result: (w) => (w.over ? placesBy(paintCounts(w)) : null),
+  standings: (w) => placesBy(paintCounts(w)),
 };
 
 // ======================================================================================================================
@@ -557,6 +567,7 @@ export const snow: Sim3<SnowW> = {
     if (w.t >= w.dur) w.over = true;
   },
   result: (w) => (w.over ? placesBy(w.hits) : null),
+  standings: (w) => placesBy(w.hits),
 };
 
 // ======================================================================================================================
@@ -622,6 +633,7 @@ export const redlight: Sim3<RLW> = {
     if (w.ps.every((p) => w.done[p.id] != null) || w.t >= w.dur) w.over = true;
   },
   result: (w) => (w.over ? placesBy(Object.fromEntries(w.ps.map((p) => [p.id, w.done[p.id] != null ? 1e6 - Math.round(w.done[p.id] * 100) : -Math.round(p.z * 100)]))) : null),
+  standings: (w) => placesBy(Object.fromEntries(w.ps.map((p) => [p.id, w.done[p.id] != null ? 1e6 - Math.round(w.done[p.id] * 100) : -Math.round(p.z * 100)]))),
 };
 
 // ======================================================================================================================
@@ -675,6 +687,7 @@ export const gems: Sim3<GemW> = {
     if (w.t >= w.dur) w.over = true;
   },
   result: (w) => (w.over ? placesBy(w.bag) : null),
+  standings: (w) => placesBy(w.bag),
 };
 
 export const SIMS3: Record<string, Sim3<any>> = { tag, hide, lava, chairs, sumo, paint, snow, redlight, gems }; // eslint-disable-line @typescript-eslint/no-explicit-any
