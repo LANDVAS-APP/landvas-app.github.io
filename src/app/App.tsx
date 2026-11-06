@@ -12,6 +12,7 @@ import { api } from '../backend/api';
 import { config } from '../env';
 import { useMe } from '../lib/queries';
 import { ConfirmProvider, Spinner, TipProvider } from '../ui';
+import { MaintenanceGate } from './Maintenance';
 import { Shell } from './Shell';
 import { MapScreen } from '../screens/MapScreen';
 import { Welcome } from '../screens/Welcome';
@@ -268,6 +269,7 @@ export function App() {
       <TipProvider>
         <ConfirmProvider>
           <RouterProvider router={router} />
+          <MaintenanceGate />
           <Toaster position="top-center" theme="system" toastOptions={{ className: 'glass !rounded-2xl !text-fg !bg-[var(--glass)] !border-[var(--line)]' }} />
         </ConfirmProvider>
       </TipProvider>

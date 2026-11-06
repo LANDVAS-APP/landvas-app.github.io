@@ -71,10 +71,18 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping functions"; exit 0; fi
           node scripts/build-functions.mjs
+          failed=0
           for fn in minigame-finish pipeline admob-ssv; do
             npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api \
-              || npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+              || npx supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt || failed=1
           done
+          # Supabase down, but this push doesn't change any function: publish the site anyway
+          BEFORE="${{ github.event.before }}"
+          if [ "$failed" = 1 ]; then
+            if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE" 2>/dev/null && [ -z "$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- supabase/functions scripts/build-functions.mjs)" ]; then
+              echo "::warning::Edge Functions couldn't be deployed (Supabase unreachable) — unchanged in this push, so carrying on"
+            else exit 1; fi
+          fi
       - name: Build web app
         run: |
           export LANDVAS_BUILD_ID="${GITHUB_SHA::7}"
