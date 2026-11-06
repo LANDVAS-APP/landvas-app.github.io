@@ -5,69 +5,13 @@
 // (flowers, grass, fence pickets, lava tiles) are instanced, and only the tall things that can hide you get
 // their own meshes (so they can fade out when they're between the camera and you).
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { rng } from '../party/kit';
-import { LAVA, SOFT_REVEAL, sees, softAt, type ChairW, type HSW, type LavaW, type Ob, type P3, type TagW, type W3 } from './sims';
-
-export type Seat3 = { id: string; name: string; color: string; url: string };
-type Ctx = {
-  scene: THREE.Scene; root: THREE.Group; dyn: THREE.Group; props: THREE.Group[]; w: W3; obs: Ob[]; phone: boolean; r: () => number;
-  T: <X extends { dispose(): void }>(x: X) => X;
-  std: (c: string, p?: THREE.MeshStandardMaterialParameters) => THREE.MeshStandardMaterial;
-  tex: (w: number, h: number, d: (g: CanvasRenderingContext2D) => void, rep?: number) => THREE.CanvasTexture;
-  prop: () => THREE.Group;
-};
-type Env = { update(w: W3, t: number, dt: number): void; sky: string; fog: [string, number, number]; light: 'day' | 'night' | 'lava' | 'ball'; hidden?(w: W3, viewer: P3 | undefined, other: P3): number; occluders?: THREE.Object3D[] };
-const mesh = (ctx: Ctx, g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = ctx.root) => { const o = new THREE.Mesh(ctx.T(g), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; };
-const flat = (o: THREE.Object3D) => { o.rotation.x = -Math.PI / 2; o.castShadow = false; return o; };
-
-/** merge every plain mesh under a group into one mesh per material (and shadow setting) */
-function bake(group: THREE.Group, T: Ctx['T']) {
-  group.updateMatrixWorld(true);
-  const by = new Map<string, { m: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>();
-  const gone: THREE.Mesh[] = [];
-  group.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || o.userData.keep || Array.isArray(o.material)) return;
-    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k);
-    if (!g.attributes.uv || !g.attributes.normal) { g.dispose(); return; }
-    g.clearGroups(); g.applyMatrix4(o.matrixWorld);
-    const key = o.material.uuid + (o.castShadow ? '1' : '0');
-    let b = by.get(key); if (!b) by.set(key, (b = { m: o.material, cast: o.castShadow, geos: [] }));
-    b.geos.push(g); gone.push(o);
-  });
-  for (const o of gone) o.removeFromParent();
-  for (const c of [...group.children]) if (!c.userData.keep) c.removeFromParent();
-  group.position.set(0, 0, 0); group.rotation.set(0, 0, 0); group.scale.set(1, 1, 1); group.updateMatrixWorld(true);
-  for (const b of by.values()) {
-    const merged = mergeGeometries(b.geos); b.geos.forEach((g) => g.dispose());
-    if (!merged) continue;
-    const m = new THREE.Mesh(T(merged), b.m); m.castShadow = b.cast; m.receiveShadow = true; group.add(m);
-  }
-}
-/** lots of the same little thing in one draw call */
-type Inst = { x: number; y: number; z: number; s?: number; sy?: number; ry?: number; rx?: number; c?: string };
-function scatter(ctx: Ctx, geo: THREE.BufferGeometry, mat: THREE.Material, items: Inst[], shadow = false) {
-  const im = new THREE.InstancedMesh(ctx.T(geo), mat, Math.max(1, items.length));
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
-  items.forEach((it, i) => { q.setFromEuler(e.set(it.rx ?? 0, it.ry ?? 0, 0)); m4.compose(v.set(it.x, it.y, it.z), q, sc.set(it.s ?? 1, it.sy ?? it.s ?? 1, it.s ?? 1)); im.setMatrixAt(i, m4); if (it.c) im.setColorAt(i, col.set(it.c)); });
-  im.count = items.length; im.castShadow = shadow; im.receiveShadow = true; im.userData.keep = true; ctx.scene.add(im); return im;
-}
-/** a fence or wall of posts round a square map */
-function perimeter(ctx: Ctx, H: number, every: number, f: (x: number, z: number, along: 'x' | 'z') => void) {
-  for (let k = -H; k <= H + 0.01; k += every) { f(k, -H, 'x'); f(k, H, 'x'); f(-H, k, 'z'); f(H, k, 'z'); }
-}
-/** points that drift (fireflies, embers, sparkles) */
-function motes(ctx: Ctx, n: number, color: string, size: number) {
-  const pos = new Float32Array(n * 3), g = ctx.T(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = ctx.T(new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
-  const pts = new THREE.Points(g, m); pts.frustumCulled = false; ctx.scene.add(pts);
-  return { pts, pos, m, done: () => { g.attributes.position.needsUpdate = true; } };
-}
-function grassTex(ctx: Ctx, base: string, a: string, b: string, seed: number, rep: number) {
-  return ctx.tex(512, 512, (g) => { g.fillStyle = base; g.fillRect(0, 0, 512, 512); const r = rng(seed); for (let i = 0; i < 6000; i++) { g.fillStyle = r() < 0.5 ? a : b; g.fillRect(r() * 512, r() * 512, 2, 4); } }, rep);
-}
+import { LAVA, SOFT_REVEAL, sees, softAt, type ChairW, type HSW, type LavaW, type Ob, type TagW, type W3 } from './sims';
+import { bake, flat, grassTex, mesh, motes, padArt, perimeter, scatter, type Ctx, type Env, type Inst } from './kit3d';
+import { ENVS2 } from './worlds2';
+export type { Seat3 } from './kit3d';
+import type { Seat3 } from './kit3d';
 
 // ---- Candy Park (tag) ------------------------------------------------------------------------------------------------
 const CANDY = ['#FF9FD6', '#9FE8FF', '#C9F28C', '#FFD59F', '#D5B3FF'];
@@ -82,7 +26,7 @@ function candyPark(ctx: Ctx): Env {
   const pick: Inst[] = []; perimeter(ctx, H, 0.7, (x, z) => pick.push({ x, y: 0.45, z }));
   scatter(ctx, new THREE.BoxGeometry(0.12, 0.9, 0.12), ctx.std('#FFFFFF', { roughness: 0.6 }), pick, true);
   for (const s of [-1, 1]) { mesh(ctx, new THREE.BoxGeometry(2 * H, 0.08, 0.06), ctx.std('#FFFFFF'), 0, 0.65, s * H); mesh(ctx, new THREE.BoxGeometry(0.06, 0.08, 2 * H), ctx.std('#FFFFFF'), s * H, 0.65, 0); }
-  const water: THREE.Mesh[] = [], swings: THREE.Object3D[] = [], arrows: THREE.CanvasTexture[] = [], tramps: { m: THREE.Mesh; x: number; z: number; k: number }[] = [];
+  const water: THREE.Mesh[] = [], swings: THREE.Object3D[] = [], padUps: NonNullable<ReturnType<typeof padArt>>[] = [];
   const stripes = (c: string) => ctx.tex(128, 128, (g) => { g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, 128, 128); g.fillStyle = c; for (let i = -128; i < 256; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + 128, 128); g.lineTo(i + 128, 128); g.fill(); } }, 1);
   const stripeMs = ['#FF3D6E', '#22B8CF', '#3DDC97', '#8B5CFF'].map((c) => ctx.std('#ffffff', { map: stripes(c), roughness: 0.4 }));
   for (const o of ctx.obs) {
@@ -153,18 +97,7 @@ function candyPark(ctx: Ctx): Env {
       mesh(ctx, new THREE.CylinderGeometry(0.07, 0.09, 3, 8), stripeMs[0], o.x, 1.5, o.z);
       mesh(ctx, new THREE.SphereGeometry(0.24, 12, 10), ctx.std('#FFF6D0', { emissive: '#FFE38A', emissiveIntensity: 1.2 }), o.x, 3.1, o.z);
     }
-    if (o.k === 'z' && o.m === 'boost') {
-      const t = ctx.tex(64, 128, (g) => { g.fillStyle = '#FF3D9A'; g.fillRect(0, 0, 64, 128); g.fillStyle = '#FFE14D'; for (let y = 0; y < 128; y += 32) { g.beginPath(); g.moveTo(8, y + 26); g.lineTo(32, y + 6); g.lineTo(56, y + 26); g.lineTo(46, y + 26); g.lineTo(32, y + 14); g.lineTo(18, y + 26); g.fill(); } }, 1);
-      t.repeat.set(1, 1.5); arrows.push(t);
-      const p = mesh(ctx, new THREE.PlaneGeometry(1.5, 2.6), ctx.std('#ffffff', { map: t, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.45, roughness: 0.4 }), o.x, 0.02, o.z, ctx.dyn); flat(p); p.rotation.z = (o.a ?? 0) + Math.PI;
-    }
-    if (o.k === 'z' && o.m === 'bounce') {
-      mesh(ctx, new THREE.TorusGeometry(0.9, 0.12, 8, 28), ctx.std('#22B8CF', { roughness: 0.4 }), o.x, 0.35, o.z).rotation.x = Math.PI / 2;
-      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; mesh(ctx, new THREE.CylinderGeometry(0.05, 0.05, 0.35, 6), ctx.std('#555'), o.x + Math.sin(a) * 0.85, 0.17, o.z + Math.cos(a) * 0.85); }
-      const mat = mesh(ctx, new THREE.CircleGeometry(0.85, 28), ctx.std('#1B1B2E', { roughness: 0.6 }), o.x, 0.34, o.z, ctx.dyn); flat(mat);
-      tramps.push({ m: mat, x: o.x, z: o.z, k: 0 });
-    }
-    if (o.k === 'z' && o.m === 'goo') { const g = mesh(ctx, new THREE.CircleGeometry(o.r, 28), ctx.std('#FF7AC8', { roughness: 0.08, metalness: 0.1, emissive: '#FF3D9A', emissiveIntensity: 0.15 }), o.x, 0.02, o.z); flat(g); g.scale.set(1, 0.8 + (o.r % 0.2), 1); }
+    const pa = padArt(ctx, o); if (pa) padUps.push(pa);
   }
   // flowers and tufts all over the grass
   const fl: Inst[] = [], tufts: Inst[] = [];
@@ -183,10 +116,9 @@ function candyPark(ctx: Ctx): Env {
       water.forEach((d, i) => { const o = d.userData.o as Ob, p = (t * 0.9 + i / 10) % 1, a = (i / 10) * Math.PI * 2; d.position.set(o.x + Math.sin(a) * p * 1.2, 2 + Math.sin(p * Math.PI) * 0.5 - p * 1.3, o.z + Math.cos(a) * p * 1.2); });
       balloons.forEach((b, i) => { b.position.y = 3 + Math.sin(t * 1.3 + i) * 0.2; });
       swings.forEach((s, i) => { s.rotation.x = Math.sin(t * 2 + i) * 0.35; });
-      arrows.forEach((a) => { a.offset.y = -t * 1.6; });
+      padUps.forEach((p) => p.update(w, t, dt));
       clouds.forEach((c) => { c.position.x += dt * 0.6; if (c.position.x > H + 30) c.position.x = -H - 30; });
       hab.position.y = 14 + Math.sin(t * 0.4) * 1.2;
-      for (const tr of tramps) { const on = w.ps.some((p) => Math.hypot(p.x - tr.x, p.z - tr.z) < 0.9 && p.y < 0.6 && p.vy > 3); if (on) tr.k = 1; tr.k = Math.max(0, tr.k - dt * 4); tr.m.position.y = 0.34 - tr.k * 0.25; }
       void (w as TagW);
     },
   };
@@ -446,7 +378,7 @@ function ballroom(ctx: Ctx): Env {
   };
 }
 
-const ENVS: Record<string, (ctx: Ctx) => Env> = { tag: candyPark, hide: moonGarden, lava: volcano, chairs: ballroom };
+const ENVS: Record<string, (ctx: Ctx) => Env> = { tag: candyPark, hide: moonGarden, lava: volcano, chairs: ballroom, ...ENVS2 };
 
 export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seats: Seat3[]; me: string; world: W3; reduceMotion?: boolean }) {
   const phone = isPhone();
@@ -463,15 +395,17 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
   const tex = (w: number, h: number, d: (g: CanvasRenderingContext2D) => void, rep = 1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; d(c.getContext('2d')!); const t = T(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 4; return t; };
   const root = new THREE.Group(), dyn = new THREE.Group(), props: THREE.Group[] = [];
   scene.add(root, dyn);
-  const ctx: Ctx = { scene, root, dyn, props, T, std, tex, w: o.world, obs: o.world.obs ?? [], phone, r: rng(o.world.seed * 31 + 7), prop: () => { const g = new THREE.Group(); scene.add(g); props.push(g); return g; } };
+  const ctx: Ctx = { scene, root, dyn, props, T, std, tex, w: o.world, obs: o.world.obs ?? [], phone, r: rng(o.world.seed * 31 + 7), colors: o.seats.map((s) => s.color), prop: () => { const g = new THREE.Group(); scene.add(g); props.push(g); return g; } };
   const env = ENVS[o.game](ctx);
   // squash the still scenery into a few draw calls
   bake(root, T); for (const g of props) bake(g, T);
   scene.background = new THREE.Color(env.sky); scene.fog = new THREE.Fog(env.fog[0], env.fog[1], env.fog[2]);
   // light by mood
   const L = env.light;
-  scene.add(new THREE.HemisphereLight(L === 'night' ? '#4A5FA8' : L === 'lava' ? '#FF9A6B' : L === 'ball' ? '#C9A0FF' : '#FFFFFF', L === 'night' ? '#0B1430' : '#3A2A20', L === 'night' ? 0.65 : L === 'ball' ? 1.15 : 1.1));
-  const sun = new THREE.DirectionalLight(L === 'night' ? '#9FB4FF' : L === 'lava' ? '#FFB27A' : '#FFF4E0', L === 'night' ? 0.8 : L === 'ball' ? 0.9 : 2.2);
+  const LIGHT = { day: ['#FFFFFF', '#3A2A20', 1.1, '#FFF4E0', 2.2], night: ['#4A5FA8', '#0B1430', 0.65, '#9FB4FF', 0.8], lava: ['#FF9A6B', '#3A2A20', 1.1, '#FFB27A', 2.2], ball: ['#C9A0FF', '#3A2A20', 1.15, '#FFF4E0', 0.9], snow: ['#DCEBFF', '#5A6B8A', 1.15, '#F2F6FF', 1.7], dusk: ['#FFC9A8', '#3A2A4A', 1.05, '#FFB37A', 2.0] } as const;
+  const [skyC, groundC, hemi, sunC, sunI] = LIGHT[L];
+  scene.add(new THREE.HemisphereLight(skyC, groundC, hemi));
+  const sun = new THREE.DirectionalLight(sunC, sunI);
   sun.castShadow = true; sun.shadow.mapSize.set(phone ? 1024 : 2048, phone ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 60 }); sun.shadow.bias = -0.0005;
   scene.add(sun, sun.target);
@@ -516,7 +450,7 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
   const resize = () => { const rc = o.canvas.getBoundingClientRect(); if (!rc.width) return; renderer.setSize(rc.width, rc.height, false); camera.aspect = rc.width / rc.height; camera.updateProjectionMatrix(); };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
   let last = performance.now();
-  const span = o.world.H ?? o.world.R ?? ((o.world as LavaW).N ?? 10) * LAVA.S / 2;
+  const span = o.world.H ?? o.world.R ?? o.world.HX ?? (o.world as { R0?: number }).R0 ?? ((o.world as LavaW).N ?? 10) * LAVA.S / 2;
 
   return {
     /** draw one frame: w is what to show right now (already smoothed), t the time */

@@ -15,7 +15,7 @@ export type Ob =
   | { k: 'z'; x: number; z: number; r: number; m: 'boost' | 'bounce' | 'goo' | 'ice'; a?: number; v?: number }
   | { k: 'd'; x: number; z: number; m: string; a?: number; v?: number; s?: number };
 /** H: half the size of a square map; R: the radius of a round one */
-export type W3 = { t: number; ps: P3[]; obs?: Ob[]; seed: number; over?: boolean; H?: number; R?: number };
+export type W3 = { t: number; ps: P3[]; obs?: Ob[]; seed: number; over?: boolean; H?: number; R?: number; HX?: number; HZ?: number };
 export type Sim3<W extends W3 = W3> = {
   id: string; name: string; emoji: string; color: string; min: number; max: number; blurb: string; how: string; action: string; place: string;
   init(ids: string[], seed: number): W;
@@ -32,19 +32,20 @@ type Zone = Extract<Ob, { k: 'z' }>;
 export const zoneAt = (obs: Ob[] | undefined, x: number, z: number) => (obs ?? []).find((o) => o.k === 'z' && Math.hypot(x - o.x, z - o.z) < o.r) as Zone | undefined;
 
 /** walking, dashing, jumping and falling, for one player */
-function drive(p: P3, i: In3 | undefined, dt: number, o: { speed: number; jump?: boolean; dash?: boolean; dashCd?: number; zone?: Zone }) {
+function drive(p: P3, i: In3 | undefined, dt: number, o: { speed: number; jump?: boolean; dash?: boolean; dashCd?: number; zone?: Zone; grip?: number; dashV?: number }) {
   if (!p.alive) return;
   p.cd = Math.max(0, p.cd - dt); p.dash = Math.max(0, p.dash - dt);
   let ix = i?.x ?? 0, iz = i?.y ?? 0; const l = Math.hypot(ix, iz);
   if (l > 1) { ix /= l; iz /= l; }
   if (p.stun > 0) { p.stun -= dt; ix = 0; iz = 0; }
-  const goo = p.on && o.zone?.m === 'goo', ice = p.on && o.zone?.m === 'ice';
-  const speed = o.speed * (goo ? 0.45 : 1), ctl = p.on ? (ice ? 1.3 : 10) : 3;
+  // goo slows you down; snow drifts (goo with v 1) just give you grip
+  const drift = p.on && o.zone?.m === 'goo' && o.zone.v === 1, goo = p.on && o.zone?.m === 'goo' && !drift, ice = p.on && o.zone?.m === 'ice';
+  const speed = o.speed * (goo ? 0.45 : 1), ctl = p.on ? (ice ? 1.3 : goo || drift ? 10 : o.grip ?? 10) : 3;
   if (p.dash <= 0) { p.vx += (ix * speed - p.vx) * Math.min(1, dt * ctl); p.vz += (iz * speed - p.vz) * Math.min(1, dt * ctl); }
   if (l > 0.15) p.face = Math.atan2(ix, iz);
   if (i?.b && p.stun <= 0) {
     if (o.jump && p.on) { p.vy = 8; p.on = false; }
-    else if (o.dash && p.cd <= 0) { p.dash = 0.22; p.cd = o.dashCd ?? 2.5; p.vx = Math.sin(p.face) * 14; p.vz = Math.cos(p.face) * 14; }
+    else if (o.dash && p.cd <= 0) { p.dash = 0.22; p.cd = o.dashCd ?? 2.5; p.vx = Math.sin(p.face) * (o.dashV ?? 14); p.vz = Math.cos(p.face) * (o.dashV ?? 14); }
   }
   p.x += p.vx * dt; p.z += p.vz * dt;
   p.vy -= G * dt; p.y += p.vy * dt;
@@ -72,18 +73,21 @@ function hitScenery(w: W3, p: P3) {
   }
   if (w.H) { p.x = Math.max(-w.H + RAD, Math.min(w.H - RAD, p.x)); p.z = Math.max(-w.H + RAD, Math.min(w.H - RAD, p.z)); }
   if (w.R) { const d = Math.hypot(p.x, p.z), m = w.R - RAD; if (d > m) { p.x *= m / d; p.z *= m / d; } }
+  if (w.HX && w.HZ) { p.x = Math.max(-w.HX + RAD, Math.min(w.HX - RAD, p.x)); p.z = Math.max(-w.HZ + RAD, Math.min(w.HZ - RAD, p.z)); }
 }
 /** bump into each other (a dash sends people flying) */
-function bumpPlayers(w: W3) {
+function bumpPlayers(w: W3, knock = 9) {
+  const hit: P3[] = [];
   const ps = w.ps.filter((p) => p.alive);
   for (let a = 0; a < ps.length; a++) for (let b = a + 1; b < ps.length; b++) {
     const A = ps[a], B = ps[b]; if (Math.abs(A.y - B.y) > 1.2) continue;
     const dx = B.x - A.x, dz = B.z - A.z, d = Math.hypot(dx, dz);
     if (d < RAD * 2 && d > 0.0001) {
       const nx = dx / d, nz = dz / d, push = (RAD * 2 - d) / 2; A.x -= nx * push; A.z -= nz * push; B.x += nx * push; B.z += nz * push;
-      for (const [P, Q, s] of [[A, B, 1], [B, A, -1]] as const) if (P.dash > 0 && Q.stun <= 0) { Q.vx += nx * s * 9; Q.vz += nz * s * 9; Q.vy = 4; Q.on = false; Q.stun = 0.5; }
+      for (const [P, Q, s] of [[A, B, 1], [B, A, -1]] as const) if (P.dash > 0 && Q.stun <= 0) { Q.vx += nx * s * knock; Q.vz += nz * s * knock; Q.vy = 4; Q.on = false; Q.stun = 0.5; hit.push(Q); }
     }
   }
+  return hit;
 }
 /** can a see b? (no tall obstacle in the way) */
 export function sees(obs: Ob[] | undefined, ax: number, az: number, bx: number, bz: number) {
@@ -414,7 +418,266 @@ export const chairs: Sim3<ChairW> = {
   result: (w) => (w.over ? byLasting(w) : null),
 };
 
-export const SIMS3: Record<string, Sim3<any>> = { tag, hide, lava, chairs }; // eslint-disable-line @typescript-eslint/no-explicit-any
+// ======================================================================================================================
+// Iceberg Sumo on the Frosty Floe: a slippery round iceberg that keeps shrinking. Bump everyone into the sea.
+// ======================================================================================================================
+export type SumoW = W3 & { R0: number; Rmin: number; ice: number };
+export const SUMO = { SHRINK_AT: 8, RATE: 0.07, SEA: -6 };
+export function floeMap(seed: number, n: number) {
+  const r = rng(seed * 23 + 3), R0 = Math.round((8 + n * 0.55) * 10) / 10, obs: Ob[] = [];
+  // a couple of snowmen near the middle to dodge round, snow drifts with better grip
+  for (let i = 0; i < 2 + Math.floor(n / 3); i++) { const a = r() * Math.PI * 2, d = 1.4 + r() * 1.2, x = Math.sin(a) * d, z = Math.cos(a) * d; if (obs.every((o) => gap(o, x, z) > 1.4)) obs.push({ k: 'c', x, z, r: 0.5, h: 1.6, m: 'snowman', a: r() * 6 }); }
+  for (let i = 0; i < 3; i++) { const a = r() * Math.PI * 2, d = 2 + r() * (R0 - 4); obs.push({ k: 'z', x: Math.sin(a) * d, z: Math.cos(a) * d, r: 1 + r() * 0.6, m: 'goo', v: 1 }); }
+  return { R0, obs };
+}
+export const sumo: Sim3<SumoW> = {
+  id: 'sumo', name: 'Iceberg Sumo', emoji: '🧊', color: '#4FC3F7', min: 2, max: 8, action: '💥 Bump', place: 'Frosty Floe',
+  blurb: 'A slippery iceberg that keeps shrinking. Bump everyone else into the sea — last one on the ice wins!', how: 'Slide about on the ice (it’s slippery!). 💥 Bump charges forward and sends anyone you hit flying. Snow drifts give you grip. The iceberg melts smaller and smaller — don’t fall in!',
+  init(ids, seed) { const m = floeMap(seed, ids.length); return { t: 0, ps: ring(ids, m.R0 * 0.6, rng(seed)() * 6), obs: m.obs, seed, R0: m.R0, Rmin: 3.4, ice: m.R0 }; },
+  move(w, p, i, dt) {
+    if (!p.alive) return;
+    const z = zoneAt(w.obs, p.x, p.z), R = w.ice;
+    drive(p, i, dt, { speed: 6.8, dash: true, dashCd: 1.6, dashV: 15, zone: z, grip: 2.2 });
+    land(p, Math.hypot(p.x, p.z) <= R ? 0 : null);
+    // the snowmen
+    if (p.y > -0.5) hitScenery(w, p);
+  },
+  step(w, inputs, dt) {
+    if (w.over) return;
+    w.t += dt;
+    w.ice = Math.max(w.Rmin, w.R0 - Math.max(0, w.t - SUMO.SHRINK_AT) * SUMO.RATE);
+    for (const p of w.ps) { sumo.move(w, p, inputs[p.id], dt); if (p.alive && p.y < SUMO.SEA) { p.alive = false; p.outAt = w.t; } }
+    bumpPlayers(w, 14);
+    if (w.ps.filter((p) => p.alive).length <= (w.ps.length > 1 ? 1 : 0) || w.t > 150) w.over = true;
+  },
+  result: (w) => (w.over ? byLasting(w) : null),
+};
+
+// ======================================================================================================================
+// Paint Splat on a city rooftop: everywhere you run gets painted your colour. 💦 Splat paints a big blob.
+// Most of the roof in your colour when time's up wins.
+// ======================================================================================================================
+export type PaintW = W3 & { G: number; cells: string; dur: number };
+export function roofMap(seed: number, n: number) {
+  const r = rng(seed * 29 + 11), H = 9 + n, obs: Ob[] = [];
+  const at = (clear: number, mid = 4) => spot(r, obs, H, clear, mid);
+  let s = at(2.5, 6); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 1.3, h: 4, tall: true, m: 'tower' });
+  for (let i = 0; i < Math.round(H / 3); i++) { s = at(1.6); if (s) obs.push({ k: 'b', x: s[0], z: s[1], w: 1.2, d: 1.2, h: 2.2, tall: true, m: 'chimney' }); }
+  for (let i = 0; i < Math.round(H / 3); i++) { s = at(1.4); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.6, h: 1, m: 'vent' }); }
+  for (let i = 0; i < Math.round(H / 4); i++) { s = at(1.6); if (!s) continue; const along = r() < 0.5; obs.push({ k: 'b', x: s[0], z: s[1], w: along ? 3 : 1.6, d: along ? 1.6 : 3, h: 0.5, m: 'skylight' }); }
+  for (let i = 0; i < Math.round(H / 5); i++) { s = at(1.4); if (s) obs.push({ k: 'b', x: s[0], z: s[1], w: 1.4, d: 1, h: 1.1, m: 'ac' }); }
+  for (let i = 0; i < 2 + Math.round(H / 6); i++) { s = at(1.4, 3); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 0.95, m: 'boost', a: Math.floor(r() * 8) * (Math.PI / 4) }); }
+  for (let i = 0; i < 1 + Math.round(H / 7); i++) { s = at(1.4, 3); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 0.9, m: 'bounce' }); }
+  return { H, G: 2 * H, obs };
+}
+const paintAt = (w: PaintW, arr: string[], x: number, z: number, rad: number, c: string) => {
+  const G = w.G, H = G / 2;
+  for (let j = Math.max(0, Math.floor(z + H - rad)); j <= Math.min(G - 1, Math.floor(z + H + rad)); j++)
+    for (let i = Math.max(0, Math.floor(x + H - rad)); i <= Math.min(G - 1, Math.floor(x + H + rad)); i++)
+      if (Math.hypot(i + 0.5 - H - x, j + 0.5 - H - z) <= rad) arr[j * G + i] = c;
+};
+export const paintCounts = (w: PaintW) => { const c: Record<string, number> = {}; w.ps.forEach((p, k) => { c[p.id] = 0; void k; }); for (const ch of w.cells) { const k = ch.charCodeAt(0) - 48; if (k >= 0 && k < w.ps.length) c[w.ps[k].id]++; } return c; };
+export const paint: Sim3<PaintW> = {
+  id: 'paint', name: 'Paint Splat', emoji: '🎨', color: '#FF4FA3', min: 2, max: 8, action: '💦 Splat', place: 'Paint Plaza',
+  blurb: 'Run round a city rooftop painting it your colour. Splat big blobs, paint over everyone else — most roof wins!', how: 'Everywhere you run gets painted your colour, even over other people’s. 💦 Splat paints a big blob (and dashes you forward). Ride the boost arrows and bounce pads. When time’s up, whoever has the most roof wins.',
+  init(ids, seed) { const m = roofMap(seed, ids.length); return { t: 0, ps: ring(ids, 3, rng(seed)() * 6), obs: m.obs, H: m.H, seed, G: m.G, cells: '.'.repeat(m.G * m.G), dur: 70 }; },
+  move(w, p, i, dt) { const z = zoneAt(w.obs, p.x, p.z); drive(p, i, dt, { speed: 6.3, dash: true, dashCd: 2.6, zone: z }); land(p, 0); pads(p, z); hitScenery(w, p); },
+  step(w, inputs, dt) {
+    if (w.over) return;
+    w.t += dt;
+    const arr = w.cells.split('');
+    w.ps.forEach((p, k) => {
+      const could = p.cd <= 0 && p.stun <= 0 && !!inputs[p.id]?.b;
+      paint.move(w, p, inputs[p.id], dt);
+      const c = String.fromCharCode(48 + k);
+      if (p.on) paintAt(w, arr, p.x, p.z, 0.8, c);
+      if (could && p.cd > 0) paintAt(w, arr, p.x, p.z, 2.6, c);
+    });
+    bumpPlayers(w);
+    w.cells = arr.join('');
+    if (w.t >= w.dur) w.over = true;
+  },
+  result: (w) => (w.over ? placesBy(paintCounts(w)) : null),
+};
+
+// ======================================================================================================================
+// Snowball Fight in a Snowy Village: throw snowballs, duck behind snow forts. Most hits wins.
+// ======================================================================================================================
+export type Ball = { id: number; x: number; z: number; vx: number; vz: number; by: string; life: number };
+export type SnowW = W3 & { balls: Ball[]; nid: number; hits: Record<string, number>; dur: number; pops: { x: number; z: number; t: number }[] };
+export function villageMap(seed: number, n: number) {
+  const r = rng(seed * 31 + 17), H = 11 + n, obs: Ob[] = [];
+  const at = (clear: number, mid = 5) => spot(r, obs, H, clear, mid);
+  let s: [number, number] | null;
+  for (let i = 0; i < 2 + Math.round(H / 7); i++) { s = at(3, 7); if (!s) continue; const along = r() < 0.5; obs.push({ k: 'b', x: s[0], z: s[1], w: along ? 3.4 : 3, d: along ? 3 : 3.4, h: 2.8, tall: true, m: 'cabin', a: along ? 1 : 0 }); }
+  // snow forts: low walls (duck behind them!) in L and U shapes
+  for (let i = 0; i < Math.round(H / 2); i++) {
+    s = at(1.8, 4); if (!s) continue; const [x, z] = s, len = 2.4 + r() * 2, shape = Math.floor(r() * 3);
+    obs.push({ k: 'b', x, z, w: len, d: 0.7, h: 1.05, m: 'fort' });
+    if (shape >= 1) obs.push({ k: 'b', x: x - len / 2 + 0.35, z: z + 0.9, w: 0.7, d: 1.6, h: 1.05, m: 'fort' });
+    if (shape === 2) obs.push({ k: 'b', x: x + len / 2 - 0.35, z: z + 0.9, w: 0.7, d: 1.6, h: 1.05, m: 'fort' });
+  }
+  for (let i = 0; i < Math.round(H * 0.7); i++) { s = at(1.4); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.5, h: 4, tall: true, m: 'pine' }); }
+  for (let i = 0; i < Math.round(H / 3); i++) { s = at(1.2); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.5, h: 1.6, m: 'snowman', a: r() * 6 }); }
+  for (let i = 0; i < 2 + Math.round(H / 6); i++) { s = at(1, 3); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 1.3 + r() * 0.6, m: 'ice' }); }
+  for (let i = 0; i < Math.round(H / 4); i++) { s = at(1); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.15, h: 2.6, m: 'lamp' }); }
+  return { H, obs };
+}
+const BALL_Y = 0.9;
+export const snow: Sim3<SnowW> = {
+  id: 'snow', name: 'Snowball Fight', emoji: '❄️', color: '#7FB8FF', min: 2, max: 8, action: '❄️ Throw', place: 'Snowy Village',
+  blurb: 'Pelt each other with snowballs round a snowy village. Duck behind the forts — most hits wins!', how: 'Run about and ❄️ Throw snowballs the way you’re facing. Every hit scores a point and knocks them over for a moment. Hide behind the snow forts, cabins and trees — snowballs can’t get through. Careful on the ice!',
+  init(ids, seed) { const m = villageMap(seed, ids.length); return { t: 0, ps: ring(ids, 3, rng(seed)() * 6), obs: m.obs, H: m.H, seed, balls: [], nid: 1, hits: Object.fromEntries(ids.map((id) => [id, 0])), dur: 75, pops: [] }; },
+  move(w, p, i, dt) { const z = zoneAt(w.obs, p.x, p.z); drive(p, i, dt, { speed: 6, zone: z }); land(p, 0); hitScenery(w, p); },
+  step(w, inputs, dt) {
+    if (w.over) return;
+    w.t += dt;
+    w.pops = w.pops.filter((q) => w.t - q.t < 0.6);
+    for (const p of w.ps) {
+      snow.move(w, p, inputs[p.id], dt);
+      if (inputs[p.id]?.b && p.cd <= 0 && p.stun <= 0) {
+        p.cd = 0.55;
+        w.balls.push({ id: w.nid++, x: p.x + Math.sin(p.face) * 0.55, z: p.z + Math.cos(p.face) * 0.55, vx: Math.sin(p.face) * 17 + p.vx * 0.3, vz: Math.cos(p.face) * 17 + p.vz * 0.3, by: p.id, life: 0.85 });
+      }
+    }
+    bumpPlayers(w);
+    w.balls = w.balls.filter((b) => {
+      b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt;
+      if (b.life <= 0) return false;
+      if (Math.abs(b.x) > (w.H ?? 12) || Math.abs(b.z) > (w.H ?? 12)) { w.pops.push({ x: b.x, z: b.z, t: w.t }); return false; }
+      for (const o of w.obs ?? []) if ((o.k === 'c' || o.k === 'b') && !o.soft && o.h >= BALL_Y && gap(o, b.x, b.z) < 0.12) { w.pops.push({ x: b.x, z: b.z, t: w.t }); return false; }
+      for (const p of w.ps) {
+        if (p.id === b.by || Math.hypot(p.x - b.x, p.z - b.z) > 0.6 || p.y > 1.2) continue;
+        w.hits[b.by] = (w.hits[b.by] ?? 0) + 1;
+        const l = Math.hypot(b.vx, b.vz) || 1; p.vx += (b.vx / l) * 6; p.vz += (b.vz / l) * 6; p.vy = 3; p.on = false; p.stun = 0.9;
+        w.pops.push({ x: b.x, z: b.z, t: w.t }); return false;
+      }
+      return true;
+    });
+    if (w.t >= w.dur) w.over = true;
+  },
+  result: (w) => (w.over ? placesBy(w.hits) : null),
+};
+
+// ======================================================================================================================
+// Red Light, Green Light in the Sunflower Fields: race to the giant doll. When she turns round, FREEZE — anyone she
+// sees moving is sent back.
+// ======================================================================================================================
+export type RLW = W3 & { light: 'green' | 'yellow' | 'red'; ends: number; k: number; redAt: number; done: Record<string, number>; caught: Record<string, number>; dur: number };
+export const RL = { GRACE: 0.35, BACK: 12 };
+export function fieldMap(seed: number, n: number) {
+  const r = rng(seed * 37 + 5), HX = Math.round((7 + n * 0.7) * 10) / 10, HZ = 30, obs: Ob[] = [];
+  // fence rows across the field with gaps to squeeze through
+  for (let z = -HZ + 12; z < HZ - 8; z += 9 + r() * 4) {
+    const gaps = 1 + Math.floor(r() * 2), holes = Array.from({ length: gaps }, () => (r() * 2 - 1) * (HX - 2));
+    let x = -HX; const pieces: [number, number][] = [];
+    for (const hx of holes.sort((a, b) => a - b)) { if (hx - 1.1 > x) pieces.push([x, hx - 1.1]); x = hx + 1.1; }
+    if (x < HX) pieces.push([x, HX]);
+    for (const [a, b] of pieces) if (b - a > 0.3) obs.push({ k: 'b', x: (a + b) / 2, z, w: b - a, d: 0.3, h: 1.1, m: 'fence' });
+  }
+  const at = (clear: number) => { for (let k = 0; k < 40; k++) { const x = (r() * 2 - 1) * (HX - 1.2), z = -HZ + 8 + r() * (2 * HZ - 16); if (obs.every((o) => gap(o, x, z) >= clear)) return [x, z] as const; } return null; };
+  for (let i = 0; i < Math.round(HX * 1.2); i++) { const s = at(1.3); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.75, h: 1.2, m: 'hay' }); }
+  for (let i = 0; i < Math.round(HX / 2); i++) { const s = at(1.3); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.35, h: 2.4, tall: true, m: 'scarecrow' }); }
+  for (let i = 0; i < 2 + Math.round(HX / 3); i++) { const s = at(1); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 1.1 + r() * 0.8, m: 'goo' }); }
+  return { HX, HZ, obs };
+}
+const rlNext = (w: RLW) => {
+  const r = rng(w.seed * 7 + w.k * 131);
+  if (w.light === 'green') { w.light = 'yellow'; w.ends = w.t + 0.75; }
+  else if (w.light === 'yellow') { w.light = 'red'; w.ends = w.t + 2 + r() * 2; }
+  else { w.light = 'green'; w.ends = w.t + 1.6 + r() * 3.6; w.k++; }
+};
+export const redlight: Sim3<RLW> = {
+  id: 'redlight', name: 'Red Light, Green Light', emoji: '🚦', color: '#3DDC97', min: 2, max: 8, action: '💨 Dash', place: 'Sunflower Fields',
+  blurb: 'Race across the sunflower fields to the giant doll. When she turns round — FREEZE! Move and you’re sent back.', how: 'Run while the light’s green. When it goes yellow, get ready to stop. On red, the doll turns round: if she sees you moving, you’re sent back 12 steps. First to the finish line wins. 💨 Dash for a burst (if you dare). Mud slows you down.',
+  init(ids, seed) {
+    const m = fieldMap(seed, ids.length);
+    const ps = ids.map((id, i) => newP(id, (ids.length === 1 ? 0 : (i / (ids.length - 1)) * 2 - 1) * (m.HX - 1.2), m.HZ - 2));
+    return { t: 0, ps, obs: m.obs, HX: m.HX, HZ: m.HZ, seed, light: 'green', ends: 3, k: 0, redAt: -1, done: {}, caught: {}, dur: 100 };
+  },
+  move(w, p, i, dt) {
+    const frozen = w.done[p.id] != null;
+    const z = zoneAt(w.obs, p.x, p.z);
+    drive(p, frozen ? undefined : i, dt, { speed: 5.6, dash: true, dashCd: 3, zone: z });
+    land(p, 0); hitScenery(w, p);
+  },
+  step(w, inputs, dt) {
+    if (w.over) return;
+    w.t += dt;
+    if (w.t >= w.ends) rlNext(w);
+    for (const p of w.ps) {
+      redlight.move(w, p, inputs[p.id], dt);
+      if (w.done[p.id] != null) continue;
+      if (p.z < -(w.HZ ?? 30) + 3) { w.done[p.id] = w.t; p.vx = p.vz = 0; continue; }
+    }
+    bumpPlayers(w);
+    // the doll's watching: anyone moving (after a moment to stop) goes back
+    if (w.light === 'red' && w.redAt >= 0 && w.t - w.redAt > RL.GRACE) {
+      for (const p of w.ps) if (w.done[p.id] == null && p.stun <= 0 && Math.hypot(p.vx, p.vz) > 0.9) {
+        w.caught[p.id] = (w.caught[p.id] ?? 0) + 1;
+        p.z = Math.min((w.HZ ?? 30) - 2, p.z + RL.BACK); p.vx = p.vz = 0; p.stun = 1.2;
+      }
+    }
+    w.redAt = w.light === 'red' ? (w.redAt >= 0 ? w.redAt : w.t) : -1;
+    if (w.ps.every((p) => w.done[p.id] != null) || w.t >= w.dur) w.over = true;
+  },
+  result: (w) => (w.over ? placesBy(Object.fromEntries(w.ps.map((p) => [p.id, w.done[p.id] != null ? 1e6 - Math.round(w.done[p.id] * 100) : -Math.round(p.z * 100)]))) : null),
+};
+
+// ======================================================================================================================
+// Treasure Rush on Pirate Cove: gems wash up all over the island. Grab the most. Dash into someone and they spill
+// some of theirs!
+// ======================================================================================================================
+export type Gem = { id: number; x: number; z: number; v: number };
+export type GemW = W3 & { gems: Gem[]; nid: number; bag: Record<string, number>; dur: number; next: number };
+export function coveMap(seed: number, n: number) {
+  const r = rng(seed * 41 + 7), H = 11 + n, obs: Ob[] = [{ k: 'c', x: 0, z: 0, r: 0.9, h: 1.1, m: 'chest' }];
+  const at = (clear: number, mid = 4) => spot(r, obs, H, clear, mid);
+  let s = at(3, 7); if (s) obs.push({ k: 'b', x: s[0], z: s[1], w: 5, d: 2, h: 2.6, tall: true, m: 'wreck', a: r() < 0.5 ? 1 : 0 });
+  for (let i = 0; i < Math.round(H * 0.8); i++) { s = at(1.3); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.35, h: 4, tall: true, m: 'palm', a: r() * 6 }); }
+  for (let i = 0; i < Math.round(H / 2.5); i++) { s = at(1.2); if (s) obs.push({ k: 'c', x: s[0], z: s[1], r: 0.6 + r() * 0.5, h: 1.2, m: 'rock' }); }
+  for (let i = 0; i < Math.round(H / 4); i++) { s = at(1); if (s) obs.push(r() < 0.5 ? { k: 'c', x: s[0], z: s[1], r: 0.42, h: 1, m: 'barrel' } : { k: 'b', x: s[0], z: s[1], w: 0.9, d: 0.9, h: 0.9, m: 'crate' }); }
+  for (let i = 0; i < 2 + Math.round(H / 6); i++) { s = at(1.2, 3); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 1.2 + r() * 0.6, m: 'goo', v: 2 }); }
+  for (let i = 0; i < 2 + Math.round(H / 7); i++) { s = at(1.4, 3); if (s) obs.push({ k: 'z', x: s[0], z: s[1], r: 0.9, m: 'bounce' }); }
+  return { H, obs };
+}
+function gemDrop(w: GemW, x: number, z: number, v: number, spread: number) {
+  const r = rng(w.seed + w.nid * 7919), H = w.H ?? 12;
+  for (let k = 0; k < 30; k++) {
+    const a = r() * Math.PI * 2, d = spread * (0.3 + r()), gx = x + Math.sin(a) * d, gz = z + Math.cos(a) * d;
+    if (Math.abs(gx) > H - 0.8 || Math.abs(gz) > H - 0.8 || (w.obs ?? []).some((o) => o.k !== 'z' && o.k !== 'd' && gap(o, gx, gz) < 0.4)) continue;
+    w.gems.push({ id: w.nid++, x: Math.round(gx * 100) / 100, z: Math.round(gz * 100) / 100, v }); return;
+  }
+}
+export const gems: Sim3<GemW> = {
+  id: 'gems', name: 'Treasure Rush', emoji: '💎', color: '#2EC4B6', min: 2, max: 8, action: '💨 Dash', place: 'Pirate Cove',
+  blurb: 'Gems wash up all over a pirate island. Grab the most — and dash into people to make them spill theirs!', how: 'Run over gems to grab them (big red rubies are worth 3). The treasure chest in the middle bursts with more now and then. 💨 Dash into someone to knock some of their gems loose. Most treasure when time’s up wins.',
+  init(ids, seed) {
+    const m = coveMap(seed, ids.length);
+    const w: GemW = { t: 0, ps: ring(ids, 2.4, rng(seed)() * 6), obs: m.obs, H: m.H, seed, gems: [], nid: 1, bag: Object.fromEntries(ids.map((id) => [id, 0])), dur: 70, next: 0 };
+    const r = rng(seed + 3); for (let i = 0; i < 8 + ids.length * 2; i++) gemDrop(w, (r() * 2 - 1) * m.H, (r() * 2 - 1) * m.H, r() < 0.12 ? 3 : 1, 0.5);
+    return w;
+  },
+  move(w, p, i, dt) { const z = zoneAt(w.obs, p.x, p.z); drive(p, i, dt, { speed: 6.2, dash: true, dashCd: 2.4, zone: z }); land(p, 0); pads(p, z); hitScenery(w, p); },
+  step(w, inputs, dt) {
+    if (w.over) return;
+    w.t += dt;
+    const max = 10 + w.ps.length * 3, r = rng(w.seed + Math.floor(w.t * 10));
+    if (w.t >= w.next && w.gems.length < max) { w.next = w.t + 0.9; gemDrop(w, (r() * 2 - 1) * (w.H ?? 12), (r() * 2 - 1) * (w.H ?? 12), r() < 0.12 ? 3 : 1, 0.5); }
+    // the chest bursts every 15 seconds
+    if (Math.floor(w.t / 15) !== Math.floor((w.t - dt) / 15)) for (let k = 0; k < 6; k++) gemDrop(w, 0, 0, k === 0 ? 3 : 1, 3);
+    for (const p of w.ps) gems.move(w, p, inputs[p.id], dt);
+    for (const q of bumpPlayers(w)) {
+      const lose = Math.min(8, Math.floor(w.bag[q.id] * 0.35));
+      w.bag[q.id] -= lose; for (let k = 0; k < lose; k++) gemDrop(w, q.x, q.z, 1, 2.2);
+    }
+    w.gems = w.gems.filter((g) => { const p = w.ps.find((q) => q.stun <= 0 && q.y < 1 && Math.hypot(q.x - g.x, q.z - g.z) < 0.8); if (!p) return true; w.bag[p.id] += g.v; return false; });
+    if (w.t >= w.dur) w.over = true;
+  },
+  result: (w) => (w.over ? placesBy(w.bag) : null),
+};
+
+export const SIMS3: Record<string, Sim3<any>> = { tag, hide, lava, chairs, sumo, paint, snow, redlight, gems }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const r2 = (x: number) => Math.round(x * 100) / 100;
 /** what goes over the wire: everything but the fixed scenery, with positions rounded */
 export const snap3 = (w: W3) => {

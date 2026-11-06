@@ -60,6 +60,16 @@ describe('House party games', () => {
     }
   });
 
+  it('the newer 3D games start with two', async () => {
+    for (const game of ['sumo', 'paint', 'snow', 'redlight', 'gems']) {
+      const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: game });
+      await db.rpc(P[1], 'home_game_join', { p_game: g.id });
+      const s = await db.rpc(P[0], 'home_game_start', { p_game: g.id });
+      expect(s.status).toBe('playing');
+      await db.rpc(P[0], 'home_game_leave', { p_game: g.id }); await db.rpc(P[1], 'home_game_leave', { p_game: g.id });
+    }
+  });
+
   it('two-player games take two', async () => {
     const g = await db.rpc(P[0], 'home_game_create', { p_home: P[0], p_game: 'fourrow' });
     await db.rpc(P[1], 'home_game_join', { p_game: g.id });

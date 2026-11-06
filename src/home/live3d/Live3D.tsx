@@ -14,7 +14,7 @@ import { cn } from '../../lib/utils';
 import { useUi } from '../../lib/store';
 import { Button } from '../../ui';
 import { PartyResults, seatsOf } from '../party/PartyGame';
-import { LAVA, SIMS3, snap3, type ChairW, type HSW, type In3, type LavaW, type P3, type TagW, type W3 } from './sims';
+import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type In3, type LavaW, type P3, type PaintW, type RLW, type SnowW, type SumoW, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
@@ -227,6 +227,18 @@ function statusLine(game: string, w: W3 | null, me: string, seats: { id: string;
   }
   if (game === 'lava') { const l = w as LavaW, rising = l.t > LAVA.RISE_AT, soon = !rising && l.t > LAVA.RISE_AT - 8; return { text: `${l.ps.filter((p) => p.alive).length} still standing`, sub: rising ? '🌋 THE LAVA IS RISING!' : soon ? `🌋 lava rises in ${Math.ceil(LAVA.RISE_AT - l.t)}s` : '🌋 keep moving!', hot: rising || soon }; }
   if (game === 'chairs') { const c = w as ChairW; return c.phase === 'music' ? { text: '🎶 Dance!', sub: `${c.ps.filter((p) => p.alive).length} dancers` } : c.phase === 'grab' ? { text: '🪑 GRAB A CHAIR!', hot: true } : { text: c.lost.length ? `${c.lost.map(name).join(', ')} ${c.lost.includes(me) ? 'are' : 'is'} out!` : '…' }; }
+  const lead = (pts: Record<string, number>) => { const [id, v] = Object.entries(pts).sort((a, b) => b[1] - a[1])[0] ?? ['', 0]; return !v ? 'nobody’s scored yet' : id === me ? 'you’re winning!' : `${name(id)} leads with ${v}`; };
+  if (game === 'sumo') { const s = w as SumoW, meP = w.ps.find((p) => p.id === me), edge = meP?.alive && Math.hypot(meP.x, meP.z) > s.ice - 1.3; return { text: `${w.ps.filter((p) => p.alive).length} on the ice`, sub: edge ? '⚠️ you’re near the edge!' : w.t > 8 ? '🧊 the iceberg’s melting…' : '💥 bump them off!', hot: !!edge }; }
+  if (game === 'paint') { const p = w as PaintW, c = paintCounts(p), tot = p.G * p.G, left = Math.max(0, Math.ceil(p.dur - p.t)); const pct = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Math.round((v / tot) * 100)])); return { text: `🎨 You: ${pct[me] ?? 0}%`, sub: `${left}s · ${lead(pct)}`, hot: left <= 10 }; }
+  if (game === 'snow') { const s = w as SnowW, left = Math.max(0, Math.ceil(s.dur - s.t)); return { text: `❄️ ${s.hits[me] ?? 0} hits`, sub: `${left}s · ${lead(s.hits)}`, hot: (w.ps.find((p) => p.id === me)?.stun ?? 0) > 0 }; }
+  if (game === 'redlight') {
+    const r = w as RLW, meP = w.ps.find((p) => p.id === me), fin = r.done[me] != null;
+    const place = fin ? Object.values(r.done).filter((t) => t <= r.done[me]).length : 0, togo = meP ? Math.max(0, Math.round(meP.z + (r.HZ ?? 30) - 3)) : 0;
+    if (fin) return { text: `🏁 Finished #${place}!`, sub: `${Object.keys(r.done).length}/${w.ps.length} across` };
+    if ((meP?.stun ?? 0) > 0.3 && r.light === 'red') return { text: '😱 CAUGHT! Back you go', hot: true };
+    return r.light === 'green' ? { text: '🟢 GO GO GO!', sub: `${togo}m to go` } : r.light === 'yellow' ? { text: '🟡 Get ready to stop…', sub: `${togo}m to go`, hot: true } : { text: '🔴 FREEZE!', sub: 'don’t move a muscle', hot: true };
+  }
+  if (game === 'gems') { const g = w as GemW, left = Math.max(0, Math.ceil(g.dur - g.t)); return { text: `💎 ${g.bag[me] ?? 0}`, sub: `${left}s · ${lead(g.bag)}`, hot: left <= 10 }; }
   return null;
 }
 
@@ -255,5 +267,11 @@ function soundtrack(game: string, w: W3 | null, me: string): { track: string | n
     return { track: 'magma', tempo: q(1 + out * 0.2 + (l.t > LAVA.RISE_AT ? 0.1 : 0)), heat: l.t > LAVA.RISE_AT ? 0.5 : 0 };
   }
   if (game === 'chairs') { const c = w as ChairW; return { track: c.phase === 'music' ? (c.round % 2 ? 'swing' : 'disco') : null, tempo: 1 + Math.min(0.25, c.round * 0.06), heat: 0 }; }
+  if (game === 'sumo') { const s = w as SumoW, edge = meP?.alive ? Math.hypot(meP.x, meP.z) - s.ice : -9; return { track: 'frost', tempo: q(1 + Math.min(0.25, Math.max(0, s.R0 - s.ice) * 0.05)), heat: edge > -1.3 ? 0.8 : 0 }; }
+  if (game === 'paint') { const p = w as PaintW; return { track: 'splat', tempo: p.dur - p.t < 15 ? 1.15 : 1, heat: p.dur - p.t < 15 ? 0.45 : 0 }; }
+  if (game === 'snow') { const s = w as SnowW; return { track: 'jingle', tempo: s.dur - s.t < 15 ? 1.15 : 1, heat: 0 }; }
+  // the doll sings while you can run, and goes silent when she turns round
+  if (game === 'redlight') { const r = w as RLW; return { track: r.light === 'red' ? null : 'doll', tempo: r.light === 'yellow' ? 1.5 : 1 + Math.min(0.3, r.k * 0.03), heat: 0 }; }
+  if (game === 'gems') { const g = w as GemW; return { track: 'shanty', tempo: g.dur - g.t < 15 ? 1.15 : 1, heat: 0 }; }
   return { track: null, tempo: 1, heat: 0 };
 }

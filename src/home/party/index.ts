@@ -5,7 +5,7 @@ import type { PartyDef } from './kit';
 import { SIMS3 } from '../live3d/sims';
 
 export const PARTY: Record<string, PartyDef> = { fourrow, checkers, dots, ladders, doodle, rush, chain, spy, samebrain, bluff };
-export const PARTY_ORDER = ['tag', 'hide', 'lava', 'chairs', 'chain', 'doodle', 'spy', 'bluff', 'samebrain', 'rush', 'ladders', 'dots', 'fourrow', 'checkers'];
+export const PARTY_ORDER = ['tag', 'hide', 'lava', 'chairs', 'sumo', 'paint', 'snow', 'redlight', 'gems', 'chain', 'doodle', 'spy', 'bluff', 'samebrain', 'rush', 'ladders', 'dots', 'fourrow', 'checkers'];
 export type GameMeta = { id: string; name: string; emoji: string; color: string; min: number; max: number; kind: 'board' | 'party' | '3d'; blurb: string; how: string; place?: string };
 /** everything the picker, invites and tables need to know about any house game */
 export const GAME_META: Record<string, GameMeta> = {
