@@ -97,7 +97,7 @@ const MESSAGES: Record<string, string> = {
   clan_tag_taken: 'That tag is taken.', too_many_requests: 'You’ve asked 5 clans already — wait for an answer.',
   clan_cant_kick: 'You can’t remove them.', clan_item_locked: 'Your clan needs a higher level for that piece.', clan_in_battle: 'One of the clans is already in a battle.',
   already_challenged: 'There’s already a challenge between your clans.', too_many_challenges: 'You have 3 challenges waiting already.',
-  already_claimed: 'Already collected.', clan_rename_wait: 'Clans can be renamed once every 30 days.', already_fed: 'You’ve fed the spirit today — come back tomorrow!',
+  already_claimed: 'Already collected.', no_dynamite: 'Out of dynamite — the outfitter sells more.', mine_not_reachable: 'Dig a tunnel next to it first.', clan_rename_wait: 'Clans can be renamed once every 30 days.', already_fed: 'You’ve fed the spirit today — come back tomorrow!',
   visit_keep_first: 'Come to the Keep first.', chest_locked: 'More clanmates need to visit the Keep today.', clan_build_locked: 'Your clan needs a higher level for that.',
   already_built: 'That’s built already!', not_enough_stone: 'You need stone — mine some in the quarry.', nothing_to_claim: 'Nothing to collect.', claim_expired: 'That reward has expired.',
   need_players: 'Wait for at least one more player to join.',

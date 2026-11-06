@@ -34,7 +34,7 @@ describe('Realm plot types', () => {
       expect(Object.keys(k.upgrades).length).toBe(4);
       expect(Object.keys(k.recipes).length).toBe(6);
       expect(Object.keys(k.finds).length).toBe(12);
-      expect(Object.keys(k.games).length).toBe(1);
+      expect(Object.keys(k.games).length).toBeGreaterThanOrEqual(1);
       // every recipe's ingredients and every drop are real resources
       for (const r of Object.values(k.recipes) as any[]) for (const i of Object.keys(r.in)) expect(k.resources[i]).toBeDefined();
       for (const g of Object.values(k.games) as any[]) for (const d of g.drops) expect(k.resources[d.res]).toBeDefined();

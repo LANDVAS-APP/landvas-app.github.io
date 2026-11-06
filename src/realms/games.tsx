@@ -10,15 +10,15 @@ import { rng } from '../home/party/kit';
 import { sfx } from '../arcade/sfx';
 
 export type GameProps = { seed: number; level: number; onEnd(score: number): void; onScore?(score: number): void };
-type Ptr = { x: number; y: number; id: number };
-type Loop = {
+export type Ptr = { x: number; y: number; id: number };
+export type Loop = {
   update(dt: number, t: number): boolean | void; // return true when the game's over
   draw(g: CanvasRenderingContext2D, w: number, h: number, t: number): void;
   down?(p: Ptr, w: number, h: number): void; up?(p: Ptr): void; key?(k: string, down: boolean): void;
   score(): number;
 };
 /** a full-size canvas with a game loop, pointer and keys */
-function useGame(make: (w: number, h: number) => Loop, onEnd: (s: number) => void, onScore?: (s: number) => void) {
+export function useGame(make: (w: number, h: number) => Loop, onEnd: (s: number) => void, onScore?: (s: number) => void) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current!; const g = c.getContext('2d')!;
@@ -46,9 +46,9 @@ function useGame(make: (w: number, h: number) => Loop, onEnd: (s: number) => voi
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="absolute inset-0 h-full w-full touch-none select-none" data-testid="realm-game-canvas" />;
 }
-const emoji = (g: CanvasRenderingContext2D, e: string, x: number, y: number, s: number) => { g.font = `${s}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, x, y); };
-const bar = (g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, f: number, col: string) => { g.fillStyle = 'rgba(0,0,0,0.45)'; g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.fill(); g.fillStyle = col; g.beginPath(); g.roundRect(x, y, Math.max(h, w * Math.max(0, Math.min(1, f))), h, h / 2); g.fill(); };
-const popText = (pops: { x: number; y: number; t: string; life: number; c: string }[], g: CanvasRenderingContext2D, dt: number) => {
+export const emoji = (g: CanvasRenderingContext2D, e: string, x: number, y: number, s: number) => { g.font = `${s}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, x, y); };
+export const bar = (g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, f: number, col: string) => { g.fillStyle = 'rgba(0,0,0,0.45)'; g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.fill(); g.fillStyle = col; g.beginPath(); g.roundRect(x, y, Math.max(h, w * Math.max(0, Math.min(1, f))), h, h / 2); g.fill(); };
+export const popText = (pops: { x: number; y: number; t: string; life: number; c: string }[], g: CanvasRenderingContext2D, dt: number) => {
   for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i]; p.life -= dt; p.y -= 40 * dt; g.globalAlpha = Math.max(0, Math.min(1, p.life * 2)); g.fillStyle = p.c; g.font = '800 18px ui-rounded, system-ui'; g.textAlign = 'center'; g.fillText(p.t, p.x, p.y); g.globalAlpha = 1; if (p.life <= 0) pops.splice(i, 1); }
 };
 
