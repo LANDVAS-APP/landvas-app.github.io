@@ -37,6 +37,7 @@ export default function MeHub() {
     { to: '/explorer', label: 'My explorer', icon: Shirt, hint: 'Hats, outfits, trails' },
     { to: `/u/${p.username}/home`, label: 'My home', icon: DoorOpen, hint: 'Your 3D home — decorate it' },
     { to: '/social', label: 'Social', icon: MessagesSquare, hint: 'Feed, chat, friends' },
+    { to: '/clans', label: 'My clan', icon: Users, hint: 'Clan hall, goals, battles' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top players' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },

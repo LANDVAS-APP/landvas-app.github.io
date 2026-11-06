@@ -715,3 +715,38 @@ export type RealmFinish = {
   score: number; loot: Bag; finds: { id: string; new: boolean }[]; paid: number; earned: number; best: number; new_best: boolean; record: number; new_record: boolean;
   level_up: number | null; me: RealmMe; repeat?: boolean;
 };
+
+// ---- clans ----------------------------------------------------------------------------------------------------------
+export type ClanRole = 'leader' | 'officer' | 'member';
+export type ClanPrivacy = 'open' | 'request' | 'invite';
+export type ClanCard = {
+  id: string; name: string; tag: string; emblem: string; color: string; motto: string | null; privacy: ClanPrivacy;
+  level: number; xp: number; wins: number; losses: number; members: number; cap: number; week_score: number; in_hall: number;
+};
+export type ClanLevel = { level: number; xp: number; into: number; need: number; max: boolean };
+export type ClanGoal = { n: number; k: string; cat: string; emoji: string; label: string; unit: 'ink' | 'min'; target: number; progress: number; done: boolean; reward: number; claimed: boolean; claim: string | null };
+export type ClanBattle = {
+  id: string; status: 'pending' | 'live' | 'done' | 'declined' | 'expired'; challenger: boolean; created_at: string; starts_at: string | null; ends_at: string | null;
+  us: number; them: number; won: boolean | null; tie: boolean; vs: ClanCard; mine: number; claim: string | null; claim_ink: number;
+};
+export type ClanMember = Profile & { role: ClanRole; joined_at: string; explorer_style?: unknown; week_ink: number; week_secs: number; in_hall: boolean };
+export type ClanAsk = { id: number; player: Profile; created_at: string };
+export type ClanFeedItem = { id: number; kind: string; data: Record<string, unknown>; created_at: string; who: Profile | null; vs: ClanCard | null };
+export type Clan = ClanCard & {
+  role: ClanRole | null; leader: string | null; created_at: string; level_info: ClanLevel; members_list: ClanMember[];
+  asked: boolean; invited: number | null; season_rank: number | null; recent_battles: ClanBattle[];
+  // members only
+  hall?: { name: string | null; style: HomeStyleData; layout: HomePlaced[] };
+  week?: string; week_ends?: string; goals?: ClanGoal[]; last_goals?: ClanGoal[];
+  season?: { rank: number | null; ink: number; claim: string | null };
+  me?: { week_ink: number; week_secs: number }; battles?: ClanBattle[];
+  requests?: ClanAsk[] | null; invites_out?: ClanAsk[] | null; feed?: ClanFeedItem[];
+  catalog?: HomeData['catalog']; unlocks?: Record<string, number>;
+};
+export type ClanHome = {
+  clan: (ClanCard & { role: ClanRole }) | null;
+  invites: { id: number; clan: ClanCard; by: Profile | null; created_at: string }[];
+  requests: string[]; rejoin_at: string | null;
+  cfg: { found_cost: number; emblems: string[]; colors: string[]; perks: { level: number; emoji: string; text: string }[]; season: { top: number; ink: number }[]; battle: { hours: number; win_ink: number; lose_ink: number } };
+};
+export type ClanBoard = { kind: 'week' | 'last' | 'level'; week?: string; ends_at?: string; rows: (ClanCard & { rank: number; score?: number; prize?: number })[]; mine: number | null };

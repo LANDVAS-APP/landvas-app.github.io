@@ -31,7 +31,7 @@ export const SECTIONS = [
     { to: '/play', label: 'Play & Earn' }, { to: '/pvp', label: 'PvP' }, { to: '/doodle', label: 'Draw & Guess' }, { to: '/events', label: 'Events' }, { to: '/leaderboards', label: 'Ranks' },
   ] },
   { to: '/social', label: 'Community', icon: MessagesSquare, pages: [
-    { to: '/social', label: 'Feed & chat' }, { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
+    { to: '/social', label: 'Feed & chat' }, { to: '/clans', label: 'Clans' }, { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
   ] },
 ];
 const ME_PAGES = [

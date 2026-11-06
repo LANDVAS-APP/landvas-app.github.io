@@ -66,6 +66,8 @@ const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
 const RealmScreen = lazy(() => import('../realms/RealmScreen'));
+const ClansScreen = lazy(() => import('../clans/ClansScreen'));
+const ClanHall = lazy(() => import('../clans/ClanHall'));
 const BusinessGame = lazy(() => import('../business/BusinessGame'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
 const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
@@ -111,7 +113,7 @@ function OnboardingGate() {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'],
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/clans/, 'Clans'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
@@ -176,6 +178,7 @@ const routes: RouteObject[] = [
       { path: '/business/:id', element: player(<BusinessScreen />) },
       { path: '/arcade/:id', element: player(<ArcadeScreen />) },
       { path: '/realm/:id', element: player(<RealmScreen />) },
+      { path: '/clan/hall', element: player(<ClanHall />) },
       { path: '/home', element: player(<HomeScreen />) },
       { path: '/u/:username/home', element: player(<HomeScreen />) },
       { path: '/u/:username/room', element: player(<HomeScreen />) },
@@ -196,6 +199,8 @@ const routes: RouteObject[] = [
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },
           { path: '/social', element: p(<SocialScreen />) },
+          { path: '/clans', element: player(<ClansScreen />) },
+          { path: '/clans/:id', element: player(<ClansScreen />) },
           { path: '/invite', element: player(<InviteScreen />) },
           { path: '/explorer', element: player(<ExplorerScreen />) },
           { path: '/players', element: p(<PlayersScreen />) },

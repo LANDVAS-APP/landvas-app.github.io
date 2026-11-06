@@ -42,7 +42,7 @@ const bookCase = (ctx: Ctx, parent: THREE.Object3D, x: number, z: number, wood: 
 // ======================================================================================================================
 function mine(ctx: Ctx): RealmEnv {
   const r = ctx.r;
-  const rockTex = ctx.tex(256, 256, (g) => { g.fillStyle = '#3A3340'; g.fillRect(0, 0, 256, 256); const rr = rng(3); for (let i = 0; i < 900; i++) { g.fillStyle = ['#2E2833', '#463F4D', '#332C38'][i % 3]; g.beginPath(); g.arc(rr() * 256, rr() * 256, 2 + rr() * 6, 0, Math.PI * 2); g.fill(); } }, 10);
+  const rockTex = ctx.tex(256, 256, (g) => { g.fillStyle = '#4E4656'; g.fillRect(0, 0, 256, 256); const rr = rng(3); for (let i = 0; i < 900; i++) { g.fillStyle = ['#433C4A', '#5C5466', '#4A4352'][i % 3]; g.beginPath(); g.arc(rr() * 256, rr() * 256, 2 + rr() * 6, 0, Math.PI * 2); g.fill(); } }, 10);
   flat(mesh(ctx, new THREE.PlaneGeometry(70, 70), ctx.std('#ffffff', { map: rockTex, roughness: 1 })));
   // the cave walls all round (jagged rock), stalagmites, glowing crystals in the walls
   const rock = ctx.std('#2B2530', { roughness: 1, flatShading: true });
@@ -59,7 +59,7 @@ function mine(ctx: Ctx): RealmEnv {
   const lights: THREE.PointLight[] = [];
   for (const [x, z] of [[-4, -4], [4, -4], [-9, 0.5], [9, 0.5], [-3.5, 5.5], [3.5, 5.5]]) {
     mesh(ctx, new THREE.CylinderGeometry(0.07, 0.09, 2.2, 6), tie, x, 1.1, z); lampGlow(ctx, ctx.root, x, 2.3, z, '#FFB84D', 0.2);
-    if (!ctx.phone && lights.length < 4) { const l = new THREE.PointLight('#FFB84D', 7, 9, 1.6); l.position.set(x, 2.4, z); ctx.scene.add(l); lights.push(l); }
+    if (!ctx.phone && lights.length < 4) { const l = new THREE.PointLight('#FFB84D', 12, 12, 1.4); l.position.set(x, 2.4, z); ctx.scene.add(l); lights.push(l); }
   }
   // stations
   const S = SPOTS({ play: '⛏️ Deep Dig', collect: '🛒 Ore cart', build: '📋 Crew board', make: '🔥 Smelter', market: '⚖️ Ore trader', book: '🦴 Fossil book' });
@@ -114,10 +114,10 @@ function mine(ctx: Ctx): RealmEnv {
   };
   const mineUps: THREE.Object3D[] = [];
   return {
-    sky: '#0C0A12', fog: ['#0C0A12', 26, 62], light: ['#A898E0', '#3A3048', 1.7, '#FFD8A8', 1.2], bounds: B, stations: S, zones: zs, producer,
+    sky: '#14101C', fog: ['#14101C', 30, 70], light: ['#C2B4F0', '#554A66', 2.4, '#FFE0B8', 1.7], bounds: B, stations: S, zones: zs, producer,
     update(t) {
       wheel.rotation.z = t * 0.8; (mouth.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.6 + Math.sin(t * 7) * 0.4;
-      lights.forEach((l, i) => { l.intensity = 6.5 + Math.sin(t * 9 + i * 2) * 0.6; });
+      lights.forEach((l, i) => { l.intensity = 11.5 + Math.sin(t * 9 + i * 2) * 0.8; });
       mineUps.forEach((g, i) => { if (g.userData.swing) (g.userData.swing as THREE.Object3D).rotation.z = 0.6 + Math.sin(t * 6 + i) * 0.6; if (g.userData.spin) (g.userData.spin as THREE.Object3D).rotation.y = t * 6; });
     },
   };
@@ -377,7 +377,7 @@ function diner(ctx: Ctx): RealmEnv {
 // ======================================================================================================================
 function dungeon(ctx: Ctx): RealmEnv {
   const r = ctx.r;
-  const flags = ctx.tex(256, 256, (g) => { g.fillStyle = '#4A4552'; g.fillRect(0, 0, 256, 256); const rr = rng(8); for (let y = 0; y < 256; y += 42) for (let x = (y / 42) % 2 ? -32 : 0; x < 256; x += 64) { g.fillStyle = ['#55505E', '#3F3A47', '#4D4856'][Math.floor(rr() * 3)]; g.fillRect(x + 2, y + 2, 60, 38); } }, 8);
+  const flags = ctx.tex(256, 256, (g) => { g.fillStyle = '#5A5464'; g.fillRect(0, 0, 256, 256); const rr = rng(8); for (let y = 0; y < 256; y += 42) for (let x = (y / 42) % 2 ? -32 : 0; x < 256; x += 64) { g.fillStyle = ['#6A6474', '#545060', '#625C6C'][Math.floor(rr() * 3)]; g.fillRect(x + 2, y + 2, 60, 38); } }, 8);
   flat(mesh(ctx, new THREE.PlaneGeometry(60, 60), ctx.std('#ffffff', { map: flags, roughness: 0.95 })));
   // stone walls, pillars, chains, banners
   const stone = ctx.std('#3F3A47', { roughness: 1, flatShading: true });
@@ -389,7 +389,7 @@ function dungeon(ctx: Ctx): RealmEnv {
   for (const [x, z] of [[-6.6, -16.8], [0, -16.8], [6.6, -16.8], [-17.8, -4], [17.8, -4], [-17.8, 4], [17.8, 4]]) {
     mesh(ctx, new THREE.CylinderGeometry(0.06, 0.04, 0.6, 6), ctx.std('#5A3A26'), x, 2.6, z);
     torches.push(mesh(ctx, new THREE.ConeGeometry(0.16, 0.4, 8), ctx.std('#FF8A00', { emissive: '#FF6A00', emissiveIntensity: 2.5 }), x, 3.05, z, ctx.dyn));
-    if (!ctx.phone && lights.length < 4) { const l = new THREE.PointLight('#FF8A3D', 9, 12, 1.5); l.position.set(x, 3.2, z * 0.92); ctx.scene.add(l); lights.push(l); }
+    if (!ctx.phone && lights.length < 4) { const l = new THREE.PointLight('#FF9A4D', 14, 15, 1.4); l.position.set(x, 3.2, z * 0.92); ctx.scene.add(l); lights.push(l); }
   }
   const bones: Inst[] = []; for (let i = 0; i < 30; i++) bones.push({ x: (r() * 2 - 1) * 17, y: 0.06, z: -16 + r() * 3 + (i % 2 ? 0 : 26), s: 0.6 + r() * 0.5, ry: r() * 3, rx: Math.PI / 2 });
   scatter(ctx, new THREE.CapsuleGeometry(0.05, 0.4, 2, 6), ctx.std('#E8E2D4'), bones);
@@ -449,10 +449,10 @@ function dungeon(ctx: Ctx): RealmEnv {
     return g;
   };
   return {
-    sky: '#0E0A14', fog: ['#0E0A14', 26, 62], light: ['#A898D8', '#3A3048', 1.6, '#FFC89A', 1.0], bounds: B, stations: S, zones: zs, producer,
+    sky: '#16101E', fog: ['#16101E', 30, 70], light: ['#C0B2E8', '#554A66', 2.3, '#FFD4AA', 1.5], bounds: B, stations: S, zones: zs, producer,
     update(t) {
       torches.forEach((f, i) => f.scale.set(1 + Math.sin(t * 13 + i) * 0.12, 1 + Math.sin(t * 17 + i * 2) * 0.2, 1));
-      lights.forEach((l, i) => { l.intensity = 8 + Math.sin(t * 11 + i * 3) * 1.2; });
+      lights.forEach((l, i) => { l.intensity = 13 + Math.sin(t * 11 + i * 3) * 1.4; });
       (coals.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.6 + Math.sin(t * 5) * 0.5;
       crown.rotation.y = t; crown.position.y = 1.3 + Math.sin(t * 2) * 0.08;
       gate.position.y = Math.max(0, Math.sin(t * 0.5)) * 0.15;

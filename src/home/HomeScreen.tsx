@@ -31,7 +31,7 @@ import { randomGenome } from '../inkborn/genome';
 import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
 import { DEFAULT_STYLE, createHome, type HomeDoor, type HomeScene, type HomeSpot, type Placed } from './home3d';
 
-const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
+export const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Kind = 'arcade' | 'habitat' | 'farm' | 'business' | RealmKind;
 const KINDS: Kind[] = ['arcade', 'habitat', 'farm', 'business', ...REALM_KINDS];
 const DOOR_META: Record<Kind, { label: string; emoji: string; color: string; route: (id: string) => string; none: string }> = {
@@ -84,7 +84,7 @@ export default function HomeScreen() {
 
 type Prof = { achievements?: { icon?: string; unlocked_at?: string | null }[]; gallery?: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] } | undefined;
 
-function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
+export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
   const [live, setLive] = useState<HomeLive | null>(null);
   const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
   const recRef = useRef(onRec); recRef.current = onRec;
@@ -129,7 +129,9 @@ function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefOb
 }
 
 /** chat for everyone in the house: a chat box, and speech bubbles over whoever said it */
-function useHomeChat(home: string, myId: string | undefined, scene: { current: HomeScene | null }, send: (m: unknown) => void) {
+export function useHomeChat(home: string, myId: string | undefined, scene: { current: HomeScene | null }, send: (m: unknown) => void,
+  fns: { list(after: number): Promise<{ items: PlanetChatMsg[] }>; send(body: string): Promise<PlanetChatMsg> } = { list: (a) => api.homeChatList(home, a), send: (b) => api.homeChatSend(home, b) }) {
+  const fnRef = useRef(fns); fnRef.current = fns;
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
   const [unread, setUnread] = useState(0);
   const last = useRef(0), seen = useRef(new Set<number>()), first = useRef(true), open = useRef(false);
@@ -143,13 +145,13 @@ function useHomeChat(home: string, myId: string | undefined, scene: { current: H
   useEffect(() => {
     if (!myId) return;
     let stop = false;
-    const tick = async () => { try { const r = await api.homeChatList(home, last.current); if (!stop) { add(r.items, !first.current, true); first.current = false; } } catch { /* next time */ } };
+    const tick = async () => { try { const r = await fnRef.current.list(last.current); if (!stop) { add(r.items, !first.current, true); first.current = false; } } catch { /* next time */ } };
     const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(tick, 6000);
     return () => { stop = true; clearTimeout(t0); clearInterval(t); };
   }, [home, myId, add]);
   return {
     msgs, unread,
-    send: async (body: string) => { const m = await api.homeChatSend(home, body); add([m], true); send({ t: 'chat', id: myId, m }); return m; },
+    send: async (body: string) => { const m = await fnRef.current.send(body); add([m], true); send({ t: 'chat', id: myId, m }); return m; },
     onChat: (m: unknown) => add([m as PlanetChatMsg], true),
     setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
   };
@@ -391,7 +393,9 @@ function AllPlacesPanel({ h, onGo }: { h: HomeData; onGo(k: Kind, id: string): v
 }
 
 // ---- decorating -------------------------------------------------------------------------------------------------------
-function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[]; scene: HomeScene; onClose(saved: HomeData | null): void }) {
+/** clan halls: pieces come from the clan's level instead of purchases, and there are no doors to set */
+export type HallDecor = { level: number; unlocks: Record<string, number>; save(name: string | null, style: HomeStyleData, layout: Placed[]): Promise<void> };
+export function Decorator({ h, start, scene, onClose, clan }: { h: HomeData; start: Placed[]; scene: HomeScene; onClose(saved: HomeData | null): void; clan?: HallDecor }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
   const [tab, setTab] = useState<'furniture' | 'room' | 'doors'>('furniture');
@@ -419,7 +423,8 @@ function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[];
   const used = (id: string) => layout.filter((p) => p.i === id).length;
   const price = (id: string) => h.catalog.items[id]?.price ?? {};
   const isFree = (id: string) => !price(id).ink && !price(id).tickets;
-  const canAdd = (id: string) => (isFree(id) ? used(id) < freeEach : (owned[id] ?? 0) > used(id));
+  const needLv = (id: string) => clan?.unlocks[id] ?? 1;
+  const canAdd = (id: string) => (clan ? needLv(id) <= clan.level && used(id) < freeEach : isFree(id) ? used(id) < freeEach : (owned[id] ?? 0) > used(id));
   const add = (id: string) => { if (layout.length >= (h.catalog.max_items ?? 90)) { toast.error('That’s as many pieces as fit.'); return; } scene.addItem(id); setOpen(false); dirty.current = true; };
   const buy = async (id: string) => {
     setBusy(id);
@@ -435,6 +440,7 @@ function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[];
   const save = async () => {
     setBusy('save');
     try {
+      if (clan) { await clan.save(name.trim() || null, style, scene.layout()); toast.success('Hall saved'); onClose(null); return; }
       const saved = await api.homeSave(name.trim() || null, style, scene.layout());
       toast.success('Home saved');
       onClose(saved);
@@ -483,10 +489,11 @@ function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[];
         <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
           <div className="w-full max-w-2xl rounded-t-3xl bg-[#1C1512]/95 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))] shadow-2xl backdrop-blur" data-testid="home-drawer">
             <div className="flex items-center gap-1">
-              {(['furniture', 'room', 'doors'] as const).map((t) => (
+              {(clan ? ['furniture', 'room'] as const : ['furniture', 'room', 'doors'] as const).map((t) => (
                 <button key={t} onClick={() => { setTab(t); setOpen(true); }} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold capitalize', tab === t && open ? 'bg-white text-[#1C1512]' : 'bg-white/10')} data-testid={`home-tab-${t}`}>{t === 'furniture' ? '🛋️ Furniture' : t === 'room' ? '🎨 Room' : '🚪 Doors'}</button>
               ))}
-              <span className="ml-auto flex items-center gap-2 text-xs font-bold"><span className="flex items-center gap-1"><ResourceIcon r="ink" className="h-4 w-4" />{fmt(ink)}</span><span>🎟️ {fmt(tickets)}</span></span>
+              {clan ? <span className="ml-auto text-xs font-bold">🏰 Clan level {clan.level}</span>
+                : <span className="ml-auto flex items-center gap-2 text-xs font-bold"><span className="flex items-center gap-1"><ResourceIcon r="ink" className="h-4 w-4" />{fmt(ink)}</span><span>🎟️ {fmt(tickets)}</span></span>}
               <button onClick={() => setOpen(!open)} className="rounded-lg bg-white/10 px-2 py-1 text-xs" aria-label={open ? 'Hide' : 'Show'}>{open ? '▾' : '▴'}</button>
             </div>
             {open && tab === 'furniture' && (
@@ -497,6 +504,15 @@ function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[];
                 <div className="mt-2 grid max-h-[34vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
                   {CATALOG.filter((c) => c.cat === cat).map((c) => {
                     const pr = price(c.id), free = isFree(c.id), have = free ? freeEach : owned[c.id] ?? 0, u = used(c.id), ok = canAdd(c.id);
+                    if (clan) return (
+                      <div key={c.id} className={cn('grid gap-1 rounded-2xl bg-white/10 p-2 text-center', needLv(c.id) > clan.level && 'opacity-55')} data-testid={`home-item-${c.id}`}>
+                        <div className="text-3xl">{c.emoji}</div>
+                        <div className="truncate text-xs font-bold">{c.name}</div>
+                        <div className="text-[10px] text-white/60">{needLv(c.id) > clan.level ? `🔒 Clan level ${needLv(c.id)}` : `${u}/${freeEach} out`}</div>
+                        {ok ? <button onClick={() => add(c.id)} className="rounded-lg bg-[#3DDC97] py-1 text-xs font-black text-[#0F2A1E]" data-testid={`home-add-${c.id}`}>Place</button>
+                          : <span className="py-1 text-[10px] text-white/50">{needLv(c.id) > clan.level ? 'Locked' : 'All out'}</span>}
+                      </div>
+                    );
                     return (
                       <div key={c.id} className="grid gap-1 rounded-2xl bg-white/10 p-2 text-center" data-testid={`home-item-${c.id}`}>
                         <div className="text-3xl">{c.emoji}</div>
@@ -514,7 +530,7 @@ function Decorator({ h, start, scene, onClose }: { h: HomeData; start: Placed[];
             {open && tab === 'room' && (
               <div className="mt-2 grid max-h-[40vh] gap-3 overflow-y-auto pr-1 text-sm">
                 <label className="grid gap-1"><span className="text-xs font-bold text-white/70">Name over the door</span>
-                  <input value={name} maxLength={32} onChange={(e) => { setName(e.target.value); dirty.current = true; }} placeholder={`${h.host.display_name || h.host.username}’s home`} className="h-10 rounded-xl bg-white/10 px-3 text-white placeholder:text-white/40" data-testid="home-name" />
+                  <input value={name} maxLength={32} onChange={(e) => { setName(e.target.value); dirty.current = true; }} placeholder={clan ? 'Clan hall' : `${h.host.display_name || h.host.username}’s home`} className="h-10 rounded-xl bg-white/10 px-3 text-white placeholder:text-white/40" data-testid="home-name" />
                 </label>
                 <Chips label="Wallpaper" opts={h.catalog.styles.wall} v={style.wall} on={(v) => setS('wall', v)} testid="home-wall" />
                 <Swatches label="Wall colour" cols={WALL_COLORS} v={style.wall_color} on={(v) => setS('wall_color', v)} />
@@ -558,7 +574,7 @@ function Swatches({ label, cols, v, on }: { label: string; cols: string[]; v?: s
   );
 }
 
-function RecordPanel({ rec, onPick, own }: { rec: string; onPick(id: string): void; own: boolean }) {
+export function RecordPanel({ rec, onPick, own }: { rec: string; onPick(id: string): void; own: boolean }) {
   const recs = TRACKS.filter((t) => t.home).concat(TRACKS.filter((t) => !t.home && !t.game));
   return (
     <div className="w-full max-w-md rounded-3xl bg-[#1C1512]/90 p-4 text-white shadow-2xl backdrop-blur" data-testid="home-records">
