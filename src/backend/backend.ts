@@ -97,7 +97,7 @@ const MESSAGES: Record<string, string> = {
   clan_tag_taken: 'That tag is taken.', too_many_requests: 'You’ve asked 5 clans already — wait for an answer.',
   clan_cant_kick: 'You can’t remove them.', clan_item_locked: 'Your clan needs a higher level for that piece.', clan_in_battle: 'One of the clans is already in a battle.',
   already_challenged: 'There’s already a challenge between your clans.', too_many_challenges: 'You have 3 challenges waiting already.',
-  already_claimed: 'Already collected.', no_dynamite: 'Out of dynamite — the outfitter sells more.', mine_not_reachable: 'Dig a tunnel next to it first.', clan_rename_wait: 'Clans can be renamed once every 30 days.', already_fed: 'You’ve fed the spirit today — come back tomorrow!',
+  already_claimed: 'Already collected.', sky_taken: 'Something’s already there.', sky_not_touching: 'New chunks have to touch the island.', sky_balloon_coming: 'That balloon’s still on its way!', sky_reroll_wait: 'You can send a balloon away once every 20 minutes.', no_dynamite: 'Out of dynamite — the outfitter sells more.', mine_not_reachable: 'Dig a tunnel next to it first.', clan_rename_wait: 'Clans can be renamed once every 30 days.', already_fed: 'You’ve fed the spirit today — come back tomorrow!',
   visit_keep_first: 'Come to the Keep first.', chest_locked: 'More clanmates need to visit the Keep today.', clan_build_locked: 'Your clan needs a higher level for that.',
   already_built: 'That’s built already!', not_enough_stone: 'You need stone — mine some in the quarry.', nothing_to_claim: 'Nothing to collect.', claim_expired: 'That reward has expired.',
   need_players: 'Wait for at least one more player to join.',
@@ -310,11 +310,19 @@ export function friendlyError(code: string, detail?: string) {
   return (detail && MESSAGES[`${code}:${detail}`]) || MESSAGES[code] || (detail ? `${code.replace(/_/g, ' ')} (${detail})` : 'Something went wrong. Please try again.');
 }
 
+/** "you went too fast" with roughly how long until you can go again (the server sends the seconds left) */
+export function tooFast(detail: unknown) {
+  const s = Number(detail);
+  if (!Number.isFinite(s) || s <= 0) return 'Whoa, you’re going too fast! Take a short breather and try again in a moment.';
+  const wait = s < 60 ? `${Math.ceil(s)} second${Math.ceil(s) === 1 ? '' : 's'}` : s < 3600 ? `${Math.ceil(s / 60)} minute${Math.ceil(s / 60) === 1 ? '' : 's'}` : `${Math.ceil(s / 3600)} hour${Math.ceil(s / 3600) === 1 ? '' : 's'}`;
+  return `Whoa, you’re going too fast! You’ve done that a lot in a short time — you can do it again in about ${wait}.`;
+}
 export function toGameError(e: unknown): GameError {
   if (e instanceof GameError) return e;
   const msg = String((e as any)?.message ?? e ?? 'error');
   const detail = (e as any)?.detail ?? (e as any)?.details;
   const code = /^[a-z_]+$/.test(msg) ? msg : msg.match(/\b([a-z]+(?:_[a-z]+)+)\b/)?.[1] ?? 'unknown_error';
+  if (code === 'rate_limited') return new GameError(code, tooFast(detail), detail);
   return new GameError(code, (detail && MESSAGES[`${code}:${detail}`]) || MESSAGES[code] || (code === 'unknown_error' ? msg : undefined), detail);
 }
 

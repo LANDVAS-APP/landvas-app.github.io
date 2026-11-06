@@ -14,7 +14,7 @@ export type Ptr = { x: number; y: number; id: number };
 export type Loop = {
   update(dt: number, t: number): boolean | void; // return true when the game's over
   draw(g: CanvasRenderingContext2D, w: number, h: number, t: number): void;
-  down?(p: Ptr, w: number, h: number): void; up?(p: Ptr): void; key?(k: string, down: boolean): void;
+  down?(p: Ptr, w: number, h: number): void; up?(p: Ptr): void; move?(p: Ptr): void; key?(k: string, down: boolean): void;
   score(): number;
 };
 /** a full-size canvas with a game loop, pointer and keys */
@@ -38,11 +38,12 @@ export function useGame(make: (w: number, h: number) => Loop, onEnd: (s: number)
     const at = (e: PointerEvent): Ptr => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, id: e.pointerId }; };
     const pd = (e: PointerEvent) => { e.preventDefault(); if (!done) game.down?.(at(e), w, h); };
     const pu = (e: PointerEvent) => { if (!done) game.up?.(at(e)); };
+    const pmv = (e: PointerEvent) => { if (!done) game.move?.(at(e)); };
     const kd = (e: KeyboardEvent) => { if (!done && !e.repeat) game.key?.(e.key, true); };
     const ku = (e: KeyboardEvent) => { if (!done) game.key?.(e.key, false); };
-    c.addEventListener('pointerdown', pd); c.addEventListener('pointerup', pu); c.addEventListener('pointercancel', pu);
+    c.addEventListener('pointerdown', pd); c.addEventListener('pointerup', pu); c.addEventListener('pointercancel', pu); c.addEventListener('pointermove', pmv);
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); c.removeEventListener('pointerdown', pd); c.removeEventListener('pointerup', pu); c.removeEventListener('pointercancel', pu); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); c.removeEventListener('pointerdown', pd); c.removeEventListener('pointerup', pu); c.removeEventListener('pointercancel', pu); c.removeEventListener('pointermove', pmv); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="absolute inset-0 h-full w-full touch-none select-none" data-testid="realm-game-canvas" />;
 }

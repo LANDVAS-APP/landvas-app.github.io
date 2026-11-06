@@ -25,6 +25,7 @@ import { sfx } from '../arcade/sfx';
 import { fmt, useRealmCore } from './core';
 import { REALM_META } from './kinds';
 import MineScreen from './mine/MineScreen';
+import SkyScreen from './sky/SkyScreen';
 import { createRealm3D, STATIONS, type RealmScene, type Station } from './realm3d';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
@@ -36,6 +37,7 @@ export default function RealmScreen() {
   if (q.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#0C0A12]"><Spinner /></div>;
   if (q.error || !q.data) return <div className="fixed inset-0 grid place-content-center gap-3 bg-[#0C0A12] p-6 text-center text-white"><div className="text-5xl">🗺️</div><p>This place couldn’t be found.</p><Link to="/world"><Button variant="secondary">Back to the map</Button></Link></div>;
   if (q.data.kind === 'mine') return <MineScreen id={q.data.id} />;
+  if (q.data.kind === 'sky') return <SkyScreen id={q.data.id} />;
   return <RealmView key={q.data.id} r={q.data} />;
 }
 
