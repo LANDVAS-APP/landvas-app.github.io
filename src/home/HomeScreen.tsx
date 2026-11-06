@@ -84,7 +84,9 @@ export default function HomeScreen() {
 
 type Prof = { achievements?: { icon?: string; unlocked_at?: string | null }[]; gallery?: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] } | undefined;
 
-export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<HomeScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
+/** what the live-room hooks need from a 3D scene (the house, or the Clan Keep) */
+export type LiveScene = Pick<HomeScene, 'pose' | 'setOthers' | 'moveOther' | 'say'>;
+export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<LiveScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
   const [live, setLive] = useState<HomeLive | null>(null);
   const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
   const recRef = useRef(onRec); recRef.current = onRec;
@@ -129,7 +131,7 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
 }
 
 /** chat for everyone in the house: a chat box, and speech bubbles over whoever said it */
-export function useHomeChat(home: string, myId: string | undefined, scene: { current: HomeScene | null }, send: (m: unknown) => void,
+export function useHomeChat(home: string, myId: string | undefined, scene: { current: LiveScene | null }, send: (m: unknown) => void,
   fns: { list(after: number): Promise<{ items: PlanetChatMsg[] }>; send(body: string): Promise<PlanetChatMsg> } = { list: (a) => api.homeChatList(home, a), send: (b) => api.homeChatSend(home, b) }) {
   const fnRef = useRef(fns); fnRef.current = fns;
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);

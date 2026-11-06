@@ -1,5 +1,5 @@
 // Clans: /clans is your clan (or, without one, finding, founding and the leaderboard); /clans/:id is any clan's page.
-// Members get weekly goals, clan chat, battles against other clans and a shared 3D clan hall (/clan/hall).
+// Members get weekly goals, clan chat, battles against other clans and a shared 3D castle, the Keep (/clan/hall).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Crown, LogOut, Search, Send, Shield, Swords, UserMinus, UserPlus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -22,8 +22,33 @@ export default function ClansScreen() {
   const home = useQuery({ queryKey: clanKeys.home, queryFn: api.clanHome, staleTime: 10_000 });
   if (home.isLoading || !home.data) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (id && id === home.data.clan?.id) return <Navigate to="/clans" replace />;
-  if (id) return <Page><ClanPage id={id} home={home.data} /></Page>;
-  return <Page>{home.data.clan ? <MyClan home={home.data} /> : <NoClan home={home.data} />}</Page>;
+  if (id) return <Page><Heraldry><ClanPage id={id} home={home.data} /></Heraldry></Page>;
+  return <Page><Heraldry color={home.data.clan?.color}>{home.data.clan ? <MyClan home={home.data} /> : <NoClan home={home.data} />}</Heraldry></Page>;
+}
+
+/** clans have a look of their own: night-time castle, stone and gold, lit in the clan's colour */
+function Heraldry({ color, children }: { color?: string; children: React.ReactNode }) {
+  return (
+    <div className="clan-theme relative">
+      <div className="clan-bg" style={{ ['--clan' as string]: color ?? '#7B5CFF' }} />
+      <div className="relative z-[1]">{children}</div>
+    </div>
+  );
+}
+/** the clan's banner: hangs from a gold rod, swallowtailed, in its colours */
+function Banner({ c, children }: { c: ClanCard; children?: React.ReactNode }) {
+  return (
+    <div className="relative mb-5 pt-3" data-testid="clan-header">
+      <div className="absolute inset-x-2 top-0 h-3 rounded-full bg-gradient-to-b from-[#FFE39A] to-[#B8862B] shadow-lg" />
+      <div className="absolute -left-0.5 top-[-3px] h-[18px] w-[18px] rounded-full bg-[#E8B83E] shadow" /><div className="absolute -right-0.5 top-[-3px] h-[18px] w-[18px] rounded-full bg-[#E8B83E] shadow" />
+      <div className="relative mx-3 overflow-hidden px-4 pb-14 pt-5 text-white shadow-2xl"
+        style={{ background: `linear-gradient(180deg, ${c.color} 0%, color-mix(in srgb, ${c.color} 55%, #1B1226) 55%, #1B1226 100%)`, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 38px), 0 100%)', boxShadow: 'inset 0 0 0 3px #E8B83E' }}>
+        <div className="pointer-events-none absolute inset-[6px] border-2 border-[#E8B83E]/60" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 34px), 0 100%)' }} />
+        <div className="pointer-events-none absolute -right-6 -top-6 text-[150px] leading-none opacity-15">{c.emblem}</div>
+        <div className="relative">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 function useRefreshClans() {
@@ -37,7 +62,7 @@ function NoClan({ home }: { home: ClanHome }) {
   const refresh = useRefreshClans();
   return (
     <>
-      <PageHeader eyebrow="Community" title="🛡️ Clans">Team up: a clan hall to hang out in, weekly goals, clan chat and battles against other clans.</PageHeader>
+      <PageHeader eyebrow="Community" title={<span className="font-display">🏰 Clans</span>}>Raise a banner with your friends: your own castle Keep with a Clan Spirit to raise, monuments to build together, weekly goals, clan chat and battles against other clans.</PageHeader>
       {home.rejoin_at && <p className="mb-3 rounded-2xl bg-surface-2 p-3 text-sm text-muted">You left a clan recently — you can join or found another in {until(home.rejoin_at)}.</p>}
       {home.invites.length > 0 && (
         <div className="mb-4 grid gap-2" data-testid="clan-invites">
@@ -201,9 +226,9 @@ function MyClan({ home }: { home: ClanHome }) {
   const toCollect = (c.goals?.filter((g) => g.claim).length ?? 0) + (c.last_goals?.length ?? 0) + (c.season?.claim ? 1 : 0) + (c.battles?.filter((b) => b.claim).length ?? 0);
   return (
     <>
-      <div className="mb-4 overflow-hidden rounded-3xl p-4 text-white shadow-xl" style={{ background: `linear-gradient(135deg, ${c.color}, #1B1430 80%)` }} data-testid="clan-header">
+      <Banner c={c}>
         <div className="flex items-center gap-3">
-          <ClanBadge c={c} size={68} />
+          <Crest c={c} />
           <div className="min-w-0 flex-1">
             <div className="truncate font-display text-2xl font-black" data-testid="clan-name">{c.name} <span className="text-white/70">[{c.tag}]</span></div>
             <div className="text-sm text-white/80">{c.motto || PRIVACY_LABEL[c.privacy]}</div>
@@ -214,12 +239,12 @@ function MyClan({ home }: { home: ClanHome }) {
         <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
           <Stat2 v={`${c.members}/${c.cap}`} l="members" /><Stat2 v={fmt(c.week_score)} l="Ink this week" /><Stat2 v={c.season_rank ? `#${c.season_rank}` : '—'} l="this season" /><Stat2 v={`${c.wins}–${c.losses}`} l="battles" />
         </div>
-        <Link to="/clan/hall" className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-display text-lg font-black text-[#1B1430] shadow-lg" data-testid="clan-enter-hall">
-          🏰 Enter the clan hall{c.in_hall ? <span className="rounded-full bg-[#3DDC97] px-2 text-xs text-[#0F2A1E]">{c.in_hall} there</span> : null}
+        <Link to="/clan/hall" className="mt-3 flex items-center justify-center gap-2 rounded-2xl border-2 border-[#FFE39A] bg-gradient-to-b from-[#F6CF5E] to-[#B8862B] px-4 py-3 font-display text-lg font-black text-[#2A1A08] shadow-lg" data-testid="clan-enter-hall">
+          🏰 Enter the {c.name} Keep{c.in_hall ? <span className="rounded-full bg-[#2A1A08] px-2 text-xs text-[#7DFFB2]">{c.in_hall} there</span> : null}
         </Link>
         {live && <button onClick={() => setSp({ tab: 'battles' })} className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-black/35 px-3 py-2 text-sm font-bold"><Swords className="h-4 w-4" />Battle vs {live.vs.name}: {fmt(live.us)} – {fmt(live.them)} · {until(live.ends_at)} left</button>}
         {toCollect > 0 && <button onClick={() => setSp({ tab: 'goals' })} className="mt-2 w-full rounded-2xl bg-[#FFD23F] px-3 py-2 text-sm font-black text-[#2A1A08]" data-testid="clan-collect-hint">🎁 {toCollect} reward{toCollect === 1 ? '' : 's'} to collect</button>}
-      </div>
+      </Banner>
       <Tabs value={tab} onValueChange={(v) => setSp({ tab: v })} className="mb-4"
         items={[...TAB_ITEMS.map((t) => t.value === 'battles' && incoming ? { ...t, label: `${t.label} (${incoming})` } : t.value === 'members' && officer && c.requests?.length ? { ...t, label: `${t.label} (${c.requests.length})` } : t), ...(officer ? [{ value: 'settings', label: '⚙️ Clan' }] : [])]} />
       {tab === 'goals' && <Goals c={c} home={home} />}
@@ -230,6 +255,15 @@ function MyClan({ home }: { home: ClanHome }) {
       {tab === 'feed' && <Feed c={c} />}
       {tab === 'settings' && officer && <Settings c={c} home={home} />}
     </>
+  );
+}
+/** a shield-shaped crest with the emblem */
+function Crest({ c, size = 72 }: { c: Pick<ClanCard, 'emblem' | 'color'>; size?: number }) {
+  return (
+    <span className="relative grid shrink-0 place-items-center" style={{ width: size, height: size * 1.15 }}>
+      <svg viewBox="0 0 100 115" className="absolute inset-0 h-full w-full drop-shadow-lg"><path d="M50 4 L94 16 V54 C94 82 74 101 50 111 C26 101 6 82 6 54 V16 Z" fill={c.color} stroke="#E8B83E" strokeWidth="6" /><path d="M50 14 L84 23 V54 C84 76 69 91 50 99 C31 91 16 76 16 54 V23 Z" fill="none" stroke="#fff6" strokeWidth="2" /></svg>
+      <span className="relative" style={{ fontSize: size * 0.48, marginTop: -size * 0.06 }}>{c.emblem}</span>
+    </span>
   );
 }
 const Stat2 = ({ v, l }: { v: string; l: string }) => <div className="rounded-xl bg-black/25 px-1 py-1.5"><b className="block text-base">{v}</b><span className="text-white/70">{l}</span></div>;
@@ -268,7 +302,7 @@ function Goals({ c, home }: { c: Clan; home: ClanHome }) {
   return (
     <div className="grid gap-3" data-testid="clan-goals">
       <div className="flex items-center justify-between text-sm"><b>This week’s goals</b><span className="text-xs text-muted">New goals in {until(c.week_ends)}</span></div>
-      <p className="-mt-2 text-xs text-muted">Every Ink you earn — realms, arcades, farms, businesses, party games, minigames — counts. So does hanging out in the clan hall together. You’ve given {fmt(c.me?.week_ink ?? 0)} Ink and {Math.floor((c.me?.week_secs ?? 0) / 60)} min this week.</p>
+      <p className="-mt-2 text-xs text-muted">Every Ink you earn — realms, arcades, farms, businesses, party games, minigames — counts. So does hanging out in the Keep together. You’ve given {fmt(c.me?.week_ink ?? 0)} Ink and {Math.floor((c.me?.week_secs ?? 0) / 60)} min this week.</p>
       {c.season?.claim && (
         <div className="glass flex items-center gap-3 rounded-3xl p-3 ring-2 ring-[#FFD23F]"><span className="text-3xl">🏆</span>
           <span className="min-w-0 flex-1"><b className="block">Last season: #{c.season.rank}</b><span className="text-xs text-muted">Your clan finished in the top — here’s your share.</span></span>
@@ -446,6 +480,9 @@ const FEED_TEXT: Record<string, (f: NonNullable<Clan['feed']>[number]) => string
   kicked: (f) => `🚪 @${f.who?.username} was removed`, leader: (f) => `👑 @${f.who?.username} leads the clan now`, officer: (f) => `⭐ @${f.who?.username} is an officer`,
   goal: (f) => `${f.data.emoji ?? '🎯'} Goal done: ${f.data.label}${f.who ? ` (finished by @${f.who.username})` : ''}`, level: (f) => `⬆️ The clan reached level ${f.data.level}!`,
   challenged: (f) => `⚔️ ${f.vs?.name ?? 'A clan'} challenged you to a battle`, battle_start: (f) => `⚔️ Battle on against ${f.vs?.name ?? 'a clan'}`,
+  renamed: (f) => `✒️ @${f.who?.username} renamed the clan “${String(f.data.to)}” (was “${String(f.data.from)}”)`,
+  spirit: (f) => `🐉 The Clan Spirit grew into a ${String(f.data.name)}!${f.who ? ` (fed by @${f.who.username})` : ''}`,
+  built: (f) => `${f.data.emoji ?? '🏗️'} The ${String(f.data.name)} is built!${f.who ? ` (finished by @${f.who.username})` : ''}`,
   battle_end: (f) => (f.data.tie ? `🤝 The battle with ${f.vs?.name} was a tie` : f.data.won ? `🏆 You beat ${f.vs?.name}!` : `😤 ${f.vs?.name} won the battle`),
 };
 function Feed({ c }: { c: Clan }) {
@@ -469,12 +506,29 @@ function Settings({ c, home }: { c: Clan; home: ClanHome }) {
         <div className="flex flex-wrap gap-1.5">{home.cfg.colors.map((x) => <button key={x} onClick={() => void edit({ color: x })} aria-label={x} className={cn('h-9 w-9 rounded-full border-2', c.color === x ? 'border-white' : 'border-transparent')} style={{ background: x }} />)}</div></div>
       <form onSubmit={(e) => { e.preventDefault(); void edit({ motto: motto.trim() || null }); }} className="grid gap-1 text-sm font-bold">Motto
         <div className="flex gap-2"><input value={motto} maxLength={80} onChange={(e) => setMotto(e.target.value)} className={inputCls} /><Button type="submit" variant="secondary">Save</Button></div></form>
+      {c.role === 'leader' && <Rename c={c} />}
       {c.role === 'leader' && (
         <div className="grid gap-1 text-sm font-bold">Who can join
           <div className="flex flex-wrap gap-1.5">{(['open', 'request', 'invite'] as const).map((p) => <button key={p} onClick={() => void edit({ privacy: p })} className={cn('rounded-xl px-3 py-2 text-sm font-bold', c.privacy === p ? 'bg-accent text-white' : 'bg-surface-2')} data-testid={`clan-privacy-${p}`}>{PRIVACY_LABEL[p]}</button>)}</div></div>
       )}
-      <p className="text-xs text-muted">Decorate the hall from inside it: <Link to="/clan/hall" className="font-bold text-accent-2">Enter the clan hall →</Link></p>
+      <p className="text-xs text-muted">Raise monuments, feed the spirit and open the chest in the Keep: <Link to="/clan/hall" className="font-bold text-accent-2">Enter the Keep →</Link></p>
     </div>
+  );
+}
+
+function Rename({ c }: { c: Clan }) {
+  const refresh = useRefreshClans();
+  const [name, setName] = useState(c.name);
+  const [busy, setBusy] = useState(false);
+  const next = c.renamed_at ? new Date(new Date(c.renamed_at).getTime() + 30 * 86400_000) : null;
+  const wait = next && next.getTime() > Date.now();
+  return (
+    <form onSubmit={async (e) => { e.preventDefault(); setBusy(true); try { await api.clanRename(name.trim()); toast.success('Renamed ✒️'); refresh(); } catch (er) { err(er); } finally { setBusy(false); } }} className="grid gap-1 text-sm font-bold" data-testid="clan-rename">
+      Clan name <span className="text-xs font-normal text-muted">Only the leader can rename the clan, once every 30 days.</span>
+      <div className="flex gap-2"><input value={name} maxLength={24} disabled={!!wait} onChange={(e) => setName(e.target.value)} className={inputCls} data-testid="clan-rename-input" />
+        <Button type="submit" variant="secondary" loading={busy} disabled={!!wait || name.trim().length < 3 || name.trim() === c.name} data-testid="clan-rename-go">Rename</Button></div>
+      {wait && <span className="text-xs font-normal text-muted">You can rename again in {until(next!.toISOString())}.</span>}
+    </form>
   );
 }
 
@@ -488,8 +542,8 @@ function ClanPage({ id, home }: { id: string; home: ClanHome }) {
   if (!c) return <Empty icon="🛡️" title="That clan couldn’t be found" action={<Link to="/clans"><Button variant="secondary">All clans</Button></Link>} />;
   return (
     <div className="grid gap-4" data-testid="clan-page">
-      <div className="overflow-hidden rounded-3xl p-4 text-white shadow-xl" style={{ background: `linear-gradient(135deg, ${c.color}, #1B1430 80%)` }}>
-        <div className="flex items-center gap-3"><ClanBadge c={c} size={68} />
+      <Banner c={c}>
+        <div className="flex items-center gap-3"><Crest c={c} />
           <div className="min-w-0 flex-1"><div className="truncate font-display text-2xl font-black">{c.name} <span className="text-white/70">[{c.tag}]</span></div>
             <div className="text-sm text-white/80">{c.motto || ''}</div><div className="text-xs text-white/70">{PRIVACY_LABEL[c.privacy]}</div></div></div>
         <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs"><Stat2 v={`Lv ${c.level}`} l="level" /><Stat2 v={`${c.members}/${c.cap}`} l="members" /><Stat2 v={fmt(c.week_score)} l="Ink this week" /><Stat2 v={`${c.wins}–${c.losses}`} l="battles" /></div>
@@ -498,7 +552,7 @@ function ClanPage({ id, home }: { id: string; home: ClanHome }) {
             : c.asked ? <span className="rounded-xl bg-black/30 px-3 py-2 text-sm font-bold">Asked to join ✓</span> : <JoinButton c={c} home={home} />}
           {officerElsewhere && <Button variant="secondary" onClick={async () => { try { await api.clanChallenge(c.id); toast.success(`Challenge sent to ${c.name} ⚔️`); refresh(); } catch (e) { err(e); } }} data-testid="clan-page-challenge"><Swords className="h-4 w-4" /> Challenge</Button>}
         </div>
-      </div>
+      </Banner>
       {!!c.recent_battles.length && <div className="grid gap-2"><b className="text-sm">Recent battles</b>{c.recent_battles.map((b) => (
         <div key={b.id} className="glass flex items-center gap-2 rounded-2xl p-2.5 text-sm"><ClanBadge c={b.vs} size={28} /><span className="min-w-0 flex-1 truncate">vs {b.vs.name}</span><b>{fmt(b.us)} – {fmt(b.them)}</b><span className="w-16 text-right text-xs">{b.status === 'live' ? 'LIVE' : b.tie ? 'Tie' : b.won ? 'Won' : 'Lost'}</span></div>
       ))}</div>}

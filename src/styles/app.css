@@ -1140,3 +1140,51 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-explorer .spin, .lv-figure .spin { animation: lv-prop 0.4s linear infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes lv-prop { from { transform: scaleX(1); } 50% { transform: scaleX(-1); } to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) { .aura-arcade .lv-figure-svg, .lv-explorer.aura-arcade svg, .lv-explorer .spin, .lv-figure .spin { animation: none; } }
+
+/* ---- clans: a heraldic look of their own (stone, banners, gold) ---------------------------------------------------- */
+.clan-theme {
+  --bg: #140d1a;
+  --surface: #241829;
+  --surface-2: #33223a;
+  --line: rgba(232, 184, 62, 0.32);
+  --line-strong: rgba(232, 184, 62, 0.6);
+  --fg: #fff4da;
+  --muted: #cdb99a;
+  --faint: #9c8a70;
+  --accent: #b8862b;
+  --accent-2: #ffd98a;
+  --glass: linear-gradient(180deg, rgba(56, 38, 62, 0.94), rgba(31, 21, 38, 0.94));
+  --glass-solid: #241829;
+  --shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 228, 160, 0.08);
+  --rainbow: linear-gradient(120deg, #fff1b8, #e8b83e 35%, #b8862b 60%, #ffe39a);
+  --font-display: "Cinzel", "Trajan Pro", "Palatino Linotype", Palatino, Georgia, serif;
+  color: var(--fg);
+}
+.clan-theme .glass { border-color: rgba(232, 184, 62, 0.38); }
+.clan-theme .font-display { letter-spacing: 0.02em; }
+.clan-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 45% at 50% 0%, color-mix(in srgb, var(--clan, #7b5cff) 45%, transparent), transparent 70%),
+    radial-gradient(50% 35% at 85% 30%, rgba(255, 170, 80, 0.12), transparent 70%),
+    linear-gradient(180deg, #1d1226 0%, #140d1a 60%, #0d0911 100%);
+}
+.clan-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(1.5px 1.5px at 12% 18%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 32% 8%, #fff7 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 22%, #fff6 50%, transparent 51%), radial-gradient(1px 1px at 78% 12%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 26%, #fff6 50%, transparent 51%), radial-gradient(1.5px 1.5px at 44% 30%, #fff5 50%, transparent 51%);
+}
+.clan-bg::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38vh;
+  opacity: 0.55;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><path fill='%23080510' d='M0 300V190h40v-30h20v30h30v-60h-10v-20h50v20h-10v60h40V150h20v-25h15v25h20v40h70v-80h-12V85h24v-15h20v15h24v25h-12v80h60v-50h20v-20h20v20h20v50h50V120h-15V95h30V75h18V45h12v-15l14 15h12v30h18v20h30v25h-15v70h60v-40h25v-20h20v20h25v40h70V140h-14v-22h30v-18h16v18h30v22h-14v50h60v-35h20v-18h18v18h20v35h50v110z'/></svg>") bottom/100% 100% no-repeat;
+}

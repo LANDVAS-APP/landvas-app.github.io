@@ -721,7 +721,7 @@ export type ClanRole = 'leader' | 'officer' | 'member';
 export type ClanPrivacy = 'open' | 'request' | 'invite';
 export type ClanCard = {
   id: string; name: string; tag: string; emblem: string; color: string; motto: string | null; privacy: ClanPrivacy;
-  level: number; xp: number; wins: number; losses: number; members: number; cap: number; week_score: number; in_hall: number;
+  level: number; xp: number; wins: number; losses: number; members: number; cap: number; week_score: number; in_hall: number; renamed_at?: string | null;
 };
 export type ClanLevel = { level: number; xp: number; into: number; need: number; max: boolean };
 export type ClanGoal = { n: number; k: string; cat: string; emoji: string; label: string; unit: 'ink' | 'min'; target: number; progress: number; done: boolean; reward: number; claimed: boolean; claim: string | null };
@@ -750,3 +750,12 @@ export type ClanHome = {
   cfg: { found_cost: number; emblems: string[]; colors: string[]; perks: { level: number; emoji: string; text: string }[]; season: { top: number; ink: number }[]; battle: { hours: number; win_ink: number; lose_ink: number } };
 };
 export type ClanBoard = { kind: 'week' | 'last' | 'level'; week?: string; ends_at?: string; rows: (ClanCard & { rank: number; score?: number; prize?: number })[]; mine: number | null };
+export type ClanBuild = { key: string; name: string; emoji: string; cost: number; level: number; xp: number; progress: number; done: boolean; done_at: string | null; locked: boolean };
+export type ClanKeep = {
+  clan: ClanCard & { role: ClanRole; renamed_at: string | null };
+  stone: number; stone_today: number; stone_cap: number; level: number;
+  spirit: { seed: number; bond: number; feeds: number; stage: number; name: string; names: string[]; next: number | null; fed_today: boolean; feeders_today: Profile[]; feed_stone: number; feed_xp: number };
+  chest: { need: number; visitors: number; open: boolean; here_today: boolean; claimed: boolean; claim: string | null; ink: number; stone: number; who: Profile[] };
+  builds: ClanBuild[];
+  training: { mine: number; board: (Profile & { best: number })[] };
+};
