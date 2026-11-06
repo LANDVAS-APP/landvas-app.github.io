@@ -7,6 +7,11 @@ export const KIND_LABEL: Record<PlotKind, { one: string; many: string; emoji: st
   farm: { one: 'farm', many: 'farms', emoji: '🌾' },
   business: { one: 'business', many: 'businesses', emoji: '🍋' },
   arcade: { one: 'arcade', many: 'arcades', emoji: '🕹️' },
+  mine: { one: 'crystal mine', many: 'crystal mines', emoji: '⛏️' },
+  sky: { one: 'sky island', many: 'sky islands', emoji: '☁️' },
+  workshop: { one: 'workshop', many: 'workshops', emoji: '🛠️' },
+  diner: { one: 'restaurant', many: 'restaurants', emoji: '🍳' },
+  dungeon: { one: 'dungeon', many: 'dungeons', emoji: '⚔️' },
 };
 export const kindOf = (groups: CanvasGroup[] | undefined, id: string): PlotKind => groups?.find((g) => g.id === id)?.kind ?? 'canvas';
 /** The type the current pick is locked to (that of the first canvas picked), or null with nothing picked. */

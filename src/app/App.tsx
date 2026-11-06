@@ -65,6 +65,7 @@ const FarmScreen = lazy(() => import('../farm/FarmScreen'));
 const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
+const RealmScreen = lazy(() => import('../realms/RealmScreen'));
 const BusinessGame = lazy(() => import('../business/BusinessGame'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
 const SpaceScreen = lazy(() => import('../space/SpaceScreen'));
@@ -174,6 +175,7 @@ const routes: RouteObject[] = [
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },
       { path: '/business/:id', element: player(<BusinessScreen />) },
       { path: '/arcade/:id', element: player(<ArcadeScreen />) },
+      { path: '/realm/:id', element: player(<RealmScreen />) },
       { path: '/home', element: player(<HomeScreen />) },
       { path: '/u/:username/home', element: player(<HomeScreen />) },
       { path: '/u/:username/room', element: player(<HomeScreen />) },

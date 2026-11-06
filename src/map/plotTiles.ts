@@ -415,8 +415,67 @@ function arcadeCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
   }
   rareBits(ctx, c);
 }
-const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell };
-const RIM_BASE: Partial<Record<PlotKind, string>> = { habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)' };
+// ---- the realm types: a mine, a sky island, a workshop, a restaurant and a dungeon ----
+function mineCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs, gx, gy } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#3A3340'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = c.tier ? c.rc : '#8B5CFF'; ctx.fillRect(px + cs * 0.3, py + cs * 0.3, cs * 0.4, cs * 0.4); return; }
+  const b = inner(c, cs * 0.08);
+  ctx.fillStyle = '#4A4252'; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  for (let i = 0; i < 6; i++) { const x = px + cs * (0.12 + hash(gx, gy, i) * 0.76), y = py + cs * (0.12 + hash(gx, gy, i + 9) * 0.76), r = cs * (0.035 + hash(gx, gy, i + 3) * 0.04); ctx.fillStyle = ['#8B5CFF', '#22E3FF', '#FF3D9A', c.rc][i % 4]; ctx.beginPath(); ctx.moveTo(x, y - r * 1.6); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 1.6); ctx.lineTo(x - r, y); ctx.fill(); }
+  if (cs >= 12 && !c.join.s) { ctx.fillStyle = '#0A080E'; ctx.beginPath(); ctx.arc(px + cs / 2, py + cs * 0.92, cs * 0.18, Math.PI, 0); ctx.fill(); ctx.strokeStyle = '#8B6B4A'; ctx.lineWidth = Math.max(1, cs * 0.04); ctx.stroke(); }
+  rareBits(ctx, c);
+}
+function skyCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
+  const { px, py, cs, gx, gy } = c;
+  ctx.globalAlpha = 1; const gr = ctx.createLinearGradient(px, py, px, py + cs); gr.addColorStop(0, '#8FD0FF'); gr.addColorStop(1, '#CBE9FF'); ctx.fillStyle = gr; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#7ED957'; ctx.fillRect(px + cs * 0.2, py + cs * 0.4, cs * 0.6, cs * 0.25); return; }
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'; for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.ellipse(px + cs * (0.2 + hash(gx, gy, i) * 0.6), py + cs * (0.15 + i * 0.6), cs * 0.16, cs * 0.06, 0, 0, Math.PI * 2); ctx.fill(); }
+  const cx = px + cs / 2, cy = py + cs * 0.5 + Math.sin(t * 1.5 + gx) * cs * 0.02;
+  ctx.fillStyle = '#8A6E55'; ctx.beginPath(); ctx.moveTo(cx - cs * 0.3, cy); ctx.lineTo(cx, cy + cs * 0.3); ctx.lineTo(cx + cs * 0.3, cy); ctx.fill();
+  ctx.fillStyle = c.tier >= 3 ? '#FFE14D' : '#7ED957'; ctx.beginPath(); ctx.ellipse(cx, cy, cs * 0.31, cs * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  if (cs >= 12) { ctx.fillStyle = '#2E8B57'; ctx.beginPath(); ctx.arc(cx + cs * 0.1, cy - cs * 0.07, cs * 0.06, 0, Math.PI * 2); ctx.fill(); }
+  rareBits(ctx, c);
+}
+function workshopCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#6B4A33'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#F59E0B'; ctx.fillRect(px + cs * 0.25, py + cs * 0.25, cs * 0.5, cs * 0.5); return; }
+  const b = inner(c, cs * 0.08);
+  ctx.fillStyle = '#9C4A35'; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  if (cs >= 10) { ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1; for (let y = b.y0; y < b.y1; y += cs * 0.12) { ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke(); } }
+  // a big gear on the roof
+  const cx = px + cs / 2, cy = py + cs / 2, r = cs * 0.2; ctx.fillStyle = c.tier ? c.rc : '#C9A04A';
+  ctx.beginPath(); for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, rr = i % 2 ? r : r * 1.3; ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.fill();
+  ctx.fillStyle = '#6B4A33'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2); ctx.fill();
+  rareBits(ctx, c);
+}
+function dinerCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#F4F1EA'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#E8323C'; ctx.fillRect(px + cs * 0.2, py + cs * 0.2, cs * 0.6, cs * 0.6); return; }
+  const n = cs >= 16 ? 6 : 3, q = cs / n;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y) % 2) { ctx.fillStyle = '#E8323C'; ctx.fillRect(px + x * q, py + y * q, q, q); }
+  const b = inner(c, cs * 0.12), roofB = c.join.s ? py + cs : py + cs * 0.68;
+  ctx.fillStyle = '#FFE14D'; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, roofB - b.y0);
+  if (!c.join.s && cs >= 10) { const k = 6, aw = (b.x1 - b.x0) / k; for (let i = 0; i < k; i++) { ctx.fillStyle = i % 2 ? '#FFFFFF' : c.tier ? c.rc : '#E8323C'; ctx.fillRect(b.x0 + i * aw, roofB, aw + 0.5, cs * 0.1); } }
+  rareBits(ctx, c);
+}
+function dungeonCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
+  const { px, py, cs, gx, gy } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#2A2630'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#A855F7'; ctx.fillRect(px + cs * 0.3, py + cs * 0.3, cs * 0.4, cs * 0.4); return; }
+  const b = inner(c, cs * 0.08);
+  ctx.fillStyle = '#4A4552'; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  if (cs >= 10) { ctx.strokeStyle = '#2A2630'; ctx.lineWidth = Math.max(1, cs * 0.02); for (let y = 0; y < 4; y++) for (let x = 0; x < 3; x++) ctx.strokeRect(b.x0 + ((x + (y % 2) * 0.5) * (b.x1 - b.x0)) / 3, b.y0 + (y * (b.y1 - b.y0)) / 4, (b.x1 - b.x0) / 3, (b.y1 - b.y0) / 4); }
+  // torches on the corners
+  for (const [dx, dy] of [[0.18, 0.18], [0.82, 0.18]]) { ctx.fillStyle = hash(gx, gy, Math.floor(t * 6)) > 0.5 ? '#FFB13D' : '#FF6A00'; ctx.beginPath(); ctx.arc(px + cs * dx, py + cs * dy, Math.max(1, cs * 0.05), 0, Math.PI * 2); ctx.fill(); }
+  if (cs >= 12 && !c.join.s) { ctx.fillStyle = '#0A080E'; ctx.beginPath(); ctx.arc(px + cs / 2, py + cs * 0.92, cs * 0.16, Math.PI, 0); ctx.fill(); ctx.strokeStyle = c.tier ? c.rc : '#A855F7'; ctx.lineWidth = Math.max(1, cs * 0.03); ctx.stroke(); }
+  rareBits(ctx, c);
+}
+const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
+const RIM_BASE: Partial<Record<PlotKind, string>> = { habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)' };
+const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
 function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, y0: number, x1: number, y1: number, rc: string, glow: string, tier: number, seed: number) {
@@ -430,6 +489,13 @@ function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, 
     ctx.fillStyle = tier === 4 ? rc : '#FFE14D'; star(ctx, cx, my, r1, r1 * 0.42); ctx.fill();
     ctx.shadowBlur = 0;
     if (s >= 60) { ctx.font = `900 ${Math.round(s * 0.11)}px ui-rounded, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = rc; ctx.shadowColor = rc; ctx.shadowBlur = s * 0.08; ctx.fillText('ARCADE', cx, my + r1 * 1.75); ctx.shadowBlur = 0; }
+  } else if (REALM_SIGN[kind]) {
+    // a round sign with the place's emblem, ringed in the rarity colour
+    const r = s * 0.13, my = y0 + h * 0.35;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.arc(cx, my, r, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = Math.max(1, r * 0.2); ctx.strokeStyle = tier ? rc : '#FFFFFF'; ctx.shadowColor = glow; ctx.shadowBlur = s * 0.04 * tier; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.font = `${Math.round(r * 1.15)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(REALM_SIGN[kind]!, cx, my + r * 0.08);
   } else if (kind === 'business') {
     // a rooftop sign with the rarity colour round it
     const r = s * 0.13, my = y0 + h * 0.3;

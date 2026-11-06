@@ -11,15 +11,20 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { PlotKind } from '../backend/types';
 import { invalidateGame, qk } from '../lib/queries';
+import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
+import { RealmPreview } from '../realms/RealmPreview';
 import { cn } from '../lib/utils';
 import { Button, Dialog } from '../ui';
 import { drawHabitatPlot } from '../map/plotTiles';
 import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
 
-type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; name: string };
+type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; realm_id?: string | null; name: string };
+const KIND_NAME = (k: PlotKind) => (isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
+const KIND_A = (k: PlotKind) => (isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
+  if (isRealm(kind)) { const m = REALM_META[kind]; return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `${m.color}26`, color: m.color }}>{m.emoji} {m.name}</span>; }
   if (kind === 'arcade') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FF3D9A]/15 px-2 py-0.5 text-[11px] font-bold text-[#FF3D9A]"><Gamepad2 className="h-3 w-3" /> Arcade</span>;
   if (kind === 'business') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE14D]/20 px-2 py-0.5 text-[11px] font-bold text-[#D4A500]"><Citrus className="h-3 w-3" /> Business</span>;
   if (kind === 'farm') return <span className="inline-flex items-center gap-1 rounded-full bg-[#F5C842]/20 px-2 py-0.5 text-[11px] font-bold text-[#E0A800]"><Wheat className="h-3 w-3" /> Farm</span>;
@@ -189,6 +194,10 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       } else if (choice === 'business') {
         toast.success(`${g.name} is now a Business 🍋`, { description: 'Your lemonade stand is open!' });
         if (r.business_id) nav(`/business/${r.business_id}`);
+      } else if (isRealm(choice)) {
+        const m = REALM_META[choice];
+        toast.success(`${g.name} is now ${KIND_A(choice)} ${m.emoji}`, { description: m.body });
+        if (r.realm_id) nav(realmRoute(r.realm_id));
       } else if (choice === 'arcade') {
         toast.success(`${g.name} is now an Arcade 🕹️`, { description: 'The lights are on and the cabinets are humming.' });
         if (r.arcade_id) nav(`/arcade/${r.arcade_id}`);
@@ -209,6 +218,11 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
     { k: 'arcade', title: 'Arcade', body: 'A neon arcade you walk round with your explorer.', color: '#FF3D9A', icon: <Gamepad2 className="h-4 w-4" />, preview: <ArcadePreview />,
       perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
+    ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => {
+      const m = REALM_META[k];
+      return { k, title: m.name, body: m.long, color: m.color, icon: <span className="text-base leading-none">{m.emoji}</span>, preview: <RealmPreview kind={k} />,
+        perks: [`Six zones that open as it levels up`, `${m.crew} that work while you’re away`, `${m.make}, a market and a ${m.book.toLowerCase()}`, 'A signature minigame anyone can play (you get 10%)'] };
+    }),
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange} wide title={step === 'pick' ? 'What should this land become?' : 'Before you switch'} description={step === 'pick' ? `${g.name} · ${g.plot_count} plot${g.plot_count === 1 ? '' : 's'}` : undefined}>
@@ -232,15 +246,23 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
             {choice === cur ? (
               cur === 'habitat' && g.habitat_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/habitat/${g.habitat_id}`); }}>Enter sanctuary <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'business' && g.business_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/business/${g.business_id}`); }}>Open business <ArrowRight className="h-4 w-4" /></Button>
+                : isRealm(cur) && g.realm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(realmRoute(g.realm_id!)); }}>{REALM_META[cur].enter} <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'arcade' && g.arcade_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/arcade/${g.arcade_id}`); }}>Enter arcade <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'farm' && g.farm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/farm/${g.farm_id}`); }}>Enter farm <ArrowRight className="h-4 w-4" /></Button>
                 : <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/create/${g.id}`); }}>Keep painting <ArrowRight className="h-4 w-4" /></Button>
-            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {choice === 'habitat' ? 'a Habitat' : choice === 'farm' ? 'a Farm' : choice === 'business' ? 'a Business' : choice === 'arcade' ? 'an Arcade' : 'an Art Canvas'} <ArrowRight className="h-4 w-4" /></Button>}
+            ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {KIND_A(choice)} <ArrowRight className="h-4 w-4" /></Button>}
           </div>
         </div>
       ) : (
         <div className="grid gap-3 text-sm" data-testid="plot-kind-confirm">
-          {choice === 'arcade' ? (
+          {isRealm(choice) ? (
+            <ul className="grid gap-2">
+              <li>{REALM_META[choice].emoji} <b>{g.name}</b> becomes {KIND_A(choice)}. {REALM_META[choice].long}</li>
+              <li>💧 Its minigame, level-ups, rare finds and a daily bonus pay a little Ink (capped a day).</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was{cur === 'habitat' ? ', and your creatures wait safely in your starter sanctuary' : ''}. If you switch this plot to another type and back, it keeps its progress too.</li>
+              <li>🖌️ While it’s {KIND_A(choice).replace(/^an? /, 'a ')} you can’t paint or publish art here.</li>
+            </ul>
+          ) : choice === 'arcade' ? (
             <ul className="grid gap-2">
               <li>🕹️ <b>{g.name}</b> becomes a neon arcade with Tower Stacker and Cyclone ready to play. On the map it shows as a glowing arcade front instead of your painting.</li>
               <li>🎟️ Every game is free and won by skill. Scores win tickets for prizes and upgrades, and a little Ink.</li>
@@ -276,7 +298,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
           <p className="flex items-center gap-2 rounded-2xl bg-ok/10 p-3 text-xs text-ok"><ShieldCheck className="h-4 w-4 shrink-0" /> Switching costs 20 Ink (free for a plot you’ve just claimed). It doesn’t change your rent or plot ownership, and nothing is lost.</p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
-            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {choice === 'habitat' ? 'Inkborn Habitat' : choice === 'farm' ? 'Farm' : choice === 'business' ? 'Business' : choice === 'arcade' ? 'Arcade' : 'Art Canvas'}</Button>
+            <Button variant="rainbow" loading={busy} onClick={go} data-testid="kind-confirm">Switch to {KIND_NAME(choice)}</Button>
           </div>
         </div>
       )}

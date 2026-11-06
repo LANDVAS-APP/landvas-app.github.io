@@ -198,8 +198,8 @@ export type HomePlaced = { i: string; x: number; z: number; r: number; c?: numbe
 export type HomeStyleData = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string; music?: string };
 export type HomeData = {
   host: Profile & { explorer_style?: unknown }; own: boolean; name: string | null; style: HomeStyleData; layout: HomePlaced[];
-  doors: Record<'arcade' | 'habitat' | 'farm' | 'business', HomeDoorInfo>;
-  careers: { arcade: number; keeper: number; farmer: number; merchant: number; creatures: number; plots: number };
+  doors: Record<'arcade' | 'habitat' | 'farm' | 'business', HomeDoorInfo> & Partial<Record<RealmKind, HomeDoorInfo>>;
+  careers: { arcade: number; keeper: number; farmer: number; merchant: number; creatures: number; plots: number; realms?: Partial<Record<RealmKind, number>> };
   inkborn: { id: string; name: string; genome: unknown; companion: boolean }[];
   items: Record<string, number> | null; tickets: number | null;
   catalog: { max_items: number; free_each: number; styles: Record<'wall' | 'floor' | 'view' | 'mood', string[]>; items: Record<string, { price: { ink?: number; tickets?: number }; mount: string }> };
@@ -257,6 +257,7 @@ export type CanvasGroup = {
   farm_id?: string | null;
   business_id?: string | null;
   arcade_id?: string | null;
+  realm_id?: string | null;
   name: string;
   status: string;
   plot_count: number;
@@ -449,7 +450,8 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade';
+export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | RealmKind;
+export type RealmKind = 'mine' | 'sky' | 'workshop' | 'diner' | 'dungeon';
 export type BizVenture = { key: string; name: string; emoji: string; owned: number; cost: number; cost10: number; max_q: number; rate: number; each: number; next_milestone: number | null; revealed: boolean };
 export type BizUpgrade = { key: string; kind: 'venture' | 'tap' | 'global'; venture: string | null; name: string; emoji: string; cost: number; x?: number; pct?: number; golden?: number; golden_dur?: number; need?: number };
 export type BizBuff = { kind: 'frenzy' | 'storm'; mult: number; until: string };
@@ -687,3 +689,29 @@ export type Arcade = {
   cosmetics?: ArcadeCosmetic[]; hot?: { game: string | null; until: string; tickets: number; ink: number }; first_play_tickets?: number;
 };
 export type ArcadeFinish = { mode?: ArcadeMode; ink_progress?: number; bonus?: string[]; hot?: boolean; score: number; tickets: number; earned: number; paid: number; capped: boolean; best: number; new_best: boolean; record: number; new_record: boolean; owner_cut: number; level_up: number | null; me: ArcadeMe; repeat?: boolean };
+
+// ---- realm plot types (mine, sky island, workshop, restaurant, dungeon) ----
+export type Bag = Record<string, number>;
+export type RealmRes = { name: string; emoji: string; sell?: number; tier?: number; level?: number; currency?: boolean; made?: boolean };
+export type RealmItem = { name: string; emoji: string; blurb?: string; order: number; level?: number; max: number; cost: Bag; growth: number; makes?: Bag; effect?: Record<string, number> };
+export type RealmRecipe = { name: string; emoji: string; order: number; level: number; in: Bag; out: Bag; xp: number };
+export type RealmFind = { name: string; emoji: string; rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'; level: number; order: number; ink: number };
+export type RealmGame = { name: string; emoji: string; blurb: string; level: number; min_seconds: number; max_score: number; drops: { res: string; per_point: number; level: number }[] };
+export type RealmCfg = {
+  name: string; emoji: string; color: string; currency: string; resources: Record<string, RealmRes>;
+  zones: { id: string; name: string; level: number; blurb: string }[];
+  producers: Record<string, RealmItem>; upgrades: Record<string, RealmItem>; recipes: Record<string, RealmRecipe>; finds: Record<string, RealmFind>; games: Record<string, RealmGame>;
+};
+export type RealmMe = { wallet: Bag; lifetime: Bag; finds: Record<string, number>; made: Record<string, number>; bonus_ready: boolean; streak: number; ink_today: number; daily_cap: number; best: Record<string, number> };
+export type Realm = {
+  id: string; kind: RealmKind; group_id: string | null; seed: number; name: string; plots: number; owner: Profile; mine: boolean;
+  level: { level: number; xp: number; into: number; need: number; max: boolean }; plays: number;
+  producers: Record<string, number>; upgrades: Record<string, number>; rates: Bag; pending: Bag | null; collected_at: string; away_hours: number;
+  effects: { game_mult: number; rare_mult: number; prod_mult: number };
+  costs: { producers: Record<string, Bag>; upgrades: Record<string, Bag> };
+  cfg: RealmCfg; boards: Record<string, { player: Profile; score: number }[]>; me: RealmMe; server_time: string;
+};
+export type RealmFinish = {
+  score: number; loot: Bag; finds: { id: string; new: boolean }[]; paid: number; earned: number; best: number; new_best: boolean; record: number; new_record: boolean;
+  level_up: number | null; me: RealmMe; repeat?: boolean;
+};

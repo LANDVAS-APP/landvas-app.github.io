@@ -25,10 +25,12 @@ import { plotMetres } from '../shared/grid';
 import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
 import { PlotKindControl } from '../inkborn/PlotKindPicker';
+import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useArcadeAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'arcade', gx, gy], queryFn: () => api.arcadeForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useBizAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'business', gx, gy], queryFn: () => api.bizForPlot(gx, gy), enabled: on, staleTime: 30_000 });
+const useRealmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'realm', gx, gy], queryFn: () => api.realmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
@@ -198,7 +200,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' ? k : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -220,7 +222,9 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
     if (kind === 'canvas') return null;
     try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; }
       if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; }
-      if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; } return g.habitat_id ?? null; }
+      if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; }
+      if (isRealm(kind) && g.realm_id) { const m = REALM_META[kind]; toast.success(`Your ${m.one} is ready ${m.emoji}`, { action: { label: m.enter, onClick: () => nav(realmRoute(g.realm_id!)) } }); return null; }
+      return g.habitat_id ?? null; }
     catch (e) { toast.error(toGameError(e).message); return null; }
   };
   const run = async () => {
@@ -301,6 +305,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
     { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
     { k: 'business' as const, icon: '🍋', title: 'Business', body: 'Lemonade stand to corporation', color: '#D4A500' },
     { k: 'arcade' as const, icon: '🕹️', title: 'Arcade', body: 'Neon cabinets, tickets, prizes', color: '#FF3D9A' },
+    ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({ k, icon: REALM_META[k].emoji, title: REALM_META[k].name, body: REALM_META[k].body, color: REALM_META[k].color })),
   ];
   return (
     <div className="grid gap-1.5" data-testid="plot-kind-choice">
@@ -316,6 +321,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           </motion.button>
         ))}
       </div>
+      {isRealm(kind) && <p className="text-[11px] text-muted">Same price and rent. {REALM_META[kind].long}</p>}
       {kind === 'arcade' && <p className="text-[11px] text-muted">Same price and rent. Walk your explorer round a neon arcade: Tower Stacker, Claw Crane, Skee-Ball and more. Free to play, win tickets for prizes. You get 10% of the tickets visitors win.</p>}
       {kind === 'business' && <p className="text-[11px] text-muted">Same price and rent. Start with a lemonade stand and grow an empire that earns while you’re away. Every business plot you own adds 10% to all your income.</p>}
       {kind === 'farm' && <p className="text-[11px] text-muted">Same price and rent. A farm plot has 6 soil beds and every connected farm plot adds 4 more. Switch types any time without losing anything.</p>}
@@ -440,12 +446,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const farm = useFarmAt(d.gx, d.gy, true).data;
   const biz = useBizAt(d.gx, d.gy, true).data;
   const arc = useArcadeAt(d.gx, d.gy, true).data;
+  const rlm = useRealmAt(d.gx, d.gy, true).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-arcade">🕹️ Enter arcade</Button>
+        {rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
+          : arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-arcade">🕹️ Enter arcade</Button>
           : biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
           : farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
           : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
@@ -494,6 +502,17 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
   const farm = useFarmAt(d.gx, d.gy, true).data;
   const biz = useBizAt(d.gx, d.gy, true).data;
   const arc = useArcadeAt(d.gx, d.gy, true).data;
+  const rlm = useRealmAt(d.gx, d.gy, true).data;
+  if (rlm) { const m = REALM_META[rlm.kind]; return (
+    <Link to={realmRoute(rlm.realm_id)} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: `${m.color}66`, background: `${m.color}1A` }} data-testid="visit-realm">
+      <span className="text-2xl">{m.emoji}</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">{m.name} · level {rlm.level}</div>
+        <div className="truncate text-sm font-semibold">{rlm.name || m.name} · @{rlm.owner.username}</div>
+      </div>
+      <span className="text-xs font-bold" style={{ color: m.color }}>Visit & play →</span>
+    </Link>
+  ); }
   if (arc) return (
     <Link to={`/arcade/${arc.arcade_id}`} className="flex items-center gap-3 rounded-2xl border border-[#FF3D9A]/40 bg-[#FF3D9A]/10 p-3 hover:border-[#FF3D9A]" data-testid="visit-arcade">
       <span className="text-2xl">🕹️</span>

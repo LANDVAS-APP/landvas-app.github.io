@@ -16,6 +16,7 @@ import { cn, timeAgo } from '../lib/utils';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { GRID_SIZE, Z_HOUSE, cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, inputCls } from '../ui';
+import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   published: { label: 'Live on the map', cls: 'text-ok' },
@@ -96,7 +97,8 @@ export default function CanvasesScreen() {
                   <PlotKindControl g={g} className="mt-1" />
                   {st && <div className={cn('mt-1 text-xs font-semibold', st.cls)}>{st.label}{pub?.decision_reason ? ` — ${pub.decision_reason}` : ''}</div>}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {g.kind === 'arcade' && g.arcade_id ? <Button size="sm" variant="primary" onClick={() => nav(`/arcade/${g.arcade_id}`)}>🕹️ Enter arcade</Button>
+                    {isRealm(g.kind) && g.realm_id ? <Button size="sm" variant="primary" onClick={() => nav(realmRoute(g.realm_id!))}>{REALM_META[g.kind].emoji} {REALM_META[g.kind].enter}</Button>
+                    : g.kind === 'arcade' && g.arcade_id ? <Button size="sm" variant="primary" onClick={() => nav(`/arcade/${g.arcade_id}`)}>🕹️ Enter arcade</Button>
                     : g.kind === 'business' && g.business_id ? <Button size="sm" variant="primary" onClick={() => nav(`/business/${g.business_id}`)}>🍋 Open business</Button>
                     : g.kind === 'farm' && g.farm_id ? <Button size="sm" variant="primary" onClick={() => nav(`/farm/${g.farm_id}`)}>🌾 Enter farm</Button>
                       : g.kind === 'habitat' && g.habitat_id

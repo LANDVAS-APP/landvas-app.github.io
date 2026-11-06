@@ -11,9 +11,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
-import type { ExplorerStyle, HomeData, HomeGame, HomeLive, HomePlaced, HomeStyleData, PlanetChatMsg } from '../backend/types';
+import type { ExplorerStyle, HomeData, RealmKind, HomeGame, HomeLive, HomePlaced, HomeStyleData, PlanetChatMsg } from '../backend/types';
 import { PlanetChatBox } from '../space/PlanetChat';
 import { TRACKS, music } from '../arcade/music';
+import { isRealm, REALM_KINDS, REALM_META, realmRoute } from '../realms/kinds';
 import { GuestBook } from './GuestBook';
 import { PartyGame } from './party/PartyGame';
 import { Live3D } from './live3d/Live3D';
@@ -31,9 +32,10 @@ import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
 import { DEFAULT_STYLE, createHome, type HomeDoor, type HomeScene, type HomeSpot, type Placed } from './home3d';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
-type Kind = 'arcade' | 'habitat' | 'farm' | 'business';
-const KINDS: Kind[] = ['arcade', 'habitat', 'farm', 'business'];
+type Kind = 'arcade' | 'habitat' | 'farm' | 'business' | RealmKind;
+const KINDS: Kind[] = ['arcade', 'habitat', 'farm', 'business', ...REALM_KINDS];
 const DOOR_META: Record<Kind, { label: string; emoji: string; color: string; route: (id: string) => string; none: string }> = {
+  ...(Object.fromEntries(REALM_KINDS.map((k) => [k, { label: REALM_META[k].name, emoji: REALM_META[k].emoji, color: REALM_META[k].color, route: realmRoute, none: `Turn a plot into ${/^[aeiou]/i.test(REALM_META[k].name) ? 'an' : 'a'} ${REALM_META[k].name} to open this door.` }])) as Record<RealmKind, { label: string; emoji: string; color: string; route: (id: string) => string; none: string }>),
   arcade: { label: 'Arcade', emoji: '🕹️', color: '#22E3FF', route: (id) => `/arcade/${id}`, none: 'Turn a plot into an arcade to open this door.' },
   habitat: { label: 'Sanctuary', emoji: '🐾', color: '#3DDC97', route: (id) => `/habitat/${id}`, none: 'Make an Inkborn sanctuary to open this door.' },
   farm: { label: 'Farm', emoji: '🌾', color: '#FFB13D', route: (id) => `/farm/${id}`, none: 'Turn a plot into a farm to open this door.' },
@@ -181,12 +183,21 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
     return () => { off = true; };
   }, [gallery.map((g) => g.id).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const doors: HomeDoor[] = useMemo(() => KINDS.flatMap((k) => {
+  // four doors on the wall: the places they have (busiest kinds first), and when there are more kinds than fit
+  // (there are nine), the last door opens onto all of them
+  const doorKinds = useMemo(() => {
+    const filled = KINDS.filter((k) => h.doors[k]?.count);
+    if (!own) return filled.length <= 4 ? filled : [...filled.slice(0, 3), 'more' as const];
+    const firstThree = [...filled, ...KINDS.filter((k) => !filled.includes(k))].slice(0, 3);
+    return [...firstThree, 'more' as const];
+  }, [h, own]);
+  const doors: HomeDoor[] = useMemo(() => doorKinds.flatMap((k): HomeDoor[] => {
+    if (k === 'more') { const n = KINDS.filter((x) => h.doors[x]?.count).length; return [{ kind: 'more', label: 'All places', emoji: '🌍', color: '#FFD23F', plaque: `${n} kind${n === 1 ? '' : 's'} of place`, state: 'open' }]; }
     const d = h.doors[k], m = DOOR_META[k], c = h.careers;
     if (!d || (!own && !d.count)) return [];
-    const plaque = k === 'arcade' ? `Level ${Math.max(1, c.arcade)} arcade` : k === 'habitat' ? `Keeper lv ${Math.max(1, c.keeper)} · ${c.creatures} Inkborn` : k === 'farm' ? `Farmer lv ${Math.max(1, c.farmer)}` : `${fmt(c.merchant)} earned`;
+    const plaque = isRealm(k) ? `Level ${Math.max(1, c.realms?.[k] ?? 1)} ${REALM_META[k].one}` : k === 'arcade' ? `Level ${Math.max(1, c.arcade)} arcade` : k === 'habitat' ? `Keeper lv ${Math.max(1, c.keeper)} · ${c.creatures} Inkborn` : k === 'farm' ? `Farmer lv ${Math.max(1, c.farmer)}` : `${fmt(c.merchant)} earned`;
     return [{ kind: k, label: m.label, emoji: m.emoji, color: m.color, plaque: d.count ? plaque : own ? 'Not yet — tap to start' : '', state: !d.count ? 'empty' : d.open ? 'open' : 'locked', here: d.places[0]?.here }];
-  }), [h, own]);
+  }), [h, own, doorKinds]);
 
   // the scene
   useEffect(() => {
@@ -242,7 +253,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
     if (own) { try { qc.setQueryData(['home', host.username.toLowerCase()], await api.homeSave(h.name, { ...h.style, music: id }, (hall.current?.layout() ?? h.layout) as HomePlaced[])); } catch { /* it still plays */ } }
   };
   const title = h.name || `${host.display_name || host.username}’s home`;
-  const nd = near?.kind === 'door' ? (near.door as Kind) : null;
+  const nd = near?.kind === 'door' ? (near.door as Kind | 'more') : null;
   const nArt = near?.kind === 'art' ? gallery[near.i] : null;
   const nItem = near?.kind === 'item' ? near.id : null;
 
@@ -279,7 +290,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
       <AnimatePresence>
         {!edit && nd && (
           <motion.div key={nd} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
-            <DoorPanel kind={nd} h={h} onGo={(id) => nav(DOOR_META[nd].route(id))} />
+            {nd === 'more' ? <AllPlacesPanel h={h} onGo={(k, id) => nav(DOOR_META[k].route(id))} /> : <DoorPanel kind={nd} h={h} onGo={(id) => nav(DOOR_META[nd].route(id))} />}
           </motion.div>
         )}
         {!edit && nArt && (
@@ -333,7 +344,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
 }
 
 function DoorPanel({ kind, h, onGo }: { kind: Kind; h: HomeData; onGo(id: string): void }) {
-  const d = h.doors[kind], m = DOOR_META[kind];
+  const d = h.doors[kind] ?? { privacy: 'public' as const, open: true, count: 0, places: [] }, m = DOOR_META[kind];
   return (
     <div className="w-full max-w-md rounded-3xl bg-black/75 p-4 shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 30px ${m.color}55, inset 0 0 0 2px ${m.color}` }} data-testid="home-door">
       <div className="mb-2 flex items-center gap-2"><span className="text-3xl">{m.emoji}</span><b className="font-display text-xl">{m.label}</b>
@@ -355,6 +366,26 @@ function DoorPanel({ kind, h, onGo }: { kind: Kind; h: HomeData; onGo(id: string
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** the last door: every kind of place they have (and, for the owner, the kinds they could start) */
+function AllPlacesPanel({ h, onGo }: { h: HomeData; onGo(k: Kind, id: string): void }) {
+  const [open, setOpen] = useState<Kind | null>(null);
+  const list = KINDS.filter((k) => h.own || h.doors[k]?.count);
+  if (open) return <div className="grid w-full max-w-md gap-2"><button onClick={() => setOpen(null)} className="justify-self-start rounded-xl bg-black/60 px-3 py-1.5 text-xs font-bold">← All places</button><DoorPanel kind={open} h={h} onGo={(id) => onGo(open, id)} /></div>;
+  return (
+    <div className="w-full max-w-md rounded-3xl bg-black/75 p-4 shadow-2xl backdrop-blur" style={{ boxShadow: '0 0 30px #FFD23F55, inset 0 0 0 2px #FFD23F' }} data-testid="home-all-places">
+      <div className="mb-2 flex items-center gap-2"><span className="text-3xl">🌍</span><b className="font-display text-xl">All places</b></div>
+      <div className="grid max-h-[46vh] grid-cols-2 gap-1.5 overflow-y-auto">
+        {list.map((k) => { const d = h.doors[k], m = DOOR_META[k]; const n = d?.count ?? 0; return (
+          <button key={k} onClick={() => (n === 1 && d!.open ? onGo(k, d!.places[0].id) : setOpen(k))} className={cn('flex items-center gap-2 rounded-2xl px-2.5 py-2 text-left', n ? 'bg-white/10 hover:bg-white/15' : 'bg-white/5 opacity-60')} data-testid={`home-place-${k}`}>
+            <span className="text-2xl">{m.emoji}</span>
+            <span className="min-w-0"><span className="block truncate text-sm font-bold">{m.label}</span><span className="text-[11px] text-white/60">{n ? `${n} place${n === 1 ? '' : 's'}` : 'Not yet'}</span></span>
+          </button>
+        ); })}
+      </div>
     </div>
   );
 }

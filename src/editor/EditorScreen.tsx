@@ -28,6 +28,7 @@ import { analyzeCraft, type Craft } from '../shared/craft';
 import { fingerprint, mostSimilar } from '../shared/originality';
 import { ImportDialog } from './ui/ImportDialog';
 import { BrushPanel, ColorPanel, LayersPanel } from './ui/panels';
+import { isRealm, realmRoute } from '../realms/kinds';
 
 type ToolDef = { id: string; label: string; icon: any; key: string; apply: (ed: Editor) => void; active: (ed: Editor) => boolean; unlock?: string };
 const TOOLS: ToolDef[] = [
@@ -56,6 +57,7 @@ export default function EditorScreen() {
   if (group.data.kind === 'farm' && group.data.farm_id) return <Navigate to={`/farm/${group.data.farm_id}`} replace />;
   if (group.data.kind === 'business' && group.data.business_id) return <Navigate to={`/business/${group.data.business_id}`} replace />;
   if (group.data.kind === 'arcade' && group.data.arcade_id) return <Navigate to={`/arcade/${group.data.arcade_id}`} replace />;
+  if (isRealm(group.data.kind) && group.data.realm_id) return <Navigate to={realmRoute(group.data.realm_id)} replace />;
   if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
   return <PaintEditor />;
 }
