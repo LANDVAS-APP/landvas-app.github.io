@@ -147,6 +147,20 @@ function Mine({ data }: { data: Realm & { mine_core: MineCore } }) {
     if (k === 'cave') toast('🕳️ You broke into a cave!');
     queue.current.push({ idx, cost }); schedule();
   };
+  // the arrow pad / keys: walk the tunnels, climb the ladders, dig into rock you push against
+  const move = (dx: number, dy: number) => {
+    const res = scene.current?.step(dx, dy);
+    if (res?.dig != null) tap.current(res.dig);
+  };
+  const moveRef = useRef(move); moveRef.current = move;
+  useEffect(() => {
+    const kd = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      const d = ({ ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0], ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1] } as Record<string, [number, number]>)[e.key];
+      if (d && !R.game) { e.preventDefault(); moveRef.current(d[0], d[1]); }
+    };
+    window.addEventListener('keydown', kd); return () => window.removeEventListener('keydown', kd);
+  }, [R.game]);
   building.current = (b: MineBuilding) => {
     if (b === 'trader') R.setPanel('market'); else if (b === 'smelter') R.setPanel('make'); else if (b === 'crew') R.setPanel('build');
     else if (b === 'museum') R.setPanel('book'); else if (b === 'games') R.setPanel('play'); else setShop(b);
@@ -190,9 +204,15 @@ function Mine({ data }: { data: Realm & { mine_core: MineCore } }) {
         {r.mine && r.me.bonus_ready && <button onClick={() => void R.daily()} className="grid h-12 w-12 place-items-center rounded-2xl bg-[#FFE14D] text-2xl text-black shadow-lg" aria-label="Daily bonus" data-testid="realm-daily">🎁</button>}
         {r.mine && R.pendingAny && <button onClick={() => void R.collect()} className="grid h-12 w-12 place-items-center rounded-2xl bg-[#3DDC97] text-2xl shadow-lg" aria-label="Collect from your crew" data-testid="mine-collect">📦</button>}
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3 pb-[max(14px,env(safe-area-inset-bottom,0px))]">
-        <div className={cn('rounded-full px-4 py-2 text-center text-xs backdrop-blur', blast ? 'bg-[#FF6A1F]/85 font-bold' : 'bg-black/60 text-white/85')}>
-          {blast ? '🧨 Tap rock next to a tunnel to blast 3×3 (free!)' : depth < 2 ? 'Tap the camp’s buildings · tap the rock below to start digging' : 'Tap rock next to a tunnel to dig · drag to look round'}
+      {/* the arrow pad: hold to keep walking (or digging) */}
+      <div className="absolute bottom-[max(56px,calc(env(safe-area-inset-bottom,0px)+48px))] left-3 grid grid-cols-3 gap-1" data-testid="mine-pad">
+        {([[0, -1, '▲', 'col-start-2'], [-1, 0, '◀', 'col-start-1 row-start-2'], [1, 0, '▶', 'col-start-3 row-start-2'], [0, 1, '▼', 'col-start-2 row-start-3']] as const).map(([dx, dy, l, pos]) => (
+          <HoldButton key={l} className={pos} label={l} onStep={() => move(dx, dy)} testid={`mine-pad-${dx}${dy}`} />
+        ))}
+      </div>
+      <div className="pointer-events-none absolute bottom-0 left-[176px] right-3 flex justify-end pb-[max(14px,env(safe-area-inset-bottom,0px))]">
+        <div className={cn('rounded-2xl px-3 py-2 text-center text-xs backdrop-blur', blast ? 'bg-[#FF6A1F]/85 font-bold' : 'bg-black/60 text-white/85')}>
+          {blast ? '🧨 Tap rock next to a tunnel to blast 3×3' : depth < 2 ? 'Tap a building · ▼ or tap the rock to dig down' : 'Tap a tunnel to walk · tap rock to dig · arrows or keys to move'}
         </div>
       </div>
 
@@ -264,5 +284,18 @@ function Bench({ r, onMe, levelUp, haptics }: { r: Realm; onMe(m: Realm['me']): 
         </div>
       ) : <p className="text-sm text-muted">{have < 1 ? 'No geodes yet — dig below 20 metres to find them.' : `${have} geode${have === 1 ? '' : 's'} · tap it ${NEED - taps} more time${NEED - taps === 1 ? '' : 's'} to crack it open`}</p>}
     </div>
+  );
+}
+
+/** a pad button that steps once, then keeps stepping while held */
+function HoldButton({ label, onStep, className, testid }: { label: string; onStep(): void; className: string; testid: string }) {
+  const t = useRef<number | null>(null);
+  const fn = useRef(onStep); fn.current = onStep;
+  const stop = () => { if (t.current != null) { clearInterval(t.current); t.current = null; } };
+  useEffect(() => stop, []);
+  return (
+    <button className={cn('grid h-12 w-12 select-none place-items-center rounded-2xl border border-[#FFD98A]/40 bg-[#1A1210]/80 text-lg font-black text-white backdrop-blur active:bg-[#FFD98A]/30', className)}
+      onPointerDown={(e) => { e.preventDefault(); fn.current(); stop(); t.current = window.setInterval(() => fn.current(), 280); }}
+      onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()} aria-label={label} data-testid={testid}>{label}</button>
   );
 }

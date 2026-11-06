@@ -73,7 +73,6 @@ export function createMine3D(o: MineOpts) {
   const head = new THREE.Group(); head.position.set(0, 0, -0.6); scene.add(head);
   for (const s of [-1, 1]) for (const d of [-1, 1]) { const leg = mesh(new THREE.BoxGeometry(0.22, 6.2, 0.22), woodM, s * 2.2, 3, d * 0.6, head); leg.rotation.z = -s * 0.22; }
   mesh(new THREE.BoxGeometry(3.6, 0.3, 1.5), woodD, 0, 5.8, 0, head);
-  for (const y of [2, 3.8]) mesh(new THREE.BoxGeometry(4.2 - y * 0.35, 0.16, 0.16), woodD, 0, y, 0.6, head);
   const wheel = new THREE.Group(); wheel.position.set(0, 6.4, 0); head.add(wheel);
   { const rim = new THREE.Mesh(T(new THREE.TorusGeometry(0.9, 0.08, 6, 24)), ironM); wheel.add(rim); for (let k = 0; k < 6; k++) { const sp = new THREE.Mesh(T(new THREE.BoxGeometry(1.8, 0.06, 0.06)), ironM); sp.rotation.z = (k / 6) * Math.PI; wheel.add(sp); } }
   const rope = mesh(new THREE.CylinderGeometry(0.025, 0.025, 6, 4), std('#C8A86B'), 0.9, 3.4, 0, head);
@@ -186,7 +185,7 @@ export function createMine3D(o: MineOpts) {
   };
   const m4 = new THREE.Matrix4(), col = new THREE.Color();
   let window0 = -999;
-  const dark = new THREE.Color('#55505E'), lit = new THREE.Color('#ffffff');
+  const dark = new THREE.Color('#9A92A6'), lit = new THREE.Color('#ffffff');
   const rebuild = (force = false) => {
     const cy = Math.floor(-camY);
     const y0 = Math.max(0, cy - 22), y1 = Math.min(maxY - 1, cy + 22);
@@ -261,6 +260,32 @@ export function createMine3D(o: MineOpts) {
     }
   };
 
+  /** walk to a tunnel tile or a surface spot (drops whatever was queued to dig) */
+  const walkNode = (n: Node) => {
+    if (swing) return false;
+    queue.length = 0;
+    const p = bfs(at, new Set([n])); if (!p) return false;
+    path = p; return true;
+  };
+  /** one step left/right/up/down: walk if it's open, or say which rock is in the way */
+  const step = (dx: number, dy: number): { dig?: number; moved: boolean } => {
+    if (swing || path.length) return { moved: false };
+    follow = true;
+    if (at < 0) { // on the surface
+      const x = -at - 1;
+      if (dy > 0) { if (dug.has(x)) { path = [x]; return { moved: true }; } return { dig: x, moved: false }; }
+      if (dx) { const nx = x + dx; if (nx >= 0 && nx < W) { path = [-nx - 1]; return { moved: true }; } }
+      return { moved: false };
+    }
+    const x = at % W, y = Math.floor(at / W);
+    if (dy < 0 && y === 0) { path = [-x - 1]; return { moved: true }; }
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx >= W || ny < 0 || ny >= maxY) return { moved: false };
+    const n = ny * W + nx;
+    if (dug.has(n)) { path = [n]; return { moved: true }; }
+    return { dig: n, moved: false };
+  };
+
   // crack overlay and flying chips
   const crackTex = [1, 2, 3].map((n) => tex(64, 64, (g) => { g.strokeStyle = 'rgba(10,8,8,0.85)'; g.lineWidth = 3; for (let k = 0; k < n * 2; k++) { g.beginPath(); let x = 32, y = 32; g.moveTo(x, y); for (let s = 0; s < 4; s++) { x += (rnd() - 0.5) * 26; y += (rnd() - 0.5) * 26; g.lineTo(x, y); } g.stroke(); } }));
   const crack = new THREE.Mesh(T(new THREE.PlaneGeometry(1.01, 1.01)), T(new THREE.MeshBasicMaterial({ map: crackTex[0], transparent: true, depthWrite: false })));
@@ -291,7 +316,12 @@ export function createMine3D(o: MineOpts) {
     if (hb) { let ob: THREE.Object3D | null = hb.object; while (ob && !ob.userData.building) ob = ob.parent; if (ob?.userData.building) { o.onTapBuilding?.(ob.userData.building as MineBuilding); return; } }
     if (ray.ray.intersectPlane(facePlane, hit)) {
       const x = Math.floor(hit.x + W / 2), y = Math.floor(-hit.y);
-      if (x >= 0 && x < W && y >= 0 && y < maxY) { follow = true; o.onTapTile?.(y * W + x); }
+      if (x < 0 || x >= W || y >= maxY) return;
+      follow = true;
+      if (hit.y > -0.05 || y < 0) { walkNode(-x - 1); return; } // the grass above the shaft
+      const idx = y * W + x;
+      if (dug.has(idx)) { walkNode(idx); return; }
+      o.onTapTile?.(idx);
     }
   };
   o.canvas.addEventListener('pointerdown', pd); window.addEventListener('pointermove', pm); window.addEventListener('pointerup', pu);
@@ -344,6 +374,7 @@ export function createMine3D(o: MineOpts) {
     (scene.fog as THREE.Fog).near = surf > 0.5 ? 40 : 22; (scene.fog as THREE.Fog).far = surf > 0.5 ? 120 : 48;
     fill.position.set(0, camY - 0.5, 7); fill.intensity = (1 - surf) * 22;
     rebuild();
+    for (const l of labels) l.s.visible = surf > 0.35;
     const dRow = Math.floor(depth); if (dRow !== lastDepth) { lastDepth = dRow; o.onDepth?.(dRow); }
     // the camp, alive
     if (!o.reduceMotion) {
@@ -373,6 +404,7 @@ export function createMine3D(o: MineOpts) {
     /** walk to a tile and swing at it (need = how many swings) */
     dig(idx: number, need: number) { if (queue.some((q) => q.idx === idx) || swing?.idx === idx) return; queue.push({ idx, need }); follow = true; if (!swing && !path.length) tryNext(); },
     cancel() { queue.length = 0; },
+    step, walkTo: (idx: number) => walkNode(idx),
     busy: () => !!swing || !!path.length || queue.length > 0,
     /** can the miner get next to this tile (counting tiles already queued to dig as open) */
     canReach: (idx: number, planned: Set<number> = new Set()) => {
