@@ -31,7 +31,7 @@ function validAction(a: unknown): a is Action {
   if (!a || typeof a !== 'object') return false;
   const x = a as Record<string, unknown>;
   const pick = (p: unknown) => p === undefined || (typeof p === 'object' && p !== null && ((p as { side?: unknown }).side === 0 || (p as { side?: unknown }).side === 1) && Number.isInteger((p as { lane?: unknown }).lane));
-  if (x.t === 'end' || x.t === 'concede') return true;
+  if (x.t === 'end' || x.t === 'concede' || x.t === 'sketch') return true;
   if (x.t === 'play') return Number.isInteger(x.uid) && (x.lane === undefined || Number.isInteger(x.lane)) && pick(x.target);
   if (x.t === 'flourish') return Number.isInteger(x.lane) && pick(x.target);
   return false;

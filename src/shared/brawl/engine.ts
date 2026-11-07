@@ -6,12 +6,14 @@
 // more each round, up to 7) to spend on creatures (they stand in a lane), totems (they sit behind a lane and power it)
 // and spells. A creature can Flourish — use its ability — instead of attacking. When you end your turn, every one of
 // your creatures that didn't Flourish attacks the creature opposite it; if that lane is empty it hits the enemy hero.
-// Creatures fighting on their own terrain get +1 attack. First hero to 0 health loses.
-import { CARD, EVENTS, HERO_HP, LANES, TERRAINS, type Card, type EventId, type Target, type Terrain } from './cards';
+// Creatures fighting on their own terrain get +1 attack. First hero to 0 health loses. Any spare paint can buy an extra
+// card (1 paint each). Cataclysms change the whole board (a volcano that wipes it, an avalanche, a tidal wave…) and
+// wonders are landmarks beside a lane that keep doing something every turn.
+import { CARD, CARDS, EVENTS, HERO_HP, LANES, TERRAINS, type Card, type EventId, type Fx, type Target, type Terrain } from './cards';
 
 export type Side = 0 | 1;
 export type Unit = { uid: number; id: string; atk: number; hp: number; max: number; shield: boolean; frozen: number; poison: number; temp: number; acted: boolean };
-export type Lane = { terrain: Terrain; unit: Unit | null; totem: { uid: number; id: string } | null };
+export type Lane = { terrain: Terrain; unit: Unit | null; totem: { uid: number; id: string; n?: number } | null };
 export type HandCard = { uid: number; id: string };
 export type PlayerState = { name: string; hero: number; heroMax: number; paint: number; deck: string[]; hand: HandCard[]; grave: string[]; lanes: Lane[]; fatigue: number; timeouts: number };
 export type Ev =
@@ -22,13 +24,17 @@ export type Ev =
   | { e: 'heal'; side: Side; lane: number; n: number } | { e: 'die'; side: Side; lane: number; card: string } | { e: 'freeze'; side: Side; lane: number } | { e: 'thaw'; side: Side; lane: number }
   | { e: 'poison'; side: Side; lane: number; n: number } | { e: 'buff'; side: Side; lane: number; atk: number; hp: number } | { e: 'bounce'; side: Side; lane: number; card: string }
   | { e: 'move'; side: Side; from: number; to: number } | { e: 'terrain'; side: Side; lane: number; terrain: Terrain } | { e: 'coin'; side: Side; heads: boolean }
-  | { e: 'copy'; side: Side; uid: number; card?: string } | { e: 'event'; id: EventId; text: string } | { e: 'over'; winner: Side | -1; reason: string };
+  | { e: 'copy'; side: Side; uid: number; card?: string } | { e: 'event'; id: EventId; text: string } | { e: 'over'; winner: Side | -1; reason: string }
+  // the board-changing moments: a cataclysm's (or a wonder's) big scene, the strikes inside it, and what it leaves behind
+  | { e: 'fx'; side: Side; fx: Fx; lane?: number } | { e: 'strike'; side: Side; lane: number; kind: 'bolt' | 'meteor' } | { e: 'swirl'; side: Side; from: number[] }
+  | { e: 'crumble'; side: Side; lane: number; card: string } | { e: 'swap'; side: Side; lane: number; atk: number; hp: number } | { e: 'countdown'; side: Side; lane: number; n: number }
+  | { e: 'sketch'; side: Side };
 export type State = {
   v: number; rng: number; round: number; turn: Side; first: Side; ev: EventId; over: boolean; winner: Side | -1 | null; reason: string;
   uid: number; p: [PlayerState, PlayerState]; log: { n: number; side: Side | -1; ev: Ev[] }[];
 };
 export type Pick = { side: Side; lane: number };
-export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' };
+export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' };
 
 export const MAX_PAINT = 7;
 export const HAND_MAX = 10;
@@ -119,6 +125,17 @@ function buff(s: State, side: Side, lane: number, atk: number, hp: number, out: 
 }
 function freeze(s: State, side: Side, lane: number, out: Ev[]) { const u = s.p[side].lanes[lane].unit; if (!u) return; u.frozen = 1; out.push({ e: 'freeze', side, lane }); }
 function poison(s: State, side: Side, lane: number, n: number, out: Ev[]) { const u = s.p[side].lanes[lane].unit; if (!u) return; u.poison = Math.max(u.poison, n); out.push({ e: 'poison', side, lane, n }); }
+/** Gone outright (lava, a black hole): no last words. */
+function destroy(s: State, side: Side, lane: number, out: Ev[]) { const L = s.p[side].lanes[lane]; if (!L.unit) return; s.p[side].grave.push(L.unit.id); out.push({ e: 'die', side, lane, card: L.unit.id }); L.unit = null; }
+function crumble(s: State, side: Side, lane: number, out: Ev[]) { const L = s.p[side].lanes[lane]; if (!L.totem) return; out.push({ e: 'crumble', side, lane, card: L.totem.id }); L.totem = null; }
+function setLand(s: State, side: Side, lane: number, t: Terrain, out: Ev[]) { const L = s.p[side].lanes[lane]; if (L.terrain === t) return; L.terrain = t; out.push({ e: 'terrain', side, lane, terrain: t }); }
+/** Back to its owner's hand (or the discard pile if the hand is full). */
+function bounce(s: State, side: Side, lane: number, out: Ev[]) {
+  const L = s.p[side].lanes[lane], u = L.unit; if (!u) return;
+  L.unit = null; out.push({ e: 'bounce', side, lane, card: u.id });
+  if (s.p[side].hand.length < HAND_MAX) s.p[side].hand.push({ uid: s.uid++, id: u.id }); else s.p[side].grave.push(u.id);
+}
+const unitLanes = (s: State, side: Side) => s.p[side].lanes.map((L, l) => (L.unit ? l : -1)).filter((l) => l >= 0);
 
 /** Sweep away the fallen (and trigger what happens when they fall), until the board settles. */
 function deaths(s: State, out: Ev[]) {
@@ -154,6 +171,8 @@ function startTurn(s: State, side: Side, out: Ev[]) {
   P.paint = paint; out.push({ e: 'paint', side, n: paint });
   if (!(s.round === 1 && side === s.first)) for (let i = 0; i < (s.ev === 'bounty' ? 2 : 1); i++) draw(s, side, out);
   if (s.over) return;
+  wondersAtDawn(s, side, out);
+  if (s.over) return;
   P.lanes.forEach((L, lane) => {
     const u = L.unit; if (!u) return;
     u.acted = false; u.temp = 0;
@@ -161,6 +180,37 @@ function startTurn(s: State, side: Side, out: Ev[]) {
     if (u.poison > 0) { damage(s, side, lane, 1, 'poison', out); u.poison--; }
   });
   if (P.lanes.some((L) => L.unit?.id === 'oakheart')) P.lanes.forEach((_, lane) => heal(s, side, lane, 1, out));
+  deaths(s, out);
+}
+
+/** What the wonders do at the start of their owner's turn. */
+function wondersAtDawn(s: State, side: Side, out: Ev[]) {
+  const o = other(side), P = s.p[side];
+  P.lanes.forEach((L, lane) => {
+    const w = L.totem; if (!w || s.over) return;
+    switch (w.id) {
+      case 'smolderpeak': {
+        w.n = (w.n ?? 3) - 1; out.push({ e: 'countdown', side, lane, n: w.n });
+        if (w.n <= 0) {
+          out.push({ e: 'fx', side, fx: 'peakblast', lane });
+          for (let l = 0; l < LANES; l++) damage(s, o, l, 3, 'burn', out);
+          hitHero(s, o, 3, 'burn', out);
+          crumble(s, side, lane, out);
+        }
+        break;
+      }
+      case 'beanstalk': if (L.unit) buff(s, side, lane, 1, 1, out); break;
+      case 'toadstoolhut': if (!L.unit) summon(s, side, lane, 'sporemite', out); break;
+      case 'gumballmachine': { const pool = CARDS.filter((c) => c.cost <= 1); giveCard(s, side, pool[rint(s, pool.length)].id, out); break; }
+      case 'riftgate': {
+        if (L.unit) break;
+        const i = P.deck.findIndex((id) => cardOf(id).kind === 'creature'); if (i < 0) break;
+        const id = P.deck.splice(i, 1)[0];
+        out.push({ e: 'fx', side, fx: 'rift', lane }); summon(s, side, lane, id, out);
+        break;
+      }
+    }
+  });
   deaths(s, out);
 }
 
@@ -192,6 +242,7 @@ function endTurn(s: State, side: Side, out: Ev[]) {
   P.lanes.forEach((L, lane) => {
     if (L.unit?.id === 'rotqueen') for (let l = 0; l < LANES; l++) damage(s, o, l, 1, 'poison', out);
     if (L.totem?.id === 'teslacoil') damage(s, o, lane, 1, 'burn', out);
+    if (L.totem?.id === 'stormspire') { const ls = unitLanes(s, o); if (ls.length) { const l = ls[rint(s, ls.length)]; out.push({ e: 'strike', side: o, lane: l, kind: 'bolt' }); damage(s, o, l, 2, 'burn', out); } }
   });
   deaths(s, out);
   P.lanes.forEach((L) => { if (L.unit) L.unit.temp = 0; });
@@ -214,6 +265,7 @@ function validTarget(s: State, side: Side, kind: Target | undefined, t: Pick | u
     case 'my_lane': return t.side === side;
     case 'enemy_lane': return t.side !== side;
     case 'my_empty_lane': return t.side === side && !u;
+    case 'any_lane': return true;
   }
   return false;
 }
@@ -224,6 +276,7 @@ export function check(s: State, side: Side, a: Action): string | null {
   if (s.turn !== side) return 'not_your_turn';
   const P = s.p[side];
   if (a.t === 'end' || a.t === 'timeout') return null;
+  if (a.t === 'sketch') { if (P.paint < 1) return 'no_paint'; if (!P.deck.length) return 'no_deck'; if (P.hand.length >= HAND_MAX) return 'hand_full'; return null; }
   if (a.t === 'play') {
     const h = P.hand.find((x) => x.uid === a.uid); if (!h) return 'no_card';
     const c = cardOf(h.id); if (c.cost > P.paint) return 'no_paint';
@@ -253,6 +306,7 @@ function summon(s: State, side: Side, lane: number, id: string, out: Ev[], hp?: 
   if (s.ev === 'homesick' && c.terrain === L.terrain) { max += 1; }
   const u: Unit = { uid: s.uid++, id, atk, hp: hp ?? max, max, shield: c.tags?.includes('shield') ?? false, frozen: 0, poison: 0, temp: 0, acted: false };
   L.unit = u; out.push({ e: 'play', side, card: id, lane, uid: u.uid });
+  if (s.p[other(side)].lanes[lane].totem?.id === 'mirrorlake') freeze(s, side, lane, out);
   // Elder Oakheart: the Meadow creatures play better around it
   const oak = s.p[side].lanes.some((x, i) => i !== lane && x.unit?.id === 'oakheart');
   if (oak && c.terrain === 'meadow') buff(s, side, lane, 1, 1, out);
@@ -293,6 +347,78 @@ function castSpell(s: State, side: Side, id: string, t: Pick | undefined, out: E
       const to = near[0] ?? TERRAINS[rint(s, TERRAINS.length)];
       L.terrain = to; out.push({ e: 'terrain', side, lane: t!.lane, terrain: to }); draw(s, side, out); break;
     }
+    // ---- cataclysms ----
+    case 'eruption':
+      out.push({ e: 'fx', side, fx: 'eruption' });
+      for (const sd of [side, o]) for (let l = 0; l < LANES; l++) { destroy(s, sd, l, out); crumble(s, sd, l, out); }
+      for (const sd of [side, o]) for (let l = 0; l < LANES; l++) setLand(s, sd, l, 'ember', out);
+      draw(s, side, out); break;
+    case 'avalanche':
+      out.push({ e: 'fx', side, fx: 'avalanche' });
+      for (let l = 0; l < LANES; l++) damage(s, o, l, 3, 'event', out);
+      deaths(s, out);
+      for (let l = 0; l < LANES; l++) { freeze(s, o, l, out); setLand(s, o, l, 'frost', out); }
+      break;
+    case 'overgrowth':
+      out.push({ e: 'fx', side, fx: 'overgrowth' });
+      for (let l = 0; l < LANES; l++) setLand(s, side, l, 'meadow', out);
+      for (let l = 0; l < LANES; l++) buff(s, side, l, 1, 1, out);
+      for (let l = 0; l < LANES; l++) freeze(s, o, l, out);
+      break;
+    case 'bogrise':
+      out.push({ e: 'fx', side, fx: 'bogrise' });
+      for (let l = 0; l < LANES; l++) setLand(s, o, l, 'bog', out);
+      for (let l = 0; l < LANES; l++) if (s.p[o].lanes[l].unit) { damage(s, o, l, 1, 'event', out); poison(s, o, l, 2, out); }
+      break;
+    case 'cyclone': {
+      out.push({ e: 'fx', side, fx: 'cyclone' });
+      const was = s.p[o].lanes.map((L) => L.unit), from = shuffle(s, [0, 1, 2, 3].slice(0, LANES));
+      s.p[o].lanes.forEach((L, l) => { L.unit = was[from[l]]; });
+      out.push({ e: 'swirl', side: o, from });
+      for (let l = 0; l < LANES; l++) if (s.p[o].lanes[l].unit) { damage(s, o, l, 1, 'event', out); if (s.p[o].lanes[l].unit) freeze(s, o, l, out); }
+      break;
+    }
+    case 'thunderstorm':
+      out.push({ e: 'fx', side, fx: 'thunderstorm' });
+      for (let i = 0; i < 4 && !s.over; i++) {
+        const opts = [...unitLanes(s, o), -1], l = opts[rint(s, opts.length)];
+        out.push({ e: 'strike', side: o, lane: l, kind: 'bolt' });
+        if (l < 0) hitHero(s, o, 2, 'burn', out); else damage(s, o, l, 2, 'burn', out);
+        deaths(s, out);
+      }
+      break;
+    case 'meteors':
+      out.push({ e: 'fx', side, fx: 'meteors' });
+      for (let i = 0; i < 6 && !s.over; i++) {
+        const opts: Pick[] = [...unitLanes(s, side).map((lane) => ({ side, lane })), ...unitLanes(s, o).map((lane) => ({ side: o, lane })), { side: o, lane: -1 }];
+        const p = opts[rint(s, opts.length)];
+        out.push({ e: 'strike', side: p.side, lane: p.lane, kind: 'meteor' });
+        if (p.lane < 0) hitHero(s, p.side, 3, 'burn', out); else damage(s, p.side, p.lane, 3, 'burn', out);
+        deaths(s, out);
+      }
+      break;
+    case 'blackhole':
+      out.push({ e: 'fx', side, fx: 'blackhole', lane: t!.lane });
+      for (const sd of [side, o]) { destroy(s, sd, t!.lane, out); crumble(s, sd, t!.lane, out); }
+      break;
+    case 'earthquake':
+      out.push({ e: 'fx', side, fx: 'earthquake' });
+      for (const sd of [side, o]) for (let l = 0; l < LANES; l++) damage(s, sd, l, 2, 'event', out);
+      for (const sd of [side, o]) for (let l = 0; l < LANES; l++) crumble(s, sd, l, out);
+      break;
+    case 'tidalwave':
+      out.push({ e: 'fx', side, fx: 'tidalwave' });
+      for (const sd of [side, o]) for (let l = 0; l < LANES; l++) bounce(s, sd, l, out);
+      break;
+    case 'eclipse':
+      out.push({ e: 'fx', side, fx: 'eclipse' });
+      for (const sd of [side, o]) s.p[sd].lanes.forEach((L, l) => {
+        const u = L.unit; if (!u) return;
+        const a = Math.max(0, u.atk), h = Math.max(0, u.hp);
+        u.atk = h; u.hp = a; u.max = Math.max(a, 1); u.temp = 0;
+        out.push({ e: 'swap', side: sd, lane: l, atk: h, hp: a });
+      });
+      break;
     case 'secondwind': {
       const i = P.grave.map((id2) => cardOf(id2).kind).lastIndexOf('creature');
       if (i >= 0) { const id2 = P.grave.splice(i, 1)[0]; summon(s, side, t!.lane, id2, out, 2); }
@@ -340,9 +466,10 @@ export function apply(s: State, side: Side, a: Action): Ev[] {
     const i = P.hand.findIndex((x) => x.uid === a.uid), h = P.hand[i], c = cardOf(h.id);
     P.hand.splice(i, 1); P.paint -= c.cost;
     if (c.kind === 'creature') { summon(s, side, a.lane!, c.id, out); onPlay(s, side, a.lane!, c.id, out); deaths(s, out); }
-    else if (c.kind === 'totem') { const L = P.lanes[a.lane!]; L.totem = { uid: s.uid++, id: c.id }; out.push({ e: 'totem', side, card: c.id, lane: a.lane! }); }
+    else if (c.kind === 'totem') { crumble(s, side, a.lane!, out); const L = P.lanes[a.lane!]; L.totem = { uid: s.uid++, id: c.id, ...(c.id === 'smolderpeak' ? { n: 3 } : {}) }; out.push({ e: 'totem', side, card: c.id, lane: a.lane! }); }
     else castSpell(s, side, c.id, a.target, out);
   } else if (a.t === 'flourish') doFlourish(s, side, a.lane, a.target, out);
+  else if (a.t === 'sketch') { P.paint -= 1; out.push({ e: 'sketch', side }); draw(s, side, out); }
   s.v++;
   s.log.push({ n: s.v, side, ev: out });
   if (s.log.length > 8) s.log.splice(0, s.log.length - 8);

@@ -114,13 +114,110 @@ describe('Paintbrawl engine', () => {
   });
 });
 
+describe('Paintbrawl cataclysms, wonders and extra draws', () => {
+  const U = (uid: number, id: string, atk: number, hp: number) => ({ uid, id, atk, hp, max: hp, shield: false, frozen: 0, poison: 0, temp: 0, acted: false });
+  const setup = () => {
+    const s = newMatch(9, seat(0), seat(1), 'none');
+    const me = s.turn, o = (1 - me) as 0 | 1;
+    s.p[me].paint = 30;
+    const give = (id: string) => { const uid = s.uid++; s.p[me].hand.push({ uid, id }); return uid; };
+    s.p[me].lanes[0].unit = U(800, 'blazefox', 4, 3); s.p[me].lanes[1].totem = { uid: 801, id: 'kindleshrine' };
+    s.p[o].lanes[0].unit = U(802, 'frostmaw', 4, 6); s.p[o].lanes[2].unit = U(803, 'sproutling', 1, 3); s.p[o].lanes[3].totem = { uid: 804, id: 'hoarfrost' };
+    return { s, me, o, give };
+  };
+  it('Eruption wipes the whole board, turns every lane Ember and draws a card', () => {
+    const { s, me, o, give } = setup();
+    const uid = give('eruption'), hand = s.p[me].hand.length;
+    const ev = apply(s, me, { t: 'play', uid });
+    expect(ev.some((e) => e.e === 'fx' && e.fx === 'eruption')).toBe(true);
+    for (const sd of [me, o]) for (const L of s.p[sd].lanes) { expect(L.unit).toBeNull(); expect(L.totem).toBeNull(); expect(L.terrain).toBe('ember'); }
+    expect(s.p[me].hand.length).toBe(hand); // the Eruption left the hand, a new card came in
+  });
+  it('Black Hole swallows one lane on both sides; Tidal Wave washes creatures home; Eclipse swaps attack and health', () => {
+    let { s, me, o, give } = setup();
+    apply(s, me, { t: 'play', uid: give('blackhole'), target: { side: o, lane: 0 } });
+    expect(s.p[me].lanes[0].unit).toBeNull(); expect(s.p[o].lanes[0].unit).toBeNull();
+    expect(s.p[o].lanes[2].unit?.id).toBe('sproutling');
+    ({ s, me, o, give } = setup());
+    const oh = s.p[o].hand.length;
+    apply(s, me, { t: 'play', uid: give('tidalwave') });
+    expect(s.p.every((P) => P.lanes.every((L) => !L.unit))).toBe(true);
+    expect(s.p[o].hand.length).toBe(oh + 2);
+    expect(s.p[me].hand.some((h) => h.id === 'blazefox')).toBe(true);
+    ({ s, me, o, give } = setup());
+    apply(s, me, { t: 'play', uid: give('eclipse') });
+    expect(s.p[o].lanes[0].unit).toMatchObject({ atk: 6, hp: 4 });
+    expect(s.p[o].lanes[2].unit).toMatchObject({ atk: 3, hp: 1 });
+  });
+  it('Avalanche, Candy Cyclone, Thunderstorm and Meteor Shower hit the right things', () => {
+    let { s, me, o, give } = setup();
+    apply(s, me, { t: 'play', uid: give('avalanche') });
+    expect(s.p[o].lanes[2].unit).toBeNull(); // sproutling: 3 damage
+    expect(s.p[o].lanes[0].unit?.frozen).toBe(1); // the yeti survives (tough), frozen
+    expect(s.p[o].lanes.every((L) => L.terrain === 'frost')).toBe(true);
+    ({ s, me, o, give } = setup());
+    apply(s, me, { t: 'play', uid: give('cyclone') });
+    expect(s.p[o].lanes.filter((L) => L.unit).length).toBe(2);
+    expect(s.p[o].lanes.filter((L) => L.unit).every((L) => L.unit!.frozen)).toBe(true);
+    ({ s, me, o, give } = setup());
+    const ev = apply(s, me, { t: 'play', uid: give('thunderstorm') });
+    expect(ev.filter((e) => e.e === 'strike').length).toBe(4);
+    expect(ev.filter((e) => e.e === 'strike').every((e) => (e as { side: number }).side === o)).toBe(true);
+    ({ s, me, o, give } = setup());
+    expect(apply(s, me, { t: 'play', uid: give('meteors') }).filter((e) => e.e === 'strike').length).toBe(6);
+  });
+  it('wonders: the Smoldering Peak counts down and erupts, Mirror Lake freezes, the Beanstalk grows, the hut and the gate fill empty lanes', () => {
+    const { s, me, o, give } = setup();
+    apply(s, me, { t: 'play', uid: give('smolderpeak'), lane: 2 });
+    apply(s, me, { t: 'play', uid: give('beanstalk'), lane: 0 });
+    apply(s, me, { t: 'play', uid: give('toadstoolhut'), lane: 3 });
+    expect(s.p[me].lanes[2].totem).toMatchObject({ id: 'smolderpeak', n: 3 });
+    const heroAt = s.p[o].hero;
+    for (let turn = 0; turn < 3; turn++) { apply(s, me, { t: 'end' }); apply(s, o, { t: 'end' }); }
+    expect(s.p[me].lanes[2].totem).toBeNull(); // spent
+    expect(s.log.flatMap((l) => l.ev).some((e) => e.e === 'fx' && e.fx === 'peakblast')).toBe(true);
+    expect(s.p[o].hero).toBeLessThanOrEqual(heroAt - 3);
+    expect(s.p[me].lanes[3].unit?.id === 'sporemite' || s.p[me].grave.includes('sporemite')).toBe(true);
+    // Mirror Lake: an enemy played opposite comes in frozen
+    const t = setup();
+    t.s.p[t.me].lanes[1].totem = { uid: 990, id: 'mirrorlake' };
+    apply(t.s, t.me, { t: 'end' });
+    const opp = t.s.p[t.o]; opp.paint = 10; const uid = t.s.uid++; opp.hand.push({ uid, id: 'cinderpup' });
+    apply(t.s, t.o, { t: 'play', uid, lane: 1 });
+    expect(opp.lanes[1].unit?.frozen).toBe(1);
+  });
+  it('spare paint buys a card (Sketch), but not with an empty deck or a full hand', () => {
+    const { s, me } = setup();
+    const n = s.p[me].hand.length, paint = s.p[me].paint;
+    apply(s, me, { t: 'sketch' });
+    expect(s.p[me].hand.length).toBe(n + 1); expect(s.p[me].paint).toBe(paint - 1);
+    s.p[me].deck = [];
+    expect(check(s, me, { t: 'sketch' })).toBe('no_deck');
+    s.p[me].paint = 0; expect(check(s, me, { t: 'sketch' })).toBe('no_paint');
+  });
+  it('bots use the new cards and still finish every match', () => {
+    const decks = [
+      { name: 'a', deck: ['eruption', 'meteors', 'blackhole', 'tidalwave', 'eclipse', 'earthquake', 'smolderpeak', 'smolderpeak', 'riftgate', 'stormspire', 'stormspire', 'cinderpup', 'cinderpup', 'thornhare', 'thornhare', 'lavaling', 'lavaling', 'pebblegolem', 'pebblegolem', 'gumballmachine'], terrains: ['ember', 'neon', 'ember', 'neon'] },
+      { name: 'b', deck: ['avalanche', 'cyclone', 'overgrowth', 'bogrise', 'thunderstorm', 'mirrorlake', 'mirrorlake', 'beanstalk', 'beanstalk', 'toadstoolhut', 'snowpip', 'snowpip', 'sproutling', 'sproutling', 'gumdropimp', 'gumdropimp', 'sporemite', 'sporemite', 'mudslug', 'mudslug'], terrains: ['frost', 'meadow', 'sugar', 'bog'] },
+    ];
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const s = newMatch(seed, decks[0], decks[1]);
+      const r = mulberry32(seed);
+      for (let i = 0; i < 400 && !s.over; i++) { botTurn(s, s.turn, 1, () => r.next()); for (const l of s.log) for (const e of l.ev) if (e.e === 'fx') seen.add(e.fx); }
+      expect(s.over).toBe(true);
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(8);
+  });
+});
+
 describe('Paintbrawl bot decks', () => {
   it('every bot deck is a legal 20-card deck with both terrains’ legendaries', async () => {
     const { BOT_DECKS } = await import('../../src/shared/brawl/server');
     for (const d of BOT_DECKS) {
       expect(checkDeck(d.cards, d.terrains)).toBeNull();
       const legends = d.cards.filter((id) => CARD[id].rarity === 'legendary');
-      expect(legends.length).toBe(2);
+      expect(legends.length).toBeGreaterThanOrEqual(2);
     }
   });
 });

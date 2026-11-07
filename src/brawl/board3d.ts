@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { CARD, LANES, TERRAIN_INFO, type Terrain } from '../shared/brawl/cards';
-import type { Ev, Side, Unit, View } from '../shared/brawl/engine';
+import { buildWonder, makeScenes, Particles, type Ctx, type WonderModel } from './fx3d';
+import { otherSide, type Ev, type Side, type Unit, type View } from '../shared/brawl/engine';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { genomeOf } from './cardArt';
 
@@ -16,8 +17,10 @@ export type Highlight = BoardPick & { kind: 'place' | 'target' | 'flourish' | 'a
 export type HeroInfo = { name: string; color: string; badge: string };
 export type BoardOpts = { canvas: HTMLCanvasElement; me: Side; reduceMotion?: boolean; onPick?(p: BoardPick): void };
 
-const LX = (lane: number) => (lane - 1.5) * 2.45;
-const ROW = 1.75, TOTEM = 3.75, HERO = 5.6;
+// the board's size: four wide lanes a side (bigger than they used to be), totems and wonders behind them, heroes at the ends
+const LX = (lane: number) => (lane - 1.5) * 2.62;
+const ROW = 1.9, TOTEM = 4.45, HERO = 6.35;
+const TW = 11.4, TD = 16.2; // the table
 
 export function createBoard3D(o: BoardOpts) {
   const phone = isPhone();
@@ -40,12 +43,13 @@ export function createBoard3D(o: BoardOpts) {
   const geos = new Map<string, THREE.BufferGeometry>();
   const G = (k: string, f: () => THREE.BufferGeometry) => { let x = geos.get(k); if (!x) { x = T(f()); geos.set(k, x); } return x; };
   const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = scene) => { const me = new THREE.Mesh(g, m); me.position.set(x, y, z); me.castShadow = !phone; me.receiveShadow = true; parent.add(me); return me; };
+  const disposeTree = (x: THREE.Object3D) => x.traverse((y) => { const m = y as THREE.Mesh; if (m.geometry && ![...geos.values()].includes(m.geometry)) m.geometry.dispose(); const mats = m.material ? (Array.isArray(m.material) ? m.material : [m.material]) : []; for (const mm of mats) if (!bag.includes(mm)) mm.dispose(); });
   const rowZ = (side: Side) => (side === o.me ? ROW : -ROW);
   const totemZ = (side: Side) => (side === o.me ? TOTEM : -TOTEM);
   const heroZ = (side: Side) => (side === o.me ? HERO : -HERO);
 
   // ---- light ----------------------------------------------------------------------------------------------------------
-  scene.add(new THREE.HemisphereLight('#F0E6FF', '#3A2A40', 1.5));
+  const hemi = new THREE.HemisphereLight('#F0E6FF', '#3A2A40', 1.5); scene.add(hemi);
   const key = new THREE.DirectionalLight('#FFE6C8', 2.7); key.position.set(-6, 16, 9); scene.add(key, key.target);
   key.castShadow = !phone; key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 50 }); key.shadow.bias = -0.0005; key.shadow.normalBias = 0.03;
   const rim = new THREE.PointLight('#FF4FD8', 30, 30, 1.6); rim.position.set(0, 8, -10); scene.add(rim);
@@ -55,30 +59,30 @@ export function createBoard3D(o: BoardOpts) {
   stone.wrapS = stone.wrapT = THREE.RepeatWrapping; stone.repeat.set(10, 10);
   mesh(G('floor', () => new THREE.CircleGeometry(30, 48)), std('#ffffff', { map: stone, roughness: 0.95 }), 0, -1.2, 0).rotation.x = -Math.PI / 2;
   // the dais and the table
-  mesh(G('dais', () => new THREE.CylinderGeometry(10.5, 11.2, 0.9, 40)), std('#5A4E6A', { roughness: 0.9 }), 0, -0.75, 0);
+  mesh(G('dais', () => new THREE.CylinderGeometry(11.4, 12.1, 0.9, 40)), std('#5A4E6A', { roughness: 0.9 }), 0, -0.75, 0);
   const wood = tex(256, 256, (g) => { g.fillStyle = '#6A4228'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(${40 + Math.random() * 40},${20 + Math.random() * 20},10,0.35)`; g.lineWidth = 1 + Math.random() * 3; g.beginPath(); const y = Math.random() * 256; g.moveTo(0, y); g.bezierCurveTo(80, y + 6, 170, y - 6, 256, y + 3); g.stroke(); } });
   wood.wrapS = wood.wrapT = THREE.RepeatWrapping; wood.repeat.set(3, 3);
-  mesh(G('table', () => new THREE.BoxGeometry(11.6, 0.5, 13.6)), std('#ffffff', { map: wood, roughness: 0.6 }), 0, -0.25, 0);
+  mesh(G('table', () => new THREE.BoxGeometry(TW, 0.5, TD)), std('#ffffff', { map: wood, roughness: 0.6 }), 0, -0.25, 0);
   const gold = std('#E8B83A', { metalness: 0.85, roughness: 0.3 });
-  for (const [x, z, w, d] of [[0, 6.85, 11.8, 0.2], [0, -6.85, 11.8, 0.2], [5.85, 0, 0.2, 13.8], [-5.85, 0, 0.2, 13.8]]) mesh(G(`trim${w}${d}`, () => new THREE.BoxGeometry(w, 0.18, d)), gold, x, 0.04, z);
+  for (const [x, z, w, d] of [[0, TD / 2 + 0.05, TW + 0.2, 0.2], [0, -TD / 2 - 0.05, TW + 0.2, 0.2], [TW / 2 + 0.05, 0, 0.2, TD + 0.2], [-TW / 2 - 0.05, 0, 0.2, TD + 0.2]]) mesh(G(`trim${w}${d}`, () => new THREE.BoxGeometry(w, 0.18, d)), gold, x, 0.04, z);
   // the middle line
-  mesh(G('midline', () => new THREE.BoxGeometry(10.6, 0.02, 0.08)), std('#FFE14D', { emissive: '#FFB13D', emissiveIntensity: 0.6 }), 0, 0.02, 0);
+  mesh(G('midline', () => new THREE.BoxGeometry(TW - 0.8, 0.02, 0.08)), std('#FFE14D', { emissive: '#FFB13D', emissiveIntensity: 0.6 }), 0, 0.02, 0);
   // the stands and the crowd
   const crowd = new THREE.InstancedMesh(G('fan', () => new THREE.CapsuleGeometry(0.28, 0.5, 3, 6)), T(new THREE.MeshStandardMaterial({ roughness: 0.8 })), phone ? 90 : 180);
   const crowdBase: { x: number; y: number; z: number; p: number }[] = [];
   const m4 = new THREE.Matrix4(), col = new THREE.Color();
   for (let i = 0; i < crowd.count; i++) {
-    const tier = i % 3, a = (i / crowd.count) * Math.PI * 2 * 3 + tier * 0.1, r = 15 + tier * 1.6;
+    const tier = i % 3, a = (i / crowd.count) * Math.PI * 2 * 3 + tier * 0.1, r = 16 + tier * 1.6;
     if (Math.abs(Math.sin(a)) < 0.25 && Math.cos(a) > 0) { crowdBase.push({ x: 999, y: 0, z: 0, p: 0 }); continue; } // leave the camera's gap
     crowdBase.push({ x: Math.sin(a) * r, y: 0.6 + tier * 1.1, z: Math.cos(a) * r, p: Math.random() * 6 });
     col.setHSL(Math.random(), 0.6, 0.55); crowd.setColorAt(i, col);
   }
   scene.add(crowd);
-  for (let tier = 0; tier < 3; tier++) { const ring = mesh(G(`stand${tier}`, () => new THREE.TorusGeometry(15 + tier * 1.6, 0.55, 6, 48)), std('#3A3048'), 0, 0.1 + tier * 1.1, 0); ring.rotation.x = Math.PI / 2; }
+  for (let tier = 0; tier < 3; tier++) { const ring = mesh(G(`stand${tier}`, () => new THREE.TorusGeometry(16 + tier * 1.6, 0.55, 6, 48)), std('#3A3048'), 0, 0.1 + tier * 1.1, 0); ring.rotation.x = Math.PI / 2; }
   // banners and torches
   const torches: { f: THREE.Sprite; l?: THREE.PointLight }[] = [];
   for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8, x = Math.sin(a) * 12.5, z = Math.cos(a) * 12.5;
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8, x = Math.sin(a) * 13.4, z = Math.cos(a) * 13.4;
     mesh(G('post', () => new THREE.CylinderGeometry(0.12, 0.16, 3.4, 8)), std('#3A2A20'), x, 0.5, z);
     const f = sprite(flameTex, 0.9, 1.3, true); f.position.set(x, 2.6, z); scene.add(f);
     const tl = i % 2 === 0 && !phone ? new THREE.PointLight('#FFA040', 6, 9, 1.8) : undefined; if (tl) { tl.position.set(x, 2.8, z); scene.add(tl); }
@@ -88,7 +92,8 @@ export function createBoard3D(o: BoardOpts) {
   }
   // a starry sky dome
   const skyTex = tex(32, 256, (g) => { const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#05030E'); gr.addColorStop(0.6, '#2A1240'); gr.addColorStop(1, '#5A2A6A'); g.fillStyle = gr; g.fillRect(0, 0, 32, 256); });
-  const sky = new THREE.Mesh(G('sky', () => new THREE.SphereGeometry(70, 24, 16)), T(new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }))); scene.add(sky);
+  const skyMat = T(new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }));
+  const sky = new THREE.Mesh(G('sky', () => new THREE.SphereGeometry(70, 24, 16)), skyMat); scene.add(sky);
   const stars: THREE.Sprite[] = []; for (let i = 0; i < (phone ? 40 : 90); i++) { const s = sprite(glowTex, 0.25 + Math.random() * 0.3, undefined, true); const a = Math.random() * Math.PI * 2, e = 0.3 + Math.random() * 1.1; s.position.set(Math.cos(a) * 50 * Math.cos(e), 50 * Math.sin(e), Math.sin(a) * 50 * Math.cos(e)); (s.material as THREE.SpriteMaterial).fog = false; scene.add(s); stars.push(s); }
   // drifting paint flecks
   const flecks: THREE.Sprite[] = []; for (let i = 0; i < (phone ? 14 : 30); i++) { const s = sprite(glowTex, 0.18, 0.18, true); s.material.color.setHSL(Math.random(), 0.9, 0.65); s.position.set((Math.random() - 0.5) * 20, Math.random() * 6, (Math.random() - 0.5) * 20); scene.add(s); flecks.push(s); }
@@ -116,20 +121,20 @@ export function createBoard3D(o: BoardOpts) {
     const glow = t === 'ember' || t === 'neon' ? tex(256, 256, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.strokeStyle = t === 'ember' ? '#FF7A3D' : '#22E3FF'; g.lineWidth = 3; if (t === 'neon') { for (let i = 0; i <= 8; i++) { g.beginPath(); g.moveTo(i * 32, 0); g.lineTo(i * 32, 256); g.moveTo(0, i * 32); g.lineTo(256, i * 32); g.stroke(); } } else { for (let i = 0; i < 14; i++) { g.beginPath(); let x = R(256), y = R(256); g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += R(40) - 20; y += R(40) - 20; g.lineTo(x, y); } g.stroke(); } } }) : undefined;
     return (terrainTex[t] = { map, glow });
   };
-  type LaneObj = { side: Side; lane: number; tile: THREE.Mesh; mat: THREE.MeshStandardMaterial; props: THREE.Group; ring: THREE.Mesh; ringM: THREE.MeshBasicMaterial; terrain?: Terrain; totemSlot: THREE.Mesh; totem: THREE.Group };
+  type LaneObj = { side: Side; lane: number; tile: THREE.Mesh; mat: THREE.MeshStandardMaterial; props: THREE.Group; ring: THREE.Mesh; ringM: THREE.MeshBasicMaterial; terrain?: Terrain; totemSlot: THREE.Mesh; totem: THREE.Group & { userData: { id?: string | null; bob?: THREE.Sprite; model?: WonderModel | null; n?: number } } };
   const lanes: LaneObj[] = [];
   const boardGroup = new THREE.Group(); scene.add(boardGroup);
-  const ringGeo = G('ring', () => new THREE.RingGeometry(1.05, 1.3, 40));
+  const ringGeo = G('ring', () => new THREE.RingGeometry(1.2, 1.48, 40));
   for (const side of [0, 1] as Side[]) for (let lane = 0; lane < LANES; lane++) {
     const mat = T(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }));
-    const tile = mesh(G('tile', () => new THREE.BoxGeometry(2.2, 0.22, 2.7)), [std('#3A2A30'), std('#3A2A30'), mat, std('#3A2A30'), std('#3A2A30'), std('#3A2A30')] as unknown as THREE.Material, LX(lane), 0.11, rowZ(side), boardGroup);
+    const tile = mesh(G('tile', () => new THREE.BoxGeometry(2.46, 0.22, 3.1)), [std('#3A2A30'), std('#3A2A30'), mat, std('#3A2A30'), std('#3A2A30'), std('#3A2A30')] as unknown as THREE.Material, LX(lane), 0.11, rowZ(side), boardGroup);
     tile.userData.pick = { side, lane };
     const props = new THREE.Group(); props.position.set(LX(lane), 0.22, rowZ(side)); boardGroup.add(props);
     const ringM = T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0, depthWrite: false }));
     const ring = new THREE.Mesh(ringGeo, ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(LX(lane), 0.25, rowZ(side)); boardGroup.add(ring);
     const totemSlot = mesh(G('plinth', () => new THREE.CylinderGeometry(0.55, 0.7, 0.35, 16)), std('#5A4E6A'), LX(lane), 0.18, totemZ(side), boardGroup);
     totemSlot.userData.pick = { side, lane };
-    const totem = new THREE.Group(); totem.position.set(LX(lane), 0.36, totemZ(side)); boardGroup.add(totem);
+    const totem = new THREE.Group() as LaneObj['totem']; totem.position.set(LX(lane), 0.36, totemZ(side)); boardGroup.add(totem);
     lanes.push({ side, lane, tile, mat, props, ring, ringM, totemSlot, totem });
   }
   const laneOf = (side: Side, lane: number) => lanes.find((l) => l.side === side && l.lane === lane)!;
@@ -139,7 +144,7 @@ export function createBoard3D(o: BoardOpts) {
     L.props.clear();
     const R = (k: number) => (Math.random() - 0.5) * k;
     const add = (g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => mesh(g, m, x, y, z, L.props);
-    const corner = () => { const sx = Math.random() < 0.5 ? -1 : 1, sz = Math.random() < 0.5 ? -1 : 1; return [sx * (0.75 + Math.random() * 0.2), sz * (1 + Math.random() * 0.2)]; };
+    const corner = () => { const sx = Math.random() < 0.5 ? -1 : 1, sz = Math.random() < 0.5 ? -1 : 1; return [sx * (0.88 + Math.random() * 0.22), sz * (1.15 + Math.random() * 0.25)]; };
     if (t === 'meadow') for (let i = 0; i < 6; i++) { const [x, z] = corner(); add(G('tuft', () => new THREE.ConeGeometry(0.08, 0.35, 5)), std('#3E9A44'), x, 0.17, z); if (i % 2) add(G('flower', () => new THREE.SphereGeometry(0.07, 8, 6)), std(['#FFE14D', '#FF8AC2', '#FFFFFF'][i % 3]), x + 0.08, 0.3, z); }
     if (t === 'ember') for (let i = 0; i < 3; i++) { const [x, z] = corner(); add(G('rock', () => new THREE.DodecahedronGeometry(0.18, 0)), std('#3A1A10', { emissive: '#FF4A10', emissiveIntensity: 0.35 }), x, 0.12, z); }
     if (t === 'frost') for (let i = 0; i < 3; i++) { const [x, z] = corner(); const c = add(G('crystal', () => new THREE.OctahedronGeometry(0.16, 0)), std('#BFF4FF', { transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.2, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), x, 0.26, z); c.scale.y = 2.2; }
@@ -190,17 +195,17 @@ export function createBoard3D(o: BoardOpts) {
     const c = CARD[u.id], g = new THREE.Group(); g.position.set(LX(lane), 0.22, rowZ(side)); boardGroup.add(g);
     const color = c.terrain === 'neutral' ? '#B9B4D6' : TERRAIN_INFO[c.terrain].color;
     // a glowing ring in the creature's terrain colour, and a soft shadow under it
-    const base = mesh(G('ubase', () => new THREE.TorusGeometry(0.82, 0.07, 8, 36)), std(color, { emissive: color, emissiveIntensity: 1.1 }), 0, 0.06, 0, g); base.rotation.x = Math.PI / 2; base.castShadow = false;
-    const shadow = new THREE.Mesh(G('ushadow', () => new THREE.CircleGeometry(0.75, 24)), T(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.35, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; g.add(shadow);
+    const base = mesh(G('ubase', () => new THREE.TorusGeometry(0.95, 0.075, 8, 36)), std(color, { emissive: color, emissiveIntensity: 1.1 }), 0, 0.06, 0, g); base.rotation.x = Math.PI / 2; base.castShadow = false;
+    const shadow = new THREE.Mesh(G('ushadow', () => new THREE.CircleGeometry(0.88, 24)), T(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.35, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; g.add(shadow);
     const cv = document.createElement('canvas'); cv.width = cv.height = phone ? 160 : 224; const cg = cv.getContext('2d')!;
     const texture = new THREE.CanvasTexture(cv); texture.colorSpace = THREE.SRGBColorSpace;
-    const fig = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })); fig.scale.set(2.9, 2.9, 1); fig.position.y = 0.12; fig.center.set(0.5, 0.04); g.add(fig);
+    const fig = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })); fig.scale.set(3.4, 3.4, 1); fig.position.y = 0.12; fig.center.set(0.5, 0.04); g.add(fig);
     fig.userData.pick = { side, lane };
-    const atk = sprite(badgeTex(0, 'atk', 0), 0.82); atk.position.set(-0.85, 0.5, 0.75); g.add(atk);
-    const hp = sprite(badgeTex(0, 'hp', 0), 0.86); hp.position.set(0.85, 0.5, 0.75); g.add(hp);
-    const icons = sprite(iconTex([]), 1.6, 0.4); icons.position.set(0, 3.0, 0); g.add(icons);
-    const ice = mesh(G('ice', () => new THREE.BoxGeometry(1.5, 2.2, 1.2)), std('#BFF4FF', { transparent: true, opacity: 0.45, roughness: 0.05, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), 0, 1.15, 0, g); ice.visible = false; ice.castShadow = false;
-    const hit = new THREE.Mesh(G('uhit', () => new THREE.BoxGeometry(1.8, 2.6, 1.6)), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 1.3; hit.userData.pick = { side, lane }; g.add(hit);
+    const atk = sprite(badgeTex(0, 'atk', 0), 0.95); atk.position.set(-1.0, 0.55, 0.85); g.add(atk);
+    const hp = sprite(badgeTex(0, 'hp', 0), 1.0); hp.position.set(1.0, 0.55, 0.85); g.add(hp);
+    const icons = sprite(iconTex([]), 1.8, 0.45); icons.position.set(0, 3.5, 0); g.add(icons);
+    const ice = mesh(G('ice', () => new THREE.BoxGeometry(1.75, 2.6, 1.4)), std('#BFF4FF', { transparent: true, opacity: 0.45, roughness: 0.05, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), 0, 1.15, 0, g); ice.visible = false; ice.castShadow = false; ice.position.y = 1.35;
+    const hit = new THREE.Mesh(G('uhit', () => new THREE.BoxGeometry(2.3, 3.1, 2.6)), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 1.3; hit.userData.pick = { side, lane }; g.add(hit);
     const ob: UnitObj = { uid: u.uid, id: u.id, side, lane, g, fig, cv, cg, tex: texture, atk, hp, atkVal: -1, hpVal: -1, maxVal: -1, icons, iconKey: '', base, state: 'idle', flash: 0, lunge: 0, lungeTo: new THREE.Vector3(), dying: 0, ice, drop: 0, seed: Math.random() * 6 };
     units.set(u.uid, ob);
     return ob;
@@ -224,11 +229,17 @@ export function createBoard3D(o: BoardOpts) {
   const removeUnit = (u: UnitObj) => { boardGroup.remove(u.g); u.fig.material.dispose(); u.tex.dispose(); for (const s of [u.atk, u.hp, u.icons]) s.material.dispose(); units.delete(u.uid); };
 
   // ---- totems --------------------------------------------------------------------------------------------------------
-  const setTotem = (L: LaneObj, id: string | null) => {
-    if ((L.totem.userData.id ?? null) === id) return;
-    L.totem.clear(); L.totem.userData.id = id;
+  const labelTex = (s: string) => textTex(s, '#FFB13D', 76);
+  const setTotem = (L: LaneObj, id: string | null, n?: number) => {
+    if ((L.totem.userData.id ?? null) === id) { if (n !== undefined && L.totem.userData.n !== n && L.totem.userData.model?.userData.label) { L.totem.userData.n = n; L.totem.userData.model.userData.label.material.map = labelTex(n > 0 ? `${n}` : '!'); } return; }
+    for (const ch of [...L.totem.children]) { L.totem.remove(ch); if (ch !== L.totem.userData.bob) disposeTree(ch); }
+    L.totem.userData = { id }; L.totem.rotation.set(0, 0, 0); L.totem.scale.setScalar(1); L.totem.position.y = 0.36;
     if (!id) return;
     const c = CARD[id], col = c.terrain === 'neutral' ? '#B9B4D6' : TERRAIN_INFO[c.terrain].color;
+    if (c.wonder) {
+      const m = buildWonder(id, labelTex, glowTex);
+      if (m) { m.scale.setScalar(1.35); m.traverse((x) => { (x as THREE.Mesh).castShadow = !phone; }); L.totem.add(m); L.totem.userData.model = m; if (n !== undefined && m.userData.label) { L.totem.userData.n = n; m.userData.label.material.map = labelTex(`${n}`); } return; }
+    }
     const s = sprite(emojiTex(c.art), 1.1); s.position.y = 0.75; L.totem.add(s);
     const gl = sprite(glowTex, 2, 2, true); gl.material.color.set(col); gl.material.opacity = 0.6; gl.position.y = 0.6; L.totem.add(gl);
     L.totem.userData.bob = s;
@@ -238,20 +249,71 @@ export function createBoard3D(o: BoardOpts) {
   type Fx = { s: THREE.Sprite; v: THREE.Vector3; life: number; max: number; g: number; grow?: number };
   const fx: Fx[] = [];
   const pop = (at: THREE.Vector3, t: THREE.Texture, w = 1, h = 0.4, life = 1, v = new THREE.Vector3(0, 1.6, 0)) => { const s = sprite(t, w, h); s.renderOrder = 10; s.position.copy(at); scene.add(s); fx.push({ s, v, life, max: life, g: 0 }); };
+  // GPU particles: glowing (sparks, fire, magic) and soft (smoke, dust, snow, steam)
+  const addP = new Particles(phone ? 1400 : 3200, glowTex, true), softP = new Particles(phone ? 700 : 1600, glowTex, false);
+  scene.add(addP.points, softP.points); bag.push(addP, softP);
   const splash = (at: THREE.Vector3, color: string, n = 16, speed = 3) => {
-    for (let i = 0; i < (phone ? Math.ceil(n / 2) : n); i++) {
-      const s = sprite(glowTex, 0.35, 0.35, true); s.material.color.set(color); s.position.copy(at); scene.add(s);
+    for (let i = 0; i < (phone ? Math.ceil(n * 0.6) : n); i++) {
       const a = Math.random() * Math.PI * 2, up = 1 + Math.random() * 2;
-      fx.push({ s, v: new THREE.Vector3(Math.cos(a) * speed * Math.random(), up * speed * 0.6, Math.sin(a) * speed * Math.random()), life: 0.7 + Math.random() * 0.4, max: 1.1, g: 7 });
+      addP.emit({ x: at.x, y: at.y, z: at.z, vx: Math.cos(a) * speed * Math.random(), vy: up * speed * 0.6, vz: Math.sin(a) * speed * Math.random(), color, size: 0.32 + Math.random() * 0.2, gravity: 7, life: 0.7 + Math.random() * 0.4, drag: 0.4 });
     }
   };
   let shake = 0;
+  // little tweens and per-frame jobs for the big scenes
+  type Tw = { t: number; dur: number; fn: (k: number, dt: number) => void; res: () => void };
+  const tweens: Tw[] = [];
+  const tween = (dur: number, fn: (k: number, dt: number) => void) => new Promise<void>((res) => { const d = o.reduceMotion ? dur * 0.35 : dur; if (d <= 0) { fn(1, 0); res(); return; } tweens.push({ t: 0, dur: d, fn, res }); });
+  const jobs: ((dt: number, t: number) => boolean | void)[] = [];
+  // the mood of the arena: how bright, what colour the sky is, lightning flashes
+  const skyBase = new THREE.Color('#120A22'), skyNow = skyBase.clone(), skyGoal = skyBase.clone(), white = new THREE.Color('#FFFFFF');
+  let dim = 1, dimGoal = 1, flash = 0, tinted = 0, tintGoal = 0;
+  const mood = (m: { dim?: number; sky?: string; flash?: number }) => { if (m.flash) { flash = Math.max(flash, m.flash); if (m.dim === undefined && m.sky === undefined) return; } dimGoal = m.dim ?? 1; skyGoal.set(m.sky ?? '#120A22'); tintGoal = m.sky ? 1 : 0; };
+  // the big title of a cataclysm, floating in front of the camera
+  const titleTex = (text: string, color: string, sub?: string) => tex(1024, 320, (g) => {
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 150px ui-rounded, system-ui'; g.lineWidth = 22; g.strokeStyle = '#140A1E'; g.strokeText(text, 512, 130, 1000);
+    const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#FFFFFF'); gr.addColorStop(1, color); g.fillStyle = gr; g.fillText(text, 512, 130, 1000);
+    if (sub) { g.font = 'italic 700 54px ui-rounded, system-ui'; g.lineWidth = 10; g.strokeText(sub, 512, 262, 980); g.fillStyle = '#FFFFFF'; g.fillText(sub, 512, 262, 980); }
+  });
+  scene.add(camera);
+  const bigText = (text: string, color: string, sub?: string) => {
+    const t = titleTex(text, color, sub);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false, depthWrite: false })); sp.renderOrder = 40;
+    // as wide as the screen allows (12 units in front of the camera)
+    const w = Math.min(8, 2 * Math.tan((camera.fov * Math.PI) / 360) * 12 * camera.aspect * 0.94);
+    sp.position.set(0, 1.6, -12); camera.add(sp);
+    void tween(2.2, (k) => { const pop = k < 0.12 ? k / 0.12 : 1; const s = (0.6 + 0.4 * pop + Math.sin(Math.min(1, k * 8) * Math.PI) * 0.12) * w; sp.scale.set(s, s * 0.3125, 1); sp.material.opacity = k > 0.75 ? 1 - (k - 0.75) * 4 : 1; sp.position.y = 1.6 + k * 0.4; })
+      .then(() => { camera.remove(sp); sp.material.dispose(); t.dispose(); });
+  };
   type Proj = { s: THREE.Sprite; a: THREE.Vector3; b: THREE.Vector3; t: number; dur: number; color: string; done(): void };
   const projs: Proj[] = [];
   const throwAt = (a: THREE.Vector3, b: THREE.Vector3, e: string, color: string, dur = 0.45) => new Promise<void>((res) => { const s = sprite(emojiTex(e), 0.8); s.position.copy(a); scene.add(s); projs.push({ s, a: a.clone(), b: b.clone(), t: 0, dur: o.reduceMotion ? 0.1 : dur, color, done: res }); });
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, o.reduceMotion ? ms * 0.35 : ms));
   const unitAt = (side: Side, lane: number) => [...units.values()].find((u) => u.side === side && u.lane === lane && !u.dying);
   const posOf = (side: Side, lane: number, y = 1.3) => (lane < 0 ? new THREE.Vector3(0, y + 0.4, heroZ(side)) : new THREE.Vector3(LX(lane), y, rowZ(side)));
+
+  // ---- the big scenes (cataclysms, wonders going off) -------------------------------------------------------------------
+  const ctx: Ctx = {
+    scene, camera, phone, reduce: !!o.reduceMotion, me: o.me, add: addP, soft: softP, tween, wait, every: (fn) => { jobs.push(fn); },
+    LX, rowZ, totemZ, heroZ, tableW: TW, tableD: TD,
+    shake: (n) => { shake = Math.max(shake, n); }, cheer: (n) => { cheer = Math.max(cheer, n); }, mood,
+    unitGroups: (side, lane) => [...units.values()].filter((u) => u.side === side && !u.dying && (lane === undefined || u.lane === lane)).map((u) => u.g),
+    totemGroup: (side, lane) => laneOf(side, lane).totem,
+    laneTiles: (side) => lanes.filter((l) => l.side === side).map((l) => l.tile),
+    bigText, glowTex,
+  };
+  const scenes = makeScenes(ctx);
+  const modelAt = (side: Side, lane: number) => laneOf(side, lane).totem.userData.model ?? null;
+  /** A totem knocked over: it tips, drops and fades, then it's gone. */
+  const topple = (L: LaneObj, fast: boolean) => {
+    if (!L.totem.children.length) return Promise.resolve();
+    const g = new THREE.Group(); g.position.copy(L.totem.position); boardGroup.add(g);
+    for (const ch of [...L.totem.children]) g.add(ch);
+    L.totem.userData = { id: null };
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    splash(g.position.clone().setY(0.8), '#B9A88A', 16, 2.4);
+    return tween(fast ? 0.35 : 0.7, (k) => { g.rotation.z = dir * k * 1.5; g.position.y = 0.36 - k * k * 1.2; g.traverse((x) => { const m = (x as THREE.Mesh).material as THREE.Material | undefined; if (m && 'opacity' in m) { m.transparent = true; m.opacity = 1 - k; } }); })
+      .then(() => { boardGroup.remove(g); disposeTree(g); });
+  };
 
   // ---- picking ---------------------------------------------------------------------------------------------------------
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -269,19 +331,32 @@ export function createBoard3D(o: BoardOpts) {
   const resize = () => { const r = o.canvas.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
   let raf = 0, last = performance.now(), t = 0, paused = false, showcase = 0, lastDraw = 0, cheer = 0;
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector2();
   const loop = () => {
     raf = requestAnimationFrame(loop);
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;
-    // camera: behind your hero, fitted to the board's width (tall screens step back); the lobby slowly circles
+    // camera: behind your hero, fitted so the lanes fill the width; tall phone screens look down more steeply so the
+    // board fills the screen top to bottom; the lobby slowly circles
     const half = Math.atan(Math.tan((camera.fov * Math.PI) / 360) * camera.aspect);
-    const dist = Math.max(12, 6.5 / Math.tan(half));
+    const tall = camera.aspect < 0.8;
+    const dist = Math.max(tall ? 11 : 13.5, (tall ? 5.55 : 6.6) / Math.tan(half));
+    const pitch = tall ? 1.1 : 0.9, tz = tall ? 1.55 : 0.9;
     const ang = showcase ? Math.sin(t * 0.12) * 0.5 : 0;
-    camera.position.set(Math.sin(ang) * dist * 0.62 + (Math.random() - 0.5) * shake, dist * 0.78 + (Math.random() - 0.5) * shake, Math.cos(ang) * dist * 0.62);
-    camera.lookAt(0, 0, camera.aspect < 0.8 ? 0.4 : 0.8);
+    const jig = () => (Math.random() - 0.5) * shake;
+    camera.position.set(Math.sin(ang) * dist * Math.cos(pitch) + jig(), dist * Math.sin(pitch) + jig(), tz + Math.cos(ang) * dist * Math.cos(pitch));
+    camera.lookAt(0, 0, tz);
     shake = Math.max(0, shake - dt * 2.5);
+    // tweens and per-frame jobs of the big scenes
+    for (let i = tweens.length - 1; i >= 0; i--) { const w = tweens[i]; w.t += dt; const k = Math.min(1, w.t / w.dur); try { w.fn(k, dt); } catch { /* keep going */ } if (k >= 1) { tweens.splice(i, 1); w.res(); } }
+    for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i](dt, t) === false) jobs.splice(i, 1);
+    // the arena's mood: brightness, sky colour, lightning flashes
+    dim += (dimGoal - dim) * Math.min(1, dt * 3); tinted += (tintGoal - tinted) * Math.min(1, dt * 2); skyNow.lerp(tintGoal ? skyGoal : skyBase, Math.min(1, dt * 2));
+    flash = Math.max(0, flash - dt * 5);
+    hemi.intensity = 1.5 * dim + flash * 5; key.intensity = 2.7 * dim + flash * 4; rim.intensity = 30 * dim;
+    (scene.background as THREE.Color).copy(skyNow); (scene.fog as THREE.Fog).color.copy(skyNow);
+    skyMat.color.copy(white).lerp(skyGoal, tinted * 0.7).multiplyScalar(0.25 + 0.75 * dim + flash);
     // creatures
     const draw = now - lastDraw > (phone ? 70 : 45); if (draw) lastDraw = now;
     for (const u of units.values()) {
@@ -308,6 +383,10 @@ export function createBoard3D(o: BoardOpts) {
       torches.forEach((x, i) => { x.f.scale.set(0.9 + Math.sin(t * 11 + i) * 0.08, 1.3 + Math.sin(t * 7 + i) * 0.15, 1); if (x.l) x.l.intensity = 5 + Math.sin(t * 13 + i) * 1.2; });
       flecks.forEach((s, i) => { s.position.y += dt * 0.25; s.position.x += Math.sin(t + i) * dt * 0.2; if (s.position.y > 7) s.position.y = 0; });
     }
+    // the wonders breathe: smoke from the peak, sparks on the spire, a turning portal
+    for (const L of lanes) { const m = L.totem.userData.model; if (!m) continue; m.userData.tick?.(dt, t); if (L.totem.userData.id === 'smolderpeak' && Math.random() < dt * 4) softP.emit({ x: L.totem.position.x + (Math.random() - 0.5) * 0.3, y: 2.1, z: L.totem.position.z, vy: 0.8 + Math.random() * 0.6, vx: 0.2, color: '#3A3238', size: 0.7, grow: 0.8, life: 2, alpha: 0.5, drag: 0.3 }); }
+    const bh = renderer.getDrawingBufferSize(tmp2).y / (2 * Math.tan((camera.fov * Math.PI) / 360));
+    addP.update(dt, bh); softP.update(dt, bh);
     // projectiles and particles
     for (let i = projs.length - 1; i >= 0; i--) { const p = projs[i]; p.t += dt / p.dur; const k = Math.min(1, p.t); p.s.position.lerpVectors(p.a, p.b, k); p.s.position.y += Math.sin(k * Math.PI) * 2.2; if (Math.random() < 0.6) splash(p.s.position, p.color, 1, 0.6); if (k >= 1) { scene.remove(p.s); p.s.material.dispose(); projs.splice(i, 1); p.done(); } }
     for (let i = fx.length - 1; i >= 0; i--) { const f = fx[i]; f.life -= dt; f.v.y -= f.g * dt; f.s.position.addScaledVector(f.v, dt); f.s.material.opacity = Math.max(0, Math.min(1, (f.life / f.max) * 2)); if (f.life <= 0) { scene.remove(f.s); f.s.material.dispose(); fx.splice(i, 1); } }
@@ -316,7 +395,7 @@ export function createBoard3D(o: BoardOpts) {
   };
   raf = requestAnimationFrame(loop);
 
-  let current: View | null = null;
+  let current: View | null = null, previewing = false;
   const setHeroHp = (side: Side, n: number) => { const h = heroes[side]; if (h.hpVal === n) return; h.hpVal = n; h.hp.material.map = textTex(String(Math.max(0, n)), n <= 8 ? '#FF8A8A' : '#FFFFFF', 72); h.hp.material.needsUpdate = true; };
 
   const api = {
@@ -327,16 +406,18 @@ export function createBoard3D(o: BoardOpts) {
       for (const side of [0, 1] as Side[]) {
         setHeroHp(side, v.p[side].hero);
         v.p[side].lanes.forEach((L, lane) => {
-          const lo = laneOf(side, lane); setTerrain(lo, L.terrain); setTotem(lo, L.totem?.id ?? null);
+          const lo = laneOf(side, lane); setTerrain(lo, L.terrain); setTotem(lo, L.totem?.id ?? null, L.totem?.n);
+          lo.tile.position.y = 0.11; lo.tile.rotation.z = 0; lo.totem.position.set(LX(lane), 0.36, totemZ(side)); lo.totem.scale.setScalar(1); lo.totem.rotation.set(0, 0, 0);
           if (!L.unit) return;
           let u = units.get(L.unit.uid);
-          if (u && (u.side !== side || u.lane !== lane)) { u.side = side; u.lane = lane; u.g.position.set(LX(lane), 0.22, rowZ(side)); }
+          if (u) { u.side = side; u.lane = lane; if (!u.drop && !u.lunge) u.g.position.set(LX(lane), 0.22, rowZ(side)); u.g.rotation.set(0, 0, 0); u.g.scale.setScalar(1); }
           if (!u) u = makeUnit(L.unit, side, lane);
           if (u.dying) { u.dying = 0; u.fig.material.opacity = 1; u.g.scale.setScalar(1); }
           seen.add(L.unit.uid); updateBadges(u, v, side, lane);
         });
       }
       for (const u of [...units.values()]) if (!seen.has(u.uid) && !u.dying) removeUnit(u);
+      for (const u of [...units.values()]) if (u.uid < 0) removeUnit(u); // a preview's ghost
     },
     setHeroes(list: [HeroInfo, HeroInfo]) { list.forEach((h, i) => { heroes[i].portrait.material.map = portraitTex(h); heroes[i].portrait.material.needsUpdate = true; }); },
     highlight(list: Highlight[]) {
@@ -349,64 +430,161 @@ export function createBoard3D(o: BoardOpts) {
     },
     /** Play out a move's events, then settle on the view after it. */
     async play(evs: Ev[], after: View) {
+      // after a cataclysm's big scene, the aftermath (deaths, terrain changes…) plays out quicker
+      let fast = false, storm = false;
+      const W = (ms: number) => wait(fast ? ms * 0.3 : ms);
       for (const e of evs) {
         switch (e.e) {
           case 'play': {
             const L = after.p[e.side].lanes[e.lane].unit;
             if (L && !units.has(L.uid) && L.uid === e.uid) { const u = makeUnit(L, e.side, e.lane); u.drop = 1; u.state = 'happy'; setTimeout(() => { u.state = 'idle'; }, 900); if (current) updateBadges(u, after, e.side, e.lane); }
-            await wait(420); break;
+            await W(420); break;
           }
-          case 'totem': { const lo = laneOf(e.side, e.lane); setTotem(lo, e.card); splash(new THREE.Vector3(LX(e.lane), 0.8, totemZ(e.side)), '#FFE14D', 12, 2); await wait(300); break; }
+          case 'totem': {
+            const lo = laneOf(e.side, e.lane), n = after.p[e.side].lanes[e.lane].totem?.n;
+            setTotem(lo, e.card, n);
+            const c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color;
+            if (c.wonder) {
+              // a wonder rises out of the table
+              lo.totem.position.y = -2.2; scenes.smoke(LX(e.lane), 0.4, totemZ(e.side), 14, { color: '#8A7A64', size: 1.3, rise: 1.4 }); shake = Math.max(shake, 0.25);
+              await tween(0.8, (k) => { lo.totem.position.y = -2.2 + (1 - Math.pow(1 - k, 3)) * 2.56; if (Math.random() < 0.5) splash(new THREE.Vector3(LX(e.lane) + (Math.random() - 0.5) * 1.5, 0.4, totemZ(e.side)), col, 1, 2); });
+              lo.totem.position.y = 0.36; splash(new THREE.Vector3(LX(e.lane), 1.2, totemZ(e.side)), col, 30, 3.5); cheer = 0.8;
+              pop(new THREE.Vector3(LX(e.lane), 3.2, totemZ(e.side)), textTex(c.name, col, 44), 2.4, 0.9, 1.4);
+            } else { splash(new THREE.Vector3(LX(e.lane), 0.8, totemZ(e.side)), '#FFE14D', 12, 2); await W(300); }
+            break;
+          }
           case 'spell': {
             const c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color;
             const from = new THREE.Vector3(0, 2, heroZ(e.side));
-            if (e.target) await throwAt(from, posOf(e.target.side, e.target.lane), c.art, col);
-            else { pop(from.clone().setY(2.6), emojiTex(c.art), 1.4, 1.4, 1); await wait(350); }
+            if (c.fx) { splash(from.clone().setY(2.4), col, 30, 3); pop(from.clone().setY(3), emojiTex(c.art), 1.8, 1.8, 1.2); await W(450); }
+            else if (e.target) await throwAt(from, posOf(e.target.side, e.target.lane), c.art, col);
+            else { pop(from.clone().setY(2.6), emojiTex(c.art), 1.4, 1.4, 1); await W(350); }
             break;
           }
+          case 'fx': {
+            if (e.fx === 'thunderstorm') storm = true;
+            await scenes.play(e.fx, e.side, e.lane, e.lane !== undefined ? modelAt(e.side, e.lane) : null);
+            if (e.fx !== 'rift') fast = true;
+            break;
+          }
+          case 'strike': {
+            const to = e.lane < 0 ? new THREE.Vector3(0, 1.2, heroZ(e.side)) : new THREE.Vector3(LX(e.lane), 0.8, rowZ(e.side));
+            let from: THREE.Vector3 | undefined;
+            if (e.kind === 'bolt' && !storm) { const spire = [0, 1, 2, 3].find((l) => laneOf(otherSide(e.side), l).totem.userData.id === 'stormspire'); if (spire !== undefined) { const L = laneOf(otherSide(e.side), spire); from = L.totem.position.clone().add(new THREE.Vector3(0, 2.45, 0)); } }
+            await scenes.strike(e.kind, to, from);
+            break;
+          }
+          case 'crumble': { await topple(laneOf(e.side, e.lane), fast); break; }
+          case 'countdown': {
+            const lo = laneOf(e.side, e.lane); setTotem(lo, 'smolderpeak', e.n);
+            const at = lo.totem.position.clone().setY(2);
+            scenes.smoke(at.x, at.y, at.z, 10, { color: '#2A2028', size: 1.2, rise: 2.4 }); scenes.burst(at.x, at.y, at.z, ['#FFB020', '#FF5A10'], 16, 3);
+            shake = Math.max(shake, 0.2);
+            if (e.n > 0) pop(at.clone().setY(3.3), textTex(e.n === 1 ? 'Erupts next turn!' : `${e.n} turns…`, '#FFB13D', 44), 2.6, 0.9, 1.3);
+            await W(500); break;
+          }
+          case 'swap': {
+            const u = unitAt(e.side, e.lane);
+            if (u) { void tween(0.5, (k) => { u.g.rotation.y = k * Math.PI * 2; }); pop(posOf(e.side, e.lane, 2.8), textTex(`${e.atk}⚔ ⇄ ${e.hp}♥`, '#FFE9A8', 50), 1.9, 0.7, 1.1); }
+            await W(160); break;
+          }
+          case 'swirl': {
+            // the cyclone drops everything back down, into new lanes
+            const olds = [0, 1, 2, 3].map((l) => unitAt(e.side, l));
+            const moves = e.from.map((f, l) => ({ u: olds[f], l })).filter((m): m is { u: UnitObj; l: number } => !!m.u);
+            for (const m of moves) m.u.lane = m.l;
+            await Promise.all(moves.map(({ u, l }, i) => wait(i * 120).then(() => { const a = u.g.position.clone(), b = new THREE.Vector3(LX(l), 0.22, rowZ(e.side)); return tween(0.55, (k) => { u.g.position.lerpVectors(a, b, k); u.g.position.y = a.y * (1 - k) + 0.22 + Math.sin(k * Math.PI) * 1.2; u.g.rotation.y = (1 - k) * 8; }).then(() => { u.g.rotation.y = 0; splash(b.clone().setY(0.5), '#FF8AC2', 18, 2.6); shake = Math.max(shake, 0.2); }); })));
+            break;
+          }
+          case 'sketch': { const at = new THREE.Vector3(0, 2.8, heroZ(e.side)); pop(at, textTex('✏️ +1 card', '#9FE6FF', 54), 2, 0.75, 1.1); splash(at, '#9FE6FF', 14, 2); await W(300); break; }
           case 'flourish': {
             const u = unitAt(e.side, e.lane); if (u) { u.state = 'happy'; setTimeout(() => { u.state = 'idle'; }, 700); splash(posOf(e.side, e.lane, 2), '#FFE14D', 18, 2.2); pop(posOf(e.side, e.lane, 2.6), textTex('Flourish!', '#FFE14D', 52), 1.6, 0.6, 0.9); }
             if (e.target) { const c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color; await throwAt(posOf(e.side, e.lane, 2), posOf(e.target.side, e.target.lane), '✨', col, 0.35); }
-            await wait(300); break;
+            await W(300); break;
           }
           case 'attack': {
             const u = unitAt(e.side, e.lane); const to = e.to === 'hero' ? new THREE.Vector3(0, 0.22, heroZ(e.side === 0 ? 1 : 0)) : new THREE.Vector3(LX(e.lane), 0.22, rowZ(e.side === 0 ? 1 : 0));
             if (u) { u.lungeTo.copy(to); u.lunge = 1; u.state = 'walk'; setTimeout(() => { u.state = 'idle'; }, 400); }
-            await wait(230); break;
+            await W(230); break;
           }
           case 'dmg': {
-            const at = posOf(e.side, e.lane, e.lane < 0 ? 2.4 : 2.1);
+            const at = posOf(e.side, e.lane, e.lane < 0 ? 2.4 : 2.4);
             if (e.blocked) { pop(at, textTex('Blocked!', '#9AD8FF', 54), 1.6, 0.6, 0.9); splash(at, '#9AD8FF', 10, 2); }
             else {
-              pop(at, textTex(`-${e.n}`, e.kind === 'poison' ? '#C89BFF' : e.kind === 'burn' ? '#FFB13D' : '#FF5A5A', 76), 1.2, 0.45, 1);
+              pop(at, textTex(`-${e.n}`, e.kind === 'poison' ? '#C89BFF' : e.kind === 'burn' ? '#FFB13D' : '#FF5A5A', 76), 1.3, 0.5, 1);
               splash(at, e.kind === 'poison' ? '#9B6BFF' : e.kind === 'burn' ? '#FF7A3D' : '#FF4D6D', 12, 2.6);
               if (e.lane < 0) { heroes[e.side].shake = 0.5; shake = Math.max(shake, e.n >= 4 ? 0.45 : 0.22); setHeroHp(e.side, Math.max(0, heroes[e.side].hpVal - e.n)); if (e.n >= 4) cheer = 1.2; }
               else { const u = unitAt(e.side, e.lane); if (u) { u.flash = 0.35; u.hpVal -= e.n; u.hp.material.map = badgeTex(u.hpVal, 'hp', -1); u.hp.material.needsUpdate = true; } }
             }
-            await wait(190); break;
+            await W(190); break;
           }
-          case 'heal': { const at = posOf(e.side, e.lane, 2.1); pop(at, textTex(`+${e.n}`, '#7BFFAE', 72), 1.1, 0.42, 1); splash(at, '#7BFFAE', 10, 1.6); if (e.lane < 0) setHeroHp(e.side, heroes[e.side].hpVal + e.n); await wait(160); break; }
-          case 'die': { const u = unitAt(e.side, e.lane); if (u) { u.dying = 0.0001; const c = CARD[u.id]; splash(posOf(e.side, e.lane, 1.4), c.terrain === 'neutral' ? '#B9B4D6' : TERRAIN_INFO[c.terrain].color, 26, 4); cheer = 0.8; } await wait(320); break; }
-          case 'freeze': { const u = unitAt(e.side, e.lane); if (u) u.ice.visible = true; splash(posOf(e.side, e.lane, 1.6), '#BFF4FF', 16, 2); await wait(220); break; }
-          case 'thaw': { const u = unitAt(e.side, e.lane); if (u) u.ice.visible = false; pop(posOf(e.side, e.lane, 2.4), textTex('Thawed', '#BFF4FF', 48), 1.4, 0.5, 0.8); await wait(160); break; }
-          case 'poison': { splash(posOf(e.side, e.lane, 1.6), '#9B6BFF', 14, 1.6); pop(posOf(e.side, e.lane, 2.5), emojiTex('☠️'), 0.6, 0.6, 0.9); await wait(180); break; }
-          case 'buff': { splash(posOf(e.side, e.lane, 1.2), '#FFE14D', 14, 1.4); pop(posOf(e.side, e.lane, 2.4), textTex(`${e.atk ? `+${e.atk}⚔` : ''}${e.hp ? ` +${e.hp}♥` : ''}`.trim(), '#FFE14D', 50), 1.6, 0.6, 1); await wait(200); break; }
-          case 'bounce': { const u = unitAt(e.side, e.lane); if (u) { u.drop = 0; u.lungeTo.set(LX(e.lane), 6, rowZ(e.side)); u.lunge = 1; setTimeout(() => removeUnit(u), 380); } splash(posOf(e.side, e.lane, 1.5), '#FF8AC2', 18, 2.6); await wait(380); break; }
-          case 'move': { const u = unitAt(e.side, e.from), v2 = unitAt(e.side, e.to); if (u) { u.lane = e.to; u.g.position.x = LX(e.to); } if (v2) { v2.lane = e.from; v2.g.position.x = LX(e.from); } splash(posOf(e.side, e.to, 1.2), '#8AE0FF', 12, 2); await wait(260); break; }
-          case 'terrain': { const lo = laneOf(e.side, e.lane); setTerrain(lo, e.terrain); splash(new THREE.Vector3(LX(e.lane), 0.6, rowZ(e.side)), TERRAIN_INFO[e.terrain].color, 22, 2.6); await wait(320); break; }
-          case 'coin': { pop(new THREE.Vector3(0, 3, heroZ(e.side)), emojiTex('🪙'), 1, 1, 1.1); await wait(350); pop(new THREE.Vector3(0, 3.4, heroZ(e.side)), textTex(e.heads ? 'Heads!' : 'Tails', '#FFE14D', 56), 1.6, 0.6, 1); break; }
-          case 'fatigue': { pop(new THREE.Vector3(0, 3, heroZ(e.side)), textTex('Out of cards!', '#FF8A8A', 44), 2.2, 0.6, 1.2); await wait(300); break; }
+          case 'heal': { const at = posOf(e.side, e.lane, 2.1); pop(at, textTex(`+${e.n}`, '#7BFFAE', 72), 1.1, 0.42, 1); splash(at, '#7BFFAE', 10, 1.6); if (e.lane < 0) setHeroHp(e.side, heroes[e.side].hpVal + e.n); await W(160); break; }
+          case 'die': { const u = unitAt(e.side, e.lane); if (u) { u.dying = 0.0001; const c = CARD[u.id]; splash(posOf(e.side, e.lane, 1.4), c.terrain === 'neutral' ? '#B9B4D6' : TERRAIN_INFO[c.terrain].color, 26, 4); cheer = 0.8; } await W(320); break; }
+          case 'freeze': { const u = unitAt(e.side, e.lane); if (u) u.ice.visible = true; splash(posOf(e.side, e.lane, 1.6), '#BFF4FF', 16, 2); await W(220); break; }
+          case 'thaw': { const u = unitAt(e.side, e.lane); if (u) u.ice.visible = false; pop(posOf(e.side, e.lane, 2.4), textTex('Thawed', '#BFF4FF', 48), 1.4, 0.5, 0.8); await W(160); break; }
+          case 'poison': { splash(posOf(e.side, e.lane, 1.6), '#9B6BFF', 14, 1.6); pop(posOf(e.side, e.lane, 2.5), emojiTex('☠️'), 0.6, 0.6, 0.9); await W(180); break; }
+          case 'buff': { splash(posOf(e.side, e.lane, 1.2), '#FFE14D', 14, 1.4); pop(posOf(e.side, e.lane, 2.4), textTex(`${e.atk ? `+${e.atk}⚔` : ''}${e.hp ? ` +${e.hp}♥` : ''}`.trim(), '#FFE14D', 50), 1.6, 0.6, 1); await W(200); break; }
+          case 'bounce': { const u = unitAt(e.side, e.lane); if (u) { u.drop = 0; u.lungeTo.set(u.g.position.x, 7, u.g.position.z); u.lunge = 1; setTimeout(() => removeUnit(u), 380); } splash(posOf(e.side, e.lane, 1.5), '#8AE0FF', 18, 2.6); await W(380); break; }
+          case 'move': { const u = unitAt(e.side, e.from), v2 = unitAt(e.side, e.to); if (u) { u.lane = e.to; u.g.position.x = LX(e.to); } if (v2) { v2.lane = e.from; v2.g.position.x = LX(e.from); } splash(posOf(e.side, e.to, 1.2), '#8AE0FF', 12, 2); await W(260); break; }
+          case 'terrain': { const lo = laneOf(e.side, e.lane); setTerrain(lo, e.terrain); splash(new THREE.Vector3(LX(e.lane), 0.6, rowZ(e.side)), TERRAIN_INFO[e.terrain].color, 22, 2.6); await W(320); break; }
+          case 'coin': { pop(new THREE.Vector3(0, 3, heroZ(e.side)), emojiTex('🪙'), 1, 1, 1.1); await W(350); pop(new THREE.Vector3(0, 3.4, heroZ(e.side)), textTex(e.heads ? 'Heads!' : 'Tails', '#FFE14D', 56), 1.6, 0.6, 1); break; }
+          case 'fatigue': { pop(new THREE.Vector3(0, 3, heroZ(e.side)), textTex('Out of cards!', '#FF8A8A', 44), 2.2, 0.6, 1.2); await W(300); break; }
           case 'over': { cheer = 3; for (let i = 0; i < 4; i++) splash(new THREE.Vector3((Math.random() - 0.5) * 8, 2, (Math.random() - 0.5) * 6), ['#FF4FD8', '#FFE14D', '#22E3FF', '#3DDC97'][i], 30, 5); break; }
         }
       }
+      await scenes.settle();
       api.setView(after);
+    },
+    /** Show what a card does, on the board, without changing anything: a cataclysm plays its whole scene, a wonder rises
+     *  (and goes off), a creature hops into a lane and shows its attack, a spell flies at the other side. */
+    async preview(id: string) {
+      if (previewing) return; previewing = true;
+      const c = CARD[id], me = o.me, them = otherSide(me);
+      try {
+        if (c.fx) {
+          const lane = 1;
+          await scenes.play(c.fx, me, lane, null);
+          if (c.fx === 'thunderstorm' || c.fx === 'meteors') for (const l of [0, 2, -1]) await scenes.strike(c.fx === 'meteors' ? 'meteor' : 'bolt', l < 0 ? new THREE.Vector3(0, 1.2, heroZ(them)) : new THREE.Vector3(LX(l), 0.8, rowZ(them)));
+          await scenes.settle();
+        } else if (c.kind === 'totem') {
+          const lane = [1, 2, 0, 3].find((l) => !current?.p[me].lanes[l].totem) ?? 1, lo = laneOf(me, lane), had = lo.totem.userData.id ?? null;
+          setTotem(lo, id, id === 'smolderpeak' ? 3 : undefined);
+          lo.totem.position.y = -2.2; await tween(0.8, (k) => { lo.totem.position.y = -2.2 + (1 - Math.pow(1 - k, 3)) * 2.56; });
+          splash(lo.totem.position.clone().setY(1.2), '#FFE14D', 30, 3.5);
+          await wait(700);
+          if (id === 'smolderpeak') await scenes.play('peakblast', me, lane, modelAt(me, lane));
+          if (id === 'riftgate') await scenes.play('rift', me, lane, null);
+          if (id === 'stormspire') await scenes.strike('bolt', new THREE.Vector3(LX(lane), 0.8, rowZ(them)), lo.totem.position.clone().setY(2.8));
+          await wait(600);
+          setTotem(lo, null); if (had) setTotem(lo, had, current?.p[me].lanes[lane].totem?.n);
+        } else if (c.kind === 'creature') {
+          const lane = [1, 2, 0, 3].find((l) => !current?.p[me].lanes[l].unit) ?? 1;
+          const u = makeUnit({ uid: -1, id, atk: c.atk ?? 0, hp: c.hp ?? 1, max: c.hp ?? 1, shield: false, frozen: 0, poison: 0, temp: 0, acted: false }, me, lane);
+          if (current?.p[me].lanes[lane].unit) u.g.position.x += 0.01;
+          u.drop = 1; u.state = 'happy'; u.atk.material.map = badgeTex(c.atk ?? 0, 'atk', 0); u.hp.material.map = badgeTex(c.hp ?? 1, 'hp', 0);
+          await wait(1100); u.state = 'idle';
+          u.lungeTo.set(LX(lane), 0.22, current?.p[them].lanes[lane].unit ? rowZ(them) : heroZ(them)); u.lunge = 1; u.state = 'walk';
+          await wait(500); splash(new THREE.Vector3(LX(lane), 1.6, current?.p[them].lanes[lane].unit ? rowZ(them) : heroZ(them)), '#FF4D6D', 16, 2.6);
+          await wait(700);
+          u.dying = 0.0001; await wait(800);
+        } else {
+          const col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color;
+          const to = c.target === 'my_unit' || c.target === 'my_lane' || c.target === 'my_empty_lane' ? posOf(me, 1) : c.target && c.target !== 'none' ? posOf(them, 1) : new THREE.Vector3(0, 2.8, heroZ(me));
+          await throwAt(new THREE.Vector3(0, 2, heroZ(me)), to, c.art, col, 0.6);
+          splash(to, col, 30, 3.2); await wait(500);
+        }
+      } finally {
+        previewing = false;
+        if (current) api.setView(current);
+      }
     },
     /** The lobby: just the scenery and your lanes, the camera drifting. */
     setShowcase(on: boolean) { showcase = on ? 1 : 0; },
     setPaused(p: boolean) { paused = p; },
-    debug: () => ({ units: units.size, lanes: lanes.map((l) => l.terrain), fx: fx.length }),
+    debug: () => ({ units: units.size, lanes: lanes.map((l) => l.terrain), fx: fx.length, particles: addP.count + softP.count, scenes: scenes.busy, previewing }),
+    get previewing() { return previewing; },
     dispose() {
-      cancelAnimationFrame(raf); ro.disconnect();
+      cancelAnimationFrame(raf); ro.disconnect(); scenes.clear();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointerup', pu);
       for (const u of [...units.values()]) removeUnit(u);
       scene.traverse((ob) => { if (ob instanceof THREE.Sprite) ob.material.dispose(); });

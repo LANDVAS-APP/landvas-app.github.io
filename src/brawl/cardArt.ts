@@ -1,7 +1,8 @@
 // Painting a Paintbrawl card: a terrain-coloured frame, the cost in a paint drop, the name on a banner, a little
 // scene of the card's terrain with its creature alive in it (breathing, blinking, bouncing), the rules on parchment,
 // attack and health badges, a rarity gem — and a moving holographic sheen on gold foils and legendaries.
-import { CARD, RARITY_INFO, TERRAIN_INFO, type Card, type Terrain } from '../shared/brawl/cards';
+import { CARD, RARITY_INFO, TERRAIN_INFO, kindName, type Card, type Terrain } from '../shared/brawl/cards';
+import { drawSpecialArt } from './cardFx';
 import { cleanGenome, type Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { isPhone } from '../lib/gfx';
@@ -142,9 +143,12 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   // art window
   const ax = pad, ay = h * 0.12, aw = w - pad * 2, ah = h * (o.compact ? 0.5 : 0.44);
   g.save(); g.beginPath(); g.roundRect(ax, ay, aw, ah, r * 0.6); g.clip();
-  drawScene(g, c.terrain, ax, ay, aw, ah, t, c.id);
-  if (c.kind === 'creature') drawCreature(g, genomeOf(c), ax + aw / 2, ay + ah * 0.86, ah * 0.5, { t, state: o.state ?? 'idle', dir: 1, seed: hash(c.id, 1) * 6 });
-  else drawEmblem(g, c, ax + aw / 2, ay + ah * 0.5, ah * 0.28, t);
+  // cataclysms and wonders have their own little animation; everything else stands in its terrain
+  if (!drawSpecialArt(g, c, ax, ay, aw, ah, t)) {
+    drawScene(g, c.terrain, ax, ay, aw, ah, t, c.id);
+    if (c.kind === 'creature') drawCreature(g, genomeOf(c), ax + aw / 2, ay + ah * 0.86, ah * 0.5, { t, state: o.state ?? 'idle', dir: 1, seed: hash(c.id, 1) * 6 });
+    else drawEmblem(g, c, ax + aw / 2, ay + ah * 0.5, ah * 0.28, t);
+  }
   g.restore();
   g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 2; g.beginPath(); g.roundRect(ax, ay, aw, ah, r * 0.6); g.stroke();
   // name banner
@@ -156,7 +160,8 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   // the type line
   const ty = ay + ah + h * 0.035;
   g.font = `700 ${Math.round(w * 0.048)}px ui-rounded, system-ui, sans-serif`; g.fillStyle = T.glow;
-  g.fillText(`${T.emoji} ${c.kind === 'creature' ? 'Creature' : c.kind === 'totem' ? 'Totem' : 'Spell'} · ${T.name}`, w / 2, ty);
+  if (c.fx || c.wonder) { g.fillStyle = c.fx ? '#FFB13D' : '#FFE9A8'; g.font = `900 ${Math.round(w * 0.05)}px ui-rounded, system-ui, sans-serif`; }
+  g.fillText(`${c.fx ? '🌋' : c.wonder ? '🏰' : T.emoji} ${kindName(c)} · ${T.name}`, w / 2, ty);
   // rules on parchment
   if (!o.compact) {
     const px0 = pad, py0 = ty + h * 0.03, pw = w - pad * 2, ph = h - py0 - h * 0.1;

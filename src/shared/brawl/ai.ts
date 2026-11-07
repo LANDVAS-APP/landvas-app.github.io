@@ -13,7 +13,7 @@ function score(s: State, me: Side): number {
     s.p[side].lanes.forEach((L, lane) => {
       const u = L.unit;
       if (u) v += sign * (attackOf(s, side, lane) * 1.6 + u.hp * 1.1 + (u.shield ? 2 : 0) - (u.frozen ? 1.5 : 0) - u.poison * 0.6);
-      if (L.totem) v += sign * 1.5;
+      if (L.totem) v += sign * (CARD[L.totem.id]?.wonder ? 3 : 1.5);
     });
     v += sign * s.p[side].hand.length * 0.6;
   }
@@ -46,6 +46,8 @@ export function candidates(s: State, me: Side): Action[] {
     if (!f.target && L.unit!.id !== 'jellyfright') out.push({ t: 'flourish', lane });
     else for (const t of targets(s, me)) out.push({ t: 'flourish', lane, target: t });
   });
+  // a spare paint can buy a card (only worth it with nothing better to do — the scoring decides)
+  out.push({ t: 'sketch' });
   return out.filter((a) => !check(s, me, a));
 }
 /** The bot's next move. `skill` 0..1 (1 = always its best idea). */

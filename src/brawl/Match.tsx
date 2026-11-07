@@ -3,7 +3,7 @@
 // creatures to Flourish it; End turn sends your creatures in. Every move goes to the server, comes back with what
 // happened, and plays out on the board; the other player's moves arrive the same way (live, with a poll as backup).
 import { useQueryClient } from '@tanstack/react-query';
-import { Flag, Hand, Loader2 } from 'lucide-react';
+import { Flag, Hand, Loader2, Pencil, Play, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -13,7 +13,7 @@ import { cn } from '../lib/utils';
 import { Button, Dialog } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { sfx } from '../arcade/sfx';
-import { CARD, EVENTS, LANES, TERRAIN_INFO, type Target } from '../shared/brawl/cards';
+import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, type Card, type Target } from '../shared/brawl/cards';
 import { check, type Action, type Ev, type Pick, type Side, type State, type View } from '../shared/brawl/engine';
 import type { Board3D, BoardPick, Highlight } from './board3d';
 import { CardView } from './CardView';
@@ -29,6 +29,8 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ text: string; sub?: string; color: string } | null>(null);
   const [peek, setPeek] = useState<string | null>(null);
+  const [inspect, setInspect] = useState<number | null>(null); // a hand card being looked at up close
+  const [showing, setShowing] = useState(false);              // its effect is playing on the board
   const [menu, setMenu] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [result, setResult] = useState<Rewards | null>(null);
@@ -64,7 +66,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             setTimeout(() => setBanner(null), 1400);
           }
         }
-      } else b?.setView(next.view);
+      } else if (!b?.previewing) b?.setView(next.view);
       shown.current = Math.max(shown.current, ...next.view.log.map((l) => l.n), next.view.v);
       offset.current = Date.parse(next.server_time) - Date.now();
       setMv(next);
@@ -139,18 +141,29 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   useEffect(() => { (window as unknown as { __brawlPick?: (p: BoardPick) => void }).__brawlPick = (p) => pickRef.current(p); }, []);
   useEffect(() => { boardPick = (p) => pickRef.current(p); return () => { boardPick = null; }; }, []);
 
+  // tapping a card in your hand opens it up close (any time — even on their turn, even if you can't afford it yet)
   const selectCard = (uid: number) => {
-    if (!myTurn || busy) return;
     const h = P!.hand.find((x) => x.uid === uid); if (!h?.id) return;
     const c = CARD[h.id];
-    if (c.cost > P!.paint) { toast(`Not enough paint — ${c.name} costs ${c.cost}`); return; }
     if (mode.kind === 'card' && mode.uid === uid) {
-      // tapping a selected spell that needs no target casts it
+      // tapping the card you're placing again: a spell that needs no target casts, anything else is put back
       if (c.kind === 'spell' && (!c.target || c.target === 'none')) void send({ t: 'play', uid });
       else setMode({ kind: 'idle' });
       return;
     }
-    sfx.tick(); setMode({ kind: 'card', uid });
+    sfx.tick(); setMode({ kind: 'idle' }); setInspect(uid);
+  };
+  /** From the up-close view: play it (a lane or a target next, unless it needs neither). */
+  const playInspected = () => {
+    const h = P!.hand.find((x) => x.uid === inspect); if (!h?.id) return;
+    const c = CARD[h.id]; setInspect(null);
+    if (c.kind === 'spell' && (!c.target || c.target === 'none')) void send({ t: 'play', uid: h.uid });
+    else setMode({ kind: 'card', uid: h.uid });
+  };
+  const showMe = async (id: string) => {
+    const b = board.current; if (!b || showing) return;
+    setShowing(true);
+    try { await b.preview(id); } finally { setShowing(false); }
   };
   const flourish = (lane: number) => {
     const u = P!.lanes[lane].unit!; const f = CARD[u.id].flourish!;
@@ -166,7 +179,10 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const selected = mode.kind === 'card' ? P.hand.find((h) => h.uid === mode.uid) : null;
   const selCard = selected?.id ? CARD[selected.id] : null;
   const canAfford = P.hand.some((h) => h.id && CARD[h.id].cost <= P.paint);
-  const hint = !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? 'Tap one of your lanes' : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Tap a card to play it' : 'Out of paint — end your turn';
+  const hint = !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? `Tap one of your lanes for ${selCard.name}` : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : selCard.target === 'any_lane' ? 'Tap any lane' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Tap a card to see it' : 'Out of paint — end your turn';
+  const inspected = inspect !== null ? P.hand.find((h) => h.uid === inspect) : null;
+  const inCard = inspected?.id ? CARD[inspected.id] : null;
+  const canSketch = myTurn && !busy && P.paint >= 1 && P.deck > 0 && P.hand.length < HAND_MAX_UI;
   const unitPeek = peek?.startsWith('unit:') ? Number(peek.slice(5)) : null;
   const hand = P.hand;
   const cw = Math.max(64, Math.min(96, (Math.min(innerWidth, 720) - 24) / Math.max(5, hand.length) + 18));
@@ -204,11 +220,17 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
           <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
             <span className="text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
             <div className="flex gap-0.5" data-testid="brawl-paint" aria-label={`${P.paint} paint`}>
-              {Array.from({ length: Math.max(P.paint, Math.min(7, 1 + v.round)) }, (_, i) => <span key={i} className={cn('text-base transition', i < P.paint ? 'drop-shadow-[0_0_6px_#3A86FF]' : 'opacity-25 grayscale')}>💧</span>)}
+              {P.paint > 8
+                ? <span className="text-base font-black text-[#9FD0FF] drop-shadow-[0_0_6px_#3A86FF]">💧×{P.paint}</span>
+                : Array.from({ length: Math.max(P.paint, Math.min(7, 1 + v.round)) }, (_, i) => <span key={i} className={cn('text-base transition', i < P.paint ? 'drop-shadow-[0_0_6px_#3A86FF]' : 'opacity-25 grayscale')}>💧</span>)}
             </div>
             <span className="text-[10px] text-white/60">🂠 {P.deck}</span>
+            <button onClick={() => void send({ t: 'sketch' })} disabled={!canSketch} title="Spend 1 paint to draw a card"
+              className="ml-1 flex items-center gap-0.5 rounded-lg bg-white/10 px-1.5 py-1 text-[10px] font-black text-[#9FE6FF] transition hover:bg-white/20 disabled:opacity-30" data-testid="brawl-sketch">
+              <Pencil className="h-3 w-3" />+1 <span className="opacity-70">(1💧)</span>
+            </button>
           </div>
-          <div className="pointer-events-none flex-1 text-center text-xs font-bold text-white/80 drop-shadow" data-testid="brawl-hint">{hint}</div>
+          <div className="pointer-events-none min-w-0 flex-1 text-center text-[11px] font-bold leading-tight text-white/80 drop-shadow" data-testid="brawl-hint">{hint}</div>
           <button onClick={() => void send({ t: 'end' })} disabled={!myTurn || busy}
             className={cn('h-12 rounded-2xl px-4 font-display text-base font-black shadow-lg transition disabled:opacity-40', myTurn && !canAfford ? 'animate-pulse bg-[#FFE14D] text-black' : 'bg-[#FF4FD8] text-white')} data-testid="brawl-end">
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : myTurn ? 'End turn ⚔️' : 'Waiting…'}
@@ -221,7 +243,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             const fan = (i - (hand.length - 1) / 2) * 3.5;
             return (
               <div key={h.uid} className="-mx-1.5 transition-transform" style={{ transform: `rotate(${fan}deg) translateY(${Math.abs(fan) * 1.2}px)` }}>
-                <CardView id={h.id} width={cw} selected={sel} dim={!ok} glow={ok && myTurn ? '#3A86FF' : undefined} onClick={() => selectCard(h.uid)} testid={`brawl-card-${h.id}`} animate={sel || hand.length <= 6} />
+                <CardView id={h.id} width={cw} selected={sel} dim={!ok} glow={ok && myTurn ? (c.fx ? '#FF7A20' : c.wonder ? '#FFE14D' : '#3A86FF') : undefined} onClick={() => selectCard(h.uid)} testid={`brawl-card-${h.id}`} animate={sel || hand.length <= 6} />
               </div>
             );
           })}
@@ -230,6 +252,38 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
       </div>
       {selCard && (
         <div className="pointer-events-none absolute right-2 top-[18%] z-10 hidden sm:block"><CardView id={selCard.id} width={170} /></div>
+      )}
+
+      {/* a card from your hand, up close: what it is, how it works, show me, play it */}
+      {inCard && inspected && (
+        <div className="absolute inset-0 z-30 flex items-end bg-gradient-to-t from-black/85 via-black/40 to-transparent" onClick={() => !showing && setInspect(null)} data-testid="brawl-inspect">
+          <div className={cn('w-full p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))] transition-opacity', showing && 'pointer-events-none opacity-0')} onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto flex max-w-xl items-end gap-3">
+              <div className="shrink-0 animate-[lv-pop_0.25s_ease-out]"><CardView id={inCard.id} width={Math.min(190, Math.max(140, innerWidth * 0.4))} /></div>
+              <div className="min-w-0 flex-1 rounded-2xl bg-[#1A1030]/95 p-3 shadow-2xl ring-1 ring-white/10">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-display text-lg font-black leading-tight">{inCard.name}</div>
+                    <div className={cn('text-[11px] font-bold', inCard.fx ? 'text-[#FFB13D]' : inCard.wonder ? 'text-[#FFE9A8]' : 'text-white/60')}>{kindName(inCard)} · {inCard.terrain === 'neutral' ? 'Wanderer' : TERRAIN_INFO[inCard.terrain].name} · {inCard.cost} 💧</div>
+                  </div>
+                  <button onClick={() => setInspect(null)} className="rounded-full bg-white/10 p-1" aria-label="Close"><X className="h-4 w-4" /></button>
+                </div>
+                <ul className="mt-2 grid gap-1 text-[12px] leading-snug text-white/85" data-testid="brawl-explain">
+                  {explain(inCard).map((line, i) => <li key={i} className="flex gap-1.5"><span className="text-white/40">•</span><span>{line}</span></li>)}
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => void showMe(inCard.id)} disabled={showing} data-testid="brawl-showme"><Play className="h-3.5 w-3.5" />Show me</Button>
+                  {(() => {
+                    const why = !myTurn ? 'Not your turn yet' : inCard.cost > P.paint ? `Needs ${inCard.cost} 💧 (you have ${P.paint})` : null;
+                    const label = inCard.kind === 'spell' && (!inCard.target || inCard.target === 'none') ? `Cast it` : inCard.kind === 'spell' ? 'Aim it' : 'Place it';
+                    return <Button variant="primary" size="sm" disabled={!!why || busy} onClick={playInspected} data-testid="brawl-playit">{why ?? `${label} (${inCard.cost} 💧)`}</Button>;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+          {showing && <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs font-bold text-white/80 drop-shadow">Preview — nothing is played</div>}
+        </div>
       )}
 
       {/* a creature's Flourish / any card up close */}
@@ -278,6 +332,33 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
     </>
   );
 }
+/** How a card works, in plain words. */
+function explain(c: Card): string[] {
+  const strip = (t: string) => t.replace(/^(Cataclysm|Wonder|Totem)\.\s*/, '');
+  const T = c.terrain === 'neutral' ? null : TERRAIN_INFO[c.terrain];
+  const aim: Partial<Record<Target, string>> = { enemy_unit: 'You pick an enemy creature.', any_unit: 'You pick any creature.', my_unit: 'You pick one of your creatures.', my_lane: 'You pick one of your lanes.', enemy_lane: 'You pick an enemy lane.', my_empty_lane: 'You pick one of your empty lanes.', any_lane: 'You pick any lane — it hits both sides of it.' };
+  const out: string[] = [];
+  if (c.fx) {
+    out.push('Cataclysm: it changes the whole board the moment you cast it.', strip(c.text));
+    if (c.target && aim[c.target]) out.push(aim[c.target]!);
+    if (['eruption', 'earthquake', 'tidalwave', 'eclipse', 'blackhole', 'meteors'].includes(c.fx)) out.push('⚠️ It hits your side too — best when you’re behind.');
+  } else if (c.wonder) {
+    out.push('Wonder: a landmark rises behind one of your lanes and stays there.', strip(c.text), 'Building another totem or wonder in that lane replaces it.');
+  } else if (c.kind === 'creature') {
+    out.push(`A creature with ${c.atk} attack and ${c.hp} health. Place it in one of your lanes.`);
+    out.push('When you end your turn it attacks the creature opposite — or the enemy hero if that lane is empty.');
+    if (T) out.push(`+1 attack in a ${T.emoji} ${T.name} lane (its home).`);
+    if (c.text) out.push(c.text);
+    if (c.flourish) out.push(`✋ Flourish (${c.flourish.cost} 💧): ${c.flourish.text} Tap it on the board to use it — it skips its attack that turn.`);
+  } else if (c.kind === 'totem') {
+    out.push('A totem: it sits behind one of your lanes and keeps working.', strip(c.text));
+  } else {
+    out.push('A spell: it happens once, then it’s gone.', c.text);
+    if (c.target && aim[c.target]) out.push(aim[c.target]!);
+  }
+  return out;
+}
+
 /** The board's tap handler (set by the live match). */
 export let boardPick: ((p: BoardPick) => void) | null = null;
 

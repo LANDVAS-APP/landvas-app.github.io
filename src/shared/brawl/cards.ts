@@ -7,7 +7,9 @@ export type Terrain = (typeof TERRAINS)[number];
 export type Kind = 'creature' | 'totem' | 'spell';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 /** What a spell (or an on-play ability) needs you to point at. */
-export type Target = 'none' | 'enemy_unit' | 'any_unit' | 'my_unit' | 'my_lane' | 'enemy_lane' | 'my_empty_lane';
+export type Target = 'none' | 'enemy_unit' | 'any_unit' | 'my_unit' | 'my_lane' | 'enemy_lane' | 'my_empty_lane' | 'any_lane';
+/** The big board-changing scenes (cataclysm spells, and the moments wonders go off). */
+export type Fx = 'eruption' | 'avalanche' | 'tidalwave' | 'earthquake' | 'thunderstorm' | 'cyclone' | 'overgrowth' | 'bogrise' | 'meteors' | 'eclipse' | 'blackhole' | 'peakblast' | 'rift';
 
 export type Card = {
   id: string; name: string; kind: Kind; terrain: Terrain | 'neutral'; rarity: Rarity; cost: number;
@@ -16,6 +18,10 @@ export type Card = {
   flourish?: { cost: number; text: string; target?: Target };
   /** spells: what to aim at */
   target?: Target;
+  /** cataclysms: spells that change the whole board, each with its own big scene */
+  fx?: Fx;
+  /** wonders: totems that are landmarks — a big structure beside the lane that keeps doing something */
+  wonder?: boolean;
   text: string; flavor: string;
   /** the painted creature (see genome() below) or the emblem for totems and spells */
   art: string;
@@ -153,7 +159,49 @@ export const CARDS: Card[] = [
     text: 'Bring back the last creature of yours that died, into an empty lane, with 2 health.', flavor: 'Not today.', art: '🌬️' }),
   S({ id: 'luckycoin', name: 'Lucky Coin', terrain: 'neutral', rarity: 'common', cost: 0, target: 'none',
     text: 'Gain 1 paint. If it lands heads (50%), draw a card too.', flavor: 'Call it in the air.', art: '🪙' }),
+
+  // ---- 🌋 cataclysms: spells that change the whole board -------------------------------------------------------------
+  S({ id: 'eruption', name: 'Eruption', terrain: 'ember', rarity: 'legendary', cost: 6, target: 'none', fx: 'eruption', tags: ['burn'],
+    text: 'Cataclysm. A volcano bursts up through the board and erupts: lava destroys every creature and totem on both sides, and every lane becomes Ember. Draw a card.', flavor: 'Clean slate. Very, very hot slate.', art: '🌋' }),
+  S({ id: 'avalanche', name: 'Avalanche', terrain: 'frost', rarity: 'epic', cost: 5, target: 'none', fx: 'avalanche', tags: ['stun'],
+    text: 'Cataclysm. Snow thunders down the enemy side: 3 damage to every enemy creature, the survivors are frozen, and enemy lanes turn Frost.', flavor: 'Somebody sneezed.', art: '🏔️' }),
+  S({ id: 'overgrowth', name: 'Overgrowth', terrain: 'meadow', rarity: 'epic', cost: 4, target: 'none', fx: 'overgrowth', tags: ['stun'],
+    text: 'Cataclysm. Giant vines burst out of the table: all your lanes become Meadow, your creatures get +1/+1 and enemy creatures are tangled (frozen).', flavor: 'Nature finds a way. Through the floor.', art: '🌿' }),
+  S({ id: 'bogrise', name: 'Rising Bog', terrain: 'bog', rarity: 'epic', cost: 4, target: 'none', fx: 'bogrise', tags: ['poison'],
+    text: 'Cataclysm. The swamp floods the enemy side: enemy lanes turn Bog, and every enemy creature takes 1 damage and is poisoned (2).', flavor: 'It came up through the drains.', art: '🫧' }),
+  S({ id: 'cyclone', name: 'Candy Cyclone', terrain: 'sugar', rarity: 'epic', cost: 4, target: 'none', fx: 'cyclone', tags: ['stun'],
+    text: 'Cataclysm. A candy tornado sweeps up every enemy creature and drops them back in random lanes, dizzy: 1 damage and frozen.', flavor: 'Sweet. Spinning. Sick.', art: '🌪️' }),
+  S({ id: 'thunderstorm', name: 'Thunderstorm', terrain: 'neon', rarity: 'epic', cost: 4, target: 'none', fx: 'thunderstorm', tags: ['burn'],
+    text: 'Cataclysm. Storm clouds roll over the board and 4 lightning bolts strike random enemies — creatures or the hero — for 2 each.', flavor: 'Ka-BZZT.', art: '🌩️' }),
+  S({ id: 'blackhole', name: 'Black Hole', terrain: 'neon', rarity: 'legendary', cost: 6, target: 'any_lane', fx: 'blackhole',
+    text: 'Cataclysm. Tear open a black hole in any lane: everything in it on both sides — creatures and totems — is swallowed.', flavor: 'Don’t look directly at it. Or indirectly.', art: '🕳️' }),
+  S({ id: 'earthquake', name: 'Earthquake', terrain: 'neutral', rarity: 'rare', cost: 4, target: 'none', fx: 'earthquake',
+    text: 'Cataclysm. The board cracks apart: every creature takes 2 damage and every totem crumbles.', flavor: 'The table had it coming.', art: '🪨' }),
+  S({ id: 'tidalwave', name: 'Tidal Wave', terrain: 'neutral', rarity: 'epic', cost: 5, target: 'none', fx: 'tidalwave',
+    text: 'Cataclysm. A giant wave crashes across the board and washes every creature back into its owner’s hand.', flavor: 'Surf’s up. Everything else is down.', art: '🌊' }),
+  S({ id: 'eclipse', name: 'Eclipse', terrain: 'neutral', rarity: 'rare', cost: 3, target: 'none', fx: 'eclipse',
+    text: 'Cataclysm. The sun goes dark: every creature on the board swaps its attack and health.', flavor: 'Everything looks different in the dark.', art: '🌑' }),
+  S({ id: 'meteors', name: 'Meteor Shower', terrain: 'neutral', rarity: 'legendary', cost: 5, target: 'none', fx: 'meteors', tags: ['burn'],
+    text: 'Cataclysm. 6 meteors rain down on random spots — any creature on the board, or the enemy hero — for 3 damage each.', flavor: 'Make a wish. Then duck.', art: '☄️' }),
+
+  // ---- 🏰 wonders: landmarks that stand beside a lane and keep doing something ---------------------------------------------
+  T({ id: 'smolderpeak', name: 'Smoldering Peak', terrain: 'ember', rarity: 'epic', cost: 3, wonder: true, tags: ['burn'],
+    text: 'Wonder. A volcano that wakes up: on your 3rd turn after it’s built, it erupts — 3 damage to every enemy creature and the enemy hero.', flavor: 'Tick. Tick. Boom.', art: '🌋' }),
+  T({ id: 'beanstalk', name: 'Sky Beanstalk', terrain: 'meadow', rarity: 'rare', cost: 2, wonder: true,
+    text: 'Wonder. At the start of your turn, the creature in this lane gets +1/+1.', flavor: 'It doesn’t stop at the clouds.', art: '🌱' }),
+  T({ id: 'mirrorlake', name: 'Mirror Lake', terrain: 'frost', rarity: 'rare', cost: 2, wonder: true, tags: ['stun'],
+    text: 'Wonder. Any enemy creature played opposite this lane is frozen solid.', flavor: 'Look closer. Closer.', art: '🪞' }),
+  T({ id: 'toadstoolhut', name: 'Toadstool Hut', terrain: 'bog', rarity: 'epic', cost: 3, wonder: true,
+    text: 'Wonder. At the start of your turn, if this lane has no creature, a Spore Mite crawls out of the hut.', flavor: 'Somebody’s always home.', art: '🍄' }),
+  T({ id: 'gumballmachine', name: 'Gumball Machine', terrain: 'sugar', rarity: 'rare', cost: 2, wonder: true, tags: ['draw'],
+    text: 'Wonder. At the start of your turn, a random card that costs 0 or 1 rolls out into your hand.', flavor: 'One coin. Infinite flavours.', art: '🍬' }),
+  T({ id: 'stormspire', name: 'Storm Spire', terrain: 'neon', rarity: 'epic', cost: 4, wonder: true, tags: ['burn'],
+    text: 'Wonder. At the end of your turn, lightning strikes a random enemy creature for 2.', flavor: 'It hums a little louder each night.', art: '🗼' }),
+  T({ id: 'riftgate', name: 'Rift Gate', terrain: 'neutral', rarity: 'legendary', cost: 5, wonder: true,
+    text: 'Wonder. At the start of your turn, if this lane has no creature, the next creature in your deck steps through the gate.', flavor: 'Where do they come from? Don’t ask.', art: '🌀' }),
 ];
+/** What a card is called on its type line. */
+export const kindName = (c: Card) => (c.fx ? 'Cataclysm' : c.wonder ? 'Wonder' : c.kind === 'creature' ? 'Creature' : c.kind === 'totem' ? 'Totem' : 'Spell');
 export const CARD: Record<string, Card> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
 
 /** The match-wide twists: one is drawn at random each match, so no two games play the same. */
@@ -171,6 +219,8 @@ export const EVENTS = [
 export type EventId = (typeof EVENTS)[number]['id'];
 
 export const DECK_SIZE = 20;
+/** How many cards a hand can hold (the engine burns draws past this). */
+export const HAND_MAX_UI = 10;
 export const LANES = 4;
 export const HERO_HP = 25;
 
@@ -191,7 +241,7 @@ export function checkDeck(cards: string[], terrains: string[], owned?: Record<st
 /** The two starter decks everyone gets: Meadow + Ember, Frost + Sugar (and their cards). */
 export const STARTERS: { name: string; terrains: string[]; cards: string[] }[] = [
   { name: 'Wildfire', terrains: ['meadow', 'ember', 'meadow', 'ember'],
-    cards: ['sproutling', 'sproutling', 'thornhare', 'thornhare', 'bloomwell', 'rejuvenate', 'cinderpup', 'cinderpup', 'lavaling', 'lavaling', 'kindleshrine', 'kindleshrine', 'fireburst', 'fireburst', 'blossomstag', 'blazefox', 'pebblegolem', 'pebblegolem', 'wanderingbard', 'luckycoin'] },
+    cards: ['sproutling', 'sproutling', 'thornhare', 'thornhare', 'bloomwell', 'rejuvenate', 'cinderpup', 'cinderpup', 'lavaling', 'lavaling', 'kindleshrine', 'kindleshrine', 'fireburst', 'fireburst', 'blossomstag', 'blazefox', 'eruption', 'smolderpeak', 'wanderingbard', 'earthquake'] },
   { name: 'Sugar Frost', terrains: ['frost', 'sugar', 'frost', 'sugar'],
-    cards: ['snowpip', 'snowpip', 'icicleram', 'icicleram', 'hoarfrost', 'deepfreeze', 'deepfreeze', 'gumdropimp', 'gumdropimp', 'jellyfright', 'jellyfright', 'sweettooth', 'glacierowl', 'taffytwister', 'pebblegolem', 'wanderingbard', 'wanderingbard', 'luckycoin', 'luckycoin', 'sporemite'] },
+    cards: ['snowpip', 'snowpip', 'icicleram', 'icicleram', 'hoarfrost', 'deepfreeze', 'deepfreeze', 'gumdropimp', 'gumdropimp', 'jellyfright', 'jellyfright', 'sweettooth', 'glacierowl', 'taffytwister', 'avalanche', 'wanderingbard', 'wanderingbard', 'cyclone', 'gumballmachine', 'mirrorlake'] },
 ];
