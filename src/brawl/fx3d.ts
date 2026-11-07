@@ -299,7 +299,7 @@ export function makeScenes(c: Ctx) {
     // the rumble
     c.mood({ sky: '#3A0A08', dim: 0.8 });
     const tiles = [...c.laneTiles(0), ...c.laneTiles(1)];
-    await c.tween(1.0, (k) => { c.shake(0.15 + k * 0.25); tiles.forEach((t, i) => { t.position.y = 0.11 + Math.abs(Math.sin(k * 40 + i)) * 0.06 * k; }); if (Math.random() < 0.5) smoke(R(4), 0.3, R(1.5), 1, { color: '#5A4A40', size: 1 }); });
+    await c.tween(1.0, (k) => { c.shake(0.15 + k * 0.25); tiles.forEach((t, i) => { t.position.y = Math.abs(Math.sin(k * 40 + i)) * 0.06 * k; }); if (Math.random() < 0.5) smoke(R(4), 0.3, R(1.5), 1, { color: '#5A4A40', size: 1 }); });
     // the mountain rises through the midline
     const rockTex = canvasTex(512, 256, (g) => { g.fillStyle = '#2A1814'; g.fillRect(0, 0, 512, 256); for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '90,60,50'},${Math.random() * 0.35})`; g.fillRect(Math.random() * 512, Math.random() * 256, 5, 5); } });
     const rivers = canvasTex(512, 256, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 512, 256); g.strokeStyle = '#FF7A20'; g.lineCap = 'round'; for (let i = 0; i < 16; i++) { g.lineWidth = 3 + Math.random() * 5; g.beginPath(); let x = Math.random() * 512, y = 0; g.moveTo(x, y); while (y < 120 + Math.random() * 130) { x += R(10); y += 8; g.lineTo(x, y); } g.stroke(); } });
@@ -442,13 +442,13 @@ export function makeScenes(c: Ctx) {
     c.mood({ dim: 0.85 });
     await c.tween(2.2, (k, dt) => {
       c.shake(0.7 * (1 - k * 0.5));
-      tiles.forEach((t, i) => { t.position.y = 0.11 + Math.sin(k * 60 + i * 1.7) * 0.12 * (1 - k); t.rotation.z = Math.sin(k * 45 + i) * 0.04 * (1 - k); });
+      tiles.forEach((t, i) => { t.position.y = Math.sin(k * 60 + i * 1.7) * 0.12 * (1 - k); t.rotation.z = Math.sin(k * 45 + i) * 0.04 * (1 - k); });
       if (k - last > 0.04) { last = k; draw(Math.min(1, k * 1.5)); }
       if (Math.random() < 0.35 && rocks.length < n(14)) { const r = put(new THREE.Mesh(rockG, rockM)); r.position.set(R(c.tableW / 2 - 0.5), 0.2, R(c.tableD / 2 - 0.5)); r.userData.v = new THREE.Vector3(R(1.5), 5 + Math.random() * 4, R(1.5)); r.scale.setScalar(0.6 + Math.random()); rocks.push(r); smoke(r.position.x, 0.3, r.position.z, 4, { color: '#8A7A64', size: 1.4, rise: 1 }); }
       for (const r of rocks) { const v = r.userData.v as THREE.Vector3; v.y -= 14 * dt; r.position.addScaledVector(v, dt); r.rotation.x += dt * 5; if (r.position.y < 0.25) { r.position.y = 0.25; v.y = Math.abs(v.y) * 0.3; v.x *= 0.6; v.z *= 0.6; } }
       if (Math.random() < 0.6) smoke(R(c.tableW / 2), 0.3, R(c.tableD / 2), 1, { color: '#9A8A74', size: 1.6, rise: 0.8, life: 1.6 });
     });
-    tiles.forEach((t) => { t.position.y = 0.11; t.rotation.z = 0; });
+    tiles.forEach((t) => { t.position.y = 0; t.rotation.z = 0; });
     for (const r of rocks) drop(r);
     linger(plane, (k) => { crackM.opacity = 1 - k; });
     c.mood({});

@@ -3,7 +3,7 @@
 // creatures to Flourish it; End turn sends your creatures in. Every move goes to the server, comes back with what
 // happened, and plays out on the board; the other player's moves arrive the same way (live, with a poll as backup).
 import { useQueryClient } from '@tanstack/react-query';
-import { Flag, Hand, Loader2, Pencil, Play, X } from 'lucide-react';
+import { Camera, Flag, Hand, Loader2, Pencil, Play, Shuffle, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -13,7 +13,7 @@ import { cn } from '../lib/utils';
 import { Button, Dialog } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { sfx } from '../arcade/sfx';
-import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, type Card, type Target } from '../shared/brawl/cards';
+import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, type Card, type Target, type Terrain } from '../shared/brawl/cards';
 import { check, type Action, type Ev, type Pick, type Side, type State, type View } from '../shared/brawl/engine';
 import type { Board3D, BoardPick, Highlight } from './board3d';
 import { CardView } from './CardView';
@@ -31,6 +31,13 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const [peek, setPeek] = useState<string | null>(null);
   const [inspect, setInspect] = useState<number | null>(null); // a hand card being looked at up close
   const [showing, setShowing] = useState(false);              // its effect is playing on the board
+  // dragging a card (or a land card) out of your hand onto the board
+  type DragWhat = { kind: 'card'; uid: number; id: string } | { kind: 'land'; i: number; t: Terrain };
+  const [drag, setDrag] = useState<(DragWhat & { x: number; y: number; ok: boolean }) | null>(null);
+  const press = useRef<{ d: DragWhat; sx: number; sy: number; on: boolean; pid: number; blocked?: boolean } | null>(null);
+  // the land cards: which of your four goes in which lane (index into landCards), and the one picked up by a tap
+  const [placed, setPlaced] = useState<(number | null)[]>([null, null, null, null]);
+  const [landSel, setLandSel] = useState<number | null>(null);
   const [menu, setMenu] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [result, setResult] = useState<Rewards | null>(null);
@@ -43,6 +50,8 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const side = mv?.side ?? 0, v = mv?.view;
   const myTurn = !!v && !v.over && v.turn === side && mv?.status === 'live';
   const P = v?.p[side], O = v?.p[side === 0 ? 1 : 0];
+  const landing = v?.phase === 'lands' && mv?.status === 'live';
+  const landCards = (P?.landCards ?? []) as Terrain[];
 
   /** Play everything new in a view on the board (in order), then show it. */
   const absorb = useCallback((next: MatchView) => {
@@ -110,6 +119,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
 
   // what can be picked on the board right now
   const highlights = useMemo<Highlight[]>(() => {
+    if (v && landing && !P?.ready && (landSel !== null || drag?.kind === 'land')) return [0, 1, 2, 3].map((lane) => ({ side, lane, kind: 'place' as const }));
     if (!v || !myTurn) return [];
     const s = asState(v), out: Highlight[] = [];
     const all = (fn: (p: Pick) => boolean, kind: Highlight['kind']) => { for (const sd of [0, 1] as Side[]) for (let lane = 0; lane < LANES; lane++) if (fn({ side: sd, lane })) out.push({ side: sd, lane, kind }); };
@@ -120,12 +130,18 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
     } else if (mode.kind === 'flourish') all((p) => !check(s, side, { t: 'flourish', lane: mode.lane, target: p }), 'target');
     else P!.lanes.forEach((L, lane) => { if (L.unit && !check(s, side, { t: 'flourish', lane, target: { side, lane: lane === 0 ? 1 : lane - 1 } }) || (L.unit && !check(s, side, { t: 'flourish', lane }))) out.push({ side, lane, kind: 'flourish' }); });
     return out;
-  }, [v, mode, myTurn, side, P]);
+  }, [v, mode, myTurn, side, P, landing, landSel, drag?.kind]);
   useEffect(() => { board.current?.highlight(highlights); }, [highlights, board]);
 
   // taps on the board
   const pickRef = useRef<(p: BoardPick) => void>(() => {});
   pickRef.current = (p: BoardPick) => {
+    if (v && landing) {
+      if (P?.ready || p.side !== side || p.lane < 0) return;
+      if (landSel !== null) { placeLand(landSel, p.lane); setLandSel(null); }
+      else if (placed[p.lane] !== null) { setPlaced((x) => x.map((v2, l) => (l === p.lane ? null : v2))); board.current?.setLocalLand(p.lane, null); }
+      return;
+    }
     if (!v || !myTurn || busy) return;
     if (mode.kind === 'card') {
       const h = P!.hand.find((x) => x.uid === mode.uid); const c = h?.id ? CARD[h.id] : null; if (!c) return;
@@ -140,6 +156,68 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   };
   useEffect(() => { (window as unknown as { __brawlPick?: (p: BoardPick) => void }).__brawlPick = (p) => pickRef.current(p); }, []);
   useEffect(() => { boardPick = (p) => pickRef.current(p); return () => { boardPick = null; }; }, []);
+
+  // ---- land cards ----
+  const placeLand = (i: number, lane: number) => {
+    setPlaced((cur) => {
+      const next = cur.map((x) => (x === i ? null : x));
+      next[lane] = i;
+      return next;
+    });
+    sfx.tick(); board.current?.setLocalLand(lane, landCards[i]);
+  };
+  const autoLands = () => { setPlaced([0, 1, 2, 3]); landCards.forEach((t, l) => board.current?.setLocalLand(l, t)); };
+  const readyLands = () => { if (placed.some((x) => x === null)) return; void send({ t: 'lands', lanes: placed.map((i) => landCards[i!]) }); };
+  useEffect(() => { if (landing && !P?.ready) { setPlaced([null, null, null, null]); board.current?.clearLocalLands(); } }, [landing, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- dragging: press a card, move, drop it on a lane or a target (a tap opens it up close instead) ----
+  /** Where would this drop land, and is it allowed? */
+  const dropAt = (d: DragWhat, x: number, y: number): { pick: BoardPick | null; ok: boolean; cast?: boolean } => {
+    const b = board.current; if (!b || !v) return { pick: null, ok: false };
+    const pick = b.pickAt(x, y);
+    if (d.kind === 'land') return { pick, ok: !!pick && pick.side === side && pick.lane >= 0 };
+    const c = CARD[d.id], s2 = asState(v);
+    if (c.kind === 'spell' && (!c.target || c.target === 'none')) { const handTop = (document.querySelector('[data-testid=brawl-hand]') as HTMLElement | null)?.getBoundingClientRect().top ?? innerHeight * 0.75; return { pick: null, ok: y < handTop - 20, cast: true }; }
+    if (!pick || pick.lane < 0) return { pick, ok: false };
+    if (c.kind !== 'spell') return { pick, ok: pick.side === side && !check(s2, side, { t: 'play', uid: d.uid, lane: pick.lane }) };
+    return { pick, ok: !check(s2, side, { t: 'play', uid: d.uid, target: pick }) };
+  };
+  const dragH = useRef({ dropAt, why: (_d: DragWhat) => {}, start: (_d: DragWhat) => {}, drop: (_d: DragWhat, _x: number, _y: number) => {}, tap: (_d: DragWhat) => {}, can: (_d: DragWhat) => false as boolean });
+  dragH.current = {
+    dropAt,
+    why: (d) => { if (d.kind !== 'card') return; const c = CARD[d.id]; toast(!myTurn ? 'Wait for your turn' : busy ? 'One moment…' : `${c.name} needs ${c.cost} 💧 — you have ${P!.paint}`); },
+    can: (d) => d.kind === 'land' ? !!landing && !P?.ready : myTurn && !busy && CARD[d.id].cost <= P!.paint,
+    start: (d) => { setInspect(null); if (d.kind === 'card') setMode({ kind: 'card', uid: d.uid }); else setLandSel(null); sfx.tick(); },
+    drop: (d, x, y) => {
+      const r = dropAt(d, x, y);
+      if (d.kind === 'land') { if (r.ok && r.pick) placeLand(d.i, r.pick.lane); return; }
+      if (!r.ok) { setMode({ kind: 'idle' }); return; }
+      if (r.cast) void send({ t: 'play', uid: d.uid });
+      else if (CARD[d.id].kind !== 'spell') void send({ t: 'play', uid: d.uid, lane: r.pick!.lane });
+      else void send({ t: 'play', uid: d.uid, target: { side: r.pick!.side, lane: r.pick!.lane } });
+    },
+    tap: (d) => { if (d.kind === 'card') selectCard(d.uid); else setLandSel((cur) => (cur === d.i ? null : d.i)); },
+  };
+  const pressStart = (d: DragWhat) => (e: React.PointerEvent) => { if (e.button > 0) return; press.current = { d, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId }; };
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const r = press.current; if (!r || r.pid !== e.pointerId) return;
+      if (!r.on) { if (r.blocked || Math.hypot(e.clientX - r.sx, e.clientY - r.sy) < 12) return; if (!dragH.current.can(r.d)) { r.blocked = true; return; } r.on = true; dragH.current.start(r.d); }
+      e.preventDefault();
+      const at = dragH.current.dropAt(r.d, e.clientX, e.clientY);
+      board.current?.hover(at.ok ? at.pick : null);
+      setDrag({ ...r.d, x: e.clientX, y: e.clientY, ok: at.ok });
+    };
+    const up = (e: PointerEvent) => {
+      const r = press.current; if (!r || r.pid !== e.pointerId) return; press.current = null;
+      board.current?.hover(null); setDrag(null);
+      if (r.on) dragH.current.drop(r.d, e.clientX, e.clientY);
+      else if (r.blocked) dragH.current.why(r.d);
+      else if (e.type === 'pointerup') dragH.current.tap(r.d);
+    };
+    window.addEventListener('pointermove', move, { passive: false }); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+  }, [board]);
 
   // tapping a card in your hand opens it up close (any time — even on their turn, even if you can't afford it yet)
   const selectCard = (uid: number) => {
@@ -179,7 +257,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const selected = mode.kind === 'card' ? P.hand.find((h) => h.uid === mode.uid) : null;
   const selCard = selected?.id ? CARD[selected.id] : null;
   const canAfford = P.hand.some((h) => h.id && CARD[h.id].cost <= P.paint);
-  const hint = !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? `Tap one of your lanes for ${selCard.name}` : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : selCard.target === 'any_lane' ? 'Tap any lane' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Tap a card to see it' : 'Out of paint — end your turn';
+  const hint = landing ? (P.ready ? `Waiting for ${opp.username} to place their lands…` : landSel !== null ? 'Tap one of your lanes' : 'Drag your land cards onto your lanes') : !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? `Tap one of your lanes for ${selCard.name}` : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : selCard.target === 'any_lane' ? 'Tap any lane' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Drag a card onto the board — tap to see it' : 'Out of paint — end your turn';
   const inspected = inspect !== null ? P.hand.find((h) => h.uid === inspect) : null;
   const inCard = inspected?.id ? CARD[inspected.id] : null;
   const canSketch = myTurn && !busy && P.paint >= 1 && P.deck > 0 && P.hand.length < HAND_MAX_UI;
@@ -199,7 +277,10 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
           <span className="text-[10px] text-white/60">🂠 {O.deck}</span>
         </div>
         <div className="pointer-events-auto flex flex-col items-end gap-1">
-          <button onClick={() => setMenu(true)} className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-menu"><Flag className="inline h-3.5 w-3.5" /></button>
+          <div className="flex gap-1">
+            <button onClick={() => board.current?.resetView()} title="Reset the camera (drag the board to look around)" className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-resetview"><Camera className="inline h-3.5 w-3.5" /></button>
+            <button onClick={() => setMenu(true)} className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-menu"><Flag className="inline h-3.5 w-3.5" /></button>
+          </div>
           {left !== null && <span className={cn('rounded-full px-2 py-0.5 text-xs font-black tabular-nums', left <= 10 ? 'animate-pulse bg-[#FF4D6D]' : 'bg-black/60')} data-testid="brawl-clock">⏱ {left}s</span>}
           <span className="whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold" title={EVENTS.find((x) => x.id === v.ev)?.text}>{EVENTS.find((x) => x.id === v.ev)?.emoji} Round {v.round}</span>
         </div>
@@ -216,7 +297,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
 
       {/* you */}
       <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 p-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]">
-        <div className="flex items-end justify-between gap-2">
+        <div className={cn('flex items-end justify-between gap-2', landing && 'hidden')}>
           <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
             <span className="text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
             <div className="flex gap-0.5" data-testid="brawl-paint" aria-label={`${P.paint} paint`}>
@@ -231,11 +312,30 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             </button>
           </div>
           <div className="pointer-events-none min-w-0 flex-1 text-center text-[11px] font-bold leading-tight text-white/80 drop-shadow" data-testid="brawl-hint">{hint}</div>
-          <button onClick={() => void send({ t: 'end' })} disabled={!myTurn || busy}
+          <button onClick={() => void send({ t: 'end' })} disabled={!myTurn || busy || landing}
             className={cn('h-12 rounded-2xl px-4 font-display text-base font-black shadow-lg transition disabled:opacity-40', myTurn && !canAfford ? 'animate-pulse bg-[#FFE14D] text-black' : 'bg-[#FF4FD8] text-white')} data-testid="brawl-end">
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : myTurn ? 'End turn ⚔️' : 'Waiting…'}
           </button>
         </div>
+        {landing ? (
+          <div className="mx-auto grid w-full max-w-md justify-items-center gap-2 rounded-3xl bg-black/55 px-3 pb-2 pt-2 backdrop-blur" data-testid="brawl-lands">
+            <div className="text-center"><div className="font-display text-lg font-black drop-shadow">{P.ready ? 'Lands ready!' : 'Place your lands'}</div>
+              <div className="text-[11px] text-white/75">{P.ready ? 'The battle starts when both sides are ready.' : 'Each lane takes one land. Creatures get +1 attack on their own land. Drag the board to look around.'}</div></div>
+            {!P.ready && (
+              <div className="flex items-end justify-center gap-2">
+                {landCards.map((t, i) => placed.includes(i) ? <div key={i} style={{ width: 74, height: 104 }} className="rounded-xl border-2 border-dashed border-white/20" /> : (
+                  <CardView key={i} land={t} width={74} selected={landSel === i} glow={TERRAIN_INFO[t].color} onPointerDown={pressStart({ kind: 'land', i, t })} testid={`brawl-landcard-${i}`} style={drag?.kind === 'land' && drag.i === i ? { opacity: 0.25 } : undefined} />
+                ))}
+              </div>
+            )}
+            {!P.ready && (
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={autoLands} data-testid="brawl-lands-auto"><Shuffle className="h-3.5 w-3.5" />Place for me</Button>
+                <Button variant="primary" size="sm" disabled={placed.some((x) => x === null) || busy} onClick={readyLands} data-testid="brawl-lands-ready">Ready ⚔️</Button>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="flex items-end justify-center gap-0 overflow-x-auto px-1 pb-1 pt-4 [scrollbar-width:none]" data-testid="brawl-hand">
           {hand.map((h, i) => {
             const c = h.id ? CARD[h.id] : null; if (!c) return null;
@@ -243,15 +343,22 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             const fan = (i - (hand.length - 1) / 2) * 3.5;
             return (
               <div key={h.uid} className="-mx-1.5 transition-transform" style={{ transform: `rotate(${fan}deg) translateY(${Math.abs(fan) * 1.2}px)` }}>
-                <CardView id={h.id} width={cw} selected={sel} dim={!ok} glow={ok && myTurn ? (c.fx ? '#FF7A20' : c.wonder ? '#FFE14D' : '#3A86FF') : undefined} onClick={() => selectCard(h.uid)} testid={`brawl-card-${h.id}`} animate={sel || hand.length <= 6} />
+                <CardView id={h.id} width={cw} selected={sel} dim={!ok} glow={ok && myTurn ? (c.fx ? '#FF7A20' : c.wonder ? '#FFE14D' : '#3A86FF') : undefined} onPointerDown={pressStart({ kind: 'card', uid: h.uid, id: h.id! })} testid={`brawl-card-${h.id}`} animate={sel || hand.length <= 6}
+                  style={drag?.kind === 'card' && drag.uid === h.uid ? { opacity: 0.25 } : undefined} />
               </div>
             );
           })}
           {!hand.length && <div className="py-6 text-xs text-white/60">No cards in hand</div>}
         </div>
+        )}
       </div>
-      {selCard && (
+      {selCard && !drag && (
         <div className="pointer-events-none absolute right-2 top-[18%] z-10 hidden sm:block"><CardView id={selCard.id} width={170} /></div>
+      )}
+      {drag && (
+        <div className="pointer-events-none fixed z-40 transition-transform duration-100" style={{ left: drag.x, top: drag.y, transform: `translate(-50%, -75%) rotate(${drag.ok ? 0 : -6}deg) scale(${drag.ok ? 0.72 : 1})` }} data-testid="brawl-dragging">
+          {drag.kind === 'land' ? <CardView land={drag.t} width={96} animate={false} glow={drag.ok ? '#3DDC97' : undefined} /> : <CardView id={drag.id} width={110} animate={false} glow={drag.ok ? '#3DDC97' : '#FF4D6D'} />}
+        </div>
       )}
 
       {/* a card from your hand, up close: what it is, how it works, show me, play it */}

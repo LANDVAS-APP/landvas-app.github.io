@@ -15,7 +15,9 @@ export type Side = 0 | 1;
 export type Unit = { uid: number; id: string; atk: number; hp: number; max: number; shield: boolean; frozen: number; poison: number; temp: number; acted: boolean };
 export type Lane = { terrain: Terrain; unit: Unit | null; totem: { uid: number; id: string; n?: number } | null };
 export type HandCard = { uid: number; id: string };
-export type PlayerState = { name: string; hero: number; heroMax: number; paint: number; deck: string[]; hand: HandCard[]; grave: string[]; lanes: Lane[]; fatigue: number; timeouts: number };
+export type PlayerState = { name: string; hero: number; heroMax: number; paint: number; deck: string[]; hand: HandCard[]; grave: string[]; lanes: Lane[]; fatigue: number; timeouts: number;
+  /** the player's four land cards; at the start each player chooses which goes in which lane (kept secret until both are ready) */
+  landCards?: Terrain[]; ready?: boolean; pending?: Terrain[] | null };
 export type Ev =
   | { e: 'turn'; side: Side; round: number } | { e: 'draw'; side: Side; uid: number; card?: string; burned?: boolean } | { e: 'fatigue'; side: Side; n: number }
   | { e: 'paint'; side: Side; n: number } | { e: 'play'; side: Side; card: string; lane: number; uid: number } | { e: 'totem'; side: Side; card: string; lane: number }
@@ -28,13 +30,15 @@ export type Ev =
   // the board-changing moments: a cataclysm's (or a wonder's) big scene, the strikes inside it, and what it leaves behind
   | { e: 'fx'; side: Side; fx: Fx; lane?: number } | { e: 'strike'; side: Side; lane: number; kind: 'bolt' | 'meteor' } | { e: 'swirl'; side: Side; from: number[] }
   | { e: 'crumble'; side: Side; lane: number; card: string } | { e: 'swap'; side: Side; lane: number; atk: number; hp: number } | { e: 'countdown'; side: Side; lane: number; n: number }
-  | { e: 'sketch'; side: Side };
+  | { e: 'sketch'; side: Side } | { e: 'ready'; side: Side } | { e: 'land'; side: Side; lane: number; terrain: Terrain };
 export type State = {
   v: number; rng: number; round: number; turn: Side; first: Side; ev: EventId; over: boolean; winner: Side | -1 | null; reason: string;
+  /** 'lands': both players are placing their land cards; 'play': the battle */
+  phase?: 'lands' | 'play';
   uid: number; p: [PlayerState, PlayerState]; log: { n: number; side: Side | -1; ev: Ev[] }[];
 };
 export type Pick = { side: Side; lane: number };
-export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' };
+export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'lands'; lanes: Terrain[] } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' };
 
 export const MAX_PAINT = 7;
 export const HAND_MAX = 10;
@@ -54,20 +58,37 @@ function shuffle<T>(s: State, a: T[]) { for (let i = a.length - 1; i > 0; i--) {
 
 // ---- setting up -------------------------------------------------------------------------------------------------------
 export type Seat = { name: string; deck: string[]; terrains: string[] };
-export function newMatch(seed: number, a: Seat, b: Seat, ev?: EventId): State {
+export function newMatch(seed: number, a: Seat, b: Seat, ev?: EventId, opts: { lands?: boolean } = {}): State {
   const s = { v: 0, rng: seed >>> 0 || 1, round: 0, turn: 0, first: 0, ev: 'none', over: false, winner: null, reason: '', uid: 1, p: [] as unknown as State['p'], log: [] } as State;
   s.ev = ev ?? EVENTS[rint(s, EVENTS.length)].id;
   const heroHp = s.ev === 'heroes' ? 32 : HERO_HP;
   s.p = [a, b].map((x) => ({ name: x.name, hero: heroHp, heroMax: heroHp, paint: 0, deck: shuffle(s, [...x.deck]), hand: [], grave: [], fatigue: 0, timeouts: 0,
-    lanes: x.terrains.slice(0, LANES).map((t) => ({ terrain: t as Terrain, unit: null, totem: null })) })) as unknown as State['p'];
+    lanes: x.terrains.slice(0, LANES).map((t) => ({ terrain: t as Terrain, unit: null, totem: null })),
+    landCards: x.terrains.slice(0, LANES) as Terrain[], ready: !opts.lands, pending: null })) as unknown as State['p'];
+  s.phase = opts.lands ? 'lands' : 'play';
   s.first = rint(s, 2) as Side;
   const out: Ev[] = [{ e: 'event', id: s.ev, text: EVENTS.find((x) => x.id === s.ev)!.text }];
   // opening hands: 4 for whoever goes first, 5 for the other
   for (const side of [0, 1] as Side[]) for (let i = 0; i < (side === s.first ? 4 : 5); i++) draw(s, side, out);
   s.turn = s.first;
-  startTurn(s, s.first, out);
+  // with land cards, the battle starts once both players have placed theirs
+  if (s.phase === 'play') startTurn(s, s.first, out);
   s.log = [{ n: 0, side: -1, ev: out }];
   return s;
+}
+/** Is this a way of laying out these land cards (same cards, any order)? */
+export function validLands(cards: Terrain[] | undefined, lanes: unknown): lanes is Terrain[] {
+  if (!cards || !Array.isArray(lanes) || lanes.length !== LANES) return false;
+  const a = [...cards].sort().join(), b = [...(lanes as string[])].map(String).sort().join();
+  return a === b;
+}
+function placeLands(s: State, side: Side, lanes: Terrain[], out: Ev[]) {
+  const P = s.p[side]; P.pending = lanes; P.ready = true; out.push({ e: 'ready', side });
+  if (!s.p[0].ready || !s.p[1].ready) return;
+  // both ready: the lands rise, and the battle begins
+  for (const sd of [0, 1] as Side[]) { const Q = s.p[sd]; (Q.pending ?? Q.landCards ?? Q.lanes.map((L) => L.terrain)).forEach((t, l) => { Q.lanes[l].terrain = t; out.push({ e: 'land', side: sd, lane: l, terrain: t }); }); Q.pending = null; }
+  s.phase = 'play';
+  startTurn(s, s.first, out);
 }
 
 // ---- reading the board -------------------------------------------------------------------------------------------------
@@ -273,6 +294,13 @@ function validTarget(s: State, side: Side, kind: Target | undefined, t: Pick | u
 export function check(s: State, side: Side, a: Action): string | null {
   if (s.over) return 'over';
   if (a.t === 'concede') return null;
+  if (s.phase === 'lands') {
+    if (a.t === 'timeout') return null;
+    if (a.t !== 'lands') return 'placing_lands';
+    if (s.p[side].ready) return 'already_ready';
+    return validLands(s.p[side].landCards, a.lanes) ? null : 'bad_lands';
+  }
+  if (a.t === 'lands') return 'bad_action';
   if (s.turn !== side) return 'not_your_turn';
   const P = s.p[side];
   if (a.t === 'end' || a.t === 'timeout') return null;
@@ -455,7 +483,11 @@ export function apply(s: State, side: Side, a: Action): Ev[] {
   const out: Ev[] = [];
   const P = s.p[side];
   if (a.t === 'concede') finish(s, other(side), 'concede', out);
-  else if (a.t === 'end' || a.t === 'timeout') {
+  else if (a.t === 'lands') placeLands(s, side, a.lanes, out);
+  else if (a.t === 'timeout' && s.phase === 'lands') {
+    // out of time to choose: whoever isn't ready gets their lands in the order they come
+    for (const sd of [0, 1] as Side[]) if (!s.p[sd].ready && !s.over) placeLands(s, sd, s.p[sd].landCards ?? s.p[sd].lanes.map((L) => L.terrain), out);
+  } else if (a.t === 'end' || a.t === 'timeout') {
     if (a.t === 'timeout') { P.timeouts++; if (P.timeouts >= 3) { finish(s, other(side), 'timeout', out); } }
     else P.timeouts = 0;
     if (!s.over) {
@@ -483,7 +515,8 @@ export function viewFor(s: State, me: Side): View {
   const hideEv = (e: Ev): Ev => ((e.e === 'draw' || e.e === 'copy') && e.side !== me && !(e.e === 'draw' && e.burned) ? { ...e, card: undefined } : e);
   return {
     v: s.v, round: s.round, turn: s.turn, first: s.first, ev: s.ev, over: s.over, winner: s.winner, reason: s.reason, uid: s.uid, me,
-    p: s.p.map((P, i) => ({ ...P, deck: P.deck.length, hand: i === me ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })) as View['p'],
+    phase: s.phase ?? 'play',
+    p: s.p.map((P, i) => ({ ...P, pending: i === me ? P.pending ?? null : null, deck: P.deck.length, hand: i === me ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })) as View['p'],
     log: s.log.map((l) => ({ ...l, ev: l.ev.map(hideEv) })),
   };
 }

@@ -3,7 +3,8 @@
 import { memo, useEffect, useRef, type CSSProperties } from 'react';
 import { isPhone } from '../lib/gfx';
 import { cn } from '../lib/utils';
-import { drawBack, drawCard, type CardDraw } from './cardArt';
+import { drawBack, drawCard, drawLandCard, type CardDraw } from './cardArt';
+import type { Terrain } from '../shared/brawl/cards';
 
 // one shared clock for every live card (phones redraw less often)
 const live = new Set<(t: number) => void>();
@@ -18,8 +19,8 @@ function tick(now: number) {
 }
 function join(f: (t: number) => void) { live.add(f); if (!raf) raf = requestAnimationFrame(tick); return () => { live.delete(f); }; }
 
-type Props = { id?: string; back?: boolean; width: number; animate?: boolean; tilt?: boolean; className?: string; style?: CSSProperties; onClick?(): void; testid?: string; selected?: boolean; glow?: string } & Omit<CardDraw, 't'>;
-export const CardView = memo(function CardView({ id, back, width, animate = true, tilt = true, className, style, onClick, testid, selected, glow, ...draw }: Props) {
+type Props = { id?: string; land?: Terrain; back?: boolean; width: number; animate?: boolean; tilt?: boolean; className?: string; style?: CSSProperties; onClick?(): void; onPointerDown?(e: React.PointerEvent): void; testid?: string; selected?: boolean; glow?: string } & Omit<CardDraw, 't'>;
+export const CardView = memo(function CardView({ id, land, back, width, animate = true, tilt = true, className, style, onClick, onPointerDown, testid, selected, glow, ...draw }: Props) {
   const cv = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const h = Math.round(width * 1.4);
@@ -29,7 +30,7 @@ export const CardView = memo(function CardView({ id, back, width, animate = true
     const dpr = Math.min(2, devicePixelRatio || 1);
     c.width = Math.round(width * dpr); c.height = Math.round(h * dpr);
     const g = c.getContext('2d')!;
-    const paint = (t: number) => { g.setTransform(dpr, 0, 0, dpr, 0, 0); if (back || !id) drawBack(g, width, h, t); else drawCard(g, id, width, h, { ...draw, t }); };
+    const paint = (t: number) => { g.setTransform(dpr, 0, 0, dpr, 0, 0); if (land) drawLandCard(g, land, width, h, t); else if (back || !id) drawBack(g, width, h, t); else drawCard(g, id, width, h, { ...draw, t }); };
     paint(performance.now() / 1000);
     if (!animate) return;
     // only animate while on screen
@@ -37,7 +38,7 @@ export const CardView = memo(function CardView({ id, back, width, animate = true
     const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { stop ??= join(paint); } else { stop?.(); stop = null; } });
     io.observe(c);
     return () => { io.disconnect(); stop?.(); };
-  }, [id, back, width, h, animate, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, land, back, width, h, animate, key]); // eslint-disable-line react-hooks/exhaustive-deps
   // tilt toward the pointer
   useEffect(() => {
     const el = wrap.current; if (!el || !tilt) return;
@@ -47,9 +48,9 @@ export const CardView = memo(function CardView({ id, back, width, animate = true
     return () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerleave', leave); el.removeEventListener('pointercancel', leave); el.removeEventListener('pointerup', leave); };
   }, [tilt]);
   return (
-    <div ref={wrap} onClick={onClick} data-testid={testid} role={onClick ? 'button' : undefined}
+    <div ref={wrap} onClick={onClick} onPointerDown={onPointerDown} data-testid={testid} role={onClick || onPointerDown ? 'button' : undefined}
       className={cn('relative shrink-0 rounded-[7%] transition-[transform,box-shadow] duration-150 will-change-transform', onClick && 'cursor-pointer', selected && '-translate-y-3', className)}
-      style={{ width, height: h, boxShadow: selected ? `0 0 0 3px #FFE14D, 0 0 24px 4px ${glow ?? '#FFE14D'}` : glow ? `0 0 18px 2px ${glow}` : '0 6px 16px -6px rgba(0,0,0,0.6)', ...style }}>
+      style={{ width, height: h, touchAction: onPointerDown ? 'none' : undefined, boxShadow: selected ? `0 0 0 3px #FFE14D, 0 0 24px 4px ${glow ?? '#FFE14D'}` : glow ? `0 0 18px 2px ${glow}` : '0 6px 16px -6px rgba(0,0,0,0.6)', ...style }}>
       <canvas ref={cv} style={{ width, height: h }} className="block rounded-[7%]" />
     </div>
   );

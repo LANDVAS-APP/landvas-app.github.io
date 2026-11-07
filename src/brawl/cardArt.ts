@@ -3,6 +3,7 @@
 // attack and health badges, a rarity gem — and a moving holographic sheen on gold foils and legendaries.
 import { CARD, RARITY_INFO, TERRAIN_INFO, kindName, type Card, type Terrain } from '../shared/brawl/cards';
 import { drawSpecialArt } from './cardFx';
+import { portrait } from './creature3d';
 import { cleanGenome, type Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { isPhone } from '../lib/gfx';
@@ -146,7 +147,10 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   // cataclysms and wonders have their own little animation; everything else stands in its terrain
   if (!drawSpecialArt(g, c, ax, ay, aw, ah, t)) {
     drawScene(g, c.terrain, ax, ay, aw, ah, t, c.id);
-    if (c.kind === 'creature') drawCreature(g, genomeOf(c), ax + aw / 2, ay + ah * 0.86, ah * 0.5, { t, state: o.state ?? 'idle', dir: 1, seed: hash(c.id, 1) * 6 });
+    // the creature: its 3D model, rendered once (breathing gently on the card)
+    const pic = c.kind === 'creature' ? portrait(c.id, genomeOf) : null;
+    if (pic) { const S = ah * 1.2, br = 1 + Math.sin(t * 2.2 + hash(c.id, 2) * 6) * 0.015; g.drawImage(pic, ax + aw / 2 - (S * br) / 2, ay + ah - S * br * 0.96, S * br, S * br); }
+    else if (c.kind === 'creature') drawCreature(g, genomeOf(c), ax + aw / 2, ay + ah * 0.86, ah * 0.5, { t, state: o.state ?? 'idle', dir: 1, seed: hash(c.id, 1) * 6 });
     else drawEmblem(g, c, ax + aw / 2, ay + ah * 0.5, ah * 0.28, t);
   }
   g.restore();
@@ -213,4 +217,20 @@ export function drawBack(g: CanvasRenderingContext2D, w: number, h: number, t = 
   for (let i = 0; i < 6; i++) { g.rotate(Math.PI / 3); g.fillStyle = ['#FF4FD8', '#FFE14D', '#22E3FF'][i % 3]; g.beginPath(); g.ellipse(0, -w * 0.16, w * 0.06, w * 0.13, 0, 0, Math.PI * 2); g.fill(); }
   g.restore();
   g.fillStyle = '#FFFFFF'; g.font = `900 ${Math.round(w * 0.1)}px ui-rounded, system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🎨', w / 2, h / 2);
+}
+
+/** A land card: the terrain's little world, its name and what it's good for. */
+export function drawLandCard(g: CanvasRenderingContext2D, t: Terrain, w: number, h: number, time: number) {
+  const T = TERRAIN_INFO[t], r = w * 0.06, pad = w * 0.05;
+  g.clearRect(0, 0, w, h);
+  const fr = g.createLinearGradient(0, 0, w, h); fr.addColorStop(0, T.color); fr.addColorStop(0.6, T.dark); fr.addColorStop(1, '#120C22');
+  g.fillStyle = fr; g.beginPath(); g.roundRect(0, 0, w, h, r); g.fill();
+  g.strokeStyle = '#FFE9A8'; g.lineWidth = Math.max(2, w * 0.025); g.beginPath(); g.roundRect(g.lineWidth / 2, g.lineWidth / 2, w - g.lineWidth, h - g.lineWidth, r); g.stroke();
+  const ax = pad, ay = h * 0.13, aw = w - pad * 2, ah = h * 0.6;
+  g.save(); g.beginPath(); g.roundRect(ax, ay, aw, ah, r * 0.6); g.clip(); drawScene(g, t, ax, ay, aw, ah, time, `land-${t}`); g.restore();
+  g.fillStyle = 'rgba(10,6,24,0.72)'; g.beginPath(); g.roundRect(pad * 0.6, h * 0.02, w - pad * 1.2, h * 0.09, h * 0.045); g.fill();
+  g.fillStyle = '#FFFFFF'; g.font = `900 ${Math.round(w * 0.1)}px ui-rounded, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${T.emoji} ${T.name}`, w / 2, h * 0.067);
+  g.fillStyle = '#FFE9A8'; g.font = `800 ${Math.round(w * 0.075)}px ui-rounded, system-ui, sans-serif`; g.fillText('LAND', w / 2, ay + ah + h * 0.06);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `600 ${Math.round(w * 0.062)}px ui-rounded, system-ui, sans-serif`; g.textBaseline = 'top';
+  wrap(g, `${T.name} creatures get +1 attack here.`, w / 2, ay + ah + h * 0.1, w - pad * 2.5, w * 0.075, 3);
 }

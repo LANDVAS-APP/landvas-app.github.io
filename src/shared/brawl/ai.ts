@@ -64,6 +64,8 @@ export function botMove(s: State, me: Side, skill = 1, rnd: () => number = Math.
 /** Play the bot's whole turn (at most 12 moves); returns the actions taken. */
 export function botTurn(s: State, me: Side, skill = 1, rnd: () => number = Math.random): Action[] {
   const done: Action[] = [];
+  // the land cards: home terrains where its creatures are, in the order the deck lists them
+  if (s.phase === 'lands') { if (!s.p[me].ready) { const a: Action = { t: 'lands', lanes: [...(s.p[me].landCards ?? s.p[me].lanes.map((L) => L.terrain))] }; apply(s, me, a); done.push(a); } return done; }
   for (let i = 0; i < 12 && s.turn === me && !s.over; i++) {
     const a = botMove(s, me, skill, rnd);
     apply(s, me, a); done.push(a);

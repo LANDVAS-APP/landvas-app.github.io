@@ -211,6 +211,39 @@ describe('Paintbrawl cataclysms, wonders and extra draws', () => {
   });
 });
 
+describe('Paintbrawl land cards', () => {
+  it('a match can open with both players placing their land cards, in secret, then the battle starts', () => {
+    const s = newMatch(21, seat(0), seat(1), 'none', { lands: true });
+    expect(s.phase).toBe('lands');
+    expect(check(s, s.turn, { t: 'end' })).toBe('placing_lands');
+    const cards = s.p[0].landCards!;
+    expect(check(s, 0, { t: 'lands', lanes: ['neon', 'neon', 'neon', 'neon'] })).toBe('bad_lands');
+    const mine = [...cards].reverse();
+    apply(s, 0, { t: 'lands', lanes: mine });
+    expect(check(s, 0, { t: 'lands', lanes: mine })).toBe('already_ready');
+    // the other player can't see where mine went yet
+    expect(viewFor(s, 1).p[0].pending).toBeNull();
+    expect(viewFor(s, 0).p[0].pending).toEqual(mine);
+    expect(s.phase).toBe('lands');
+    const ev = apply(s, 1, { t: 'lands', lanes: s.p[1].landCards! });
+    expect(s.phase).toBe('play');
+    expect(ev.filter((e) => e.e === 'land').length).toBe(8);
+    expect(s.p[0].lanes.map((L) => L.terrain)).toEqual(mine);
+    expect(ev.some((e) => e.e === 'turn')).toBe(true);
+    expect(s.p[s.first].paint).toBeGreaterThan(0);
+  });
+  it('running out of time places the lands in order; bots place theirs at once', () => {
+    const s = newMatch(22, seat(0), seat(1), 'none', { lands: true });
+    botTurn(s, 1);
+    expect(s.p[1].ready).toBe(true);
+    apply(s, s.turn, { t: 'timeout' });
+    expect(s.phase).toBe('play');
+    expect(s.p[0].lanes.map((L) => L.terrain)).toEqual(s.p[0].landCards);
+    for (let i = 0; i < 400 && !s.over; i++) botTurn(s, s.turn);
+    expect(s.over).toBe(true);
+  });
+});
+
 describe('Paintbrawl bot decks', () => {
   it('every bot deck is a legal 20-card deck with both terrains’ legendaries', async () => {
     const { BOT_DECKS } = await import('../../src/shared/brawl/server');

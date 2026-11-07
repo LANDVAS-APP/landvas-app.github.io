@@ -21,6 +21,13 @@ async function arena(uid: string, dx: number) {
   const g = (await db.rpc(uid, 'my_groups'))[0];
   return (await db.rpc(uid, 'set_group_kind', { p_group_id: g.id, p_kind: 'brawl' })).realm_id as string;
 }
+/** Place a player's land cards (in the order they come), as the first thing in a match. */
+async function placeLands(uid: string, id: string) {
+  const v = await db.rpc(uid, 'brawl_view', { p_match: id });
+  const me = (v.view as View).p[v.side];
+  if ((v.view as View).phase !== 'lands' || me.ready) return;
+  await op(uid, { op: 'act', match: id, action: { t: 'lands', lanes: [...me.landCards!] } });
+}
 /** Play one side's whole turn with the bot brain (as the player would, through the server). */
 async function playTurn(uid: string, id: string) {
   for (let i = 0; i < 14; i++) {
@@ -99,6 +106,13 @@ describe('Paintbrawl', () => {
     expect(v.bot).toBe(true);
     expect(v.players[1].username).toMatch(/practice bot/);
     expect((v.view as View).p[1].hand.every((h) => h.id === undefined)).toBe(true);
+    // it opens with the land cards: the bot has placed its own, nothing else can happen until we place ours
+    expect((v.view as View).phase).toBe('lands');
+    expect((v.view as View).p[1].ready).toBe(true);
+    await expectError(op(p1, { op: 'act', match: r.match, action: { t: 'end' } }), 'brawl_placing_lands');
+    await expectError(op(p1, { op: 'act', match: r.match, action: { t: 'lands', lanes: ['neon', 'neon', 'neon', 'neon'] } }), 'brawl_bad_lands');
+    await placeLands(p1, r.match);
+    expect((await raw(r.match)).phase).toBe('play');
     // a bad move is refused
     await expectError(op(p1, { op: 'act', match: r.match, action: { t: 'play', uid: 99999, lane: 0 } }), 'brawl_no_card');
     const s0 = await shards(p1);
@@ -115,7 +129,12 @@ describe('Paintbrawl', () => {
     const m = await op(p2, { op: 'queue' });
     expect(m.match).toBeTruthy();
     expect((await op(p1, { op: 'queue' })).match).toBe(m.match);
+    // both place their lands (each kept secret from the other until both are ready)
+    await placeLands(p1, m.match);
+    expect((await raw(m.match)).phase).toBe('lands');
+    await placeLands(p2, m.match);
     const s = await raw(m.match);
+    expect(s.phase).toBe('play');
     const side1 = (await db.rpc(p1, 'brawl_view', { p_match: m.match })).side;
     const first = s.turn === side1 ? p1 : p2, second = first === p1 ? p2 : p1;
     await expectError(op(second, { op: 'act', match: m.match, action: { t: 'end' } }), 'brawl_not_your_turn');
