@@ -480,9 +480,25 @@ function dungeonCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
   if (cs >= 12 && !c.join.s) { ctx.fillStyle = '#0A080E'; ctx.beginPath(); ctx.arc(px + cs / 2, py + cs * 0.92, cs * 0.16, Math.PI, 0); ctx.fill(); ctx.strokeStyle = c.tier ? c.rc : '#A855F7'; ctx.lineWidth = Math.max(1, cs * 0.03); ctx.stroke(); }
   rareBits(ctx, c);
 }
-const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
-const RIM_BASE: Partial<Record<PlotKind, string>> = { habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)' };
-const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️' };
+/** The Paintbrawl Arena from above: a round arena floor with four lanes a side in terrain colours. */
+function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#2A1240'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#FF4FD8'; ctx.fillRect(px + cs * 0.25, py + cs * 0.25, cs * 0.5, cs * 0.5); return; }
+  const b = inner(c, cs * 0.1), w = b.x1 - b.x0, h = b.y1 - b.y0;
+  ctx.fillStyle = '#4A2A30'; ctx.fillRect(b.x0, b.y0, w, h);
+  if (cs >= 10) {
+    const T = ['#5FCB6A', '#FF7A3D', '#6FD3FF', '#FF6FB5', '#9B6BFF', '#F5E14A'];
+    const lw = w / 4.6, gap = (w - lw * 4) / 5;
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) { ctx.fillStyle = T[(i + r * 2 + c.gx + c.gy) % 6]; ctx.fillRect(b.x0 + gap + i * (lw + gap), b.y0 + h * (r ? 0.56 : 0.12), lw, h * 0.32); }
+    ctx.fillStyle = '#FFE14D'; ctx.fillRect(b.x0, b.y0 + h * 0.48, w, Math.max(1, cs * 0.02));
+  }
+  ctx.strokeStyle = c.tier ? c.rc : '#FF4FD8'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.strokeRect(b.x0, b.y0, w, h);
+  rareBits(ctx, c);
+}
+const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { brawl: brawlCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
+const RIM_BASE: Partial<Record<PlotKind, string>> = { habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)' };
+const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
 function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, y0: number, x1: number, y1: number, rc: string, glow: string, tier: number, seed: number) {

@@ -37,6 +37,15 @@ export function RealmPreview({ kind }: { kind: RealmKind }) {
         em('🧑‍🍳', 40, 50, 30); em('🍳', 70, 62, 20);
         ['🥞', '🍕', '🌮', '🥧'].forEach((e, i) => em(e, 100 + (i % 2) * 30, 40 + Math.floor(i / 2) * 30 - Math.abs(Math.sin(t * 2 + i)) * 4, 20));
         for (let k = 0; k < 3; k++) { const p = (t * 0.6 + k / 3) % 1; g.globalAlpha = 1 - p; g.fillStyle = '#fff'; g.beginPath(); g.arc(70 + Math.sin(p * 6) * 4, 52 - p * 30, 4, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; }
+      } else if (kind === 'brawl') {
+        // a tabletop of four terrain lanes a side, two creatures squaring up and cards fanning in
+        const gr = g.createLinearGradient(0, 0, 0, 110); gr.addColorStop(0, '#2A1240'); gr.addColorStop(1, '#0E0A1C'); g.fillStyle = gr; g.fillRect(0, 0, 160, 110);
+        const T = ['#5FCB6A', '#FF7A3D', '#6FD3FF', '#FF6FB5'];
+        for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) { g.fillStyle = T[(i + r) % 4]; g.globalAlpha = 0.85; g.beginPath(); g.roundRect(18 + i * 32, 24 + r * 30, 28, 26, 5); g.fill(); g.globalAlpha = 1; }
+        const hit = (Math.sin(t * 2.2) + 1) / 2;
+        em('🦊', 66, 66 - hit * 10, 22); em('🐲', 98, 34 + hit * 4, 22);
+        if (hit > 0.92) em('💥', 82, 50, 20);
+        ['🂠', '🂠', '🂠'].forEach((e, i) => { g.save(); g.translate(64 + i * 16, 104); g.rotate((i - 1) * 0.25 + Math.sin(t + i) * 0.03); g.fillStyle = ['#FF4FD8', '#B57BFF', '#22E3FF'][i]; g.beginPath(); g.roundRect(-9, -26, 18, 26, 3); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); g.restore(); });
       } else {
         g.fillStyle = '#1A1420'; g.fillRect(0, 0, 160, 110);
         for (let y = 0; y < 6; y++) for (let x = 0; x < 9; x++) { g.fillStyle = (x + y) % 2 ? '#2E2836' : '#332C3C'; g.fillRect(x * 18, y * 18 + 2, 17, 17); }

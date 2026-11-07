@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-for (const name of ['minigame-finish', 'pipeline', 'admob-ssv']) {
+for (const name of ['minigame-finish', 'pipeline', 'admob-ssv', 'brawl']) {
   const outfile = path.join(ROOT, 'supabase/functions', name, 'index.ts');
   fs.mkdirSync(path.dirname(outfile), { recursive: true });
   const r = await build({

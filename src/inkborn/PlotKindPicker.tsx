@@ -218,6 +218,8 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
     { k: 'arcade', title: 'Arcade', body: 'A neon arcade you walk round with your explorer.', color: '#FF3D9A', icon: <Gamepad2 className="h-4 w-4" />, preview: <ArcadePreview />,
       perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
+    { k: 'brawl', title: REALM_META.brawl.name, body: REALM_META.brawl.long, color: REALM_META.brawl.color, icon: <span className="text-base leading-none">🎨</span>, preview: <RealmPreview kind="brawl" />,
+      perks: ['48 painted creature cards from six terrains', 'Live battles on a 3D board (or a practice bot)', 'Packs, crafting, gold foils, three decks', 'Ranked trophies, a leaderboard, Ink for wins'] },
     ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => {
       const m = REALM_META[k];
       return { k, title: m.name, body: m.long, color: m.color, icon: <span className="text-base leading-none">{m.emoji}</span>, preview: <RealmPreview kind={k} />,

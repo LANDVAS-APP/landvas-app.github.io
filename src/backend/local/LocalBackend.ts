@@ -260,6 +260,16 @@ export class LocalBackend implements Backend {
     return this.draining;
   }
 
+  async brawl(body: import('../../shared/brawl/server').BrawlBody) {
+    const { brawlOp, BrawlError } = await import('../../shared/brawl/server');
+    try {
+      return await brawlOp((fn, args) => this.svc(fn, args), this.current?.userId ?? '', body);
+    } catch (e) {
+      if (e instanceof BrawlError) throw new GameError(e.message);
+      throw toGameError(e);
+    }
+  }
+
   async finishPvp(matchId: string, log: unknown): Promise<PvpFinish> {
     const uid = this.current?.userId ?? '';
     const run = await this.svc<any>('svc_pvp_run', { p_match_id: matchId, p_player_id: uid });

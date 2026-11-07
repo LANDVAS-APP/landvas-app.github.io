@@ -45,6 +45,8 @@ export interface Backend {
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
   /** Submit a PvP run's move log (every round); the server replays it against the match's boards. */
   finishPvp(matchId: string, log: unknown): Promise<PvpFinish>;
+  /** Paintbrawl: matchmaking, bots and moves (run by the `brawl` Edge Function). */
+  brawl(body: import('../shared/brawl/server').BrawlBody): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Local mode runs the pipeline in-page after submission/admin actions. */
   kickPipeline(): Promise<void>;
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;

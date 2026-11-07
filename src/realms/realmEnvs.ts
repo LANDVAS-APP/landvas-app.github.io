@@ -461,4 +461,5 @@ function dungeon(ctx: Ctx): RealmEnv {
   };
 }
 
-export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = { mine, sky, workshop, diner, dungeon };
+// (the arena has its own screen; it never uses the shared realm world)
+export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = { mine, sky, workshop, diner, dungeon, brawl: dungeon };

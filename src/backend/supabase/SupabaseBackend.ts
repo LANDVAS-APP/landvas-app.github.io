@@ -156,6 +156,12 @@ export class SupabaseBackend implements Backend {
     return data as MinigameFinish;
   }
 
+  async brawl(body: import('../../shared/brawl/server').BrawlBody) {
+    const { data, error } = await this.sb.functions.invoke('brawl', { body });
+    if (error) { const e = await functionError(error); throw e.code === 'minigame_error' ? new GameError('brawl_error', e.message) : e; }
+    return data;
+  }
+
   async finishPvp(matchId: string, log: unknown): Promise<PvpFinish> {
     if (config.workerUrl) {
       const { data } = await this.sb.auth.getSession();

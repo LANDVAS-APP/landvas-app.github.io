@@ -27,8 +27,9 @@ afterAll(() => db.close());
 describe('Realm plot types', () => {
   it('all five are plot types, each with six zones, producers, upgrades, recipes, finds and a game', async () => {
     const cfg = (await db.sql(`select value from game_config where key = 'realms'`))[0].value;
-    expect(Object.keys(cfg.kinds).sort()).toEqual(['diner', 'dungeon', 'mine', 'sky', 'workshop']);
-    for (const k of Object.values(cfg.kinds) as any[]) {
+    // (the Paintbrawl Arena is a realm too, but a card game: no zones or producers)
+    expect(Object.keys(cfg.kinds).filter((k) => k !== 'brawl').sort()).toEqual(['diner', 'dungeon', 'mine', 'sky', 'workshop']);
+    for (const k of Object.entries(cfg.kinds).filter(([id]) => id !== 'brawl').map(([, v]) => v) as any[]) {
       expect(k.zones.length).toBe(6);
       expect(Object.keys(k.producers).length).toBe(6);
       expect(Object.keys(k.upgrades).length).toBe(4);

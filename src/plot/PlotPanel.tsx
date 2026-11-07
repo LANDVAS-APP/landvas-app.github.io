@@ -305,7 +305,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
     { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
     { k: 'business' as const, icon: '🍋', title: 'Business', body: 'Lemonade stand to corporation', color: '#D4A500' },
     { k: 'arcade' as const, icon: '🕹️', title: 'Arcade', body: 'Neon cabinets, tickets, prizes', color: '#FF3D9A' },
-    ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({ k, icon: REALM_META[k].emoji, title: REALM_META[k].name, body: REALM_META[k].body, color: REALM_META[k].color })),
+    ...(['brawl', 'mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({ k, icon: REALM_META[k].emoji, title: REALM_META[k].name, body: REALM_META[k].body, color: REALM_META[k].color })),
   ];
   return (
     <div className="grid gap-1.5" data-testid="plot-kind-choice">

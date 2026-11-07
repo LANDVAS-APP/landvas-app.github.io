@@ -1,7 +1,7 @@
 // The five realm plot types, as the app talks about them (the rules and numbers come from the server).
 import type { PlotKind, RealmKind } from '../backend/types';
 
-export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon'];
+export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl'];
 export const isRealm = (k: PlotKind | string | undefined | null): k is RealmKind => !!k && (REALM_KINDS as string[]).includes(k);
 
 export type RealmMeta = {
@@ -33,6 +33,11 @@ export const REALM_META: Record<RealmKind, RealmMeta> = {
     name: 'Dungeon', one: 'dungeon', many: 'dungeons', emoji: '⚔️', color: '#A855F7', enter: 'Enter the dungeon',
     body: 'Six floors down, monsters, loot', crew: 'Minions', make: 'Forge & alchemy', market: 'Shady merchant', book: 'Legendary loot', bookItem: 'treasure',
     long: 'Six floors from the Crypt Entrance down to the Dragon’s Lair. Run Dungeon Dash for treasure and monster parts, keep skeleton guards and wizard towers working, and forge potions, shields and dragon armour.',
+  },
+  brawl: {
+    name: 'Paintbrawl Arena', one: 'arena', many: 'arenas', emoji: '🎨', color: '#FF4FD8', enter: 'Step into the arena',
+    body: 'Collect cards, battle players live', crew: 'Cards', make: 'Deck builder', market: 'Pack shop', book: 'Card collection', bookItem: 'card',
+    long: 'Paintbrawl: a card battler on a 3D board. Collect painted creature cards from six terrains, build decks, and battle other players live — every match has its own twist. Packs, crafting, gold foils and ranked trophies.',
   },
 };
 export const realmRoute = (id: string) => `/realm/${id}`;
