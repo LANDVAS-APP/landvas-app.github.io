@@ -21,6 +21,10 @@ import { CollectionDialog, DecksDialog, PackOpening, RanksDialog } from './Colle
 import { Match, boardPick } from './Match';
 import type { BrawlMe, PackCard } from './types';
 
+// the offline preview's instant demo asks for a practice match the moment the arena opens
+let demoAuto = false;
+export const setDemoAutoPractice = () => { demoAuto = true; };
+
 export default function BrawlScreen({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['brawl', id], queryFn: () => api.brawlGet(id), staleTime: 15_000, refetchOnWindowFocus: false });
   if (q.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#120A22]"><Spinner /></div>;
@@ -105,6 +109,8 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     try { const r = await api.brawlPackOpen(free); setMe(r.me); setPack(r.cards); sfx.swish(); }
     catch (e) { toast.error(toGameError(e).code === 'not_enough' ? `A pack costs 💠 ${me.cfg.pack_cost} shards` : toGameError(e).message); } finally { setBusy(null); }
   };
+
+  useEffect(() => { if (demoAuto && !match) { demoAuto = false; void practice(); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deck = me.decks[me.deck_slot];
   const nextRank = me.cfg.ranks.find((r) => r[1] > me.trophies);

@@ -41,6 +41,7 @@ const HomePage = lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));
 const PvpScreen = lazy(() => import('../pvp/PvpScreen'));
 const ChallengesScreen = lazy(() => import('../earn/ChallengesScreen'));
+const BrawlDemo = lazy(() => import('../brawl/Demo'));
 const PvpSandbox = lazy(() => import('../pvp/PvpScreen').then((m) => ({ default: m.PvpSandbox })));
 
 /** landvas.app: the public homepage (the live map lives at /world). */
@@ -109,7 +110,7 @@ function OnboardingGate() {
   const session = useSession();
   const me = useMe();
   const loc = useLocation();
-  if (session && me.data && !me.data.onboarded && loc.pathname !== '/onboarding' && !loc.pathname.startsWith('/legal')) return <Navigate to="/onboarding" replace />;
+  if (session && me.data && !me.data.onboarded && loc.pathname !== '/onboarding' && loc.pathname !== '/brawl-demo' && !loc.pathname.startsWith('/legal')) return <Navigate to="/onboarding" replace />;
   return <Outlet />;
 }
 
@@ -189,6 +190,7 @@ const routes: RouteObject[] = [
       { path: '/space/planet/:world/:gx/:gy/:game', element: player(<PlanetGame />) },
       { path: '/play-sandbox/:game', element: <GameSandbox /> },
       { path: '/pvp-sandbox/:game', element: <PvpSandbox /> },
+      { path: '/brawl-demo', element: p(<BrawlDemo />) },
       {
         element: <Shell />,
         children: [
@@ -237,6 +239,8 @@ const routes: RouteObject[] = [
 ];
 
 const initial = () => {
+  // an offline preview built to open straight into one thing (e.g. VITE_START=/brawl-demo)
+  if (config.backend === 'local' && import.meta.env.VITE_START) return import.meta.env.VITE_START as string;
   const s = getBackend().session();
   try {
     if (!s && !localStorage.getItem('landvas.welcomed')) return '/welcome';
