@@ -81,16 +81,17 @@ function groundTex(t: Terrain) {
   return { map, glow };
 }
 
-export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number } = {}): Land {
+export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number; ground?: (x: number, z: number) => number; w?: number; d?: number } = {}): Land {
   const group = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
   const D = <X extends { dispose(): void }>(x: X) => { disposables.push(x); return x; };
   const shadows = !o.phone;
   const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material, parent: THREE.Object3D = group, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(D(geo), mat); m.position.set(x, y, z); m.castShadow = shadows; m.receiveShadow = true; parent.add(m); return m; };
   const S = (c: string, p: THREE.MeshStandardMaterialParameters = {}) => D(new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, ...p }));
-  const W = LAND_W, Dp = LAND_D, seed = o.seed ?? Math.random() * 100;
+  const W = o.w ?? LAND_W, Dp = o.d ?? LAND_D, seed = o.seed ?? Math.random() * 100, onBoard = !!o.ground;
 
   // ---- an empty lane: a carved stone slab ----
+  if (!t && onBoard) return { group, terrain: null, tick() {}, grow() {}, dispose() {} };
   if (!t) {
     const stone = tex(128, 160, (g) => { g.fillStyle = '#6A6078'; g.fillRect(0, 0, 128, 160); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 128, Math.random() * 160, 3, 3); } g.strokeStyle = 'rgba(30,20,40,0.6)'; g.lineWidth = 4; g.strokeRect(10, 10, 108, 140); g.strokeStyle = 'rgba(255,255,255,0.15)'; g.lineWidth = 2; g.strokeRect(14, 14, 100, 132); g.font = '900 48px ui-rounded, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(30,20,40,0.45)'; g.fillText('?', 64, 82); });
     D(stone);
@@ -99,7 +100,7 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
   }
 
   const look = LOOK[t], info = TERRAIN_INFO[t];
-  const base = new THREE.Group(); group.add(base);
+  const base = new THREE.Group(); if (!onBoard) group.add(base);
   // ---- the slab with its layered earth ----
   const side = D(sideTex(t));
   const sideM = S('#ffffff', { map: side, roughness: 0.9, ...(look.glow ? { emissiveMap: side, emissive: '#ffffff', emissiveIntensity: t === 'neon' ? 0.5 : 0.25 } : {}) });
@@ -109,7 +110,7 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
   const geo = new THREE.PlaneGeometry(W, Dp, seg, Math.round(seg * Dp / W)); geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute, colors: number[] = [];
   const lo = new THREE.Color(look.low), hi = new THREE.Color(look.high), cc = new THREE.Color();
-  const heightAt = (x: number, z: number) => {
+  const ownHeight = (x: number, z: number) => {
     const edge = Math.min(1, Math.min(W / 2 - Math.abs(x), Dp / 2 - Math.abs(z)) / 0.35);
     const centre = Math.min(1, Math.hypot(x / 1.0, z / 1.15) / 1);
     let h = fbm(x * 1.4 + seed, z * 1.4, seed) * look.amp * 2;
@@ -117,6 +118,8 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
     if (t === 'ember') h += Math.pow(fbm(x * 2.2, z * 2.2, seed + 5), 3) * 0.4;
     return h * edge * (0.25 + 0.75 * centre);
   };
+  const heightAt = o.ground ?? ownHeight;
+  const TOP = onBoard ? 0 : LAND_TOP;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), h = heightAt(x, z);
     pos.setY(i, h);
@@ -126,10 +129,10 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geo.computeVertexNormals();
   const gt = groundTex(t); D(gt.map); if (gt.glow) D(gt.glow);
   const groundM = S('#ffffff', { vertexColors: true, map: gt.map, roughness: look.rough, metalness: t === 'neon' ? 0.4 : 0, ...(gt.glow ? { emissiveMap: gt.glow, emissive: '#ffffff', emissiveIntensity: 1.2 } : {}) });
-  const ground = mesh(geo, groundM, base, 0, LAND_TOP, 0); ground.castShadow = false;
+  const ground = mesh(geo, groundM, base, 0, LAND_TOP, 0); ground.castShadow = false; if (onBoard) { base.remove(ground); }
 
   // ---- what stands on it ----
-  const props = new THREE.Group(); props.position.y = LAND_TOP; group.add(props);
+  const props = new THREE.Group(); props.position.y = TOP; group.add(props);
   type Pop = { o: THREE.Object3D; at: number; s: THREE.Vector3 };
   const pops: Pop[] = [];
   const keepClear = (x: number, z: number) => Math.hypot(x / 1.05, z / 1.25) < 1;
@@ -167,7 +170,7 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       { const c = corner(1, 1, 0.42); const tr = new THREE.Group(); tr.position.copy(c); mesh(new THREE.CylinderGeometry(0.07, 0.11, 0.9, 7), S('#6A4428', { roughness: 0.95 }), tr, 0, 0.45, 0); for (let k = 0; k < 5; k++) mesh(new THREE.IcosahedronGeometry(0.28 + Math.random() * 0.1, 1), k % 2 ? leafM : leafM2, tr, R(0.25), 0.95 + Math.random() * 0.35, R(0.25)); add(tr, 0.3);
         ticks.push((_dt, tt) => { tr.rotation.z = Math.sin(tt * 0.8) * 0.03; }); }
       for (let k = 0; k < 4; k++) { const p = spot(0.2); const r = mesh(new THREE.DodecahedronGeometry(0.07 + Math.random() * 0.07, 0), S('#9A9AA8', { flatShading: true }), props, p.x, p.y + 0.03, p.z); add(r); }
-      ticks.push((dt, tt, emit) => { if (Math.random() < dt * 0.8) { const p = spot(0.2); emit('firefly', p.x + group.position.x, LAND_TOP + 0.3 + Math.random() * 0.5, p.z + group.position.z); } void tt; });
+      ticks.push((dt, tt, emit) => { if (Math.random() < dt * 0.8) { const p = spot(0.2); emit('firefly', p.x + group.position.x, TOP + 0.3 + Math.random() * 0.5, p.z + group.position.z); } void tt; });
       break;
     }
     case 'ember': {
@@ -183,9 +186,9 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       const vents = [corner(1, 1, 0.4), corner(1, -1, 0.35)].map((v) => { const c = mesh(new THREE.CylinderGeometry(0.08, 0.16, 0.18, 8), S('#2A1A16', { flatShading: true }), props, v.x, v.y + 0.09, v.z); add(c); return v; });
       ticks.push((dt, tt, emit) => {
         lavaTex.offset.set(tt * 0.03, tt * 0.02); groundM.emissiveIntensity = 1.0 + Math.sin(tt * 1.7 + seed) * 0.35;
-        for (const v of vents) if (Math.random() < dt * 3) emit('smoke', v.x + group.position.x, LAND_TOP + v.y + 0.2, v.z + group.position.z);
-        if (Math.random() < dt * 2.5) { const p = spot(0.1); emit('ember', p.x + group.position.x, LAND_TOP + 0.1, p.z + group.position.z); }
-        if (Math.random() < dt * 1.2) emit('ember', pc.x + group.position.x + R(0.25), LAND_TOP + 0.08, pc.z + group.position.z + R(0.25));
+        for (const v of vents) if (Math.random() < dt * 3) emit('smoke', v.x + group.position.x, TOP + v.y + 0.2, v.z + group.position.z);
+        if (Math.random() < dt * 2.5) { const p = spot(0.1); emit('ember', p.x + group.position.x, TOP + 0.1, p.z + group.position.z); }
+        if (Math.random() < dt * 1.2) emit('ember', pc.x + group.position.x + R(0.25), TOP + 0.08, pc.z + group.position.z + R(0.25));
       });
       break;
     }
@@ -200,7 +203,7 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       const pond = mesh(new THREE.CircleGeometry(0.5, 28), S('#9FDCFF', { roughness: 0.02, metalness: 0.5, emissive: '#3A8AC0', emissiveIntensity: 0.35 }), props, pc.x, pc.y + 0.02, pc.z); pond.rotation.x = -Math.PI / 2; pond.castShadow = false; add(pond);
       // a snowy pine
       { const c = corner(1, 1, 0.45); const tr = new THREE.Group(); tr.position.copy(c); mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.3, 6), S('#5A3A28'), tr, 0, 0.15, 0); for (let k = 0; k < 3; k++) { mesh(new THREE.ConeGeometry(0.42 - k * 0.11, 0.5, 8), S('#2A5A4A', { roughness: 0.8 }), tr, 0, 0.45 + k * 0.32, 0); mesh(new THREE.ConeGeometry(0.36 - k * 0.1, 0.18, 8), snowM, tr, 0, 0.6 + k * 0.32, 0); } add(tr, 0.3); }
-      ticks.push((dt, tt, emit) => { clusters.forEach((cl, i) => { cl.children.forEach((ch) => { ((ch as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = 0.35 + Math.sin(tt * 2 + i) * 0.15; }); }); if (Math.random() < dt * 3) emit('snow', group.position.x + R(W / 2), LAND_TOP + 2.2, group.position.z + R(Dp / 2)); });
+      ticks.push((dt, tt, emit) => { clusters.forEach((cl, i) => { cl.children.forEach((ch) => { ((ch as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = 0.35 + Math.sin(tt * 2 + i) * 0.15; }); }); if (Math.random() < dt * 3) emit('snow', group.position.x + R(W / 2), TOP + 2.2, group.position.z + R(Dp / 2)); });
       break;
     }
     case 'bog': {
@@ -214,7 +217,7 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       const glowCaps: THREE.MeshStandardMaterial[] = [];
       for (let k = 0; k < 5; k++) { const p = spot(0.2); const cols = ['#FF6FB5', '#9B6BFF', '#3DDC97']; const c = cols[k % 3]; const mg = new THREE.Group(); mg.position.copy(p); const h = 0.12 + Math.random() * 0.2; mesh(new THREE.CylinderGeometry(0.025, 0.035, h, 6), S('#E8D8C8'), mg, 0, h / 2, 0); const capM = S(c, { emissive: c, emissiveIntensity: 0.9, roughness: 0.4 }); glowCaps.push(capM); mesh(new THREE.SphereGeometry(0.09 + Math.random() * 0.05, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), capM, mg, 0, h, 0); add(mg); }
       { const c = corner(-1, 1, 0.45); const st = mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.3, 8), S('#4A3A2A', { roughness: 1, flatShading: true }), props, c.x, c.y + 0.15, c.z); add(st); }
-      ticks.push((dt, tt, emit) => { glowCaps.forEach((m, i) => { m.emissiveIntensity = 0.7 + Math.sin(tt * 2 + i * 1.3) * 0.35; }); if (Math.random() < dt * 1.5) emit('bubble', pc.x + group.position.x + R(0.4), LAND_TOP + 0.05, pc.z + group.position.z + R(0.3)); if (Math.random() < dt * 0.7) { const p = spot(0.2); emit('firefly', p.x + group.position.x, LAND_TOP + 0.3, p.z + group.position.z); } });
+      ticks.push((dt, tt, emit) => { glowCaps.forEach((m, i) => { m.emissiveIntensity = 0.7 + Math.sin(tt * 2 + i * 1.3) * 0.35; }); if (Math.random() < dt * 1.5) emit('bubble', pc.x + group.position.x + R(0.4), TOP + 0.05, pc.z + group.position.z + R(0.3)); if (Math.random() < dt * 0.7) { const p = spot(0.2); emit('firefly', p.x + group.position.x, TOP + 0.3, p.z + group.position.z); } });
       break;
     }
     case 'sugar': {
@@ -240,12 +243,13 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       const ringC = corner(1, 1, 0.55);
       const ring = mesh(new THREE.TorusGeometry(0.32, 0.025, 8, 40), S('#ffffff', { emissive: '#22E3FF', emissiveIntensity: 2.5 }), props, ringC.x, 0.55, ringC.z); add(ring, 0.4);
       const beam = mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 20, 1, true), D(new THREE.MeshBasicMaterial({ color: '#22E3FF', transparent: true, opacity: 0.12, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })), props, ringC.x, 0.5, ringC.z); beam.castShadow = false; add(beam, 0.4);
-      ticks.push((dt, tt, emit) => { cubes.forEach((c, i) => { c.rotation.set(tt * (0.6 + i * 0.1), tt * 0.8, 0); c.position.y = (c.userData.y as number) + Math.sin(tt * 1.5 + i) * 0.08; }); ring.rotation.set(Math.PI / 2 + Math.sin(tt) * 0.3, tt * 1.2, 0); tips.forEach((m, i) => { (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 2 + Math.sin(tt * 6 + i * 3) * 1.2; }); groundM.emissiveIntensity = 1 + Math.sin(tt * 1.2 + seed) * 0.25; if (Math.random() < dt * 2) { const p = spot(0.1); emit('spark', p.x + group.position.x, LAND_TOP + 0.05, p.z + group.position.z); } });
+      ticks.push((dt, tt, emit) => { cubes.forEach((c, i) => { c.rotation.set(tt * (0.6 + i * 0.1), tt * 0.8, 0); c.position.y = (c.userData.y as number) + Math.sin(tt * 1.5 + i) * 0.08; }); ring.rotation.set(Math.PI / 2 + Math.sin(tt) * 0.3, tt * 1.2, 0); tips.forEach((m, i) => { (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 2 + Math.sin(tt * 6 + i * 3) * 1.2; }); groundM.emissiveIntensity = 1 + Math.sin(tt * 1.2 + seed) * 0.25; if (Math.random() < dt * 2) { const p = spot(0.1); emit('spark', p.x + group.position.x, TOP + 0.05, p.z + group.position.z); } });
       break;
     }
   }
   // the land's colour glows softly round its rim
-  const rimGlow = mesh(new THREE.BoxGeometry(W + 0.04, 0.03, Dp + 0.04), D(new THREE.MeshBasicMaterial({ color: info.color, transparent: true, opacity: 0.55 })), group, 0, LAND_TOP - 0.02, 0); rimGlow.castShadow = false;
+  const rimGlow = mesh(new THREE.BoxGeometry(W + 0.04, 0.03, Dp + 0.04), D(new THREE.MeshBasicMaterial({ color: info.color, transparent: true, opacity: 0.55 })), group, 0, LAND_TOP - 0.02, 0); rimGlow.castShadow = false; rimGlow.visible = !onBoard;
+  if (onBoard) group.remove(rimGlow);
   void v3;
 
   let grown = 1;
@@ -257,9 +261,9 @@ export function buildLand(t: Terrain | null, o: { phone?: boolean; seed?: number
       grown = k;
       const b = Math.min(1, k * 1.8), e2 = 1 - Math.pow(1 - b, 3);
       base.scale.set(1, Math.max(0.01, e2), 1); base.position.y = (e2 - 1) * 0.3;
-      rimGlow.visible = b >= 1;
+      rimGlow.visible = b >= 1 && !onBoard;
       for (const p of pops) { const x = Math.max(0, Math.min(1, (k - 0.35 - p.at * 0.4) / 0.25)); const over = x < 1 ? 1 + Math.sin(x * Math.PI) * 0.25 : 1; p.o.scale.set(p.s.x * x * over, p.s.y * x * over, p.s.z * x * over); p.o.visible = x > 0; }
-      props.position.y = LAND_TOP + (e2 - 1) * 0.3;
+      props.position.y = TOP + (onBoard ? 0 : (e2 - 1) * 0.3);
     },
     dispose() { for (const x of disposables) x.dispose(); },
   };

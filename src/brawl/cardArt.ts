@@ -3,7 +3,7 @@
 // attack and health badges, a rarity gem — and a moving holographic sheen on gold foils and legendaries.
 import { CARD, RARITY_INFO, TERRAIN_INFO, kindName, type Card, type Terrain } from '../shared/brawl/cards';
 import { drawSpecialArt } from './cardFx';
-import { portrait } from './creature3d';
+import { portrait } from './chars';
 import { cleanGenome, type Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { isPhone } from '../lib/gfx';
@@ -147,9 +147,9 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   // cataclysms and wonders have their own little animation; everything else stands in its terrain
   if (!drawSpecialArt(g, c, ax, ay, aw, ah, t)) {
     drawScene(g, c.terrain, ax, ay, aw, ah, t, c.id);
-    // the creature: its 3D model, rendered once (breathing gently on the card)
-    const pic = c.kind === 'creature' ? portrait(c.id, genomeOf) : null;
-    if (pic) { const S = ah * 1.2, br = 1 + Math.sin(t * 2.2 + hash(c.id, 2) * 6) * 0.015; g.drawImage(pic, ax + aw / 2 - (S * br) / 2, ay + ah - S * br * 0.96, S * br, S * br); }
+    // the creature: a 2D cartoon of its character (flat shading, an ink outline), breathing gently on the card
+    const pic = c.kind === 'creature' ? portrait(c.id) : null;
+    if (pic) { const S = Math.min(ah * 1.12, aw * 1.05), br = 1 + Math.sin(t * 2.2 + hash(c.id, 2) * 6) * 0.015; g.drawImage(pic, ax + aw / 2 - (S * br) / 2, ay + ah * 0.54 - (S * br) / 2, S * br, S * br); }
     else if (c.kind === 'creature') drawCreature(g, genomeOf(c), ax + aw / 2, ay + ah * 0.86, ah * 0.5, { t, state: o.state ?? 'idle', dir: 1, seed: hash(c.id, 1) * 6 });
     else drawEmblem(g, c, ax + aw / 2, ay + ah * 0.5, ah * 0.28, t);
   }

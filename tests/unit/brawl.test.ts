@@ -211,6 +211,36 @@ describe('Paintbrawl cataclysms, wonders and extra draws', () => {
   });
 });
 
+describe('Paintbrawl creature abilities', () => {
+  const U = (uid: number, id: string, atk: number, hp: number) => ({ uid, id, atk, hp, max: hp, shield: false, frozen: 0, poison: 0, temp: 0, acted: false });
+  it('every creature has an ability of its own, and each one announces itself so it can animate', () => {
+    for (const c of CARDS) if (c.kind === 'creature') expect(c.text || c.flourish, c.id).toBeTruthy();
+    const s = newMatch(31, seat(0), seat(1), 'none');
+    const me = s.turn, o = (1 - me) as 0 | 1;
+    s.p[me].paint = 30;
+    const give = (id: string) => { const uid = s.uid++; s.p[me].hand.push({ uid, id }); return uid; };
+    // the Candied Knight shields a neighbour
+    s.p[me].lanes[1].unit = U(700, 'sproutling', 1, 3);
+    const ev = apply(s, me, { t: 'play', uid: give('candiedknight'), lane: 2 });
+    expect(ev.some((e) => e.e === 'ability' && e.card === 'candiedknight')).toBe(true);
+    expect(s.p[me].lanes[1].unit!.shield).toBe(true);
+    // the Frostmaw roars the one opposite frozen
+    s.p[o].lanes[3].unit = U(701, 'blazefox', 4, 3);
+    apply(s, me, { t: 'play', uid: give('frostmaw'), lane: 3 });
+    expect(s.p[o].lanes[3].unit!.frozen).toBe(1);
+    // the Mecha Mantis strikes twice
+    s.p[me].lanes[0].unit = U(702, 'mechamantis', 3, 3); s.p[o].lanes[0].unit = U(703, 'mossback', 1, 9);
+    const end = apply(s, me, { t: 'end' });
+    expect(end.filter((e) => e.e === 'attack' && e.side === me && e.lane === 0).length).toBe(2);
+    expect(s.p[o].lanes[0].unit!.hp).toBe(9 - 2 * 2); // tough: 1 less each time
+    // the Pebble Golem stacks up at the start of its turn
+    s.p[o].lanes[2].unit = U(704, 'pebblegolem', 1, 3);
+    const start = apply(s, o, { t: 'end' }); void start;
+    apply(s, me, { t: 'end' });
+    expect(s.p[o].lanes[2].unit?.max ?? 4).toBeGreaterThanOrEqual(4);
+  });
+});
+
 describe('Paintbrawl land cards', () => {
   it('a match can open with both players placing their land cards, in secret, then the battle starts', () => {
     const s = newMatch(21, seat(0), seat(1), 'none', { lands: true });

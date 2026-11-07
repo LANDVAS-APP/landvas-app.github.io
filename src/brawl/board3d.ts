@@ -1,4 +1,4 @@
-// The Paintbrawl board in 3D: a painted tabletop on a stone dais in a little round arena, torches and banners, a crowd
+// The Paintbrawl board in 3D: one big connected island of lands on a stone dais in a little round arena, torches and banners, a crowd
 // that cheers, and the board itself — four terrain lanes a side (grass and flowers, glowing lava cracks, ice
 // crystals, mushrooms, candy, a neon grid), totem plinths behind them and each hero's crystal at the ends. Creatures
 // stand in their lanes, alive (the same creature art as the cards), with attack and health badges and their status
@@ -9,20 +9,23 @@ import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { CARD, LANES, TERRAIN_INFO, type Terrain } from '../shared/brawl/cards';
 import { buildWonder, makeScenes, Particles, type Ctx, type WonderModel } from './fx3d';
 import { otherSide, type Ev, type Side, type Unit, type View } from '../shared/brawl/engine';
-import { buildCreature, type Creature3D, type Pose } from './creature3d';
-import { buildLand, LAND_D, LAND_TOP, LAND_W, type Emitter, type Land } from './lands3d';
-import { genomeOf } from './cardArt';
+import { buildChar, type Char, type CharFx, type Pose } from './chars';
+import type { Emitter } from './lands3d';
+import { BOARD_D, BOARD_W, buildWorld, HERO as HERO_Z, LANE_D, LANE_W, laneX, ROW as ROW_Z, TOTEM as TOTEM_Z } from './world3d';
 
 export type BoardPick = { side: Side; lane: number }; // lane -1 = the hero
+/** how big the characters stand on the board */
+const CHAR_SCALE = 1.2;
 export type Highlight = BoardPick & { kind: 'place' | 'target' | 'flourish' | 'attack' };
 export type HeroInfo = { name: string; color: string; badge: string };
 export type BoardOpts = { canvas: HTMLCanvasElement; me: Side; reduceMotion?: boolean; onPick?(p: BoardPick): void };
 
 // the board's size: four wide lanes a side (bigger than they used to be), totems and wonders behind them, heroes at the ends
-const LX = (lane: number) => (lane - 1.5) * 3.05;
-const ROW = 2.45, TOTEM = 5.55, HERO = 7.55;
-const TW = 13.6, TD = 20.6; // the table
-const BASE = LAND_TOP;      // where creatures stand
+// the board is one big connected island (see world3d.ts): four wide lanes a side, a creek across the middle
+const LX = laneX;
+const ROW = ROW_Z, TOTEM = TOTEM_Z, HERO = HERO_Z;
+const TW = BOARD_W, TD = BOARD_D;
+const BASE = 0.02;          // where creatures stand (the ground is flat there)
 
 export function createBoard3D(o: BoardOpts) {
   const phone = isPhone();
@@ -59,32 +62,26 @@ export function createBoard3D(o: BoardOpts) {
   // ---- the arena ------------------------------------------------------------------------------------------------------
   const stone = tex(256, 256, (g) => { g.fillStyle = '#4A4058'; g.fillRect(0, 0, 256, 256); for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { g.fillStyle = `hsl(270, 10%, ${24 + Math.random() * 10}%)`; g.fillRect(x * 32 + 1, y * 32 + 1, 30, 30); } });
   stone.wrapS = stone.wrapT = THREE.RepeatWrapping; stone.repeat.set(10, 10);
-  mesh(G('floor', () => new THREE.CircleGeometry(36, 48)), std('#ffffff', { map: stone, roughness: 0.95 }), 0, -1.2, 0).rotation.x = -Math.PI / 2;
-  // the dais and the table
-  mesh(G('dais', () => new THREE.CylinderGeometry(13.2, 14, 0.9, 48)), std('#5A4E6A', { roughness: 0.9 }), 0, -0.75, 0);
-  const wood = tex(256, 256, (g) => { g.fillStyle = '#6A4228'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(${40 + Math.random() * 40},${20 + Math.random() * 20},10,0.35)`; g.lineWidth = 1 + Math.random() * 3; g.beginPath(); const y = Math.random() * 256; g.moveTo(0, y); g.bezierCurveTo(80, y + 6, 170, y - 6, 256, y + 3); g.stroke(); } });
-  wood.wrapS = wood.wrapT = THREE.RepeatWrapping; wood.repeat.set(3, 3);
-  mesh(G('table', () => new THREE.BoxGeometry(TW, 0.5, TD)), std('#ffffff', { map: wood, roughness: 0.6 }), 0, -0.25, 0);
-  const gold = std('#E8B83A', { metalness: 0.85, roughness: 0.3 });
-  for (const [x, z, w, d] of [[0, TD / 2 + 0.05, TW + 0.2, 0.2], [0, -TD / 2 - 0.05, TW + 0.2, 0.2], [TW / 2 + 0.05, 0, 0.2, TD + 0.2], [-TW / 2 - 0.05, 0, 0.2, TD + 0.2]]) mesh(G(`trim${w}${d}`, () => new THREE.BoxGeometry(w, 0.18, d)), gold, x, 0.04, z);
-  // the middle line
-  mesh(G('midline', () => new THREE.BoxGeometry(TW - 0.8, 0.02, 0.08)), std('#FFE14D', { emissive: '#FFB13D', emissiveIntensity: 0.6 }), 0, 0.02, 0);
+  mesh(G('floor', () => new THREE.CircleGeometry(40, 48)), std('#ffffff', { map: stone, roughness: 0.95 }), 0, -1.2, 0).rotation.x = -Math.PI / 2;
+  // the dais, and the island on it
+  mesh(G('dais', () => new THREE.CylinderGeometry(15.5, 16.4, 0.9, 56)), std('#5A4E6A', { roughness: 0.9 }), 0, -1.75, 0);
+  const world = buildWorld({ phone, me: o.me }); scene.add(world.group);
   // the stands and the crowd
   const crowd = new THREE.InstancedMesh(G('fan', () => new THREE.CapsuleGeometry(0.28, 0.5, 3, 6)), T(new THREE.MeshStandardMaterial({ roughness: 0.8 })), phone ? 90 : 180);
   const crowdBase: { x: number; y: number; z: number; p: number }[] = [];
   const m4 = new THREE.Matrix4(), col = new THREE.Color();
   for (let i = 0; i < crowd.count; i++) {
-    const tier = i % 3, a = (i / crowd.count) * Math.PI * 2 * 3 + tier * 0.1, r = 19 + tier * 1.6;
+    const tier = i % 3, a = (i / crowd.count) * Math.PI * 2 * 3 + tier * 0.1, r = 21 + tier * 1.6;
     if (Math.abs(Math.sin(a)) < 0.25 && Math.cos(a) > 0) { crowdBase.push({ x: 999, y: 0, z: 0, p: 0 }); continue; } // leave the camera's gap
     crowdBase.push({ x: Math.sin(a) * r, y: 0.6 + tier * 1.1, z: Math.cos(a) * r, p: Math.random() * 6 });
     col.setHSL(Math.random(), 0.6, 0.55); crowd.setColorAt(i, col);
   }
   scene.add(crowd);
-  for (let tier = 0; tier < 3; tier++) { const ring = mesh(G(`stand${tier}`, () => new THREE.TorusGeometry(19 + tier * 1.6, 0.55, 6, 48)), std('#3A3048'), 0, 0.1 + tier * 1.1, 0); ring.rotation.x = Math.PI / 2; }
+  for (let tier = 0; tier < 3; tier++) { const ring = mesh(G(`stand${tier}`, () => new THREE.TorusGeometry(21 + tier * 1.6, 0.55, 6, 48)), std('#3A3048'), 0, 0.1 + tier * 1.1, 0); ring.rotation.x = Math.PI / 2; }
   // banners and torches
   const torches: { f: THREE.Sprite; l?: THREE.PointLight }[] = [];
   for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8, x = Math.sin(a) * 15.6, z = Math.cos(a) * 15.6;
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8, x = Math.sin(a) * 17.6, z = Math.cos(a) * 17.6;
     mesh(G('post', () => new THREE.CylinderGeometry(0.12, 0.16, 3.4, 8)), std('#3A2A20'), x, 0.5, z);
     const f = sprite(flameTex, 0.9, 1.3, true); f.position.set(x, 2.6, z); scene.add(f);
     const tl = i % 2 === 0 && !phone ? new THREE.PointLight('#FFA040', 6, 9, 1.8) : undefined; if (tl) { tl.position.set(x, 2.8, z); scene.add(tl); }
@@ -102,41 +99,34 @@ export function createBoard3D(o: BoardOpts) {
 
   // ---- the lanes: a land diorama each (rising out of the table when its land card is placed), a ring that glows
   // when it can be picked, an invisible box to tap or drop on, and a plinth behind it for totems and wonders ----------
-  type LaneObj = { side: Side; lane: number; holder: THREE.Group; land: Land | null; terrain?: Terrain | null; ring: THREE.Mesh; ringM: THREE.MeshBasicMaterial; pick: THREE.Mesh; totemSlot: THREE.Mesh; totem: THREE.Group & { userData: { id?: string | null; bob?: THREE.Sprite; model?: WonderModel | null; n?: number } }; hover: number };
+  type LaneObj = { side: Side; lane: number; terrain?: Terrain | null; ring: THREE.Mesh; ringM: THREE.MeshBasicMaterial; pick: THREE.Mesh; totemSlot: THREE.Mesh; totem: THREE.Group & { userData: { id?: string | null; bob?: THREE.Sprite; model?: WonderModel | null; n?: number } }; hover: number };
   const lanes: LaneObj[] = [];
   const boardGroup = new THREE.Group(); scene.add(boardGroup);
   const pickables: THREE.Object3D[] = [];
   const ringGeo = G('ring', () => new THREE.RingGeometry(1.34, 1.62, 48));
-  const pickGeo = G('lanePick', () => new THREE.BoxGeometry(LAND_W, 3, LAND_D));
+  const pickGeo = G('lanePick', () => new THREE.BoxGeometry(LANE_W, 3, LANE_D));
   const invisible = T(new THREE.MeshBasicMaterial({ visible: false }));
   for (const side of [0, 1] as Side[]) for (let lane = 0; lane < LANES; lane++) {
-    const holder = new THREE.Group(); holder.position.set(LX(lane), 0, rowZ(side)); boardGroup.add(holder);
     const ringM = T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0, depthWrite: false }));
     const ring = new THREE.Mesh(ringGeo, ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(LX(lane), BASE + 0.06, rowZ(side)); ring.renderOrder = 4; boardGroup.add(ring);
     const pick = new THREE.Mesh(pickGeo, invisible); pick.position.set(LX(lane), 1.3, rowZ(side)); pick.userData.pick = { side, lane }; boardGroup.add(pick); pickables.push(pick);
     const totemSlot = mesh(G('plinth', () => new THREE.CylinderGeometry(0.62, 0.78, 0.35, 18)), std('#5A4E6A'), LX(lane), 0.18, totemZ(side), boardGroup);
     totemSlot.userData.pick = { side, lane }; pickables.push(totemSlot);
     const totem = new THREE.Group() as LaneObj['totem']; totem.position.set(LX(lane), 0.36, totemZ(side)); boardGroup.add(totem);
-    lanes.push({ side, lane, holder, land: null, ring, ringM, pick, totemSlot, totem, hover: 0 });
+    lanes.push({ side, lane, ring, ringM, pick, totemSlot, totem, hover: 0 });
   }
   const laneOf = (side: Side, lane: number) => lanes.find((l) => l.side === side && l.lane === lane)!;
-  /** Put a land in a lane (null = the bare stone slab). With `grow`, it rises out of the table. */
+  /** Put a land in a lane (null = bare stone). With `grow`, its column of the board morphs into it and its things pop up. */
   const setTerrain = (L: LaneObj, t: Terrain | null, grow = false) => {
-    if (L.land && L.terrain === t) return;
-    const old = L.land;
-    if (old) {
-      if (grow) { const g = old.group; void tween(0.45, (k) => { g.position.y = -k * 0.8; g.scale.y = Math.max(0.01, 1 - k); }).then(() => { L.holder.remove(g); old.dispose(); }); }
-      else { L.holder.remove(old.group); old.dispose(); }
-    }
-    const land = buildLand(t, { phone }); L.land = land; L.terrain = t; L.holder.add(land.group);
+    if (L.terrain === t && L.terrain !== undefined) return;
+    L.terrain = t;
+    if (!world.setLane(L.side, L.lane, t, grow && !!t)) return;
     if (grow && t) {
-      land.grow(0);
       const col = TERRAIN_INFO[t].color;
-      void tween(1.3, (k) => land.grow(k));
-      for (let i = 0; i < (phone ? 18 : 40); i++) addP.emit({ x: LX(L.lane) + (Math.random() - 0.5) * LAND_W, y: 0.3, z: rowZ(L.side) + (Math.random() - 0.5) * LAND_D, vy: 2 + Math.random() * 3, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, color: Math.random() < 0.5 ? col : '#FFFFFF', size: 0.3, gravity: 6, life: 1 });
-      softP.emit({ x: LX(L.lane), y: 0.3, z: rowZ(L.side), vy: 0.6, color: '#8A7A64', size: 3, grow: 2, life: 1.2, alpha: 0.4 });
-      shake = Math.max(shake, 0.18);
-    } else land.grow(1);
+      for (let i = 0; i < (phone ? 18 : 44); i++) addP.emit({ x: LX(L.lane) + (Math.random() - 0.5) * LANE_W, y: 0.2, z: rowZ(L.side) + (Math.random() - 0.5) * LANE_D, vy: 2 + Math.random() * 3, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, color: Math.random() < 0.5 ? col : '#FFFFFF', size: 0.3, gravity: 6, life: 1 });
+      softP.emit({ x: LX(L.lane), y: 0.3, z: rowZ(L.side), vy: 0.6, color: '#8A7A64', size: 3.4, grow: 2, life: 1.2, alpha: 0.35 });
+      shake = Math.max(shake, 0.15);
+    }
   };
   // what the lands give off (smoke from vents, embers, snow, bubbles, sparks, fireflies)
   const emitLand: Emitter = (kind, x, y, z) => {
@@ -172,7 +162,7 @@ export function createBoard3D(o: BoardOpts) {
   });
 
   // ---- creatures --------------------------------------------------------------------------------------------------------
-  type UnitObj = { uid: number; id: string; side: Side; lane: number; g: THREE.Group; cr: Creature3D; hit: THREE.Mesh;
+  type UnitObj = { uid: number; id: string; side: Side; lane: number; g: THREE.Group; cr: Char; hit: THREE.Mesh; lungeIn: number;
     atk: THREE.Sprite; hp: THREE.Sprite; atkVal: number; hpVal: number; maxVal: number; icons: THREE.Sprite; iconKey: string; base: THREE.Mesh;
     state: 'idle' | 'walk' | 'happy'; flash: number; hurtOn: boolean; lunge: number; lungeTo: THREE.Vector3; dying: number; ice: THREE.Mesh; rise: number; seed: number };
   const units = new Map<number, UnitObj>();
@@ -193,17 +183,17 @@ export function createBoard3D(o: BoardOpts) {
     const c = CARD[u.id], g = new THREE.Group(); g.position.set(LX(lane), BASE, rowZ(side)); boardGroup.add(g);
     const color = c.terrain === 'neutral' ? '#B9B4D6' : TERRAIN_INFO[c.terrain].color;
     // a glowing ring in the creature's terrain colour, and a soft shadow under it
-    const base = mesh(G('ubase', () => new THREE.TorusGeometry(1.0, 0.06, 8, 40)), std(color, { emissive: color, emissiveIntensity: 1.2 }), 0, 0.05, 0, g); base.rotation.x = Math.PI / 2; base.castShadow = false;
-    const shadow = new THREE.Mesh(G('ushadow', () => new THREE.CircleGeometry(0.85, 24)), T(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.025; g.add(shadow);
+    const base = mesh(G('ubase', () => new THREE.TorusGeometry(0.78, 0.05, 8, 40)), std(color, { emissive: color, emissiveIntensity: 1.2 }), 0, 0.05, 0, g); base.rotation.x = Math.PI / 2; base.castShadow = false;
+    const shadow = new THREE.Mesh(G('ushadow', () => new THREE.CircleGeometry(0.68, 24)), T(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.025; g.add(shadow);
     // the creature itself, in 3D, facing the other side
-    const cr = buildCreature(c, genomeOf(c), { phone }); cr.root.scale.setScalar(1.45); cr.root.rotation.y = facing(side, lane); g.add(cr.root);
-    const top = Math.max(1.7, cr.height * 1.45);
-    const atk = sprite(badgeTex(0, 'atk', 0), 0.95); atk.position.set(-1.05, 0.5, 0.95); atk.renderOrder = 8; g.add(atk);
-    const hp = sprite(badgeTex(0, 'hp', 0), 1.0); hp.position.set(1.05, 0.5, 0.95); hp.renderOrder = 8; g.add(hp);
+    const cr = buildChar(c, { phone }); cr.root.scale.setScalar(CHAR_SCALE); cr.root.rotation.y = facing(side, lane); g.add(cr.root); cr.bind(charFx);
+    const top = Math.max(1.25, cr.height * CHAR_SCALE);
+    const atk = sprite(badgeTex(0, 'atk', 0), 0.8); atk.position.set(-0.85, 0.42, 0.8); atk.renderOrder = 8; g.add(atk);
+    const hp = sprite(badgeTex(0, 'hp', 0), 0.85); hp.position.set(0.85, 0.42, 0.8); hp.renderOrder = 8; g.add(hp);
     const icons = sprite(iconTex([]), 1.8, 0.45); icons.position.set(0, top + 0.45, 0); g.add(icons);
-    const ice = mesh(G('ice', () => new THREE.BoxGeometry(1.7, 1, 1.6)), std('#BFF4FF', { transparent: true, opacity: 0.45, roughness: 0.05, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), 0, (top + 0.3) / 2, 0, g); ice.scale.y = top + 0.3; ice.visible = false; ice.castShadow = false;
+    const ice = mesh(G('ice', () => new THREE.BoxGeometry(1.4, 1, 1.3)), std('#BFF4FF', { transparent: true, opacity: 0.45, roughness: 0.05, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), 0, (top + 0.3) / 2, 0, g); ice.scale.y = top + 0.3; ice.visible = false; ice.castShadow = false;
     const hit = new THREE.Mesh(G('uhit', () => new THREE.BoxGeometry(2.4, 1, 2.6)), invisible); hit.scale.y = top + 0.5; hit.position.set(LX(lane), BASE + (top + 0.5) / 2, rowZ(side)); hit.userData.pick = { side, lane }; boardGroup.add(hit); pickables.push(hit);
-    const ob: UnitObj = { uid: u.uid, id: u.id, side, lane, g, cr, hit, atk, hp, atkVal: -1, hpVal: -1, maxVal: -1, icons, iconKey: '', base, state: 'idle', flash: 0, hurtOn: false, lunge: 0, lungeTo: new THREE.Vector3(), dying: 0, ice, rise: 0, seed: Math.random() * 6 };
+    const ob: UnitObj = { uid: u.uid, id: u.id, side, lane, g, cr, hit, atk, hp, atkVal: -1, hpVal: -1, maxVal: -1, icons, iconKey: '', base, state: 'idle', flash: 0, hurtOn: false, lunge: 0, lungeTo: new THREE.Vector3(), lungeIn: 0, dying: 0, ice, rise: 0, seed: Math.random() * 6 };
     units.set(u.uid, ob);
     return ob;
   };
@@ -231,7 +221,7 @@ export function createBoard3D(o: BoardOpts) {
     const k = icons.join(''); if (k !== u.iconKey) { u.iconKey = k; u.icons.material.map = iconTex(icons); u.icons.material.needsUpdate = true; }
     u.ice.visible = !!d.frozen;
   };
-  const removeUnit = (u: UnitObj) => { boardGroup.remove(u.g); boardGroup.remove(u.hit); const i = pickables.indexOf(u.hit); if (i >= 0) pickables.splice(i, 1); u.cr.dispose(); for (const s of [u.atk, u.hp, u.icons]) s.material.dispose(); units.delete(u.uid); };
+  const removeUnit = (u: UnitObj) => { u.cr.bind(null); boardGroup.remove(u.g); boardGroup.remove(u.hit); const i = pickables.indexOf(u.hit); if (i >= 0) pickables.splice(i, 1); u.cr.dispose(); for (const s of [u.atk, u.hp, u.icons]) s.material.dispose(); units.delete(u.uid); };
 
   // ---- totems --------------------------------------------------------------------------------------------------------
   const labelTex = (s: string) => textTex(s, '#FFB13D', 76);
@@ -303,11 +293,85 @@ export function createBoard3D(o: BoardOpts) {
     shake: (n) => { shake = Math.max(shake, n); }, cheer: (n) => { cheer = Math.max(cheer, n); }, mood,
     unitGroups: (side, lane) => [...units.values()].filter((u) => u.side === side && !u.dying && (lane === undefined || u.lane === lane)).map((u) => u.g),
     totemGroup: (side, lane) => laneOf(side, lane).totem,
-    laneTiles: (side) => lanes.filter((l) => l.side === side).map((l) => l.holder),
+    laneTiles: (side) => (side === o.me ? [world.group] : []),
     bigText, glowTex,
   };
   const scenes = makeScenes(ctx);
   const modelAt = (side: Side, lane: number) => laneOf(side, lane).totem.userData.model ?? null;
+
+  // ---- the characters' own effects: their shots, beams, rings and sparkles ----------------------------------------------
+  const SHOT_EMOJI: Partial<Record<Parameters<CharFx['shot']>[2]['kind'], string>> = { note: '🎵', leaf: '🍃', petal: '🌸', candy: '🍬', heart: '💚', rock: '🪨' };
+  const FIRE = ['#FFF2A0', '#FFB020', '#FF6A10'];
+  const charFx: CharFx = {
+    add: (e) => addP.emit(e),
+    soft: (e) => softP.emit(e),
+    ring: (at, color, size = 2, dur = 0.6) => scenes.shockwave(at.x, Math.max(BASE + 0.06, at.y + 0.06), at.z, color, size, dur),
+    emoji: (at, e, size = 0.6) => pop(at, emojiTex(e), size, size, 1.1, new THREE.Vector3(0, 1.1, 0)),
+    shake: (k) => { shake = Math.max(shake, k); },
+    shot: (from, to, so) => new Promise<void>((res) => {
+      const dur = o.reduceMotion ? 0.12 : (so.dur ?? 0.5), arc = so.arc ?? 0.6, size = so.size ?? 0.25, a = from.clone(), b = to.clone(), P = new THREE.Vector3(), prev = a.clone();
+      const em = SHOT_EMOJI[so.kind]; const sp = em ? sprite(emojiTex(em), size * 1.7) : null; if (sp) { sp.renderOrder = 9; sp.position.copy(a); scene.add(sp); }
+      let t = 0;
+      jobs.push((dt) => {
+        t += dt; const k = Math.min(1, t / dur); prev.copy(P.lengthSq() ? P : a);
+        P.lerpVectors(a, b, k); P.y += Math.sin(k * Math.PI) * arc;
+        const R = (n: number) => (Math.random() - 0.5) * n;
+        switch (so.kind) {
+          case 'fire': addP.emit({ x: P.x, y: P.y, z: P.z, color: '#FFE27A', size: size * 1.3, life: 0.1 }); for (let i = 0; i < 3; i++) addP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), vy: 0.8, color: FIRE[i], size: size * (0.9 - i * 0.2), life: 0.35, drag: 1 }); if (Math.random() < 0.3) softP.emit({ x: P.x, y: P.y, z: P.z, vy: 0.6, color: '#3A3036', size: size * 1.5, grow: 0.6, life: 0.8, alpha: 0.35 }); break;
+          case 'ice': addP.emit({ x: P.x, y: P.y, z: P.z, color: '#FFFFFF', size: size, life: 0.1 }); for (let i = 0; i < 2; i++) addP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), vx: R(0.6), vy: R(0.6), vz: R(0.6), color: i ? '#BFF4FF' : '#6FD3FF', size: size * 0.6, life: 0.5, drag: 1 }); break;
+          case 'spore': softP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), color: so.color, size: size * 1.4, grow: 0.6, life: 0.6, alpha: 0.5 }); addP.emit({ x: P.x, y: P.y, z: P.z, color: '#D8FF8A', size: size * 0.4, life: 0.4 }); break;
+          case 'bolt': case 'spark': for (let i = 0; i < 4; i++) { const f = i / 4; addP.emit({ x: prev.x + (P.x - prev.x) * f + R(0.15), y: prev.y + (P.y - prev.y) * f + R(0.15), z: prev.z + (P.z - prev.z) * f + R(0.15), color: i % 2 ? '#FFFFFF' : so.color, size: size * 0.6, life: 0.18 }); } break;
+          case 'goo': addP.emit({ x: P.x, y: P.y, z: P.z, color: so.color, size: size * 1.2, life: 0.08 }); if (Math.random() < 0.6) softP.emit({ x: P.x, y: P.y, z: P.z, vy: -0.5, color: so.color, size: size * 0.5, gravity: 6, life: 0.5, alpha: 0.9 }); break;
+          case 'rock': softP.emit({ x: P.x, y: P.y, z: P.z, color: '#2A2028', size: size * 1.6, grow: 0.8, life: 0.7, alpha: 0.5 }); addP.emit({ x: P.x + R(size), y: P.y, z: P.z + R(size), color: FIRE[(Math.random() * 3) | 0], size: size * 0.6, life: 0.3 }); break;
+          default: addP.emit({ x: P.x + R(size * 0.5), y: P.y + R(size * 0.5), z: P.z + R(size * 0.5), vy: -0.2, color: so.color, size: size * 0.5, life: 0.5, drag: 1 });
+        }
+        if (sp) { sp.position.copy(P); sp.material.rotation = t * 6; }
+        if (k >= 1) {
+          if (sp) { scene.remove(sp); sp.material.dispose(); }
+          const n = phone ? 8 : 16;
+          for (let i = 0; i < n; i++) { const q = Math.random() * Math.PI * 2, u = Math.random(); addP.emit({ x: b.x, y: b.y, z: b.z, vx: Math.cos(q) * 2.4 * u, vy: 1 + Math.random() * 1.5, vz: Math.sin(q) * 2.4 * u, color: so.kind === 'fire' || so.kind === 'rock' ? FIRE[i % 3] : i % 3 ? so.color : '#FFFFFF', size: size * 0.7, gravity: 5, life: 0.55, drag: 0.5 }); }
+          if (so.kind === 'rock' || size >= 0.4) { scenes.shockwave(b.x, BASE + 0.06, b.z, so.color, 1.6, 0.45); shake = Math.max(shake, 0.12); }
+          res(); return false;
+        }
+      });
+    }),
+    beam: (from, to, color, dur = 0.4, width = 0.06) => {
+      const geo = G('beam', () => new THREE.CylinderGeometry(1, 1, 1, 8, 1, true));
+      const outer = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const inner = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const len = from.distanceTo(to), mid = from.clone().add(to).multiplyScalar(0.5), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+      for (const [m, w] of [[outer, width * 2.2], [inner, width * 0.8]] as const) { m.position.copy(mid); m.quaternion.copy(q); m.scale.set(w, len, w); m.renderOrder = 7; scene.add(m); }
+      for (let i = 0; i < (phone ? 6 : 14); i++) { const f = Math.random(); addP.emit({ x: from.x + (to.x - from.x) * f, y: from.y + (to.y - from.y) * f, z: from.z + (to.z - from.z) * f, vy: Math.random(), color, size: width * 3, life: 0.4 }); }
+      void tween(dur, (k) => { const f = (1 - k) * (0.7 + Math.random() * 0.3); outer.material.opacity = 0.8 * f; inner.material.opacity = f; outer.scale.x = outer.scale.z = width * 2.2 * (1 + k); }).then(() => { for (const m of [outer, inner]) { scene.remove(m); m.material.dispose(); } });
+    },
+  };
+  /** Where a character's ability is aimed: its target, or (for the sweeping ones) everything it hits. */
+  const aimOf = (e: { side: Side; lane: number; card: string; target?: { side: Side; lane: number } }): THREE.Vector3[] => {
+    const foe = otherSide(e.side), rowAt = (side: Side, lane: number) => posOf(side, lane, BASE + 0.6);
+    const occupied = (side: Side) => [0, 1, 2, 3].filter((l) => unitAt(side, l)).map((l) => rowAt(side, l));
+    const beside = [e.lane - 1, e.lane + 1].filter((l) => l >= 0 && l < LANES);
+    switch (e.card) {
+      case 'volcanotitan': case 'aurorawyrm': case 'rotqueen': case 'gridoverlord': { const t = occupied(foe); return t.length ? t : [posOf(foe, -1, 1)]; }
+      case 'oakheart': return occupied(e.side);
+      case 'blossomstag': return beside.map((l) => rowAt(e.side, l));
+      case 'mossback': case 'wanderingbard': return [posOf(e.side, -1, 1)];
+      case 'laserlynx': if (e.target) return [e.target.lane, e.target.lane - 1, e.target.lane + 1].filter((l) => l >= 0 && l < LANES && (l === e.target!.lane || unitAt(e.target!.side, l))).map((l) => rowAt(e.target!.side, l)); break;
+      case 'cinderpup': case 'blazefox': return [posOf(foe, -1, 1)];
+    }
+    if (e.target) return [e.target.lane < 0 ? posOf(e.target.side, -1, 1) : rowAt(e.target.side, e.target.lane)];
+    if (e.card === 'voltbug') { const t = occupied(foe); return t.length ? [t[(Math.random() * t.length) | 0]] : []; }
+    return [];
+  };
+  /** A creature doing its thing (its ability, or its flourish). If it's already gone (a last gasp as it dies), the
+   *  lane it stood in does it instead. Never waits longer than `max`. */
+  const doAbility = async (e: { side: Side; lane: number; card: string; target?: { side: Side; lane: number } }, max: number) => {
+    const aim = aimOf(e);
+    const u = [...units.values()].find((x) => x.side === e.side && x.lane === e.lane && x.id === e.card);
+    if (u && !u.dying) { await Promise.race([u.cr.act('ability', charFx, aim), wait(max)]); return; }
+    const from = posOf(e.side, e.lane, BASE + 0.5), c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color;
+    scenes.burst(from.x, from.y, from.z, [col, '#FFFFFF'], 24, 3);
+    await Promise.race([Promise.all(aim.map((g) => charFx.shot(from, g, { kind: c.terrain === 'ember' ? 'fire' : c.terrain === 'bog' ? 'spore' : c.terrain === 'frost' ? 'ice' : 'spark', color: col, dur: 0.5, size: 0.35, arc: 1.2 }))), wait(max)]);
+  };
   /** A totem knocked over: it tips, drops and fades, then it's gone. */
   const topple = (L: LaneObj, fast: boolean) => {
     if (!L.totem.children.length) return Promise.resolve();
@@ -373,7 +437,7 @@ export function createBoard3D(o: BoardOpts) {
     // board fills the screen top to bottom; the lobby slowly circles
     const half = Math.atan(Math.tan((camera.fov * Math.PI) / 360) * camera.aspect);
     const tall = camera.aspect < 0.8;
-    const dist = Math.max(tall ? 12 : 15, (tall ? 6.25 : 7.6) / Math.tan(half));
+    const dist = Math.max(tall ? 13 : 16, (tall ? 7.0 : 8.6) / Math.tan(half));
     view.yaw += (view.gy - view.yaw) * Math.min(1, dt * 8); view.pitch += (view.gp - view.pitch) * Math.min(1, dt * 8); view.zoom += (view.gz - view.zoom) * Math.min(1, dt * 8);
     const pitch = Math.max(0.28, Math.min(1.45, (tall ? 0.96 : 0.8) + view.pitch)), tz = (tall ? 2.3 : 1.3) * (1 - Math.abs(view.yaw) / 2);
     const ang = (showcase ? Math.sin(t * 0.12) * 0.5 : 0) + view.yaw, d = dist * view.zoom;
@@ -402,21 +466,22 @@ export function createBoard3D(o: BoardOpts) {
         if (Math.random() < 0.5) softP.emit({ x: u.g.position.x + (Math.random() - 0.5) * 1.2, y: BASE + 0.1, z: u.g.position.z + (Math.random() - 0.5) * 1.2, vy: 1.2, color: '#6A5440', size: 0.4, grow: 0.6, life: 0.7, alpha: 0.6 });
         if (u.rise === 0) { u.g.position.y = BASE; splash(u.g.position.clone().setY(BASE + 0.2), '#FFFFFF', 10, 2); }
       }
-      if (u.lunge > 0) { u.lunge = Math.max(0, u.lunge - dt * 2.8); const k = Math.sin((1 - u.lunge) * Math.PI); const home = new THREE.Vector3(LX(u.lane), BASE, rowZ(u.side)); u.g.position.lerpVectors(home, u.lungeTo, k * 0.8); }
+      if (u.lungeIn > 0) { u.lungeIn -= dt; if (u.lungeIn <= 0) u.lunge = 1; }
+      if (u.lunge > 0) { u.lunge = Math.max(0, u.lunge - dt * 2.8); const k = Math.sin((1 - u.lunge) * Math.PI); const home = new THREE.Vector3(LX(u.lane), BASE, rowZ(u.side)); u.g.position.lerpVectors(home, u.lungeTo, k * 0.72); }
       if (u.flash > 0) { u.flash -= dt; u.cr.hurt(Math.floor(u.flash * 18) % 2 ? 1 : 0.35); u.hurtOn = true; } else if (u.hurtOn) { u.cr.hurt(0); u.hurtOn = false; }
       // falling: it sinks back into the ground and fades
       if (u.dying > 0) { u.dying += dt; u.g.position.y = BASE - u.dying * u.dying * 2.2; u.cr.fade(Math.max(0, 1 - u.dying * 1.4)); u.cr.root.rotation.z = Math.min(1.2, u.dying * 2) * (u.side === o.me ? 1 : -1); if (u.dying > 0.8) removeUnit(u); }
     }
     // heroes
     heroes.forEach((h) => { h.crystal.rotation.y += dt * 0.8; h.crystal.position.y = 1.2 + Math.sin(t * 2) * 0.08; if (h.shake > 0) { h.shake -= dt; h.g.position.x = Math.sin(t * 60) * 0.12 * h.shake; } else h.g.position.x = 0; });
+    world.tick(dt, t, emitLand);
     // totems bob, lava and neon pulse, rings breathe
     for (const L of lanes) {
       const b = L.totem.userData.bob as THREE.Sprite | undefined; if (b) b.position.y = 0.75 + Math.sin(t * 2 + L.lane) * 0.08;
-      L.land?.tick(dt, t, emitLand);
       if (L.ringM.userData.on) L.ringM.opacity = 0.55 + Math.sin(t * 6) * 0.3;
       // the lane under a dragged card lifts a little and glows
       const hv = hovered === L ? 1 : 0; L.hover += (hv - L.hover) * Math.min(1, dt * 12);
-      L.holder.position.y = L.hover * 0.12; L.ring.scale.setScalar(1 + L.hover * 0.12);
+      L.ring.scale.setScalar(1 + L.hover * 0.15);
       if (L.hover > 0.02) L.ringM.opacity = Math.max(L.ringM.opacity, 0.4 + L.hover * 0.6);
     }
     for (const h of heroes) if (h.ringM.userData.on) h.ringM.opacity = 0.55 + Math.sin(t * 6) * 0.3;
@@ -454,7 +519,7 @@ export function createBoard3D(o: BoardOpts) {
         v.p[side].lanes.forEach((L, lane) => {
           // while the land cards are being placed: your own placements so far, and bare slabs for theirs
           const lo = laneOf(side, lane); setTerrain(lo, landing ? (side === o.me ? localLands[lane] : null) : L.terrain); setTotem(lo, L.totem?.id ?? null, L.totem?.n);
-          lo.holder.position.y = lo.hover * 0.12; lo.holder.rotation.z = 0; lo.totem.position.set(LX(lane), 0.36, totemZ(side)); lo.totem.scale.setScalar(1); lo.totem.rotation.set(0, 0, 0);
+          lo.totem.position.set(LX(lane), 0.36, totemZ(side)); lo.totem.scale.setScalar(1); lo.totem.rotation.set(0, 0, 0);
           if (!L.unit) return;
           let u = units.get(L.unit.uid);
           if (u) { u.side = side; u.lane = lane; if (!u.rise && !u.lunge) u.g.position.set(LX(lane), BASE, rowZ(side)); u.g.rotation.set(0, 0, 0); u.g.scale.setScalar(1); if (!u.rise && !u.dying) u.cr.root.rotation.y = facing(side, lane); }
@@ -484,7 +549,7 @@ export function createBoard3D(o: BoardOpts) {
         switch (e.e) {
           case 'play': {
             const L = after.p[e.side].lanes[e.lane].unit;
-            if (L && !units.has(L.uid) && L.uid === e.uid) { const u = makeUnit(L, e.side, e.lane); riseUp(u); if (current) updateBadges(u, after, e.side, e.lane); }
+            if (L && !units.has(L.uid) && L.uid === e.uid) { const u = makeUnit(L, e.side, e.lane); riseUp(u); if (current) updateBadges(u, after, e.side, e.lane); setTimeout(() => { if (!u.cr.busy() && !u.dying) void u.cr.act('play', charFx, []); }, 420); }
             await W(fast ? 300 : 700); break;
           }
           case 'totem': {
@@ -545,14 +610,24 @@ export function createBoard3D(o: BoardOpts) {
           }
           case 'sketch': { const at = new THREE.Vector3(0, 2.8, heroZ(e.side)); pop(at, textTex('✏️ +1 card', '#9FE6FF', 54), 2, 0.75, 1.1); splash(at, '#9FE6FF', 14, 2); await W(300); break; }
           case 'flourish': {
-            const u = unitAt(e.side, e.lane); if (u) { u.state = 'happy'; setTimeout(() => { u.state = 'idle'; }, 700); splash(posOf(e.side, e.lane, 2), '#FFE14D', 18, 2.2); pop(posOf(e.side, e.lane, 2.6), textTex('Flourish!', '#FFE14D', 52), 1.6, 0.6, 0.9); }
-            if (e.target) { const c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color; await throwAt(posOf(e.side, e.lane, 2), posOf(e.target.side, e.target.lane), '✨', col, 0.35); }
-            await W(300); break;
+            const u = unitAt(e.side, e.lane); if (u) { splash(posOf(e.side, e.lane, 1.6), '#FFE14D', 14, 2); pop(posOf(e.side, e.lane, 2.3), textTex('Flourish!', '#FFE14D', 52), 1.6, 0.6, 0.9); }
+            await doAbility({ side: e.side, lane: e.lane, card: e.card, target: e.target }, fast ? 700 : 1700);
+            await W(200); break;
+          }
+          case 'ability': {
+            await doAbility(e, fast ? 600 : 1500);
+            await W(120); break;
           }
           case 'attack': {
             const u = unitAt(e.side, e.lane); const to = e.to === 'hero' ? new THREE.Vector3(0, BASE, heroZ(e.side === 0 ? 1 : 0)) : new THREE.Vector3(LX(e.lane), BASE, rowZ(e.side === 0 ? 1 : 0));
-            if (u) { u.lungeTo.copy(to); u.lunge = 1; u.state = 'walk'; setTimeout(() => { u.state = 'idle'; }, 400); }
-            await W(230); break;
+            if (u) {
+              // the character winds up its own attack; it lunges across so the blow lands on time
+              const hitIn = Math.min(0.6, u.cr.hitIn('attack'));
+              const blow = u.cr.act('attack', charFx, [to.clone().setY(BASE + 0.6)]);
+              u.lungeTo.copy(to); u.lungeIn = Math.max(0.001, hitIn - 0.18); u.state = 'walk'; setTimeout(() => { u.state = 'idle'; }, 700);
+              await Promise.race([blow, W(650)]);
+            } else await W(230);
+            break;
           }
           case 'dmg': {
             const at = posOf(e.side, e.lane, e.lane < 0 ? 2.4 : 2.4);
@@ -648,7 +723,7 @@ export function createBoard3D(o: BoardOpts) {
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect(); scenes.clear();
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel);
-      for (const L of lanes) L.land?.dispose();
+      world.dispose();
       for (const u of [...units.values()]) removeUnit(u);
       scene.traverse((ob) => { if (ob instanceof THREE.Sprite) ob.material.dispose(); });
       for (const x of bag) x.dispose(); renderer.dispose();

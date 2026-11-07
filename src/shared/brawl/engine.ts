@@ -30,7 +30,9 @@ export type Ev =
   // the board-changing moments: a cataclysm's (or a wonder's) big scene, the strikes inside it, and what it leaves behind
   | { e: 'fx'; side: Side; fx: Fx; lane?: number } | { e: 'strike'; side: Side; lane: number; kind: 'bolt' | 'meteor' } | { e: 'swirl'; side: Side; from: number[] }
   | { e: 'crumble'; side: Side; lane: number; card: string } | { e: 'swap'; side: Side; lane: number; atk: number; hp: number } | { e: 'countdown'; side: Side; lane: number; n: number }
-  | { e: 'sketch'; side: Side } | { e: 'ready'; side: Side } | { e: 'land'; side: Side; lane: number; terrain: Terrain };
+  | { e: 'sketch'; side: Side } | { e: 'ready'; side: Side }
+  /** a creature's own ability going off (on play, on hit, when it falls, at the turn's start or end) — each animates its own way */
+  | { e: 'ability'; side: Side; lane: number; card: string; target?: { side: Side; lane: number } } | { e: 'land'; side: Side; lane: number; terrain: Terrain };
 export type State = {
   v: number; rng: number; round: number; turn: Side; first: Side; ev: EventId; over: boolean; winner: Side | -1 | null; reason: string;
   /** 'lands': both players are placing their land cards; 'play': the battle */
@@ -167,11 +169,11 @@ function deaths(s: State, out: Ev[]) {
     for (const d of dead) { s.p[d.side].lanes[d.lane].unit = null; s.p[d.side].grave.push(d.u.id); out.push({ e: 'die', side: d.side, lane: d.lane, card: d.u.id }); }
     for (const d of dead) {
       const o = other(d.side);
-      if (d.u.id === 'lavaling') damage(s, o, d.lane, 2, 'burn', out);
-      if (d.u.id === 'sporemite') poison(s, o, d.lane, 2, out);
+      if (d.u.id === 'lavaling') { out.push({ e: 'ability', side: d.side, lane: d.lane, card: d.u.id, target: { side: o, lane: d.lane } }); damage(s, o, d.lane, 2, 'burn', out); }
+      if (d.u.id === 'sporemite') { out.push({ e: 'ability', side: d.side, lane: d.lane, card: d.u.id, target: { side: o, lane: d.lane } }); poison(s, o, d.lane, 2, out); }
     }
     // swamp lurkers grow on every death
-    for (const side of [0, 1] as Side[]) s.p[side].lanes.forEach((L, lane) => { if (L.unit?.id === 'swamplurker' && L.unit.hp > 0) for (let i = 0; i < dead.length; i++) buff(s, side, lane, 1, 1, out); });
+    for (const side of [0, 1] as Side[]) s.p[side].lanes.forEach((L, lane) => { if (L.unit?.id === 'swamplurker' && L.unit.hp > 0) { out.push({ e: 'ability', side, lane, card: 'swamplurker' }); for (let i = 0; i < dead.length; i++) buff(s, side, lane, 1, 1, out); } });
   }
 }
 function finish(s: State, winner: Side | -1, reason: string, out: Ev[]) {
@@ -197,10 +199,12 @@ function startTurn(s: State, side: Side, out: Ev[]) {
   P.lanes.forEach((L, lane) => {
     const u = L.unit; if (!u) return;
     u.acted = false; u.temp = 0;
+    if (u.id === 'pebblegolem' && u.max < 6) { out.push({ e: 'ability', side, lane, card: u.id }); buff(s, side, lane, 0, 1, out); }
     if (L.totem?.id === 'bloomwell') heal(s, side, lane, 2, out);
     if (u.poison > 0) { damage(s, side, lane, 1, 'poison', out); u.poison--; }
   });
-  if (P.lanes.some((L) => L.unit?.id === 'oakheart')) P.lanes.forEach((_, lane) => heal(s, side, lane, 1, out));
+  const oak = P.lanes.findIndex((L) => L.unit?.id === 'oakheart');
+  if (oak >= 0) { out.push({ e: 'ability', side, lane: oak, card: 'oakheart' }); P.lanes.forEach((_, lane) => heal(s, side, lane, 1, out)); }
   deaths(s, out);
 }
 
@@ -242,26 +246,30 @@ function endTurn(s: State, side: Side, out: Ev[]) {
     if (u.frozen) { u.frozen = 0; out.push({ e: 'thaw', side, lane }); continue; }
     if (u.acted) continue;
     const atk = attackOf(s, side, lane); if (atk <= 0) continue;
-    const foe = s.p[o].lanes[lane].unit;
-    if (foe) {
-      out.push({ e: 'attack', side, lane, to: 'unit' });
-      const dealt = damage(s, o, lane, atk, 'hit', out);
-      if (dealt > 0 && s.p[o].lanes[lane].unit) {
-        if (u.id === 'icicleram') freeze(s, o, lane, out);
-        if (u.id === 'mudslug' || P.lanes[lane].totem?.id === 'mirecauldron') poison(s, o, lane, 1, out);
+    for (let strike = 0; strike < (u.id === 'mechamantis' ? 2 : 1) && !s.over && P.lanes[lane].unit === u; strike++) {
+      const foe = s.p[o].lanes[lane].unit;
+      if (foe) {
+        out.push({ e: 'attack', side, lane, to: 'unit' });
+        if (['icicleram', 'mudslug', 'laserlynx', 'mechamantis'].includes(u.id)) out.push({ e: 'ability', side, lane, card: u.id, target: { side: o, lane } });
+        const dealt = damage(s, o, lane, atk, 'hit', out);
+        if (dealt > 0 && s.p[o].lanes[lane].unit) {
+          if (u.id === 'icicleram') freeze(s, o, lane, out);
+          if (u.id === 'mudslug' || P.lanes[lane].totem?.id === 'mirecauldron') poison(s, o, lane, 1, out);
+        }
+        if (u.id === 'laserlynx') for (const l of [lane - 1, lane + 1]) if (l >= 0 && l < LANES) damage(s, o, l, 1, 'hit', out);
+      } else {
+        out.push({ e: 'attack', side, lane, to: 'hero' });
+        if (u.id === 'mechamantis') out.push({ e: 'ability', side, lane, card: u.id, target: { side: o, lane: -1 } });
+        hitHero(s, o, atk, 'hit', out);
       }
-      if (u.id === 'laserlynx') for (const l of [lane - 1, lane + 1]) if (l >= 0 && l < LANES) damage(s, o, l, 1, 'hit', out);
-    } else {
-      out.push({ e: 'attack', side, lane, to: 'hero' });
-      hitHero(s, o, atk, 'hit', out);
+      if (u.id === 'circuitcat') { out.push({ e: 'ability', side, lane, card: u.id, target: { side: o, lane: -1 } }); hitHero(s, o, 1, 'burn', out); }
+      deaths(s, out);
     }
-    if (u.id === 'circuitcat') hitHero(s, o, 1, 'burn', out);
-    deaths(s, out);
   }
   if (s.over) return;
   // end-of-turn effects
   P.lanes.forEach((L, lane) => {
-    if (L.unit?.id === 'rotqueen') for (let l = 0; l < LANES; l++) damage(s, o, l, 1, 'poison', out);
+    if (L.unit?.id === 'rotqueen') { out.push({ e: 'ability', side, lane, card: 'rotqueen' }); for (let l = 0; l < LANES; l++) damage(s, o, l, 1, 'poison', out); }
     if (L.totem?.id === 'teslacoil') damage(s, o, lane, 1, 'burn', out);
     if (L.totem?.id === 'stormspire') { const ls = unitLanes(s, o); if (ls.length) { const l = ls[rint(s, ls.length)]; out.push({ e: 'strike', side: o, lane: l, kind: 'bolt' }); damage(s, o, l, 2, 'burn', out); } }
   });
@@ -341,9 +349,17 @@ function summon(s: State, side: Side, lane: number, id: string, out: Ev[], hp?: 
   return u;
 }
 
+const ON_PLAY = new Set(['thornhare', 'blazefox', 'volcanotitan', 'aurorawyrm', 'glacierowl', 'sugarcolossus', 'gumdropimp', 'wanderingbard', 'taffytwister', 'oakheart', 'mimicchest', 'frostmaw', 'candiedknight']);
 function onPlay(s: State, side: Side, lane: number, id: string, out: Ev[]) {
   const o = other(side), P = s.p[side];
+  if (ON_PLAY.has(id)) {
+    const mate = [lane - 1, lane + 1].find((l) => l >= 0 && l < LANES && P.lanes[l].unit && !P.lanes[l].unit!.shield);
+    const target = id === 'blazefox' ? { side: o, lane: -1 } : ['thornhare', 'taffytwister', 'frostmaw'].includes(id) ? { side: o, lane } : id === 'candiedknight' && mate !== undefined ? { side, lane: mate } : undefined;
+    out.push({ e: 'ability', side, lane, card: id, ...(target ? { target } : {}) });
+  }
   switch (id) {
+    case 'frostmaw': freeze(s, o, lane, out); break;
+    case 'candiedknight': { const mate = [lane - 1, lane + 1].find((l) => l >= 0 && l < LANES && P.lanes[l].unit && !P.lanes[l].unit!.shield); if (mate !== undefined) { P.lanes[mate].unit!.shield = true; out.push({ e: 'buff', side, lane: mate, atk: 0, hp: 0 }); } break; }
     case 'thornhare': damage(s, o, lane, 1, 'spell', out); break;
     case 'blazefox': hitHero(s, o, 2, 'burn', out); break;
     case 'volcanotitan': for (let l = 0; l < LANES; l++) damage(s, o, l, 2, 'burn', out); break;

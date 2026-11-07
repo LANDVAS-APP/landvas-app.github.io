@@ -17,7 +17,7 @@ import { sfx } from '../arcade/sfx';
 import { CARD, type Terrain } from '../shared/brawl/cards';
 import type { View } from '../shared/brawl/engine';
 import { createBoard3D, type Board3D } from './board3d';
-import { portrait } from './creature3d';
+import { portrait } from './chars';
 import { genomeOf } from './cardArt';
 import { CollectionDialog, DecksDialog, PackOpening, RanksDialog } from './Collection';
 import { Match, boardPick } from './Match';
@@ -65,7 +65,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     if (!cv.current) return;
     const b = createBoard3D({ canvas: cv.current, me: side, reduceMotion: reduce, onPick: (p) => boardPick?.(p) });
     board.current = b;
-    if (location.search.includes('e2e=1') || import.meta.env.DEV) Object.assign(window, { __brawlBoard: b, __brawlPortrait: (id: string) => portrait(id, genomeOf)?.toDataURL() });
+    if (location.search.includes('e2e=1') || import.meta.env.DEV) Object.assign(window, { __brawlBoard: b, __brawlPortrait: (id: string, toon = true) => portrait(id, { toon })?.toDataURL() });
     return () => { b.dispose(); board.current = null; };
   }, [side]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
