@@ -17,6 +17,7 @@ import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, type Card, ty
 import { check, type Action, type Ev, type Pick, type Side, type State, type View } from '../shared/brawl/engine';
 import type { Board3D, BoardPick, Highlight } from './board3d';
 import { CardView } from './CardView';
+import { LabBar } from './Lab';
 import type { MatchView, Rewards } from './types';
 
 type Mode = { kind: 'idle' } | { kind: 'card'; uid: number } | { kind: 'flourish'; lane: number };
@@ -271,7 +272,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))]" data-testid="brawl-opp">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/60 px-3 py-1.5 backdrop-blur">
           <span className="grid h-8 w-8 place-items-center rounded-full text-lg" style={{ background: opp.accent_color ?? '#FF4FD8' }}>{opp.bot ? '🤖' : opp.rank?.emoji ?? '🎨'}</span>
-          <div className="min-w-0"><div className="truncate text-sm font-black">{opp.username}</div><div className="text-[10px] text-white/70">{opp.bot ? 'Practice bot' : `${opp.rank.name} · 🏆 ${opp.trophies}`}</div></div>
+          <div className="min-w-0"><div className="truncate text-sm font-black">{opp.username}</div><div className="text-[10px] text-white/70">{opp.bot ? (v.lab ? 'Card Lab' : 'Practice bot') : `${opp.rank.name} · 🏆 ${opp.trophies}`}</div></div>
           <div className="ml-2 grid justify-items-center"><span className="text-lg font-black text-[#FF8AC2]" data-testid="brawl-opp-hp">❤️ {O.hero}</span></div>
           <div className="ml-1 flex -space-x-3">{O.hand.slice(0, 8).map((h) => <CardView key={h.uid} back width={22} animate={false} tilt={false} />)}</div>
           <span className="text-[10px] text-white/60">🂠 {O.deck}</span>
@@ -297,6 +298,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
 
       {/* you */}
       <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 p-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]">
+        {v.lab && !landing && <LabBar disabled={!myTurn || busy} handFull={P.hand.length >= HAND_MAX_UI} onCard={(card) => void send({ t: 'lab', card })} onPaint={() => void send({ t: 'lab', paint: true })} />}
         <div className={cn('flex items-end justify-between gap-2', landing && 'hidden')}>
           <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
             <span className="text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
@@ -423,7 +425,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             <div className={cn('font-display text-4xl font-black', result.result === 'win' ? 'text-[#FFE14D]' : result.result === 'draw' ? 'text-white' : 'text-[#FF8AC2]')}>{result.result === 'win' ? 'Victory!' : result.result === 'draw' ? 'A draw' : 'Defeat'}</div>
             <div className="text-sm text-muted">{mv.reason === 'concede' ? (result.result === 'win' ? `${opp.username} conceded` : 'You conceded') : mv.reason === 'timeout' ? 'Out of time' : mv.reason === 'rounds' ? 'The round limit was reached' : `${mine.username} vs ${opp.username}`}</div>
             <div className="flex flex-wrap justify-center gap-2 text-sm font-black">
-              <span className="rounded-full bg-surface-2 px-3 py-1">💠 +{result.shards} shards</span>
+              {result.lab ? <span className="rounded-full bg-[#0E7490] px-3 py-1 text-white">🧪 Card Lab test — nothing won or lost</span> : <span className="rounded-full bg-surface-2 px-3 py-1">💠 +{result.shards} shards</span>}
               {result.trophies !== 0 && <span className={cn('rounded-full px-3 py-1', result.trophies > 0 ? 'bg-[#3DDC97]/20 text-[#3DDC97]' : 'bg-[#FF4D6D]/20 text-[#FF8AA0]')}>🏆 {result.trophies > 0 ? '+' : ''}{result.trophies} → {result.total}</span>}
               {result.ink > 0 && <span className="rounded-full bg-surface-2 px-3 py-1">💧 +{result.ink} Ink</span>}
             </div>

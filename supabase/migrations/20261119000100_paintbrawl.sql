@@ -361,6 +361,13 @@ declare m public.brawl_matches%rowtype; c jsonb := private.rbr_cfg(); rw jsonb :
 begin
   select * into m from public.brawl_matches where id = p_match for update;
   if m.rewards is not null then return m.rewards; end if;
+  -- a Card Lab match is only a test: no shards, trophies, XP, Ink or packs
+  if coalesce((m.state ->> 'lab')::boolean, false) then
+    out := jsonb_build_object('a', jsonb_build_object('result', case when m.winner = -1 then 'draw' when m.winner = 0 then 'win' else 'loss' end, 'shards', 0, 'trophies', 0, 'ink', 0, 'pack', false, 'level_up', null, 'lab', true,
+      'total', (select trophies from public.brawl_players where player_id = m.a)));
+    update public.brawl_matches set rewards = out where id = m.id;
+    return out;
+  end if;
   for side in 0 .. 1 loop
     v_uid := case when side = 0 then m.a else m.b end;
     if v_uid is null then continue; end if;

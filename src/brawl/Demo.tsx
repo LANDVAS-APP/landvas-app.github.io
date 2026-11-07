@@ -45,8 +45,22 @@ async function ensureArena(step: (s: string) => void): Promise<string> {
   await api.setGroupKind(groups[0].id, 'brawl');
   const g = (await api.myGroups()).find((x) => x.id === groups[0].id);
   if (!g?.realm_id) throw new Error('The arena didn’t open — try again.');
+  await giveShards(db, st.user_id);
   return g.realm_id;
 }
+
+/** Plenty of shards in the demo, so there are packs to open. */
+async function giveShards(db: { query(q: string, a: unknown[]): Promise<unknown> } | undefined, uid: string) {
+  await db?.query(`select private.rlm_player($1, 'brawl')`, [uid]).catch(() => {});
+  await db?.query(`update public.realm_players set wallet = jsonb_set(wallet, '{shards}', to_jsonb(greatest(coalesce((wallet ->> 'shards')::int, 0), 5000))) where player_id = $1 and kind = 'brawl'`, [uid]).catch(() => {});
+}
+
+type Pick = 'bot' | 'lab' | 'lobby';
+const CHOICES: [Pick, string, string][] = [
+  ['bot', '⚔️ Battle the CPU', 'A real match against a practice bot'],
+  ['lab', '🧪 Card Lab', 'Put any card in your hand and try it out'],
+  ['lobby', '🎁 Open packs', 'The arena: packs, your cards and decks'],
+];
 
 export default function BrawlDemo() {
   const nav = useNavigate();
@@ -54,11 +68,15 @@ export default function BrawlDemo() {
   const [step, setStep] = useState('Warming up the arena…');
   const [err, setErr] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
+  const [arena, setArena] = useState<string | null>(null);
+  const go = async (id: string, pick: Pick) => { await qc.resetQueries(); if (pick !== 'lobby') setDemoAutoPractice(pick); nav(realmRoute(id), { replace: true }); };
   useEffect(() => {
     if (config.backend !== 'local') { nav('/welcome', { replace: true }); return; }
     let stop = false;
+    // the browser tests go straight into a battle unless they ask for the menu
+    const auto = location.search.includes('e2e=1') && !location.search.includes('menu=1');
     void ensureArena((s) => { if (!stop) setStep(s); })
-      .then(async (id) => { if (stop) return; await qc.resetQueries(); if (stop) return; setDemoAutoPractice(); nav(realmRoute(id), { replace: true }); })
+      .then(async (id) => { if (stop) return; if (auto) await go(id, 'bot'); else setArena(id); })
       .catch((e) => { if (!stop) setErr(e instanceof Error ? e.message : String(e)); });
     return () => { stop = true; };
   }, [tries]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -72,6 +90,14 @@ export default function BrawlDemo() {
             <p className="max-w-xs text-sm text-white/70">Something went wrong getting the arena ready: {err}</p>
             <Button variant="primary" onClick={() => { setErr(null); setTries((t) => t + 1); }}>Try again</Button>
           </>
+        ) : arena ? (
+          <div className="grid w-72 gap-2" data-testid="brawl-demo-menu">
+            {CHOICES.map(([k, n, d]) => (
+              <button key={k} onClick={() => void go(arena, k)} className="rounded-2xl bg-white/10 px-4 py-3 text-left transition hover:bg-white/20" data-testid={`brawl-demo-${k}`}>
+                <div className="font-display text-lg font-black">{n}</div><div className="text-xs text-white/65">{d}</div>
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="flex items-center gap-2 text-sm text-white/70"><Spinner /> {step}</div>
         )}

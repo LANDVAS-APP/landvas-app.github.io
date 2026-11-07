@@ -284,3 +284,46 @@ describe('Paintbrawl bot decks', () => {
     }
   });
 });
+
+describe('Paintbrawl Card Lab', () => {
+  const labMatch = (seed: number) => {
+    const s = newMatch(seed, seat(0), seat(1), 'none' as never, { lab: true });
+    if (s.turn === 1) apply(s, 1, { t: 'end' });
+    return s;
+  };
+  it('lets you put any card in your hand and top up your paint — only in the lab, only for you', () => {
+    const s = labMatch(5);
+    expect(s.p[0].paint).toBeGreaterThanOrEqual(10);
+    expect(viewFor(s, 0).lab).toBe(true);
+    const n = s.p[0].hand.length;
+    apply(s, 0, { t: 'lab', card: 'volcanotitan' });
+    expect(s.p[0].hand.length).toBe(n + 1); expect(s.p[0].hand.at(-1)!.id).toBe('volcanotitan');
+    s.p[0].paint = 0; apply(s, 0, { t: 'lab', paint: true }); expect(s.p[0].paint).toBe(10);
+    expect(check(s, 0, { t: 'lab', card: 'nope' })).toBe('no_card');
+    expect(check(s, 1, { t: 'lab', card: 'eruption' })).toBeTruthy();
+    const real = newMatch(5, seat(0), seat(1));
+    expect(check(real, real.turn, { t: 'lab', card: 'eruption' })).toBe('not_lab');
+  });
+  it('every card in the game can be played there', () => {
+    const picks = [undefined, ...[0, 1].flatMap((side) => [-1, 0, 1, 2, 3].map((lane) => ({ side: side as 0 | 1, lane })))];
+    for (const [i, c] of CARDS.entries()) {
+      const s = labMatch(100 + i);
+      // something on both sides to aim at, and a fallen creature for the revive spells
+      for (const [side, lane, id] of [[0, 1, 'mossback'], [1, 0, 'frostmaw'], [1, 1, 'thornhare'], [1, 2, 'sporemite']] as const) {
+        s.p[side].lanes[lane].unit = { uid: s.uid++, id, atk: CARD[id].atk!, hp: CARD[id].hp!, max: CARD[id].hp!, shield: false, frozen: 0, poison: 0, temp: 0, acted: false } as never;
+      }
+      s.p[0].grave.push('cinderpup');
+      apply(s, 0, { t: 'lab', card: c.id, paint: true });
+      const uid = s.p[0].hand.at(-1)!.uid;
+      const lanes = c.kind === 'spell' ? [undefined] : [3, 2, 0, 1];
+      let ok = false;
+      for (const lane of lanes) for (const target of picks) {
+        if (ok) break;
+        const a = { t: 'play' as const, uid, lane, target };
+        if (check(s, 0, a)) continue;
+        expect(() => apply(s, 0, a), c.id).not.toThrow(); ok = true;
+      }
+      expect(ok, `${c.id} could be played`).toBe(true);
+    }
+  });
+});

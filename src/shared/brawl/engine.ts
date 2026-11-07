@@ -37,14 +37,20 @@ export type State = {
   v: number; rng: number; round: number; turn: Side; first: Side; ev: EventId; over: boolean; winner: Side | -1 | null; reason: string;
   /** 'lands': both players are placing their land cards; 'play': the battle */
   phase?: 'lands' | 'play';
+  /** the Card Lab: a test match where you can put any card in your hand and your paint tops up (no rewards) */
+  lab?: boolean;
   uid: number; p: [PlayerState, PlayerState]; log: { n: number; side: Side | -1; ev: Ev[] }[];
 };
 export type Pick = { side: Side; lane: number };
-export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'lands'; lanes: Terrain[] } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' };
+export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'lands'; lanes: Terrain[] } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' }
+  /** Card Lab only: put any card in your hand, and/or top your paint up */
+  | { t: 'lab'; card?: string; paint?: boolean };
 
 export const MAX_PAINT = 7;
 export const HAND_MAX = 10;
 export const ROUND_LIMIT = 30;
+/** the paint you get every turn in the Card Lab */
+export const LAB_PAINT = 10;
 const other = (s: Side): Side => (s === 0 ? 1 : 0);
 
 // ---- randomness inside the state ------------------------------------------------------------------------------------
@@ -60,7 +66,7 @@ function shuffle<T>(s: State, a: T[]) { for (let i = a.length - 1; i > 0; i--) {
 
 // ---- setting up -------------------------------------------------------------------------------------------------------
 export type Seat = { name: string; deck: string[]; terrains: string[] };
-export function newMatch(seed: number, a: Seat, b: Seat, ev?: EventId, opts: { lands?: boolean } = {}): State {
+export function newMatch(seed: number, a: Seat, b: Seat, ev?: EventId, opts: { lands?: boolean; lab?: boolean } = {}): State {
   const s = { v: 0, rng: seed >>> 0 || 1, round: 0, turn: 0, first: 0, ev: 'none', over: false, winner: null, reason: '', uid: 1, p: [] as unknown as State['p'], log: [] } as State;
   s.ev = ev ?? EVENTS[rint(s, EVENTS.length)].id;
   const heroHp = s.ev === 'heroes' ? 32 : HERO_HP;
@@ -68,6 +74,7 @@ export function newMatch(seed: number, a: Seat, b: Seat, ev?: EventId, opts: { l
     lanes: x.terrains.slice(0, LANES).map((t) => ({ terrain: t as Terrain, unit: null, totem: null })),
     landCards: x.terrains.slice(0, LANES) as Terrain[], ready: !opts.lands, pending: null })) as unknown as State['p'];
   s.phase = opts.lands ? 'lands' : 'play';
+  if (opts.lab) s.lab = true;
   s.first = rint(s, 2) as Side;
   const out: Ev[] = [{ e: 'event', id: s.ev, text: EVENTS.find((x) => x.id === s.ev)!.text }];
   // opening hands: 4 for whoever goes first, 5 for the other
@@ -191,6 +198,7 @@ function startTurn(s: State, side: Side, out: Ev[]) {
   const P = s.p[side];
   let paint = Math.min(MAX_PAINT, 1 + s.round) + (s.ev === 'rain' ? 1 : 0);
   P.lanes.forEach((L) => { if (L.totem?.id === 'sprinklefountain') paint += 1; });
+  if (s.lab && side === 0) paint = Math.max(paint, LAB_PAINT);
   P.paint = paint; out.push({ e: 'paint', side, n: paint });
   if (!(s.round === 1 && side === s.first)) for (let i = 0; i < (s.ev === 'bounty' ? 2 : 1); i++) draw(s, side, out);
   if (s.over) return;
@@ -312,6 +320,11 @@ export function check(s: State, side: Side, a: Action): string | null {
   if (s.turn !== side) return 'not_your_turn';
   const P = s.p[side];
   if (a.t === 'end' || a.t === 'timeout') return null;
+  if (a.t === 'lab') {
+    if (!s.lab || side !== 0) return 'not_lab';
+    if (a.card !== undefined) { if (typeof a.card !== 'string' || !CARDS.some((c) => c.id === a.card)) return 'no_card'; if (P.hand.length >= HAND_MAX) return 'hand_full'; }
+    return a.card === undefined && !a.paint ? 'bad_action' : null;
+  }
   if (a.t === 'sketch') { if (P.paint < 1) return 'no_paint'; if (!P.deck.length) return 'no_deck'; if (P.hand.length >= HAND_MAX) return 'hand_full'; return null; }
   if (a.t === 'play') {
     const h = P.hand.find((x) => x.uid === a.uid); if (!h) return 'no_card';
@@ -517,7 +530,10 @@ export function apply(s: State, side: Side, a: Action): Ev[] {
     else if (c.kind === 'totem') { crumble(s, side, a.lane!, out); const L = P.lanes[a.lane!]; L.totem = { uid: s.uid++, id: c.id, ...(c.id === 'smolderpeak' ? { n: 3 } : {}) }; out.push({ e: 'totem', side, card: c.id, lane: a.lane! }); }
     else castSpell(s, side, c.id, a.target, out);
   } else if (a.t === 'flourish') doFlourish(s, side, a.lane, a.target, out);
-  else if (a.t === 'sketch') { P.paint -= 1; out.push({ e: 'sketch', side }); draw(s, side, out); }
+  else if (a.t === 'lab') {
+    if (a.card) { const uid = s.uid++; P.hand.push({ uid, id: a.card }); out.push({ e: 'draw', side, uid, card: a.card }); }
+    if (a.paint) { P.paint = Math.max(P.paint, LAB_PAINT); out.push({ e: 'paint', side, n: P.paint }); }
+  } else if (a.t === 'sketch') { P.paint -= 1; out.push({ e: 'sketch', side }); draw(s, side, out); }
   s.v++;
   s.log.push({ n: s.v, side, ev: out });
   if (s.log.length > 8) s.log.splice(0, s.log.length - 8);
@@ -531,7 +547,7 @@ export function viewFor(s: State, me: Side): View {
   const hideEv = (e: Ev): Ev => ((e.e === 'draw' || e.e === 'copy') && e.side !== me && !(e.e === 'draw' && e.burned) ? { ...e, card: undefined } : e);
   return {
     v: s.v, round: s.round, turn: s.turn, first: s.first, ev: s.ev, over: s.over, winner: s.winner, reason: s.reason, uid: s.uid, me,
-    phase: s.phase ?? 'play',
+    phase: s.phase ?? 'play', ...(s.lab ? { lab: true } : {}),
     p: s.p.map((P, i) => ({ ...P, pending: i === me ? P.pending ?? null : null, deck: P.deck.length, hand: i === me ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })) as View['p'],
     log: s.log.map((l) => ({ ...l, ev: l.ev.map(hideEv) })),
   };

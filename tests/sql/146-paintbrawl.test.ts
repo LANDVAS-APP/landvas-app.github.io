@@ -124,6 +124,28 @@ describe('Paintbrawl', () => {
     await expectError(op(p1, { op: 'act', match: r.match, action: { t: 'end' } }), 'brawl_over');
   });
 
+  it('the Card Lab: any card on demand, paint topped up, and nothing won or lost', async () => {
+    const r = await op(p1, { op: 'lab' });
+    const v = await db.rpc(p1, 'brawl_view', { p_match: r.match });
+    expect((v.view as View).lab).toBe(true);
+    expect(v.players[1].username).toMatch(/Card Lab/);
+    await placeLands(p1, r.match);
+    let s = await raw(r.match);
+    if (s.turn !== 0) { await playTurn(p1, r.match); s = await raw(r.match); }
+    expect(s.p[0].paint).toBeGreaterThanOrEqual(10);
+    await op(p1, { op: 'act', match: r.match, action: { t: 'lab', card: 'eruption' } });
+    expect((await raw(r.match)).p[0].hand.some((h: { id: string }) => h.id === 'eruption')).toBe(true);
+    const s0 = await shards(p1);
+    const fin = await op(p1, { op: 'concede', match: r.match });
+    expect(fin.rewards).toMatchObject({ result: 'loss', shards: 0, trophies: 0, pack: false, lab: true });
+    expect(await shards(p1)).toBe(s0);
+    // and an ordinary practice match won't take lab actions
+    const b = await op(p1, { op: 'bot' });
+    await placeLands(p1, b.match);
+    await expectError(op(p1, { op: 'act', match: b.match, action: { t: 'lab', card: 'eruption' } }), 'brawl_not_lab');
+    await op(p1, { op: 'concede', match: b.match });
+  });
+
   it('two players are matched and play live: turns, a timeout, then a concession; trophies move', async () => {
     expect((await op(p1, { op: 'queue' })).waiting).toBe(true);
     const m = await op(p2, { op: 'queue' });

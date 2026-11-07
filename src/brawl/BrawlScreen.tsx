@@ -19,13 +19,15 @@ import type { View } from '../shared/brawl/engine';
 import { createBoard3D, type Board3D } from './board3d';
 import { portrait } from './chars';
 import { genomeOf } from './cardArt';
-import { CollectionDialog, DecksDialog, PackOpening, RanksDialog } from './Collection';
+import { CollectionDialog, DecksDialog, RanksDialog } from './Collection';
+import { PackOpening } from './PackOpening';
 import { Match, boardPick } from './Match';
 import type { BrawlMe, PackCard } from './types';
 
 // the offline preview's instant demo asks for a practice match the moment the arena opens
-let demoAuto = false;
-export const setDemoAutoPractice = () => { demoAuto = true; };
+let demoAuto: 'bot' | 'lab' | null = null;
+/** The instant demo: jump straight into a practice match or the Card Lab when the arena opens. */
+export const setDemoAutoPractice = (mode: 'bot' | 'lab' = 'bot') => { demoAuto = mode; };
 
 export default function BrawlScreen({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['brawl', id], queryFn: () => api.brawlGet(id), staleTime: 15_000, refetchOnWindowFocus: false });
@@ -101,9 +103,9 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     return () => { stop = true; clearInterval(t); };
   }, [searching === null]); // eslint-disable-line react-hooks/exhaustive-deps
   const cancelSearch = async () => { setSearching(null); try { setMe(await api.brawlQueueLeave()); } catch { /* fine */ } };
-  const practice = async () => {
-    setBusy('bot'); if (searching !== null) await cancelSearch();
-    try { const r = await api.brawlOp({ op: 'bot' }); sfx.win(2); setMatch(r.match); }
+  const practice = async (op: 'bot' | 'lab' = 'bot') => {
+    setBusy(op); if (searching !== null) await cancelSearch();
+    try { const r = await api.brawlOp({ op }); sfx.win(2); setMatch(r.match); }
     catch (e) { toast.error(errText(toGameError(e).code) ?? toGameError(e).message); } finally { setBusy(null); }
   };
   const openPack = async (free: boolean) => {
@@ -112,7 +114,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     catch (e) { toast.error(toGameError(e).code === 'not_enough' ? `A pack costs 💠 ${me.cfg.pack_cost} shards` : toGameError(e).message); } finally { setBusy(null); }
   };
 
-  useEffect(() => { if (demoAuto && !match) { demoAuto = false; void practice(); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (demoAuto && !match) { const m = demoAuto; demoAuto = null; void practice(m); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deck = me.decks[me.deck_slot];
   const nextRank = me.cfg.ranks.find((r) => r[1] > me.trophies);
@@ -143,9 +145,10 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
             <div className="mx-auto w-full max-w-md rounded-2xl bg-black/55 px-3 py-2 text-center text-xs backdrop-blur" data-testid="brawl-deck-chip">
               Deck: <b>{deck?.name ?? '—'}</b> {deck && <span className="ml-1">{deck.terrains.map((t) => ({ meadow: '🌿', ember: '🔥', frost: '❄️', bog: '🍄', sugar: '🍭', neon: '⚡' } as Record<string, string>)[t]).join('')}</span>}
             </div>
-            <div className="mx-auto grid w-full max-w-md grid-cols-[1fr_auto] gap-2">
+            <div className="mx-auto grid w-full max-w-md grid-cols-[1fr_auto_auto] gap-2">
               <button onClick={() => { sfx.swish(); setSearching(0); }} disabled={searching !== null || !!busy} className="rounded-2xl bg-gradient-to-r from-[#FF4FD8] to-[#7B5CFF] py-3.5 font-display text-xl font-black shadow-[0_6px_0_#5A2A8A] active:translate-y-1 active:shadow-[0_2px_0_#5A2A8A] disabled:opacity-60" data-testid="brawl-battle">⚔️ Battle</button>
               <button onClick={() => void practice()} disabled={!!busy} className="rounded-2xl bg-black/65 px-4 font-display text-sm font-black backdrop-blur" data-testid="brawl-practice">{busy === 'bot' ? <Loader2 className="h-5 w-5 animate-spin" /> : '🤖 Practice'}</button>
+              <button onClick={() => void practice('lab')} disabled={!!busy} title="Test any card against a gentle bot (nothing won or lost)" className="rounded-2xl bg-[#22E3FF]/25 px-3 font-display text-sm font-black text-[#BFF8FF] backdrop-blur" data-testid="brawl-lab-start">{busy === 'lab' ? <Loader2 className="h-5 w-5 animate-spin" /> : '🧪 Lab'}</button>
             </div>
             <div className="mx-auto grid w-full max-w-md grid-cols-4 gap-1.5">
               {([['cards', '🃏', 'Cards'], ['decks', '📚', 'Decks'], ['pack', '🎁', me.free_pack_ready ? 'Free pack!' : `Pack 💠${me.cfg.pack_cost}`], ['ranks', '🏆', 'Ranks']] as const).map(([k, e, n]) => (

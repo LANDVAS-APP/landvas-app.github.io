@@ -1,5 +1,5 @@
 // The arena's menus: your card collection (craft and dust), the deck builder (three decks, four lane terrains each),
-// opening packs (cards flip over one by one, rarer ones burst into light), and the rankings.
+// and the rankings. (Opening packs lives in PackOpening.tsx.)
 import { useQuery } from '@tanstack/react-query';
 import { Check, Minus, Plus, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -151,43 +151,6 @@ export function DecksDialog({ open, onOpenChange, me, onMe }: { open: boolean; o
         </div>
       )}
     </Dialog>
-  );
-}
-
-/** Opening a pack: five face-down cards; tap each to flip it (rarer ones flare). */
-export function PackOpening({ cards, onDone }: { cards: PackCard[]; onDone(): void }) {
-  const [flipped, setFlipped] = useState<boolean[]>(cards.map(() => false));
-  const flip = (i: number) => {
-    if (flipped[i]) return;
-    const c = cards[i]; setFlipped((f) => f.map((x, k) => (k === i ? true : x)));
-    if (c.rarity === 'legendary' || c.foil) { sfx.jackpot(); confettiCannons(); } else if (c.rarity === 'epic') sfx.win(4); else if (c.rarity === 'rare') sfx.perfect(4); else sfx.tick();
-  };
-  const all = flipped.every(Boolean);
-  return (
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/85 p-3 backdrop-blur" data-testid="brawl-pack-open">
-      <div className="grid w-full max-w-3xl justify-items-center gap-4">
-        <div className="font-display text-2xl font-black text-white">{all ? 'Nice pull!' : 'Tap the cards to flip them'}</div>
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-          {cards.map((c, i) => (
-            <button key={i} onClick={() => flip(i)} className="relative [perspective:900px]" style={{ width: 116, height: 162 }} data-testid={`brawl-pack-card-${i}`}>
-              <div className="absolute inset-0 transition-transform duration-500 [transform-style:preserve-3d]" style={{ transform: flipped[i] ? 'rotateY(180deg)' : 'none' }}>
-                <div className="absolute inset-0 [backface-visibility:hidden]"><CardView back width={116} tilt={false} /></div>
-                <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                  {flipped[i] && <CardView id={c.id} width={116} foil={c.foil} glow={RARITY_INFO[c.rarity].color} />}
-                </div>
-              </div>
-              {!flipped[i] && c.rarity !== 'common' && <div className="pointer-events-none absolute inset-0 animate-pulse rounded-[7%]" style={{ boxShadow: `0 0 26px 4px ${RARITY_INFO[c.rarity].color}` }} />}
-              {flipped[i] && c.new && <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-[#FFE14D] px-2 text-[10px] font-black text-black">NEW!</span>}
-              {flipped[i] && c.foil && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-[#FF4FD8] to-[#22E3FF] px-2 text-[10px] font-black text-white">GOLD FOIL</span>}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          {!all && <Button variant="secondary" onClick={() => cards.forEach((_, i) => flip(i))} data-testid="brawl-pack-all">Flip all</Button>}
-          <Button variant="primary" onClick={onDone} disabled={!all} data-testid="brawl-pack-done">Collect</Button>
-        </div>
-      </div>
-    </div>
   );
 }
 

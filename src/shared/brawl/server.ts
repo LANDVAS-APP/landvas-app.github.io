@@ -6,7 +6,7 @@ import { apply, newMatch, viewFor, type Action, type State } from './engine';
 import { botTurn } from './ai';
 
 export type Svc = <T = any>(fn: string, args: Record<string, unknown>) => Promise<T>; // eslint-disable-line @typescript-eslint/no-explicit-any
-export type BrawlBody = { op: 'queue' | 'bot' | 'act' | 'tick' | 'concede'; match?: string; action?: Action };
+export type BrawlBody = { op: 'queue' | 'bot' | 'lab' | 'act' | 'tick' | 'concede'; match?: string; action?: Action };
 export class BrawlError extends Error {}
 const TURN_SECONDS = 75;
 
@@ -34,6 +34,7 @@ function validAction(a: unknown): a is Action {
   if (x.t === 'end' || x.t === 'concede' || x.t === 'sketch') return true;
   if (x.t === 'play') return Number.isInteger(x.uid) && (x.lane === undefined || Number.isInteger(x.lane)) && pick(x.target);
   if (x.t === 'flourish') return Number.isInteger(x.lane) && pick(x.target);
+  if (x.t === 'lab') return (x.card === undefined || typeof x.card === 'string') && (x.paint === undefined || typeof x.paint === 'boolean');
   if (x.t === 'lands') return Array.isArray(x.lanes) && x.lanes.length === 4 && x.lanes.every((t) => typeof t === 'string');
   return false;
 }
@@ -49,9 +50,17 @@ export async function brawlOp(svc: Svc, uid: string, body: BrawlBody) {
       const id = await svc<string>('svc_brawl_create', { p_a: r.a.id, p_b: r.b.id, p_bot: false, p_bot_name: null, p_bot_skill: null, p_state: s, ...views(s), p_deadline: deadline() });
       return { match: id };
     }
-    case 'bot': {
+    case 'bot': case 'lab': {
       const r = await svc<any>('svc_brawl_bot', { p_uid: uid });
       if (r.match) return { match: r.match };
+      if (body.op === 'lab') {
+        // the Card Lab: a gentle bot to test your cards on; any card on demand, paint topped up, no rewards
+        const deck = BOT_DECKS[Math.floor(Math.random() * BOT_DECKS.length)], name = 'Test Dummy (Card Lab)';
+        const s = newMatch(seed(), { name: r.a.name, deck: r.a.deck, terrains: r.a.terrains }, { name, deck: deck.cards, terrains: deck.terrains }, undefined, { lands: true, lab: true });
+        botTurn(s, 1, 0.5);
+        const id = await svc<string>('svc_brawl_create', { p_a: uid, p_b: null, p_bot: true, p_bot_name: name, p_bot_skill: 0.5, p_state: s, ...views(s), p_deadline: null });
+        return { match: id };
+      }
       // the bot gets sharper as you climb (and as you beat it)
       const skill = Math.max(0.5, Math.min(0.97, 0.55 + Number(r.trophies ?? 0) / 2500 + Number(r.bot_wins ?? 0) * 0.008));
       const deck = BOT_DECKS[Math.floor(Math.random() * BOT_DECKS.length)];

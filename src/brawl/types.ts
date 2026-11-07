@@ -17,7 +17,7 @@ export type BrawlMe = {
 };
 export type PackCard = { id: string; rarity: Rarity; foil: boolean; new: boolean };
 export type Profile = { id: string | null; username: string; display_name?: string | null; accent_color?: string | null; avatar_seed?: string; avatar_style?: string; avatar_path?: string | null; trophies: number; rank: Rank; bot?: boolean };
-export type Rewards = { result: 'win' | 'loss' | 'draw'; shards: number; trophies: number; ink: number; pack: boolean; level_up: number | null; total: number };
+export type Rewards = { result: 'win' | 'loss' | 'draw'; shards: number; trophies: number; ink: number; pack: boolean; level_up: number | null; total: number; lab?: boolean };
 export type MatchView = {
   id: string; side: 0 | 1; view: View; v: number; status: 'live' | 'over'; winner: number | null; reason: string | null; deadline: string | null; server_time: string;
   bot: boolean; rewards: Rewards | null; players: [Profile, Profile];
