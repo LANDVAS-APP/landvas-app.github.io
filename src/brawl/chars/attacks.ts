@@ -57,5 +57,8 @@ export const ATTACKS: Record<string, Move & { ranged?: boolean }> = {
   // ⚪ Neutral
   pebblegolem: ranged(async (c) => { const p = hitAt(c); await c.fx.shot(from(c, 0.8), p, { kind: 'pebble', color: '#A8A0AE', dur: 0.5, arc: 1.2, size: 0.22 }); sparks(c.fx, p, ['#A8A0AE', '#6E6878'], 14, 2, {}, true); }),
   wanderingbard: ranged(async (c) => { await stream(c, from(c, 0.8), hitAt(c), 3, 120, { kind: 'note', color: '#FFE14D', dur: 0.55, arc: 0.8, size: 0.26 }, 0.4); }, 0.9),
+  hypnotoad: melee((c, p) => { sparks(c.fx, p, ['#C89BFF', '#FF4FD8', '#FF5A8A'], 22, 3); c.fx.ring(p, '#C89BFF', 1.3); }, 0.75),
+  pickpocket: melee((c, p) => { sparks(c.fx, p, ['#FFD24A', '#FFFFFF', '#8A8A9A'], 20, 3, { gravity: 6 }); c.fx.emoji(p, '💰', 0.4); }),
+  doppelgoo: ranged(async (c) => { const p = hitAt(c); await c.fx.shot(from(c, 0.4), p, { kind: 'goo', color: '#FF9AE0', dur: 0.4, arc: 0.9, size: 0.28 }); water(c, p, ['#FF9AE0', '#C86AFF', '#FFFFFF'], 18); }),
   mimicchest: melee((c, p) => { sparks(c.fx, p, ['#FFC83A', '#FFF0A0', '#FFFFFF'], 26, 3.2, { gravity: 7 }); c.fx.emoji(p, '🪙', 0.45); }),
 };

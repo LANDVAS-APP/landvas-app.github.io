@@ -291,7 +291,10 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
           <span className="grid h-8 w-8 place-items-center rounded-full text-lg" style={{ background: opp.accent_color ?? '#FF4FD8' }}>{opp.bot ? '🤖' : opp.rank?.emoji ?? '🎨'}</span>
           <div className="min-w-0"><div className="truncate text-sm font-black">{opp.username}</div><div className="text-[10px] text-white/70">{opp.bot ? (v.lab ? 'Card Lab' : 'Practice bot') : `${opp.rank.name} · 🏆 ${opp.trophies}`}</div></div>
           <div className="ml-2 grid justify-items-center"><span className="text-lg font-black text-[#FF8AC2]" data-testid="brawl-opp-hp">❤️ {O.hero}</span></div>
-          <div className="ml-1 flex -space-x-3">{O.hand.slice(0, 8).map((h) => <CardView key={h.uid} back width={22} animate={false} tilt={false} />)}</div>
+          <div className="ml-1 flex -space-x-3" data-testid="brawl-opp-hand">{O.hand.slice(0, 8).map((h) => (h.id
+            ? <button key={h.uid} className="pointer-events-auto" onClick={() => setHold((x) => (x === h.id ? null : h.id!))}><CardView id={h.id} width={30} animate={false} tilt={false} glow="#C89BFF" /></button>
+            : <CardView key={h.uid} back width={22} animate={false} tilt={false} />))}</div>
+          {P.peek && <span className="text-[10px] font-black text-[#C89BFF]">👁️ peeking</span>}
           <span className="text-[10px] text-white/60">🂠 {O.deck}</span>
         </div>
         <div className="pointer-events-auto flex flex-col items-end gap-1">
@@ -322,7 +325,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
           <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
             <span className="text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
             <div className="flex gap-0.5" data-testid="brawl-paint" aria-label={`${P.paint} paint`}>
-              {P.paint > 8
+              {P.paint > 7
                 ? <span className="text-base font-black text-[#9FD0FF] drop-shadow-[0_0_6px_#3A86FF]">💧×{P.paint}</span>
                 : Array.from({ length: Math.max(P.paint, Math.min(7, 1 + v.round)) }, (_, i) => <span key={i} className={cn('text-base transition', i < P.paint ? 'drop-shadow-[0_0_6px_#3A86FF]' : 'opacity-25 grayscale')}>💧</span>)}
             </div>
@@ -385,7 +388,14 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
         // what letting go would do, in words, right under the finger
         const c = CARD[drag.id], tgt = drag.pick && drag.pick.lane >= 0 ? v.p[drag.pick.side].lanes[drag.pick.lane].unit : null;
         const msg = !drag.ok ? (c.kind === 'spell' && c.target && c.target !== 'none' ? 'Drag onto a target' : c.kind === 'spell' ? 'Drag up onto the board' : 'Drag onto one of your lanes')
-          : drag.cast ? `Let go to cast ${c.name}` : c.kind === 'spell' ? `Let go: ${tgt ? CARD[tgt.id].name : drag.pick?.lane === -1 ? 'the hero' : `lane ${drag.pick!.lane + 1}`}` : `Let go: ${c.kind === 'totem' ? 'build in' : 'summon in'} lane ${drag.pick!.lane + 1}`;
+          : drag.cast ? `Let go to cast ${c.name}` : c.kind === 'spell' ? `Let go: ${tgt ? CARD[tgt.id].name : drag.pick?.lane === -1 ? 'the hero' : `lane ${drag.pick!.lane + 1}`}`
+          : (() => {
+            const L = v.p[side].lanes[drag.pick!.lane];
+            if (c.kind === 'creature' && L.unit?.id === c.id && !L.unit.mega) return `Let go: FUSE into MEGA ${c.name}!`;
+            if (c.kind === 'totem' && L.totem?.id === c.id && !c.wonder && (L.totem.lv ?? 1) < 2) return `Let go: stack it — LEVEL 2!`;
+            if (c.kind === 'creature' && L.unit) return `Let go: replaces your ${CARD[L.unit.id].name}`;
+            return `Let go: ${c.kind === 'totem' ? 'build in' : 'summon in'} lane ${drag.pick!.lane + 1}`;
+          })();
         return <div className={cn('pointer-events-none fixed z-40 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-black shadow-lg', drag.ok ? 'bg-[#3DDC97] text-black' : 'bg-black/75 text-white')} style={{ left: drag.x, top: drag.y + 18 }} data-testid="brawl-drop-hint">{drag.ok ? '✓ ' : ''}{msg}</div>;
       })()}
       {(hold || (drag && drag.kind === 'card')) && (() => {
@@ -435,6 +445,24 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             </div>
           </div>
           {showing && <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs font-bold text-white/80 drop-shadow">Preview — nothing is played</div>}
+        </div>
+      )}
+
+      {/* a choice to make: which of the enemy's cards to steal */}
+      {P.choice && myTurn && (
+        <div className="absolute inset-0 z-40 grid place-items-center bg-black/80 p-3 backdrop-blur-sm" data-testid="brawl-choice">
+          <div className="grid w-full max-w-xl justify-items-center gap-3 text-center">
+            <div className="text-5xl">🦝</div>
+            <div className="font-display text-2xl font-black">Steal a card!</div>
+            <div className="text-sm text-white/75">This is {opp.username}’s hand. Tap the one you want — it’s yours now.</div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {P.choice.cards.map((h, i) => (
+                <button key={h.uid} onClick={() => void send({ t: 'choose', i })} disabled={busy} className="transition hover:-translate-y-1" data-testid={`brawl-choose-${i}`}>
+                  <CardView id={h.id} width={Math.min(112, (innerWidth - 40) / Math.min(5, P.choice!.cards.length) - 8)} tilt={false} glow="#FFE14D" />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -502,8 +530,9 @@ function explain(c: Card): string[] {
     if (T) out.push(`+1 attack in a ${T.emoji} ${T.name} lane (its home).`);
     if (c.text) out.push(c.text);
     if (c.flourish) out.push(`✋ Flourish (${c.flourish.cost} 💧): ${c.flourish.text} Tap it on the board to use it — it skips its attack that turn.`);
+    out.push(`🧬 Fusion: play a second ${c.name} onto this one and they fuse into a MEGA ${c.name} (bigger, double stats).`);
   } else if (c.kind === 'totem') {
-    out.push('A totem: it sits behind one of your lanes and keeps working.', strip(c.text));
+    out.push('A totem: it sits behind one of your lanes and keeps working.', strip(c.text), '⬆️ Play the same totem on it again to stack it to Level 2: twice the effect.');
   } else {
     out.push('A spell: it happens once, then it’s gone.', c.text);
     if (c.target && aim[c.target]) out.push(aim[c.target]!);

@@ -327,3 +327,81 @@ describe('Paintbrawl Card Lab', () => {
     }
   });
 });
+
+describe('Paintbrawl tricks: fusion, possession, pickpockets, peeking, shapeshifting', () => {
+  const lab = (seed = 7) => { const s = newMatch(seed, seat(0), seat(1), 'none' as never, { lab: true }); if (s.turn === 1) apply(s, 1, { t: 'end' }); return s; };
+  const give = (s: State, id: string) => { apply(s, 0, { t: 'lab', card: id, paint: true }); return s.p[0].hand.at(-1)!.uid; };
+  const put = (s: State, side: 0 | 1, lane: number, id: string) => { s.p[side].lanes[lane].unit = { uid: s.uid++, id, atk: CARD[id].atk!, hp: CARD[id].hp!, max: CARD[id].hp!, shield: false, frozen: 0, poison: 0, temp: 0, acted: false }; };
+  it('two of the same creature fuse into a MEGA one; two of the same totem stack to level 2', () => {
+    const s = lab();
+    apply(s, 0, { t: 'play', uid: give(s, 'thornhare'), lane: 0 });
+    const ev = apply(s, 0, { t: 'play', uid: give(s, 'thornhare'), lane: 0 });
+    const u = s.p[0].lanes[0].unit!;
+    expect(ev.some((e) => e.e === 'fuse')).toBe(true);
+    expect(u).toMatchObject({ id: 'thornhare', mega: true, atk: 6, max: 4, hp: 4 });
+    // a third copy doesn't fuse again: it replaces it
+    apply(s, 0, { t: 'play', uid: give(s, 'thornhare'), lane: 0 });
+    expect(s.p[0].lanes[0].unit!.mega).toBeFalsy();
+    apply(s, 0, { t: 'play', uid: give(s, 'kindleshrine'), lane: 1 });
+    put(s, 0, 1, 'pebblegolem');
+    const before = attackOf(s, 0, 1);
+    apply(s, 0, { t: 'play', uid: give(s, 'kindleshrine'), lane: 1 });
+    expect(s.p[0].lanes[1].totem!.lv).toBe(2);
+    expect(attackOf(s, 0, 1)).toBe(before + 2);
+    // Fusion Flask: MEGA without a second copy
+    apply(s, 0, { t: 'play', uid: give(s, 'fusionflask'), target: { side: 0, lane: 1 } });
+    expect(s.p[0].lanes[1].unit).toMatchObject({ mega: true, atk: 2, max: 6 });
+    expect(check(s, 0, { t: 'play', uid: give(s, 'fusionflask'), target: { side: 0, lane: 1 } })).toBe('already_mega');
+  });
+  it('the Hypno Toad and Mind Swirl win enemy creatures over to your side', () => {
+    const s = lab();
+    put(s, 1, 2, 'frostmaw'); put(s, 1, 3, 'blazefox');
+    apply(s, 0, { t: 'play', uid: give(s, 'hypnotoad'), lane: 2 });
+    expect(s.p[1].lanes[2].unit).toBeNull();
+    expect(s.p[0].lanes.filter((L) => L.unit?.id === 'frostmaw')).toHaveLength(1);
+    expect(s.p[0].lanes[2].unit!.id).toBe('hypnotoad');
+    apply(s, 0, { t: 'play', uid: give(s, 'mindswirl'), target: { side: 1, lane: 3 } });
+    expect(s.p[0].lanes.some((L) => L.unit?.id === 'blazefox')).toBe(true);
+    // with no room on your side it can't be cast
+    const f = lab(9); for (let l = 0; l < 4; l++) put(f, 0, l, 'pebblegolem'); put(f, 1, 0, 'frostmaw');
+    expect(check(f, 0, { t: 'play', uid: give(f, 'mindswirl'), target: { side: 1, lane: 0 } })).toBe('no_room');
+  });
+  it('the Pickpocket Raccoon lets you see the enemy hand and steal the card you pick (nothing else until you do)', () => {
+    const s = lab();
+    s.p[1].hand = [{ uid: 9001, id: 'eruption' }, { uid: 9002, id: 'fireburst' }];
+    apply(s, 0, { t: 'play', uid: give(s, 'pickpocket'), lane: 0 });
+    const v = viewFor(s, 0); expect(v.p[0].choice!.cards.map((h) => h.id)).toEqual(['eruption', 'fireburst']);
+    expect(viewFor(s, 1).p[0].choice).toBeNull();
+    expect(check(s, 0, { t: 'end' })).toBe('choose_first');
+    apply(s, 0, { t: 'choose', i: 0 });
+    expect(s.p[1].hand.map((h) => h.id)).toEqual(['fireburst']);
+    expect(s.p[0].hand.some((h) => h.id === 'eruption')).toBe(true);
+    // running out of time takes the first one; the bot picks for itself
+    const t = lab(11); t.p[1].hand = [{ uid: 9101, id: 'luckycoin' }];
+    apply(t, 0, { t: 'play', uid: give(t, 'pickpocket'), lane: 1 }); apply(t, 0, { t: 'timeout' });
+    expect(t.p[0].hand.some((h) => h.id === 'luckycoin')).toBe(true);
+  });
+  it('Crystal Ball shows the enemy hand for the rest of your turn; Doppel Goo copies; Bubble Prison holds for 2 turns', () => {
+    const s = lab();
+    expect(viewFor(s, 0).p[1].hand.every((h) => h.id === undefined)).toBe(true);
+    apply(s, 0, { t: 'play', uid: give(s, 'crystalball') });
+    expect(viewFor(s, 0).p[1].hand.every((h) => !!h.id)).toBe(true);
+    put(s, 1, 1, 'volcanotitan');
+    apply(s, 0, { t: 'play', uid: give(s, 'doppelgoo'), lane: 1 });
+    expect(s.p[0].lanes[1].unit).toMatchObject({ id: 'volcanotitan', atk: 7, hp: 7 });
+    put(s, 1, 2, 'blazefox');
+    apply(s, 0, { t: 'play', uid: give(s, 'bubbleprison'), target: { side: 1, lane: 2 } });
+    expect(s.p[1].lanes[2].unit).toMatchObject({ frozen: 2, shield: true });
+    apply(s, 0, { t: 'end' });
+    expect(viewFor(s, 0).p[1].hand.every((h) => h.id === undefined)).toBe(true);
+  });
+  it('bots can play whole matches with every new card in their decks', () => {
+    const deck = ['hypnotoad', 'hypnotoad', 'pickpocket', 'pickpocket', 'doppelgoo', 'doppelgoo', 'mindswirl', 'crystalball', 'crystalball', 'bubbleprison', 'bubbleprison', 'fusionflask', 'thornhare', 'thornhare', 'kindleshrine', 'kindleshrine', 'cinderpup', 'cinderpup', 'snowpip', 'snowpip'];
+    for (let seed = 1; seed <= 6; seed++) {
+      const s = newMatch(seed, { name: 'a', deck, terrains: ['bog', 'sugar', 'neon', 'ember'] }, { name: 'b', deck, terrains: ['bog', 'sugar', 'neon', 'ember'] });
+      const r = mulberry32(seed);
+      for (let i = 0; i < 400 && !s.over; i++) botTurn(s, s.turn, 1, () => r.next());
+      expect(s.over).toBe(true);
+    }
+  });
+});

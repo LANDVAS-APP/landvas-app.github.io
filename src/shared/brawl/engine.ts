@@ -12,12 +12,17 @@
 import { CARD, CARDS, EVENTS, HERO_HP, LANES, TERRAINS, type Card, type EventId, type Fx, type Target, type Terrain } from './cards';
 
 export type Side = 0 | 1;
-export type Unit = { uid: number; id: string; atk: number; hp: number; max: number; shield: boolean; frozen: number; poison: number; temp: number; acted: boolean };
-export type Lane = { terrain: Terrain; unit: Unit | null; totem: { uid: number; id: string; n?: number } | null };
+export type Unit = { uid: number; id: string; atk: number; hp: number; max: number; shield: boolean; frozen: number; poison: number; temp: number; acted: boolean;
+  /** fused from two of the same card (or a Fusion Flask): bigger, stronger */ mega?: boolean };
+export type Lane = { terrain: Terrain; unit: Unit | null; totem: { uid: number; id: string; n?: number; /** 2 = two of the same totem stacked: twice the effect */ lv?: number } | null };
 export type HandCard = { uid: number; id: string };
 export type PlayerState = { name: string; hero: number; heroMax: number; paint: number; deck: string[]; hand: HandCard[]; grave: string[]; lanes: Lane[]; fatigue: number; timeouts: number;
   /** the player's four land cards; at the start each player chooses which goes in which lane (kept secret until both are ready) */
-  landCards?: Terrain[]; ready?: boolean; pending?: Terrain[] | null };
+  landCards?: Terrain[]; ready?: boolean; pending?: Terrain[] | null;
+  /** a choice to make before anything else (the Pickpocket Raccoon: which of the enemy's cards to steal) */
+  choice?: { kind: 'steal'; cards: HandCard[] } | null;
+  /** can see the enemy's hand until the end of this turn (Crystal Ball) */
+  peek?: boolean };
 export type Ev =
   | { e: 'turn'; side: Side; round: number } | { e: 'draw'; side: Side; uid: number; card?: string; burned?: boolean } | { e: 'fatigue'; side: Side; n: number }
   | { e: 'paint'; side: Side; n: number } | { e: 'play'; side: Side; card: string; lane: number; uid: number } | { e: 'totem'; side: Side; card: string; lane: number }
@@ -32,7 +37,14 @@ export type Ev =
   | { e: 'crumble'; side: Side; lane: number; card: string } | { e: 'swap'; side: Side; lane: number; atk: number; hp: number } | { e: 'countdown'; side: Side; lane: number; n: number }
   | { e: 'sketch'; side: Side } | { e: 'ready'; side: Side }
   /** a creature's own ability going off (on play, on hit, when it falls, at the turn's start or end) — each animates its own way */
-  | { e: 'ability'; side: Side; lane: number; card: string; target?: { side: Side; lane: number } } | { e: 'land'; side: Side; lane: number; terrain: Terrain };
+  | { e: 'ability'; side: Side; lane: number; card: string; target?: { side: Side; lane: number } } | { e: 'land'; side: Side; lane: number; terrain: Terrain }
+  /** two of the same card fused into a mega creature (or a totem stacked to level 2) */
+  | { e: 'fuse'; side: Side; lane: number; card: string; totem?: boolean }
+  /** an enemy creature hypnotised over to the other side */
+  | { e: 'possess'; side: Side; lane: number; to: Side; toLane: number; card: string }
+  /** a card taken from the other player's hand */ | { e: 'steal'; side: Side; uid: number; card: string }
+  /** a peek at the other player's hand */ | { e: 'peek'; side: Side }
+  /** a creature turned into another (Doppel Goo) */ | { e: 'morph'; side: Side; lane: number; card: string };
 export type State = {
   v: number; rng: number; round: number; turn: Side; first: Side; ev: EventId; over: boolean; winner: Side | -1 | null; reason: string;
   /** 'lands': both players are placing their land cards; 'play': the battle */
@@ -43,6 +55,8 @@ export type State = {
 };
 export type Pick = { side: Side; lane: number };
 export type Action = { t: 'play'; uid: number; lane?: number; target?: Pick } | { t: 'flourish'; lane: number; target?: Pick } | { t: 'sketch' } | { t: 'lands'; lanes: Terrain[] } | { t: 'end' } | { t: 'concede' } | { t: 'timeout' }
+  /** a pending choice: which card (index into the choice's cards) */
+  | { t: 'choose'; i: number }
   /** Card Lab only: put any card in your hand, and/or top your paint up */
   | { t: 'lab'; card?: string; paint?: boolean };
 
@@ -108,12 +122,12 @@ export function attackOf(s: State, side: Side, lane: number): number {
   const L = s.p[side].lanes[lane], u = L.unit; if (!u) return 0;
   let a = u.atk + u.temp;
   if (home(s, side, lane)) a += 1;
-  if (L.totem?.id === 'kindleshrine') a += 2;
+  if (L.totem?.id === 'kindleshrine') a += 2 * (L.totem.lv ?? 1);
   if (s.ev === 'bloodmoon') a += 1;
   for (let i = 0; i < LANES; i++) if (i !== lane && s.p[side].lanes[i].unit?.id === 'gridoverlord') a += 1;
   return Math.max(0, a);
 }
-const toughness = (s: State, side: Side, lane: number) => { const L = s.p[side].lanes[lane]; let n = 0; if (L.unit && (L.unit.id === 'mossback' || L.unit.id === 'frostmaw')) n++; if (L.totem?.id === 'hoarfrost') n++; return n; };
+const toughness = (s: State, side: Side, lane: number) => { const L = s.p[side].lanes[lane]; let n = 0; if (L.unit && (L.unit.id === 'mossback' || L.unit.id === 'frostmaw')) n++; if (L.totem?.id === 'hoarfrost') n += L.totem.lv ?? 1; return n; };
 
 // ---- the building blocks --------------------------------------------------------------------------------------------
 function draw(s: State, side: Side, out: Ev[]) {
@@ -165,6 +179,23 @@ function bounce(s: State, side: Side, lane: number, out: Ev[]) {
   L.unit = null; out.push({ e: 'bounce', side, lane, card: u.id });
   if (s.p[side].hand.length < HAND_MAX) s.p[side].hand.push({ uid: s.uid++, id: u.id }); else s.p[side].grave.push(u.id);
 }
+/** Two of the same creature become one MEGA creature: the card's attack and health added on top, fully healed. */
+function megafy(s: State, side: Side, lane: number, out: Ev[]) {
+  const u = s.p[side].lanes[lane].unit; if (!u || u.mega) return;
+  const c = cardOf(u.id);
+  u.mega = true; u.atk += c.atk ?? 0; u.max += c.hp ?? 0; u.hp = u.max; if (c.tags?.includes('shield')) u.shield = true;
+  out.push({ e: 'fuse', side, lane, card: u.id });
+}
+/** An enemy creature crosses over to `to`'s side, into the nearest empty lane (none free: it stays). */
+function possess(s: State, from: Side, lane: number, to: Side, prefer: number, out: Ev[]) {
+  const u = s.p[from].lanes[lane].unit; if (!u) return false;
+  const free = [0, 1, 2, 3].slice(0, LANES).sort((a, b) => Math.abs(a - prefer) - Math.abs(b - prefer) || a - b).find((l) => !s.p[to].lanes[l].unit);
+  if (free === undefined) return false;
+  s.p[from].lanes[lane].unit = null; s.p[to].lanes[free].unit = u; u.acted = true; u.frozen = 0;
+  out.push({ e: 'possess', side: from, lane, to, toLane: free, card: u.id });
+  return true;
+}
+const hasRoom = (s: State, side: Side) => s.p[side].lanes.some((L) => !L.unit);
 const unitLanes = (s: State, side: Side) => s.p[side].lanes.map((L, l) => (L.unit ? l : -1)).filter((l) => l >= 0);
 
 /** Sweep away the fallen (and trigger what happens when they fall), until the board settles. */
@@ -197,7 +228,7 @@ function startTurn(s: State, side: Side, out: Ev[]) {
   out.push({ e: 'turn', side, round: s.round });
   const P = s.p[side];
   let paint = Math.min(MAX_PAINT, 1 + s.round) + (s.ev === 'rain' ? 1 : 0);
-  P.lanes.forEach((L) => { if (L.totem?.id === 'sprinklefountain') paint += 1; });
+  P.lanes.forEach((L) => { if (L.totem?.id === 'sprinklefountain') paint += L.totem.lv ?? 1; });
   if (s.lab && side === 0) paint = Math.max(paint, LAB_PAINT);
   P.paint = paint; out.push({ e: 'paint', side, n: paint });
   if (!(s.round === 1 && side === s.first)) for (let i = 0; i < (s.ev === 'bounty' ? 2 : 1); i++) draw(s, side, out);
@@ -208,7 +239,7 @@ function startTurn(s: State, side: Side, out: Ev[]) {
     const u = L.unit; if (!u) return;
     u.acted = false; u.temp = 0;
     if (u.id === 'pebblegolem' && u.max < 6) { out.push({ e: 'ability', side, lane, card: u.id }); buff(s, side, lane, 0, 1, out); }
-    if (L.totem?.id === 'bloomwell') heal(s, side, lane, 2, out);
+    if (L.totem?.id === 'bloomwell') heal(s, side, lane, 2 * (L.totem.lv ?? 1), out);
     if (u.poison > 0) { damage(s, side, lane, 1, 'poison', out); u.poison--; }
   });
   const oak = P.lanes.findIndex((L) => L.unit?.id === 'oakheart');
@@ -249,9 +280,10 @@ function wondersAtDawn(s: State, side: Side, out: Ev[]) {
 
 function endTurn(s: State, side: Side, out: Ev[]) {
   const o = other(side), P = s.p[side];
+  P.peek = false;
   for (let lane = 0; lane < LANES && !s.over; lane++) {
     const u = P.lanes[lane].unit; if (!u || u.hp <= 0) continue;
-    if (u.frozen) { u.frozen = 0; out.push({ e: 'thaw', side, lane }); continue; }
+    if (u.frozen) { u.frozen--; if (!u.frozen) out.push({ e: 'thaw', side, lane }); continue; }
     if (u.acted) continue;
     const atk = attackOf(s, side, lane); if (atk <= 0) continue;
     for (let strike = 0; strike < (u.id === 'mechamantis' ? 2 : 1) && !s.over && P.lanes[lane].unit === u; strike++) {
@@ -262,7 +294,7 @@ function endTurn(s: State, side: Side, out: Ev[]) {
         const dealt = damage(s, o, lane, atk, 'hit', out);
         if (dealt > 0 && s.p[o].lanes[lane].unit) {
           if (u.id === 'icicleram') freeze(s, o, lane, out);
-          if (u.id === 'mudslug' || P.lanes[lane].totem?.id === 'mirecauldron') poison(s, o, lane, 1, out);
+          if (u.id === 'mudslug' || P.lanes[lane].totem?.id === 'mirecauldron') poison(s, o, lane, P.lanes[lane].totem?.id === 'mirecauldron' ? P.lanes[lane].totem!.lv ?? 1 : 1, out);
         }
         if (u.id === 'laserlynx') for (const l of [lane - 1, lane + 1]) if (l >= 0 && l < LANES) damage(s, o, l, 1, 'hit', out);
       } else {
@@ -278,7 +310,7 @@ function endTurn(s: State, side: Side, out: Ev[]) {
   // end-of-turn effects
   P.lanes.forEach((L, lane) => {
     if (L.unit?.id === 'rotqueen') { out.push({ e: 'ability', side, lane, card: 'rotqueen' }); for (let l = 0; l < LANES; l++) damage(s, o, l, 1, 'poison', out); }
-    if (L.totem?.id === 'teslacoil') damage(s, o, lane, 1, 'burn', out);
+    if (L.totem?.id === 'teslacoil') damage(s, o, lane, L.totem.lv ?? 1, 'burn', out);
     if (L.totem?.id === 'stormspire') { const ls = unitLanes(s, o); if (ls.length) { const l = ls[rint(s, ls.length)]; out.push({ e: 'strike', side: o, lane: l, kind: 'bolt' }); damage(s, o, l, 2, 'burn', out); } }
   });
   deaths(s, out);
@@ -319,7 +351,11 @@ export function check(s: State, side: Side, a: Action): string | null {
   if (a.t === 'lands') return 'bad_action';
   if (s.turn !== side) return 'not_your_turn';
   const P = s.p[side];
-  if (a.t === 'end' || a.t === 'timeout') return null;
+  if (a.t === 'timeout') return null;
+  // a choice to make comes first
+  if (P.choice) { if (a.t !== 'choose') return 'choose_first'; return Number.isInteger(a.i) && a.i >= 0 && a.i < P.choice.cards.length ? null : 'bad_choice'; }
+  if (a.t === 'choose') return 'nothing_to_choose';
+  if (a.t === 'end') return null;
   if (a.t === 'lab') {
     if (!s.lab || side !== 0) return 'not_lab';
     if (a.card !== undefined) { if (typeof a.card !== 'string' || !CARDS.some((c) => c.id === a.card)) return 'no_card'; if (P.hand.length >= HAND_MAX) return 'hand_full'; }
@@ -331,6 +367,8 @@ export function check(s: State, side: Side, a: Action): string | null {
     const c = cardOf(h.id); if (c.cost > P.paint) return 'no_paint';
     if (c.kind === 'creature' || c.kind === 'totem') { if (a.lane === undefined || a.lane < 0 || a.lane >= LANES || !Number.isInteger(a.lane)) return 'bad_lane'; return null; }
     if (c.id === 'secondwind' && !P.grave.some((id) => cardOf(id).kind === 'creature')) return 'nothing_to_revive';
+    if (c.id === 'mindswirl' && !hasRoom(s, side)) return 'no_room';
+    if (c.id === 'fusionflask' && a.target && s.p[a.target.side].lanes[a.target.lane]?.unit?.mega) return 'already_mega';
     return validTarget(s, side, c.target, a.target) ? null : 'bad_target';
   }
   if (a.t === 'flourish') {
@@ -362,12 +400,12 @@ function summon(s: State, side: Side, lane: number, id: string, out: Ev[], hp?: 
   return u;
 }
 
-const ON_PLAY = new Set(['thornhare', 'blazefox', 'volcanotitan', 'aurorawyrm', 'glacierowl', 'sugarcolossus', 'gumdropimp', 'wanderingbard', 'taffytwister', 'oakheart', 'mimicchest', 'frostmaw', 'candiedknight']);
+const ON_PLAY = new Set(['hypnotoad', 'pickpocket', 'doppelgoo', 'thornhare', 'blazefox', 'volcanotitan', 'aurorawyrm', 'glacierowl', 'sugarcolossus', 'gumdropimp', 'wanderingbard', 'taffytwister', 'oakheart', 'mimicchest', 'frostmaw', 'candiedknight']);
 function onPlay(s: State, side: Side, lane: number, id: string, out: Ev[]) {
   const o = other(side), P = s.p[side];
   if (ON_PLAY.has(id)) {
     const mate = [lane - 1, lane + 1].find((l) => l >= 0 && l < LANES && P.lanes[l].unit && !P.lanes[l].unit!.shield);
-    const target = id === 'blazefox' ? { side: o, lane: -1 } : ['thornhare', 'taffytwister', 'frostmaw'].includes(id) ? { side: o, lane } : id === 'candiedknight' && mate !== undefined ? { side, lane: mate } : undefined;
+    const target = id === 'blazefox' ? { side: o, lane: -1 } : ['thornhare', 'taffytwister', 'frostmaw', 'hypnotoad', 'doppelgoo'].includes(id) && s.p[o].lanes[lane].unit ? { side: o, lane } : ['thornhare', 'taffytwister', 'frostmaw'].includes(id) ? { side: o, lane } : id === 'candiedknight' && mate !== undefined ? { side, lane: mate } : undefined;
     out.push({ e: 'ability', side, lane, card: id, ...(target ? { target } : {}) });
   }
   switch (id) {
@@ -384,6 +422,13 @@ function onPlay(s: State, side: Side, lane: number, id: string, out: Ev[]) {
     case 'taffytwister': { const f = s.p[o].lanes[lane].unit; if (f) { s.p[o].lanes[lane].unit = null; out.push({ e: 'bounce', side: o, lane, card: f.id }); if (s.p[o].hand.length < HAND_MAX) { const uid = s.uid++; s.p[o].hand.push({ uid, id: f.id }); } } break; }
     case 'oakheart': P.lanes.forEach((L, l) => { if (l !== lane && L.unit && cardOf(L.unit.id).terrain === 'meadow') buff(s, side, l, 1, 1, out); }); break;
     case 'mimicchest': { const h = s.p[o].hand; if (h.length) giveCard(s, side, h[rint(s, h.length)].id, out); break; }
+    case 'hypnotoad': possess(s, o, lane, side, lane, out); break;
+    case 'pickpocket': { const h = s.p[o].hand; if (h.length) { P.choice = { kind: 'steal', cards: h.map((x) => ({ ...x })) }; out.push({ e: 'peek', side }); } break; }
+    case 'doppelgoo': {
+      const f = s.p[o].lanes[lane].unit, me = P.lanes[lane].unit; if (!f || !me) break;
+      me.id = f.id; me.atk = f.atk; me.max = Math.max(1, f.max); me.hp = me.max; me.shield = cardOf(f.id).tags?.includes('shield') ?? false;
+      out.push({ e: 'morph', side, lane, card: f.id }); break;
+    }
   }
 }
 
@@ -476,6 +521,10 @@ function castSpell(s: State, side: Side, id: string, t: Pick | undefined, out: E
         out.push({ e: 'swap', side: sd, lane: l, atk: h, hp: a });
       });
       break;
+    case 'mindswirl': possess(s, t!.side, t!.lane, side, t!.lane, out); break;
+    case 'crystalball': P.peek = true; out.push({ e: 'peek', side }); draw(s, side, out); break;
+    case 'bubbleprison': { const u = s.p[t!.side].lanes[t!.lane].unit!; u.frozen = 2; u.shield = true; out.push({ e: 'freeze', side: t!.side, lane: t!.lane }); out.push({ e: 'buff', side: t!.side, lane: t!.lane, atk: 0, hp: 0 }); break; }
+    case 'fusionflask': megafy(s, t!.side, t!.lane, out); break;
     case 'secondwind': {
       const i = P.grave.map((id2) => cardOf(id2).kind).lastIndexOf('creature');
       if (i >= 0) { const id2 = P.grave.splice(i, 1)[0]; summon(s, side, t!.lane, id2, out, 2); }
@@ -483,6 +532,18 @@ function castSpell(s: State, side: Side, id: string, t: Pick | undefined, out: E
     }
   }
   deaths(s, out);
+}
+
+/** Settle a pending choice. */
+function choose(s: State, side: Side, i: number, out: Ev[]) {
+  const P = s.p[side], ch = P.choice; if (!ch) return;
+  P.choice = null;
+  const pick = ch.cards[i], o = other(side), at = s.p[o].hand.findIndex((h) => h.uid === pick?.uid);
+  if (at < 0) return;
+  const [card] = s.p[o].hand.splice(at, 1);
+  const uid = s.uid++;
+  out.push({ e: 'steal', side, uid, card: card.id });
+  if (P.hand.length < HAND_MAX) P.hand.push({ uid, id: card.id }); else P.grave.push(card.id);
 }
 
 function doFlourish(s: State, side: Side, lane: number, t: Pick | undefined, out: Ev[]) {
@@ -516,7 +577,9 @@ export function apply(s: State, side: Side, a: Action): Ev[] {
   else if (a.t === 'timeout' && s.phase === 'lands') {
     // out of time to choose: whoever isn't ready gets their lands in the order they come
     for (const sd of [0, 1] as Side[]) if (!s.p[sd].ready && !s.over) placeLands(s, sd, s.p[sd].landCards ?? s.p[sd].lanes.map((L) => L.terrain), out);
-  } else if (a.t === 'end' || a.t === 'timeout') {
+  } else if (a.t === 'choose') choose(s, side, a.i, out);
+  else if (a.t === 'end' || a.t === 'timeout') {
+    if (P.choice) choose(s, side, 0, out); // out of time: the first card
     if (a.t === 'timeout') { P.timeouts++; if (P.timeouts >= 3) { finish(s, other(side), 'timeout', out); } }
     else P.timeouts = 0;
     if (!s.over) {
@@ -526,8 +589,13 @@ export function apply(s: State, side: Side, a: Action): Ev[] {
   } else if (a.t === 'play') {
     const i = P.hand.findIndex((x) => x.uid === a.uid), h = P.hand[i], c = cardOf(h.id);
     P.hand.splice(i, 1); P.paint -= c.cost;
-    if (c.kind === 'creature') { summon(s, side, a.lane!, c.id, out); onPlay(s, side, a.lane!, c.id, out); deaths(s, out); }
-    else if (c.kind === 'totem') { crumble(s, side, a.lane!, out); const L = P.lanes[a.lane!]; L.totem = { uid: s.uid++, id: c.id, ...(c.id === 'smolderpeak' ? { n: 3 } : {}) }; out.push({ e: 'totem', side, card: c.id, lane: a.lane! }); }
+    const L = P.lanes[a.lane ?? 0];
+    // the same creature onto itself: they fuse into a MEGA creature
+    if (c.kind === 'creature' && L.unit && L.unit.id === c.id && !L.unit.mega) { megafy(s, side, a.lane!, out); deaths(s, out); }
+    else if (c.kind === 'creature') { summon(s, side, a.lane!, c.id, out); onPlay(s, side, a.lane!, c.id, out); deaths(s, out); }
+    // the same totem twice in a lane: it stacks to level 2 (twice the effect)
+    else if (c.kind === 'totem' && !c.wonder && L.totem?.id === c.id && (L.totem.lv ?? 1) < 2) { L.totem.lv = 2; out.push({ e: 'fuse', side, lane: a.lane!, card: c.id, totem: true }); }
+    else if (c.kind === 'totem') { crumble(s, side, a.lane!, out); L.totem = { uid: s.uid++, id: c.id, ...(c.id === 'smolderpeak' ? { n: 3 } : {}) }; out.push({ e: 'totem', side, card: c.id, lane: a.lane! }); }
     else castSpell(s, side, c.id, a.target, out);
   } else if (a.t === 'flourish') doFlourish(s, side, a.lane, a.target, out);
   else if (a.t === 'lab') {
@@ -548,7 +616,8 @@ export function viewFor(s: State, me: Side): View {
   return {
     v: s.v, round: s.round, turn: s.turn, first: s.first, ev: s.ev, over: s.over, winner: s.winner, reason: s.reason, uid: s.uid, me,
     phase: s.phase ?? 'play', ...(s.lab ? { lab: true } : {}),
-    p: s.p.map((P, i) => ({ ...P, pending: i === me ? P.pending ?? null : null, deck: P.deck.length, hand: i === me ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })) as View['p'],
+    p: s.p.map((P, i) => ({ ...P, pending: i === me ? P.pending ?? null : null, choice: i === me ? P.choice ?? null : null, deck: P.deck.length,
+      hand: i === me || s.p[me].peek ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })) as View['p'],
     log: s.log.map((l) => ({ ...l, ev: l.ev.map(hideEv) })),
   };
 }

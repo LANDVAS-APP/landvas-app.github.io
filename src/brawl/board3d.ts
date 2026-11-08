@@ -163,7 +163,7 @@ export function createBoard3D(o: BoardOpts) {
   });
 
   // ---- creatures --------------------------------------------------------------------------------------------------------
-  type UnitObj = { uid: number; id: string; side: Side; lane: number; g: THREE.Group; cr: Char; hit: THREE.Mesh; lungeIn: number;
+  type UnitObj = { uid: number; id: string; side: Side; lane: number; g: THREE.Group; cr: Char; hit: THREE.Mesh; lungeIn: number; mega: boolean; aura: THREE.Group | null;
     atk: THREE.Sprite; hp: THREE.Sprite; atkVal: number; hpVal: number; maxVal: number; icons: THREE.Sprite; iconKey: string; base: THREE.Mesh;
     state: 'idle' | 'walk' | 'happy'; flash: number; hurtOn: boolean; lunge: number; lungeTo: THREE.Vector3; dying: number; ice: THREE.Mesh; rise: number; seed: number };
   const units = new Map<number, UnitObj>();
@@ -194,9 +194,29 @@ export function createBoard3D(o: BoardOpts) {
     const icons = sprite(iconTex([]), 1.8, 0.45); icons.position.set(0, top + 0.45, 0); g.add(icons);
     const ice = mesh(G('ice', () => new THREE.BoxGeometry(1.4, 1, 1.3)), std('#BFF4FF', { transparent: true, opacity: 0.45, roughness: 0.05, emissive: '#6FD3FF', emissiveIntensity: 0.3 }), 0, (top + 0.3) / 2, 0, g); ice.scale.y = top + 0.3; ice.visible = false; ice.castShadow = false;
     const hit = new THREE.Mesh(G('uhit', () => new THREE.BoxGeometry(2.4, 1, 2.6)), invisible); hit.scale.y = top + 0.5; hit.position.set(LX(lane), BASE + (top + 0.5) / 2, rowZ(side)); hit.userData.pick = { side, lane }; boardGroup.add(hit); pickables.push(hit);
-    const ob: UnitObj = { uid: u.uid, id: u.id, side, lane, g, cr, hit, atk, hp, atkVal: -1, hpVal: -1, maxVal: -1, icons, iconKey: '', base, state: 'idle', flash: 0, hurtOn: false, lunge: 0, lungeTo: new THREE.Vector3(), lungeIn: 0, dying: 0, ice, rise: 0, seed: Math.random() * 6 };
+    const ob: UnitObj = { uid: u.uid, id: u.id, side, lane, g, cr, hit, atk, hp, atkVal: -1, hpVal: -1, maxVal: -1, icons, iconKey: '', base, state: 'idle', flash: 0, hurtOn: false, lunge: 0, lungeTo: new THREE.Vector3(), lungeIn: 0, mega: false, aura: null, dying: 0, ice, rise: 0, seed: Math.random() * 6 };
     units.set(u.uid, ob);
     return ob;
+  };
+  /** A MEGA creature: bigger, with a golden aura on the ground and a crown floating over it. */
+  const setMega = (u: UnitObj, on: boolean, animate: boolean) => {
+    u.mega = on;
+    if (on && !u.aura) {
+      const a = new THREE.Group(); u.g.add(a); u.aura = a;
+      const ring = mesh(G('megaring', () => new THREE.TorusGeometry(0.95, 0.07, 8, 40)), std('#FFD24A', { emissive: '#FFB020', emissiveIntensity: 1.6, metalness: 0.6, roughness: 0.3 }), 0, 0.07, 0, a); ring.rotation.x = Math.PI / 2; ring.castShadow = false;
+      const gl = sprite(glowTex, 2.6, 2.6, true); gl.material.color.set('#FFC83A'); gl.material.opacity = 0.55; gl.position.y = 0.2; a.add(gl);
+      const crown = sprite(emojiTex('👑'), 0.55); crown.position.y = u.cr.height * CHAR_SCALE * 1.4 + 0.35; crown.userData.crown = true; a.add(crown);
+    }
+    if (u.aura) u.aura.visible = on;
+    const to = CHAR_SCALE * (on ? 1.4 : 1);
+    if (animate) { const from = u.cr.root.scale.x; void tween(0.6, (k) => { const e = k < 0.7 ? (k / 0.7) * 1.15 : 1.15 - ((k - 0.7) / 0.3) * 0.15; u.cr.root.scale.setScalar(from + (to - from) * e); }); }
+    else u.cr.root.scale.setScalar(to);
+  };
+  /** A creature becomes a different one (Doppel Goo): a new model in its place. */
+  const remodel = (u: UnitObj, id: string) => {
+    u.g.remove(u.cr.root); u.cr.bind(null); u.cr.dispose();
+    const cr = buildChar(CARD[id], { phone }); cr.root.scale.setScalar(CHAR_SCALE * (u.mega ? 1.4 : 1)); cr.root.rotation.y = facing(u.side, u.lane); u.g.add(cr.root); cr.bind(charFx); warm(cr.root);
+    u.cr = cr; u.id = id;
   };
   /** Which way a creature faces: towards the other side, turned three-quarters in towards the middle, so you see
    *  its face from behind your own lines too. */
@@ -214,7 +234,7 @@ export function createBoard3D(o: BoardOpts) {
   const updateBadges = (u: UnitObj, v: View, side: Side, lane: number) => {
     const L = v.p[side].lanes[lane], d = L.unit!; const c = CARD[d.id];
     // the attack shown is the creature's real attack right now (terrain, totems, auras, the event)
-    let a = d.atk + d.temp; const home = c.terrain !== 'neutral' && c.terrain === L.terrain; if (home) a++; if (L.totem?.id === 'kindleshrine') a += 2; if (v.ev === 'bloodmoon') a++;
+    let a = d.atk + d.temp; const home = c.terrain !== 'neutral' && c.terrain === L.terrain; if (home) a++; if (L.totem?.id === 'kindleshrine') a += 2 * (L.totem.lv ?? 1); if (v.ev === 'bloodmoon') a++;
     for (let i = 0; i < LANES; i++) if (i !== lane && v.p[side].lanes[i].unit?.id === 'gridoverlord') a++;
     if (a !== u.atkVal) { u.atkVal = a; u.atk.material.map = badgeTex(a, 'atk', a - (c.atk ?? 0)); u.atk.material.needsUpdate = true; }
     if (d.hp !== u.hpVal || d.max !== u.maxVal) { u.hpVal = d.hp; u.maxVal = d.max; u.hp.material.map = badgeTex(d.hp, 'hp', d.hp < d.max ? -1 : d.max > (c.hp ?? 0) ? 1 : 0); u.hp.material.needsUpdate = true; }
@@ -570,12 +590,14 @@ export function createBoard3D(o: BoardOpts) {
         v.p[side].lanes.forEach((L, lane) => {
           // while the land cards are being placed: your own placements so far, and bare slabs for theirs
           const lo = laneOf(side, lane); setTerrain(lo, landing ? (side === o.me ? localLands[lane] : null) : L.terrain); setTotem(lo, L.totem?.id ?? null, L.totem?.n);
-          lo.totem.position.set(LX(lane), 0.36, totemZ(side)); lo.totem.scale.setScalar(1); lo.totem.rotation.set(0, 0, 0);
+          lo.totem.position.set(LX(lane), 0.36, totemZ(side)); lo.totem.scale.setScalar(L.totem?.lv === 2 ? 1.4 : 1); lo.totem.rotation.set(0, 0, 0);
           if (!L.unit) return;
           let u = units.get(L.unit.uid);
+          if (u && u.id !== L.unit.id) remodel(u, L.unit.id);
           if (u) { u.side = side; u.lane = lane; if (!u.rise && !u.lunge) u.g.position.set(LX(lane), BASE, rowZ(side)); u.g.rotation.set(0, 0, 0); u.g.scale.setScalar(1); if (!u.rise && !u.dying) u.cr.root.rotation.y = facing(side, lane); }
           if (!u) u = makeUnit(L.unit, side, lane);
           if (u.dying) { u.dying = 0; u.cr.fade(1); u.cr.root.rotation.z = 0; u.g.scale.setScalar(1); }
+          if (!!L.unit.mega !== u.mega) setMega(u, !!L.unit.mega, false);
           seen.add(L.unit.uid); updateBadges(u, v, side, lane);
         });
       }
@@ -669,6 +691,57 @@ export function createBoard3D(o: BoardOpts) {
             await doAbility({ side: e.side, lane: e.lane, card: e.card, target: e.target }, fast ? 700 : 1700);
             await W(200); break;
           }
+          case 'fuse': {
+            if (e.totem) {
+              const lo = laneOf(e.side, e.lane), at = new THREE.Vector3(LX(e.lane), 0.8, totemZ(e.side));
+              void tween(0.6, (k) => { lo.totem.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.7 + k * 0.4); });
+              scenes.burst(at.x, at.y, at.z, ['#FFE14D', '#FFFFFF', '#FFB020'], 40, 4); scenes.shockwave(at.x, 0.1, at.z, '#FFD24A', 2.4);
+              pop(at.clone().setY(2.6), textTex('LEVEL 2!', '#FFE14D', 56), 1.8, 0.6, 1.2); await W(600); break;
+            }
+            const u = unitAt(e.side, e.lane);
+            if (u) {
+              const at = u.g.position.clone().setY(BASE + 0.8);
+              // a second copy dives in from above and the two merge in a flash
+              const ghost = sprite(glowTex, 3, 3, true); ghost.material.color.set('#FFE14D'); ghost.position.copy(at).setY(6); scene.add(ghost);
+              await tween(0.4, (k) => { ghost.position.y = 6 - k * (6 - at.y); ghost.scale.setScalar(3 - k * 1.5); });
+              scene.remove(ghost); ghost.material.dispose();
+              setMega(u, true, true); shake = Math.max(shake, 0.35); cheer = 1.2;
+              scenes.burst(at.x, at.y, at.z, ['#FFE14D', '#FFFFFF', '#FF4FD8', '#22E3FF'], 70, 5); scenes.shockwave(at.x, BASE + 0.08, at.z, '#FFD24A', 3.2, 0.7);
+              pop(at.clone().setY(3), textTex('MEGA!', '#FFE14D', 80), 2, 0.7, 1.4);
+            }
+            await W(700); break;
+          }
+          case 'possess': {
+            const u = unitAt(e.side, e.lane);
+            if (u) {
+              const a = u.g.position.clone(), b = new THREE.Vector3(LX(e.toLane), BASE, rowZ(e.to));
+              pop(a.clone().setY(2.6), textTex('Hypnotised!', '#C89BFF', 56), 2, 0.6, 1.2);
+              for (let i = 0; i < 30; i++) addP.emit({ x: a.x, y: a.y + 0.5, z: a.z, vx: Math.cos(i) * 1.5, vy: 1, vz: Math.sin(i) * 1.5, color: i % 2 ? '#C89BFF' : '#FF4FD8', size: 0.2, life: 1, attract: { x: a.x, y: a.y + 1.2, z: a.z, k: 1, swirl: 8 } });
+              u.lane = e.toLane; u.side = e.to; u.rise = 0; u.lunge = 0;
+              const r0 = u.cr.root.rotation.y, r1 = facing(e.to, e.toLane) + Math.PI * 4;
+              await tween(1.0, (k) => { const s2 = k * k * (3 - 2 * k); u.g.position.lerpVectors(a, b, s2); u.g.position.y = BASE + Math.sin(k * Math.PI) * 2.4; u.cr.root.rotation.y = r0 + (r1 - r0) * s2; if (Math.random() < 0.6) addP.emit({ x: u.g.position.x, y: u.g.position.y + 0.4, z: u.g.position.z, color: '#C89BFF', size: 0.2, life: 0.6 }); });
+              u.g.position.copy(b); u.cr.root.rotation.y = facing(e.to, e.toLane); scenes.shockwave(b.x, BASE + 0.06, b.z, '#C89BFF', 2.4); shake = Math.max(shake, 0.2);
+            }
+            await W(250); break;
+          }
+          case 'morph': {
+            const u = unitAt(e.side, e.lane);
+            if (u) {
+              const at = u.g.position.clone().setY(BASE + 0.6);
+              await tween(0.35, (k) => { u.cr.root.scale.set(CHAR_SCALE * (1 + k * 0.5), CHAR_SCALE * (1 - k * 0.8), CHAR_SCALE * (1 + k * 0.5)); });
+              remodel(u, e.card);
+              scenes.burst(at.x, at.y, at.z, ['#FF9AE0', '#C86AFF', '#FFFFFF'], 50, 4); pop(at.clone().setY(2.6), textTex('Copied!', '#FF9AE0', 56), 1.8, 0.6, 1.2);
+              await tween(0.35, (k) => { u.cr.root.scale.set(CHAR_SCALE * (1.5 - k * 0.5), CHAR_SCALE * (0.2 + k * 0.8), CHAR_SCALE * (1.5 - k * 0.5)); });
+              u.cr.root.scale.setScalar(CHAR_SCALE * (u.mega ? 1.4 : 1));
+            }
+            await W(200); break;
+          }
+          case 'steal': {
+            const from = new THREE.Vector3(0, 2.4, heroZ(otherSide(e.side))), to = new THREE.Vector3(0, 2.4, heroZ(e.side));
+            pop(from.clone().setY(3.2), textTex('Stolen!', '#FFE14D', 56), 1.8, 0.6, 1.1);
+            await throwAt(from, to, '🃏', '#FFE14D', 0.7); await W(150); break;
+          }
+          case 'peek': { pop(new THREE.Vector3(0, 3, heroZ(otherSide(e.side))), emojiTex('👁️'), 1.2, 1.2, 1.4); splash(new THREE.Vector3(0, 2.6, heroZ(otherSide(e.side))), '#C89BFF', 20, 2.4); await W(350); break; }
           case 'ability': {
             await doAbility(e, fast ? 600 : 1500);
             await W(120); break;

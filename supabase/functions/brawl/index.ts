@@ -608,6 +608,89 @@ var CARDS = [
     flavor: "Call it in the air.",
     art: "\u{1FA99}"
   }),
+  // ---- ✨ tricksters: possession, pickpockets, shapeshifters and fusion ----------------------------------------------------
+  C({
+    id: "hypnotoad",
+    name: "Hypno Toad",
+    terrain: "bog",
+    rarity: "epic",
+    cost: 4,
+    atk: 3,
+    hp: 4,
+    text: "On play: hypnotises the enemy creature opposite \u2014 it joins your side, in your nearest empty lane.",
+    flavor: "Look into my eyes. Ribbit.",
+    art: "round #7ADC6A #E8FFD0 #9B6BFF spots big none nubs none none 4 2 bounce 1.05"
+  }),
+  C({
+    id: "pickpocket",
+    name: "Pickpocket Raccoon",
+    terrain: "neutral",
+    rarity: "rare",
+    cost: 2,
+    atk: 2,
+    hp: 2,
+    text: "On play: peeks at the enemy\u2019s hand and steals the card of your choice.",
+    flavor: "Finders keepers.",
+    art: "bean #8A8A9A #E8E4F0 #2A2A3A stripes big floppy none fluffy none 4 2 walk 0.9"
+  }),
+  C({
+    id: "doppelgoo",
+    name: "Doppel Goo",
+    terrain: "sugar",
+    rarity: "epic",
+    cost: 3,
+    atk: 1,
+    hp: 1,
+    text: "On play: turns into a perfect copy of the creature opposite \u2014 its look, attack and health.",
+    flavor: "Wait, which one of us is me?",
+    art: "bean #FF9AE0 #FFE8F8 #C86AFF spots happy none none none none 2 2 bounce 0.9"
+  }),
+  S({
+    id: "mindswirl",
+    name: "Mind Swirl",
+    terrain: "neon",
+    rarity: "epic",
+    cost: 5,
+    target: "enemy_unit",
+    text: "Take control of an enemy creature: it joins your side, in your nearest empty lane.",
+    flavor: "You are getting very\u2026 loyal.",
+    art: "\u{1F300}"
+  }),
+  S({
+    id: "crystalball",
+    name: "Crystal Ball",
+    terrain: "neutral",
+    rarity: "common",
+    cost: 1,
+    target: "none",
+    tags: ["draw"],
+    text: "See the enemy\u2019s hand for the rest of your turn, and draw a card.",
+    flavor: "I see\u2026 a lot of fireballs.",
+    art: "\u{1F52E}"
+  }),
+  S({
+    id: "bubbleprison",
+    name: "Bubble Prison",
+    terrain: "sugar",
+    rarity: "rare",
+    cost: 2,
+    target: "enemy_unit",
+    tags: ["stun"],
+    text: "Trap an enemy creature in a bubble: it can\u2019t attack for 2 turns, and the next hit on it just pops the bubble.",
+    flavor: "Pop goes the weasel. Eventually.",
+    art: "\u{1FAE7}"
+  }),
+  S({
+    id: "fusionflask",
+    name: "Fusion Flask",
+    terrain: "neutral",
+    rarity: "epic",
+    cost: 3,
+    target: "my_unit",
+    text: "One of your creatures goes MEGA: it gains its card\u2019s attack and health again, heals fully and grows huge.",
+    flavor: "Shake well. Stand back.",
+    art: "\u2697\uFE0F"
+  }),
   // ---- 🌋 cataclysms: spells that change the whole board -------------------------------------------------------------
   S({
     id: "eruption",
@@ -930,7 +1013,7 @@ function attackOf(s, side, lane) {
   if (!u) return 0;
   let a = u.atk + u.temp;
   if (home(s, side, lane)) a += 1;
-  if (L.totem?.id === "kindleshrine") a += 2;
+  if (L.totem?.id === "kindleshrine") a += 2 * (L.totem.lv ?? 1);
   if (s.ev === "bloodmoon") a += 1;
   for (let i = 0; i < LANES; i++) if (i !== lane && s.p[side].lanes[i].unit?.id === "gridoverlord") a += 1;
   return Math.max(0, a);
@@ -939,7 +1022,7 @@ var toughness = (s, side, lane) => {
   const L = s.p[side].lanes[lane];
   let n = 0;
   if (L.unit && (L.unit.id === "mossback" || L.unit.id === "frostmaw")) n++;
-  if (L.totem?.id === "hoarfrost") n++;
+  if (L.totem?.id === "hoarfrost") n += L.totem.lv ?? 1;
   return n;
 };
 function draw(s, side, out) {
@@ -1045,6 +1128,30 @@ function bounce(s, side, lane, out) {
   if (s.p[side].hand.length < HAND_MAX) s.p[side].hand.push({ uid: s.uid++, id: u.id });
   else s.p[side].grave.push(u.id);
 }
+function megafy(s, side, lane, out) {
+  const u = s.p[side].lanes[lane].unit;
+  if (!u || u.mega) return;
+  const c = cardOf(u.id);
+  u.mega = true;
+  u.atk += c.atk ?? 0;
+  u.max += c.hp ?? 0;
+  u.hp = u.max;
+  if (c.tags?.includes("shield")) u.shield = true;
+  out.push({ e: "fuse", side, lane, card: u.id });
+}
+function possess(s, from, lane, to, prefer, out) {
+  const u = s.p[from].lanes[lane].unit;
+  if (!u) return false;
+  const free = [0, 1, 2, 3].slice(0, LANES).sort((a, b) => Math.abs(a - prefer) - Math.abs(b - prefer) || a - b).find((l) => !s.p[to].lanes[l].unit);
+  if (free === void 0) return false;
+  s.p[from].lanes[lane].unit = null;
+  s.p[to].lanes[free].unit = u;
+  u.acted = true;
+  u.frozen = 0;
+  out.push({ e: "possess", side: from, lane, to, toLane: free, card: u.id });
+  return true;
+}
+var hasRoom = (s, side) => s.p[side].lanes.some((L) => !L.unit);
 var unitLanes = (s, side) => s.p[side].lanes.map((L, l) => L.unit ? l : -1).filter((l) => l >= 0);
 function deaths(s, out) {
   for (let guard = 0; guard < 8; guard++) {
@@ -1097,7 +1204,7 @@ function startTurn(s, side, out) {
   const P = s.p[side];
   let paint = Math.min(MAX_PAINT, 1 + s.round) + (s.ev === "rain" ? 1 : 0);
   P.lanes.forEach((L) => {
-    if (L.totem?.id === "sprinklefountain") paint += 1;
+    if (L.totem?.id === "sprinklefountain") paint += L.totem.lv ?? 1;
   });
   if (s.lab && side === 0) paint = Math.max(paint, LAB_PAINT);
   P.paint = paint;
@@ -1115,7 +1222,7 @@ function startTurn(s, side, out) {
       out.push({ e: "ability", side, lane, card: u.id });
       buff(s, side, lane, 0, 1, out);
     }
-    if (L.totem?.id === "bloomwell") heal(s, side, lane, 2, out);
+    if (L.totem?.id === "bloomwell") heal(s, side, lane, 2 * (L.totem.lv ?? 1), out);
     if (u.poison > 0) {
       damage(s, side, lane, 1, "poison", out);
       u.poison--;
@@ -1171,12 +1278,13 @@ function wondersAtDawn(s, side, out) {
 }
 function endTurn(s, side, out) {
   const o = other(side), P = s.p[side];
+  P.peek = false;
   for (let lane = 0; lane < LANES && !s.over; lane++) {
     const u = P.lanes[lane].unit;
     if (!u || u.hp <= 0) continue;
     if (u.frozen) {
-      u.frozen = 0;
-      out.push({ e: "thaw", side, lane });
+      u.frozen--;
+      if (!u.frozen) out.push({ e: "thaw", side, lane });
       continue;
     }
     if (u.acted) continue;
@@ -1190,7 +1298,7 @@ function endTurn(s, side, out) {
         const dealt = damage(s, o, lane, atk, "hit", out);
         if (dealt > 0 && s.p[o].lanes[lane].unit) {
           if (u.id === "icicleram") freeze(s, o, lane, out);
-          if (u.id === "mudslug" || P.lanes[lane].totem?.id === "mirecauldron") poison(s, o, lane, 1, out);
+          if (u.id === "mudslug" || P.lanes[lane].totem?.id === "mirecauldron") poison(s, o, lane, P.lanes[lane].totem?.id === "mirecauldron" ? P.lanes[lane].totem.lv ?? 1 : 1, out);
         }
         if (u.id === "laserlynx") {
           for (const l of [lane - 1, lane + 1]) if (l >= 0 && l < LANES) damage(s, o, l, 1, "hit", out);
@@ -1213,7 +1321,7 @@ function endTurn(s, side, out) {
       out.push({ e: "ability", side, lane, card: "rotqueen" });
       for (let l = 0; l < LANES; l++) damage(s, o, l, 1, "poison", out);
     }
-    if (L.totem?.id === "teslacoil") damage(s, o, lane, 1, "burn", out);
+    if (L.totem?.id === "teslacoil") damage(s, o, lane, L.totem.lv ?? 1, "burn", out);
     if (L.totem?.id === "stormspire") {
       const ls = unitLanes(s, o);
       if (ls.length) {
@@ -1273,7 +1381,13 @@ function check(s, side, a) {
   if (a.t === "lands") return "bad_action";
   if (s.turn !== side) return "not_your_turn";
   const P = s.p[side];
-  if (a.t === "end" || a.t === "timeout") return null;
+  if (a.t === "timeout") return null;
+  if (P.choice) {
+    if (a.t !== "choose") return "choose_first";
+    return Number.isInteger(a.i) && a.i >= 0 && a.i < P.choice.cards.length ? null : "bad_choice";
+  }
+  if (a.t === "choose") return "nothing_to_choose";
+  if (a.t === "end") return null;
   if (a.t === "lab") {
     if (!s.lab || side !== 0) return "not_lab";
     if (a.card !== void 0) {
@@ -1298,6 +1412,8 @@ function check(s, side, a) {
       return null;
     }
     if (c.id === "secondwind" && !P.grave.some((id) => cardOf(id).kind === "creature")) return "nothing_to_revive";
+    if (c.id === "mindswirl" && !hasRoom(s, side)) return "no_room";
+    if (c.id === "fusionflask" && a.target && s.p[a.target.side].lanes[a.target.lane]?.unit?.mega) return "already_mega";
     return validTarget(s, side, c.target, a.target) ? null : "bad_target";
   }
   if (a.t === "flourish") {
@@ -1337,12 +1453,12 @@ function summon(s, side, lane, id, out, hp) {
   if (oak && c.terrain === "meadow") buff(s, side, lane, 1, 1, out);
   return u;
 }
-var ON_PLAY = /* @__PURE__ */ new Set(["thornhare", "blazefox", "volcanotitan", "aurorawyrm", "glacierowl", "sugarcolossus", "gumdropimp", "wanderingbard", "taffytwister", "oakheart", "mimicchest", "frostmaw", "candiedknight"]);
+var ON_PLAY = /* @__PURE__ */ new Set(["hypnotoad", "pickpocket", "doppelgoo", "thornhare", "blazefox", "volcanotitan", "aurorawyrm", "glacierowl", "sugarcolossus", "gumdropimp", "wanderingbard", "taffytwister", "oakheart", "mimicchest", "frostmaw", "candiedknight"]);
 function onPlay(s, side, lane, id, out) {
   const o = other(side), P = s.p[side];
   if (ON_PLAY.has(id)) {
     const mate = [lane - 1, lane + 1].find((l) => l >= 0 && l < LANES && P.lanes[l].unit && !P.lanes[l].unit.shield);
-    const target = id === "blazefox" ? { side: o, lane: -1 } : ["thornhare", "taffytwister", "frostmaw"].includes(id) ? { side: o, lane } : id === "candiedknight" && mate !== void 0 ? { side, lane: mate } : void 0;
+    const target = id === "blazefox" ? { side: o, lane: -1 } : ["thornhare", "taffytwister", "frostmaw", "hypnotoad", "doppelgoo"].includes(id) && s.p[o].lanes[lane].unit ? { side: o, lane } : ["thornhare", "taffytwister", "frostmaw"].includes(id) ? { side: o, lane } : id === "candiedknight" && mate !== void 0 ? { side, lane: mate } : void 0;
     out.push({ e: "ability", side, lane, card: id, ...target ? { target } : {} });
   }
   switch (id) {
@@ -1403,6 +1519,28 @@ function onPlay(s, side, lane, id, out) {
     case "mimicchest": {
       const h = s.p[o].hand;
       if (h.length) giveCard(s, side, h[rint(s, h.length)].id, out);
+      break;
+    }
+    case "hypnotoad":
+      possess(s, o, lane, side, lane, out);
+      break;
+    case "pickpocket": {
+      const h = s.p[o].hand;
+      if (h.length) {
+        P.choice = { kind: "steal", cards: h.map((x) => ({ ...x })) };
+        out.push({ e: "peek", side });
+      }
+      break;
+    }
+    case "doppelgoo": {
+      const f = s.p[o].lanes[lane].unit, me = P.lanes[lane].unit;
+      if (!f || !me) break;
+      me.id = f.id;
+      me.atk = f.atk;
+      me.max = Math.max(1, f.max);
+      me.hp = me.max;
+      me.shield = cardOf(f.id).tags?.includes("shield") ?? false;
+      out.push({ e: "morph", side, lane, card: f.id });
       break;
     }
   }
@@ -1555,6 +1693,25 @@ function castSpell(s, side, id, t, out) {
         out.push({ e: "swap", side: sd, lane: l, atk: h, hp: a });
       });
       break;
+    case "mindswirl":
+      possess(s, t.side, t.lane, side, t.lane, out);
+      break;
+    case "crystalball":
+      P.peek = true;
+      out.push({ e: "peek", side });
+      draw(s, side, out);
+      break;
+    case "bubbleprison": {
+      const u = s.p[t.side].lanes[t.lane].unit;
+      u.frozen = 2;
+      u.shield = true;
+      out.push({ e: "freeze", side: t.side, lane: t.lane });
+      out.push({ e: "buff", side: t.side, lane: t.lane, atk: 0, hp: 0 });
+      break;
+    }
+    case "fusionflask":
+      megafy(s, t.side, t.lane, out);
+      break;
     case "secondwind": {
       const i = P.grave.map((id2) => cardOf(id2).kind).lastIndexOf("creature");
       if (i >= 0) {
@@ -1565,6 +1722,18 @@ function castSpell(s, side, id, t, out) {
     }
   }
   deaths(s, out);
+}
+function choose(s, side, i, out) {
+  const P = s.p[side], ch = P.choice;
+  if (!ch) return;
+  P.choice = null;
+  const pick = ch.cards[i], o = other(side), at = s.p[o].hand.findIndex((h) => h.uid === pick?.uid);
+  if (at < 0) return;
+  const [card] = s.p[o].hand.splice(at, 1);
+  const uid = s.uid++;
+  out.push({ e: "steal", side, uid, card: card.id });
+  if (P.hand.length < HAND_MAX) P.hand.push({ uid, id: card.id });
+  else P.grave.push(card.id);
 }
 function doFlourish(s, side, lane, t, out) {
   const o = other(side), P = s.p[side], u = P.lanes[lane].unit, f = cardOf(u.id).flourish;
@@ -1619,7 +1788,9 @@ function apply(s, side, a) {
   else if (a.t === "lands") placeLands(s, side, a.lanes, out);
   else if (a.t === "timeout" && s.phase === "lands") {
     for (const sd of [0, 1]) if (!s.p[sd].ready && !s.over) placeLands(s, sd, s.p[sd].landCards ?? s.p[sd].lanes.map((L) => L.terrain), out);
-  } else if (a.t === "end" || a.t === "timeout") {
+  } else if (a.t === "choose") choose(s, side, a.i, out);
+  else if (a.t === "end" || a.t === "timeout") {
+    if (P.choice) choose(s, side, 0, out);
     if (a.t === "timeout") {
       P.timeouts++;
       if (P.timeouts >= 3) {
@@ -1637,13 +1808,19 @@ function apply(s, side, a) {
     const i = P.hand.findIndex((x) => x.uid === a.uid), h = P.hand[i], c = cardOf(h.id);
     P.hand.splice(i, 1);
     P.paint -= c.cost;
-    if (c.kind === "creature") {
+    const L = P.lanes[a.lane ?? 0];
+    if (c.kind === "creature" && L.unit && L.unit.id === c.id && !L.unit.mega) {
+      megafy(s, side, a.lane, out);
+      deaths(s, out);
+    } else if (c.kind === "creature") {
       summon(s, side, a.lane, c.id, out);
       onPlay(s, side, a.lane, c.id, out);
       deaths(s, out);
+    } else if (c.kind === "totem" && !c.wonder && L.totem?.id === c.id && (L.totem.lv ?? 1) < 2) {
+      L.totem.lv = 2;
+      out.push({ e: "fuse", side, lane: a.lane, card: c.id, totem: true });
     } else if (c.kind === "totem") {
       crumble(s, side, a.lane, out);
-      const L = P.lanes[a.lane];
       L.totem = { uid: s.uid++, id: c.id, ...c.id === "smolderpeak" ? { n: 3 } : {} };
       out.push({ e: "totem", side, card: c.id, lane: a.lane });
     } else castSpell(s, side, c.id, a.target, out);
@@ -1683,7 +1860,13 @@ function viewFor(s, me) {
     me,
     phase: s.phase ?? "play",
     ...s.lab ? { lab: true } : {},
-    p: s.p.map((P, i) => ({ ...P, pending: i === me ? P.pending ?? null : null, deck: P.deck.length, hand: i === me ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid })) })),
+    p: s.p.map((P, i) => ({
+      ...P,
+      pending: i === me ? P.pending ?? null : null,
+      choice: i === me ? P.choice ?? null : null,
+      deck: P.deck.length,
+      hand: i === me || s.p[me].peek ? P.hand.map((h) => ({ ...h })) : P.hand.map((h) => ({ uid: h.uid }))
+    })),
     log: s.log.map((l) => ({ ...l, ev: l.ev.map(hideEv) }))
   };
 }
@@ -1723,6 +1906,7 @@ function targets(s, me) {
 }
 function candidates(s, me) {
   const P = s.p[me], out = [];
+  if (P.choice) return P.choice.cards.map((_, i) => ({ t: "choose", i }));
   for (const h of P.hand) {
     const c = CARD[h.id];
     if (!c || c.cost > P.paint) continue;
@@ -1751,6 +1935,7 @@ function botMove(s, me, skill = 1, rnd = Math.random) {
       return { a, v: -Infinity };
     }
   }).filter((x) => x.v > -Infinity).sort((x, y) => y.v - x.v);
+  if (s.p[me].choice) return scored[0]?.a ?? { t: "choose", i: 0 };
   if (!scored.length || scored[0].v <= base + 0.05) return { t: "end" };
   if (skill < 1 && rnd() > skill) {
     if (rnd() < 0.3) return { t: "end" };
@@ -1806,6 +1991,7 @@ function validAction(a) {
   if (x.t === "end" || x.t === "concede" || x.t === "sketch") return true;
   if (x.t === "play") return Number.isInteger(x.uid) && (x.lane === void 0 || Number.isInteger(x.lane)) && pick(x.target);
   if (x.t === "flourish") return Number.isInteger(x.lane) && pick(x.target);
+  if (x.t === "choose") return Number.isInteger(x.i);
   if (x.t === "lab") return (x.card === void 0 || typeof x.card === "string") && (x.paint === void 0 || typeof x.paint === "boolean");
   if (x.t === "lands") return Array.isArray(x.lanes) && x.lanes.length === 4 && x.lanes.every((t) => typeof t === "string");
   return false;

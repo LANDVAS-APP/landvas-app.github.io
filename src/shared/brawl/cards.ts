@@ -160,6 +160,22 @@ export const CARDS: Card[] = [
   S({ id: 'luckycoin', name: 'Lucky Coin', terrain: 'neutral', rarity: 'common', cost: 0, target: 'none',
     text: 'Gain 1 paint. If it lands heads (50%), draw a card too.', flavor: 'Call it in the air.', art: '🪙' }),
 
+  // ---- ✨ tricksters: possession, pickpockets, shapeshifters and fusion ----------------------------------------------------
+  C({ id: 'hypnotoad', name: 'Hypno Toad', terrain: 'bog', rarity: 'epic', cost: 4, atk: 3, hp: 4,
+    text: 'On play: hypnotises the enemy creature opposite — it joins your side, in your nearest empty lane.', flavor: 'Look into my eyes. Ribbit.', art: 'round #7ADC6A #E8FFD0 #9B6BFF spots big none nubs none none 4 2 bounce 1.05' }),
+  C({ id: 'pickpocket', name: 'Pickpocket Raccoon', terrain: 'neutral', rarity: 'rare', cost: 2, atk: 2, hp: 2,
+    text: 'On play: peeks at the enemy’s hand and steals the card of your choice.', flavor: 'Finders keepers.', art: 'bean #8A8A9A #E8E4F0 #2A2A3A stripes big floppy none fluffy none 4 2 walk 0.9' }),
+  C({ id: 'doppelgoo', name: 'Doppel Goo', terrain: 'sugar', rarity: 'epic', cost: 3, atk: 1, hp: 1,
+    text: 'On play: turns into a perfect copy of the creature opposite — its look, attack and health.', flavor: 'Wait, which one of us is me?', art: 'bean #FF9AE0 #FFE8F8 #C86AFF spots happy none none none none 2 2 bounce 0.9' }),
+  S({ id: 'mindswirl', name: 'Mind Swirl', terrain: 'neon', rarity: 'epic', cost: 5, target: 'enemy_unit',
+    text: 'Take control of an enemy creature: it joins your side, in your nearest empty lane.', flavor: 'You are getting very… loyal.', art: '🌀' }),
+  S({ id: 'crystalball', name: 'Crystal Ball', terrain: 'neutral', rarity: 'common', cost: 1, target: 'none', tags: ['draw'],
+    text: 'See the enemy’s hand for the rest of your turn, and draw a card.', flavor: 'I see… a lot of fireballs.', art: '🔮' }),
+  S({ id: 'bubbleprison', name: 'Bubble Prison', terrain: 'sugar', rarity: 'rare', cost: 2, target: 'enemy_unit', tags: ['stun'],
+    text: 'Trap an enemy creature in a bubble: it can’t attack for 2 turns, and the next hit on it just pops the bubble.', flavor: 'Pop goes the weasel. Eventually.', art: '🫧' }),
+  S({ id: 'fusionflask', name: 'Fusion Flask', terrain: 'neutral', rarity: 'epic', cost: 3, target: 'my_unit',
+    text: 'One of your creatures goes MEGA: it gains its card’s attack and health again, heals fully and grows huge.', flavor: 'Shake well. Stand back.', art: '⚗️' }),
+
   // ---- 🌋 cataclysms: spells that change the whole board -------------------------------------------------------------
   S({ id: 'eruption', name: 'Eruption', terrain: 'ember', rarity: 'legendary', cost: 6, target: 'none', fx: 'eruption', tags: ['burn'],
     text: 'Cataclysm. A volcano bursts up through the board and erupts: lava destroys every creature and totem on both sides, and every lane becomes Ember. Draw a card.', flavor: 'Clean slate. Very, very hot slate.', art: '🌋' }),

@@ -11,10 +11,11 @@ import * as bog from './bog';
 import * as sugar from './sugar';
 import * as neon from './neon';
 import * as neutral from './neutral';
+import * as tricksters from './tricksters';
 
 export type { Char, CharFx, ActKind, Pose } from './core';
 
-const BUILDERS: Record<string, Builder> = { ...meadow, ...ember, ...frost, ...bog, ...sugar, ...neon, ...neutral } as Record<string, Builder>;
+const BUILDERS: Record<string, Builder> = { ...meadow, ...ember, ...frost, ...bog, ...sugar, ...neon, ...neutral, ...tricksters } as Record<string, Builder>;
 export const hasChar = (id: string) => !!BUILDERS[id];
 
 export function buildChar(card: Card, o: { phone?: boolean; toon?: boolean } = {}): Char {

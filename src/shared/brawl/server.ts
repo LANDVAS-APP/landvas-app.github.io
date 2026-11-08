@@ -34,6 +34,7 @@ function validAction(a: unknown): a is Action {
   if (x.t === 'end' || x.t === 'concede' || x.t === 'sketch') return true;
   if (x.t === 'play') return Number.isInteger(x.uid) && (x.lane === undefined || Number.isInteger(x.lane)) && pick(x.target);
   if (x.t === 'flourish') return Number.isInteger(x.lane) && pick(x.target);
+  if (x.t === 'choose') return Number.isInteger(x.i);
   if (x.t === 'lab') return (x.card === undefined || typeof x.card === 'string') && (x.paint === undefined || typeof x.paint === 'boolean');
   if (x.t === 'lands') return Array.isArray(x.lanes) && x.lanes.length === 4 && x.lanes.every((t) => typeof t === 'string');
   return false;

@@ -15,7 +15,7 @@ import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar, Spinner } from '../ui';
 import { sfx } from '../arcade/sfx';
-import { CARD, type Terrain } from '../shared/brawl/cards';
+import { CARD, CARDS, RARITY_INFO, type Terrain } from '../shared/brawl/cards';
 import type { View } from '../shared/brawl/engine';
 import { createBoard3D, type Board3D } from './board3d';
 import { portrait } from './chars';
@@ -98,6 +98,14 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
       await db?.query(`update public.brawl_players set dust = $2 where player_id = $1`, [uid, n(bank.dust)]);
       setBank(null); await reload(); sfx.win(2); toast.success('Done!');
     } catch (e) { toast.error((e as Error).message); }
+  };
+  /** Demo only: every card in the game, as many copies as a deck can hold. */
+  const unlockAll = async () => {
+    const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
+    const uid = (await api.myState()).user_id;
+    const all = Object.fromEntries(CARDS.map((c) => [c.id, RARITY_INFO[c.rarity].max]));
+    try { await db?.query(`update public.brawl_players set cards = $2 where player_id = $1`, [uid, JSON.stringify(all)]); setBank(null); await reload(); sfx.jackpot(); toast.success(`All ${CARDS.length} cards unlocked!`); }
+    catch (e) { toast.error((e as Error).message); }
   };
   const reload = async () => { const d = await api.brawlGet(data.id); setMe(d.brawl); return d.brawl; };
 
@@ -211,6 +219,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
             ))}
             <div className="flex flex-wrap gap-1.5">{[1000, 10000, 100000].map((n) => <button key={n} onClick={() => setBank({ shards: String(n), dust: String(n) })} className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-bold">{fmt(n)} each</button>)}</div>
             <Button variant="primary" onClick={() => void saveBank()} data-testid="brawl-bank-save">Set</Button>
+            <Button variant="secondary" onClick={() => void unlockAll()} data-testid="brawl-unlock-all">🔓 Unlock every card (all {CARDS.length})</Button>
           </div>
         )}
       </Dialog>

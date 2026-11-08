@@ -35,6 +35,8 @@ function targets(s: State, me: Side): Pick[] {
 }
 export function candidates(s: State, me: Side): Action[] {
   const P = s.p[me], out: Action[] = [];
+  // a choice to make (which card to steal) comes before anything else
+  if (P.choice) return P.choice.cards.map((_, i) => ({ t: 'choose' as const, i }));
   for (const h of P.hand) {
     const c = CARD[h.id]; if (!c || c.cost > P.paint) continue;
     if (c.kind === 'creature' || c.kind === 'totem') for (let lane = 0; lane < LANES; lane++) out.push({ t: 'play', uid: h.uid, lane });
@@ -56,6 +58,7 @@ export function botMove(s: State, me: Side, skill = 1, rnd: () => number = Math.
   const base = after(s, me);
   const scored = candidates(s, me).map((a) => { const t = clone(s); try { apply(t, me, a); return { a, v: after(t, me) }; } catch { return { a, v: -Infinity }; } })
     .filter((x) => x.v > -Infinity).sort((x, y) => y.v - x.v);
+  if (s.p[me].choice) return scored[0]?.a ?? { t: 'choose', i: 0 };
   if (!scored.length || scored[0].v <= base + 0.05) return { t: 'end' };
   // a less skilled bot sometimes takes its second or third idea, or just ends its turn
   if (skill < 1 && rnd() > skill) { if (rnd() < 0.3) return { t: 'end' }; const pick = scored[Math.min(scored.length - 1, 1 + Math.floor(rnd() * 2))]; return pick.v > base - 2 ? pick.a : scored[0].a; }

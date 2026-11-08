@@ -10,6 +10,7 @@ import { config } from '../env';
 import { realmRoute } from '../realms/kinds';
 import { Button, Spinner } from '../ui';
 import { setDemoAutoPractice } from './BrawlScreen';
+import { CARDS, RARITY_INFO } from '../shared/brawl/cards';
 
 // somewhere to stand (Salt Lake City); the street map doesn't load offline, so the spot doesn't matter
 const SPOT = { lng: -111.8929, lat: 40.7608 };
@@ -45,12 +46,14 @@ async function ensureArena(step: (s: string) => void): Promise<string> {
   await api.setGroupKind(groups[0].id, 'brawl');
   const g = (await api.myGroups()).find((x) => x.id === groups[0].id);
   if (!g?.realm_id) throw new Error('The arena didn’t open — try again.');
-  await giveShards(db, st.user_id);
   return g.realm_id;
 }
 
-/** Plenty of shards in the demo, so there are packs to open. */
+/** Plenty of shards in the demo (packs to open), and every card unlocked. */
 async function giveShards(db: { query(q: string, a: unknown[]): Promise<unknown> } | undefined, uid: string) {
+  const all = Object.fromEntries(CARDS.map((c) => [c.id, RARITY_INFO[c.rarity].max]));
+  await db?.query(`select private.rbr_player($1)`, [uid]).catch(() => {});
+  await db?.query(`update public.brawl_players set cards = $2 where player_id = $1`, [uid, JSON.stringify(all)]).catch(() => {});
   await db?.query(`select private.rlm_player($1, 'brawl')`, [uid]).catch(() => {});
   await db?.query(`update public.realm_players set wallet = jsonb_set(wallet, '{shards}', to_jsonb(greatest(coalesce((wallet ->> 'shards')::int, 0), 5000))) where player_id = $1 and kind = 'brawl'`, [uid]).catch(() => {});
 }
@@ -76,7 +79,12 @@ export default function BrawlDemo() {
     // the browser tests go straight into a battle unless they ask for the menu
     const auto = location.search.includes('e2e=1') && !location.search.includes('menu=1');
     void ensureArena((s) => { if (!stop) setStep(s); })
-      .then(async (id) => { if (stop) return; if (auto) await go(id, 'bot'); else setArena(id); })
+      .then(async (id) => {
+        if (stop) return;
+        const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
+        await giveShards(db, (await api.myState()).user_id);
+        if (auto) await go(id, 'bot'); else setArena(id);
+      })
       .catch((e) => { if (!stop) setErr(e instanceof Error ? e.message : String(e)); });
     return () => { stop = true; };
   }, [tries]); // eslint-disable-line react-hooks/exhaustive-deps

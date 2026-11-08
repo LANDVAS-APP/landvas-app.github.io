@@ -67,6 +67,29 @@ export async function castSpell(id: string, fx: CharFx, from: THREE.Vector3, at:
       fx.beam(tgt.clone().setY(tgt.y - 0.5), tgt.clone().setY(tgt.y + 6), '#FFE9A8', 0.9, 0.35); fx.ring(tgt, '#FFE9A8', 2, 0.9); fx.emoji(tgt.clone().setY(tgt.y + 1.5), '👻', 0.6);
       await wait(450); return true;
     }
+    case 'mindswirl': {
+      // rings of hypnotic light spiral out and wrap around the target
+      for (let i = 0; i < 6; i++) { await wait(70); void fx.shot(from, tgt.clone().setY(tgt.y + 0.3), { kind: 'spark', color: i % 2 ? '#C89BFF' : '#22E3FF', dur: 0.5, arc: 1.2 + i * 0.1, size: 0.3 }); }
+      await wait(450); spiral(fx, tgt, ['#C89BFF', '#22E3FF', '#FFFFFF'], 50, 0.9); fx.ring(tgt, '#C89BFF', 2.2, 0.9); fx.emoji(tgt.clone().setY(tgt.y + 1.5), '🌀', 0.7);
+      return true;
+    }
+    case 'crystalball': {
+      const orb = from.clone().setY(from.y + 1.2);
+      for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; fx.add({ x: orb.x + Math.cos(a) * 0.9, y: orb.y, z: orb.z + Math.sin(a) * 0.9, color: i % 2 ? '#C89BFF' : '#8AD8FF', size: 0.14, life: 1.1, attract: { x: orb.x, y: orb.y, z: orb.z, k: 2, swirl: 6 } }); }
+      fx.emoji(orb, '🔮', 0.9); await wait(500); fx.emoji(orb.clone().setY(orb.y + 0.6), '👁️', 0.6);
+      return true;
+    }
+    case 'bubbleprison': {
+      await fx.shot(from, tgt, { kind: 'bubble', color: '#8AD8FF', dur: 0.6, arc: 1.6, size: 0.5 });
+      for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, u = Math.random() * Math.PI; fx.add({ x: tgt.x + Math.cos(a) * Math.sin(u) * 1, y: tgt.y + 0.2 + Math.cos(u) * 1, z: tgt.z + Math.sin(a) * Math.sin(u) * 1, color: ['#FF8AD8', '#8AD8FF', '#C8A8FF', '#FFFFFF'][i % 4], size: 0.16, life: 1.4, drag: 2 }); }
+      fx.ring(tgt, '#8AD8FF', 1.8, 0.8);
+      return true;
+    }
+    case 'fusionflask': {
+      await fx.shot(from, tgt, { kind: 'goo', color: '#FFD24A', dur: 0.5, arc: 1.8, size: 0.35 });
+      burst(fx, tgt, ['#FFD24A', '#FF4FD8', '#22E3FF', '#FFFFFF'], 40, 3.6);
+      return true;
+    }
     case 'luckycoin': {
       burst(fx, from.clone().setY(from.y + 1.5), ['#FFC83A', '#FFF0A0', '#FFFFFF'], 30, 2.6, { gravity: 3 });
       return false; // the coin itself flips as its own event
