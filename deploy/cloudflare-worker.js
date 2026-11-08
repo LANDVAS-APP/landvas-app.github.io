@@ -5,7 +5,7 @@
 // Paste this into: Cloudflare dashboard → Workers & Pages → your landvas worker → Edit code → Deploy.
 const ORIGIN = 'https://landvas-app.github.io';
 // link previews: shared /art/<id> links get the artwork's own title and picture right away
-const SUPABASE = 'https://ojxqarpmreekylwotbdb.supabase.co';
+const SUPABASE = 'https://fwqzliqbfjpssozavsek.supabase.co';
 const ANON = 'sb_publishable_dEOM4bqREs8XHmtFNrx7NA_qK7GijGL'; // public (publishable) key — same one the web app ships
 
 export default {

@@ -9,6 +9,7 @@ import { setAvatarResolver } from './ui';
 import { startUpdates } from './app/updates';
 import { captureReferral } from './social/referralStore';
 import { initNative } from './native/native';
+import { TempServerBanner } from './app/TempServerBanner';
 
 if (config.fonts === 'self') {
   void import('@fontsource-variable/unbounded');
@@ -48,7 +49,7 @@ function Root() {
     };
   }, []);
   if (state.status !== 'ready' || !state.App) return <BootScreen error={state.status === 'error' ? state.error : null} />;
-  return <state.App />;
+  return <><state.App /><TempServerBanner /></>;
 }
 
 createRoot(document.getElementById('root')!).render(

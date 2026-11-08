@@ -14,6 +14,8 @@ export const config = {
   fonts: ((e.VITE_FONTS as string) || 'self') as 'self' | 'google',
   serviceWorker: e.VITE_SW !== 'off' && e.MODE !== 'artifact',
   isArtifact: e.MODE === 'artifact',
+  /** Running on the temporary event server during the main server outage. */
+  tempServer: e.VITE_TEMP_SERVER === '1',
   e2e: typeof location !== 'undefined' && /[?&]e2e=1/.test(location.search),
 };
 
