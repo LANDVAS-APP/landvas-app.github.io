@@ -11,10 +11,11 @@ import { invalidateGame } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar, ResourceIcon } from '../ui';
 import { confettiCannons } from '../ui/confetti';
+import { poll } from '../lib/poll';
 
 export const questsKey = (world: string) => ['planet-quests', world] as const;
 export function useQuests(world: string, enabled: boolean) {
-  return useQuery({ queryKey: questsKey(world), queryFn: () => api.planetQuests(world), enabled, refetchInterval: 60_000, staleTime: 20_000 });
+  return useQuery({ queryKey: questsKey(world), queryFn: () => api.planetQuests(world), enabled, refetchInterval: poll(60_000), staleTime: 20_000 });
 }
 
 const fmtAmount = (metric: string, n: number) => (metric.endsWith('_m') ? (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km` : `${Math.floor(n)} m`) : `${Math.floor(n)}`);

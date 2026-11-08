@@ -60,7 +60,7 @@ export default function CanvasesScreen() {
   // while art is still being rendered, keep the server pipeline moving
   useEffect(() => {
     if (!(q.data ?? []).some((g) => ['processing', 'approved'].includes(g.latest_publication?.status ?? ''))) return;
-    const t = setInterval(() => void getBackend().kickPipeline(), 5000);
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void getBackend().kickPipeline(); }, 5000);
     void getBackend().kickPipeline();
     return () => clearInterval(t);
   }, [q.data]);

@@ -10,6 +10,7 @@ import { bonusText } from '../play/rates';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { PVP_GAMES, PVP_INFO } from '../shared/pvp';
 import { Button, Spinner, Switch } from '../ui';
+import { poll } from '../lib/poll';
 
 const num = 'h-9 w-20 rounded-lg border border-line bg-surface px-2 text-sm text-fg tnum';
 const gameName = (g: string) => GAME_INFO[g as GameId]?.name ?? PVP_INFO[g as keyof typeof PVP_INFO]?.name ?? g;
@@ -79,7 +80,7 @@ export function BonusRulesEditor({ rules, onChange, rounds, testid }: { rules: B
 export function PvpSettings({ value, onSave }: { value: any; onSave(v: any): Promise<void> }) {
   const [v, setV] = useState<any>(() => structuredClone(value));
   useEffect(() => setV(structuredClone(value)), [value]);
-  const stats = useQuery({ queryKey: ['admin', 'pvp'], queryFn: api.admin.pvp, refetchInterval: 30_000 });
+  const stats = useQuery({ queryKey: ['admin', 'pvp'], queryFn: api.admin.pvp, refetchInterval: poll(30_000) });
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
   const setGame = (g: string, patch: Record<string, unknown>) => setV({ ...v, games: { ...v.games, [g]: { ...(v.games?.[g] ?? {}), ...patch } } });
   return (

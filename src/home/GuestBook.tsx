@@ -12,6 +12,7 @@ import type { RoomSocial } from '../backend/types';
 import { sfx } from '../arcade/sfx';
 import { cn, timeAgo } from '../lib/utils';
 import { PlayerAvatar } from '../ui';
+import { poll } from '../lib/poll';
 
 const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Marker Felt", cursive';
 const STICKERS = ['💖', '🌟', '🎨', '🌈', '🐾', '🍰', '🎉', '🌻', '🕹️', '👋'];
@@ -20,7 +21,7 @@ type Page = { kind: 'cover-in' } | { kind: 'sign' } | { kind: 'notes'; notes: Ro
 
 export function GuestBook({ username, hostName, own, onClose }: { username: string; hostName: string; own: boolean; onClose(): void }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: poll(20_000) });
   const [open, setOpen] = useState(false);
   const [spread, setSpread] = useState(0);
   const [flip, setFlip] = useState<null | { dir: 1 | -1; from: number }>(null);

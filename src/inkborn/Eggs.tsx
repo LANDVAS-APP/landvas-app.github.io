@@ -13,6 +13,7 @@ import { Button, Dialog, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { CreatureView } from './CreatureView';
 import { cleanGenome } from './genome';
+import { poll } from '../lib/poll';
 
 export const EGG_KINDS: Record<InkEgg['kind'], { name: string; blurb: string }> = {
   speckled: { name: 'Speckled egg', blurb: 'Freckled all over, like a quail’s.' },
@@ -59,7 +60,7 @@ const left = (iso: string, now: number) => {
 /** Your eggs, on the Inkborn page. */
 export function EggsPanel() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['ink-eggs'], queryFn: api.inkEggs, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['ink-eggs'], queryFn: api.inkEggs, refetchInterval: poll(30_000) });
   const [now, setNow] = useState(Date.now());
   const [hatching, setHatching] = useState<InkEgg | null>(null);
   const [name, setName] = useState('');

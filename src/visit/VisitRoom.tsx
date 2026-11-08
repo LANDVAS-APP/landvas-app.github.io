@@ -24,13 +24,14 @@ import { formatRate } from '../shared/rent';
 import type { PlotTypeId } from '../shared/grid';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Empty, PlayerAvatar, Spinner } from '../ui';
+import { poll } from '../lib/poll';
 
 const LIVE_MS = 15_000;
 
 export default function VisitRoom() {
   const { username = '' } = useParams();
-  const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username), refetchInterval: LIVE_MS });
-  const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!profile.data, refetchInterval: LIVE_MS });
+  const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username), refetchInterval: poll(LIVE_MS) });
+  const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!profile.data, refetchInterval: poll(LIVE_MS) });
   if (profile.isLoading) return <Page><div className="flex justify-center py-24"><Spinner /></div></Page>;
   if (profile.error || !profile.data) return <Page><Empty title="Room not found">This artist doesn’t exist or isn’t visible to you.</Empty></Page>;
   const d = profile.data;

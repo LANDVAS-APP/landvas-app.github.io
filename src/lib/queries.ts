@@ -4,6 +4,7 @@ import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import type { MyState, NewAchievement } from '../backend/types';
 import { toast } from 'sonner';
+import { poll } from './poll';
 
 export const qk = {
   world: ['world'] as const,
@@ -20,7 +21,7 @@ export const qk = {
 
 export const useWorld = () => useQuery({ queryKey: qk.world, queryFn: api.worldConfig, staleTime: 5 * 60_000 });
 export const useMe = () =>
-  useQuery({ queryKey: qk.me, queryFn: api.myState, enabled: !!getBackend().session(), staleTime: 15_000, refetchInterval: 60_000 });
+  useQuery({ queryKey: qk.me, queryFn: api.myState, enabled: !!getBackend().session(), staleTime: 15_000, refetchInterval: poll(60_000) });
 export const useOnboardedMe = () => {
   const q = useMe();
   return q.data && q.data.onboarded ? (q.data as Extract<MyState, { onboarded: true }>) : null;

@@ -16,6 +16,7 @@ import type { Stroke } from '../shared/strokes';
 import { Button, Empty, PlayerAvatar, Spinner, inputCls, useConfirm } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from './SketchPad';
+import { poll } from '../lib/poll';
 
 export const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -57,7 +58,7 @@ function SketchToday() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const q = useQuery({ queryKey: ['sketch'], queryFn: api.sketchToday, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['sketch'], queryFn: api.sketchToday, refetchInterval: poll(30_000) });
   const [busy, setBusy] = useState(false);
   const d = q.data;
   const skew = useMemo(() => (d ? new Date(d.server_time).getTime() - Date.now() : 0), [d]);
@@ -175,7 +176,7 @@ function Drawing({ d, deadline, now, onDone }: { d: SketchToday; deadline: numbe
 
 /** Who has sketched today's word (which sketch is whose stays secret until voting ends). */
 function ArtistsToday() {
-  const q = useQuery({ queryKey: ['sketch-artists'], queryFn: api.sketchArtistsToday, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['sketch-artists'], queryFn: api.sketchArtistsToday, refetchInterval: poll(30_000) });
   const d = q.data;
   if (!d?.count) return null;
   return (

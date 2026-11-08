@@ -33,6 +33,7 @@ import { PLANET_GAMES } from './planetGames';
 import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
 import { SPACE_KEY, useFlight, useSpace } from './useSpace';
 import { type World, worldKey, worldOf } from './worlds';
+import { poll } from '../lib/poll';
 
 export default function Surface() {
   const q = useSpace();
@@ -71,7 +72,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const taken = s.samples[s.location] === s.day;
   const isHome = s.home_seed != null && s.location === `exo:${s.home_seed}`;
   const canPlots = w.kind !== 'exo' || isHome;
-  const map = useQuery({ queryKey: planetKey(world), queryFn: () => api.planetMap(world), enabled: canPlots, refetchInterval: 15_000 });
+  const map = useQuery({ queryKey: planetKey(world), queryFn: () => api.planetMap(world), enabled: canPlots, refetchInterval: poll(15_000) });
   const sanct = useQuery({ queryKey: ['sanctuaries'], queryFn: api.mySanctuaries, enabled: !!me, staleTime: 60_000 });
   // your companion comes along (or, until you've starred one, whoever's free)
   const buddy = (sanct.data?.companion_id ? sanct.data.creatures.find((c) => c.id === sanct.data!.companion_id) : null) ?? sanct.data?.creatures.find((c) => !c.job) ?? null;
@@ -146,11 +147,11 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [area, setArea] = useState<{ gx: number; gy: number } | null>(null);
   const win = area ? { gx: Math.round(area.gx / 32) * 32, gy: Math.round(area.gy / 32) * 32 } : null;
   const near = useQuery({
-    queryKey: ['planet-near', world, win?.gx, win?.gy], enabled: canPlots && !!win && !!map.data, refetchInterval: 15_000, placeholderData: (prev) => prev,
+    queryKey: ['planet-near', world, win?.gx, win?.gy], enabled: canPlots && !!win && !!map.data, refetchInterval: poll(15_000), placeholderData: (prev) => prev,
     queryFn: () => api.planetPlotsNear(world, win!.gx - 120, win!.gx + 120, Math.max(0, win!.gy - 100), Math.min((map.data?.rows ?? 1) - 1, win!.gy + 100)),
   });
   const sectorSize = Math.max(1, Math.round(builtRows / 40));
-  const sectors = useQuery({ queryKey: ['planet-sectors', world], enabled: canPlots && ready, refetchInterval: 60_000, queryFn: () => api.planetSectors(world, sectorSize) });
+  const sectors = useQuery({ queryKey: ['planet-sectors', world], enabled: canPlots && ready, refetchInterval: poll(60_000), queryFn: () => api.planetSectors(world, sectorSize) });
   const shownPlots = useMemo(() => {
     const byKey = new Map<string, PlanetPlot>();
     for (const p of near.data ?? []) byKey.set(`${p.gx}:${p.gy}`, p);

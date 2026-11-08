@@ -13,6 +13,7 @@ import { cn } from '../lib/utils';
 import { Button, ResourceIcon } from '../ui';
 import { GAMES, type GameId } from './games/engines';
 import { AdButton } from '../ads/AdButton';
+import { poll } from '../lib/poll';
 
 export const useInkEconomy = (on = true) => useQuery({ queryKey: ['inkborn-economy'], queryFn: api.inkbornEconomy, enabled: on, staleTime: 30_000 });
 
@@ -107,7 +108,7 @@ export function CreatureWork({ c, onChanged, compact }: { c: Inkborn; onChanged?
 /** The habitat's Ink Spring: what's ready, and a button to collect it. */
 export function SpringPill({ habitatId, onCollected }: { habitatId: string; onCollected?(paid: number): void }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['spring', habitatId], queryFn: () => api.habitatSpring(habitatId), refetchInterval: 60_000 });
+  const q = useQuery({ queryKey: ['spring', habitatId], queryFn: () => api.habitatSpring(habitatId), refetchInterval: poll(60_000) });
   const [busy, setBusy] = useState(false);
   const s = q.data;
   if (!s || !s.enabled) return null;

@@ -18,6 +18,7 @@ import { Button, Empty, ResourceIcon, Spinner } from '../ui';
 import { PVP_COMPONENTS } from './games';
 import { PvpPreview } from './PvpPreview';
 import { bonusText } from '../play/rates';
+import { poll } from '../lib/poll';
 
 type Phase = { k: 'lobby' } | { k: 'playing'; s: PvpStart } | { k: 'checking' } | { k: 'result'; r: PvpFinish };
 
@@ -33,7 +34,7 @@ const WITHHELD: Record<string, string> = {
 export default function PvpScreen() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const lobby = useQuery({ queryKey: ['pvp'], queryFn: api.pvpLobby, enabled: !!me, refetchInterval: 15_000 });
+  const lobby = useQuery({ queryKey: ['pvp'], queryFn: api.pvpLobby, enabled: !!me, refetchInterval: poll(15_000) });
   const [phase, setPhase] = useState<Phase>({ k: 'lobby' });
   const [busy, setBusy] = useState<string | null>(null);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['pvp'] }); invalidateGame(qc); };

@@ -17,6 +17,7 @@ import { StrokeView } from '../creative/SketchPad';
 import { DuetView } from '../creative/DuetScreen';
 import { shareDrawing } from '../creative/share';
 import { MinigameGrid } from './PlayHub';
+import { poll } from '../lib/poll';
 
 type Tab = 'today' | 'games' | 'create' | 'friends' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
@@ -50,7 +51,7 @@ export default function PlayEarn() {
   const nav = useNavigate();
   const on = !!me;
   const earn = useQuery({ queryKey: ['earn'], queryFn: api.earnOverview, enabled: on, staleTime: 30_000 });
-  const today = useQuery({ queryKey: ['earned-today'], queryFn: api.myEarningsToday, enabled: on, refetchInterval: 60_000 });
+  const today = useQuery({ queryKey: ['earned-today'], queryFn: api.myEarningsToday, enabled: on, refetchInterval: poll(60_000) });
   const streak = useQuery({ queryKey: ['streak'], queryFn: api.myStreak, enabled: on, staleTime: 60_000 });
   const sketch = useQuery({ queryKey: ['sketch'], queryFn: api.sketchToday, staleTime: 60_000 });
   const pvp = useQuery({ queryKey: ['pvp'], queryFn: api.pvpLobby, enabled: on, staleTime: 30_000 });

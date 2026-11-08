@@ -13,6 +13,7 @@ import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Button, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { Bar, ClanBadge, PRIVACY_LABEL, ROLE_LABEL, until } from './ui';
+import { poll } from '../lib/poll';
 
 export const clanKeys = { home: ['clan-home'] as const, mine: ['clan', 'mine'] as const, one: (id: string) => ['clan', id] as const };
 const err = (e: unknown) => toast.error(toGameError(e).message);
@@ -216,7 +217,7 @@ const TAB_ITEMS = [
 function MyClan({ home }: { home: ClanHome }) {
   const [sp, setSp] = useSearchParams();
   const tab = sp.get('tab') ?? 'goals';
-  const q = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), refetchInterval: poll(20_000) });
   const c = q.data;
   if (!c) return <div className="flex justify-center py-20"><Spinner /></div>;
   const officer = c.role === 'leader' || c.role === 'officer';

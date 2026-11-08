@@ -32,13 +32,14 @@ import { clanKeys } from './ClansScreen';
 import { createKeep, type KeepScene, type KeepStation } from './keep3d';
 import { Quarry, Training } from './keepGames';
 import { Bar, ClanBadge, until } from './ui';
+import { poll } from '../lib/poll';
 
 const keepKey = ['clan', 'keep'] as const;
 const err = (e: unknown) => toast.error(toGameError(e).message);
 
 export default function ClanHall() {
   const c = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), retry: false, staleTime: 15_000 });
-  const k = useQuery({ queryKey: keepKey, queryFn: api.clanKeep, retry: false, refetchInterval: 15_000, enabled: !!c.data?.role });
+  const k = useQuery({ queryKey: keepKey, queryFn: api.clanKeep, retry: false, refetchInterval: poll(15_000), enabled: !!c.data?.role });
   if (c.isLoading || (c.data?.role && k.isLoading)) return <div className="fixed inset-0 grid place-items-center bg-[#2A1B2E]"><Spinner /></div>;
   if (!c.data?.role || !k.data) return <Navigate to="/clans" replace />;
   return <Keep key={c.data.id} c={c.data} k={k.data} />;

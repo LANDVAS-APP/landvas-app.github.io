@@ -18,13 +18,14 @@ import { FriendButton } from '../social/FriendButton';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import type { PlayerLand } from '../backend/types';
 import { ProfilePlaces } from './Places';
+import { poll } from '../lib/poll';
 
 export default function ProfileScreen() {
   const { username = '' } = useParams();
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username) });
   const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!q.data });
-  const places = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), enabled: !!q.data, refetchInterval: 30_000 });
+  const places = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), enabled: !!q.data, refetchInterval: poll(30_000) });
   const nav = useNavigate();
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (q.error || !q.data) return <Page><Empty title="Profile not found">This artist doesn't exist or isn't visible to you.</Empty></Page>;

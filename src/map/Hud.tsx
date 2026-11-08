@@ -22,6 +22,7 @@ import { formatRate } from '../shared/rent';
 import { PlayerAvatar, ResourceIcon } from '../ui';
 import { mapHandle } from './mapHandle';
 import { PLOT_TYPES } from './plotStyle';
+import { poll } from '../lib/poll';
 
 // ---- your badge and currencies --------------------------------------------------------------
 export function PlayerBadge() {
@@ -177,7 +178,7 @@ export function PlotBubbles({ ready }: { ready: boolean }) {
   // your habitat plots, straight from your land (always current)
   const habitats = useMemo(() => (groups.data ?? []).filter((g) => g.status === 'active' && g.kind === 'habitat' && g.habitat_id)
     .map((g) => ({ id: g.habitat_id!, group_id: g.id, name: g.name })), [groups.data]);
-  const springs = useQueries({ queries: habitats.map((h) => ({ queryKey: ['spring', h.id], queryFn: () => api.habitatSpring(h.id), refetchInterval: 60_000, staleTime: 30_000 })) });
+  const springs = useQueries({ queries: habitats.map((h) => ({ queryKey: ['spring', h.id], queryFn: () => api.habitatSpring(h.id), refetchInterval: poll(60_000), staleTime: 30_000 })) });
   const springKey = springs.map((s) => s.data?.ready ?? -1).join(',');
   useEffect(() => {
     const map = mapHandle.current;

@@ -13,6 +13,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { Features, Hero, richOf } from './Rich';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar } from '../ui';
+import { poll } from '../lib/poll';
 
 export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sparkles; color: string }> = {
   update: { label: 'Update', icon: Sparkles, color: '#22E3FF' },
@@ -23,13 +24,13 @@ export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sp
 
 export function useNotifications() {
   const signedIn = !!getBackend().session();
-  return useQuery({ queryKey: ['notifications', signedIn], queryFn: api.notifications, refetchInterval: 60_000, staleTime: 20_000 });
+  return useQuery({ queryKey: ['notifications', signedIn], queryFn: api.notifications, refetchInterval: poll(60_000), staleTime: 20_000 });
 }
 
 /** A bell button with a count; opens the updates panel. */
 export function useAlerts() {
   const me = useOnboardedMe();
-  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: 30_000, refetchIntervalInBackground: false, staleTime: 10_000 });
+  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: poll(30_000), refetchIntervalInBackground: false, staleTime: 10_000 });
 }
 
 export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {

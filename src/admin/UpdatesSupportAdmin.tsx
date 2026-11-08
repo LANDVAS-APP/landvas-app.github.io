@@ -11,6 +11,7 @@ import { Thread, TicketRow } from '../support/SupportScreen';
 import { Button, Empty, Field, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { AnnouncementCard, AnnouncementPage, AnnouncementPopupView, KIND } from '../updates/Notifications';
 import { richOf, THEMES, type RichContent } from '../updates/Rich';
+import { poll } from '../lib/poll';
 
 type Draft = { id?: string | null; title: string; body: string; kind: Announcement['kind']; link: string; popup: boolean; active: boolean };
 const EMPTY: Draft = { id: null, title: '', body: '', kind: 'update', link: '', popup: true, active: true };
@@ -245,7 +246,7 @@ function DraftCard({ a, onDone, onClose }: { a: AdminAnnouncement; onDone(): voi
 export function SupportAdmin() {
   const [status, setStatus] = useState<'open' | 'answered' | 'closed' | 'all'>('open');
   const [open, setOpen] = useState<string | null>(null);
-  const q = useQuery({ queryKey: ['admin', 'support', status], queryFn: () => api.admin.supportTickets(status === 'all' ? null : status), refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['admin', 'support', status], queryFn: () => api.admin.supportTickets(status === 'all' ? null : status), refetchInterval: poll(20_000) });
   if (open) return <Thread id={open} staff onBack={() => setOpen(null)} />;
   const c = q.data?.counts;
   return (

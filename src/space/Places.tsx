@@ -18,6 +18,7 @@ import { PlanetBall } from './PlanetBall';
 import { cellCenterDir } from './planetGrid';
 import { SPACE_KEY, useSpace } from './useSpace';
 import { WORLD_ORDER, worldOf } from './worlds';
+import { poll } from '../lib/poll';
 
 const dist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 const ang = (a: number[], b: number[]) => Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
@@ -62,7 +63,7 @@ export function PlacesSheet({ open, onOpenChange, here, start = 'plots' }: {
   const space = useSpace();
   const s = space.data;
   const go = useGoTo(here);
-  const ov = useQuery({ queryKey: ['planet-overview'], queryFn: api.planetOverview, enabled: open, refetchInterval: open ? 20_000 : false });
+  const ov = useQuery({ queryKey: ['planet-overview'], queryFn: api.planetOverview, enabled: open, refetchInterval: open ? poll(20_000) : false });
   const earth = useQuery({ queryKey: ['my-plots'], queryFn: api.myPlots, enabled: open && tab === 'plots', staleTime: 30_000 });
   const ppl = useQuery({ queryKey: ['planet-here', here?.world], queryFn: () => api.planetHere(here!.world), enabled: open && !!here, refetchInterval: open ? 5000 : false });
   const tabs = ([['plots', '📍 My plots'], ...(here ? [['people', `👥 Here now${ppl.data ? ` · ${ppl.data.length}` : ''}`]] : []), ['worlds', '🪐 Worlds']] as [typeof tab, string][]);

@@ -216,7 +216,12 @@ export class SupabaseBackend implements Backend {
         live = status === 'SUBSCRIBED';
       });
     // polling fallback (and catch-up after reconnects)
+    let tick = 0;
     const poll = setInterval(async () => {
+      // skip while the app is in the background; while realtime is connected this is only
+      // a catch-up check, so it runs every third tick (once a minute) instead of every 20s
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (live && lastId !== 0 && ++tick % 3 !== 0) return;
       try {
         const r = await this.rpc<{ latest_id: number; updates: MapUpdate[] }>('map_updates_since', { p_since_id: lastId });
         if (lastId === 0) {

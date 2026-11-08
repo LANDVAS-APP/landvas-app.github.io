@@ -12,6 +12,7 @@ import { cn } from '../lib/utils';
 import { Dialog } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import type { FindKind, FindMark, PlanetScene } from './planet3d';
+import { poll } from '../lib/poll';
 
 const RARITY: Record<string, string> = { common: '#B8C0D8', uncommon: '#4FD18B', rare: '#5CA8FF', legendary: '#FFB13D' };
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -19,7 +20,7 @@ const angle = (a: number[], b: number[]) => Math.acos(Math.max(-1, Math.min(1, a
 
 export function useDiscoveries(world: string, ready: boolean, scene: React.RefObject<PlanetScene | null>) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['discoveries', world], queryFn: () => api.planetDiscoveries(world), enabled: ready, refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['discoveries', world], queryFn: () => api.planetDiscoveries(world), enabled: ready, refetchInterval: poll(20_000) });
   const d = q.data;
   // refetch the moment a storm starts or ends
   useEffect(() => {

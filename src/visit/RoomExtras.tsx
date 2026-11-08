@@ -13,6 +13,7 @@ import { useAssetUrl } from '../gallery/GalleryScreen';
 import { useOnboardedMe } from '../lib/queries';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Button, PlayerAvatar, inputCls } from '../ui';
+import { poll } from '../lib/poll';
 
 /** Every artwork, one at a time: swipe, drag, arrow keys or the arrows. */
 export function ArtShowcase({ art }: { art: ArtworkCard[] }) {
@@ -82,7 +83,7 @@ function Slide({ a, active }: { a: ArtworkCard; active: boolean }) {
 export function RoomGuests({ username }: { username: string }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: poll(20_000) });
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const d = q.data;

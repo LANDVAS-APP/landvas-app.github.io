@@ -18,6 +18,7 @@ import { saveStorage } from '../lib/utils';
 import { pendingReferral } from '../social/referralStore';
 import { isNative } from '../native/native';
 import { PITCH, PLAYSTYLES, TAGLINE, TAGLINE_TEXT } from '../brand';
+import { poll } from '../lib/poll';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
 function LivingCanvas() {
@@ -151,7 +152,7 @@ export function Welcome() {
   const [started, setStarted] = useState(!app || !!params.get('mode') || !!invite);
   const [accounts, setAccounts] = useState<{ email: string }[]>([]);
   const formRef = useRef<HTMLElement>(null);
-  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: 60_000 });
+  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: poll(60_000) });
   const art = useQuery({ queryKey: ['home-art'], queryFn: () => api.galleryList('new', 36), staleTime: 60_000 });
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   const st = strength(password);

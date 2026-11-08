@@ -23,6 +23,7 @@ import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import type { AdminPlot } from '../backend/types';
+import { poll } from '../lib/poll';
 
 const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
   try { await fn(); toast.success(ok); after?.(); } catch (e) { toast.error(toGameError(e).message); }
@@ -99,7 +100,7 @@ const TABS = [
 
 function Hub() {
   const [tab, setTab] = useState(() => (location.hash.slice(1) && TABS.some((t) => t.value === location.hash.slice(1)) ? location.hash.slice(1) : 'review'));
-  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: 20_000 });
+  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: poll(20_000) });
   const pending = mode.data?.pending ?? 0;
   const notes = useNotifications();
   const openTickets = notes.data?.open_tickets_staff ?? 0;
@@ -157,8 +158,8 @@ const REJECT_REASONS = ['Not appropriate for an all-ages map', 'Copyrighted or s
 function ReviewTab() {
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: 20_000 });
-  const list = useQuery({ queryKey: ['admin', 'pending'], queryFn: api.admin.pendingPublications, refetchInterval: 20_000 });
+  const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: poll(20_000) });
+  const list = useQuery({ queryKey: ['admin', 'pending'], queryFn: api.admin.pendingPublications, refetchInterval: poll(20_000) });
   const [busy, setBusy] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['admin'] }); };
@@ -278,7 +279,7 @@ function Reports() {
 // ---- dashboard ------------------------------------------------------------------------
 
 function Overview({ onTab }: { onTab(t: string): void }) {
-  const q = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.admin.overview, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.admin.overview, refetchInterval: poll(30_000) });
   if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   const d = q.data;
   const tiles: [string, number, string?][] = [
@@ -867,7 +868,7 @@ function SocialAdmin() {
     setRef(structuredClone(cfg.data.config.referrals?.value ?? {}));
     setConv(structuredClone(cfg.data.config.rent?.value?.convert ?? { enabled: true, ink_per_usd: 100 }));
   }, [cfg.data]);
-  const chat = useQuery({ queryKey: ['admin', 'chat'], queryFn: () => api.chatRecent(null), refetchInterval: 10_000 });
+  const chat = useQuery({ queryKey: ['admin', 'chat'], queryFn: () => api.chatRecent(null), refetchInterval: poll(10_000) });
   if (!cfg.data || !ref || !conv) return <div className="flex justify-center py-10"><Spinner /></div>;
   const refValue = cfg.data.config.referrals?.value ?? {};
   const rent = cfg.data.config.rent.value;

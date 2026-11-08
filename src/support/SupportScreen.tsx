@@ -12,6 +12,7 @@ import { Page, PageHeader } from '../app/Shell';
 import { useOnboardedMe } from '../lib/queries';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Empty, Field, PlayerAvatar, Spinner, inputCls } from '../ui';
+import { poll } from '../lib/poll';
 
 export const CATEGORIES: { value: string; label: string }[] = [
   { value: 'bug', label: 'Something’s broken' },
@@ -36,7 +37,7 @@ export default function SupportScreen() {
   const me = useOnboardedMe();
   const [sp, setSp] = useSearchParams();
   const open = sp.get('t');
-  const mine = useQuery({ queryKey: ['support', 'mine'], queryFn: api.supportMine, enabled: !!me, refetchInterval: 30_000 });
+  const mine = useQuery({ queryKey: ['support', 'mine'], queryFn: api.supportMine, enabled: !!me, refetchInterval: poll(30_000) });
   const [composing, setComposing] = useState(sp.get('new') === '1');
   if (!me) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (open) return <Page><Thread id={open} onBack={() => setSp({})} staff={false} /></Page>;
@@ -118,7 +119,7 @@ function NewTicket({ defaultCategory, onDone, onCancel }: { defaultCategory: str
 export function Thread({ id, onBack, staff }: { id: string; onBack(): void; staff: boolean }) {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const q = useQuery({ queryKey: ['support', 'ticket', id], queryFn: () => api.supportTicket(id), refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['support', 'ticket', id], queryFn: () => api.supportTicket(id), refetchInterval: poll(20_000) });
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['support'] }); void qc.invalidateQueries({ queryKey: ['notifications'] }); void qc.invalidateQueries({ queryKey: ['admin', 'support'] }); };

@@ -13,6 +13,7 @@ import { fmt } from '../lib/utils';
 import { RarityBadge } from '../plot/RarityBadge';
 import { rarityInfo, type RarityId } from '../shared/rarity';
 import { Button } from '../ui';
+import { poll } from '../lib/poll';
 
 const NEON: Record<string, string> = { pink: '#FF3D9A', cyan: '#22E3FF', lime: '#B6FF3D', violet: '#8B5CFF', sunset: '#FF7A3D', rainbow: '#FF3D6E' };
 
@@ -32,7 +33,7 @@ const Stat = ({ children }: { children: React.ReactNode }) => <span className="r
 export function ProfilePlaces({ username, isMe }: { username: string; isMe: boolean }) {
   const me = useOnboardedMe();
   const nav = useNavigate();
-  const q = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), refetchInterval: poll(30_000) });
   const d: PlayerPlaces | undefined = q.data;
   if (!d) return null;
   const n = d.arcades.length + d.habitats.length + d.farms.length + d.businesses.length;

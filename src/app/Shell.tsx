@@ -13,6 +13,7 @@ import { Tour } from '../tour/Tour';
 import { isNative } from '../native/native';
 import { initAds } from '../ads/ads';
 import { useEffect } from 'react';
+import { poll } from '../lib/poll';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
@@ -64,7 +65,7 @@ export function Shell() {
   const isHome = loc.pathname === '/';
   const isMap = loc.pathname === '/world';
   const admin = me?.roles?.includes('owner');
-  const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: 60_000, staleTime: 30_000 });
+  const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(60_000), staleTime: 30_000 });
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;

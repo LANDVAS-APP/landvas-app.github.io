@@ -27,6 +27,7 @@ import { PlacesSheet } from './Places';
 export { PlanetBall };
 import { PLANET_GAMES } from './planetGames';
 import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
+import { poll } from '../lib/poll';
 
 export default function SpaceScreen() {
   const me = useOnboardedMe();
@@ -496,7 +497,7 @@ function Logbook({ s }: { s: SpaceState }) {
 
 // ---- friends out in space, and the newest worlds anyone has settled ----------------------------------
 function FriendsInSpace() {
-  const q = useQuery({ queryKey: ['space-social'], queryFn: api.spaceSocial, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ['space-social'], queryFn: api.spaceSocial, refetchInterval: poll(30_000) });
   const warpTo = useWarpTo();
   const friends = q.data?.friends ?? [], worlds = q.data?.new_worlds ?? [];
   if (!friends.length && !worlds.length) return null;

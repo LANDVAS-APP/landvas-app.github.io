@@ -17,6 +17,7 @@ import { drawStrokes, type Stroke } from '../shared/strokes';
 import { Button, Empty, PlayerAvatar, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from './SketchPad';
+import { poll } from '../lib/poll';
 
 const TOP = { y0: 0, y1: 500 }, BOTTOM = { y0: 500, y1: 1000 };
 
@@ -41,7 +42,7 @@ export default function DuetScreen() {
 function DuetHome() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['duets'], queryFn: api.duetsMine, enabled: !!me, refetchInterval: 20_000 });
+  const q = useQuery({ queryKey: ['duets'], queryFn: api.duetsMine, enabled: !!me, refetchInterval: poll(20_000) });
   const recent = useQuery({ queryKey: ['duets-recent'], queryFn: () => api.duetsRecent(12) });
   const [cur, setCur] = useState<Duet | null>(null);
   const [busy, setBusy] = useState(false);

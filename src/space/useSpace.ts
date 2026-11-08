@@ -7,12 +7,13 @@ import { api } from '../backend/api';
 import type { SpaceState } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { worldOf } from './worlds';
+import { poll } from '../lib/poll';
 
 export const SPACE_KEY = ['space'] as const;
 
 export function useSpace(enabled = true) {
   const me = useOnboardedMe();
-  return useQuery({ queryKey: SPACE_KEY, queryFn: api.spaceState, enabled: !!me && enabled, staleTime: 15_000, refetchInterval: 60_000 });
+  return useQuery({ queryKey: SPACE_KEY, queryFn: api.spaceState, enabled: !!me && enabled, staleTime: 15_000, refetchInterval: poll(60_000) });
 }
 
 /** Seconds left and progress (0..1) of the trip under way, ticking every second; refetches on landing. */

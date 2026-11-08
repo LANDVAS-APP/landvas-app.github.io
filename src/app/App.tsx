@@ -78,7 +78,7 @@ const SpaceGame = lazy(() => import('../space/SpaceGame'));
 const PlanetGame = lazy(() => import('../space/PlanetGame'));
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 10_000 } },
 });
 
 export function useSession() {

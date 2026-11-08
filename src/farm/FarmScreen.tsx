@@ -20,6 +20,7 @@ import { confettiCannons } from '../ui/confetti';
 import { createFarm, type FarmScene } from './farm3d';
 import { ChoresDialog, choresLeft } from './Chores';
 import { Coin, coinFmt, FarmHub, itemInfo, LevelBadge, type HubTab } from './FarmHub';
+import { poll } from '../lib/poll';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const farmKey = (id: string) => ['farm', id] as const;
@@ -28,7 +29,7 @@ const fmtLeft = (ms: number) => { const s = Math.max(0, Math.ceil(ms / 1000)); r
 
 export default function FarmScreen() {
   const { id } = useParams();
-  const q = useQuery({ queryKey: farmKey(id!), queryFn: () => api.farmGet(id!), refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: farmKey(id!), queryFn: () => api.farmGet(id!), refetchInterval: poll(30_000) });
   if (q.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#8FD3FF]"><Spinner /></div>;
   if (q.error || !q.data) {
     return (
