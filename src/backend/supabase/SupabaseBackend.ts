@@ -2,9 +2,10 @@
 //  * Auth: Supabase Auth (email + password, magic links; add OAuth providers in the dashboard)
 //  * Game state: Postgres RPCs (SECURITY DEFINER) through PostgREST
 //  * Storage: drafts/submissions (private, RLS by user folder), public-art (CDN)
-//  * Realtime: postgres_changes on public.map_updates, with polling fallback
+//  * Map updates: polled (map_updates_since); live channels (broadcast only) for matches and rooms
 //  * Minigame validation + art pipeline: Supabase Edge Functions (supabase/functions-src)
 //    holding the service key; clients never submit scores, only move logs
+import { poll } from '../../lib/poll';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
@@ -209,41 +210,32 @@ export class SupabaseBackend implements Backend {
     };
   }
 
+  /**
+   * New map tiles, by asking every so often (the database-change feed this used to listen to kept the database busy
+   * decoding every write, which ate the free plan's disk budget). Checks right away when the app comes back to the
+   * front, and not at all while it's in the background.
+   */
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {
     let lastId = 0;
-    let live = false;
-    const channel = this.sb
-      .channel('map-updates')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'map_updates' }, (payload) => {
-        const u = payload.new as MapUpdate;
-        lastId = Math.max(lastId, u.id);
-        cb(u);
-      })
-      .subscribe((status) => {
-        live = status === 'SUBSCRIBED';
-      });
-    // polling fallback (and catch-up after reconnects)
-    let tick = 0;
-    const poll = setInterval(async () => {
-      // skip while the app is in the background; while realtime is connected this is only
-      // a catch-up check, so it runs every third tick (once a minute) instead of every 20s
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (live && lastId !== 0 && ++tick % 3 !== 0) return;
+    let busy = false;
+    const check = async () => {
+      if (busy || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+      busy = true;
       try {
         const r = await this.rpc<{ latest_id: number; updates: MapUpdate[] }>('map_updates_since', { p_since_id: lastId });
-        if (lastId === 0) {
-          lastId = r.latest_id;
-          return;
-        }
-        if (!live) for (const u of r.updates) cb(u);
+        if (lastId !== 0) for (const u of r.updates) cb(u);
         lastId = Math.max(lastId, r.latest_id);
       } catch {
         /* offline */
-      }
-    }, 20_000);
+      } finally { busy = false; }
+    };
+    void check();
+    const timer = setInterval(() => void check(), poll(20_000));
+    const onShow = () => void check();
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onShow);
     return () => {
-      clearInterval(poll);
-      void this.sb.removeChannel(channel);
+      clearInterval(timer);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onShow);
     };
   }
 }
