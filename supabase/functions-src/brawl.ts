@@ -3,6 +3,7 @@
 import { BrawlError, brawlOp, type BrawlBody } from '../../src/shared/brawl/server';
 import { adminClient, callerId, cors, json, serve } from './shared';
 
+let cached: ReturnType<typeof adminClient> | null = null; // one client per warm worker
 const recent = new Map<string, number[]>();
 function limited(uid: string) {
   const now = Date.now();
@@ -16,11 +17,13 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   try {
-    const admin = adminClient();
+    const body = (await req.json().catch(() => null)) as BrawlBody | null;
+    // a warm-up call when the arena opens, so the first real move doesn't wait for this function to start
+    if ((body as { op?: string } | null)?.op === 'ping') return json({ ok: true });
+    const admin = (cached ??= adminClient());
     const uid = await callerId(req, admin);
     if (!uid) return json({ error: 'not_authenticated' }, 401);
     if (limited(uid)) return json({ error: 'rate_limited' }, 429);
-    const body = (await req.json().catch(() => null)) as BrawlBody | null;
     const svc = async (fn: string, args: Record<string, unknown>) => {
       const { data, error } = await admin.rpc(fn, args);
       if (error) throw new BrawlError(error.message);

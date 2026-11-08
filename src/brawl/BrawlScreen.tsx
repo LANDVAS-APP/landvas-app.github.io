@@ -64,6 +64,16 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
   const board = useRef<Board3D | null>(null);
   const [side, setSide] = useState<0 | 1>(0);
 
+  // keep the game server warm while you're in the arena, so moves answer quickly (a cold start can take a second or two)
+  useEffect(() => {
+    if (config.backend !== 'supabase') return;
+    const ping = () => { if (document.visibilityState === 'visible') void getBackend().brawl({ op: 'ping' }).catch(() => {}); };
+    ping();
+    const t = setInterval(ping, 90_000);
+    document.addEventListener('visibilitychange', ping);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', ping); };
+  }, []);
+
   // the board (rebuilt when we know which side of a match we're on)
   useEffect(() => {
     if (!cv.current) return;
@@ -124,7 +134,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
         if (stop) return;
         if (r.match) { sfx.jackpot(); setSearching(null); setMatch(r.match); return; }
       } catch (e) { if (!stop) { toast.error(errText(toGameError(e).code) ?? toGameError(e).message); setSearching(null); } return; }
-      if (!stop) setTimeout(() => void go(), 2000);
+      if (!stop) setTimeout(() => void go(), 1200);
     };
     void go();
     const t = setInterval(() => setSearching((s) => (s === null ? null : s + 1)), 1000);

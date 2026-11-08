@@ -6,7 +6,7 @@ import { apply, newMatch, viewFor, type Action, type State } from './engine';
 import { botTurn } from './ai';
 
 export type Svc = <T = any>(fn: string, args: Record<string, unknown>) => Promise<T>; // eslint-disable-line @typescript-eslint/no-explicit-any
-export type BrawlBody = { op: 'queue' | 'bot' | 'lab' | 'act' | 'tick' | 'concede'; match?: string; action?: Action };
+export type BrawlBody = { op: 'queue' | 'bot' | 'lab' | 'act' | 'tick' | 'concede' | 'ping'; match?: string; action?: Action };
 export class BrawlError extends Error {}
 const TURN_SECONDS = 75;
 
@@ -42,6 +42,7 @@ function validAction(a: unknown): a is Action {
 
 export async function brawlOp(svc: Svc, uid: string, body: BrawlBody) {
   switch (body?.op) {
+    case 'ping': return { ok: true }; // (the Edge Function answers this before anything else: it only wakes it up)
     case 'queue': {
       const r = await svc<any>('svc_brawl_enqueue', { p_uid: uid });
       if (r.match) return { match: r.match };

@@ -554,7 +554,7 @@ function traceBeams(w, h, cells) {
     if (c.k !== "emitter") return;
     let x = i % w, y = Math.floor(i / w), d = c.d;
     const pts = [[x + 0.5, y + 0.5]];
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     for (let step = 0; step < w * h * 4; step++) {
       x += DX[d];
       y += DY[d];
@@ -564,8 +564,8 @@ function traceBeams(w, h, cells) {
       }
       const j = y * w + x;
       const key = `${j}:${d}`;
-      if (seen.has(key)) break;
-      seen.add(key);
+      if (seen2.has(key)) break;
+      seen2.add(key);
       const cell = cells[j];
       if (cell.k === "mirror") {
         pts.push([x + 0.5, y + 0.5]);
@@ -22435,11 +22435,23 @@ function adminClient() {
   const key = env("SUPABASE_SERVICE_ROLE_KEY") || env("SUPABASE_SECRET_KEY");
   return createClient(env("SUPABASE_URL"), key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
+var seen = /* @__PURE__ */ new Map();
 async function callerId(req, admin = adminClient()) {
   const jwt = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!jwt) return null;
+  const now = Date.now() / 1e3;
+  const hit = seen.get(jwt);
+  if (hit && hit.exp > now + 5) return hit.uid;
   const { data, error } = await admin.auth.getUser(jwt);
-  return error || !data?.user ? null : data.user.id;
+  if (error || !data?.user) return null;
+  let exp = now + 60;
+  try {
+    exp = Math.min(Number(JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp) || exp, now + 3600);
+  } catch {
+  }
+  if (seen.size > 5e3) seen.clear();
+  seen.set(jwt, { uid: data.user.id, exp });
+  return data.user.id;
 }
 
 // supabase/functions-src/minigame-finish.ts

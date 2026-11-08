@@ -28,7 +28,11 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const qc = useQueryClient();
   const [mv, setMv] = useState<MatchView | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);           // a turn-changing move (end turn, lands, a choice) is on its way
+  // moves sent but not answered yet: shown straight away (the card leaves your hand, the paint is spent)
+  const [pending, setPending] = useState<{ uid: number; cost: number }[]>([]);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const lastV = useRef(-1);
   const [banner, setBanner] = useState<{ text: string; sub?: string; color: string } | null>(null);
   const [peek, setPeek] = useState<string | null>(null);
   const [inspect, setInspect] = useState<number | null>(null); // a hand card being looked at up close
@@ -44,6 +48,14 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const [placed, setPlaced] = useState<(number | null)[]>([null, null, null, null]);
   const [landSel, setLandSel] = useState<number | null>(null);
   const [menu, setMenu] = useState(false);
+  // the screen's size (phones rotate; the address bar comes and goes)
+  const [scr, setScr] = useState(() => ({ w: innerWidth, h: innerHeight }));
+  useEffect(() => {
+    const on = () => setScr({ w: innerWidth, h: innerHeight });
+    addEventListener('resize', on); addEventListener('orientationchange', on); visualViewport?.addEventListener('resize', on);
+    return () => { removeEventListener('resize', on); removeEventListener('orientationchange', on); visualViewport?.removeEventListener('resize', on); };
+  }, []);
+  const narrow = scr.w < 400;
   const [now, setNow] = useState(Date.now());
   const [result, setResult] = useState<Rewards | null>(null);
   const shown = useRef(-1);           // the last log entry played on the board
@@ -54,7 +66,8 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
 
   const side = mv?.side ?? 0, v = mv?.view;
   const myTurn = !!v && !v.over && v.turn === side && mv?.status === 'live';
-  const P = v?.p[side], O = v?.p[side === 0 ? 1 : 0];
+  const P0 = v?.p[side], O = v?.p[side === 0 ? 1 : 0];
+  const P = P0 && pending.length ? { ...P0, paint: Math.max(0, P0.paint - pending.reduce((n, x) => n + x.cost, 0)), hand: P0.hand.filter((h) => !pending.some((x) => x.uid === h.uid)) } : P0;
   const landing = v?.phase === 'lands' && mv?.status === 'live';
   const landCards = (P?.landCards ?? []) as Terrain[];
 
@@ -80,10 +93,11 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             setTimeout(() => setBanner(null), 1400);
           }
         }
-      } else if (!b?.previewing) b?.setView(next.view);
+      } else if (!b?.previewing && next.view.v >= lastV.current) b?.setView(next.view);
       shown.current = Math.max(shown.current, ...next.view.log.map((l) => l.n), next.view.v);
       offset.current = Date.parse(next.server_time) - Date.now();
-      setMv(next);
+      lastV.current = Math.max(lastV.current, next.view.v);
+      setMv((cur) => (!cur || next.view.v >= cur.view.v || next.status === 'over' ? next : cur));
       if (next.status === 'over' && next.rewards && !result) {
         setResult(next.rewards);
         if (next.rewards.result === 'win') { sfx.jackpot(); confettiCannons(); } else sfx.fail();
@@ -109,17 +123,47 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
     return () => { clearInterval(poll); clearInterval(clock); chan.current?.close(); };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const send = async (action: Action) => {
-    if (busy) return;
-    setBusy(true); setMode({ kind: 'idle' }); board.current?.highlight([]);
-    try {
-      const r = await api.brawlOp({ op: 'act', match: id, action });
-      chan.current?.send({ t: 'v' });
-      // play our move straight away from the reply, then fetch the full picture (players, rewards)
-      if (mvRef.current) await absorb({ ...mvRef.current, view: r.view, status: r.view.over ? 'over' : 'live', rewards: r.rewards ?? null });
-      await refresh();
-    } catch (e) { toast.error(friendly(toGameError(e).code) ?? toGameError(e).message); void refresh(); }
-    finally { setBusy(false); }
+  /**
+   * Send a move. Plays go out at once and show straight away (the card leaves your hand while the server checks it);
+   * moves are queued so several quick plays never get lost, and the board animates each reply as it arrives. Only
+   * moves that hand the turn over (end turn, lands, a choice) wait for their answer before you can move again.
+   */
+  const send = (action: Action) => {
+    if (busy) return Promise.resolve();
+    const turnish = action.t === 'end' || action.t === 'lands' || action.t === 'choose';
+    if (turnish) setBusy(true);
+    const card = action.t === 'play' ? P0?.hand.find((h) => h.uid === action.uid)?.id : undefined;
+    const pend = action.t === 'play' ? { uid: action.uid, cost: card ? CARD[card].cost : 0 } : null;
+    if (pend) setPending((x) => [...x, pend]);
+    setMode({ kind: 'idle' }); board.current?.highlight([]);
+    queue.current = queue.current.then(async () => {
+      try {
+        const r = await api.brawlOp({ op: 'act', match: id, action });
+        chan.current?.send({ t: 'v' }); // nudge the other player's device right away
+        const cur = mvRef.current;
+        if (cur) {
+          const next: MatchView = { ...cur, view: r.view, v: r.view.v, status: r.view.over ? 'over' : 'live', winner: r.view.over ? r.view.winner : null, reason: r.view.over ? r.view.reason : null, rewards: r.rewards ?? null, server_time: new Date(Date.now() + offset.current).toISOString() };
+          mvRef.current = next;
+          setMv((m) => (!m || next.view.v >= m.view.v ? next : m)); // your hand and paint update now…
+          void absorb(next);                                          // …while the board plays it out
+        }
+      } catch (e) { toast.error(friendly(toGameError(e).code) ?? toGameError(e).message); void refresh(); }
+      finally {
+        if (pend) setPending((x) => x.filter((p) => p !== pend));
+        if (turnish) setBusy(false);
+      }
+    });
+    return queue.current;
+  };
+
+  /** Leave: concede (the result shows), or if the server can't be reached, just go back to the arena. */
+  const leave = () => {
+    setMenu(false);
+    if (mv?.status !== 'live') { onLeave(); return; }
+    const out = setTimeout(onLeave, 8000);
+    void api.brawlOp({ op: 'concede', match: id })
+      .then((r: { view?: View; rewards?: Rewards | null }) => { clearTimeout(out); chan.current?.send({ t: 'v' }); if (r?.view && mvRef.current) void absorb({ ...mvRef.current, view: r.view, status: 'over', winner: r.view.winner ?? null, reason: r.view.reason ?? 'concede', rewards: r.rewards ?? null }); else void refresh(); })
+      .catch(() => { clearTimeout(out); onLeave(); });
   };
 
   // what can be picked on the board right now
@@ -281,32 +325,43 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const canSketch = myTurn && !busy && P.paint >= 1 && P.deck > 0 && P.hand.length < HAND_MAX_UI;
   const unitPeek = peek?.startsWith('unit:') ? Number(peek.slice(5)) : null;
   const hand = P.hand;
-  const cw = Math.max(72, Math.min(118, (Math.min(innerWidth, 760) - 16) / Math.max(4.4, hand.length) + 14));
+  // the hand always fits the width: the more cards, the more they overlap (never scrolled off the edge)
+  const handW = Math.min(scr.w, 760) - 24 - Math.max(0, hand.length - 1) * 2;
+  const stepOf = (n: number, w: number) => (n > 1 ? Math.min(w - 12, (handW - w) / (n - 1)) : w);
+  const lw = Math.round(Math.max(50, Math.min(74, (scr.w - 60) / 4, (scr.h * 0.2) / 1.4)));
+  // cards sized to the screen: narrow phones, tall phones and phones on their side all get a hand that fits
+  const cw = Math.round(Math.max(56, Math.min(118, (Math.min(scr.w, 760) - 16) / Math.max(4.4, hand.length) + 14, (scr.h * 0.24) / 1.4)));
+  const step = stepOf(hand.length, cw);
+  // the fan dips the outer cards: leave room below so their numbers are never off the bottom of the screen
+  const edgeFan = ((hand.length - 1) / 2) * 3.5;
+  const dip = Math.ceil(edgeFan * 1.2 + (cw / 2) * Math.sin((edgeFan * Math.PI) / 180) + 4);
 
   return (
     <>
-      {/* the other player */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))]" data-testid="brawl-opp">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/60 px-3 py-1.5 backdrop-blur">
-          <span className="grid h-8 w-8 place-items-center rounded-full text-lg" style={{ background: opp.accent_color ?? '#FF4FD8' }}>{opp.bot ? '🤖' : opp.rank?.emoji ?? '🎨'}</span>
-          <div className="min-w-0"><div className="truncate text-sm font-black">{opp.username}</div><div className="text-[10px] text-white/70">{opp.bot ? (v.lab ? 'Card Lab' : 'Practice bot') : `${opp.rank.name} · 🏆 ${opp.trophies}`}</div></div>
-          <div className="ml-2 grid justify-items-center"><span className="text-lg font-black text-[#FF8AC2]" data-testid="brawl-opp-hp">❤️ {O.hero}</span></div>
-          <div className="ml-1 flex -space-x-3" data-testid="brawl-opp-hand">{O.hand.slice(0, 8).map((h) => (h.id
-            ? <button key={h.uid} className="pointer-events-auto" onClick={() => setHold((x) => (x === h.id ? null : h.id!))}><CardView id={h.id} width={30} animate={false} tilt={false} glow="#C89BFF" /></button>
-            : <CardView key={h.uid} back width={22} animate={false} tilt={false} />))}</div>
-          {P.peek && <span className="text-[10px] font-black text-[#C89BFF]">👁️ peeking</span>}
-          <span className="text-[10px] text-white/60">🂠 {O.deck}</span>
+      {/* the top bar: leave, the other player, camera and music — sized to fit any phone */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-1.5 px-2 pb-2 pt-[max(8px,env(safe-area-inset-top,0px))] pl-[max(8px,env(safe-area-inset-left,0px))] pr-[max(8px,env(safe-area-inset-right,0px))]" data-testid="brawl-opp">
+        <button onClick={() => setMenu(true)} aria-label="Leave the match" className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black/65 backdrop-blur active:scale-95" data-testid="brawl-exit"><X className="h-5 w-5" /></button>
+        <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl bg-black/60 px-2 py-1 backdrop-blur">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg" style={{ background: opp.accent_color ?? '#FF4FD8' }}>{opp.bot ? '🤖' : opp.rank?.emoji ?? '🎨'}</span>
+          <div className="min-w-0 flex-1"><div className="truncate text-sm font-black leading-tight">{opp.username}</div><div className="truncate text-[10px] text-white/70">{opp.bot ? (v.lab ? 'Card Lab' : 'Practice bot') : `${opp.rank.name} · 🏆 ${opp.trophies}`}</div></div>
+          <span className="shrink-0 text-base font-black text-[#FF8AC2]" data-testid="brawl-opp-hp">❤️{O.hero}</span>
+          {P.peek
+            ? <div className="flex shrink-0 -space-x-3" data-testid="brawl-opp-hand">{O.hand.slice(0, narrow ? 4 : 8).map((h) => (h.id
+              ? <button key={h.uid} className="pointer-events-auto" onClick={() => setHold((x) => (x === h.id ? null : h.id!))}><CardView id={h.id} width={28} animate={false} tilt={false} glow="#C89BFF" /></button>
+              : <CardView key={h.uid} back width={20} animate={false} tilt={false} />))}{O.hand.length > (narrow ? 4 : 8) && <span className="z-10 self-center pl-3 text-[10px] font-black">+{O.hand.length - (narrow ? 4 : 8)}</span>}</div>
+            : <span className="shrink-0 rounded-md bg-white/10 px-1 py-0.5 text-[10px] font-bold" data-testid="brawl-opp-hand" title="Cards in their hand">✋{O.hand.length}</span>}
+          {!narrow && <span className="shrink-0 text-[10px] text-white/60">🂠{O.deck}</span>}
         </div>
-        <div className="pointer-events-auto flex flex-col items-end gap-1">
+        <div className="pointer-events-auto flex shrink-0 flex-col items-end gap-1">
           <div className="flex gap-1">
-            <button onClick={() => board.current?.resetView()} title="Reset the camera (drag the board to look around)" className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-resetview"><Camera className="inline h-3.5 w-3.5" /></button>
-            <MusicButton className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" />
-            <button onClick={() => setMenu(true)} className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-menu"><Flag className="inline h-3.5 w-3.5" /></button>
+            <button onClick={() => board.current?.resetView()} aria-label="Reset the camera" title="Reset the camera (drag the board to look around)" className="grid h-10 w-9 place-items-center rounded-xl bg-black/60 backdrop-blur" data-testid="brawl-resetview"><Camera className="h-4 w-4" /></button>
+            <MusicButton className="grid h-10 w-9 place-items-center rounded-xl bg-black/60 text-xs font-bold backdrop-blur" />
           </div>
           {left !== null && <span className={cn('rounded-full px-2 py-0.5 text-xs font-black tabular-nums', left <= 10 ? 'animate-pulse bg-[#FF4D6D]' : 'bg-black/60')} data-testid="brawl-clock">⏱ {left}s</span>}
-          <span className="whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold" title={EVENTS.find((x) => x.id === v.ev)?.text}>{EVENTS.find((x) => x.id === v.ev)?.emoji} Round {v.round}</span>
+          <span className="whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold" title={EVENTS.find((x) => x.id === v.ev)?.text}>{EVENTS.find((x) => x.id === v.ev)?.emoji} R{v.round}</span>
         </div>
       </div>
+      {P.peek && <div className="pointer-events-none absolute left-1/2 top-[calc(max(8px,env(safe-area-inset-top,0px))+48px)] z-10 -translate-x-1/2 rounded-full bg-[#C89BFF]/90 px-2 py-0.5 text-[10px] font-black text-black">👁️ Peeking at their hand</div>}
 
       {banner && (
         <div className="pointer-events-none absolute inset-x-0 top-[34%] z-20 grid justify-items-center" data-testid="brawl-banner">
@@ -318,26 +373,26 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
       )}
 
       {/* you */}
-      <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 p-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]">
+      <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 p-2 pb-[max(8px,env(safe-area-inset-bottom,0px))] pl-[max(8px,env(safe-area-inset-left,0px))] pr-[max(8px,env(safe-area-inset-right,0px))]">
         {!landing && <div className="pointer-events-none mx-auto max-w-[92%] truncate rounded-full bg-black/55 px-3 py-1 text-center text-[12px] font-bold text-white/90 backdrop-blur" data-testid="brawl-hint">{hint}</div>}
         {v.lab && !landing && <LabBar disabled={!myTurn || busy} handFull={P.hand.length >= HAND_MAX_UI} onCard={(card) => void send({ t: 'lab', card })} onPaint={() => void send({ t: 'lab', paint: true })} />}
         <div className={cn('flex items-end justify-between gap-2', landing && 'hidden')}>
-          <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
-            <span className="text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
+          <div className="flex min-w-0 items-center gap-1.5 rounded-2xl bg-black/65 px-2.5 py-1.5 backdrop-blur" data-testid="brawl-me">
+            <span className="whitespace-nowrap text-lg font-black text-[#7BFFAE]" data-testid="brawl-my-hp">❤️ {P.hero}</span>
             <div className="flex gap-0.5" data-testid="brawl-paint" aria-label={`${P.paint} paint`}>
-              {P.paint > 7
-                ? <span className="text-base font-black text-[#9FD0FF] drop-shadow-[0_0_6px_#3A86FF]">💧×{P.paint}</span>
+              {P.paint > 7 || narrow
+                ? <span className="whitespace-nowrap text-base font-black text-[#9FD0FF] drop-shadow-[0_0_6px_#3A86FF]">💧{P.paint > 7 ? `×${P.paint}` : `${P.paint}/${Math.max(P.paint, Math.min(7, 1 + v.round))}`}</span>
                 : Array.from({ length: Math.max(P.paint, Math.min(7, 1 + v.round)) }, (_, i) => <span key={i} className={cn('text-base transition', i < P.paint ? 'drop-shadow-[0_0_6px_#3A86FF]' : 'opacity-25 grayscale')}>💧</span>)}
             </div>
-            <span className="text-[10px] text-white/60">🂠 {P.deck}</span>
+            {!narrow && <span className="text-[10px] text-white/60">🂠 {P.deck}</span>}
             <button onClick={() => void send({ t: 'sketch' })} disabled={!canSketch} title="Spend 1 paint to draw a card"
               className="ml-1 flex items-center gap-0.5 rounded-lg bg-white/10 px-1.5 py-1 text-[10px] font-black text-[#9FE6FF] transition hover:bg-white/20 disabled:opacity-30" data-testid="brawl-sketch">
-              <Pencil className="h-3 w-3" />+1 <span className="opacity-70">(1💧)</span>
+              <Pencil className="h-3 w-3" />+1{!narrow && <span className="opacity-70"> (1💧)</span>}
             </button>
           </div>
           <div className="flex-1" />
           <button onClick={() => void send({ t: 'end' })} disabled={!myTurn || busy || landing}
-            className={cn('h-12 rounded-2xl px-4 font-display text-base font-black shadow-lg transition disabled:opacity-40', myTurn && !canAfford ? 'animate-pulse bg-[#FFE14D] text-black' : 'bg-[#FF4FD8] text-white')} data-testid="brawl-end">
+            className={cn('h-12 shrink-0 rounded-2xl px-3.5 font-display text-base font-black shadow-lg transition disabled:opacity-40', myTurn && !canAfford ? 'animate-pulse bg-[#FFE14D] text-black' : 'bg-[#FF4FD8] text-white')} data-testid="brawl-end">
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : myTurn ? 'End turn ⚔️' : 'Waiting…'}
           </button>
         </div>
@@ -347,8 +402,8 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
               <div className="text-[11px] text-white/75">{P.ready ? 'The battle starts when both sides are ready.' : 'Each lane takes one land. Creatures get +1 attack on their own land. Drag the board to look around.'}</div></div>
             {!P.ready && (
               <div className="flex items-end justify-center gap-2">
-                {landCards.map((t, i) => placed.includes(i) ? <div key={i} style={{ width: 74, height: 104 }} className="rounded-xl border-2 border-dashed border-white/20" /> : (
-                  <CardView key={i} land={t} width={74} selected={landSel === i} glow={TERRAIN_INFO[t].color} onPointerDown={pressStart({ kind: 'land', i, t })} testid={`brawl-landcard-${i}`} style={drag?.kind === 'land' && drag.i === i ? { opacity: 0.25 } : undefined} />
+                {landCards.map((t, i) => placed.includes(i) ? <div key={i} style={{ width: lw, height: Math.round(lw * 1.4) }} className="rounded-xl border-2 border-dashed border-white/20" /> : (
+                  <CardView key={i} land={t} width={lw} selected={landSel === i} glow={TERRAIN_INFO[t].color} onPointerDown={pressStart({ kind: 'land', i, t })} testid={`brawl-landcard-${i}`} style={drag?.kind === 'land' && drag.i === i ? { opacity: 0.25 } : undefined} />
                 ))}
               </div>
             )}
@@ -360,13 +415,13 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
             )}
           </div>
         ) : (
-        <div className="flex items-end justify-center gap-0 overflow-x-auto px-1 pb-1 pt-4 [scrollbar-width:none]" data-testid="brawl-hand">
+        <div className="flex items-end justify-center gap-0 px-1 pt-4" style={{ paddingBottom: dip }} data-testid="brawl-hand">
           {hand.map((h, i) => {
             const c = h.id ? CARD[h.id] : null; if (!c) return null;
             const ok = myTurn && c.cost <= P.paint, sel = mode.kind === 'card' && mode.uid === h.uid;
             const fan = (i - (hand.length - 1) / 2) * 3.5;
             return (
-              <div key={h.uid} className="-mx-1.5 transition-transform" style={{ transform: `rotate(${fan}deg) translateY(${Math.abs(fan) * 1.2}px)` }}>
+              <div key={h.uid} className="transition-transform" style={{ marginLeft: i ? step - cw : 0, zIndex: sel ? 20 : i, transform: `rotate(${fan}deg) translateY(${Math.abs(fan) * 1.2}px)` }}>
                 <CardView id={h.id} width={cw} selected={sel} dim={!ok} glow={ok && myTurn ? (c.fx ? '#FF7A20' : c.wonder ? '#FFE14D' : '#3A86FF') : undefined} onPointerDown={pressStart({ kind: 'card', uid: h.uid, id: h.id! })} testid={`brawl-card-${h.id}`} animate={sel || hand.length <= 6}
                   style={drag?.kind === 'card' && drag.uid === h.uid ? { opacity: 0.25 } : undefined} />
               </div>
@@ -481,11 +536,14 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
         )}
       </Dialog>
 
-      <Dialog open={menu} onOpenChange={setMenu} title="Match">
-        <div className="grid gap-2">
-          <p className="text-sm text-muted">{EVENTS.find((x) => x.id === v.ev)?.emoji} <b>{EVENTS.find((x) => x.id === v.ev)?.name}:</b> {EVENTS.find((x) => x.id === v.ev)?.text}</p>
-          <p className="text-xs text-muted">Your lanes: {P.lanes.map((L) => TERRAIN_INFO[L.terrain].emoji).join(' ')} — creatures on their own terrain get +1 attack.</p>
-          <Button variant="danger" onClick={() => { setMenu(false); void api.brawlOp({ op: 'concede', match: id }).then(() => { chan.current?.send({ t: 'v' }); void refresh(); }).catch((e) => toast.error(toGameError(e).message)); }} data-testid="brawl-concede"><Flag className="h-4 w-4" />Concede</Button>
+      <Dialog open={menu} onOpenChange={setMenu} title="Leave the match?">
+        <div className="grid gap-2" data-testid="brawl-leave-dialog">
+          <p className="text-sm text-muted">{v.lab ? 'It’s only the Card Lab — nothing is won or lost.' : mv.bot ? 'Leaving counts as a loss against the practice bot.' : `Leaving counts as a loss — ${opp.username} wins.`}</p>
+          <p className="text-xs text-muted">{EVENTS.find((x) => x.id === v.ev)?.emoji} <b>{EVENTS.find((x) => x.id === v.ev)?.name}:</b> {EVENTS.find((x) => x.id === v.ev)?.text}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" onClick={() => setMenu(false)} data-testid="brawl-stay">Keep playing</Button>
+            <Button variant="danger" onClick={leave} data-testid="brawl-leave"><Flag className="h-4 w-4" />Leave</Button>
+          </div>
         </div>
       </Dialog>
 

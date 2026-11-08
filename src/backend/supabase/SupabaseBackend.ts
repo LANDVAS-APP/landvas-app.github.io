@@ -203,7 +203,8 @@ export class SupabaseBackend implements Backend {
       .on('broadcast', { event: 'm' }, (p) => onMessage(p.payload))
       .subscribe((status) => { ready = status === 'SUBSCRIBED'; });
     return {
-      send: (m: unknown) => { if (ready) void ch.send({ type: 'broadcast', event: 'm', payload: m }); },
+      // not connected yet (or reconnecting): send it over HTTP instead, so the message is never dropped
+      send: (m: unknown) => { if (ready) void ch.send({ type: 'broadcast', event: 'm', payload: m }); else void this.liveSend(name, m); },
       close: () => { void this.sb.removeChannel(ch); },
     };
   }
