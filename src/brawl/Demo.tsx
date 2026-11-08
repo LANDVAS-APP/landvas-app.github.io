@@ -3,7 +3,7 @@
 // Only reachable in the local (offline) build — the real game always goes through sign-up.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import { config } from '../env';
@@ -58,6 +58,7 @@ async function giveShards(db: { query(q: string, a: unknown[]): Promise<unknown>
   await db?.query(`update public.realm_players set wallet = jsonb_set(wallet, '{shards}', to_jsonb(greatest(coalesce((wallet ->> 'shards')::int, 0), 5000))) where player_id = $1 and kind = 'brawl'`, [uid]).catch(() => {});
 }
 
+let autoDone = false;
 type Pick = 'bot' | 'lab' | 'lobby';
 const CHOICES: [Pick, string, string][] = [
   ['bot', '⚔️ Battle the CPU', 'A real match against a practice bot'],
@@ -67,23 +68,31 @@ const CHOICES: [Pick, string, string][] = [
 
 export default function BrawlDemo() {
   const nav = useNavigate();
+  const here = useLocation();
   const qc = useQueryClient();
   const [step, setStep] = useState('Warming up the arena…');
   const [err, setErr] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
   const [arena, setArena] = useState<string | null>(null);
-  const go = async (id: string, pick: Pick) => { await qc.resetQueries(); if (pick !== 'lobby') setDemoAutoPractice(pick); nav(realmRoute(id), { replace: true }); };
+  // (the stand-alone demo keeps the menu behind the arena, so its back button returns here)
+  const go = async (id: string, pick: Pick) => { await qc.resetQueries(); if (pick !== 'lobby') setDemoAutoPractice(pick); nav(realmRoute(id), { replace: !(getBackend() as { demo?: boolean }).demo }); };
   useEffect(() => {
     if (config.backend !== 'local') { nav('/welcome', { replace: true }); return; }
     let stop = false;
     // the browser tests go straight into a battle unless they ask for the menu
-    const auto = location.search.includes('e2e=1') && !location.search.includes('menu=1');
+    const auto = !autoDone && location.search.includes('e2e=1') && !location.search.includes('menu=1') && !here.search.includes('menu=1');
+    // the stand-alone demo (no database): the arena is always there and every card is already yours
+    if ((getBackend() as { demo?: boolean }).demo) {
+      setArena('demo-arena');
+      if (auto) { autoDone = true; void go('demo-arena', 'bot'); }
+      return;
+    }
     void ensureArena((s) => { if (!stop) setStep(s); })
       .then(async (id) => {
         if (stop) return;
         const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
         await giveShards(db, (await api.myState()).user_id);
-        if (auto) await go(id, 'bot'); else setArena(id);
+        if (auto) { autoDone = true; await go(id, 'bot'); } else setArena(id);
       })
       .catch((e) => { if (!stop) setErr(e instanceof Error ? e.message : String(e)); });
     return () => { stop = true; };

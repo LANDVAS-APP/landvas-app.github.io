@@ -37,7 +37,8 @@ function Root() {
       try {
         const backend = await initBackend();
         setAvatarResolver((path) => backend.avatarUrl(path));
-        const { App } = await import('./app/App');
+        // the Paintbrawl instant demo is its own small app (no world map, no database)
+        const { App } = import.meta.env.VITE_DEMO === 'brawl' ? await import('./brawl/DemoApp') : await import('./app/App');
         if (!cancelled) setState({ status: 'ready', App });
       } catch (error) {
         console.error(error);

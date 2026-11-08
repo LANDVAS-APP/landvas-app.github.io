@@ -340,7 +340,8 @@ export function initBackend(): Promise<Backend> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
     const b: Backend =
-      config.backend === 'supabase'
+      import.meta.env.VITE_DEMO === 'brawl' ? new (await import('./demo/DemoBackend')).DemoBackend()
+      : config.backend === 'supabase'
         ? new (await import('./supabase/SupabaseBackend')).SupabaseBackend()
         : new (await import('./local/LocalBackend')).LocalBackend();
     await b.init();

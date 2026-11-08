@@ -51,6 +51,9 @@ function writeSession(s: Session | null) {
   }
 }
 
+/** iOS / iPadOS (iPads report themselves as Macs, but have touch). */
+const isAppleMobile = () => typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
 export class LocalBackend implements Backend {
   readonly mode = 'local' as const;
   ephemeral = false;
@@ -67,7 +70,12 @@ export class LocalBackend implements Backend {
   async init() {
     await this.acquireTabLock();
     await this.blobs.open();
+    // iPhones and iPads (and the shareable preview builds) keep the database in memory only. Saving it to IndexedDB
+    // means copying the whole database through JavaScript on every sync, and on iOS that extra memory gets the tab
+    // killed ("A problem repeatedly occurred"). The preview is a fresh demo each visit anyway.
+    const memoryOnly = import.meta.env.MODE === 'artifact' || isAppleMobile();
     try {
+      if (memoryOnly) throw new Error('memory only');
       this.db = await PGlite.create('idb://landvas-world-v1', { relaxedDurability: true });
     } catch {
       this.db = await PGlite.create();

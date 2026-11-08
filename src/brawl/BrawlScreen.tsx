@@ -90,9 +90,12 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
   const saveBank = async () => {
     if (!bank) return;
     const n = (x: string) => Math.max(0, Math.min(9_999_999, Math.floor(Number(x) || 0)));
-    const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
-    const uid = (await api.myState()).user_id;
+    const be = getBackend() as unknown as { demo?: boolean; db?: { query(q: string, a: unknown[]): Promise<unknown> } };
+    const db = be.db;
     try {
+      // the stand-alone demo has no database: it keeps the bank itself
+      if (be.demo) { await getBackend().rpc('demo_bank', { shards: n(bank.shards), dust: n(bank.dust) }); setBank(null); await reload(); sfx.win(2); toast.success('Done!'); return; }
+      const uid = (await api.myState()).user_id;
       await db?.query(`select private.rlm_player($1, 'brawl')`, [uid]);
       await db?.query(`update public.realm_players set wallet = jsonb_set(wallet, '{shards}', to_jsonb($2::int)) where player_id = $1 and kind = 'brawl'`, [uid, n(bank.shards)]);
       await db?.query(`update public.brawl_players set dust = $2 where player_id = $1`, [uid, n(bank.dust)]);
@@ -101,10 +104,12 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
   };
   /** Demo only: every card in the game, as many copies as a deck can hold. */
   const unlockAll = async () => {
-    const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
-    const uid = (await api.myState()).user_id;
+    const be = getBackend() as unknown as { demo?: boolean; db?: { query(q: string, a: unknown[]): Promise<unknown> } };
     const all = Object.fromEntries(CARDS.map((c) => [c.id, RARITY_INFO[c.rarity].max]));
-    try { await db?.query(`update public.brawl_players set cards = $2 where player_id = $1`, [uid, JSON.stringify(all)]); setBank(null); await reload(); sfx.jackpot(); toast.success(`All ${CARDS.length} cards unlocked!`); }
+    try {
+      if (be.demo) { await getBackend().rpc('demo_unlock_all'); setBank(null); await reload(); sfx.jackpot(); toast.success(`All ${CARDS.length} cards unlocked!`); return; }
+      const uid = (await api.myState()).user_id;
+      await be.db?.query(`update public.brawl_players set cards = $2 where player_id = $1`, [uid, JSON.stringify(all)]); setBank(null); await reload(); sfx.jackpot(); toast.success(`All ${CARDS.length} cards unlocked!`); }
     catch (e) { toast.error((e as Error).message); }
   };
   const reload = async () => { const d = await api.brawlGet(data.id); setMe(d.brawl); return d.brawl; };
