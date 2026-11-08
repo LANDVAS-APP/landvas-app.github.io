@@ -1,5 +1,6 @@
 // What you're up to, for your friends: the screen you're on (and, out in space, the world and
 // whether you're digging). Sent when it changes and refreshed every minute and a half.
+import { poll } from '../lib/poll';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ let override: { kind: ActivityKind; detail: Record<string, string> } | null = nu
 let lastKey = '', lastAt = 0, timer: ReturnType<typeof setTimeout> | null = null;
 const send = (kind: ActivityKind, detail: Record<string, string>) => {
   const key = kind + JSON.stringify(detail);
-  if (key === lastKey && Date.now() - lastAt < 90_000) return;
+  if (key === lastKey && Date.now() - lastAt < poll(90_000)) return;
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => { lastKey = key; lastAt = Date.now(); void api.setActivity(kind, detail).catch(() => {}); }, 1500);
 };

@@ -27,6 +27,9 @@ async function functionError(error: any): Promise<GameError> {
   return new GameError('minigame_error', error?.message);
 }
 
+/** Calls that only make sense for a signed-in player (sent while signed out they just fail on the server). */
+const PLAYER_ONLY = /^(my_|report_position$|set_activity$|arcade_live$|arena_live$|planet_live$|home_live$|brawl_|planet_meteor|planet_find$|biz_sync$|space_state$|rover_tick$|dig$)/;
+
 export class SupabaseBackend implements Backend {
   private lastKick = 0;
   readonly mode = 'supabase' as const;
@@ -94,9 +97,20 @@ export class SupabaseBackend implements Backend {
   }
 
   async rpc<T = any>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+    // signed out (or the sign-in lapsed): a player's own calls would only bounce off the server, so don't send them
+    if (!this.session() && PLAYER_ONLY.test(fn)) throw new GameError('not_signed_in', 'Sign in to keep playing.');
     const clean = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined));
     const { data, error } = await this.sb.rpc(fn, clean);
-    if (error) throw toGameError({ message: error.message, detail: error.details });
+    if (error) {
+      // the server didn't take our sign-in: refresh it once (a phone that slept past its token's expiry), else sign out
+      if (error.code === '42501' && /permission denied for function/i.test(error.message) && this.session() && !this.refreshing) {
+        this.refreshing = true;
+        const { error: e2 } = await this.sb.auth.refreshSession().catch((x) => ({ error: x }));
+        setTimeout(() => { this.refreshing = false; }, 30_000);
+        if (!e2) return this.rpc<T>(fn, args);
+      }
+      throw toGameError({ message: error.message, detail: error.details });
+    }
     if (PIPELINE_RPCS.has(fn)) void this.kickPipeline();
     return data as T;
   }
@@ -218,6 +232,7 @@ export class SupabaseBackend implements Backend {
    * be restored from the last one), so a map that opens again gets exactly the changes since, not everything.
    */
   private mapSeen = 0;
+  private refreshing = false;
   mapCursor() { return this.mapSeen; }
   setMapCursor(id: number) { if (!this.mapSeen && id > 0) this.mapSeen = id; }
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {

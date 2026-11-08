@@ -43,10 +43,12 @@ export function useDiscoveries(world: string, ready: boolean, scene: React.RefOb
   }, [ready, d, scene]);
 
   const busy = useRef(new Set<string>());
+  const farUntil = useRef(new Map<string, number>()); // after "too far", wait a moment before trying that one again
   const find = async (kind: FindKind, i: number) => {
     const key = `${kind}:${i}`;
-    if (busy.current.has(key) || !d) return;
+    if (busy.current.has(key) || !d || (farUntil.current.get(key) ?? 0) > Date.now()) return;
     busy.current.add(key);
+    let far = false;
     try {
       const r = await api.planetFind(world, kind, i, scene.current?.pose().d ?? null);
       const at = kind === 'shard' ? d.weather.shards.find((s) => s.i === i)?.d : kind === 'alien' ? d.aliens.find((a) => a.i === i)?.d : d.pois.find((p) => p.i === i)?.d;
@@ -64,10 +66,10 @@ export function useDiscoveries(world: string, ready: boolean, scene: React.RefOb
       } else toast.success(`Storm shard! ${d.weather.emoji}`, { description: `${items}${ink}`, duration: 2400 });
     } catch (e) {
       const err = toGameError(e);
-      if (err.code !== 'too_far') toast(err.message, { duration: 1800 });
+      if (err.code === 'too_far') { far = true; farUntil.current.set(key, Date.now() + 8000); } else toast(err.message, { duration: 1800 });
     } finally {
       busy.current.delete(key);
-      void q.refetch();
+      if (!far) void q.refetch();
     }
   };
   return { data: d, find, refetch: q.refetch };

@@ -6,6 +6,7 @@
 //    rig as the sanctuary) wandering, napping and hopping about their home plots
 // Everything is kept in grid coordinates and projected every frame, so it moves with the map
 // (pans, zooms and 3D tilt included). The loop sleeps when there's nothing to draw.
+import { poll } from '../lib/poll';
 import type { Map as MLMap } from 'maplibre-gl';
 import { useEffect } from 'react';
 import { create } from 'zustand';
@@ -460,7 +461,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     map.on('move', wake);
     const ms = () => { moving = true; }, me = () => { moving = false; };
     map.on('movestart', ms); map.on('moveend', me);
-    const timer = setInterval(load, 30_000);
+    const timer = setInterval(() => { if (!document.hidden) load(); }, poll(30_000));
     const unsubMode = useUi.subscribe((s, p) => { if (s.mode !== p.mode) load(); });
     const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); running = false; } else wake(); };
     document.addEventListener('visibilitychange', vis);

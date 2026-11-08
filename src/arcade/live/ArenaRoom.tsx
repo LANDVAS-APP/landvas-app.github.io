@@ -33,7 +33,7 @@ function useArenaLive(opts: { myId: string | undefined; from: string | null; hal
     const urls = new Map<string, string>();
     const onMsg = (raw: unknown) => { const m = raw as Pos; if (m?.t === 'pos' && members.has(m.id)) ref.current.hall.current?.moveOther(m.id, m.x, m.z, m.f, m.p); };
     const beat = async () => {
-      if (stopped) return;
+      if (stopped || document.hidden) return;
       const pose = ref.current.hall.current?.pose();
       try {
         const r = await api.arenaLive(pose?.x ?? null, pose?.z ?? null, ref.current.playing, ref.current.from);
@@ -50,7 +50,8 @@ function useArenaLive(opts: { myId: string | undefined; from: string | null; hal
     };
     beatNow.current = () => void beat();
     void beat();
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2500);
+    // a check-in keeps you in the room; moves go over the live channel
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 5000);
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = ref.current.hall.current?.pose(); if (!p || !ch) return;

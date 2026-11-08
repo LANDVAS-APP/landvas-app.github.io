@@ -2,6 +2,7 @@
 // your hand. Tap a card, then where it goes (a lane for creatures and totems, a target for spells); tap one of your
 // creatures to Flourish it; End turn sends your creatures in. Every move goes to the server, comes back with what
 // happened, and plays out on the board; the other player's moves arrive the same way (live, with a poll as backup).
+import { live } from '../lib/poll';
 import { useQueryClient } from '@tanstack/react-query';
 import { Camera, Flag, Hand, Loader2, Pencil, Play, Shuffle, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -113,12 +114,13 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   useEffect(() => {
     void refresh();
     chan.current = getBackend().liveChannel?.(`brawl:${id}`, () => void refresh()) ?? null;
+    // (against a bot every move answers in the same call, so only a match against a person needs a backup check)
     const poll = setInterval(() => {
       const m = mvRef.current;
-      if (!m || m.status === 'over') return;
+      if (!m || m.status === 'over' || m.bot || document.hidden) return;
       void refresh();
       if (!m.bot && m.deadline && Date.parse(m.deadline) - (Date.now() + offset.current) < -2500) void api.brawlOp({ op: 'tick', match: id }).then(() => { chan.current?.send({ t: 'v' }); void refresh(); }).catch(() => {});
-    }, 2500);
+    }, live(4000));
     const clock = setInterval(() => setNow(Date.now()), 500);
     return () => { clearInterval(poll); clearInterval(clock); chan.current?.close(); };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -13,7 +13,7 @@ import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Button, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { Bar, ClanBadge, PRIVACY_LABEL, ROLE_LABEL, until } from './ui';
-import { poll } from '../lib/poll';
+import { poll, live } from '../lib/poll';
 
 export const clanKeys = { home: ['clan-home'] as const, mine: ['clan', 'mine'] as const, one: (id: string) => ['clan', id] as const };
 const err = (e: unknown) => toast.error(toGameError(e).message);
@@ -333,7 +333,7 @@ export function useClanChat(myId: string | undefined) {
         setMsgs((cur) => { const seen = new Set(cur.map((m) => m.id)); return [...cur, ...r.items.filter((m) => !seen.has(m.id))].sort((a, b) => a.id - b.id).slice(-80); });
       } catch { /* next time */ }
     };
-    void tick(); const t = setInterval(tick, 4000);
+    void tick(); const t = setInterval(() => { if (!document.hidden) void tick(); }, live(6000));
     return () => { stop = true; clearInterval(t); };
   }, [myId]);
   return {

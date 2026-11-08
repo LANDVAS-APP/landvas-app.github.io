@@ -26,7 +26,7 @@ import { exoWorld, worldOf } from '../space/worlds';
 import { PLANET_GAMES } from '../space/planetGames';
 import { SPACE_GAMES } from '../space/games';
 import { GAMES as INK_GAMES } from '../inkborn/games/engines';
-import { poll } from '../lib/poll';
+import { poll, live } from '../lib/poll';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -308,7 +308,7 @@ function ChatTab() {
       if (document.visibilityState !== 'visible') return;
       // a full refresh now and then also drops messages moderators removed
       void load(++n % 24 === 0);
-    }, 2500);
+    }, live(4000));
     return () => clearInterval(t);
   }, [me, load]);
   useLayoutEffect(() => {

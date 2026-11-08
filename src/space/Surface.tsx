@@ -33,7 +33,7 @@ import { PLANET_GAMES } from './planetGames';
 import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
 import { SPACE_KEY, useFlight, useSpace } from './useSpace';
 import { type World, worldKey, worldOf } from './worlds';
-import { poll } from '../lib/poll';
+import { poll, live as liveMs } from '../lib/poll';
 
 export default function Surface() {
   const q = useSpace();
@@ -162,12 +162,14 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   useEffect(() => { if (ready && sectors.data) scene.current?.setSectors(sectors.data, sectorSize); }, [ready, sectors.data, sectorSize]);
 
   // meteor showers: everyone on the world sees the same ones; first to reach one gets it
-  const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: 4000 });
+  const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: liveMs(6000) });
   useEffect(() => { if (ready && shower.data) scene.current?.setMeteors(String(shower.data.win), shower.data.meteors); }, [ready, shower.data]);
   const grabbing = useRef(new Set<number>());
+  const farUntil = useRef(new Map<number, number>()); // after "too far", wait a moment before trying that one again
   const grab = async (i: number) => {
-    if (grabbing.current.has(i)) return;
+    if (grabbing.current.has(i) || (farUntil.current.get(i) ?? 0) > Date.now()) return;
     grabbing.current.add(i);
+    let far = false;
     try {
       const r = await api.planetMeteorGrab(world, i, scene.current?.pose().d ?? null);
       const m = shower.data?.meteors.find((x) => x.i === i);
@@ -176,10 +178,10 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       toast.success(r.golden ? `Golden meteorite! +${r.paid} Ink 🌟` : `Meteorite! +${r.paid} Ink ☄️`, { description: r.capped ? 'You’ve hit today’s planet Ink limit.' : undefined, duration: 2200 });
     } catch (e) {
       const err = toGameError(e);
-      if (err.code !== 'too_far') toast(err.message, { duration: 1800 });
+      if (err.code === 'too_far') { far = true; farUntil.current.set(i, Date.now() + 8000); } else toast(err.message, { duration: 1800 });
     } finally {
       grabbing.current.delete(i);
-      void shower.refetch();
+      if (!far) void shower.refetch();
     }
   };
   // weather, hiding aliens and places to discover

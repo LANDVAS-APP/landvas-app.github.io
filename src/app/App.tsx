@@ -1,3 +1,4 @@
+import { fresh } from '../lib/poll';
 import { useUi as __ui } from '../lib/store';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
@@ -79,7 +80,7 @@ const SpaceGame = lazy(() => import('../space/SpaceGame'));
 const PlanetGame = lazy(() => import('../space/PlanetGame'));
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 10_000 } },
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: fresh } },
 });
 
 export function useSession() {

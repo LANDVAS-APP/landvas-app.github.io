@@ -3,6 +3,7 @@
 // are about the place. Up to 10 people share a home at a time, live. Owners press Decorate to furnish it:
 // tap a piece to pick it up, drag it, turn it, recolour it; change the wallpaper, floor, view and lighting;
 // and choose who may use each door.
+import { live } from '../lib/poll';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, BookHeart, Check, DoorOpen, Lock, Paintbrush, RotateCw, Trash2, Volume2, VolumeX } from 'lucide-react';
@@ -102,7 +103,7 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
       if (m?.t === 'chat' && members.has(m.id)) chatRef.current?.((raw as { m: unknown }).m);
     };
     const beat = async () => {
-      if (stopped) return;
+      if (stopped || document.hidden) return;
       const p = hall.current?.pose();
       try {
         const r = await api.homeLive(hostId, p?.x ?? null, p?.z ?? null);
@@ -118,7 +119,8 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
     };
     void beat();
     api2.current = { refresh: () => void beat(), send: (m) => ch?.send(m) };
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2500);
+    // a check-in keeps you in the home (the server keeps you for 12 s); moves go over the live channel
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 5000);
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = hall.current?.pose(); if (!p || !ch) return;
@@ -148,7 +150,7 @@ export function useHomeChat(home: string, myId: string | undefined, scene: { cur
     if (!myId) return;
     let stop = false;
     const tick = async () => { try { const r = await fnRef.current.list(last.current); if (!stop) { add(r.items, !first.current, true); first.current = false; } } catch { /* next time */ } };
-    const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(tick, 6000);
+    const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(() => { if (!document.hidden) void tick(); }, live(8000));
     return () => { stop = true; clearTimeout(t0); clearInterval(t); };
   }, [home, myId, add]);
   return {

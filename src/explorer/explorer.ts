@@ -2,6 +2,7 @@
 // There is no teleporting or placing it by hand — only real GPS moves it (plus a
 // one-minute joystick nudge around the player). Plots can only be claimed near it. The server is authoritative; this module
 // mirrors its interpolation so the character moves smoothly between updates.
+import { getBackend } from '../backend/backend';
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -140,7 +141,7 @@ export function startGps(opts: { onFirstFix?: (lng: number, lat: number) => void
       const due = Date.now() - lastReport.at > 12_000 || moved > Math.max(4, Math.min(20, accuracy * 0.5));
       if (first) opts.onFirstFix?.(lng, lat);
       first = false;
-      if (!due || inflight || accuracy > 3000) return;
+      if (!due || inflight || accuracy > 3000 || !getBackend().session()) return;
       inflight = true;
       try {
         const r = await api.reportPosition(lng, lat, Math.round(accuracy));

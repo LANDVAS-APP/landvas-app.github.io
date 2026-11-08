@@ -1,6 +1,7 @@
 // Group chat for your live group (up to 10) on a world: a small chat box on screen, and every message
 // pops up as a speech bubble over the explorer who said it. Messages arrive instantly over the group's
 // live channel, and a light fetch every few seconds catches anything missed.
+import { live } from '../lib/poll';
 import { MessageCircle, Send, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -43,7 +44,7 @@ export function usePlanetChat(world: string, myId: string | undefined, enabled: 
       } catch { /* next time */ }
     };
     void tick();
-    const t = setInterval(tick, 6000);
+    const t = setInterval(() => { if (!document.hidden) void tick(); }, live(8000));
     return () => { stop = true; clearInterval(t); };
   }, [enabled, world, add]);
 
