@@ -105,9 +105,14 @@ export class ArtIndex {
     this.blocks.clear();
   }
 
+  /** The index blocks, to keep between visits. */
+  dump(max: number): [string, [string, number][]][] { return [...this.blocks.entries()].slice(-max).map(([k, m]) => [k, [...m.entries()]]); }
+  restore(entries: [string, [string, number][]][]) { for (const [k, m] of entries) if (!this.blocks.has(k)) this.blocks.set(k, new Map(m)); }
+
   /** Forget cached index blocks covering a plot range (unwrapped gx allowed). */
   invalidate(minGx: number, minGy: number, maxGx: number, maxGy: number) {
     trace(`invalidate ${minGx},${minGy}..${maxGx},${maxGy}`);
+    if ((maxGx - minGx) * (maxGy - minGy) > 4_000_000) return this.reset(); // a huge area: simpler to start over
     if (minGx < 0) {
       this.invalidate(minGx + GRID_SIZE, minGy, GRID_SIZE - 1, maxGy);
       if (maxGx >= 0) this.invalidate(0, minGy, maxGx, maxGy);

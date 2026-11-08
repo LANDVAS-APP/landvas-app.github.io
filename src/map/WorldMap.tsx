@@ -1,5 +1,6 @@
 // The world canvas: MapLibre map with the rarity-coloured plot grid, everyone's
 // plots, the published-art tile pyramid, the player's explorer and four modes.
+import { autoSaveMapCache, restoreMapCache, saveMapCache } from './mapCache';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MLMap, RasterTileSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -49,6 +50,8 @@ let lastMergePaint = 0;
 let lastKindNotice = 0;
 const mergeKindNotice = (k: PlotKind) => { if (performance.now() - lastKindNotice > 2500) { lastKindNotice = performance.now(); toast(sameKindMessage(k)); } };
 export const plotBlocks = new PlotBlocks();
+let autoSaving = false;
+let lastUid: string | undefined;
 
 export function WorldMap() {
   const companion = useCompanion();
@@ -82,8 +85,16 @@ export function WorldMap() {
     let disposed = false;
     registerArtProtocol(artIndex);
     registerPlotProtocols(plotBlocks, () => ({ mode: modeRef.current, hidden: useCelebration.getState().hidden }));
-    artIndex.reset();
-    plotBlocks.reset();
+    // keep what's already loaded (this visit or the last one) when the backend can tell us exactly what changed since;
+    // otherwise start fresh, as updates may have happened unseen
+    const be = getBackend();
+    if (be.mapCursor) {
+      restoreMapCache(plotBlocks, artIndex);
+      if (!autoSaving) { autoSaving = true; autoSaveMapCache(plotBlocks, artIndex); }
+    } else {
+      artIndex.reset();
+      plotBlocks.reset();
+    }
     (async () => {
       const { style, online, streets } = await resolveStyle(themeColors());
       if (disposed || !container.current) return;
@@ -206,6 +217,7 @@ export function WorldMap() {
     return () => {
       disposed = true;
       unsub();
+      if (getBackend().mapCursor) saveMapCache(plotBlocks, artIndex);
       explorerMarker.current?.remove();
       explorerMarker.current = null;
       for (const m of nameMarkers.current.values()) m.remove();
@@ -440,7 +452,9 @@ export function WorldMap() {
   const uid = me?.user_id;
   useEffect(() => {
     if (!ready) return;
-    plotBlocks.reset();
+    // (the blocks say which plots are yours, so only a different player needs them again)
+    if (lastUid !== undefined && lastUid !== uid) plotBlocks.reset();
+    lastUid = uid;
     redrawPlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, ready]);

@@ -102,6 +102,10 @@ export class PlotBlocks {
     this.blocks.clear();
   }
 
+  /** The most recently used blocks, to keep between visits. */
+  dump(max: number): [string, PlotRow[]][] { return [...this.blocks.entries()].slice(-max); }
+  restore(entries: [string, PlotRow[]][]) { for (const [k, rows] of entries) if (!this.blocks.has(k)) this.blocks.set(k, rows); }
+
   /** Owned plots in a range (loads missing blocks; at most `maxBlocks` of them). */
   async rowsIn(minGx: number, minGy: number, maxGx: number, maxGy: number, maxBlocks = 64): Promise<PlotRow[]> {
     const want: [number, number][] = [];

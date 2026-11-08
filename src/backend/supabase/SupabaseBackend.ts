@@ -6,6 +6,7 @@
 //  * Minigame validation + art pipeline: Supabase Edge Functions (supabase/functions-src)
 //    holding the service key; clients never submit scores, only move logs
 import { poll } from '../../lib/poll';
+import { GRID_SIZE } from '../../shared/grid';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
@@ -213,18 +214,27 @@ export class SupabaseBackend implements Backend {
   /**
    * New map tiles, by asking every so often (the database-change feed this used to listen to kept the database busy
    * decoding every write, which ate the free plan's disk budget). Checks right away when the app comes back to the
-   * front, and not at all while it's in the background.
+   * front, and not at all while it's in the background. The newest update seen is kept for the whole visit (and can
+   * be restored from the last one), so a map that opens again gets exactly the changes since, not everything.
    */
+  private mapSeen = 0;
+  mapCursor() { return this.mapSeen; }
+  setMapCursor(id: number) { if (!this.mapSeen && id > 0) this.mapSeen = id; }
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {
-    let lastId = 0;
     let busy = false;
     const check = async () => {
       if (busy || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
       busy = true;
       try {
-        const r = await this.rpc<{ latest_id: number; updates: MapUpdate[] }>('map_updates_since', { p_since_id: lastId });
-        if (lastId !== 0) for (const u of r.updates) cb(u);
-        lastId = Math.max(lastId, r.latest_id);
+        const since = this.mapSeen;
+        const r = await this.rpc<{ latest_id: number; updates: MapUpdate[] }>('map_updates_since', { p_since_id: since });
+        if (since !== 0) {
+          for (const u of r.updates) cb(u);
+          // more changed than one answer holds: start over rather than miss any
+          const last = r.updates.length ? r.updates[r.updates.length - 1].id : since;
+          if (last < r.latest_id) cb({ id: r.latest_id, kind: 'ownership', min_gx: 0, min_gy: 0, max_gx: GRID_SIZE - 1, max_gy: GRID_SIZE - 1, publication_id: null });
+        }
+        this.mapSeen = Math.max(this.mapSeen, r.latest_id);
       } catch {
         /* offline */
       } finally { busy = false; }

@@ -50,6 +50,12 @@ export interface Backend {
   /** Local mode runs the pipeline in-page after submission/admin actions. */
   kickPipeline(): Promise<void>;
   subscribeMapUpdates(cb: (u: MapUpdate) => void): () => void;
+  /**
+   * Backends that can replay every map update since a point (Supabase): the newest update seen, and a way to start
+   * from a saved point. With these the map keeps its cached tiles between visits and only reloads what changed.
+   */
+  mapCursor?(): number;
+  setMapCursor?(id: number): void;
   /** A low-latency message channel shared by everyone in one live group (positions on a planet). */
   liveChannel?(name: string, onMessage: (m: unknown) => void): { send(m: unknown): void; close(): void };
   /** send to a live channel without listening to it (so you don't get everyone else's messages too) */

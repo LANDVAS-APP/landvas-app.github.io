@@ -35,13 +35,16 @@ export function usePlanetLive(opts: {
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', first = true;
     let members = new Set<string>();
     let lastSent = 0, lastKey = '';
+    let soon: ReturnType<typeof setTimeout> | null = null;
     const onMsg = (m: unknown) => {
       const x = m as { id?: string; d?: number[]; f?: number[]; h?: number; v?: string; t?: string; m?: unknown };
       if (x?.t === 'chat') { if (x.id && members.has(x.id)) ref.current.onChat?.(x.m); return; }
       if (x?.id && members.has(x.id) && x.d && x.f) ref.current.onRemote(x.id, x.d, x.f, x.h ?? 0, x.v ?? null);
+      // someone new on the channel: fetch the group now rather than at the next check-in
+      else if (x?.id && x.id !== myId && !members.has(x.id) && !soon) soon = setTimeout(() => { soon = null; void beat(); }, 600);
     };
     const beat = async () => {
-      if (stopped) return;
+      if (stopped || document.hidden) return;
       const pose = ref.current.pose();
       try {
         const r = await api.planetLive(world, pose?.d ?? null, pose?.face ?? null, pose?.hop ?? 0);
@@ -58,7 +61,8 @@ export function usePlanetLive(opts: {
     };
     if (opts.sendRef) opts.sendRef.current = (m) => ch?.send(m);
     void beat();
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 3000);
+    // a check-in keeps you in your group (each one is a database write); moves go over the live channel
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 6000);
     const tx = setInterval(() => {
       const p = ref.current.pose(); if (!p || !ch) return;
       const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2) + (p.v ?? '');
@@ -66,7 +70,7 @@ export function usePlanetLive(opts: {
       if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop, v: p.v }); savePose(world, p); }
     }, 100);
     // no explicit leave: a quick hop between the map and the 3D view keeps your group (and spot)
-    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
+    return () => { stopped = true; if (soon) clearTimeout(soon); clearInterval(hb); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
   }, [opts.enabled, opts.world, opts.myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return info;
 }

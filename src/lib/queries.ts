@@ -21,7 +21,9 @@ export const qk = {
 
 export const useWorld = () => useQuery({ queryKey: qk.world, queryFn: api.worldConfig, staleTime: 5 * 60_000 });
 export const useMe = () =>
-  useQuery({ queryKey: qk.me, queryFn: api.myState, enabled: !!getBackend().session(), staleTime: 15_000, refetchInterval: poll(60_000) });
+  // your balances and rent: the USD counter ticks on the phone from the rate, so this is only re-read when something you
+// do changes it (those actions refresh it), as a slow safety net, and when you come back to the app after a while
+useQuery({ queryKey: qk.me, queryFn: api.myState, enabled: !!getBackend().session(), staleTime: 60_000, refetchInterval: poll(90_000) });
 export const useOnboardedMe = () => {
   const q = useMe();
   return q.data && q.data.onboarded ? (q.data as Extract<MyState, { onboarded: true }>) : null;

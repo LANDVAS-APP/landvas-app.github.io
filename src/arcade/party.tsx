@@ -29,14 +29,17 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
     const backend = getBackend(), myId = opts.myId, arcade = opts.arcadeId;
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', members = new Set<string>();
     const urls = new Map<string, string>();
+    let soon: ReturnType<typeof setTimeout> | null = null;
     const onMsg = (raw: unknown) => {
       const m = raw as Msg;
-      if (!m || !('id' in m) || !members.has(m.id)) return;
+      if (!m || !('id' in m)) return;
+      // someone new is here: fetch the room's list now rather than at the next check-in
+      if (!members.has(m.id)) { if (m.id !== myId && !soon) soon = setTimeout(() => { soon = null; void beat(); }, 600); return; }
       if (m.t === 'pos') ref.current.hall.current?.moveOther(m.id, m.x, m.z, m.f, m.p);
       else if (m.t === 'score') setScores((s) => (s[m.id] === m.s ? s : { ...s, [m.id]: m.s }));
     };
     const beat = async () => {
-      if (stopped) return;
+      if (stopped || document.hidden) return;
       const pose = ref.current.hall.current?.pose();
       try {
         const r = await api.arcadeLive(arcade, pose?.x ?? null, pose?.z ?? null, ref.current.playing);
@@ -54,14 +57,15 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
     beatNow.current = () => void beat();
     send.current = (m) => ch?.send(m);
     void beat();
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 2500);
+    // a check-in keeps you in the room (each one is a database write); moves themselves go over the live channel
+    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 5000);
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = ref.current.hall.current?.pose(); if (!p || !ch) return;
       const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.face},${ref.current.playing ?? ''}`, now = performance.now();
       if (key !== lastKey || now - lastAt > 1500) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face, p: ref.current.playing }); }
     }, 120);
-    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); send.current = null; void api.arcadeLeave().catch(() => {}); };
+    return () => { stopped = true; if (soon) clearTimeout(soon); clearInterval(hb); clearInterval(tx); ch?.close(); send.current = null; void api.arcadeLeave().catch(() => {}); };
   }, [opts.arcadeId, opts.myId]);
   // a new match: forget the old live scores
   const matchId = live?.match?.id;
