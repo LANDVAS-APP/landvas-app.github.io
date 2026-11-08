@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CARD, type Card } from '../../shared/brawl/cards';
 import { makeChar, type Builder, type Char } from './core';
+import { ATTACKS } from './attacks';
 import * as meadow from './meadow';
 import * as ember from './ember';
 import * as frost from './frost';
@@ -17,7 +18,7 @@ const BUILDERS: Record<string, Builder> = { ...meadow, ...ember, ...frost, ...bo
 export const hasChar = (id: string) => !!BUILDERS[id];
 
 export function buildChar(card: Card, o: { phone?: boolean; toon?: boolean } = {}): Char {
-  return makeChar(BUILDERS[card.id] ?? BUILDERS.pebblegolem, card, o);
+  return makeChar(BUILDERS[card.id] ?? BUILDERS.pebblegolem, card, { ...o, attack: ATTACKS[card.id] });
 }
 
 // ---- the card pictures --------------------------------------------------------------------------------------------------

@@ -96,31 +96,58 @@ export function buildWorld(o: { phone: boolean; me: Side }) {
     out.setRGB(A.c[i * 3] + (B.c[i * 3] - A.c[i * 3]) * L.k, A.c[i * 3 + 1] + (B.c[i * 3 + 1] - A.c[i * 3 + 1]) * L.k, A.c[i * 3 + 2] + (B.c[i * 3 + 2] - A.c[i * 3 + 2]) * L.k);
     return A.h[i] + (B.h[i] - A.h[i]) * L.k;
   };
-  const glowOf = (side: number, l: number) => { const L = lanes[side][l]; const a = L.from && LOOK[L.from].glow, b = L.to && LOOK[L.to].glow; const ka = a ? 1 - L.k : 0, kb = b ? L.k : 0; return { ka, kb, ca: a, cb: b, sa: L.from ? LOOK[L.from].sel ?? 0 : 0, sb: L.to ? LOOK[L.to].sel ?? 0 : 0 }; };
-  const rebuild = () => {
-    for (let i = 0; i < N; i++) {
-      const sd = sideOf[i], a = laneA[i], b = laneB[i], w = wA[i];
-      const ha = laneCol(sd, a, i, tmp), hb = laneCol(sd, b, i, tmpB);
-      tmp.lerp(tmpB, 1 - w); let h = ha * w + hb * (1 - w);
-      // outside the lanes: the stone plaza
-      const r = reg[i];
-      gc.copy(plazaLo).lerp(plazaHi, nse[i]); tmp.lerp(gc, 1 - r);
-      h = h * r + (nse[i] - 0.5) * 0.12 * (1 - r);
-      // paths, flat spots, the creek, the edges
-      tmp.lerp(PATH, path[i] * 0.7);
-      h *= flat[i] * (1 - path[i] * 0.8);
-      h -= creek[i] * 0.42; tmp.lerp(WET, creek[i] * 0.85);
-      h *= 1; h = h * edge[i] + (edge[i] - 1) * 0.05;
-      pos.setY(i, h);
-      col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
-      // what glows (ember cracks, neon grid)
-      const ga = glowOf(sd, a), gb = glowOf(sd, b);
-      let gr = 0, gg = 0, gbb = 0, s2 = 0, tot = 0;
-      for (const [g, ww] of [[ga, w], [gb, 1 - w]] as const) for (const [k, c, s] of [[g.ka, g.ca, g.sa], [g.kb, g.cb, g.sb]] as const) { if (!c || k <= 0) continue; gc.set(c); const m = k * ww * r * (1 - path[i]) * (1 - creek[i]); gr += gc.r * m; gg += gc.g * m; gbb += gc.b * m; s2 += s * m; tot += m; }
-      glow[i * 3] = gr; glow[i * 3 + 1] = gg; glow[i * 3 + 2] = gbb; sel[i] = tot > 0 ? s2 / tot : 0;
+  // what glows in each lane right now (worked out once per rebuild, not per vertex)
+  type Glow = { ka: number; kb: number; ra: number; ga: number; ba: number; rb: number; gb: number; bb: number; sa: number; sb: number };
+  const glows: Glow[][] = [0, 1].map(() => [0, 1, 2, 3].map(() => ({ ka: 0, kb: 0, ra: 0, ga: 0, ba: 0, rb: 0, gb: 0, bb: 0, sa: 0, sb: 0 })));
+  const gcol = new THREE.Color();
+  const updateGlows = () => {
+    for (let sd = 0; sd < 2; sd++) for (let l = 0; l < 4; l++) {
+      const L = lanes[sd][l], G = glows[sd][l], a = L.from && LOOK[L.from].glow, b = L.to && LOOK[L.to].glow;
+      G.ka = a ? 1 - L.k : 0; G.kb = b ? L.k : 0;
+      if (a) { gcol.set(a); G.ra = gcol.r; G.ga = gcol.g; G.ba = gcol.b; }
+      if (b) { gcol.set(b); G.rb = gcol.r; G.gb = gcol.g; G.bb = gcol.b; }
+      G.sa = L.from ? LOOK[L.from].sel ?? 0 : 0; G.sb = L.to ? LOOK[L.to].sel ?? 0 : 0;
     }
+  };
+  /** one vertex: its height, colour and glow from the lanes it's in */
+  const vertex = (i: number, heightOnly = false) => {
+    const sd = sideOf[i], a = laneA[i], b = laneB[i], w = wA[i];
+    const ha = laneCol(sd, a, i, tmp), hb = laneCol(sd, b, i, tmpB);
+    let h = ha * w + hb * (1 - w);
+    const r = reg[i];
+    // outside the lanes: the stone plaza; then paths, flat spots, the creek, the edges
+    h = h * r + (nse[i] - 0.5) * 0.12 * (1 - r);
+    h *= flat[i] * (1 - path[i] * 0.8);
+    h -= creek[i] * 0.42;
+    h = h * edge[i] + (edge[i] - 1) * 0.05;
+    if (heightOnly) return h;
+    tmp.lerp(tmpB, 1 - w);
+    gc.copy(plazaLo).lerp(plazaHi, nse[i]); tmp.lerp(gc, 1 - r);
+    tmp.lerp(PATH, path[i] * 0.7); tmp.lerp(WET, creek[i] * 0.85);
+    pos.setY(i, h);
+    col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+    // what glows (ember cracks, neon grid)
+    const m0 = r * (1 - path[i]) * (1 - creek[i]);
+    let gr = 0, gg = 0, gb = 0, s2 = 0, tot = 0;
+    const GA = glows[sd][a], GB = glows[sd][b];
+    for (let j = 0; j < 4; j++) {
+      const G = j < 2 ? GA : GB, ww = j < 2 ? w : 1 - w, first = j % 2 === 0, k = first ? G.ka : G.kb;
+      if (k <= 0) continue; const m = k * ww * m0; if (m <= 0) continue;
+      gr += (first ? G.ra : G.rb) * m; gg += (first ? G.ga : G.gb) * m; gb += (first ? G.ba : G.bb) * m; s2 += (first ? G.sa : G.sb) * m; tot += m;
+    }
+    glow[i * 3] = gr; glow[i * 3 + 1] = gg; glow[i * 3 + 2] = gb; sel[i] = tot > 0 ? s2 / tot : 0;
+    return h;
+  };
+  // which vertices each lane touches, so a morphing lane only redoes its own part of the sheet
+  const touched: Int32Array[][] = [0, 1].map((sd) => [0, 1, 2, 3].map((l) => { const out: number[] = []; for (let i = 0; i < N; i++) if (sideOf[i] === sd && (laneA[i] === l || laneB[i] === l)) out.push(i); return Int32Array.from(out); }));
+  let normalsDue = 0;
+  const rebuild = (only?: [number, number][]) => {
+    updateGlows();
+    if (!only) for (let i = 0; i < N; i++) vertex(i);
+    else { const seen = new Uint8Array(N); for (const [sd, l] of only) for (const i of touched[sd][l]) if (!seen[i]) { seen[i] = 1; vertex(i); } }
     pos.needsUpdate = true; (geo.attributes.color as THREE.BufferAttribute).needsUpdate = true; (geo.attributes.aGlow as THREE.BufferAttribute).needsUpdate = true; (geo.attributes.aSel as THREE.BufferAttribute).needsUpdate = true;
-    geo.computeVertexNormals();
+    // normals are the slow part: while lanes morph, redo them every few frames (and always at the end)
+    if (!only || ++normalsDue >= 3) { geo.computeVertexNormals(); normalsDue = 0; }
   };
   // the ground's material: vertex colours over a fine detail texture, plus glowing cracks / grid where the lands call for it
   const detail = canvasTex(256, 256, (g) => { g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 2600; i++) { const v = 190 + Math.random() * 65; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3); } for (let i = 0; i < 300; i++) { g.strokeStyle = `rgba(0,0,0,${Math.random() * 0.12})`; g.lineWidth = 1; const x = Math.random() * 256, y = Math.random() * 256; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.random() * 6 - 3, y - 4 - Math.random() * 6); g.stroke(); } }, [BOARD_W / 1.6, BOARD_D / 1.6]);
@@ -155,43 +182,48 @@ export function buildWorld(o: { phone: boolean; me: Side }) {
     const tx = fx - ix, tz = fz - iz, at = (a: number, b: number) => pos.getY(b * (nx + 1) + a);
     return (at(ix, iz) * (1 - tx) + at(ix + 1, iz) * tx) * (1 - tz) + (at(ix, iz + 1) * (1 - tx) + at(ix + 1, iz + 1) * tx) * tz;
   };
-  let animating = 0;
+  /** the ground's height at a point once every lane has finished changing (for placing props), without touching the sheet */
+  const finalHeightAt = (x: number, z: number) => {
+    const fx = (x + BOARD_W / 2) / BOARD_W * nx, fz = (z + BOARD_D / 2) / BOARD_D * nz;
+    const ix = Math.max(0, Math.min(nx - 1, Math.floor(fx))), iz = Math.max(0, Math.min(nz - 1, Math.floor(fz)));
+    const tx = fx - ix, tz = fz - iz, at = (a: number, b: number) => vertex(b * (nx + 1) + a, true);
+    return (at(ix, iz) * (1 - tx) + at(ix + 1, iz) * tx) * (1 - tz) + (at(ix, iz + 1) * (1 - tx) + at(ix + 1, iz + 1) * tx) * tz;
+  };
+  const growing = new Map<Land, number>();
+  // props to build, one lane per frame (a cataclysm can change all eight lanes at once)
+  const queue: { side: Side; lane: number; t: Terrain; grow: boolean }[] = [];
+  const buildProps = (side: Side, lane: number, t: Terrain, grow: boolean) => {
+    const L = lanes[side][lane], k0 = L.k; L.k = 1;
+    const cx = laneX(lane), cz = rowZ(side);
+    const land = buildLand(t, { phone: o.phone, seed: side * 10 + lane, w: LANE_W - 0.35, d: LANE_D, ground: (x, z) => finalHeightAt(cx + x, cz + z) });
+    L.k = k0;
+    land.group.position.set(cx, 0, cz); group.add(land.group); props[side][lane] = land;
+    land.grow(grow ? 0 : 1); if (grow) growing.set(land, 0);
+  };
   const setLane = (side: Side, lane: number, t: Terrain | null, grow: boolean) => {
     const L = lanes[side][lane];
     if (L.to === t && L.k >= 1) return false;
     L.from = grow ? (L.k >= 1 ? L.to : L.from) : t; L.to = t; L.k = grow ? 0 : 1;
-    if (!grow) rebuild();
-    else animating = Math.max(animating, 1);
-    // its props
+    if (!grow) rebuild([[side, lane]]);
+    // its props: the old ones go now, the new ones are built on the next free frame
     const old = props[side][lane];
-    if (old) { group.remove(old.group); old.dispose(); props[side][lane] = null; }
-    if (t) {
-      // the props stand on the finished ground, so work that out first
-      if (grow) { L.k = 1; rebuild(); }
-      const cx = laneX(lane), cz = rowZ(side);
-      const land = buildLand(t, { phone: o.phone, seed: side * 10 + lane, w: LANE_W - 0.35, d: LANE_D, ground: (x, z) => heightAt(cx + x, cz + z) });
-      land.group.position.set(cx, 0, cz); group.add(land.group); props[side][lane] = land;
-      land.grow(grow ? 0 : 1);
-      if (grow) { L.k = 0; rebuild(); }
-    }
+    if (old) { growing.delete(old); group.remove(old.group); old.dispose(); props[side][lane] = null; }
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].side === side && queue[i].lane === lane) queue.splice(i, 1);
+    if (t) { if (grow) queue.push({ side, lane, t, grow }); else buildProps(side, lane, t, false); }
     return true;
   };
-  const growing = new Map<Land, number>();
   for (let s = 0; s < 2; s++) for (let l = 0; l < 4; l++) setLane(s as Side, l, null, false);
   rebuild();
   return {
-    group, heightAt, setLane: (side: Side, lane: number, t: Terrain | null, grow: boolean) => {
-      const changed = setLane(side, lane, t, grow);
-      const land = props[side][lane]; if (changed && land && grow) growing.set(land, 0);
-      return changed;
-    },
+    group, heightAt, setLane,
     terrainOf: (side: Side, lane: number) => lanes[side][lane].to,
     tick(dt: number, t: number, emit: Emitter) {
       uTime.value = t;
       // lands morphing in
-      let any = false;
-      for (const side of lanes) for (const L of side) if (L.k < 1) { L.k = Math.min(1, L.k + dt / 1.1); any = true; }
-      if (any) rebuild(); else if (animating) { animating = 0; }
+      const moving: [number, number][] = [];
+      lanes.forEach((side, sd) => side.forEach((L, l) => { if (L.k < 1) { L.k = Math.min(1, L.k + dt / 1.1); moving.push([sd, l]); } }));
+      if (moving.length) { rebuild(moving); if (moving.every(([sd, l]) => lanes[sd][l].k >= 1)) { geo.computeVertexNormals(); normalsDue = 0; } }
+      const q = queue.shift(); if (q) buildProps(q.side, q.lane, q.t, q.grow);
       for (const [land, k] of growing) { const k2 = Math.min(1, k + dt / 1.5); growing.set(land, k2); land.grow(k2); if (k2 >= 1) growing.delete(land); }
       for (const side of props) for (const p of side) p?.tick(dt, t, emit);
       (water.material as THREE.MeshStandardMaterial).map!.offset.x = t * 0.05;

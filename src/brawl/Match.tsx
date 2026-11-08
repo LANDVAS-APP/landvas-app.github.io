@@ -13,11 +13,12 @@ import { cn } from '../lib/utils';
 import { Button, Dialog } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { sfx } from '../arcade/sfx';
-import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, type Card, type Target, type Terrain } from '../shared/brawl/cards';
+import { CARD, EVENTS, HAND_MAX_UI, LANES, TERRAIN_INFO, kindName, kindStyle, type Card, type Target, type Terrain } from '../shared/brawl/cards';
 import { check, type Action, type Ev, type Pick, type Side, type State, type View } from '../shared/brawl/engine';
 import type { Board3D, BoardPick, Highlight } from './board3d';
 import { CardView } from './CardView';
 import { LabBar } from './Lab';
+import { MusicButton } from './brawlMusic';
 import type { MatchView, Rewards } from './types';
 
 type Mode = { kind: 'idle' } | { kind: 'card'; uid: number } | { kind: 'flourish'; lane: number };
@@ -34,8 +35,11 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const [showing, setShowing] = useState(false);              // its effect is playing on the board
   // dragging a card (or a land card) out of your hand onto the board
   type DragWhat = { kind: 'card'; uid: number; id: string } | { kind: 'land'; i: number; t: Terrain };
-  const [drag, setDrag] = useState<(DragWhat & { x: number; y: number; ok: boolean }) | null>(null);
-  const press = useRef<{ d: DragWhat; sx: number; sy: number; on: boolean; pid: number; blocked?: boolean } | null>(null);
+  const [drag, setDrag] = useState<(DragWhat & { x: number; y: number; ok: boolean; pick?: BoardPick | null; cast?: boolean }) | null>(null);
+  /** a card held down (without moving): shown big until you let go */
+  const [hold, setHold] = useState<string | null>(null);
+  const holdTimer = useRef(0);
+  const press = useRef<{ d: DragWhat; sx: number; sy: number; on: boolean; pid: number; blocked?: boolean; held?: boolean } | null>(null);
   // the land cards: which of your four goes in which lane (index into landCards), and the one picked up by a tap
   const [placed, setPlaced] = useState<(number | null)[]>([null, null, null, null]);
   const [landSel, setLandSel] = useState<number | null>(null);
@@ -175,13 +179,20 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   /** Where would this drop land, and is it allowed? */
   const dropAt = (d: DragWhat, x: number, y: number): { pick: BoardPick | null; ok: boolean; cast?: boolean } => {
     const b = board.current; if (!b || !v) return { pick: null, ok: false };
-    const pick = b.pickAt(x, y);
-    if (d.kind === 'land') return { pick, ok: !!pick && pick.side === side && pick.lane >= 0 };
+    // still over your hand: not dropped yet
+    const handTop = (document.querySelector('[data-testid=brawl-hand], [data-testid=brawl-lands]') as HTMLElement | null)?.getBoundingClientRect().top ?? innerHeight * 0.75;
+    if (y > handTop - 8) return { pick: null, ok: false };
+    if (d.kind === 'land') { const pick = b.laneAt(x, y, true); return { pick, ok: !!pick }; }
     const c = CARD[d.id], s2 = asState(v);
-    if (c.kind === 'spell' && (!c.target || c.target === 'none')) { const handTop = (document.querySelector('[data-testid=brawl-hand]') as HTMLElement | null)?.getBoundingClientRect().top ?? innerHeight * 0.75; return { pick: null, ok: y < handTop - 20, cast: true }; }
-    if (!pick || pick.lane < 0) return { pick, ok: false };
-    if (c.kind !== 'spell') return { pick, ok: pick.side === side && !check(s2, side, { t: 'play', uid: d.uid, lane: pick.lane }) };
-    return { pick, ok: !check(s2, side, { t: 'play', uid: d.uid, target: pick }) };
+    if (c.kind === 'spell' && (!c.target || c.target === 'none')) return { pick: null, ok: true, cast: true };
+    // creatures and totems: whichever of your lanes is nearest the finger
+    if (c.kind !== 'spell') { const pick = b.laneAt(x, y, true); return { pick, ok: !!pick && !check(s2, side, { t: 'play', uid: d.uid, lane: pick.lane }) }; }
+    // aimed spells: the lane under the finger if it's a fair target, otherwise the nearest fair target (generously)
+    const valid = (p: BoardPick) => !check(s2, side, { t: 'play', uid: d.uid, target: p });
+    const under = b.laneAt(x, y); if (under && valid(under)) return { pick: under, ok: true };
+    let best: BoardPick | null = null, bd = 150;
+    for (const sd of [0, 1] as Side[]) for (let lane = -1; lane < LANES; lane++) { const p = { side: sd, lane }; if (!valid(p)) continue; const at = b.screenOf(sd, lane); const dd = Math.hypot(at.x - x, at.y - 30 - y); if (dd < bd) { bd = dd; best = p; } }
+    return { pick: best, ok: !!best };
   };
   const dragH = useRef({ dropAt, why: (_d: DragWhat) => {}, start: (_d: DragWhat) => {}, drop: (_d: DragWhat, _x: number, _y: number) => {}, tap: (_d: DragWhat) => {}, can: (_d: DragWhat) => false as boolean });
   dragH.current = {
@@ -199,20 +210,26 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
     },
     tap: (d) => { if (d.kind === 'card') selectCard(d.uid); else setLandSel((cur) => (cur === d.i ? null : d.i)); },
   };
-  const pressStart = (d: DragWhat) => (e: React.PointerEvent) => { if (e.button > 0) return; press.current = { d, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId }; };
+  const pressStart = (d: DragWhat) => (e: React.PointerEvent) => {
+    if (e.button > 0) return; press.current = { d, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId };
+    clearTimeout(holdTimer.current);
+    if (d.kind === 'card') holdTimer.current = window.setTimeout(() => { const r = press.current; if (r && !r.on && r.d === d) { setHold(d.id); r.held = true; } }, 320);
+  };
   useEffect(() => {
     const move = (e: PointerEvent) => {
       const r = press.current; if (!r || r.pid !== e.pointerId) return;
-      if (!r.on) { if (r.blocked || Math.hypot(e.clientX - r.sx, e.clientY - r.sy) < 12) return; if (!dragH.current.can(r.d)) { r.blocked = true; return; } r.on = true; dragH.current.start(r.d); }
+      if (!r.on) { if (r.blocked || Math.hypot(e.clientX - r.sx, e.clientY - r.sy) < 12) return; clearTimeout(holdTimer.current); setHold(null); if (!dragH.current.can(r.d)) { r.blocked = true; return; } r.on = true; dragH.current.start(r.d); }
       e.preventDefault();
       const at = dragH.current.dropAt(r.d, e.clientX, e.clientY);
       board.current?.hover(at.ok ? at.pick : null);
-      setDrag({ ...r.d, x: e.clientX, y: e.clientY, ok: at.ok });
+      setDrag({ ...r.d, x: e.clientX, y: e.clientY, ok: at.ok, pick: at.pick, cast: at.cast });
     };
     const up = (e: PointerEvent) => {
       const r = press.current; if (!r || r.pid !== e.pointerId) return; press.current = null;
+      clearTimeout(holdTimer.current); setHold(null);
       board.current?.hover(null); setDrag(null);
       if (r.on) dragH.current.drop(r.d, e.clientX, e.clientY);
+      else if (r.held) return; // it was a look, not a tap
       else if (r.blocked) dragH.current.why(r.d);
       else if (e.type === 'pointerup') dragH.current.tap(r.d);
     };
@@ -258,13 +275,13 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
   const selected = mode.kind === 'card' ? P.hand.find((h) => h.uid === mode.uid) : null;
   const selCard = selected?.id ? CARD[selected.id] : null;
   const canAfford = P.hand.some((h) => h.id && CARD[h.id].cost <= P.paint);
-  const hint = landing ? (P.ready ? `Waiting for ${opp.username} to place their lands…` : landSel !== null ? 'Tap one of your lanes' : 'Drag your land cards onto your lanes') : !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? `Tap one of your lanes for ${selCard.name}` : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : selCard.target === 'any_lane' ? 'Tap any lane' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Drag a card onto the board — tap to see it' : 'Out of paint — end your turn';
+  const hint = landing ? (P.ready ? `Waiting for ${opp.username} to place their lands…` : landSel !== null ? 'Tap one of your lanes' : 'Drag your land cards onto your lanes') : !myTurn ? `${opp.username} is thinking…` : mode.kind === 'card' && selCard ? (selCard.kind !== 'spell' ? `Tap one of your lanes for ${selCard.name}` : !selCard.target || selCard.target === 'none' ? 'Tap the card again to cast it' : selCard.target === 'any_lane' ? 'Tap any lane' : 'Tap a target') : mode.kind === 'flourish' ? 'Tap a target' : canAfford ? 'Drag a card onto the board · hold it to read it' : 'Out of paint — end your turn';
   const inspected = inspect !== null ? P.hand.find((h) => h.uid === inspect) : null;
   const inCard = inspected?.id ? CARD[inspected.id] : null;
   const canSketch = myTurn && !busy && P.paint >= 1 && P.deck > 0 && P.hand.length < HAND_MAX_UI;
   const unitPeek = peek?.startsWith('unit:') ? Number(peek.slice(5)) : null;
   const hand = P.hand;
-  const cw = Math.max(64, Math.min(96, (Math.min(innerWidth, 720) - 24) / Math.max(5, hand.length) + 18));
+  const cw = Math.max(72, Math.min(118, (Math.min(innerWidth, 760) - 16) / Math.max(4.4, hand.length) + 14));
 
   return (
     <>
@@ -280,6 +297,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
         <div className="pointer-events-auto flex flex-col items-end gap-1">
           <div className="flex gap-1">
             <button onClick={() => board.current?.resetView()} title="Reset the camera (drag the board to look around)" className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-resetview"><Camera className="inline h-3.5 w-3.5" /></button>
+            <MusicButton className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" />
             <button onClick={() => setMenu(true)} className="rounded-xl bg-black/60 px-2.5 py-1.5 text-xs font-bold backdrop-blur" data-testid="brawl-menu"><Flag className="inline h-3.5 w-3.5" /></button>
           </div>
           {left !== null && <span className={cn('rounded-full px-2 py-0.5 text-xs font-black tabular-nums', left <= 10 ? 'animate-pulse bg-[#FF4D6D]' : 'bg-black/60')} data-testid="brawl-clock">⏱ {left}s</span>}
@@ -298,6 +316,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
 
       {/* you */}
       <div className="absolute inset-x-0 bottom-0 z-10 grid gap-1.5 p-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]">
+        {!landing && <div className="pointer-events-none mx-auto max-w-[92%] truncate rounded-full bg-black/55 px-3 py-1 text-center text-[12px] font-bold text-white/90 backdrop-blur" data-testid="brawl-hint">{hint}</div>}
         {v.lab && !landing && <LabBar disabled={!myTurn || busy} handFull={P.hand.length >= HAND_MAX_UI} onCard={(card) => void send({ t: 'lab', card })} onPaint={() => void send({ t: 'lab', paint: true })} />}
         <div className={cn('flex items-end justify-between gap-2', landing && 'hidden')}>
           <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-3 py-1.5 backdrop-blur" data-testid="brawl-me">
@@ -313,7 +332,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
               <Pencil className="h-3 w-3" />+1 <span className="opacity-70">(1💧)</span>
             </button>
           </div>
-          <div className="pointer-events-none min-w-0 flex-1 text-center text-[11px] font-bold leading-tight text-white/80 drop-shadow" data-testid="brawl-hint">{hint}</div>
+          <div className="flex-1" />
           <button onClick={() => void send({ t: 'end' })} disabled={!myTurn || busy || landing}
             className={cn('h-12 rounded-2xl px-4 font-display text-base font-black shadow-lg transition disabled:opacity-40', myTurn && !canAfford ? 'animate-pulse bg-[#FFE14D] text-black' : 'bg-[#FF4FD8] text-white')} data-testid="brawl-end">
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : myTurn ? 'End turn ⚔️' : 'Waiting…'}
@@ -358,10 +377,34 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
         <div className="pointer-events-none absolute right-2 top-[18%] z-10 hidden sm:block"><CardView id={selCard.id} width={170} /></div>
       )}
       {drag && (
-        <div className="pointer-events-none fixed z-40 transition-transform duration-100" style={{ left: drag.x, top: drag.y, transform: `translate(-50%, -75%) rotate(${drag.ok ? 0 : -6}deg) scale(${drag.ok ? 0.72 : 1})` }} data-testid="brawl-dragging">
+        <div className="pointer-events-none fixed z-40 grid justify-items-center gap-1 transition-transform duration-100" style={{ left: drag.x, top: drag.y, transform: `translate(-50%, -88%) rotate(${drag.ok ? 0 : -6}deg) scale(${drag.ok ? 0.62 : 0.85})` }} data-testid="brawl-dragging">
           {drag.kind === 'land' ? <CardView land={drag.t} width={96} animate={false} glow={drag.ok ? '#3DDC97' : undefined} /> : <CardView id={drag.id} width={110} animate={false} glow={drag.ok ? '#3DDC97' : '#FF4D6D'} />}
         </div>
       )}
+      {drag && drag.kind === 'card' && (() => {
+        // what letting go would do, in words, right under the finger
+        const c = CARD[drag.id], tgt = drag.pick && drag.pick.lane >= 0 ? v.p[drag.pick.side].lanes[drag.pick.lane].unit : null;
+        const msg = !drag.ok ? (c.kind === 'spell' && c.target && c.target !== 'none' ? 'Drag onto a target' : c.kind === 'spell' ? 'Drag up onto the board' : 'Drag onto one of your lanes')
+          : drag.cast ? `Let go to cast ${c.name}` : c.kind === 'spell' ? `Let go: ${tgt ? CARD[tgt.id].name : drag.pick?.lane === -1 ? 'the hero' : `lane ${drag.pick!.lane + 1}`}` : `Let go: ${c.kind === 'totem' ? 'build in' : 'summon in'} lane ${drag.pick!.lane + 1}`;
+        return <div className={cn('pointer-events-none fixed z-40 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-black shadow-lg', drag.ok ? 'bg-[#3DDC97] text-black' : 'bg-black/75 text-white')} style={{ left: drag.x, top: drag.y + 18 }} data-testid="brawl-drop-hint">{drag.ok ? '✓ ' : ''}{msg}</div>;
+      })()}
+      {(hold || (drag && drag.kind === 'card')) && (() => {
+        // the card, big and readable, at the top of the screen while you hold or drag it
+        const c = CARD[hold ?? (drag as { id: string }).id], K = kindStyle(c);
+        return (
+          <div className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top,0px))] z-40 flex justify-center px-2" data-testid="brawl-hold">
+            <div className={cn('flex items-start gap-2 rounded-2xl bg-black/80 p-2 shadow-2xl ring-2 backdrop-blur', !hold && 'scale-90 opacity-95')} style={{ ['--tw-ring-color' as string]: K.color, maxWidth: 440 }}>
+              <CardView id={c.id} width={hold ? Math.min(190, innerWidth * 0.44) : 108} animate={false} tilt={false} />
+              <div className="min-w-0 max-w-[220px] pt-1">
+                <div className="font-display text-base font-black leading-tight">{c.name}</div>
+                <div className="mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black text-black" style={{ background: K.color }}>{K.icon} {kindName(c)} · {c.cost} 💧</div>
+                <div className="mt-1 text-[11px] font-bold text-white/70">{K.tip}</div>
+                {hold && <ul className="mt-1.5 grid max-h-[46vh] gap-0.5 overflow-hidden text-[12px] leading-snug text-white/90">{explain(c).filter((l) => !l.startsWith('A creature with')).slice(0, 3).map((l, i) => <li key={i}>• {l}</li>)}</ul>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* a card from your hand, up close: what it is, how it works, show me, play it */}
       {inCard && inspected && (

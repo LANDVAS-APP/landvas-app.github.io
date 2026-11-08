@@ -116,6 +116,17 @@ export const TRACKS: Track[] = [
     bass: [0, X, X, 7, X, X, 0, X, X, 7, X, X, 5, X, 7, X],
     lead: [7, X, 7, 7, X, 12, X, 10, 8, X, 7, X, 5, X, X, X, 3, X, 3, 3, X, 7, X, 5, 3, X, 2, X, 0, X, X, X, 7, X, 7, 7, X, 12, X, 14, 15, X, 14, X, 12, X, X, X, 10, X, 8, 7, X, 5, X, 3, 2, X, 0, X, X, X, X, X],
     kick: 'x..x..x...x..x..', snare: '......x.......x.', hat: 'x.xx.xx.x.xx.xx.' },
+  // Paintbrawl: a bouncy cartoon-adventure march for the card battles, and a calmer theme for the arena lobby
+  { id: 'brawl', name: 'Paint & Thunder', emoji: '🎨', bpm: 124, root: 53, wave: 'triangle', leadWave: 'square', arp: true, game: true,
+    chords: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]],
+    bass: [0, X, 0, 7, X, 7, 0, X, 0, X, 12, X, 7, X, 5, 4],
+    lead: [12, X, 14, 16, X, 19, X, 16, 14, X, 12, X, 14, X, X, X, 11, X, 14, X, 19, X, 18, 19, 21, X, 19, X, 14, X, X, X, 16, X, 19, X, 21, X, 24, X, 23, X, 21, X, 19, X, 16, X, 17, X, 16, X, 14, X, 12, X, 14, 16, 17, X, 19, X, X, X],
+    kick: 'x...x...x...x.x.', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx' },
+  { id: 'brawlcamp', name: 'Arena Camp', emoji: '🏕️', bpm: 96, swing: 0.14, root: 50, wave: 'triangle', leadWave: 'triangle', arp: true, game: true,
+    chords: [[0, 4, 7, 11], [5, 9, 12, 16], [2, 5, 9, 12], [7, 11, 14, 17]],
+    bass: [0, X, X, 7, X, X, 12, X, 5, X, X, 9, X, X, 7, X],
+    lead: [16, X, X, 14, X, 12, X, X, 14, X, 16, X, 19, X, X, X, 17, X, X, 16, X, 14, X, X, 12, X, 14, X, 9, X, X, X, 14, X, X, 12, X, 11, X, X, 12, X, 14, X, 16, X, X, X, 19, X, 17, X, 16, X, 14, X, 12, X, X, X, X, X, X, X],
+    kick: 'x.....x...x.....', snare: '....x.......x...', hat: '..x...x...x...x.' },
 ];
 
 let ctx: AudioContext | null = null, master: GainNode | null = null, timer: number | null = null;

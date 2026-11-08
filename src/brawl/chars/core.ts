@@ -11,7 +11,7 @@ export type Pose = 'idle' | 'walk' | 'happy' | 'attack';
 export type ActKind = 'attack' | 'ability' | 'play';
 /** What a character's animation sees each frame. `k` is how far (0..1) it is through its current move. */
 export type Anim = { t: number; dt: number; pose: Pose; act: ActKind | null; k: number; hurt: number };
-export type ShotKind = 'fire' | 'ice' | 'spore' | 'spark' | 'note' | 'leaf' | 'candy' | 'goo' | 'rock' | 'bolt' | 'petal' | 'heart';
+export type ShotKind = 'fire' | 'ice' | 'spore' | 'spark' | 'note' | 'leaf' | 'candy' | 'goo' | 'rock' | 'bolt' | 'petal' | 'heart' | 'bubble' | 'pebble';
 /** The effects a character can call on, provided by the board. Positions are in world space. */
 export type CharFx = {
   add(e: Emit): void;
@@ -36,7 +36,7 @@ export type FxCtx = {
   /** which way is forward (towards the other side), in world space */
   fwd: THREE.Vector3;
 };
-export type Move = { dur: number; hit: number; fx?: (c: FxCtx) => void | Promise<void> };
+export type Move = { dur: number; hit: number; fx?: (c: FxCtx) => void | Promise<void>; /** an attack fired from where it stands (no lunge) */ ranged?: boolean };
 export type Spec = { height: number; anim(a: Anim): void; moves?: Partial<Record<ActKind, Move>>;
   /** little effects it gives off all the time (smoke from its nostrils, embers, snow, spores, sparks…) */
   ambient?(c: FxCtx, a: Anim): void };
@@ -45,6 +45,8 @@ export type Builder = (k: Kit, card: Card) => Spec;
 export type Char = {
   root: THREE.Group;
   height: number;
+  /** it attacks from where it stands (fires something) rather than lunging */
+  ranged: boolean;
   update(dt: number, t: number, pose: Pose): void;
   /** play a move; resolves when its blow lands (and its effect has played) */
   act(kind: ActKind, fx: CharFx, aim?: THREE.Vector3[]): Promise<void>;
@@ -84,10 +86,14 @@ export const wob = (t: number, f: number, a = 1, ph = 0) => Math.sin(t * f + ph)
 const RED = new THREE.Color('#FF2A2A');
 const v3 = () => new THREE.Vector3();
 
-export function makeChar(build: Builder, card: Card, o: { phone?: boolean; toon?: boolean } = {}): Char {
+export function makeChar(build: Builder, card: Card, o: { phone?: boolean; toon?: boolean; attack?: Move } = {}): Char {
   const kit = new Kit(o.phone, o.toon);
   const spec = build(kit, card);
-  const moves: Record<ActKind, Move> = { attack: { dur: 0.6, hit: 0.45 }, ability: { dur: 0.9, hit: 0.5 }, play: { dur: 1.0, hit: 0.5 }, ...spec.moves };
+  // only the bigger parts cast shadows (eyes, teeth and sparkles don't need to): half the shadow-pass draw calls
+  kit.root.updateMatrixWorld(true);
+  const ws = new THREE.Vector3();
+  kit.root.traverse((m) => { const me = m as THREE.Mesh; if (!me.isMesh || !me.castShadow) return; me.geometry.computeBoundingSphere(); me.getWorldScale(ws); if ((me.geometry.boundingSphere?.radius ?? 0) * Math.max(ws.x, ws.y, ws.z) < 0.13) me.castShadow = false; });
+  const moves: Record<ActKind, Move> = { attack: { dur: 0.6, hit: 0.45 }, ability: { dur: 0.9, hit: 0.5 }, play: { dur: 1.0, hit: 0.5 }, ...spec.moves, ...(o.attack ? { attack: o.attack } : {}) };
   let cur: { kind: ActKind; t: number; m: Move; fired: boolean; fx: CharFx; aim: THREE.Vector3[]; res: () => void } | null = null;
   let hurtK = 0, fadeK = 1, bound: CharFx | null = null;
   const at = (ob: THREE.Object3D, local: V = [0, 0, 0]) => { ob.updateWorldMatrix(true, false); return ob.localToWorld(new THREE.Vector3(...local)); };
@@ -104,6 +110,7 @@ export function makeChar(build: Builder, card: Card, o: { phone?: boolean; toon?
   return {
     root: kit.root,
     height: spec.height,
+    ranged: !!moves.attack.ranged,
     update(dt, t, pose) {
       if (cur) {
         cur.t += dt;

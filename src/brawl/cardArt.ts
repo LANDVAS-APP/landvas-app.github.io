@@ -1,7 +1,7 @@
 // Painting a Paintbrawl card: a terrain-coloured frame, the cost in a paint drop, the name on a banner, a little
 // scene of the card's terrain with its creature alive in it (breathing, blinking, bouncing), the rules on parchment,
 // attack and health badges, a rarity gem — and a moving holographic sheen on gold foils and legendaries.
-import { CARD, RARITY_INFO, TERRAIN_INFO, kindName, type Card, type Terrain } from '../shared/brawl/cards';
+import { CARD, RARITY_INFO, TERRAIN_INFO, kindName, kindStyle, type Card, type Terrain } from '../shared/brawl/cards';
 import { drawSpecialArt } from './cardFx';
 import { portrait } from './chars';
 import { cleanGenome, type Genome } from '../inkborn/genome';
@@ -103,6 +103,27 @@ function drawEmblem(g: CanvasRenderingContext2D, c: Card, cx: number, cy: number
   g.globalAlpha = 1;
 }
 
+const KEYWORDS = /^(Shield|Freeze|Frozen|frozen|freeze|freezes|Poison|poison|poisoned|Flourish|On play|When it dies|Totem|Heal|heal|Draw|draw|damage|attack|health|paint)/;
+/** Rules text, wrapped and centred, with the key words in bold colour so the card reads at a glance. */
+function richWrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number, maxLines: number, size: number) {
+  const words = text.split(' '); const lines: string[][] = [[]]; const norm = `600 ${size}px ui-rounded, system-ui, sans-serif`;
+  g.font = norm;
+  for (const w of words) { const cur = lines[lines.length - 1]; const test = [...cur, w].join(' '); if (g.measureText(test).width > maxW && cur.length) lines.push([w]); else cur.push(w); }
+  const shown = lines.slice(0, maxLines);
+  shown.forEach((ws, n) => {
+    let total = 0; ws.forEach((w, i) => { g.font = KEYWORDS.test(w.replace(/^[✋(“]+/, '')) ? `900 ${size}px ui-rounded, system-ui, sans-serif` : norm; total += g.measureText(i < ws.length - 1 ? `${w} ` : w).width; }); g.font = norm;
+    let cx = x - total / 2;
+    g.textAlign = 'left';
+    ws.forEach((w, i) => {
+      const key = KEYWORDS.test(w.replace(/^[✋(“]+/, ''));
+      g.font = key ? `900 ${size}px ui-rounded, system-ui, sans-serif` : norm; g.fillStyle = key ? '#7A2AB0' : '#2A1E10';
+      const piece = i < ws.length - 1 ? `${w} ` : w; g.fillText(piece, cx, y + n * lh);
+      cx += g.measureText(piece).width; g.font = norm;
+    });
+  });
+  g.textAlign = 'center';
+  return shown.length;
+}
 function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number, maxLines: number) {
   const words = text.split(' '); let line = '', n = 0;
   for (const w of words) {
@@ -137,7 +158,10 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   // the frame: terrain colours, a rarity rim
   const fr = g.createLinearGradient(0, 0, w, h); fr.addColorStop(0, T.color); fr.addColorStop(0.55, T.dark); fr.addColorStop(1, '#120C22');
   g.fillStyle = fr; g.beginPath(); g.roundRect(0, 0, w, h, r); g.fill();
-  g.strokeStyle = R.color; g.lineWidth = Math.max(2, w * 0.022); g.beginPath(); g.roundRect(g.lineWidth / 2, g.lineWidth / 2, w - g.lineWidth, h - g.lineWidth, r); g.stroke();
+  const K = kindStyle(c);
+  // the outer frame is in the colour of the card's kind (green creatures, purple spells, gold totems…)
+  g.strokeStyle = K.color; g.lineWidth = Math.max(3, w * 0.035); g.beginPath(); g.roundRect(g.lineWidth / 2, g.lineWidth / 2, w - g.lineWidth, h - g.lineWidth, r); g.stroke();
+  g.strokeStyle = R.color; g.lineWidth = Math.max(1, w * 0.01); g.beginPath(); g.roundRect(w * 0.035, w * 0.035, w - w * 0.07, h - w * 0.07, r * 0.8); g.stroke();
   // filigree corners
   g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1;
   for (const [cx, cy, sx, sy] of [[pad, pad, 1, 1], [w - pad, pad, -1, 1], [pad, h - pad, 1, -1], [w - pad, h - pad, -1, -1]]) { g.beginPath(); g.moveTo(cx, cy + sy * w * 0.08); g.quadraticCurveTo(cx, cy, cx + sx * w * 0.08, cy); g.stroke(); }
@@ -155,31 +179,35 @@ export function drawCard(g: CanvasRenderingContext2D, id: string, w: number, h: 
   }
   g.restore();
   g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 2; g.beginPath(); g.roundRect(ax, ay, aw, ah, r * 0.6); g.stroke();
+  // the kind ribbon across the bottom of the picture: what sort of card this is, big and clear
+  const rbH = h * 0.075, rbY = ay + ah - rbH * 0.55;
+  g.fillStyle = K.color; g.beginPath(); g.moveTo(ax - w * 0.02, rbY); g.lineTo(ax + aw + w * 0.02, rbY); g.lineTo(ax + aw - w * 0.01, rbY + rbH / 2); g.lineTo(ax + aw + w * 0.02, rbY + rbH); g.lineTo(ax - w * 0.02, rbY + rbH); g.lineTo(ax + w * 0.01, rbY + rbH / 2); g.closePath(); g.fill();
+  g.strokeStyle = K.dark; g.lineWidth = Math.max(1, w * 0.008); g.stroke();
+  g.fillStyle = K.dark; g.font = `900 ${Math.round(rbH * 0.62)}px ui-rounded, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(`${K.icon} ${kindName(c).toUpperCase()}`, w / 2, rbY + rbH / 2 + 1);
   // name banner
   const nb = h * 0.085;
   g.fillStyle = 'rgba(10,6,24,0.72)'; g.beginPath(); g.roundRect(pad * 0.6, h * 0.02, w - pad * 1.2, nb, nb / 2); g.fill();
   g.fillStyle = '#FFFFFF'; g.font = `800 ${Math.round(w * 0.072)}px ui-rounded, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
   let fs = Math.round(w * 0.072); while (g.measureText(c.name).width > w * 0.66 && fs > 8) { fs--; g.font = `800 ${fs}px ui-rounded, system-ui, sans-serif`; }
   g.fillText(c.name, w * 0.54, h * 0.02 + nb / 2 + 1);
-  // the type line
-  const ty = ay + ah + h * 0.035;
-  g.font = `700 ${Math.round(w * 0.048)}px ui-rounded, system-ui, sans-serif`; g.fillStyle = T.glow;
-  if (c.fx || c.wonder) { g.fillStyle = c.fx ? '#FFB13D' : '#FFE9A8'; g.font = `900 ${Math.round(w * 0.05)}px ui-rounded, system-ui, sans-serif`; }
-  g.fillText(`${c.fx ? '🌋' : c.wonder ? '🏰' : T.emoji} ${kindName(c)} · ${T.name}`, w / 2, ty);
+  // the land it belongs to
+  const ty = ay + ah + h * 0.05;
+  g.font = `800 ${Math.round(w * 0.045)}px ui-rounded, system-ui, sans-serif`; g.fillStyle = T.glow;
+  g.fillText(`${T.emoji} ${T.name}`, w / 2, ty);
   // rules on parchment
   if (!o.compact) {
-    const px0 = pad, py0 = ty + h * 0.03, pw = w - pad * 2, ph = h - py0 - h * 0.1;
+    const px0 = pad, py0 = ty + h * 0.028, pw = w - pad * 2, ph = h - py0 - h * 0.1;
     const pg = g.createLinearGradient(0, py0, 0, py0 + ph); pg.addColorStop(0, '#FFF8E8'); pg.addColorStop(1, '#F0E2C4');
     g.fillStyle = pg; g.beginPath(); g.roundRect(px0, py0, pw, ph, r * 0.5); g.fill();
     g.fillStyle = '#2A1E10'; g.textAlign = 'center'; g.textBaseline = 'top';
-    let fy = py0 + h * 0.015, size = Math.round(w * 0.05);
-    const rules = [c.text, c.flourish ? `✋ Flourish (${c.flourish.cost}): ${c.flourish.text}` : ''].filter(Boolean).join('  ');
-    // shrink to fit
-    for (; size > 7; size--) { g.font = `600 ${size}px ui-rounded, system-ui, sans-serif`; const lines = Math.ceil(g.measureText(rules).width / (pw - 10)) + 1; if (lines * size * 1.2 + size * 2.2 < ph) break; }
-    g.font = `600 ${size}px ui-rounded, system-ui, sans-serif`;
-    if (rules) fy += wrap(g, rules, w / 2, fy, pw - 10, size * 1.18, 6) * size * 1.18 + 2;
-    g.font = `italic 500 ${Math.max(7, size - 1)}px Georgia, serif`; g.fillStyle = 'rgba(60,40,20,0.7)';
-    if (fy + size < py0 + ph - 2) wrap(g, `“${c.flavor}”`, w / 2, fy + 1, pw - 12, (size - 1) * 1.15, 2);
+    const rules = [c.text.replace(/^(Cataclysm|Wonder|Totem)\.\s*/, ''), c.flourish ? `✋ Flourish (${c.flourish.cost}💧): ${c.flourish.text}` : ''].filter(Boolean).join('  ') || (c.kind === 'creature' ? 'A plain fighter: it attacks the lane in front.' : '');
+    // as big as fits (the flavour line only on big cards, and only if there's room)
+    let size = Math.round(w * 0.068);
+    for (; size > 7; size--) { g.font = `600 ${size}px ui-rounded, system-ui, sans-serif`; const lines = Math.ceil(g.measureText(rules).width / (pw - 10)) + 1; if (lines * size * 1.15 < ph - size * 0.6) break; }
+    let fy = py0 + Math.max(3, (ph - Math.min(6, Math.ceil(g.measureText(rules).width / (pw - 10)) + 1) * size * 1.15) / 2 - (w >= 150 ? size * 0.6 : 0));
+    if (rules) fy += richWrap(g, rules, w / 2, fy, pw - 10, size * 1.15, 6, size) * size * 1.15 + 2;
+    if (w >= 150) { g.font = `italic 500 ${Math.max(7, size - 3)}px Georgia, serif`; g.fillStyle = 'rgba(60,40,20,0.65)'; if (fy + size < py0 + ph - 2) wrap(g, `“${c.flavor}”`, w / 2, fy + 1, pw - 12, (size - 2) * 1.15, 1); }
   }
   // cost, attack, health
   const br = w * 0.085;

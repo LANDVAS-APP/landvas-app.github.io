@@ -10,6 +10,7 @@ import { CARD, LANES, TERRAIN_INFO, type Terrain } from '../shared/brawl/cards';
 import { buildWonder, makeScenes, Particles, type Ctx, type WonderModel } from './fx3d';
 import { otherSide, type Ev, type Side, type Unit, type View } from '../shared/brawl/engine';
 import { buildChar, type Char, type CharFx, type Pose } from './chars';
+import { castSpell, totemFx } from './spellFx';
 import type { Emitter } from './lands3d';
 import { BOARD_D, BOARD_W, buildWorld, HERO as HERO_Z, LANE_D, LANE_W, laneX, ROW as ROW_Z, TOTEM as TOTEM_Z } from './world3d';
 
@@ -30,7 +31,7 @@ const BASE = 0.02;          // where creatures stand (the ground is flat there)
 export function createBoard3D(o: BoardOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
-  renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+  renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.28;
   renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#120A22'); scene.fog = new THREE.Fog('#120A22', 34, 90);
@@ -38,7 +39,7 @@ export function createBoard3D(o: BoardOpts) {
   const bag: { dispose(): void }[] = [];
   const T = <X extends { dispose(): void }>(x: X) => { bag.push(x); return x; };
   const std = (color: string, p: THREE.MeshStandardMaterialParameters = {}) => T(new THREE.MeshStandardMaterial({ color, roughness: 0.75, ...p }));
-  const tex = (w: number, h: number, d: (g: CanvasRenderingContext2D) => void) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; d(cv.getContext('2d')!); const t = T(new THREE.CanvasTexture(cv)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const tex = (w: number, h: number, d: (g: CanvasRenderingContext2D) => void) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; d(cv.getContext('2d')!); const t = T(new THREE.CanvasTexture(cv)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return t; };
   const cache = new Map<string, THREE.Texture>();
   const emojiTex = (e: string) => { let t = cache.get(e); if (!t) { t = tex(128, 128, (g) => { g.font = '100px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 64, 72); }); cache.set(e, t); } return t; };
   const textTex = (s: string, col: string, size = 64) => { const k = `t:${s}:${col}:${size}`; let t = cache.get(k); if (!t) { t = tex(256, 96, (g) => { g.font = `900 ${size}px ui-rounded, system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 10; g.strokeStyle = '#140A1E'; g.strokeText(s, 128, 50); g.fillStyle = col; g.fillText(s, 128, 50); }); cache.set(k, t); } return t; };
@@ -186,7 +187,7 @@ export function createBoard3D(o: BoardOpts) {
     const base = mesh(G('ubase', () => new THREE.TorusGeometry(0.78, 0.05, 8, 40)), std(color, { emissive: color, emissiveIntensity: 1.2 }), 0, 0.05, 0, g); base.rotation.x = Math.PI / 2; base.castShadow = false;
     const shadow = new THREE.Mesh(G('ushadow', () => new THREE.CircleGeometry(0.68, 24)), T(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.025; g.add(shadow);
     // the creature itself, in 3D, facing the other side
-    const cr = buildChar(c, { phone }); cr.root.scale.setScalar(CHAR_SCALE); cr.root.rotation.y = facing(side, lane); g.add(cr.root); cr.bind(charFx);
+    const cr = buildChar(c, { phone }); cr.root.scale.setScalar(CHAR_SCALE); cr.root.rotation.y = facing(side, lane); g.add(cr.root); cr.bind(charFx); warm(cr.root);
     const top = Math.max(1.25, cr.height * CHAR_SCALE);
     const atk = sprite(badgeTex(0, 'atk', 0), 0.8); atk.position.set(-0.85, 0.42, 0.8); atk.renderOrder = 8; g.add(atk);
     const hp = sprite(badgeTex(0, 'hp', 0), 0.85); hp.position.set(0.85, 0.42, 0.8); hp.renderOrder = 8; g.add(hp);
@@ -287,7 +288,20 @@ export function createBoard3D(o: BoardOpts) {
   const posOf = (side: Side, lane: number, y = 1.3) => (lane < 0 ? new THREE.Vector3(0, y + 0.4, heroZ(side)) : new THREE.Vector3(LX(lane), y, rowZ(side)));
 
   // ---- the big scenes (cataclysms, wonders going off) -------------------------------------------------------------------
+  // New materials have to be compiled before they can be drawn, which freezes the frame they first appear in. So new
+  // things (a cataclysm's volcano, a character climbing out of a lane) are compiled in the background first, kept on a
+  // layer the camera doesn't draw until they're ready — usually a frame or two later.
+  const HIDE = 30;
+  const setLayer = (o: THREE.Object3D, l: number) => o.traverse((x) => { if (l === HIDE) { if (x.layers.isEnabled(0)) { x.userData.warmHide = true; x.layers.set(HIDE); } } else if (x.userData.warmHide) { x.userData.warmHide = false; x.layers.set(0); } });
+  const warm = (o: THREE.Object3D) => {
+    if (!(renderer as unknown as { compileAsync?: unknown }).compileAsync) return;
+    setLayer(o, HIDE);
+    let done = false; const show = () => { if (!done) { done = true; setLayer(o, 0); } };
+    renderer.compileAsync(o, camera, scene).then(show, show);
+    setTimeout(show, 1500); // never stay hidden
+  };
   const ctx: Ctx = {
+    warm,
     scene, camera, phone, reduce: !!o.reduceMotion, me: o.me, add: addP, soft: softP, tween, wait, every: (fn) => { jobs.push(fn); },
     LX, rowZ, totemZ, heroZ, tableW: TW, tableD: TD,
     shake: (n) => { shake = Math.max(shake, n); }, cheer: (n) => { cheer = Math.max(cheer, n); }, mood,
@@ -297,10 +311,31 @@ export function createBoard3D(o: BoardOpts) {
     bigText, glowTex,
   };
   const scenes = makeScenes(ctx);
+  const keepWarm: THREE.Material[] = [];
+  // Compile the shaders the big scenes use while the board is quiet, so the first volcano doesn't freeze the game.
+  setTimeout(() => {
+    if (disposed) return;
+    const g = new THREE.Group(), geo = new THREE.PlaneGeometry(0.01, 0.01), D = THREE.DoubleSide;
+    const mats: THREE.Material[] = [
+      new THREE.MeshBasicMaterial(), new THREE.MeshBasicMaterial({ map: glowTex }), new THREE.MeshBasicMaterial({ side: D }), new THREE.MeshBasicMaterial({ map: glowTex, side: D }),
+      new THREE.MeshBasicMaterial({ toneMapped: false }), new THREE.MeshBasicMaterial({ map: glowTex, side: THREE.BackSide, fog: false }),
+      new THREE.MeshStandardMaterial(), new THREE.MeshStandardMaterial({ flatShading: true }), new THREE.MeshStandardMaterial({ map: glowTex }), new THREE.MeshStandardMaterial({ map: glowTex, emissiveMap: glowTex }),
+      new THREE.MeshStandardMaterial({ map: glowTex, emissiveMap: glowTex, flatShading: true }), new THREE.MeshStandardMaterial({ map: glowTex, side: D }), new THREE.MeshStandardMaterial({ side: D }),
+      new THREE.MeshPhysicalMaterial({ clearcoat: 1 }), new THREE.SpriteMaterial({ map: glowTex }), new THREE.LineBasicMaterial(),
+    ];
+    for (const m of mats) { const o = m instanceof THREE.SpriteMaterial ? new THREE.Sprite(m) : m instanceof THREE.LineBasicMaterial ? new THREE.Line(geo, m) : new THREE.Mesh(geo, m); o.position.set(0, -60, 0); o.frustumCulled = false; g.add(o); }
+    scene.add(g);
+    // the materials are kept (not disposed): three.js drops a compiled shader as soon as nothing uses it any more,
+    // and then the next volcano would have to compile it all over again
+    keepWarm.push(...mats);
+    const end = () => { scene.remove(g); };
+    (renderer.compileAsync ? renderer.compileAsync(g, camera, scene) : Promise.resolve(renderer.compile(g, camera, scene))).then(end, end);
+  }, 1200);
   const modelAt = (side: Side, lane: number) => laneOf(side, lane).totem.userData.model ?? null;
 
   // ---- the characters' own effects: their shots, beams, rings and sparkles ----------------------------------------------
-  const SHOT_EMOJI: Partial<Record<Parameters<CharFx['shot']>[2]['kind'], string>> = { note: '🎵', leaf: '🍃', petal: '🌸', candy: '🍬', heart: '💚', rock: '🪨' };
+  const SHOT_EMOJI: Partial<Record<Parameters<CharFx['shot']>[2]['kind'], string>> = { note: '🎵', leaf: '🍃', petal: '🌸', candy: '🍬', heart: '💚', rock: '🪨', pebble: '🪨' };
+  const RAINBOW = ['#FF8AD8', '#8AD8FF', '#C8A8FF', '#9BFFD0', '#FFE68A'];
   const FIRE = ['#FFF2A0', '#FFB020', '#FF6A10'];
   const charFx: CharFx = {
     add: (e) => addP.emit(e),
@@ -321,6 +356,14 @@ export function createBoard3D(o: BoardOpts) {
           case 'ice': addP.emit({ x: P.x, y: P.y, z: P.z, color: '#FFFFFF', size: size, life: 0.1 }); for (let i = 0; i < 2; i++) addP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), vx: R(0.6), vy: R(0.6), vz: R(0.6), color: i ? '#BFF4FF' : '#6FD3FF', size: size * 0.6, life: 0.5, drag: 1 }); break;
           case 'spore': softP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), color: so.color, size: size * 1.4, grow: 0.6, life: 0.6, alpha: 0.5 }); addP.emit({ x: P.x, y: P.y, z: P.z, color: '#D8FF8A', size: size * 0.4, life: 0.4 }); break;
           case 'bolt': case 'spark': for (let i = 0; i < 4; i++) { const f = i / 4; addP.emit({ x: prev.x + (P.x - prev.x) * f + R(0.15), y: prev.y + (P.y - prev.y) * f + R(0.15), z: prev.z + (P.z - prev.z) * f + R(0.15), color: i % 2 ? '#FFFFFF' : so.color, size: size * 0.6, life: 0.18 }); } break;
+          case 'bubble': {
+            // a wobbling bubble with a bright rim, leaving little bubbles behind
+            const col = RAINBOW[(Math.floor(t * 9) + Math.round(a.x * 7)) % RAINBOW.length];
+            softP.emit({ x: P.x, y: P.y + Math.sin(t * 20) * 0.05, z: P.z, color: col, size: size * 1.5, life: 0.07, alpha: 0.55 });
+            addP.emit({ x: P.x + size * 0.25, y: P.y + size * 0.3, z: P.z, color: '#FFFFFF', size: size * 0.35, life: 0.07 });
+            if (Math.random() < 0.5) addP.emit({ x: P.x + R(size), y: P.y + R(size), z: P.z + R(size), vy: 0.5, color: RAINBOW[(Math.random() * 5) | 0], size: size * 0.4, life: 0.6, drag: 1 });
+            break;
+          }
           case 'goo': addP.emit({ x: P.x, y: P.y, z: P.z, color: so.color, size: size * 1.2, life: 0.08 }); if (Math.random() < 0.6) softP.emit({ x: P.x, y: P.y, z: P.z, vy: -0.5, color: so.color, size: size * 0.5, gravity: 6, life: 0.5, alpha: 0.9 }); break;
           case 'rock': softP.emit({ x: P.x, y: P.y, z: P.z, color: '#2A2028', size: size * 1.6, grow: 0.8, life: 0.7, alpha: 0.5 }); addP.emit({ x: P.x + R(size), y: P.y, z: P.z + R(size), color: FIRE[(Math.random() * 3) | 0], size: size * 0.6, life: 0.3 }); break;
           default: addP.emit({ x: P.x + R(size * 0.5), y: P.y + R(size * 0.5), z: P.z + R(size * 0.5), vy: -0.2, color: so.color, size: size * 0.5, life: 0.5, drag: 1 });
@@ -426,12 +469,16 @@ export function createBoard3D(o: BoardOpts) {
   // ---- loop ------------------------------------------------------------------------------------------------------------
   const resize = () => { const r = o.canvas.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
+  let disposed = false;
   let raf = 0, last = performance.now(), t = 0, paused = false, showcase = 0, lastDraw = 0, cheer = 0;
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector2();
+  // frame timing (for the e2e perf check): the CPU time of a frame, before and including the render call
+  const perf = { frames: 0, cpu: 0, worst: 0, world: 0, worldWorst: 0, render: 0, calls: 0, tris: 0, programs: 0, worstNew: 0, textures: 0, worstTex: 0 };
   const loop = () => {
     raf = requestAnimationFrame(loop);
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
+    const f0 = performance.now();
     tune(dt); t += dt;
     // camera: behind your hero, fitted so the lanes fill the width; tall phone screens look down more steeply so the
     // board fills the screen top to bottom; the lobby slowly circles
@@ -474,7 +521,7 @@ export function createBoard3D(o: BoardOpts) {
     }
     // heroes
     heroes.forEach((h) => { h.crystal.rotation.y += dt * 0.8; h.crystal.position.y = 1.2 + Math.sin(t * 2) * 0.08; if (h.shake > 0) { h.shake -= dt; h.g.position.x = Math.sin(t * 60) * 0.12 * h.shake; } else h.g.position.x = 0; });
-    world.tick(dt, t, emitLand);
+    const w0 = performance.now(); world.tick(dt, t, emitLand); const wt = performance.now() - w0; perf.world += wt; perf.worldWorst = Math.max(perf.worldWorst, wt);
     // totems bob, lava and neon pulse, rings breathe
     for (const L of lanes) {
       const b = L.totem.userData.bob as THREE.Sprite | undefined; if (b) b.position.y = 0.75 + Math.sin(t * 2 + L.lane) * 0.08;
@@ -501,7 +548,11 @@ export function createBoard3D(o: BoardOpts) {
     for (let i = projs.length - 1; i >= 0; i--) { const p = projs[i]; p.t += dt / p.dur; const k = Math.min(1, p.t); p.s.position.lerpVectors(p.a, p.b, k); p.s.position.y += Math.sin(k * Math.PI) * 2.2; if (Math.random() < 0.6) splash(p.s.position, p.color, 1, 0.6); if (k >= 1) { scene.remove(p.s); p.s.material.dispose(); projs.splice(i, 1); p.done(); } }
     for (let i = fx.length - 1; i >= 0; i--) { const f = fx[i]; f.life -= dt; f.v.y -= f.g * dt; f.s.position.addScaledVector(f.v, dt); f.s.material.opacity = Math.max(0, Math.min(1, (f.life / f.max) * 2)); if (f.life <= 0) { scene.remove(f.s); f.s.material.dispose(); fx.splice(i, 1); } }
     void tmp;
+    const r0 = performance.now(), p0 = renderer.info.programs?.length ?? 0, x0 = renderer.info.memory.textures;
     renderer.render(scene, camera);
+    const f1 = performance.now(); perf.frames++; perf.cpu += f1 - f0;
+    if (f1 - f0 > perf.worst) { perf.worst = f1 - f0; perf.worstNew = (renderer.info.programs?.length ?? 0) - p0; perf.worstTex = renderer.info.memory.textures - x0; }
+    perf.programs = renderer.info.programs?.length ?? 0; perf.textures = renderer.info.memory.textures; perf.render += f1 - r0; perf.calls = renderer.info.render.calls; perf.tris = renderer.info.render.triangles;
   };
   raf = requestAnimationFrame(loop);
 
@@ -562,15 +613,19 @@ export function createBoard3D(o: BoardOpts) {
               await tween(0.8, (k) => { lo.totem.position.y = -2.2 + (1 - Math.pow(1 - k, 3)) * 2.56; if (Math.random() < 0.5) splash(new THREE.Vector3(LX(e.lane) + (Math.random() - 0.5) * 1.5, 0.4, totemZ(e.side)), col, 1, 2); });
               lo.totem.position.y = 0.36; splash(new THREE.Vector3(LX(e.lane), 1.2, totemZ(e.side)), col, 30, 3.5); cheer = 0.8;
               pop(new THREE.Vector3(LX(e.lane), 3.2, totemZ(e.side)), textTex(c.name, col, 44), 2.4, 0.9, 1.4);
-            } else { splash(new THREE.Vector3(LX(e.lane), 0.8, totemZ(e.side)), '#FFE14D', 12, 2); await W(300); }
+            } else { totemFx(e.card, charFx, new THREE.Vector3(LX(e.lane), 0.4, totemZ(e.side))); lo.totem.position.y = 3; void tween(0.45, (k) => { lo.totem.position.y = 0.36 + (1 - k * k) * 2.6; }); await W(450); }
             break;
           }
           case 'spell': {
             const c = CARD[e.card], col = c.terrain === 'neutral' ? '#FFE14D' : TERRAIN_INFO[c.terrain].color;
             const from = new THREE.Vector3(0, 2, heroZ(e.side));
-            if (c.fx) { splash(from.clone().setY(2.4), col, 30, 3); pop(from.clone().setY(3), emojiTex(c.art), 1.8, 1.8, 1.2); await W(450); }
-            else if (e.target) await throwAt(from, posOf(e.target.side, e.target.lane), c.art, col);
-            else { pop(from.clone().setY(2.6), emojiTex(c.art), 1.4, 1.4, 1); await W(350); }
+            if (c.fx) { splash(from.clone().setY(2.4), col, 30, 3); pop(from.clone().setY(3), emojiTex(c.art), 1.8, 1.8, 1.2); await W(450); break; }
+            // every spell has its own look; aimed at a lane, it shows over the creature there (or the ground)
+            pop(from.clone().setY(2.8), emojiTex(c.art), 1.2, 1.2, 0.9);
+            const at = e.target ? (e.target.lane < 0 ? posOf(e.target.side, -1, 1) : posOf(e.target.side, e.target.lane, BASE + 0.7)) : null;
+            const area = e.card === 'toxiccloud' && e.target ? [e.target.lane - 1, e.target.lane, e.target.lane + 1].filter((l) => l >= 0 && l < LANES).map((l) => posOf(e.target!.side, l, BASE + 0.5)) : [];
+            const own = await Promise.race([castSpell(e.card, charFx, from.clone().setY(1.6), at, area), wait(1800).then(() => true)]);
+            if (!own) { if (at) await throwAt(from, at, c.art, col); else await W(350); }
             break;
           }
           case 'fx': {
@@ -623,9 +678,11 @@ export function createBoard3D(o: BoardOpts) {
             if (u) {
               // the character winds up its own attack; it lunges across so the blow lands on time
               const hitIn = Math.min(0.6, u.cr.hitIn('attack'));
-              const blow = u.cr.act('attack', charFx, [to.clone().setY(BASE + 0.6)]);
-              u.lungeTo.copy(to); u.lungeIn = Math.max(0.001, hitIn - 0.18); u.state = 'walk'; setTimeout(() => { u.state = 'idle'; }, 700);
-              await Promise.race([blow, W(650)]);
+              const aim = to.clone().setY(BASE + (e.to === 'hero' ? 1.2 : 0.6));
+              const blow = u.cr.act('attack', charFx, [aim]);
+              // ranged attackers stay put and fire; the rest wind up and lunge so the blow lands on time
+              if (!u.cr.ranged) { u.lungeTo.copy(to); u.lungeIn = Math.max(0.001, hitIn - 0.18); u.state = 'walk'; setTimeout(() => { u.state = 'idle'; }, 700); }
+              await Promise.race([blow, W(u.cr.ranged ? 1100 : 650)]);
             } else await W(230);
             break;
           }
@@ -705,6 +762,21 @@ export function createBoard3D(o: BoardOpts) {
     },
     /** What's under a point on the screen (a lane, a creature's lane, a hero), for dropping dragged cards. */
     pickAt,
+    /** The lane under a screen point, read off the ground itself (not the little hit boxes) so drops are forgiving:
+     *  anywhere over a lane's strip counts, and with `mine` only your own half is considered (creatures, totems). */
+    laneAt(cx: number, cy: number, mine = false): BoardPick | null {
+      const r = o.canvas.getBoundingClientRect();
+      const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+      const hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -BASE), hit)) return null;
+      const lane = Math.round((hit.x - LX(0)) / (LX(1) - LX(0)));
+      if (lane < -0.5 || lane > LANES - 0.5 || Math.abs(hit.x) > TW / 2 + 1.2 || Math.abs(hit.z) > TD / 2 + 1.5) return null;
+      const L = Math.max(0, Math.min(LANES - 1, lane));
+      const side = (hit.z > 0) === (rowZ(o.me) > 0) ? o.me : otherSide(o.me);
+      if (mine) return { side: o.me, lane: L };
+      // past the far row: the other hero; past your own row: yours
+      if (Math.abs(hit.z) > Math.abs(rowZ(side)) + 2.4) return { side, lane: -1 };
+      return { side, lane: L };
+    },
     /** Where a lane's middle is on the screen (for tests and pointers). */
     screenOf(side: Side, lane: number) { const r = o.canvas.getBoundingClientRect(); const p = (lane < 0 ? new THREE.Vector3(0, 1, heroZ(side)) : new THREE.Vector3(LX(lane), BASE, rowZ(side))).project(camera); return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height }; },
     /** Lift and glow the lane under a dragged card (null = none). */
@@ -718,10 +790,11 @@ export function createBoard3D(o: BoardOpts) {
     /** The lobby: just the scenery and your lanes, the camera drifting. */
     setShowcase(on: boolean) { showcase = on ? 1 : 0; },
     setPaused(p: boolean) { paused = p; },
+    perf: (reset = false) => { const r = { ...perf, cpu: perf.cpu / Math.max(1, perf.frames), world: perf.world / Math.max(1, perf.frames), render: perf.render / Math.max(1, perf.frames) }; if (reset) Object.assign(perf, { frames: 0, cpu: 0, worst: 0, world: 0, worldWorst: 0, render: 0 }); return r; },
     debug: () => ({ units: units.size, lanes: lanes.map((l) => l.terrain), view: { yaw: +view.gy.toFixed(2), pitch: +view.gp.toFixed(2), zoom: +view.gz.toFixed(2) }, fx: fx.length, particles: addP.count + softP.count, scenes: scenes.busy, previewing }),
     get previewing() { return previewing; },
     dispose() {
-      cancelAnimationFrame(raf); ro.disconnect(); scenes.clear();
+      disposed = true; cancelAnimationFrame(raf); for (const m of keepWarm) m.dispose(); ro.disconnect(); scenes.clear();
       o.canvas.removeEventListener('pointerdown', pd); o.canvas.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu); o.canvas.removeEventListener('wheel', wheel);
       world.dispose();
       for (const u of [...units.values()]) removeUnit(u);

@@ -67,6 +67,8 @@ export class Particles {
 export type Ctx = {
   scene: THREE.Scene; camera: THREE.PerspectiveCamera; phone: boolean; reduce: boolean; me: Side;
   add: Particles; soft: Particles;
+  /** get an object's shaders compiled in the background, keeping it hidden until they're ready (no freeze) */
+  warm?(o: THREE.Object3D): void;
   tween(dur: number, fn: (k: number, dt: number) => void): Promise<void>;
   wait(ms: number): Promise<void>;
   every(fn: (dt: number, t: number) => boolean | void): void;
@@ -85,6 +87,8 @@ export type Ctx = {
 const canvasTex = (w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]) => {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d')!);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  // no mipmaps: building them is most of the cost of putting a new texture on the GPU, and these are only seen briefly
+  t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   return t;
 };
@@ -228,7 +232,7 @@ export function makeScenes(c: Ctx) {
   const n = (k: number) => Math.ceil(c.phone ? k * 0.5 : k);
   const other = (s: Side): Side => (s === 0 ? 1 : 0);
   const temp: THREE.Object3D[] = [];
-  const put = <O extends THREE.Object3D>(o: O) => { scene.add(o); temp.push(o); return o; };
+  const put = <O extends THREE.Object3D>(o: O) => { scene.add(o); temp.push(o); if (!(o as unknown as THREE.Light).isLight) c.warm?.(o); return o; };
   const drop = (o: THREE.Object3D) => { scene.remove(o); disposeTree(o); const i = temp.indexOf(o); if (i >= 0) temp.splice(i, 1); };
   // bits of a scene that stay until the end of the move (clouds, cracks, scorch marks), then fade out
   const lingering: { o: THREE.Object3D; fade?: (k: number) => void }[] = [];
@@ -244,9 +248,17 @@ export function makeScenes(c: Ctx) {
     m.rotation.x = -Math.PI / 2; m.position.set(x, y, z);
     void c.tween(dur, (k) => { m.scale.setScalar(0.3 + ease(k) * to * 0.7); (m.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k) * (1 - k); }).then(() => drop(m));
   };
+  // A few lights that are always in the scene (dark until borrowed). Adding or removing a light changes the
+  // light count, which makes three.js recompile every material on screen — a long freeze — so scenes borrow these.
+  const pool = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight('#ffffff', 0, 30, 1.4); scene.add(l); return { l, busy: false }; });
+  const borrowLight = (color: string, distance = 30, decay = 1.4) => {
+    const p = pool.find((x) => !x.busy); if (!p) return { l: new THREE.PointLight(color, 0, distance, decay), done() {} };
+    p.busy = true; p.l.color.set(color); p.l.distance = distance; p.l.decay = decay; p.l.intensity = 0;
+    return { l: p.l, done() { p.l.intensity = 0; p.busy = false; } };
+  };
   const flashLight = (x: number, y: number, z: number, color: string, power: number, dur: number) => {
-    const l = put(new THREE.PointLight(color, 0, 30, 1.4)); l.position.set(x, y, z);
-    void c.tween(dur, (k) => { l.intensity = power * Math.sin(Math.PI * Math.min(1, k * 1.4)) * (1 - k * 0.3); }).then(() => drop(l));
+    const b = borrowLight(color); b.l.position.set(x, y, z);
+    void c.tween(dur, (k) => { b.l.intensity = power * Math.sin(Math.PI * Math.min(1, k * 1.4)) * (1 - k * 0.3); }).then(() => b.done());
   };
   const lob = (from: THREE.Vector3, to: THREE.Vector3, dur: number, h: number, mesh: THREE.Object3D, trail: (p: THREE.Vector3) => void) =>
     c.tween(dur, (k) => { mesh.position.lerpVectors(from, to, k); mesh.position.y += Math.sin(k * Math.PI) * h; mesh.rotation.x += 0.2; mesh.rotation.z += 0.13; trail(mesh.position); });
@@ -308,7 +320,7 @@ export function makeScenes(c: Ctx) {
     const volcano = put(new THREE.Mesh(new THREE.LatheGeometry(prof, 40), vmat)); volcano.castShadow = true; volcano.position.set(0, -3.8, 0);
     const crater = put(new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), new THREE.MeshStandardMaterial({ map: lv.map, emissiveMap: lv.glow, emissive: '#ffffff', emissiveIntensity: 2 }))); crater.rotation.x = -Math.PI / 2;
     const cglow = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: c.glowTex, color: '#FF6A10', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))); cglow.scale.set(5, 5, 1);
-    const heat = put(new THREE.PointLight('#FF5A10', 0, 40, 1.2));
+    const heatL = borrowLight('#FF5A10', 40, 1.2), heat = heatL.l;
     c.cheer(2);
     await c.tween(1.3, (k) => {
       const e = ease(k); volcano.position.y = -3.8 + e * 3.6; crater.position.y = volcano.position.y + 3.25; cglow.position.y = crater.position.y + 0.4; heat.position.y = crater.position.y + 1.5;
@@ -357,7 +369,7 @@ export function makeScenes(c: Ctx) {
       if (k > 0.5) { lavaPlane.position.y = 0.85 - (k - 0.5) * 2 * 1.1; }
       for (let i = 0; i < n(3); i++) soft.emit({ x: R(c.tableW / 2), y: 0.6, z: R(c.tableD / 2), vy: 1.4 + Math.random(), color: '#F4F0EC', size: 1.4, grow: 1.4, life: 1.6, alpha: 0.4, drag: 0.4 });
     });
-    for (const o of [volcano, crater, cglow, heat, lavaPlane]) drop(o);
+    for (const o of [volcano, crater, cglow, lavaPlane]) drop(o); heatL.done();
     totems.forEach((g) => { g.position.y = 0.36; });
     c.mood({});
   }
@@ -460,7 +472,7 @@ export function makeScenes(c: Ctx) {
     c.bigText('THUNDERSTORM!', '#9FE6FF', 'The sky turns black…');
     c.mood({ dim: 0.35, sky: '#0A0A18' });
     const clouds: THREE.Sprite[] = [];
-    for (let i = 0; i < n(16); i++) { const s = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: cloud(), color: i % 3 ? '#6A6A84' : '#8A8AA4', transparent: true, depthWrite: false, opacity: 0 }))); const w = 3.2 + Math.random() * 2.6; s.scale.set(w, w * 0.6, 1); s.position.set((i % 2 ? 1 : -1) * (12 + Math.random() * 4), 6.5 + Math.random() * 1.5, -7 + (i / 16) * 12 + R(1)); s.userData.x = R(6.5); clouds.push(s); }
+    for (let i = 0; i < n(11); i++) { const s = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: cloud(), color: i % 3 ? '#6A6A84' : '#8A8AA4', transparent: true, depthWrite: false, opacity: 0 }))); const w = 3.2 + Math.random() * 2.6; s.scale.set(w, w * 0.6, 1); s.position.set((i % 2 ? 1 : -1) * (12 + Math.random() * 4), 6.5 + Math.random() * 1.5, -7 + (i / 16) * 12 + R(1)); s.userData.x = R(6.5); clouds.push(s); }
     storm = { clouds };
     await c.tween(1.0, (k) => { clouds.forEach((s) => { s.position.x += (s.userData.x - s.position.x) * 0.08; s.material.opacity = Math.min(0.8, k * 1.4); }); });
     c.every((dt) => { if (!storm) return false; for (let i = 0; i < n(6); i++) soft.emit({ x: R(c.tableW / 2 + 2), y: 7, z: R(c.tableD / 2), vy: -16, vx: -1, color: '#9FB8D8', size: 0.12, life: 0.45, alpha: 0.7 }); storm.clouds.forEach((s, i) => { s.position.x += Math.sin(i + performance.now() / 1500) * dt * 0.3; }); return true; });
@@ -658,7 +670,7 @@ export function makeScenes(c: Ctx) {
       await c.tween(0.9, (k) => L.forEach((x) => x.fade?.(k)));
       L.forEach((x) => { x.fade?.(1); x.o.parent?.remove(x.o); drop(x.o); });
     },
-    clear() { lingering.length = 0; for (const o of [...temp]) { o.parent?.remove(o); drop(o); } storm = null; },
+    clear() { lingering.length = 0; for (const o of [...temp]) { o.parent?.remove(o); drop(o); } for (const p of pool) { p.l.intensity = 0; p.busy = false; } storm = null; },
     get busy() { return temp.length; },
   };
 }

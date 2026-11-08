@@ -201,7 +201,16 @@ export const CARDS: Card[] = [
     text: 'Wonder. At the start of your turn, if this lane has no creature, the next creature in your deck steps through the gate.', flavor: 'Where do they come from? Don’t ask.', art: '🌀' }),
 ];
 /** What a card is called on its type line. */
-export const kindName = (c: Card) => (c.fx ? 'Cataclysm' : c.wonder ? 'Wonder' : c.kind === 'creature' ? 'Creature' : c.kind === 'totem' ? 'Totem' : 'Spell');
+/** How each kind of card looks, so you can tell them apart at a glance */
+export const KIND_STYLE = {
+  Creature: { color: '#3DDC97', dark: '#0E5A3A', icon: '🐾', tip: 'Stays in a lane and fights' },
+  Spell: { color: '#B57BFF', dark: '#3A1A6A', icon: '✨', tip: 'Happens once, then it’s gone' },
+  Totem: { color: '#FFB13D', dark: '#6A3A0A', icon: '🗿', tip: 'Sits behind a lane and keeps working' },
+  Cataclysm: { color: '#FF5A2A', dark: '#6A1A08', icon: '🌋', tip: 'Changes the whole board' },
+  Wonder: { color: '#FFE14D', dark: '#6A5208', icon: '🏰', tip: 'A landmark that works every turn' },
+} as const;
+export const kindStyle = (c: Card) => KIND_STYLE[kindName(c)];
+export const kindName = (c: Card): keyof typeof KIND_STYLE => (c.fx ? 'Cataclysm' : c.wonder ? 'Wonder' : c.kind === 'creature' ? 'Creature' : c.kind === 'totem' ? 'Totem' : 'Spell');
 export const CARD: Record<string, Card> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
 
 /** The match-wide twists: one is drawn at random each match, so no two games play the same. */

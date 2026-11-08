@@ -7,12 +7,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
-import { toGameError } from '../backend/backend';
+import { getBackend, toGameError } from '../backend/backend';
+import { config } from '../env';
 import type { Realm } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
-import { Button, PlayerAvatar, Spinner } from '../ui';
+import { Button, Dialog, PlayerAvatar, Spinner } from '../ui';
 import { sfx } from '../arcade/sfx';
 import { CARD, type Terrain } from '../shared/brawl/cards';
 import type { View } from '../shared/brawl/engine';
@@ -21,6 +22,7 @@ import { portrait } from './chars';
 import { genomeOf } from './cardArt';
 import { CollectionDialog, DecksDialog, RanksDialog } from './Collection';
 import { PackOpening } from './PackOpening';
+import { MusicButton, useBrawlMusic } from './brawlMusic';
 import { Match, boardPick } from './Match';
 import type { BrawlMe, PackCard } from './types';
 
@@ -84,6 +86,19 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     }).catch(() => {});
   }, [match]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [bank, setBank] = useState<{ shards: string; dust: string } | null>(null);
+  const saveBank = async () => {
+    if (!bank) return;
+    const n = (x: string) => Math.max(0, Math.min(9_999_999, Math.floor(Number(x) || 0)));
+    const db = (getBackend() as unknown as { db?: { query(q: string, a: unknown[]): Promise<unknown> } }).db;
+    const uid = (await api.myState()).user_id;
+    try {
+      await db?.query(`select private.rlm_player($1, 'brawl')`, [uid]);
+      await db?.query(`update public.realm_players set wallet = jsonb_set(wallet, '{shards}', to_jsonb($2::int)) where player_id = $1 and kind = 'brawl'`, [uid, n(bank.shards)]);
+      await db?.query(`update public.brawl_players set dust = $2 where player_id = $1`, [uid, n(bank.dust)]);
+      setBank(null); await reload(); sfx.win(2); toast.success('Done!');
+    } catch (e) { toast.error((e as Error).message); }
+  };
   const reload = async () => { const d = await api.brawlGet(data.id); setMe(d.brawl); return d.brawl; };
 
   // matchmaking: knock on the queue every couple of seconds until someone's found
@@ -114,6 +129,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
     catch (e) { toast.error(toGameError(e).code === 'not_enough' ? `A pack costs 💠 ${me.cfg.pack_cost} shards` : toGameError(e).message); } finally { setBusy(null); }
   };
 
+  useBrawlMusic(!!match);
   useEffect(() => { if (demoAuto && !match) { const m = demoAuto; demoAuto = null; void practice(m); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deck = me.decks[me.deck_slot];
@@ -128,6 +144,7 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
           <div className="pointer-events-none absolute inset-x-0 top-0 grid gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))]">
             <div className="flex items-start gap-2">
               <button onClick={() => (history.length > 1 ? nav(-1) : nav('/world'))} className="pointer-events-auto grid h-10 w-10 place-items-center rounded-xl bg-black/60 backdrop-blur" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+              <MusicButton className="pointer-events-auto grid h-10 w-10 place-items-center rounded-xl bg-black/60 backdrop-blur" />
               <div className="min-w-0 flex-1 rounded-2xl bg-black/60 px-3 py-1.5 backdrop-blur">
                 <div className="flex items-center gap-2"><span className="truncate font-display text-base font-black">🎨 {data.name}</span>{!data.mine && <span className="flex items-center gap-1 text-[11px] text-white/70"><PlayerAvatar p={data.owner} size={14} />@{data.owner.username}’s</span>}</div>
                 <div className="mt-0.5 flex items-center gap-2 text-xs"><span className="font-black text-[#FFE14D]" data-testid="brawl-rank">{me.rank.emoji} {me.rank.name}</span><span>🏆 {me.trophies}</span>
@@ -135,8 +152,17 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5 text-xs font-black">
-              <span className="rounded-full bg-black/60 px-2.5 py-1" data-testid="brawl-shards">💠 {fmt(me.shards)}</span>
-              <span className="rounded-full bg-black/60 px-2.5 py-1">✨ {fmt(me.dust)} dust</span>
+              {config.backend === 'local' ? (
+                // the offline demo: tap to set your own amounts
+                <button onClick={() => setBank({ shards: String(me.shards), dust: String(me.dust) })} className="pointer-events-auto flex gap-1.5" data-testid="brawl-bank">
+                  <span className="rounded-full bg-black/60 px-2.5 py-1" data-testid="brawl-shards">💠 {fmt(me.shards)}</span>
+                  <span className="rounded-full bg-black/60 px-2.5 py-1" data-testid="brawl-dust">✨ {fmt(me.dust)} dust</span>
+                  <span className="rounded-full bg-[#7B5CFF] px-2 py-1">✏️</span>
+                </button>
+              ) : (<>
+                <span className="rounded-full bg-black/60 px-2.5 py-1" data-testid="brawl-shards">💠 {fmt(me.shards)}</span>
+                <span className="rounded-full bg-black/60 px-2.5 py-1">✨ {fmt(me.dust)} dust</span>
+              </>)}
               {me.first_win_ready && <span className="rounded-full bg-[#FFE14D]/25 px-2.5 py-1 text-[#FFE14D]">🎁 First win today = free pack</span>}
             </div>
           </div>
@@ -175,6 +201,19 @@ function Arena({ data }: { data: Realm & { brawl: BrawlMe } }) {
       <CollectionDialog open={panel === 'cards'} onOpenChange={(o) => setPanel(o ? 'cards' : null)} me={me} onMe={setMe} />
       <DecksDialog open={panel === 'decks'} onOpenChange={(o) => setPanel(o ? 'decks' : null)} me={me} onMe={setMe} />
       <RanksDialog open={panel === 'ranks'} onOpenChange={(o) => setPanel(o ? 'ranks' : null)} me={me} />
+      <Dialog open={!!bank} onOpenChange={(o) => !o && setBank(null)} title="💠 Shards & ✨ dust" description="Demo only: set any amount you like.">
+        {bank && (
+          <div className="grid gap-3" data-testid="brawl-bank-dialog">
+            {(['shards', 'dust'] as const).map((k) => (
+              <label key={k} className="grid gap-1 text-sm font-bold">{k === 'shards' ? '💠 Shards (buy packs)' : '✨ Dust (craft cards)'}
+                <input type="number" min={0} max={9999999} inputMode="numeric" value={bank[k]} onChange={(e) => setBank({ ...bank, [k]: e.target.value })} className="rounded-xl bg-surface-2 px-3 py-2 text-base" data-testid={`brawl-bank-${k}`} />
+              </label>
+            ))}
+            <div className="flex flex-wrap gap-1.5">{[1000, 10000, 100000].map((n) => <button key={n} onClick={() => setBank({ shards: String(n), dust: String(n) })} className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-bold">{fmt(n)} each</button>)}</div>
+            <Button variant="primary" onClick={() => void saveBank()} data-testid="brawl-bank-save">Set</Button>
+          </div>
+        )}
+      </Dialog>
       {pack && <PackOpening cards={pack} onDone={() => { setPack(null); void qc.invalidateQueries({ queryKey: ['brawl'] }); }} />}
     </div>
   );
