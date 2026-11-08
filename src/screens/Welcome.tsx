@@ -152,7 +152,7 @@ export function Welcome() {
   const [started, setStarted] = useState(!app || !!params.get('mode') || !!invite);
   const [accounts, setAccounts] = useState<{ email: string }[]>([]);
   const formRef = useRef<HTMLElement>(null);
-  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: poll(60_000) });
+  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: poll(300_000), staleTime: 120_000 });
   const art = useQuery({ queryKey: ['home-art'], queryFn: () => api.galleryList('new', 36), staleTime: 60_000 });
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   const st = strength(password);

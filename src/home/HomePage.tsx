@@ -31,8 +31,8 @@ const GAMES: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', '
 const FALLBACK = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#22C7B5'];
 
 export default function HomePage() {
-  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: poll(30_000) });
-  const art = useQuery({ queryKey: ['home-art'], queryFn: () => api.galleryList('new', 36), refetchInterval: poll(60_000) });
+  const stats = useQuery({ queryKey: ['public-stats'], queryFn: api.publicStats, refetchInterval: poll(300_000), staleTime: 120_000 });
+  const art = useQuery({ queryKey: ['home-art'], queryFn: () => api.galleryList('new', 36), refetchInterval: poll(300_000), staleTime: 120_000 });
   const cards = art.data ?? [];
   useEffect(() => {
     document.title = 'LANDVAS — Own a piece. Play it your way. | The world-map game for every playstyle';

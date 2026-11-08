@@ -1,3 +1,4 @@
+import { plotBlocks } from '../map/WorldMap';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
@@ -442,11 +443,15 @@ function MineBlock({ d }: { d: PlotDetails }) {
       toast.success('Plot detached into its own canvas');
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
-  const hab = useHabitatAt(d.gx, d.gy, true).data;
-  const farm = useFarmAt(d.gx, d.gy, true).data;
-  const biz = useBizAt(d.gx, d.gy, true).data;
-  const arc = useArcadeAt(d.gx, d.gy, true).data;
-  const rlm = useRealmAt(d.gx, d.gy, true).data;
+  // ask only about what this plot is (the map already knows); if it doesn't, ask about each kind of place
+  const k = d.group ? plotBlocks.kindAt(d.gx, d.gy) : null;
+  const any = k === undefined;
+  const isRealm = !!k && !['canvas', 'habitat', 'farm', 'business', 'arcade'].includes(k);
+  const hab = useHabitatAt(d.gx, d.gy, any || k === 'habitat').data;
+  const farm = useFarmAt(d.gx, d.gy, any || k === 'farm').data;
+  const biz = useBizAt(d.gx, d.gy, any || k === 'business').data;
+  const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade').data;
+  const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
   return (
     <div className="grid gap-3">
       <RenamePlot d={d} />

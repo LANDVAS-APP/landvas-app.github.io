@@ -19,7 +19,7 @@ export const qk = {
   myPlots: ['my-plots'] as const,
 };
 
-export const useWorld = () => useQuery({ queryKey: qk.world, queryFn: api.worldConfig, staleTime: 5 * 60_000 });
+export const useWorld = () => useQuery({ queryKey: qk.world, queryFn: api.worldConfig, staleTime: 30 * 60_000 }); // the world's settings barely change
 export const useMe = () =>
   // your balances and rent: the USD counter ticks on the phone from the rate, so this is only re-read when something you
 // do changes it (those actions refresh it), as a slow safety net, and when you come back to the app after a while
@@ -29,9 +29,25 @@ export const useOnboardedMe = () => {
   return q.data && q.data.onboarded ? (q.data as Extract<MyState, { onboarded: true }>) : null;
 };
 
-export function invalidateGame(qc: QueryClient) {
+/**
+ * After something changes your game (a purchase, a harvest, a win…): refresh what's on screen. Bursts of actions —
+ * planting a row of crops, tapping a business — are folded into one refresh a moment after the last one, instead of
+ * re-reading everything after every tap.
+ */
+let pending: { qc: QueryClient; t: ReturnType<typeof setTimeout>; first: number } | null = null;
+const flush = (qc: QueryClient) => {
+  pending = null;
   for (const key of [qk.me, qk.groups, qk.myPlots, qk.pubs, qk.records, qk.plotProgress]) void qc.invalidateQueries({ queryKey: key });
   void qc.invalidateQueries({ queryKey: ['plot'] });
+};
+export function invalidateGame(qc: QueryClient) {
+  if (pending && pending.qc === qc) {
+    clearTimeout(pending.t);
+    if (Date.now() - pending.first > 1500) return flush(qc);
+    pending.t = setTimeout(() => flush(qc), 400);
+    return;
+  }
+  pending = { qc, first: Date.now(), t: setTimeout(() => flush(qc), 400) };
 }
 
 export function useInvalidate() {

@@ -289,10 +289,11 @@ function Checklist() {
   const me = useOnboardedMe();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
-  const pubs = useQuery({ queryKey: qk.pubs, queryFn: api.myPublications, enabled: !!me });
-  const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me });
   const [hidden, setHidden] = useState(() => safeStorage('landvas.checklist.hidden', false));
+  // (only while the list is showing: a hidden or finished list asks the server nothing)
+  const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me && !hidden });
+  const pubs = useQuery({ queryKey: qk.pubs, queryFn: api.myPublications, enabled: !!me && !hidden });
+  const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me && !hidden });
   const [collapsed, setCollapsed] = useState(() => typeof innerWidth === 'number' && innerWidth < 640);
   const guide = useRef(safeStorage<string | null>('landvas.guide', null));
   const requestFly = useUi((s) => s.requestFly);
@@ -317,7 +318,8 @@ function Checklist() {
     { label: 'Connect plots into a mural', done: g.some((x) => x.plot_count >= 2) },
   ];
   const doneCount = steps.filter((s) => s.done).length;
-  if (doneCount === steps.length) return null;
+  // all done: remember it, so the map stops asking for the list's data from now on
+  if (doneCount === steps.length) { if (!safeStorage('landvas.checklist.hidden', false)) saveStorage('landvas.checklist.hidden', true); return null; }
   const nextIdx = steps.findIndex((s) => !s.done);
   void qc;
   return (

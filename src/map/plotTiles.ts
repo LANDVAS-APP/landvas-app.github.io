@@ -102,6 +102,14 @@ export class PlotBlocks {
     this.blocks.clear();
   }
 
+  /** What a plot is used as (from blocks already loaded): undefined when that block isn't loaded. */
+  kindAt(gx: number, gy: number): PlotKind | null | undefined {
+    const rows = this.blocks.get(`${gx >> BLOCK_SHIFT}_${gy >> BLOCK_SHIFT}`);
+    if (!rows) return undefined;
+    const r = rows.find((x) => x[0] === gx && x[1] === gy);
+    return r ? (r[11] ?? 'canvas') : null;
+  }
+
   /** The most recently used blocks, to keep between visits. */
   dump(max: number): [string, PlotRow[]][] { return [...this.blocks.entries()].slice(-max); }
   restore(entries: [string, PlotRow[]][]) { for (const [k, rows] of entries) if (!this.blocks.has(k)) this.blocks.set(k, rows); }

@@ -17,3 +17,15 @@ describe('disk use', () => {
     expect(r.map((x: { t: string; p: string }) => `${x.t}:${x.p}`)).toEqual(['arcade_presence:u', 'planet_presence:u', 'rate_limits:u']);
   });
 });
+
+describe('ready to scale', () => {
+  it('has an index for every foreign key (except the fixed lists)', async () => {
+    const r = await db.sql(`select c.conname from pg_constraint c join pg_namespace n on n.oid = (select relnamespace from pg_class where oid = c.conrelid)
+      where c.contype = 'f' and n.nspname in ('public', 'private')
+        and not exists (select 1 from pg_index i where i.indrelid = c.conrelid and (i.indkey::int2[])[0:cardinality(c.conkey) - 1] = c.conkey::int2[])
+      order by 1`);
+    const left = r.map((x: { conname: string }) => x.conname);
+    expect(left.every((n: string) => /kind_fkey|plot_type_fkey|rarity_fkey|achievement_key_fkey|sku_fkey/.test(n) || /^(plot_|realm_|achiev)/.test(n))).toBe(true);
+    expect(left.length).toBeLessThan(12);
+  });
+});
