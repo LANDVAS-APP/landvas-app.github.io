@@ -29,3 +29,13 @@ describe('ready to scale', () => {
     expect(left.length).toBeLessThan(12);
   });
 });
+
+describe('presence without constant check-ins', () => {
+  it('a check-in holds your place for a lease past its own time', async () => {
+    const r = await db.sql(`select extract(epoch from private.presence_lease())::int s`);
+    expect(r[0].s).toBe(35);
+    const src = await db.sql(`select string_agg(pg_get_functiondef(p.oid), ' ') d from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname in ('arcade_live', 'arena_live', 'home_live', 'planet_live')`);
+    expect((src[0].d.match(/now\(\) \+ private\.presence_lease\(\)/g) ?? []).length).toBe(8);
+  });
+});

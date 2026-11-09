@@ -3,6 +3,7 @@
 // bonus tickets. Team: same round, scores add up toward a shared target, and everyone gets the bonus.
 // The heartbeat (every few seconds) keeps your place in the room, lists the open lobbies and your match;
 // positions and live scores stream over the room's realtime channel in between.
+import { pulse } from '../lib/pulse';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -29,15 +30,22 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
     const backend = getBackend(), myId = opts.myId, arcade = opts.arcadeId;
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', members = new Set<string>();
     const urls = new Map<string, string>();
-    let soon: ReturnType<typeof setTimeout> | null = null;
+    let others: Parameters<HallScene['setOthers']>[0] = [];
     const onMsg = (raw: unknown) => {
-      const m = raw as Msg;
+      const m = raw as Msg | { t: 'nudge' };
+      if (m && m.t === 'nudge') return p.soon(); // someone changed the room (a match, an invite): look again
       if (!m || !('id' in m)) return;
       // someone new is here: fetch the room's list now rather than at the next check-in
-      if (!members.has(m.id)) { if (m.id !== myId && !soon) soon = setTimeout(() => { soon = null; void beat(); }, 600); return; }
+      if (!members.has(m.id)) { if (m.id !== myId) p.soon(); return; }
       if (m.t === 'pos') ref.current.hall.current?.moveOther(m.id, m.x, m.z, m.f, m.p);
       else if (m.t === 'score') setScores((s) => (s[m.id] === m.s ? s : { ...s, [m.id]: m.s }));
     };
+    // arrivals and departures come straight from the live channel; a departure disappears at once
+    const onPeer = (id: string, here: boolean) => {
+      if (!here && members.has(id)) { members.delete(id); others = others.filter((o) => o.id !== id); ref.current.hall.current?.setOthers(others); }
+      p.soon(here ? 600 : 2000);
+    };
+    let lastLive: ArcadeLive | null = null;
     const beat = async () => {
       if (stopped || document.hidden) return;
       const pose = ref.current.hall.current?.pose();
@@ -45,27 +53,28 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
         const r = await api.arcadeLive(arcade, pose?.x ?? null, pose?.z ?? null, ref.current.playing);
         if (stopped) return;
         members = new Set(r.members.map((m) => m.id));
-        ref.current.hall.current?.setOthers(r.members.map((m) => {
+        others = r.members.map((m) => {
           let u = urls.get(m.id);
           if (!u) { u = svgUrl(explorerSvg(m.explorer_style as ExplorerStyle | undefined, m.accent_color ?? '#7B5CFF', 184)); urls.set(m.id, u); }
           return { id: m.id, url: u, name: `@${m.username}`, x: m.x, z: m.z, playing: m.playing };
-        }));
-        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg) ?? null; }
+        });
+        ref.current.hall.current?.setOthers(others);
+        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg, { me: myId, onPeer }) ?? null; }
+        lastLive = r;
         setLive(r);
       } catch { /* try again next beat */ }
     };
-    beatNow.current = () => void beat();
+    // check in often only while a match is being set up or played here; otherwise every half minute
+    const p = pulse(beat, () => !!lastLive && (!!lastLive.match || lastLive.lobbies.length > 0));
+    beatNow.current = () => { p.now(); ch?.send({ t: 'nudge' }); };
     send.current = (m) => ch?.send(m);
-    void beat();
-    // a check-in keeps you in the room (each one is a database write); moves themselves go over the live channel
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 5000);
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = ref.current.hall.current?.pose(); if (!p || !ch) return;
       const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.face},${ref.current.playing ?? ''}`, now = performance.now();
-      if (key !== lastKey || now - lastAt > 1500) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face, p: ref.current.playing }); }
+      if (key !== lastKey || now - lastAt > 6000) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face, p: ref.current.playing }); }
     }, 120);
-    return () => { stopped = true; if (soon) clearTimeout(soon); clearInterval(hb); clearInterval(tx); ch?.close(); send.current = null; void api.arcadeLeave().catch(() => {}); };
+    return () => { stopped = true; p.stop(); clearInterval(tx); ch?.close(); send.current = null; void api.arcadeLeave().catch(() => {}); };
   }, [opts.arcadeId, opts.myId]);
   // a new match: forget the old live scores
   const matchId = live?.match?.id;

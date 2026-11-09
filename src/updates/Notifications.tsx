@@ -24,13 +24,13 @@ export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sp
 
 export function useNotifications() {
   const signedIn = !!getBackend().session();
-  return useQuery({ queryKey: ['notifications', signedIn], queryFn: api.notifications, refetchInterval: poll(300_000), staleTime: 120_000 }); // announcements change rarely
+  return useQuery({ queryKey: ['notifications', signedIn], queryFn: api.notifications, refetchInterval: poll(getBackend().onPush ? 900_000 : 300_000), staleTime: 120_000 }); // announcements are pushed; this is a safety net
 }
 
 /** A bell button with a count; opens the updates panel. */
 export function useAlerts() {
   const me = useOnboardedMe();
-  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: poll(60_000), refetchIntervalInBackground: false, staleTime: 10_000 });
+  return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: poll(getBackend().onPush ? 180_000 : 60_000), refetchIntervalInBackground: false, staleTime: 10_000 }); // pushed when they change
 }
 
 export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {

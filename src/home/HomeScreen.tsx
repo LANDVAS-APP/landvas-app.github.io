@@ -3,6 +3,7 @@
 // are about the place. Up to 10 people share a home at a time, live. Owners press Decorate to furnish it:
 // tap a piece to pick it up, drag it, turn it, recolour it; change the wallpaper, floor, view and lighting;
 // and choose who may use each door.
+import { pulse } from '../lib/pulse';
 import { live } from '../lib/poll';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -96,38 +97,48 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
     const backend = getBackend();
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', members = new Set<string>();
     const urls = new Map<string, string>();
+    let others: Parameters<LiveScene['setOthers']>[0] = [];
+    let lastLive: HomeLive | null = null;
     const onMsg = (raw: unknown) => {
       const m = raw as { t: string; id: string; x: number; z: number; f: number; rec?: string };
+      if (m?.t === 'nudge') return p.soon(); // someone changed the room (a table, a game): look again
       if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f);
+      else if (m?.t === 'pos' && m.id !== myId) p.soon(); // someone new: fetch the list now
       if (m?.t === 'rec' && typeof m.rec === 'string') recRef.current(m.rec, m.id);
       if (m?.t === 'chat' && members.has(m.id)) chatRef.current?.((raw as { m: unknown }).m);
     };
+    // arrivals and departures come straight from the live channel; a departure disappears at once
+    const onPeer = (id: string, here: boolean) => {
+      if (!here && members.has(id)) { members.delete(id); others = others.filter((o) => o.id !== id); hall.current?.setOthers(others); }
+      p.soon(here ? 600 : 2000);
+    };
     const beat = async () => {
       if (stopped || document.hidden) return;
-      const p = hall.current?.pose();
+      const pose = hall.current?.pose();
       try {
-        const r = await api.homeLive(hostId, p?.x ?? null, p?.z ?? null);
+        const r = await api.homeLive(hostId, pose?.x ?? null, pose?.z ?? null);
         if (stopped) return;
         members = new Set(r.members.map((m) => m.id));
-        hall.current?.setOthers(r.members.map((m) => {
+        others = r.members.map((m) => {
           let u = urls.get(m.id); if (!u) { u = svgUrl(explorerSvg(m.explorer_style as ExplorerStyle | undefined, m.accent_color ?? '#7B5CFF', 184)); urls.set(m.id, u); }
           return { id: m.id, url: u, name: `@${m.username}`, x: m.x, z: m.z };
-        }));
-        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg) ?? null; }
+        });
+        hall.current?.setOthers(others);
+        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg, { me: myId, onPeer }) ?? null; }
+        lastLive = r;
         setLive(r);
       } catch { /* next beat */ }
     };
-    void beat();
-    api2.current = { refresh: () => void beat(), send: (m) => ch?.send(m) };
-    // a check-in keeps you in the home (the server keeps you for 12 s); moves go over the live channel
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 5000);
+    // check in often only while a table game is being set up or played; otherwise every half minute
+    const p = pulse(beat, () => !!lastLive && (!!lastLive.game || lastLive.tables.length > 0));
+    api2.current = { refresh: () => { p.now(); ch?.send({ t: 'nudge' }); }, send: (m) => ch?.send(m) };
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = hall.current?.pose(); if (!p || !ch) return;
       const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.face}`, now = performance.now();
-      if (key !== lastKey || now - lastAt > 1500) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face }); }
+      if (key !== lastKey || now - lastAt > 6000) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face }); }
     }, 120);
-    return () => { stopped = true; clearInterval(hb); clearInterval(tx); ch?.close(); void api.homeLeave().catch(() => {}); };
+    return () => { stopped = true; p.stop(); clearInterval(tx); ch?.close(); void api.homeLeave().catch(() => {}); };
   }, [hostId, myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return { live, refresh: () => api2.current.refresh(), send: (m: unknown) => api2.current.send(m) };
 }

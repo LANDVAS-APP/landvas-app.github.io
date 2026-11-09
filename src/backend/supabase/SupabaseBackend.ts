@@ -213,11 +213,18 @@ export class SupabaseBackend implements Backend {
     try { const r = await ch.httpSend('m', m as object, { timeout: 4000 }); return r.success; } catch { return false; }
   }
 
-  liveChannel(name: string, onMessage: (m: unknown) => void) {
+  liveChannel(name: string, onMessage: (m: unknown) => void, presence?: { me: string; onPeer(id: string, here: boolean): void }) {
     let ready = false;
-    const ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false } } })
-      .on('broadcast', { event: 'm' }, (p) => onMessage(p.payload))
-      .subscribe((status) => { ready = status === 'SUBSCRIBED'; });
+    const ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false }, ...(presence ? { presence: { key: presence.me } } : {}) } })
+      .on('broadcast', { event: 'm' }, (p) => onMessage(p.payload));
+    if (presence) {
+      ch.on('presence', { event: 'join' }, ({ key }) => { if (key && key !== presence.me) presence.onPeer(key, true); });
+      ch.on('presence', { event: 'leave' }, ({ key }) => { if (key && key !== presence.me) presence.onPeer(key, false); });
+    }
+    ch.subscribe((status) => {
+      ready = status === 'SUBSCRIBED';
+      if (ready && presence) void ch.track({ at: Date.now() });
+    });
     return {
       // not connected yet (or reconnecting): send it over HTTP instead, so the message is never dropped
       send: (m: unknown) => { if (ready) void ch.send({ type: 'broadcast', event: 'm', payload: m }); else void this.liveSend(name, m); },
@@ -233,6 +240,29 @@ export class SupabaseBackend implements Backend {
    */
   private mapSeen = 0;
   private refreshing = false;
+
+  /**
+   * Pushes: the database tells this phone when its alerts change (or there's news), so it doesn't have to keep
+   * asking. Listens on the player's own private topic and on the shared news topic while signed in.
+   */
+  onPush(cb: (kind: string) => void) {
+    let chans: { close(): void }[] = [], uid: string | null = null, gone = false;
+    const hear = (m: unknown) => { const k = (m as { t?: string } | null)?.t; if (typeof k === 'string') cb(k); };
+    const join = async () => {
+      const me = this.session()?.userId ?? null;
+      if (me === uid) return;
+      uid = me; chans.forEach((c) => c.close()); chans = [];
+      if (!me) return;
+      try {
+        const topic = await this.rpc<string | null>('my_push_topic');
+        if (gone || uid !== me) return;
+        chans = [this.liveChannel('news', hear), ...(topic ? [this.liveChannel(topic, hear)] : [])];
+      } catch { /* the slow checks still catch up */ }
+    };
+    void join();
+    const off = this.onAuthChange(() => void join());
+    return () => { gone = true; off(); chans.forEach((c) => c.close()); };
+  }
   mapCursor() { return this.mapSeen; }
   setMapCursor(id: number) { if (!this.mapSeen && id > 0) this.mapSeen = id; }
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {

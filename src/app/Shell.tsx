@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { getBackend } from '../backend/backend';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
@@ -70,6 +71,21 @@ export function Shell() {
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
   const sec = sectionOf(loc.pathname);
+  // pushes: when your alerts change (or there's news) the server says so, and only then do we look
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!me) return;
+    // (at most one look per kind every few seconds — the shared news topic is open to anyone, so a flood of fake
+    // nudges can't make every phone hammer the server)
+    const last: Record<string, number> = {};
+    return getBackend().onPush?.((kind) => {
+      const k = kind === 'news' ? 'news' : 'alerts', gap = k === 'news' ? 60_000 : 5_000;
+      if (Date.now() - (last[k] ?? 0) < gap) return;
+      last[k] = Date.now();
+      if (k === 'news') { void qc.invalidateQueries({ queryKey: ['notifications'] }); return; }
+      for (const q of [['alerts'], ['notifications'], ['friends']]) void qc.invalidateQueries({ queryKey: q });
+    });
+  }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // the app sets up ads (consent + Apple's tracking prompt) once you're signed in and playing
   useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // a tab lights up for its own page, or for its section unless another tab is that page

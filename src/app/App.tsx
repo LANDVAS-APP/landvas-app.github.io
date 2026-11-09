@@ -5,7 +5,7 @@ import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 
 import { isNative } from '../native/native';
 import { useActivityReporter } from '../social/activity';
 import { AlertPopups } from '../updates/Notifications';
-import { useOnboardedMe } from '../lib/queries';
+import { useOnboardedMe, watchBalances } from '../lib/queries';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { getBackend } from '../backend/backend';
@@ -82,6 +82,8 @@ const PlanetGame = lazy(() => import('../space/PlanetGame'));
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: fresh } },
 });
+// new balances that calls hand back go straight onto the screen
+watchBalances(queryClient);
 
 export function useSession() {
   const b = getBackend();

@@ -116,7 +116,8 @@ function FarmView({ f }: { f: Farm }) {
 
   const act = async (key: string, fn: () => Promise<Farm>, after?: (r: Farm) => void) => {
     setBusy(key);
-    try { const r = await fn(); set(r); after?.(r); invalidateGame(qc); }
+    // (watering changes nothing outside the farm, so there's nothing else to refresh)
+    try { const r = await fn(); set(r); after?.(r); if (!key.startsWith('water-')) invalidateGame(qc); }
     catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   const plant = (bed: number, crop: string) => act(`plant-${bed}`, () => api.farmPlant(f.id, bed, crop), () => {

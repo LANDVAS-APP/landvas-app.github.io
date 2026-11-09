@@ -6,6 +6,7 @@ import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import type { LiveMember } from '../backend/types';
 import { safeStorage, saveStorage } from '../lib/utils';
+import { pulse } from '../lib/pulse';
 
 export type Pose = { d: number[]; face: number[]; hop: number; v?: string };
 export type LiveInfo = { with: number; onWorld: number; size: number };
@@ -35,13 +36,19 @@ export function usePlanetLive(opts: {
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', first = true;
     let members = new Set<string>();
     let lastSent = 0, lastKey = '';
-    let soon: ReturnType<typeof setTimeout> | null = null;
+    let lastBeatD: number[] | null = null, lastBeatAt = 0;
     const onMsg = (m: unknown) => {
       const x = m as { id?: string; d?: number[]; f?: number[]; h?: number; v?: string; t?: string; m?: unknown };
       if (x?.t === 'chat') { if (x.id && members.has(x.id)) ref.current.onChat?.(x.m); return; }
       if (x?.id && members.has(x.id) && x.d && x.f) ref.current.onRemote(x.id, x.d, x.f, x.h ?? 0, x.v ?? null);
       // someone new on the channel: fetch the group now rather than at the next check-in
-      else if (x?.id && x.id !== myId && !members.has(x.id) && !soon) soon = setTimeout(() => { soon = null; void beat(); }, 600);
+      else if (x?.id && x.id !== myId && !members.has(x.id)) pl.soon();
+    };
+    // arrivals and departures come straight from the live channel; a departure disappears at once
+    let shown: LiveMember[] = [];
+    const onPeer = (id: string, here: boolean) => {
+      if (!here && members.has(id)) { members.delete(id); shown = shown.filter((m) => m.id !== id); ref.current.onMembers(shown); }
+      pl.soon(here ? 600 : 2000);
     };
     const beat = async () => {
       if (stopped || document.hidden) return;
@@ -51,26 +58,30 @@ export function usePlanetLive(opts: {
         if (stopped) return;
         if (first && r.joined && r.spawn) ref.current.onSpawn?.(r.spawn.d, r.members.find((m) => m.id === r.spawn!.player) ?? null);
         first = false;
+        lastBeatD = pose?.d ?? lastBeatD; lastBeatAt = performance.now();
         members = new Set(r.members.map((m) => m.id));
+        shown = r.members;
         if (!(window as { __landvasLiveFreeze?: boolean }).__landvasLiveFreeze) ref.current.onMembers(r.members);
-        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg) ?? null; }
+        if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg, { me: myId, onPeer }) ?? null; }
         setInfo({ with: r.members.length, onWorld: r.on_world, size: r.group_size });
       } catch (e) {
         if (toGameError(e).code === 'land_first') stopped = true;
       }
     };
     if (opts.sendRef) opts.sendRef.current = (m) => ch?.send(m);
-    void beat();
-    // a check-in keeps you in your group (each one is a database write); moves go over the live channel
-    const hb = setInterval(() => void beat(), backend.mode === 'local' ? 1000 : 6000);
+    // a check-in keeps you in your group (each one is a database write): every half minute, and sooner after you've
+    // walked a fair way (the server checks what you pick up against where your last check-in put you)
+    const pl = pulse(beat, () => false);
     const tx = setInterval(() => {
       const p = ref.current.pose(); if (!p || !ch) return;
       const key = p.d.map((n) => n.toFixed(4)).join() + p.hop.toFixed(2) + (p.v ?? '');
       const now = performance.now();
-      if (key !== lastKey || now - lastSent > 1000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop, v: p.v }); savePose(world, p); }
+      if (key !== lastKey || now - lastSent > 6000) { lastKey = key; lastSent = now; ch.send({ id: myId, d: p.d, f: p.face, h: p.hop, v: p.v }); savePose(world, p); }
+      // walked away from where the last check-in put you: check in again (at most every 10 s while walking)
+      if (lastBeatD && p.d.length === 3 && now - lastBeatAt > 10_000 && lastBeatD[0] * p.d[0] + lastBeatD[1] * p.d[1] + lastBeatD[2] * p.d[2] < 0.9998) { lastBeatD = null; pl.soon(300); }
     }, 100);
     // no explicit leave: a quick hop between the map and the 3D view keeps your group (and spot)
-    return () => { stopped = true; if (soon) clearTimeout(soon); clearInterval(hb); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
+    return () => { stopped = true; pl.stop(); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
   }, [opts.enabled, opts.world, opts.myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return info;
 }

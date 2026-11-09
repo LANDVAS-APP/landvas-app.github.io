@@ -54,10 +54,16 @@ export interface Backend {
    * Backends that can replay every map update since a point (Supabase): the newest update seen, and a way to start
    * from a saved point. With these the map keeps its cached tiles between visits and only reloads what changed.
    */
+  /** "Look again" pushes for this player (their alerts changed, a support reply, a new announcement). */
+  onPush?(cb: (kind: string) => void): () => void;
   mapCursor?(): number;
   setMapCursor?(id: number): void;
   /** A low-latency message channel shared by everyone in one live group (positions on a planet). */
-  liveChannel?(name: string, onMessage: (m: unknown) => void): { send(m: unknown): void; close(): void };
+  /**
+   * A live channel for a room. With `presence`, the channel also tracks who is connected (no database involved):
+   * `onPeer` hears each player arrive and leave, straight away — including a phone that just drops off.
+   */
+  liveChannel?(name: string, onMessage: (m: unknown) => void, presence?: { me: string; onPeer(id: string, here: boolean): void }): { send(m: unknown): void; close(): void };
   /** send to a live channel without listening to it (so you don't get everyone else's messages too) */
   liveSend?(name: string, m: unknown): Promise<boolean>;
   resetLocalData?(): Promise<void>;

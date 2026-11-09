@@ -9,7 +9,15 @@ import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
 
-const rpc = <T,>(fn: string, args?: Record<string, unknown>) => getBackend().rpc<T>(fn, args);
+/** Hears every new balance a call hands back (so the app can show it without re-reading your whole state). */
+let balanceSink: ((fn: string, b: Balances) => void) | null = null;
+export const onBalances = (cb: typeof balanceSink) => { balanceSink = cb; };
+const rpc = async <T,>(fn: string, args?: Record<string, unknown>) => {
+  const r = await getBackend().rpc<T>(fn, args);
+  const b = (r as { balances?: unknown } | null)?.balances;
+  if (balanceSink && b && typeof b === 'object' && !Array.isArray(b)) balanceSink(fn, b as Balances);
+  return r;
+};
 export const idemKey = (op: string) => `${op}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export type ClaimResult = {
