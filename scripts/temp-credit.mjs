@@ -7,9 +7,12 @@
 // FORCE=1. Safe to run again anyway: an email already loaded is never changed, and each is paid once. Prints totals
 // only — never an email (Actions logs on this repo are public).
 //   TEMP_REF, MAIN_REF, SUPABASE_ACCESS_TOKEN   required
+//   SUPABASE_TEMP_ACCESS_TOKEN                  optional: a token for the temporary project's organization
 //   DRY_RUN=1                                   read and total everything, write nothing
 //   FORCE=1                                     load again even though it's been loaded (new emails only)
 const token = process.env.SUPABASE_ACCESS_TOKEN;
+// the temporary project lives in another organization, so it can have its own token
+const tempToken = process.env.SUPABASE_TEMP_ACCESS_TOKEN || token;
 const TEMP = process.env.TEMP_REF, MAIN = process.env.MAIN_REF;
 const DRY = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
 const BONUS = 1.10;
@@ -19,7 +22,7 @@ if (TEMP === MAIN) { console.error('TEMP_REF and MAIN_REF are the same project')
 async function query(ref, sql, tries = 5) {
   for (let i = 1; ; i++) {
     const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
-      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: sql }),
+      method: 'POST', headers: { authorization: `Bearer ${ref === TEMP ? tempToken : token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: sql }),
     });
     const text = await res.text();
     if (res.ok) return JSON.parse(text);

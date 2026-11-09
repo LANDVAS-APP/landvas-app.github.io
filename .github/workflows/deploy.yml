@@ -47,6 +47,7 @@ jobs:
       - name: Fresh Start credit
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_TEMP_ACCESS_TOKEN: ${{ secrets.SUPABASE_TEMP_ACCESS_TOKEN }}
           TEMP_REF: fwqzliqbfjpssozavsek
           MAIN_REF: ${{ env.SUPABASE_PROJECT_REF }}
         run: |
