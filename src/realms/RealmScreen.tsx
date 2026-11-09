@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Lock, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -47,7 +47,16 @@ export default function RealmScreen() {
   if (q.data.kind === 'diner') return <DinerScreen id={q.data.id} />;
   if (q.data.kind === 'dungeon') return <DungeonScreen id={q.data.id} />;
   if (q.data.kind === 'brawl') return <BrawlScreen id={q.data.id} />;
+  if (CARNIVAL_KINDS.has(q.data.kind) && q.data.group_id) return <ToArcade group={q.data.group_id} />;
   return <RealmView key={q.data.id} r={q.data} />;
+}
+
+/** an Arcade Estate (or Domain) is the arcade itself, grown a carnival outside: open the arcade */
+const CARNIVAL_KINDS = new Set<string>(['boardwalk', 'galaxypark']);
+function ToArcade({ group }: { group: string }) {
+  const q = useQuery({ queryKey: ['arcade-for-group', group], queryFn: () => api.arcadeForGroup(group), staleTime: 60_000 });
+  if (q.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#05040F]"><Spinner /></div>;
+  return q.data ? <Navigate to={`/arcade/${q.data}`} replace /> : <div className="fixed inset-0 grid place-content-center gap-3 bg-[#05040F] p-6 text-center text-white"><div className="text-5xl">🎡</div><p>This carnival couldn’t be found.</p><Link to="/world"><Button variant="secondary">Back to the map</Button></Link></div>;
 }
 
 function RealmView({ r: initial }: { r: Realm }) {

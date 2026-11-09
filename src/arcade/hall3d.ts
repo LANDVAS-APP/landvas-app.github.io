@@ -8,13 +8,15 @@
 // its play area fills the view.
 import * as THREE from 'three';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { buildCarnival, CARNIVAL_BOUNDS, CARNIVAL_Z, type Carnival } from './carnival3d';
 
 export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string };
-export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' } | { kind: 'door' };
+export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' } | { kind: 'door' } | { kind: 'carnival'; id: string };
 export type HallOpts = {
   canvas: HTMLCanvasElement; explorerUrl: string; seed: number; reduceMotion?: boolean;
   /** the shared Live Arena room: pods for the live games, no prize counter / ticket machine / jukebox */ arena?: boolean;
   /** you're standing at something you can use (or walked away: null) */ onNear?(s: HallSpot | null): void;
+  /** an Arcade Estate: the front door opens onto a carnival */ carnival?: boolean;
 };
 export type Decor = { floor: string; neon: string; lights: string };
 
@@ -490,6 +492,13 @@ export function createHall(o: HallOpts) {
   portalSign.position.set(0, 2.75, 0); portal.add(portalSign);
   const portalSpot = new THREE.Vector3(portal.position.x - 1.3, 0, portal.position.z);
   if (o.arena) { counter.visible = false; juke.visible = false; bonus.visible = false; }
+  // ---- the carnival out the front door (Arcade Estates) --------------------------------------------------------
+  let carn: Carnival | null = null;
+  if (o.carnival && !o.arena) {
+    carn = buildCarnival({ scene, T, phone, std, glow, emojiSprite, labelTex });
+    door.visible = false; floor.scale.y = D / FL; floor.position.z = 0;
+  }
+  const OUT = CARNIVAL_Z + 0.45; // past the front wall: outside
 
   // ---- you, and a few regulars ------------------------------------------------------------------------------
   const meTex = T(new THREE.TextureLoader().load(o.explorerUrl)); meTex.colorSpace = THREE.SRGBColorSpace; meTex.wrapS = THREE.RepeatWrapping;
@@ -552,35 +561,51 @@ export function createHall(o: HallOpts) {
       out.push({ x0: -W / 2, x1: -W / 2 + 2.4, z0: -D / 2, z1: -D / 2 + 1.75 }, { x0: W / 2 - 2.2, x1: W / 2, z0: -D / 2, z1: -D / 2 + 1.75 });
     }
     out.push({ x0: W / 2 - 0.9, x1: W / 2, z0: 3.2, z1: 5.6 });
+    if (carn) out.push(...carn.solids);
     return out;
   };
   let walls = solids();
   const blocked = (x: number, z: number) => walls.some((b) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1);
-  const clampX = (x: number) => Math.max(-W / 2 + 0.6, Math.min(W / 2 - 0.6, x));
-  const clampZ = (z: number) => Math.max(-D / 2 + 0.6, Math.min(D / 2 - 0.6, z));
+  const clampX = (x: number, z = P.z) => (carn && z > OUT ? Math.max(-CARNIVAL_BOUNDS.x, Math.min(CARNIVAL_BOUNDS.x, x)) : Math.max(-W / 2 + 0.6, Math.min(W / 2 - 0.6, x)));
+  const clampZ = (z: number) => Math.max(-D / 2 + 0.6, Math.min(carn ? CARNIVAL_BOUNDS.z : D / 2 - 0.6, z));
   /** a route: through the nearest gap of every row in the way, then to the spot */
-  const route = (tx: number, tz: number) => {
+  const route = (tx: number, tz: number): THREE.Vector2[] => {
+    if (carn) {
+      const outA = P.z > OUT, outB = tz > OUT;
+      // outside: up the midway, then across to it (round the booths)
+      const outside = (fx: number, fz: number) => { const pts: THREE.Vector2[] = []; if (Math.abs(fx) > 3.2 && Math.abs(fz - tz) > 1) pts.push(new THREE.Vector2(0, fz)); if (Math.abs(tx) > 3.2 && Math.abs(fz - tz) > 1) pts.push(new THREE.Vector2(0, tz)); pts.push(new THREE.Vector2(clampX(tx, tz), clampZ(tz))); return pts; };
+      if (outA && outB) return outside(P.x, P.z);
+      if (outA && !outB) { const pts = outside(P.x, P.z).slice(0, Math.abs(P.x) > 3.2 ? 1 : 0); pts.push(new THREE.Vector2(0, 14.4), new THREE.Vector2(0, 12.2)); return [...pts, ...inside(0, 12.2, tx, tz)]; }
+      if (!outA && outB) { const pts = inside(P.x, P.z, 0, 12.2); pts.push(new THREE.Vector2(0, 14.4)); const rest = outside(0, 14.4); return [...pts, ...rest]; }
+    }
+    return inside(P.x, P.z, tx, tz);
+  };
+  const inside = (fx: number, fz: number, tx: number, tz: number) => {
     const pts: THREE.Vector2[] = [];
-    let x = P.x;
-    const rowsBetween = ROWS.filter((r) => (r - 1.1 - P.z) * (r - 1.1 - tz) < 0 || (r + 0.9 - P.z) * (r + 0.9 - tz) < 0).sort((a, b) => (tz < P.z ? b - a : a - b));
+    let x = fx;
+    const rowsBetween = ROWS.filter((r) => (r - 1.1 - fz) * (r - 1.1 - tz) < 0 || (r + 0.9 - fz) * (r + 0.9 - tz) < 0).sort((a, b) => (tz < fz ? b - a : a - b));
     for (const r of rowsBetween) {
       const gx = GAPS.reduce((best, gp) => (Math.abs(gp - (x + tx) / 2) < Math.abs(best - (x + tx) / 2) ? gp : best), GAPS[0]);
-      pts.push(new THREE.Vector2(gx, tz < P.z ? r + 1.6 : r - 1.6 - 0.6), new THREE.Vector2(gx, tz < P.z ? r - 1.6 - 0.6 : r + 1.6));
+      pts.push(new THREE.Vector2(gx, tz < fz ? r + 1.6 : r - 1.6 - 0.6), new THREE.Vector2(gx, tz < fz ? r - 1.6 - 0.6 : r + 1.6));
       x = gx;
     }
-    pts.push(new THREE.Vector2(clampX(tx), clampZ(tz)));
+    pts.push(new THREE.Vector2(Math.max(-W / 2 + 0.6, Math.min(W / 2 - 0.6, tx)), Math.max(-D / 2 + 0.6, Math.min(D / 2 - 0.6, tz))));
     return pts;
   };
-  const go = (x: number, z: number) => { P.path = route(x, z); ring.visible = true; ring.position.set(clampX(x), 0.02, clampZ(z)); };
+  const go = (x: number, z: number) => { if (carn?.riding()) return; P.path = route(x, z); ring.visible = true; ring.position.set(clampX(x, z), 0.02, clampZ(z)); };
+  const setRay = (e: PointerEvent) => { const r = o.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return ray; };
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down: { x: number; y: number; t: number; id: number } | null = null;
-  const pd = (e: PointerEvent) => { if (zoom.on) return; down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; };
+  const pd = (e: PointerEvent) => { if (zoom.on) { if (carn?.playing()) { carn.input('down', setRay(e)); held = e.pointerId; } return; } down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; };
+  let held: number | null = null;
   const pm = (e: PointerEvent) => {
+    if (held === e.pointerId && carn?.playing()) { carn.input('move', setRay(e)); return; }
     if (!down || e.pointerId !== down.id || zoom.on) return;
     const dx = e.clientX - down.x, dy = e.clientY - down.y, d = Math.hypot(dx, dy);
     if (d > 14) { P.stick = new THREE.Vector2(dx / Math.max(d, 60), dy / Math.max(d, 60)); P.path = []; ring.visible = false; }
   };
   const pu = (e: PointerEvent) => {
+    if (held === e.pointerId) { held = null; carn?.input('up', setRay(e)); return; }
     if (!down || e.pointerId !== down.id) return;
     const wasStick = !!P.stick; P.stick = null;
     const tap = !wasStick && performance.now() - down.t < 500; down = null;
@@ -594,7 +619,7 @@ export function createHall(o: HallOpts) {
       if (ray.intersectObject(bonus, true).length) { go(bonusSpot.x, bonusSpot.z); return; }
       if (ray.intersectObject(juke, true).length) { go(jukeSpot.x, jukeSpot.z); return; }
     }
-    const h = ray.intersectObject(floor)[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
+    const h = ray.intersectObjects(carn ? [floor, carn.ground] : [floor])[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
   };
   const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
   const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (['a', 'd', 'arrowleft', 'arrowright'].includes(k)) P.keys.x = 0; if (['w', 's', 'arrowup', 'arrowdown'].includes(k)) P.keys.z = 0; };
@@ -603,19 +628,22 @@ export function createHall(o: HallOpts) {
 
   // ---- the camera: up behind you, or right in at a machine's play area -------------------------------------------
   const camPos = new THREE.Vector3(0, 8, D / 2 + 6), camLook = new THREE.Vector3(0, 1, 0);
-  const zoom = { on: false, k: 0, cab: null as Cab | null, resolve: null as null | (() => void) };
+  type Focus = { spot: THREE.Vector3; focus: THREE.Vector3; focusN: THREE.Vector3; focusDist: number };
+  const zoom = { on: false, k: 0, cab: null as Focus | null, resolve: null as null | (() => void) };
+  let outK = 0; // 0 inside the hall, 1 out at the carnival: the camera turns round
   let near: string | null = null;
-  const nearKey = (s: HallSpot | null) => (s ? (s.kind === 'machine' ? `m:${s.id}` : s.kind) : null);
+  const nearKey = (s: HallSpot | null) => (s ? (s.kind === 'machine' ? `m:${s.id}` : s.kind === 'carnival' ? `c:${s.id}` : s.kind) : null);
   const resize = () => { const r = o.canvas.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
   let raf = 0, last = performance.now(), t = 0, paused = false, frame = 0;
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
   const step = (dx: number, dz: number) => {
     // slide along whatever you bump into
-    const nx = clampX(P.x + dx), nz = clampZ(P.z + dz);
-    if (!blocked(nx, nz)) { P.x = nx; P.z = nz; return true; }
-    if (!blocked(nx, P.z)) { P.x = nx; return true; }
-    if (!blocked(P.x, nz)) { P.z = nz; return true; }
+    const nz = clampZ(P.z + dz), nx = clampX(P.x + dx, nz), sx = clampX(P.x + dx, P.z), px = clampX(P.x, nz);
+    const ok = (x: number) => Math.abs(x - P.x) <= Math.abs(dx) + 0.01; // never snap sideways through a wall
+    if (ok(nx) && !blocked(nx, nz)) { P.x = nx; P.z = nz; return true; }
+    if (ok(sx) && !blocked(sx, P.z)) { P.x = sx; return true; }
+    if (ok(px) && !blocked(px, nz)) { P.x = px; P.z = nz; return true; }
     return false;
   };
   const loop = (now: number) => {
@@ -625,8 +653,10 @@ export function createHall(o: HallOpts) {
     tune(raw);
     const speed = 4.4;
     P.moving = false;
-    if (!zoom.on) {
-      const kx = P.keys.x || P.stick?.x || 0, kz = P.keys.z || P.stick?.y || 0;
+    const riding = !!carn?.riding();
+    if (!zoom.on && !riding) {
+      const flip = outK > 0.5 ? -1 : 1;
+      const kx = (P.keys.x || P.stick?.x || 0) * flip, kz = (P.keys.z || P.stick?.y || 0) * flip;
       if (kx || kz) {
         const l = Math.hypot(kx, kz), s = Math.min(1, l) * speed * dt;
         P.moving = step((kx / l) * s, (kz / l) * s); if (Math.abs(kx) > 0.1) P.face = kx > 0 ? 1 : -1; P.path = [];
@@ -653,7 +683,9 @@ export function createHall(o: HallOpts) {
         if (Math.hypot(jukeSpot.x - P.x, jukeSpot.z - P.z) < 1.2) s = { kind: 'jukebox' };
       }
       if (Math.hypot(portalSpot.x - P.x, portalSpot.z - P.z) < 1.2) s = { kind: 'door' };
+      if (carn && P.z > OUT) { let bd = 1.4; for (const sp of carn.spots) { const d = Math.hypot(sp.x - P.x, sp.z - P.z); if (d < bd) { bd = d; s = { kind: 'carnival', id: sp.id }; } } }
     }
+    if (riding) s = null;
     const nk = nearKey(s);
     if (nk !== near && !zoom.on) { near = nk; o.onNear?.(s); }
     // camera: behind and above you (further back on a tall phone screen)
@@ -661,14 +693,22 @@ export function createHall(o: HallOpts) {
     if (zoom.on && zoom.k > 0.97 && zoom.resolve) { const r = zoom.resolve; zoom.resolve = null; r(); }
     // steep enough that the row of cabinets behind you doesn't hide you (and those fade out anyway)
     const wide = camera.aspect < 1 ? 1 + (1 / camera.aspect - 1) * 0.22 : 1;
-    const follow = tmp.set(P.x * 0.55, 6.8 * wide, P.z + 4.6 * wide);
+    outK += ((carn && P.z > CARNIVAL_Z - 0.4 ? 1 : 0) - outK) * Math.min(1, dt * 2.6);
+    const ok3 = outK * outK * (3 - 2 * outK);
+    // inside: behind you from the door end; outside: behind you from the arcade, looking out at the carnival
+    // (outside, the camera stays out of the hall once you're a few steps from the door, and rises instead of backing in)
+    const zOut = Math.max(P.z - 6.4 * wide, Math.min(CARNIVAL_Z + 1.2, P.z - 2.5)), yOut = 7.6 + Math.max(0, 6.4 * wide - (P.z - zOut)) * 0.7;
+    const follow = tmp.set(P.x * (0.55 - 0.2 * ok3), 6.8 * wide + (yOut - 6.8 * wide) * ok3, P.z + 4.6 * wide + (zOut - P.z - 4.6 * wide) * ok3);
+    const baseLook = new THREE.Vector3(P.x * (0.85 - 0.25 * ok3), 0.9 + 1.1 * ok3, P.z - 2.2 + 11 * ok3);
+    if (carn) { const f = scene.fog as THREE.Fog; f.near = 22 + 14 * ok3; f.far = 52 + 34 * ok3; }
     if (zoom.cab) {
       const c = zoom.cab, k = zoom.k * zoom.k * (3 - 2 * zoom.k);
       const at = tmp2.copy(c.focus).addScaledVector(c.focusN, c.focusDist * (camera.aspect < 1 ? 1 + (1 / camera.aspect - 1) * 0.6 : 1));
       camPos.lerpVectors(follow, at, k);
-      camLook.lerpVectors(new THREE.Vector3(P.x * 0.85, 0.9, P.z - 2.2), c.focus, k);
+      camLook.lerpVectors(baseLook, c.focus, k);
       if (!zoom.on && zoom.k < 0.02) zoom.cab = null;
-    } else { camPos.lerp(follow, Math.min(1, dt * 4.5)); camLook.lerp(tmp2.set(P.x * 0.85, 0.9, P.z - 2.2), Math.min(1, dt * 5)); }
+    } else { const rc = carn?.rideCamera(t); if (rc) { camPos.lerp(rc.pos, Math.min(1, dt * 3)); camLook.lerp(rc.look, Math.min(1, dt * 3)); } else { camPos.lerp(follow, Math.min(1, dt * 4.5)); camLook.lerp(baseLook, Math.min(1, dt * 5)); } }
+    me.visible = shadow.visible = !riding && !(carn && zoom.cab && zoom.k > 0.3);
     camera.position.copy(camPos); camera.lookAt(camLook);
     // machines come alive (and any between you and the camera fade out of the way)
     for (const c of cabs.values()) {
@@ -719,6 +759,7 @@ export function createHall(o: HallOpts) {
       const note = juke.getObjectByName('note'); if (note) { note.visible = musicOn; note.position.y = 2.45 + Math.sin(t * 4) * 0.1; }
     }
     if (!o.reduceMotion) { portalRing.rotation.z = t * 0.6; (portalFill.material as THREE.MeshBasicMaterial).opacity = 0.18 + Math.sin(t * 3) * 0.08; }
+    carn?.update(t, dt, camPos.z, P.z);
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -746,18 +787,36 @@ export function createHall(o: HallOpts) {
     /** glide the camera up to a machine's play area; resolves when it fills the view */
     zoomIn(id: string) { const c = cabs.get(id); if (!c) return Promise.resolve(); zoom.cab = c; zoom.on = true; P.path = []; P.stick = null; P.x = c.spot.x; P.z = c.spot.z; return new Promise<void>((res) => { zoom.resolve = res; }); },
     zoomOut() { zoom.on = false; zoom.resolve = null; near = null; },
-    walkTo(s: HallSpot) { if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else if (s.kind === 'door') go(portalSpot.x, portalSpot.z); else go(bonusSpot.x, bonusSpot.z); },
+    walkTo(s: HallSpot) { if (s.kind === 'carnival') { const sp = carn?.spots.find((x) => x.id === s.id); if (sp) go(sp.x, sp.z); } else if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else if (s.kind === 'door') go(portalSpot.x, portalSpot.z); else go(bonusSpot.x, bonusSpot.z); },
     setPaused(p: boolean) { paused = p; },
+    carnival: carn ? {
+      spots: carn.spots,
+      /** glide up to a booth's counter (resolves when it fills the view) */
+      zoomBooth(id: string) { const f = carn!.focusOf(id); if (!f) return Promise.resolve(); zoom.cab = f; zoom.on = true; P.path = []; P.stick = null; P.x = f.spot.x; P.z = f.spot.z; return new Promise<void>((res) => { zoom.resolve = res; }); },
+      start: (id: string, seed: number, onScore: (s: number) => void, onEnd: (s: number) => void) => carn!.startGame(id, seed, onScore, onEnd),
+      stop: () => carn!.stopGame(),
+      state: () => carn!.gameState(),
+      ride(id: 'wheel' | 'carousel', seconds: number) { near = null; carn!.ride(id, seconds, t); },
+      endRide: () => carn!.endRide(),
+      riding: () => carn!.riding(),
+      fireworks: (s?: number) => carn!.fireworks(s),
+      /** a snapshot of the view, for the photo booth */
+      photo() { renderer.render(scene, camera); return o.canvas.toDataURL('image/jpeg', 0.9); },
+      /** where the live targets are on screen (0..1), for tests */
+      aim: () => carn!.targets().map((v) => { v.project(camera); return { x: (v.x + 1) / 2, y: (1 - v.y) / 2 }; }),
+      /** a ray from a point on screen (0..1), for tests */
+      tapAt(fx: number, fy: number, kind: 'down' | 'up' = 'down') { ndc.set(fx * 2 - 1, -(fy * 2 - 1)); ray.setFromCamera(ndc, camera); carn!.input(kind, ray); },
+    } : null,
     setOthers, moveOther,
     /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),
-    debug: () => ({ P: { x: P.x, z: P.z }, near, cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
+    debug: () => ({ P: { x: P.x, z: P.z }, near, outK, cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
       setRegulars([]); setShelf([]); setOthers([]);
       floorMat.map?.dispose(); signMat.map?.dispose(); hotFx.material.map?.dispose(); hotFx.material.dispose();
-      for (const x of bag) x.dispose();
+      carn?.dispose(); for (const x of bag) x.dispose();
       renderer.dispose();
     },
   };

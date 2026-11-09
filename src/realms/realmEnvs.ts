@@ -4,13 +4,12 @@
 import * as THREE from 'three';
 import { rng } from '../home/party/kit';
 import { flat, grassTex, mesh, motes, scatter, type Ctx, type Inst } from '../home/live3d/kit3d';
-import type { EstateKind, RealmKind } from '../backend/types';
+import type { RealmKind } from '../backend/types';
 import type { RealmEnv, Spot, Station } from './realm3d';
 import { atelier, boardwalk, exchange, gemheart, ranch, reserve } from './estates/envsA';
 import { citadel, colosseum, foodhall, foundry, skyport } from './estates/envsB';
 import { core, galaxypark, kingdom, megacorp, museum, sanctuary } from './estates/envsC';
 import { abyss, automaton, banquet, observatory, titans } from './estates/envsD';
-import { KIOSKS } from './estates/kiosks';
 
 const B: [number, number] = [9.5, 7];
 const SPOTS = (labels: Record<Station, string>): Record<Station, Spot> => ({
@@ -470,7 +469,7 @@ function dungeon(ctx: Ctx): RealmEnv {
 export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = {
   mine, sky, workshop, diner, dungeon, brawl: dungeon,
   // the Estates (2x2 merge tier), each its own world
-  ...(Object.fromEntries(Object.entries({ atelier, reserve, ranch, exchange, boardwalk, gemheart, skyport, foundry, foodhall, citadel, colosseum }).map(([k, f]) => [k, (ctx: Ctx): RealmEnv => ({ ...f(ctx), kiosk: (g, i) => KIOSKS[k](ctx, g, i) })])) as Record<EstateKind, (ctx: Ctx) => RealmEnv>),
+  atelier, reserve, ranch, exchange, boardwalk, gemheart, skyport, foundry, foodhall, citadel, colosseum,
   // the Domains (3x3 merge tier)
   museum, sanctuary, kingdom, megacorp, galaxypark, core, observatory, automaton, banquet, abyss, titans,
 };

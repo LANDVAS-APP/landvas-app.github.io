@@ -27,6 +27,8 @@ import { scoreBus } from './games';
 import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { isMuted, setMuted, sfx } from './sfx';
 import { ArenaRoom } from './live/ArenaRoom';
+import { BoothHud, CarnivalNear, startBooth, TreatCart, type CarnivalBusy } from './CarnivalUi';
+import type { CarnivalMe } from '../backend/types';
 import { config } from '../env';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
@@ -88,6 +90,11 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   const [mute, setMute] = useState(isMuted());
   const [meState, setMeState] = useState<ArcadeMe>(a.me);
   useEffect(() => setMeState(a.me), [a.me]);
+  const carnival = a.carnival ?? null;
+  const [cme, setCme] = useState<CarnivalMe | null>(carnival?.me ?? null);
+  useEffect(() => setCme(a.carnival?.me ?? null), [a.carnival?.me]);
+  const [cBusy, setCBusy] = useState<CarnivalBusy>(null);
+  const [treats, setTreats] = useState(false);
   const title = /^untitled/i.test(a.name.trim()) || !a.name.trim() ? `${a.owner.username}’s Arcade` : a.name;
   const games = useMemo(() => Object.entries(a.games).sort((x, y) => x[1].order - y[1].order), [a.games]);
   const prizeEmoji = useMemo(() => Object.fromEntries(a.prizes.map((p) => [p.id, p.emoji])), [a.prizes]);
@@ -95,14 +102,21 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   useEffect(() => {
     if (!cv.current) return;
     const h = createHall({
-      canvas: cv.current, seed: a.seed, reduceMotion: reduce,
+      canvas: cv.current, seed: a.seed, reduceMotion: reduce, carnival: !!a.carnival,
       explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)),
       onNear: (s) => { setNear(s); if (s) sfx.blip(s.kind === 'machine' ? 7 : 12); },
     });
     hall.current = h;
     if (import.meta.env.DEV || config.e2e) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
     return () => { h.dispose(); hall.current = null; };
-  }, [a.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [a.id, !!a.carnival]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a ride ends by itself after a while
+  useEffect(() => {
+    if (cBusy?.k !== 'ride') return;
+    const t = setInterval(() => { if (!hall.current?.carnival?.riding()) setCBusy(null); }, 250);
+    return () => clearInterval(t);
+  }, [cBusy]);
+  const closeBooth = (again?: string) => { setCBusy(null); if (again) void startBooth(a, again, hall, qc, setMeState, setCBusy); else { hall.current?.zoomOut(); refresh(); } };
   // what's in the hall
   useEffect(() => {
     const h = hall.current; if (!h) return;
@@ -113,6 +127,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   useEffect(() => { hall.current?.setShelf(Object.entries(a.shelf).map(([k, n]) => ({ emoji: prizeEmoji[k] ?? '🎁', n }))); }, [a.shelf, prizeEmoji]);
   useEffect(() => { hall.current?.setBonus(meState.bonus_ready); }, [meState.bonus_ready]);
   useEffect(() => { hall.current?.setPaused(!!sheet && !playing); }, [sheet, playing]);
+  const busy = !!playing || !!cBusy;
   useEffect(() => { hall.current?.setHot(a.hot?.game ?? null); }, [a.hot?.game]);
   // the jukebox: starts with your first tap (browsers need one before any sound), a bit quieter on a cabinet
   useEffect(() => {
@@ -164,7 +179,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
     <div className="fixed inset-0 overflow-hidden bg-[#05040F] text-white" data-testid="arcade">
       <canvas ref={cv} className="absolute inset-0 h-full w-full touch-none" data-testid="arcade-hall" />
       {/* top bar */}
-      <div className={cn('pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))] transition-opacity', playing && 'opacity-0')}>
+      <div className={cn('pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 p-3 pt-[max(12px,env(safe-area-inset-top,0px))] transition-opacity', busy && 'opacity-0')}>
         <button onClick={() => nav(-1)} className="pointer-events-auto rounded-xl bg-black/55 p-2" aria-label="Leave the arcade"><ArrowLeft className="h-5 w-5" /></button>
         <button onClick={() => nav('/home')} className="pointer-events-auto rounded-xl bg-black/55 p-2 text-lg leading-none" aria-label="Go home" title="Your home" data-testid="go-home">🏠</button>
         <div className="pointer-events-auto min-w-0 flex-1 rounded-2xl bg-black/55 px-3 py-1.5">
@@ -185,13 +200,13 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
           <button onClick={() => { setMuted(!mute); setMute(!mute); if (!mute) music.stop(false); else if (music.current) music.play(); }} className="rounded-xl bg-black/55 p-1.5" aria-label={mute ? 'Sound on' : 'Sound off'}>{mute ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
         </div>
       </div>
-      {!playing && live && myId && (
+      {!busy && live && myId && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+86px)] z-20 px-16">
           <InviteBanner a={a} live={live} myId={myId} onJoined={() => liveRoom.refresh()} />
         </div>
       )}
       {/* side buttons */}
-      {!playing && (
+      {!busy && (
         <div className="absolute right-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+92px)] grid gap-2">
           <button onClick={onArena} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #FFE14D' }} data-testid="arcade-arena-btn"><span className="text-lg leading-none">⚔️</span>Live</button>
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-scores"><Trophy className="h-5 w-5 text-[#FFE14D]" />Scores</button>
@@ -202,13 +217,13 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
       )}
       {/* what you're standing at */}
       <AnimatePresence>
-        {!playing && lobby && myId && (
+        {!busy && lobby && myId && (
           <motion.div key="lobby" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             <LobbyPanel a={a} m={lobby} myId={myId} onChange={() => liveRoom.refresh()} />
           </motion.div>
         )}
-        {!playing && !lobby && near && (
-          <motion.div key={near.kind === 'machine' ? near.id : near.kind} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+        {!busy && !lobby && near && (
+          <motion.div key={near.kind === 'machine' || near.kind === 'carnival' ? `${near.kind}:${near.id}` : near.kind} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
             className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             {near.kind === 'machine' && nearGame && !nearLocked && (
               <button onClick={() => void play(near.id)} className="lv-arc-play flex items-center gap-3 rounded-3xl px-5 py-3 text-left shadow-2xl" style={{ background: `linear-gradient(135deg, ${nearGame.color}, #8B5CFF)`, boxShadow: `0 0 40px ${nearGame.color}` }} data-testid="arcade-play">
@@ -227,6 +242,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
                 {!nearLand && a.mine && a.level.level >= nearGame.level && <Button size="sm" variant="rainbow" disabled={meState.tickets < nearGame.cost} onClick={async () => { try { const n = await api.arcadeUnlock(a.id, near.id); refresh(n); sfx.jackpot(); confettiCannons(); toast.success(`${nearGame.name} installed!`); } catch (e) { toast.error(toGameError(e).message); } }} data-testid="arcade-install">Install</Button>}
               </div>
             )}
+            {near.kind === 'carnival' && carnival && cme && <CarnivalNear a={a} c={carnival} cme={cme} me={meState} spot={near.id} hall={hall} onMe={setMeState} onCme={setCme} onBusy={setCBusy} onTreats={() => setTreats(true)} />}
             {near.kind === 'door' && (
               <button onClick={onArena} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFE14D] to-[#FF3D9A] px-5 py-3 text-left text-[#2A0A1A] shadow-2xl" data-testid="arcade-door"><span className="text-4xl">⚔️</span>
                 <span><span className="block font-display text-2xl font-black">Enter the Live Arena</span><span className="block text-xs font-bold">Live 1v1, 2v2, free-for-all & co-op games with players from every arcade</span></span></button>
@@ -246,14 +262,17 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
             )}
           </motion.div>
         )}
-        {!playing && !near && !lobby && (
+        {!busy && !near && !lobby && (
           <motion.div key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
-            <div className="rounded-full bg-black/60 px-4 py-2 text-xs text-white/80">Drag to walk · tap a machine to go to it · ⚔️ the glowing portal leads to the Live Arena{meState.bonus_ready ? ' · 🎟️ free tickets by the door!' : ''}</div>
+            <div className="rounded-full bg-black/60 px-4 py-2 text-xs text-white/80">Drag to walk · tap a machine to go to it · {carnival ? '🎡 walk out the front doors to the carnival' : '⚔️ the glowing portal leads to the Live Arena'}{meState.bonus_ready ? ' · 🎟️ free tickets by the door!' : ''}</div>
           </motion.div>
         )}
       </AnimatePresence>
       {playing && <Cabinet a={a} me={meState} game={playing} haptics={haptics} reduce={reduce} onExit={stopPlaying} onMe={setMeState}
         match={matchOn && matchOn.game === playing ? { m: live?.match?.id === matchOn.id ? live.match : matchOn, myId: myId!, scores: liveRoom.scores, send: (s) => liveRoom.send({ t: 'score', m: matchOn.id, id: myId!, s }) } : null} />}
+      {carnival && <BoothHud c={carnival} me={meState} busy={cBusy} hall={hall} onClose={closeBooth} />}
+      {cBusy?.k === 'ride' && <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]"><button onClick={() => { hall.current?.carnival?.endRide(); setCBusy(null); }} className="rounded-full bg-black/70 px-5 py-2 text-sm font-bold" data-testid="carnival-get-off">{carnival?.rides[cBusy.id]?.emoji} Get off the ride</button></div>}
+      {treats && carnival && cme && <TreatCart a={a} c={carnival} cme={cme} me={meState} onMe={setMeState} onCme={setCme} onClose={() => setTreats(false)} />}
       {sheet === 'prizes' && <PrizeCounter a={a} me={meState} onMe={setMeState} onClose={() => setSheet(null)} onShelf={() => refresh()} />}
       {sheet === 'scores' && <Scores a={a} me={meState} onClose={() => setSheet(null)} />}
       {sheet === 'jukebox' && <Jukebox onClose={() => setSheet(null)} muted={mute} onUnmute={() => { setMuted(false); setMute(false); }} />}

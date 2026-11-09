@@ -555,7 +555,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const hab = useHabitatAt(d.gx, d.gy, any || k === 'habitat').data;
   const farm = useFarmAt(d.gx, d.gy, any || k === 'farm').data;
   const biz = useBizAt(d.gx, d.gy, any || k === 'business').data;
-  const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade').data;
+  const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade' || k === 'boardwalk' || k === 'galaxypark').data;
   const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
   return (
     <div className="grid gap-3">
@@ -563,7 +563,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
       <RenamePlot d={d} />
       {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
-        {rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
+        {rlm && arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
+          : rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
           : arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-arcade">🕹️ Enter arcade</Button>
           : biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
           : farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
@@ -612,7 +613,7 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
   const arc = useArcadeAt(d.gx, d.gy, true).data;
   const rlm = useRealmAt(d.gx, d.gy, true).data;
   if (rlm) { const m = REALM_META[rlm.kind]; return (
-    <Link to={realmRoute(rlm.realm_id)} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: `${m.color}66`, background: `${m.color}1A` }} data-testid="visit-realm">
+    <Link to={arc ? `/arcade/${arc.arcade_id}` : realmRoute(rlm.realm_id)} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: `${m.color}66`, background: `${m.color}1A` }} data-testid="visit-realm">
       <span className="text-2xl">{m.emoji}</span>
       <div className="min-w-0 flex-1">
         <div className="eyebrow">{m.name} · level {rlm.level}</div>

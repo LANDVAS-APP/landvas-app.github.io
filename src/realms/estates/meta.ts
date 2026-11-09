@@ -36,11 +36,11 @@ export const ESTATES: Record<EstateKind, EstateMeta> = {
     perks: ['Market Maker: hold to buy, let go to sell', 'Six floors up to the rooftop helipad', 'Law firms, R&D labs and a gold vault', '12 boardroom trophies to win'],
   },
   boardwalk: {
-    base: 'arcade', name: 'Neon Boardwalk', one: 'boardwalk', many: 'boardwalks', emoji: '🎡', color: '#00E5FF', enter: 'Walk the boardwalk', game: 'Pinball Wizard',
-    body: 'A seaside pier of rides, games and fireworks', tagline: 'Your arcade grows into a whole pier at night.',
-    long: 'A pier entrance, candy row, game alley, a carousel plaza, a coaster loop and firework point. Flip your way to a high score in Pinball Wizard, run claw machines and candy carts, and put on a grand finale show.',
-    crew: 'Stalls & rides', make: 'Prize workshop', market: 'Token booth', book: 'Prize shelf', bookItem: 'prize',
-    perks: ['Pinball Wizard: flippers, bumpers and lit lanes', 'Six zones up to Firework Point', 'Candy carts, claw machines and a ticket wheel', '12 legendary prizes to win'],
+    base: 'arcade', name: 'Arcade Carnival', one: 'carnival', many: 'carnivals', emoji: '🎡', color: '#00E5FF', enter: 'Walk out to the carnival', game: 'Duck Shoot',
+    body: 'Your arcade, with a whole carnival out the front door', tagline: 'Your arcade grows a carnival outside its doors.',
+    long: 'The same arcade — your cabinets, tickets, prizes and level — with its front doors thrown open onto a carnival at night. Six real 3D booths (Duck Shoot, Balloon Darts, Milk Bottles, Whack-a-Crab, High Striker and the Water Gun Race), a Ferris wheel and a carousel to ride, a treat cart, a fortune teller, a photo booth and fireworks.',
+    crew: 'Booths & rides', make: 'Prize workshop', market: 'Ticket booth', book: 'Prize shelf', bookItem: 'prize',
+    perks: ['Walk out of the arcade onto the midway', '6 carnival booth games, played right in the booth', 'Ride the Ferris wheel and the carousel', 'Treats, a fortune teller, photos and fireworks'],
   },
   gemheart: {
     base: 'mine', name: 'Gemheart Caverns', one: 'cavern', many: 'caverns', emoji: '💎', color: '#19D3C5', enter: 'Descend into the caverns', game: 'Crystal Echo',

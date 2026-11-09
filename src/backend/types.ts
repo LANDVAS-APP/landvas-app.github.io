@@ -697,6 +697,17 @@ export type Arcade = {
   upgrade: { max: number; bonus: number; costs: Record<string, number> };
   boards: Record<string, { player: Profile; score: number }[]>; boards_endless?: Record<string, { player: Profile; score: number }[]>; me: ArcadeMe; server_time: string;
   cosmetics?: ArcadeCosmetic[]; hot?: { game: string | null; until: string; tickets: number; ink: number }; first_play_tickets?: number;
+  /** an Arcade Estate's carnival, out the front door (null for a plain arcade) */ carnival?: ArcadeCarnival | null;
+};
+export type CarnivalFortune = { card: string; tickets: number; lucky: string | null };
+export type CarnivalMe = { treat: { id: string; until: string } | null; fortune: CarnivalFortune | null; fortune_ready: boolean; rides_today: string[] };
+export type ArcadeCarnival = {
+  games: Record<string, { name: string; emoji: string; order: number; blurb: string; seconds: number }>;
+  treats: Record<string, { name: string; emoji: string; cost: number; minutes: number; bonus: number }>;
+  rides: Record<string, { name: string; emoji: string; seconds: number; daily_tickets: number }>;
+  fortune: { tickets: [number, number]; lucky_chance: number; lucky_mult: number };
+  fireworks: { cost: number; xp: number };
+  me: CarnivalMe; boards: Record<string, { player: Profile; score: number }[]>;
 };
 export type ArcadeFinish = { mode?: ArcadeMode; ink_progress?: number; bonus?: string[]; hot?: boolean; score: number; tickets: number; earned: number; paid: number; capped: boolean; best: number; new_best: boolean; record: number; new_record: boolean; owner_cut: number; level_up: number | null; me: ArcadeMe; repeat?: boolean };
 

@@ -1,6 +1,6 @@
 // Real-browser test of the merge tier (local-mode build):
 // four plots → merge into a 2x2 → the plot panel offers the Estate → keep it, then upgrade → the Estate's world opens →
-// then every one of the 11 Estates: switch to it, walk its world, play its signature minigame and bank the score.
+// then every Estate (the Arcade's, its carnival, has its own test: carnival.mjs): switch to it, walk its world, play its signature minigame and bank the score.
 // Run: npm run build:artifact && node tests/e2e/estates.mjs
 import { serve, launch } from './browser.mjs';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok, extra }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? ' — ' + extra : ''}`); };
 const START = { gx: 12398 * 64 + 32, gy: 24628 * 64 + 32 };
 const ll = (gx, gy) => { const n = Math.PI * (1 - (2 * (gy + 0.5)) / G); return { longitude: ((gx + 0.5) / G) * 360 - 180, latitude: (180 / Math.PI) * Math.atan(Math.sinh(n)) }; };
-const ESTATES = [['canvas', 'atelier'], ['habitat', 'reserve'], ['farm', 'ranch'], ['business', 'exchange'], ['arcade', 'boardwalk'], ['mine', 'gemheart'], ['sky', 'skyport'], ['workshop', 'foundry'], ['diner', 'foodhall'], ['dungeon', 'citadel'], ['brawl', 'colosseum']];
+const ESTATES = [['canvas', 'atelier'], ['habitat', 'reserve'], ['farm', 'ranch'], ['business', 'exchange'], ['mine', 'gemheart'], ['sky', 'skyport'], ['workshop', 'foundry'], ['diner', 'foodhall'], ['dungeon', 'citadel'], ['brawl', 'colosseum']];
 
 const server = await serve(DIST, PORT);
 const browser = await launch();

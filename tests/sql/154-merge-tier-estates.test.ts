@@ -29,7 +29,7 @@ describe('Estates (2x2 merge tier)', () => {
     expect(new Set(rows.map((r: any) => r.base))).toEqual(new Set(['canvas', 'habitat', 'farm', 'business', 'arcade', 'mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl']));
     for (const { k } of rows) {
       const [{ c }] = await db.sql(`select private.rlm_cfg($1) as c`, [k]);
-      expect(Object.keys(c.games)).toHaveLength(5);
+      expect(Object.keys(c.games)).toHaveLength(1);
       expect(Object.keys(c.finds)).toHaveLength(12);
       expect(c.zones).toHaveLength(6);
       expect(Object.keys(c.producers)).toHaveLength(6);
