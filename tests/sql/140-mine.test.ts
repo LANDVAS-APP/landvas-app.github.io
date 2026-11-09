@@ -13,7 +13,7 @@ beforeAll(async () => {
   uid = await db.newPlayer('miner_one'); other = await db.newPlayer('miner_two');
   const owner = (await db.sql(`select id from players where id = $1`, [uid]))[0].id;
   const g = (await db.sql(`insert into canvas_groups (owner_id, kind, plot_count) values ($1, 'mine', 1) returning id`, [owner]).catch(() => null))?.[0]?.id ?? null;
-  realm = (await db.sql(`insert into realms (owner_id, group_id, kind, seed) values ($1, $2, 'mine', 424242) returning id`, [uid, g]))[0].id;
+  realm = (await db.sql(`insert into realms (owner_id, group_id, kind, seed) values ($1, $2, 'mine', 424242) on conflict (group_id, kind) do update set seed = excluded.seed returning id`, [uid, g]))[0].id;
   seed = 424242;
   cfg = (await db.sql(`select value from game_config where key = 'realm_mine'`))[0].value;
 });
