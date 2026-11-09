@@ -60,3 +60,13 @@ out('helper_timings', [
 ]);
 out('config_sizes', await query(`select key, pg_size_pretty(pg_column_size(value)::bigint) size from public.game_config order by pg_column_size(value) desc limit 8`));
 out('scheduled_jobs', await query(`select j.jobname, j.schedule, (select status || ' ' || coalesce(return_message, '') from cron.job_run_details d where d.jobid = j.jobid order by start_time desc limit 1) last_run from cron.job j where j.jobname like 'landvas-%'`));
+// memory: the database's settings, the API pool, and who holds connections
+out('memory_settings', await query(`select name, setting, unit from pg_settings where name in ('shared_buffers','work_mem','maintenance_work_mem','effective_cache_size','logical_decoding_work_mem','max_connections','max_worker_processes','autovacuum_max_workers','max_wal_size','huge_pages','idle_session_timeout') order by name`));
+out('connections_by_app', await query(`select coalesce(application_name, '') app, usename, state, count(*) n, max(extract(epoch from now() - backend_start))::int oldest_s from pg_stat_activity where backend_type = 'client backend' group by 1, 2, 3 order by 4 desc`));
+{
+  const get = async (path) => { const res = await fetch(`https://api.supabase.com/v1/projects/${ref}${path}`, { headers: { authorization: `Bearer ${token}` } }); return res.ok ? res.json() : { error: res.status }; };
+  const pg = await get('/config/database/postgres');
+  const rest = await get('/postgrest');
+  const pooler = await get('/config/database/pooler');
+  out('api_config', [{ postgres_overrides: pg, postgrest_pool: rest.db_pool ?? null, max_rows: rest.max_rows ?? null, pooler: Array.isArray(pooler) ? pooler.map((p) => ({ mode: p.pool_mode, size: p.default_pool_size, max_client: p.max_client_conn })) : pooler }]);
+}
