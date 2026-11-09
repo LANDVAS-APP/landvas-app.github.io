@@ -24,6 +24,7 @@ import { createHall, type HallScene, type HallSpot } from './hall3d';
 import { music } from './music';
 import { InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, useArcadeLive } from './party';
 import { scoreBus } from './games';
+import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { isMuted, setMuted, sfx } from './sfx';
 import { ArenaRoom } from './live/ArenaRoom';
 import { config } from '../env';
@@ -71,6 +72,8 @@ function regulars(seed: number, n: number) {
 }
 
 function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
+  // a bigger arcade (more plots merged) has more cabinets in service
+  const access = usePlaceAccess('arcade', a.id).data;
   const nav = useNavigate();
   const qc = useQueryClient();
   const me = useOnboardedMe();
@@ -103,9 +106,9 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   // what's in the hall
   useEffect(() => {
     const h = hall.current; if (!h) return;
-    h.setMachines(games.map(([id, g]) => ({ id, name: g.name, color: g.color, emoji: g.emoji, level: a.machines[id] ?? 0, locked: !(id in a.machines), lockLabel: `LV ${g.level}` })));
+    h.setMachines(games.map(([id, g]) => { const land = lockLabel(access, id); return { id, name: g.name, color: g.color, emoji: g.emoji, level: a.machines[id] ?? 0, locked: !!land || !(id in a.machines), lockLabel: land ? `🔒 ${land}` : `LV ${g.level}` }; }));
     h.setRegulars(regulars(a.seed, Math.min(5, 1 + Math.floor(a.level.level / 2))));
-  }, [games, a.machines, a.level.level, a.seed]);
+  }, [games, a.machines, a.level.level, a.seed, access]);
   useEffect(() => { hall.current?.setDecor(a.decor, title); }, [a.decor, title]);
   useEffect(() => { hall.current?.setShelf(Object.entries(a.shelf).map(([k, n]) => ({ emoji: prizeEmoji[k] ?? '🎁', n }))); }, [a.shelf, prizeEmoji]);
   useEffect(() => { hall.current?.setBonus(meState.bonus_ready); }, [meState.bonus_ready]);
@@ -155,7 +158,8 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   };
 
   const nearGame = near?.kind === 'machine' ? a.games[near.id] : null;
-  const nearLocked = near?.kind === 'machine' && !(near.id in a.machines);
+  const nearLand = near?.kind === 'machine' ? lockLabel(access, near.id) : null;
+  const nearLocked = near?.kind === 'machine' && (!!nearLand || !(near.id in a.machines));
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#05040F] text-white" data-testid="arcade">
       <canvas ref={cv} className="absolute inset-0 h-full w-full touch-none" data-testid="arcade-hall" />
@@ -219,8 +223,8 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
               <div className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3">
                 <Lock className="h-6 w-6 text-white/60" />
                 <div><div className="font-display text-lg font-black">{nearGame.emoji} {nearGame.name}</div>
-                  <div className="text-xs text-white/70">{a.mine ? (a.level.level >= nearGame.level ? `Install it for ${nearGame.cost} 🎟️` : `Reach arcade level ${nearGame.level} to install it`) : 'Coming soon to this arcade'}</div></div>
-                {a.mine && a.level.level >= nearGame.level && <Button size="sm" variant="rainbow" disabled={meState.tickets < nearGame.cost} onClick={async () => { try { const n = await api.arcadeUnlock(a.id, near.id); refresh(n); sfx.jackpot(); confettiCannons(); toast.success(`${nearGame.name} installed!`); } catch (e) { toast.error(toGameError(e).message); } }} data-testid="arcade-install">Install</Button>}
+                  <div className="text-xs text-white/70">{nearLand ? `Opens when this arcade is ${nearLand} — merge more arcade plots into it` : a.mine ? (a.level.level >= nearGame.level ? `Install it for ${nearGame.cost} 🎟️` : `Reach arcade level ${nearGame.level} to install it`) : 'Coming soon to this arcade'}</div></div>
+                {!nearLand && a.mine && a.level.level >= nearGame.level && <Button size="sm" variant="rainbow" disabled={meState.tickets < nearGame.cost} onClick={async () => { try { const n = await api.arcadeUnlock(a.id, near.id); refresh(n); sfx.jackpot(); confettiCannons(); toast.success(`${nearGame.name} installed!`); } catch (e) { toast.error(toGameError(e).message); } }} data-testid="arcade-install">Install</Button>}
               </div>
             )}
             {near.kind === 'door' && (

@@ -15,6 +15,8 @@ const play = async (uid: string, game: string, score: number, secs = 60) => {
 
 beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
+  // these tests are about the games themselves: open every game regardless of land size (156 tests the size rule)
+  await db.sql(`update game_config set value = jsonb_set(value, '{steps}', '[[1, 1]]') where key = 'plot_access'`);
   ow = await db.newPlayer('arc_owner'); vi = await db.newPlayer('arc_visitor');
   await db.giveInk(ow, 100);
   await db.rpc(ow, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });

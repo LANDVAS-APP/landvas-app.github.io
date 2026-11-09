@@ -23,6 +23,7 @@ import { rarities } from '../shared/rarity';
 import { RarityBadge } from './RarityBadge';
 import { MadeBadge } from '../gallery/MadeBadge';
 import { kindFamily } from '../realms/estates/meta';
+import { PlaceAccessCard } from './placeAccess';
 import { EstateCard } from './EstateCard';
 import { GamePreview } from '../play/GamePreview';
 import { formatRate } from '../shared/rent';
@@ -520,17 +521,6 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const eco = world.data?.economy;
-  const maxLevel = Number(eco?.upgrade?.max_level ?? 10);
-  const levelCost = eco && d.level < maxLevel ? { ink: eco.upgrade.level_cost_ink[d.level], pigments: eco.upgrade.level_cost_pigments[d.level] } : null;
-  const doUpgrade = async () => {
-    setBusy('level');
-    try {
-      const r = await api.upgradePlot(d.gx, d.gy);
-      celebrate(r.achievements);
-      toast.success(`Plot upgraded to level ${r.plot.level}`);
-      invalidateGame(qc);
-    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
-  };
   // only plots of the same type can merge
   const myGroups = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
   const myGroup = useQuery({ queryKey: qk.groups, queryFn: api.myGroups }).data?.find((g) => g.id === d.group?.id);
@@ -592,10 +582,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
         </div>
       )}
       <Button variant="secondary" size="sm" onClick={() => startMerge(d.group?.id)} data-testid="start-merge"><Combine className="h-4 w-4" /> Merge several plots at once</Button>
-      <div className="grid gap-2">
-        <div className="eyebrow">Level {d.level} / {maxLevel}</div>
-        <UpgradeRow title={d.level < maxLevel ? `Upgrade to level ${d.level + 1}` : 'Max level'} desc="+1% rent and +5% minigame Ink on this plot" cost={levelCost} busy={busy === 'level'} onClick={doUpgrade} balances={me?.balances} />
-      </div>
+      {myGroup && <PlaceAccessCard group={myGroup} />}
       {d.group && d.group.plot_count > 1 && (
         <Button variant="ghost" size="sm" onClick={detach} loading={busy === 'detach'}><Scissors className="h-4 w-4" /> Detach this plot from the canvas</Button>
       )}

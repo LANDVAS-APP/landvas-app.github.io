@@ -6,6 +6,7 @@
 // are drawn once from small cached 64x64-plot blocks, MapLibre keeps them on the
 // GPU, and panning only ever loads the edges it hasn't drawn yet. The cost of a
 // frame no longer depends on how many plots or players exist.
+import { hasTierScene, tierScene } from './tierScenes';
 import { addProtocol } from 'maplibre-gl';
 import { api } from '../backend/api';
 import { config } from '../env';
@@ -691,6 +692,24 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
       }
       const hidden = opts?.hidden && seenHidden(opts.hidden, x0, y0, x1, y1);
       const info = hidden ? NEUTRAL : rarityInfo(best[9]);
+      if (hasTierScene(r[11])) {
+        // an Estate or Domain: one picture of the whole place across its land, with a small crest in the corner
+        const clip = cells.filter((o) => (r[5] ? o.r[5] === r[5] : o.r === r)).map((o) => [o.c.px, o.c.py, cs] as [number, number, number]);
+        const L = ESTATE_LOOK[r[11]!]!, X0 = (x0 - gx0) * cs, Y0 = (y0 - gy0) * cs, X1 = (x1 + 1 - gx0) * cs, Y1 = (y1 + 1 - gy0) * cs;
+        tierScene(ctx, r[11]!, X0, Y0, X1, Y1, clip, hash(x0, y0, 17) * 1e9, !!L.big, L.trim);
+        const sz = Math.min(X1 - X0, Y1 - Y0);
+        if (sz >= 40) {
+          const bx = X0 + sz * 0.1, by = Y0 + sz * 0.1, br = sz * 0.07;
+          ctx.save(); ctx.beginPath(); for (const [px, py] of clip) ctx.rect(px, py, cs, cs); ctx.clip();
+          ctx.fillStyle = 'rgba(10,8,24,0.75)'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = L.big ? '#FFD65A' : L.trim; ctx.lineWidth = Math.max(1, br * 0.14); ctx.stroke();
+          ctx.font = `${Math.round(br * 1.1)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(REALM_SIGN[r[11]!] ?? '👑', bx, by + br * 0.05);
+          ctx.font = `${Math.round(br * 0.75)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.fillText(L.big ? '👑👑' : '👑', bx, by - br * 1.25);
+          ctx.restore();
+        }
+        continue;
+      }
       centrepiece(ctx, r[11]!, (x0 - gx0) * cs, (y0 - gy0) * cs, (x1 + 1 - gx0) * cs, (y1 + 1 - gy0) * cs, info.color, info.glow, hidden ? 0 : tierOf(best[9]), hash(x0, y0, 9));
     }
   }

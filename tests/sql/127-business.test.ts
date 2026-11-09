@@ -11,6 +11,8 @@ const back = (secs: number) => setState(`synced_at = now() - make_interval(secs 
 
 beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
+  // these tests are about the games themselves: open every game regardless of land size (156 tests the size rule)
+  await db.sql(`update game_config set value = jsonb_set(value, '{steps}', '[[1, 1]]') where key = 'plot_access'`);
   bo = await db.newPlayer('biz_owner'); vi = await db.newPlayer('biz_visitor');
   await db.giveInk(bo, 100);
   await db.rpc(bo, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });

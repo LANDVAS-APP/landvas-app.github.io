@@ -1,6 +1,7 @@
 // Your farm: the 3D farmyard with a bed sheet for planting, watering and harvesting, one-tap
 // "harvest all" and "plant all", the market (sell for coins and Ink), the farm games, your farm level
 // with its upgrades, buildings, kitchen and orders, the daily chores, and a tractor to drive round.
+import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, ClipboardList, Droplets, Gamepad2, ShoppingBasket, Sprout, TrendingUp, Tractor, Wheat } from 'lucide-react';
@@ -44,6 +45,8 @@ export default function FarmScreen() {
 }
 
 function FarmView({ f }: { f: Farm }) {
+  // a farm on more merged plots has more of its games open
+  const access = usePlaceAccess('farm', f.id).data;
   const qc = useQueryClient();
   const nav = useNavigate();
   const me = useOnboardedMe();
@@ -249,15 +252,15 @@ function FarmView({ f }: { f: Farm }) {
       {f.mine && f.progress && <FarmHub open={hub} onOpenChange={setHub} f={f} tab={hubTab} setTab={setHubTab} />}
       {f.mine && f.progress && <ChoresDialog open={chores} onOpenChange={setChores} f={f} haptics={haptics} />}
       {f.mine && (
-        <Dialog open={games} onOpenChange={setGames} title="🎮 Farm games" description="Quick, easy and fun. Every game pays Ink, Farm Coins, XP and a basket of produce.">
+        <Dialog open={games} onOpenChange={setGames} title="🎮 Farm games" description={access && access.open < access.total ? `${access.open} of ${access.total} open — merge more farm plots into this farm to open the rest.` : 'Quick, easy and fun. Every game pays Ink, Farm Coins, XP and a basket of produce.'}>
           <div className="grid grid-cols-2 gap-2" data-testid="farm-games-list">
-            {Object.entries(f.config.games).map(([k, g]) => (
-              <button key={k} onClick={() => nav(`/farm/${f.id}/play/${k}`)} data-testid={`farm-game-${k}`} className="grid justify-items-center gap-1 rounded-2xl bg-surface-2 p-3 text-center hover:bg-surface-3">
-                <span className="text-4xl">{g.emoji}</span><b className="text-sm">{g.name}</b>
+            {Object.entries(f.config.games).sort(([a], [b]) => (access ? access.games.indexOf(a) - access.games.indexOf(b) : 0)).map(([k, g]) => { const land = lockLabel(access, k); return (
+              <button key={k} disabled={!!land} onClick={() => nav(`/farm/${f.id}/play/${k}`)} data-testid={`farm-game-${k}`} className={cn('relative grid justify-items-center gap-1 rounded-2xl bg-surface-2 p-3 text-center hover:bg-surface-3', land && 'opacity-55')}>
+                <span className={cn('text-4xl', land && 'grayscale')}>{g.emoji}</span><b className="text-sm">{g.name}</b>
                 <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase text-accent">{g.dim}</span>
-                <span className="text-[11px] text-muted">up to {g.max_ink} Ink</span>
+                <span className="text-[11px] text-muted">{land ? `🔒 Opens at ${land}` : `up to ${g.max_ink} Ink`}</span>
               </button>
-            ))}
+            ); })}
           </div>
         </Dialog>
       )}

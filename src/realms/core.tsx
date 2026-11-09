@@ -1,6 +1,7 @@
 // The parts every realm shares, whatever its world looks like: the crew and upgrades, the workshop (recipes), the
 // market, the collection book, the daily bonus, the minigames (with the score overlay and the results) — as a hook
 // that hands back the actions and the dialogs, so each realm's own screen can wrap them in its own world.
+import { isOpen, lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { useQueryClient } from '@tanstack/react-query';
 import { Lock, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -29,6 +30,9 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
   const [game, setGame] = useState<{ session: string; seed: number; level: number; id: string } | null>(null);
   const [result, setResult] = useState<RealmFinish | null>(null);
   const [pickGame, setPickGame] = useState(Object.keys(cfg.games)[0]);
+  // a realm on more merged plots has more of its games open
+  const access = usePlaceAccess('realm', r.id).data;
+  useEffect(() => { if (access && !isOpen(access, pickGame) && access.allowed[0]) setPickGame(access.allowed[0]); }, [access, pickGame]);
   const lastGame = useRef<string | null>(null);
   const scoreNow = useRef(0);
   const [live, setLive] = useState(0);
@@ -65,7 +69,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
   const make = async (recipe: string, n: number) => { const res = await act(`make:${recipe}`, () => api.realmMake(r.id, recipe, n)); if (res) { sfx.coin(); setR(res.view); burst('make', Array(Math.min(8, n)).fill(cfg.recipes[recipe].emoji)); if (res.first) toast.success(`First ${cfg.recipes[recipe].name}! ${cfg.recipes[recipe].emoji}`); levelUp(res.level_up); } };
   const sell = async (res: string, n?: number) => { const out = await act(`sell:${res}`, () => api.realmSell(r.kind, res, n)); if (out) { sfx.tickets?.(8); setR({ ...r, me: out.me }); burst('market', [cur.emoji, cur.emoji, cur.emoji]); toast.success(`Sold ${fmt(out.sold)} ${cfg.resources[res].emoji} for ${cur.emoji} ${fmt(out.got)}`); } };
   const daily = async () => { const out = await act('daily', () => api.realmDaily(r.kind)); if (out) { sfx.jackpot(); setR({ ...r, me: out.me }); toast.success(`Daily bonus: ${cur.emoji} ${out.amount}${out.paid ? ` and 💧 ${out.paid} Ink` : ''} · ${out.streak}-day streak`); invalidateGame(qc); } };
-  const play = async (gid: string = lastGame.current ?? Object.keys(cfg.games)[0]) => {
+  const play = async (gid: string = lastGame.current ?? pickGame) => {
     lastGame.current = gid;
     const s = await act('play', () => api.realmStart(r.id, gid));
     if (s) { setPanel(null); scoreNow.current = 0; setGame({ session: s.session, seed: s.seed, level: s.level, id: gid }); }
@@ -97,7 +101,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
       <Dialog open={panel === 'play'} onOpenChange={(o) => !o && setPanel(null)} title={<>{gcfg.emoji} {gcfg.name}</>} description={gcfg.blurb}
         footer={<Button variant="rainbow" loading={busy === 'play'} onClick={() => void play(pickGame)} data-testid="realm-play">Play {gcfg.name}</Button>}>
         <div className="grid gap-3 text-sm">
-          {Object.keys(cfg.games).length > 1 && <div className="flex flex-wrap gap-1.5">{Object.entries(cfg.games).map(([k, g]) => <button key={k} disabled={r.level.level < (g.level ?? 1)} onClick={() => setPickGame(k)} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold', pickGame === k ? 'bg-accent text-white' : 'bg-surface-2', r.level.level < (g.level ?? 1) && 'opacity-50')} data-testid={`realm-game-${k}`}>{g.emoji} {g.name}{r.level.level < (g.level ?? 1) && ` · Lv ${g.level}`}</button>)}</div>}
+          {Object.keys(cfg.games).length > 1 && <div className="flex flex-wrap gap-1.5">{Object.entries(cfg.games).map(([k, g]) => { const land = lockLabel(access, k), off = !!land || r.level.level < (g.level ?? 1); return <button key={k} disabled={off} onClick={() => setPickGame(k)} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold', pickGame === k ? 'bg-accent text-white' : 'bg-surface-2', off && 'opacity-50')} data-testid={`realm-game-${k}`}>{g.emoji} {g.name}{land ? ` · 🔒 ${land}` : r.level.level < (g.level ?? 1) && ` · Lv ${g.level}`}</button>; })}</div>}
           <div className="flex flex-wrap gap-1.5">{gcfg.drops.map((d) => <span key={d.res} className={cn('rounded-full px-2 py-1 text-xs', r.level.level >= d.level ? 'bg-surface-2' : 'bg-surface-2/40 text-muted')}>{cfg.resources[d.res]?.emoji} {cfg.resources[d.res]?.name}{r.level.level < d.level && ` · Lv ${d.level}`}</span>)}</div>
           <p className="text-xs text-muted">Free to play. Your score turns into resources from every zone this {meta.one} has opened, a chance of rare finds, XP{r.mine ? '' : ' for the owner’s place (and they get a 10% cut)'} and a little Ink ({r.me.ink_today}/{r.me.daily_cap} today).{r.effects.game_mult > 0 && ` Upgrades here add +${Math.round(r.effects.game_mult * 100)}%.`}</p>
           <div className="flex gap-3 text-xs"><span>Your best: <b>{r.me.best[pickGame] ?? 0}</b></span><span>Plays here: <b>{r.plays}</b></span></div>

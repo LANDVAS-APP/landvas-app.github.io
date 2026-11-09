@@ -769,3 +769,6 @@ export type ClanKeep = {
   builds: ClanBuild[];
   training: { mine: number; board: (Profile & { best: number })[] };
 };
+
+/** Which of a place's games are open: a quarter on one plot, half on two or three, all on four or more. */
+export type PlaceAccess = { plots: number; total: number; open: number; games: string[]; allowed: string[]; next: { plots: number; open: number } | null };

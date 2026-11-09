@@ -117,6 +117,8 @@ const MESSAGES: Record<string, string> = {
   need_players: 'Wait for at least one more player to join.',
   mixed_plot_kinds: 'Only plots of the same type can merge (art with art, arcades with arcades — and an Estate with its own type) — switch one first.',
   estate_needs_square: 'An Estate needs four plots merged into a 2×2 square — merge a few more first.',
+  needs_bigger_place: 'This game opens on bigger land — merge more plots of this type into the place.',
+  upgrades_removed: 'Plot upgrades have been retired — merge plots to open more games instead.',
   domain_needs_square: 'A Domain needs nine plots merged into a 3×3 square — merge a few more first.',
   estate_wrong_type: 'That Estate is built on a different plot type.',
   habitat_plot: 'This plot is an Inkborn Habitat. Switch it back to an Art Canvas to publish art.',

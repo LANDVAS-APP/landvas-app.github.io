@@ -170,14 +170,9 @@ describe('accounts and ownership', () => {
     expect(eco.publish_reward.ink).toBeUndefined();
   });
 
-  it('level-ups cost Ink + Pigments and add 1% rent per level', async () => {
-    await db.sql(`update resource_balances set amount = 5000 where player_id = $1 and resource in ('ink','pigments')`, [alice]);
-    const before = await db.rpc(alice, 'plot_details', { p_gx: SLC.gx, p_gy: SLC.gy });
-    const r = await db.rpc(alice, 'upgrade_plot', { p_gx: SLC.gx, p_gy: SLC.gy, p_idempotency_key: 'upgrade-0000001' });
-    expect(r.plot.level).toBe(2);
-    expect(Number(r.plot.rent.usd_per_second)).toBeCloseTo(Number(before.rent.usd_per_second) * 1.01, 18);
-    expect(Number(r.balances.ink)).toBe(5000 - 150);
-    await expectError(db.rpc(bob, 'upgrade_plot', { p_gx: SLC.gx, p_gy: SLC.gy, p_idempotency_key: 'upgrade-bob-001' }), 'not_owner');
+  it('plot level-ups are retired: no more rent upgrades', async () => {
+    await expectError(db.rpc(alice, 'upgrade_plot', { p_gx: SLC.gx, p_gy: SLC.gy, p_idempotency_key: 'upgrade-0000001' }), 'upgrades_removed');
+    expect((await db.rpc(alice, 'plot_details', { p_gx: SLC.gx, p_gy: SLC.gy })).level).toBe(1);
   });
 
   it("players can read their own balance but never another player's", async () => {

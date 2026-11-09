@@ -11,6 +11,8 @@ const coins = (n: number) => db.sql(`update farm_progress set coins = $2 where p
 
 beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
+  // these tests are about the games themselves: open every game regardless of land size (156 tests the size rule)
+  await db.sql(`update game_config set value = jsonb_set(value, '{steps}', '[[1, 1]]') where key = 'plot_access'`);
   flo = await db.newPlayer('flo_fields');
   await db.giveInk(flo, 300);
   await db.rpc(flo, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });

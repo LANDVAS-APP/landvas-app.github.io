@@ -165,7 +165,6 @@ function PlotTile({ r, kind, size = 48 }: { r: Row; kind: string; size?: number 
   return (
     <span className="relative grid shrink-0 place-items-center rounded-2xl text-lg" style={{ width: size, height: size, background: kind === 'habitat' ? 'linear-gradient(135deg,#6CC463,#2F7D3A)' : `linear-gradient(135deg, ${t?.a ?? '#888'}, ${t?.b ?? '#444'})`, boxShadow: `0 0 0 2px ${ri.color}, 0 6px 16px -8px ${ri.color}` }}>
       {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : r.has_art ? '🖼️' : ''}
-      {r.level > 1 && <span className="absolute -bottom-1 -right-1 rounded-full bg-bg px-1 text-[9px] font-black text-gold">Lv{r.level}</span>}
     </span>
   );
 }
@@ -179,10 +178,6 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
   const d = useQuery({ queryKey: qk.plot(r.gx, r.gy), queryFn: () => api.plotDetails(r.gx, r.gy) });
   const [busy, setBusy] = useState<string | null>(null);
   const eco = world.data?.economy;
-  const maxLevel = Number(eco?.upgrade?.max_level ?? 10);
-  const lvl = d.data?.level ?? r.level;
-  const cost = eco && lvl < maxLevel ? { ink: eco.upgrade.level_cost_ink[lvl], pigments: eco.upgrade.level_cost_pigments[lvl] } : null;
-  const afford = !!cost && Number(me?.balances.ink ?? 0) >= (cost.ink ?? 0) && Number(me?.balances.pigments ?? 0) >= (cost.pigments ?? 0);
   const kind = group?.kind ?? 'canvas';
   const show = () => {
     const [lng, lat] = cellCenter(r.gx, r.gy);
@@ -190,11 +185,6 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
     useUi.getState().select({ gx: r.gx, gy: r.gy });
     useExplorer.getState().setFollowing(false);
     nav('/world');
-  };
-  const upgrade = async () => {
-    setBusy('level');
-    try { const x = await api.upgradePlot(r.gx, r.gy); celebrate(x.achievements); toast.success(`Upgraded to level ${x.plot.level}`); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.plot(r.gx, r.gy) }); }
-    catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   const t = PLOT_TYPES[r.plot_type];
   const ri = rarityInfo(r.rarity);
@@ -205,7 +195,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           <PlotTile r={r} kind={kind} size={64} />
           <div className="grid flex-1 grid-cols-2 gap-2 text-center">
             <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Rent / day</div><div className="tnum text-sm font-bold text-ok">{formatUsd(r.usd_per_second * DAY, 6)}</div></div>
-            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Level</div><div className="text-sm font-bold">{lvl} / {maxLevel}</div></div>
+            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Land</div><div className="text-sm font-bold">{group?.plot_count ?? 1} plot{(group?.plot_count ?? 1) === 1 ? '' : 's'}</div></div>
             <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Minigame</div><div className="text-sm font-bold">{d.data?.type_info?.minigame_name ?? t?.game}</div></div>
             <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Ink bonus</div><div className="text-sm font-bold">×{ri.ink_reward_multiplier}</div></div>
           </div>
@@ -228,15 +218,6 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
             : group ? <Button variant="secondary" onClick={() => nav(`/create/${group.id}`)}><Brush className="h-4 w-4" /> Paint canvas</Button> : null}
           {group && <Button variant="secondary" onClick={() => { startMerge(group.id); show(); }}><Combine className="h-4 w-4" /> Merge</Button>}
         </div>
-        {cost && (
-          <div className="flex items-center gap-2 rounded-2xl border border-line p-2.5">
-            <Sparkles className="h-4 w-4 text-gold" />
-            <div className="min-w-0 flex-1 text-xs"><b>Upgrade to level {lvl + 1}</b><div className="text-muted">+1% rent and +5% minigame Ink</div></div>
-            <Button size="sm" variant="secondary" loading={busy === 'level'} disabled={!afford} onClick={upgrade} data-testid="sheet-upgrade">
-              {cost.ink ? <>{cost.ink}<ResourceIcon r="ink" className="h-3.5 w-3.5" /></> : null}{cost.pigments ? <> {cost.pigments}<ResourceIcon r="pigments" className="h-3.5 w-3.5" /></> : null}
-            </Button>
-          </div>
-        )}
       </div>
     </Dialog>
   );

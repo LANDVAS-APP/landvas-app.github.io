@@ -190,6 +190,8 @@ export const api = {
   realmBuy: (id: string, type: 'producers' | 'upgrades', item: string) => rpc<{ view: import('./types').Realm }>('realm_buy', { p_id: id, p_type: type, p_item: item }),
   realmMake: (id: string, recipe: string, n = 1) => rpc<{ made: import('./types').Bag; first: boolean; level_up: number | null; view: import('./types').Realm }>('realm_make', { p_id: id, p_recipe: recipe, p_n: n }),
   realmSell: (kind: string, res: string, n?: number) => rpc<{ sold: number; got: number; me: import('./types').RealmMe }>('realm_sell', { p_kind: kind, p_res: res, p_n: n ?? null }),
+  /** which of a place's games are open for the size of its land */
+  placeAccess: (kind: 'arcade' | 'farm' | 'business' | 'realm', id: string) => rpc<import('./types').PlaceAccess>('place_access', { p_kind: kind, p_id: id }),
   realmStart: (id: string, game: string) => rpc<{ session: string; seed: number; game: string; level: number; best: number | null; record: number | null }>('realm_start', { p_id: id, p_game: game }),
   realmFinish: (session: string, score: number) => rpc<import('./types').RealmFinish>('realm_finish', { p_session: session, p_score: score }),
   realmDaily: (kind: string) => rpc<{ amount: number; streak: number; paid: number; me: import('./types').RealmMe }>('realm_daily', { p_kind: kind }),

@@ -10,6 +10,8 @@ const ripen = () => db.sql(`update farm_beds set ready_at = now() - interval '1 
 
 beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
+  // these tests are about the games themselves: open every game regardless of land size (156 tests the size rule)
+  await db.sql(`update game_config set value = jsonb_set(value, '{steps}', '[[1, 1]]') where key = 'plot_access'`);
   fay = await db.newPlayer('fay_farmer'); gus = await db.newPlayer('gus_guest');
   await db.giveInk(fay, 200);
   await db.rpc(fay, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });

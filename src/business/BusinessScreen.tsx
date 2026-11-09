@@ -1,6 +1,7 @@
 // Your business: Main Street in 3D up top, the lemonade stand to tap, and the tycoon below — ventures to buy,
 // upgrades, the company (going public, dividends, your rank) and the business games. Cash ticks up live
 // between syncs; taps are banked every couple of seconds.
+import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Briefcase, Building2, Gamepad2, Sparkles } from 'lucide-react';
@@ -88,6 +89,8 @@ function BusinessView({ b }: { b: Business }) {
 // The owner's tycoon
 // ======================================================================================================
 function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<StreetScene | null> }) {
+  // a business on more merged plots has more of its games open
+  const access = usePlaceAccess('business', b.id).data;
   const qc = useQueryClient();
   const haptics = useUi((s) => s.settings.haptics);
   const reduce = useUi((s) => s.settings.reduceMotion);
@@ -349,13 +352,18 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
 
           {tab === 'games' && (
             <div className="grid grid-cols-2 gap-2" data-testid="biz-games">
-              {Object.entries(b.games).map(([k, g]) => (
+              {Object.entries(b.games).sort(([x], [y]) => (access ? access.games.indexOf(x) - access.games.indexOf(y) : 0)).map(([k, g]) => { const land = lockLabel(access, k); return land ? (
+                <div key={k} data-testid={`biz-game-${k}`} data-locked="1" className="grid justify-items-center gap-1 rounded-2xl bg-white/60 p-3 text-center opacity-60 shadow-sm">
+                  <span className="text-4xl grayscale">{g.emoji}</span><b className="text-sm">{g.name}</b>
+                  <span className="text-[11px] text-[#6B7080]">🔒 Opens when the business is {land}</span>
+                </div>
+              ) : (
                 <Link key={k} to={`/business/${b.id}/play/${k}`} data-testid={`biz-game-${k}`} className="grid justify-items-center gap-1 rounded-2xl bg-white p-3 text-center shadow-sm hover:bg-[#FFF8E1]">
                   <span className="text-4xl">{g.emoji}</span><b className="text-sm">{g.name}</b>
                   <span className="rounded-full bg-[#7B5CFF]/15 px-2 py-0.5 text-[10px] font-bold uppercase text-[#7B5CFF]">{g.dim}</span>
                   <span className="text-[11px] text-[#6B7080]">up to {g.max_ink} Ink + cash</span>
                 </Link>
-              ))}
+              ); })}
             </div>
           )}
         </div>
