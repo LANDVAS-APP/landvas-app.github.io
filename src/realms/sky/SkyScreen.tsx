@@ -22,6 +22,7 @@ import { fmt, useRealmCore } from '../core';
 import { createSky3D, type SkyScene } from './sky3d';
 import { KiteFlyer } from './KiteFlyer';
 import { frontier, parse, storedNow, weatherAt, type SkyCore } from './skyCore';
+import { config } from '../../env';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const skyKey = (id: string) => ['sky', id] as const;
@@ -73,7 +74,7 @@ function Sky({ data }: { data: Realm & { sky_core: SkyCore } }) {
       onTapTile: (k) => tapTile.current(k), onTapGhost: (k) => { setGhost(k); setSel(null); }, onTapBalloon: () => setOrders(true), onTapNothing: () => setSel(null),
     });
     scene.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasSky: s, __landvasSkyTap: (k: string) => tapTile.current(k), __landvasSkyGhost: (k: string) => setGhost(k) });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasSky: s, __landvasSkyTap: (k: string) => tapTile.current(k), __landvasSkyGhost: (k: string) => setGhost(k) });
     return () => { s.dispose(); scene.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scene.current?.setStored((k, now) => storedNow(core, k, now + offset)); }, [core, offset]);

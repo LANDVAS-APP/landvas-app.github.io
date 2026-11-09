@@ -20,6 +20,7 @@ import { fmt, useRealmCore } from '../core';
 import { BurgerStack } from './BurgerStack';
 import { createDiner3D, type DinerScene } from './diner3d';
 import { slots, tipFor, STATION_ORDER, type DinerCore, type Shift, type ShiftResult } from './dinerCore';
+import { config } from '../../env';
 
 type Cust = { c: Shift['customers'][number]; status: 'coming' | 'queue' | 'seated' | 'eating' | 'done' | 'gone'; table?: number; got: boolean[]; eatUntil?: number };
 type Slot = { kind: string; cooking?: { dish: string; start: number; dur: number }; ready?: { dish: string; at: number }; burnt?: number };
@@ -56,7 +57,7 @@ function Diner({ data }: { data: Realm & { diner_core: DinerCore } }) {
     if (!cv.current) return;
     const s = createDiner3D({ canvas: cv.current, reduceMotion: reduce, onTapStation: (i) => tapSlot.current(i), onTapTable: (t) => tapTable.current(t) });
     scene.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasDiner: { scene: s, run: () => run.current } });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasDiner: { scene: s, run: () => run.current } });
     return () => { s.dispose(); scene.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scene.current?.setLayout(layout, core.tables, core.decor, core.crew); }, [layout, core.tables, core.decor, core.crew]);

@@ -28,6 +28,7 @@ export { PlanetBall };
 import { PLANET_GAMES } from './planetGames';
 import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
 import { poll } from '../lib/poll';
+import { config } from '../env';
 
 export default function SpaceScreen() {
   const me = useOnboardedMe();
@@ -234,7 +235,7 @@ function SystemMap3D({ s, progress, flying, picked, onPick, accent, onFail }: Ma
     let sc: ReturnType<typeof createSystemScene>;
     try { sc = createSystemScene(cv.current!, live, accent, reduce, (id) => pickRef.current(id)); }
     catch (e) { console.warn('3D map unavailable', e); onFail(); return; }
-    if (location.search.includes('e2e=1')) (window as any).__landvasSystem = sc.positions;
+    if (config.e2e) (window as any).__landvasSystem = sc.positions;
     return () => sc.dispose();
   }, [accent, reduce]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={cv} className="block h-[min(80vw,480px)] min-h-[320px] w-full max-w-full cursor-grab touch-none rounded-[22px] active:cursor-grabbing" aria-label="The solar system in 3D: drag to look around, tap a world to plan a trip" data-testid="system-canvas" />;
@@ -329,7 +330,7 @@ function SystemMap2D({ s, progress, flying, picked, onPick, accent }: MapProps) 
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [reduce, accent]);
-  useEffect(() => { if (location.search.includes('e2e=1')) (window as any).__landvasSystem = pos.current; }, []);
+  useEffect(() => { if (config.e2e) (window as any).__landvasSystem = pos.current; }, []);
   const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;

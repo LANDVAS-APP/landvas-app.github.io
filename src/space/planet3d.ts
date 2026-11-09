@@ -17,6 +17,7 @@ import type { World } from './worlds';
 import { animateModels, moduleModel, roverModel } from './baseModels';
 import { alienModel, animateFinds, poiModel, shardModel, WEATHER, weatherParticles } from './finds3d';
 import { isPhone } from '../lib/gfx';
+import { config } from '../env';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
@@ -1190,6 +1191,6 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
       renderer.dispose();
     },
   };
-  if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasPlanet = { P, samples, bubbles, pits, pitU, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, finds, setWeather, setFinds, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
+  if (import.meta.env.DEV || config.e2e) (window as any).__landvasPlanet = { P, samples, bubbles, pits, pitU, ride: () => ride?.kind ?? null, others, clock: () => t, R, rows, mets, baseGroup, finds, setWeather, setFinds, setLive, remote, setZoom, walkTo: api.walkTo, cell: () => cellAt([P.d.x, P.d.y, P.d.z], rows), renderer };
   return api;
 }

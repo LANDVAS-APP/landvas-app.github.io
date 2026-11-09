@@ -21,6 +21,7 @@ import { createFarm, type FarmScene } from './farm3d';
 import { ChoresDialog, choresLeft } from './Chores';
 import { Coin, coinFmt, FarmHub, itemInfo, LevelBadge, type HubTab } from './FarmHub';
 import { poll } from '../lib/poll';
+import { config } from '../env';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const farmKey = (id: string) => ['farm', id] as const;
@@ -105,7 +106,7 @@ function FarmView({ f }: { f: Farm }) {
     const c = cv.current; if (!c) return;
     const sc = createFarm({ canvas: c, beds: f.beds_count, seed: f.seed, reduceMotion: reduce, explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)), onPick: (i) => setSel(i), onTractorOver: (i) => onTractor.current(i) });
     scene.current = sc;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window as any, { __landvasFarm: sc, __landvasFarmPick: (i: number | null) => setSel(i) });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window as any, { __landvasFarm: sc, __landvasFarmPick: (i: number | null) => setSel(i) });
     return () => { sc.dispose(); scene.current = null; };
   }, [f.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scene.current?.setBedCount(f.beds_count); }, [f.beds_count]);

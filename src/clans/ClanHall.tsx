@@ -33,6 +33,7 @@ import { createKeep, type KeepScene, type KeepStation } from './keep3d';
 import { Quarry, Training } from './keepGames';
 import { Bar, ClanBadge, until } from './ui';
 import { poll } from '../lib/poll';
+import { config } from '../env';
 
 const keepKey = ['clan', 'keep'] as const;
 const err = (e: unknown) => toast.error(toGameError(e).message);
@@ -73,7 +74,7 @@ function Keep({ c, k }: { c: Clan; k: ClanKeep }) {
       explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style as ExplorerStyle | undefined, me?.profile.accent_color ?? '#7B5CFF', 184)),
     });
     keep.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasKeep: s });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasKeep: s });
     return () => { s.dispose(); keep.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

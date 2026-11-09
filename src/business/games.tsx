@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
 import { drawFloats, emoji, Hud, rng, three, useClock, type ArenaProps, type Float } from '../farm/games';
+import { config } from '../env';
 
 const dpr = () => Math.min(2, devicePixelRatio || 1);
 const fit = (c: HTMLCanvasElement, g: CanvasRenderingContext2D) => {
@@ -317,7 +318,7 @@ export function DeliveryDash({ seed, seconds, onEnd, haptics, reduce }: ArenaPro
       k.renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(frame);
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasVan = { get pos() { return [van.position.x, van.position.z]; }, get target() { return [target.x, target.z]; } };
+    if (import.meta.env.DEV || config.e2e) (window as any).__landvasVan = { get pos() { return [van.position.x, van.position.z]; }, get target() { return [target.x, target.z]; } };
     return () => { cancelAnimationFrame(raf); c.removeEventListener('pointerdown', pd); c.removeEventListener('pointermove', pm); c.removeEventListener('pointerup', pu); c.removeEventListener('pointercancel', pu); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); k.dispose(); };
   }, [seed]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

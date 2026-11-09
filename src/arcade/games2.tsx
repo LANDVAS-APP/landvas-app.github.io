@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Hud, Lives, clamp, rng, tap, usePops, type ArenaProps } from './games';
 import { sfx } from './sfx';
 import { CHIP_R, DROP_MAX, DROP_MIN, PEG_R, PEG_SLOTS, clampAim, newChip, pegLayout, stepChip, type Chip as PegChip } from './pegdrop';
+import { config } from '../env';
 
 // ---- a little 2D engine: a sized canvas, a loop and pointer input in CSS pixels ----------------------------------
 type Ptr = { x: number; y: number; id: number };
@@ -126,7 +127,7 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
     const finish = () => { over = true; setTimeout(() => onEnd(score), 1300); };
     let lastG: ReturnType<typeof geo> | null = null;
     // tests: put the puck somewhere and see where it ends up (in table fractions)
-    if (location.search.includes('e2e=1')) (window as unknown as { __arcHockey: unknown }).__arcHockey = {
+    if (config.e2e) (window as unknown as { __arcHockey: unknown }).__arcHockey = {
       put: (fx: number, fy: number) => { if (!lastG) return; P.x = lastG.x0 + fx * lastG.tw; P.y = lastG.y0 + fy * lastG.th; P.vx = 0; P.vy = 0; wait = 0; },
       where: () => (lastG ? { x: (P.x - lastG.x0) / lastG.tw, y: (P.y - lastG.y0) / lastG.th, you, cpu } : null),
     };

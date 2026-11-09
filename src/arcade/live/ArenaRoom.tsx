@@ -19,6 +19,7 @@ import { isMuted, setMuted, sfx } from '../sfx';
 import { ARENA_GAMES, MODE_INFO, TEAM_COLORS } from './kit';
 import { LIVE_DEFS } from './games';
 import { LiveGame } from './LiveGame';
+import { config } from '../../env';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Pos = { t: 'pos'; id: string; x: number; z: number; f: number; p: string | null };
@@ -98,8 +99,8 @@ export function ArenaRoom({ from, onBack }: { from: string | null; onBack(): voi
     h.setMachines(GAME_IDS.map((id) => ({ id: `live:${id}`, name: ARENA_GAMES[id].name, color: ARENA_GAMES[id].color, emoji: ARENA_GAMES[id].emoji, level: 1, locked: false })));
     h.setDecor({ floor: 'grid', neon: 'rainbow', lights: 'lasers' }, 'LIVE ARENA');
     hall.current = h;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as unknown as { __arenaDefs: unknown }).__arenaDefs = LIVE_DEFS;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
+    if (import.meta.env.DEV || config.e2e) (window as unknown as { __arenaDefs: unknown }).__arenaDefs = LIVE_DEFS;
+    if (import.meta.env.DEV || config.e2e) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
     return () => { h.dispose(); hall.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { hall.current?.setPaused(!!game); }, [game]);

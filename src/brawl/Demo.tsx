@@ -80,7 +80,7 @@ export default function BrawlDemo() {
     if (config.backend !== 'local') { nav('/welcome', { replace: true }); return; }
     let stop = false;
     // the browser tests go straight into a battle unless they ask for the menu
-    const auto = !autoDone && location.search.includes('e2e=1') && !location.search.includes('menu=1') && !here.search.includes('menu=1');
+    const auto = !autoDone && config.e2e && !location.search.includes('menu=1') && !here.search.includes('menu=1');
     // the stand-alone demo (no database): the arena is always there and every card is already yours
     if ((getBackend() as { demo?: boolean }).demo) {
       setArena('demo-arena');

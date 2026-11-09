@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
+import { config } from '../env';
 
 export type ArenaProps = { seed: number; seconds: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean };
 export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
@@ -635,7 +636,7 @@ export function Pollinator({ seed, seconds, onEnd, haptics, reduce }: ArenaProps
       k.renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(frame);
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasBee = { get things() { return things.length; } };
+    if (import.meta.env.DEV || config.e2e) (window as any).__landvasBee = { get things() { return things.length; } };
     return () => { cancelAnimationFrame(raf); c.removeEventListener('pointermove', pm); c.removeEventListener('pointerdown', pm); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); k.dispose(); };
   }, [seed]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

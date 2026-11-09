@@ -18,6 +18,7 @@ import { Button, Dialog, PlayerAvatar, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { duration, money, perSec, rankOf } from './money';
 import { createStreet, type StreetScene } from './street3d';
+import { config } from '../env';
 
 export const bizKey = (id: string) => ['business', id] as const;
 type Tab = 'ventures' | 'upgrades' | 'company' | 'games';
@@ -63,7 +64,7 @@ function BusinessView({ b }: { b: Business }) {
     const c = cv.current; if (!c) return;
     const sc = createStreet({ canvas: c, seed: b.seed, reduceMotion: reduce });
     street.current = sc;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasStreet = sc;
+    if (import.meta.env.DEV || config.e2e) (window as any).__landvasStreet = sc;
     return () => { sc.dispose(); street.current = null; };
   }, [b.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

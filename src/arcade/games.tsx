@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buzz } from '../native/native';
 import { sfx } from './sfx';
+import { config } from '../env';
 
 export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
   /** classic: the usual round (scores capped); endless: keep going until you run out of lives */ mode?: 'classic' | 'endless' };
@@ -181,7 +182,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
       spawn();
     };
     press.current = drop;
-    if (location.search.includes('e2e=1')) (window as unknown as { __arcStacker: () => number | null }).__arcStacker = () => (cur ? cur.pos - (cur.axis === 'x' ? stack[stack.length - 1].x : stack[stack.length - 1].z) : null);
+    if (config.e2e) (window as unknown as { __arcStacker: () => number | null }).__arcStacker = () => (cur ? cur.pos - (cur.axis === 'x' ? stack[stack.length - 1].x : stack[stack.length - 1].z) : null);
     const kd = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); drop(); } };
     window.addEventListener('keydown', kd);
     let raf = 0, last = performance.now();

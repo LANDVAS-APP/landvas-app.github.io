@@ -23,6 +23,7 @@ import { fmt, RARITY, useRealmCore } from '../core';
 import { createMine3D, type MineBuilding, type MineScene } from './mine3d';
 import { MinecartRush } from './MinecartRush';
 import { TILE_INFO, digCost, layerAt, mineTile, type MineCore } from './tiles';
+import { config } from '../../env';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const mineKey = (id: string) => ['mine', id] as const;
@@ -71,7 +72,7 @@ function Mine({ data }: { data: Realm & { mine_core: MineCore } }) {
     });
     s.setState({ dug: data.mine_core.dug, lamp: data.mine_core.tools.lamp ?? 0, deepest: data.mine_core.deepest });
     scene.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasMine: s, __landvasMineTap: (i: number) => tap.current(i), __landvasMineBuilding: (b: MineBuilding) => building.current(b) });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasMine: s, __landvasMineTap: (i: number) => tap.current(i), __landvasMineBuilding: (b: MineBuilding) => building.current(b) });
     return () => { s.dispose(); scene.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scene.current?.setPaused(!!R.game); }, [R.game]);

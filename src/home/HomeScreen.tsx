@@ -33,6 +33,7 @@ import { CheckIn } from '../visit/VisitRoom';
 import { randomGenome } from '../inkborn/genome';
 import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
 import { DEFAULT_STYLE, createHome, type HomeDoor, type HomeScene, type HomeSpot, type Placed } from './home3d';
+import { config } from '../env';
 
 export const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Kind = 'arcade' | 'habitat' | 'farm' | 'business' | RealmKind;
@@ -241,7 +242,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
       onCreature: (c) => toast(`${c.name} is happy to see you 💗`, { duration: 1500 }),
     });
     hall.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasHome: s, __homeGenome: randomGenome });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasHome: s, __homeGenome: randomGenome });
     return () => { s.dispose(); hall.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

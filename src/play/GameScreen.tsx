@@ -310,6 +310,7 @@ function SandboxRun() {
   const solver = useRef<(() => Promise<void>) | null>(null);
   const [result, setResult] = useState<unknown>(null);
   useEffect(() => {
+    if (!(config.e2e || import.meta.env.DEV)) return;
     (window as any).__landvasGame = { autoSolve: () => solver.current?.() };
     return () => { (window as any).__landvasGame = undefined; };
   }, []);

@@ -19,6 +19,7 @@ import { fmt, useRealmCore } from '../core';
 import { createFactory3D, type FactoryScene } from './factory3d';
 import { WirePuzzle } from './WirePuzzle';
 import { countPieces, solve, type FactoryCore, type Grid } from './factoryCore';
+import { config } from '../../env';
 
 const sameGrid = (a: Grid, b: Grid) => { const ka = Object.keys(a), kb = Object.keys(b); return ka.length === kb.length && ka.every((k) => b[k] && b[k].t === a[k].t && b[k].d === a[k].d); };
 const ARROW = ['⬆️', '➡️', '⬇️', '⬅️'];
@@ -64,7 +65,7 @@ function Workshop({ data }: { data: Realm & { factory_core: FactoryCore } }) {
     if (!cv.current) return;
     const s = createFactory3D({ canvas: cv.current, cfg: data.factory_core.cfg, emojis, reduceMotion: reduce, onTapCell: (k) => tap.current(k) });
     scene.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasFactory: s, __landvasFactoryTap: (k: string) => tap.current(k) });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasFactory: s, __landvasFactoryTap: (k: string) => tap.current(k) });
     return () => { s.dispose(); scene.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scene.current?.setFactory(grid, sol, core.size); }, [grid, sol, core.size]);

@@ -26,6 +26,7 @@ import { InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, useAr
 import { scoreBus } from './games';
 import { isMuted, setMuted, sfx } from './sfx';
 import { ArenaRoom } from './live/ArenaRoom';
+import { config } from '../env';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
 export const arcadeKey = (id: string) => ['arcade', id] as const;
@@ -96,7 +97,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
       onNear: (s) => { setNear(s); if (s) sfx.blip(s.kind === 'machine' ? 7 : 12); },
     });
     hall.current = h;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
+    if (import.meta.env.DEV || config.e2e) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
     return () => { h.dispose(); hall.current = null; };
   }, [a.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // what's in the hall

@@ -18,6 +18,7 @@ import { confettiCannons } from '../ui/confetti';
 import type { World } from './worlds';
 import { createShaft, type ShaftScene } from './shaft3d';
 import { reportActivity } from '../social/activity';
+import { config } from '../env';
 
 export const digKey = (world: string, gx?: number, gy?: number) => ['dig', world, gx ?? null, gy ?? null] as const;
 const layerAt = (layers: MineLayer[], depth: number) => layers.findIndex((l) => depth < l.to) === -1 ? layers.length - 1 : layers.findIndex((l) => depth < l.to);
@@ -85,7 +86,7 @@ export function DigPanel({ world, w, plot, pose, onClose, onDug, explorerUrl }: 
     live.current.target = Number(s.depth);
     sc.setDepth(Number(s.depth), !!s.cored);
     sc.descend();
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasShaft = sc;
+    if (import.meta.env.DEV || config.e2e) (window as any).__landvasShaft = sc;
     return () => { sc.dispose(); shaft.current = null; };
   }, [!!state]); // eslint-disable-line react-hooks/exhaustive-deps
 

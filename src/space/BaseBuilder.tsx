@@ -21,6 +21,7 @@ import { confettiCannons } from '../ui/confetti';
 import { createBaseScene, type BaseScene } from './base3d';
 import { worldOf } from './worlds';
 import { poll } from '../lib/poll';
+import { config } from '../env';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const MATERIALS_DEFAULT: Record<string, { name: string; req?: string }> = { matte: { name: 'Matte' } };
@@ -95,7 +96,7 @@ function BaseView({ world, W, H, M, layout, sel, sceneRef, onTap, onGrab, onDrag
         onDrag: (id, x, y) => cb.current.onDrag?.(id, x, y), onDragEnd: (id) => cb.current.onDragEnd?.(id),
       });
       sc.current = s; if (sceneRef) sceneRef.current = s;
-      if (import.meta.env.DEV || location.search.includes('e2e=1')) (window as any).__landvasBase = s;
+      if (import.meta.env.DEV || config.e2e) (window as any).__landvasBase = s;
       return () => { s.dispose(); sc.current = null; if (sceneRef) sceneRef.current = null; };
     } catch (e) { console.error(e); setFailed(true); }
   }, [world]); // eslint-disable-line react-hooks/exhaustive-deps

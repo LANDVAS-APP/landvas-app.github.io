@@ -16,7 +16,9 @@ export const config = {
   isArtifact: e.MODE === 'artifact',
   /** Running on the temporary event server during the main server outage. */
   tempServer: e.VITE_TEMP_SERVER === '1',
-  e2e: typeof location !== 'undefined' && /[?&]e2e=1/.test(location.search),
+  /** Test hooks (auto-solvers, window.__landvas*) for automated browser tests. Only in dev and the
+   *  offline test build — never on the live site, where `?e2e=1` would hand anyone a game bot. */
+  e2e: (e.DEV || e.MODE === 'artifact') && typeof location !== 'undefined' && /[?&]e2e=1/.test(location.search),
 };
 
 export type AppConfig = typeof config;

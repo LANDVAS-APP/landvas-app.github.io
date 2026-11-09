@@ -20,6 +20,7 @@ import { fmt, useRealmCore } from '../core';
 import { Lockpick } from './Lockpick';
 import { createDungeon3D, type DungeonScene } from './dungeon3d';
 import { heroStats, nb, trainCost, type DungeonCore, type RunSummary } from './dungeonCore';
+import { config } from '../../env';
 
 export default function DungeonScreen({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['dungeon', id], queryFn: () => api.dungeonGet(id), staleTime: 30_000, refetchOnWindowFocus: false });
@@ -55,7 +56,7 @@ function Dungeon({ data }: { data: Realm & { dungeon_core: DungeonCore } }) {
     const heroes = Object.fromEntries(Object.entries(data.dungeon_core.cfg.heroes).map(([k, h]) => [k, { color: h.color, emoji: h.emoji }]));
     const s = createDungeon3D({ canvas: cv.current, heroes, reduceMotion: reduce, onTapRoom: (k) => tapRoom.current(k) });
     scene.current = s;
-    if (import.meta.env.DEV || location.search.includes('e2e=1')) Object.assign(window, { __landvasDungeon: s });
+    if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasDungeon: s });
     return () => { s.dispose(); scene.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // keep the 3D world in step (not while a round is playing out)
