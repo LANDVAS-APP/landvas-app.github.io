@@ -14,7 +14,7 @@ const POOL = 8;
 const WANT = { logical_decoding_work_mem: '8MB' }; // (settings that apply without a restart only)
 const api = async (method, path, body) => {
   const res = await fetch(`https://api.supabase.com/v1/projects/${ref}${path}`, {
-    method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(60000),
+    method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(120000),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`${method} ${path}: HTTP ${res.status} ${text.slice(0, 300)}`);
@@ -28,11 +28,22 @@ try {
     console.log(`tune: database settings updated without a restart (${diff.map(([k, v]) => `${k}=${v}`).join(', ')})`);
   } else console.log('tune: database settings already right');
 } catch (e) { console.log(`::warning::tune: database settings not changed: ${String(e).slice(0, 300)}`); }
-// (Supabase timed out applying the pool change on Nov 9 2026 — the API kept working, unchanged — so it's only tried
-// when asked: TUNE_POOL=1)
+// (Supabase once timed out applying the pool change — the API kept working, unchanged — so it's only tried when the
+// deploy asks for it: TUNE_POOL=1; once it's in place nothing more is sent)
 if (process.env.TUNE_POOL === '1') try {
   const rest = await api('GET', '/postgrest');
-  if (rest.db_pool == null || rest.db_pool > POOL) { await api('PATCH', '/postgrest', { db_pool: POOL }); console.log(`tune: API pool ${rest.db_pool ?? 'default'} -> ${POOL}`); }
-  else console.log(`tune: API pool already ${rest.db_pool}`);
+  if (rest.db_pool == null || rest.db_pool > POOL) {
+    try { await api('PATCH', '/postgrest', { db_pool: POOL }); }
+    catch (e) { console.log(`tune: the pool change answered with an error (${String(e).slice(0, 160)}); checking whether it landed anyway`); }
+    // Supabase can time out while still applying it: look again for up to 3 minutes
+    let now = null;
+    for (let i = 0; i < 12; i++) {
+      now = (await api('GET', '/postgrest').catch(() => ({}))).db_pool ?? null;
+      if (now === POOL) break;
+      await new Promise((r) => setTimeout(r, 15000));
+    }
+    if (now === POOL) console.log(`tune: API pool ${rest.db_pool ?? 'default'} -> ${POOL} (confirmed)`);
+    else console.log(`::warning::tune: API pool is still ${now ?? 'default'} after 3 minutes`);
+  } else console.log(`tune: API pool already ${rest.db_pool}`);
 } catch (e) { console.log(`::warning::tune: API pool not changed: ${String(e).slice(0, 300)}`); }
 else console.log('tune: API pool left as it is (TUNE_POOL=1 to cap it)');

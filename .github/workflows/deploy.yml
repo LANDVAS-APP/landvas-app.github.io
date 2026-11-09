@@ -62,9 +62,10 @@ jobs:
         run: node scripts/diag-io.mjs
       - name: Server memory settings (never restarts; changes only when different)
         continue-on-error: true
-        timeout-minutes: 4
+        timeout-minutes: 8
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TUNE_POOL: '1'
         run: node scripts/tune-server.mjs
       - name: Push settings (where alert pushes go)
         continue-on-error: true
