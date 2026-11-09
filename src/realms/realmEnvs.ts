@@ -8,6 +8,8 @@ import type { RealmKind } from '../backend/types';
 import type { RealmEnv, Spot, Station } from './realm3d';
 import { atelier, boardwalk, exchange, gemheart, ranch, reserve } from './estates/envsA';
 import { citadel, colosseum, foodhall, foundry, skyport } from './estates/envsB';
+import { core, galaxypark, kingdom, megacorp, museum, sanctuary } from './estates/envsC';
+import { abyss, automaton, banquet, observatory, titans } from './estates/envsD';
 
 const B: [number, number] = [9.5, 7];
 const SPOTS = (labels: Record<Station, string>): Record<Station, Spot> => ({
@@ -468,4 +470,6 @@ export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = {
   mine, sky, workshop, diner, dungeon, brawl: dungeon,
   // the Estates (2x2 merge tier), each its own world
   atelier, reserve, ranch, exchange, boardwalk, gemheart, skyport, foundry, foodhall, citadel, colosseum,
+  // the Domains (3x3 merge tier)
+  museum, sanctuary, kingdom, megacorp, galaxypark, core, observatory, automaton, banquet, abyss, titans,
 };

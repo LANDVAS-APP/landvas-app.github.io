@@ -8,7 +8,7 @@
 import { rng } from '../../home/party/kit';
 import { sfx } from '../../arcade/sfx';
 import { emoji, useGame, type GameProps, type Ptr } from '../games';
-import { TOP, burst, button, clamp, hearts, hud, inBox, intro, pops, sparks, type Pop, type Spark } from './kit';
+import { INTRO, TOP, burst, button, clamp, hearts, hud, inBox, intro, pops, sparks, type Pop, type Spark } from './kit';
 
 // ======================================================================================================================
 // 🎯 Hue Hunter — mix paint to match the swatch
@@ -73,7 +73,7 @@ export function HueHunter({ seed, level, onEnd, onScore }: GameProps) {
     };
     return {
       score: () => score,
-      update(dt) { time -= dt; roundT += dt; flash = Math.max(0, flash - dt); pressT = Math.max(0, pressT - dt); return time <= 0; },
+      update(dt, t) { if (t < INTRO) return false; time -= dt; roundT += dt; flash = Math.max(0, flash - dt); pressT = Math.max(0, pressT - dt); return time <= 0; },
       draw(g, w, h, t) {
         g.fillStyle = '#2A2238'; g.fillRect(0, 0, w, h);
         // the studio wall and the easel
@@ -142,6 +142,7 @@ export function FireflyLantern({ seed, level, onEnd, onScore }: GameProps) {
     return {
       score: () => score,
       update(dt, t) {
+        if (t < INTRO) return false; // hold still while the how-to card is up
         time -= dt; stun = Math.max(0, stun - dt); chainT -= dt; if (chainT <= 0) chain = 0;
         // the lantern drifts toward your finger
         const k = stun > 0 ? 2 : 9; lx += (tx - lx) * Math.min(1, dt * k); ly += (ty - ly) * Math.min(1, dt * k);
@@ -226,7 +227,8 @@ export function SheepdogRoundup({ seed, level, onEnd, onScore }: GameProps) {
     nextWave();
     return {
       score: () => score,
-      update(dt) {
+      update(dt, t) {
+        if (t < INTRO) return false; // hold still while the how-to card is up
         time -= dt; waveMsg = Math.max(0, waveMsg - dt);
         const sp0 = 330; const ddx = tx - dx, ddy = ty - dy, dd = Math.hypot(ddx, ddy);
         if (dd > 2) { const m = Math.min(dd, sp0 * dt); dx += (ddx / dd) * m; dy += (ddy / dd) * m; }
@@ -320,7 +322,8 @@ export function MarketMaker({ seed, level, onEnd, onScore }: GameProps) {
     };
     return {
       score: () => score,
-      update(dt) {
+      update(dt, t) {
+        if (t < INTRO) return false; // hold still while the how-to card is up
         time -= dt; newsT -= dt; driftT -= dt; if (driftT <= 0) drift *= 0.5;
         // breaking news shows up a moment before the market reacts — read it and act
         if (newsT <= 0 && !news) { const n = NEWS[Math.floor(r() * NEWS.length)]; news = { ...n, in: 0.9, life: 3.4 }; newsT = 4 + r() * 3; sfx.blip(n.drift > 0 ? 9 : -3); }

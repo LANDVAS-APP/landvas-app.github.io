@@ -2,8 +2,9 @@
 import type { PlotKind, RealmKind } from '../backend/types';
 
 import { ESTATES, ESTATE_KINDS } from './estates/meta';
+import { DOMAINS, DOMAIN_KINDS } from './estates/domains';
 
-export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl', ...ESTATE_KINDS];
+export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl', ...ESTATE_KINDS, ...DOMAIN_KINDS];
 export const isRealm = (k: PlotKind | string | undefined | null): k is RealmKind => !!k && (REALM_KINDS as string[]).includes(k);
 
 export type RealmMeta = {
@@ -42,5 +43,6 @@ export const REALM_META: Record<RealmKind, RealmMeta> = {
     long: 'Paintbrawl: a card battler on a 3D board. Collect painted creature cards from six terrains, build decks, and battle other players live — every match has its own twist. Packs, crafting, gold foils and ranked trophies.',
   },  // the Estates (2x2 merge tier)
   ...ESTATES,
+  ...DOMAINS,
 };
 export const realmRoute = (id: string) => `/realm/${id}`;

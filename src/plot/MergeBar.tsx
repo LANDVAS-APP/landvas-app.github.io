@@ -5,7 +5,8 @@ import { Combine, Hand, MousePointerClick, Paintbrush, Sparkles, X } from 'lucid
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ESTATES, estateOf, hasSquare, isEstate } from '../realms/estates/meta';
+import { ESTATES, estateOf, hasSquare, isEstate, kindFamily, tierSize } from '../realms/estates/meta';
+import { DOMAINS, domainOf } from '../realms/estates/domains';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { CanvasGroup } from '../backend/types';
@@ -89,8 +90,10 @@ export function MergeBar() {
       if (useUi.getState().settings.haptics) buzz('success');
       celebrate(g.achievements);
       invalidateGame(qc);
-      const est = !isEstate(g.kind) ? estateOf(g.kind ?? 'canvas') : null;
-      if (est && hasSquare((g.cells ?? []) as unknown as [number, number][])) toast.success(`${ESTATES[est].emoji} Estate unlocked: ${ESTATES[est].name}!`, { description: 'Your land is a 2×2 square now. Open the plot to upgrade it — or keep it as it is.', duration: 8000 });
+      const est = !isEstate(g.kind) ? estateOf(g.kind ?? 'canvas') : null, gc = (g.cells ?? []) as unknown as [number, number][];
+      const dom = tierSize(g.kind) < 3 ? domainOf(kindFamily(g.kind ?? 'canvas')) : null;
+      if (dom && hasSquare(gc, 3)) toast.success(`${DOMAINS[dom].emoji} Domain unlocked: ${DOMAINS[dom].name}!`, { description: 'Your land is a 3×3 square — the grandest tier. Open the plot to upgrade it, or keep it as it is.', duration: 9000 });
+      else if (est && tierSize(g.kind) < 2 && hasSquare(gc)) toast.success(`${ESTATES[est].emoji} Estate unlocked: ${ESTATES[est].name}!`, { description: 'Your land is a 2×2 square now. Open the plot to upgrade it — or keep it as it is.', duration: 8000 });
       else toast.success(`Merged into one canvas of ${g.plot_count} plots`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
     } catch (e) {
       toast.error(toGameError(e).message);

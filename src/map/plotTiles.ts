@@ -494,7 +494,7 @@ function dungeonCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
 }
 /** An Estate from above: a rich floor in the Estate's colour with a gold inlay grid, a corner crown and its emblem's
  *  colour pattern — so merged-up land reads as something grander than a single plot. */
-const ESTATE_LOOK: Partial<Record<PlotKind, { a: string; b: string; trim: string; dots: string[] }>> = {
+const ESTATE_LOOK: Partial<Record<PlotKind, { a: string; b: string; trim: string; dots: string[]; big?: boolean }>> = {
   atelier: { a: '#E9DCC4', b: '#C9A06A', trim: '#A66BFF', dots: ['#E85D75', '#3DA5D9', '#F2C14E', '#5FB49C'] },
   reserve: { a: '#1F3D24', b: '#2E5A33', trim: '#2FBF71', dots: ['#C7FF8A', '#FF8AD8', '#8AF0FF'] },
   ranch: { a: '#7DBB4A', b: '#C9A06A', trim: '#B23A2E', dots: ['#F8F8F2', '#E8C35A', '#F28C28'] },
@@ -506,16 +506,31 @@ const ESTATE_LOOK: Partial<Record<PlotKind, { a: string; b: string; trim: string
   foodhall: { a: '#E8DCC8', b: '#D9CBB4', trim: '#FF6B3D', dots: ['#FF3B2F', '#F2C14E', '#3DDC97'] },
   citadel: { a: '#1E1A24', b: '#3A3542', trim: '#B23CFF', dots: ['#B57BFF', '#FFD23F', '#FF3D9A'] },
   colosseum: { a: '#E2C38A', b: '#D9B98A', trim: '#FF5A5F', dots: ['#FF5A5F', '#22B8FF', '#FFE14D', '#3DDC97'] },
+  // the Domains (3x3): a diamond-inlaid floor, a double gilded border and more lights
+  museum: { a: '#0E1028', b: '#1A1D3A', trim: '#6C7BFF', dots: ['#FFFFFF', '#C3D0FF', '#FFE14D', '#FF8AD8', '#8AF0FF'], big: true },
+  sanctuary: { a: '#3B7EA1', b: '#9C7A55', trim: '#3FA7D6', dots: ['#FFFFFF', '#FF8AD8', '#8AF0FF', '#C8FFFF'], big: true },
+  kingdom: { a: '#C9B89A', b: '#E0B84A', trim: '#D99A2B', dots: ['#2A4A9A', '#B23A2E', '#FFD23F', '#9B5DE5'], big: true },
+  megacorp: { a: '#E8ECEF', b: '#C8D0D6', trim: '#2EC4B6', dots: ['#2EC4B6', '#3DDC97', '#FFE14D', '#2EC4B6'], big: true },
+  galaxypark: { a: '#2A0A40', b: '#12052A', trim: '#FF2E88', dots: ['#FF2E88', '#00E5FF', '#FFE14D', '#3DDC97', '#FFFFFF'], big: true },
+  core: { a: '#1A1210', b: '#2A1E1A', trim: '#FF5A1F', dots: ['#FF5A1F', '#FFE14D', '#FF8A2A', '#FF3A6A'], big: true },
+  observatory: { a: '#1C2A5A', b: '#2A3A8A', trim: '#4F6BFF', dots: ['#FFFFFF', '#C9A64A', '#9AE6FF', '#C9A6FF'], big: true },
+  automaton: { a: '#16120C', b: '#2E2414', trim: '#F5B83D', dots: ['#FFD84D', '#F5B83D', '#D0D4DC', '#FFD84D'], big: true },
+  banquet: { a: '#FFF4F8', b: '#FFD6E6', trim: '#FF6FA8', dots: ['#E04E6E', '#B8E8FF', '#FFF0A8', '#D8C8FF'], big: true },
+  abyss: { a: '#0A0612', b: '#14101C', trim: '#7A2CFF', dots: ['#7A2CFF', '#FF2E88', '#B36BFF', '#FFE14D'], big: true },
+  titans: { a: '#E8E2D4', b: '#D8D0BC', trim: '#FFB020', dots: ['#FF5A1F', '#3FA7FF', '#3DDC97', '#C8E0FF'], big: true },
 };
 function estateCell(kind: PlotKind) {
   return (ctx: CanvasRenderingContext2D, c: KCell, t = 0) => {
     const L = ESTATE_LOOK[kind]!, { px, py, cs, gx, gy } = c;
     ctx.globalAlpha = 1; ctx.fillStyle = L.a; ctx.fillRect(px, py, cs, cs);
     if (cs < 6) { ctx.fillStyle = L.trim; ctx.fillRect(px + cs * 0.3, py + cs * 0.3, cs * 0.4, cs * 0.4); return; }
-    // a checkerboard of the two floor tones with a gold inlay grid
+    // a checkerboard of the two floor tones with a gold inlay grid (Domains: a big inlaid diamond per plot)
     const n = cs >= 40 ? 4 : 2, q = cs / n;
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y + gx + gy) % 2) { ctx.fillStyle = L.b; ctx.fillRect(px + x * q, py + y * q, q, q); }
-    if (cs >= 12) { ctx.strokeStyle = 'rgba(217,178,74,0.55)'; ctx.lineWidth = Math.max(1, cs * 0.012); for (let k = 1; k < n; k++) { ctx.beginPath(); ctx.moveTo(px + k * q, py); ctx.lineTo(px + k * q, py + cs); ctx.moveTo(px, py + k * q); ctx.lineTo(px + cs, py + k * q); ctx.stroke(); } }
+    if (L.big) {
+      ctx.fillStyle = L.b; ctx.beginPath(); ctx.moveTo(px + cs / 2, py + cs * 0.06); ctx.lineTo(px + cs * 0.94, py + cs / 2); ctx.lineTo(px + cs / 2, py + cs * 0.94); ctx.lineTo(px + cs * 0.06, py + cs / 2); ctx.closePath(); ctx.fill();
+      if (cs >= 12) { ctx.strokeStyle = 'rgba(255,214,90,0.75)'; ctx.lineWidth = Math.max(1, cs * 0.018); ctx.stroke(); ctx.beginPath(); ctx.arc(px + cs / 2, py + cs / 2, cs * 0.14, 0, Math.PI * 2); ctx.fillStyle = L.trim; ctx.globalAlpha = 0.45 + 0.25 * Math.sin(t * 1.5 + gx + gy); ctx.fill(); ctx.globalAlpha = 1; }
+    } else for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y + gx + gy) % 2) { ctx.fillStyle = L.b; ctx.fillRect(px + x * q, py + y * q, q, q); }
+    if (cs >= 12 && !L.big) { ctx.strokeStyle = 'rgba(217,178,74,0.55)'; ctx.lineWidth = Math.max(1, cs * 0.012); for (let k = 1; k < n; k++) { ctx.beginPath(); ctx.moveTo(px + k * q, py); ctx.lineTo(px + k * q, py + cs); ctx.moveTo(px, py + k * q); ctx.lineTo(px + cs, py + k * q); ctx.stroke(); } }
     // little lights in the Estate's colours, twinkling
     if (cs >= 14) L.dots.forEach((d, i) => { const hx = hash(gx, gy, i * 7 + 1), hy = hash(gy, gx, i * 5 + 3); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 2 + i + gx); ctx.fillStyle = d; ctx.beginPath(); ctx.arc(px + cs * (0.15 + hx * 0.7), py + cs * (0.15 + hy * 0.7), Math.max(1, cs * 0.035), 0, Math.PI * 2); ctx.fill(); });
     ctx.globalAlpha = 1;
@@ -523,6 +538,11 @@ function estateCell(kind: PlotKind) {
     ctx.strokeStyle = L.trim; ctx.lineWidth = Math.max(1, cs * 0.05);
     const w = ctx.lineWidth / 2;
     ctx.beginPath(); if (!c.join.n) { ctx.moveTo(px, py + w); ctx.lineTo(px + cs, py + w); } if (!c.join.s) { ctx.moveTo(px, py + cs - w); ctx.lineTo(px + cs, py + cs - w); } if (!c.join.w) { ctx.moveTo(px + w, py); ctx.lineTo(px + w, py + cs); } if (!c.join.e) { ctx.moveTo(px + cs - w, py); ctx.lineTo(px + cs - w, py + cs); } ctx.stroke();
+    if (L.big && cs >= 10) {
+      // a second, gold border just inside the first
+      const o = cs * 0.1; ctx.strokeStyle = '#FFD65A'; ctx.lineWidth = Math.max(1, cs * 0.02);
+      ctx.beginPath(); if (!c.join.n) { ctx.moveTo(px, py + o); ctx.lineTo(px + cs, py + o); } if (!c.join.s) { ctx.moveTo(px, py + cs - o); ctx.lineTo(px + cs, py + cs - o); } if (!c.join.w) { ctx.moveTo(px + o, py); ctx.lineTo(px + o, py + cs); } if (!c.join.e) { ctx.moveTo(px + cs - o, py); ctx.lineTo(px + cs - o, py + cs); } ctx.stroke();
+    }
     rareBits(ctx, c);
   };
 }
@@ -544,7 +564,7 @@ function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
 }
 const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
 const RIM_BASE: Partial<Record<PlotKind, string>> = { ...Object.fromEntries(Object.entries(ESTATE_LOOK).map(([k, v]) => [k, v!.trim])), habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)' };
-const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️' };
+const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️', museum: '🌌', sanctuary: '🦢', kingdom: '🏰', megacorp: '🏢', galaxypark: '🛸', core: '🌋', observatory: '🔭', automaton: '🤖', banquet: '🎂', abyss: '👁️', titans: '⚡' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
 function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, y0: number, x1: number, y1: number, rc: string, glow: string, tier: number, seed: number) {
@@ -565,7 +585,7 @@ function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, 
     ctx.lineWidth = Math.max(1, r * 0.2); ctx.strokeStyle = tier ? rc : '#FFFFFF'; ctx.shadowColor = glow; ctx.shadowBlur = SHADOW ? s * 0.04 * tier : 0; ctx.stroke(); ctx.shadowBlur = 0;
     ctx.font = `${Math.round(r * 1.15)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(REALM_SIGN[kind]!, cx, my + r * 0.08);
-    if (ESTATE_LOOK[kind]) { ctx.font = `${Math.round(r * 0.9)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.fillText('👑', cx, my - r * 1.25); }
+    if (ESTATE_LOOK[kind]) { ctx.font = `${Math.round(r * 0.9)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; if (ESTATE_LOOK[kind]!.big) { ctx.fillText('👑', cx - r * 0.55, my - r * 1.25); ctx.fillText('👑', cx + r * 0.55, my - r * 1.25); } else ctx.fillText('👑', cx, my - r * 1.25); }
   } else if (kind === 'business') {
     // a rooftop sign with the rarity colour round it
     const r = s * 0.13, my = y0 + h * 0.3;

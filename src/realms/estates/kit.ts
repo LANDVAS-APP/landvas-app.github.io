@@ -1,6 +1,8 @@
 // Small shared pieces for the Estate minigames: the header bar, the opening instructions, sparkle bursts.
 /** the realm screen draws its score pill and Stop button over the top 52px; games keep their own bar below it */
 export const HUD_Y = 56, TOP = 98;
+/** how long the how-to card is up: games hold still until then */
+export const INTRO = 3.2;
 export type Pop = { x: number; y: number; t: string; life: number; c: string };
 export type Spark = { x: number; y: number; vx: number; vy: number; life: number; c: string; s: number };
 

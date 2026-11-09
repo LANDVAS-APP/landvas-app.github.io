@@ -459,7 +459,9 @@ export type RoomSocial = {
 export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | RealmKind;
 /** The 2x2 merge tier: each base type's Estate (see src/realms/estates). */
 export type EstateKind = 'atelier' | 'reserve' | 'ranch' | 'exchange' | 'boardwalk' | 'gemheart' | 'skyport' | 'foundry' | 'foodhall' | 'citadel' | 'colosseum';
-export type RealmKind = 'mine' | 'sky' | 'workshop' | 'diner' | 'dungeon' | 'brawl' | EstateKind;
+/** The 3x3 merge tier: each base type's Domain. */
+export type DomainKind = 'museum' | 'sanctuary' | 'kingdom' | 'megacorp' | 'galaxypark' | 'core' | 'observatory' | 'automaton' | 'banquet' | 'abyss' | 'titans';
+export type RealmKind = 'mine' | 'sky' | 'workshop' | 'diner' | 'dungeon' | 'brawl' | EstateKind | DomainKind;
 export type BizVenture = { key: string; name: string; emoji: string; owned: number; cost: number; cost10: number; max_q: number; rate: number; each: number; next_milestone: number | null; revealed: boolean };
 export type BizUpgrade = { key: string; kind: 'venture' | 'tap' | 'global'; venture: string | null; name: string; emoji: string; cost: number; x?: number; pct?: number; golden?: number; golden_dur?: number; need?: number };
 export type BizBuff = { kind: 'frenzy' | 'storm'; mult: number; until: string };

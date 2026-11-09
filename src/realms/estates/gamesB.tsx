@@ -7,7 +7,7 @@
 import { rng } from '../../home/party/kit';
 import { sfx } from '../../arcade/sfx';
 import { emoji, useGame, type GameProps, type Ptr } from '../games';
-import { TOP, burst, button, clamp, hearts, hud, inBox, intro, pops, sparks, type Pop, type Spark } from './kit';
+import { INTRO, TOP, burst, button, clamp, hearts, hud, inBox, intro, pops, sparks, type Pop, type Spark } from './kit';
 
 // ======================================================================================================================
 // ⚓ Airship Docking
@@ -138,7 +138,8 @@ export function RocketStages({ seed, level, onEnd, onScore }: GameProps) {
     };
     return {
       score: () => score,
-      update(dt) {
+      update(dt, t) {
+        if (t < INTRO) return false; // hold still while the how-to card is up
         time -= dt; flash = Math.max(0, flash - dt); shake = Math.max(0, shake - dt); cooldown -= dt;
         if (stall > 0) { stall -= dt; if (stall <= 0) newWindow(); }
         else { needle += dir * speed * dt; if (needle > 1) { needle = 1; dir = -1; } if (needle < 0) { needle = 0; dir = 1; } }

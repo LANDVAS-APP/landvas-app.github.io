@@ -24,7 +24,7 @@ afterAll(() => db.close());
 
 describe('Estates (2x2 merge tier)', () => {
   it('every base type has exactly one Estate, with a full realm config', async () => {
-    const rows = await db.sql(`select k, private.estate_base(k) as base from unnest(private.estate_kinds()) k`);
+    const rows = await db.sql(`select k, private.estate_base(k) as base from unnest(private.estate_kinds()) k where private.tier_square(k) = 2`);
     expect(rows).toHaveLength(11);
     expect(new Set(rows.map((r: any) => r.base))).toEqual(new Set(['canvas', 'habitat', 'farm', 'business', 'arcade', 'mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl']));
     for (const { k } of rows) {

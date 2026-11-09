@@ -1,6 +1,6 @@
 // Plots only merge with plots of the same type: art canvases with art canvases, arcades with arcades, and so on.
 import type { CanvasGroup, PlotKind } from '../backend/types';
-import { ESTATES, kindFamily } from '../realms/estates/meta';
+import { TIERS, kindFamily } from '../realms/estates/meta';
 
 export const KIND_LABEL: Record<PlotKind, { one: string; many: string; emoji: string }> = {
   canvas: { one: 'art canvas', many: 'art canvases', emoji: '🎨' },
@@ -14,7 +14,7 @@ export const KIND_LABEL: Record<PlotKind, { one: string; many: string; emoji: st
   diner: { one: 'restaurant', many: 'restaurants', emoji: '🍳' },
   dungeon: { one: 'dungeon', many: 'dungeons', emoji: '⚔️' },
   brawl: { one: 'arena', many: 'arenas', emoji: '🎨' },
-  ...(Object.fromEntries(Object.entries(ESTATES).map(([k, e]) => [k, { one: e.one, many: e.many, emoji: e.emoji }])) as Record<keyof typeof ESTATES, { one: string; many: string; emoji: string }>),
+  ...(Object.fromEntries(Object.entries(TIERS).map(([k, e]) => [k, { one: e.one, many: e.many, emoji: e.emoji }])) as Record<keyof typeof TIERS, { one: string; many: string; emoji: string }>),
 };
 export const kindOf = (groups: CanvasGroup[] | undefined, id: string): PlotKind => groups?.find((g) => g.id === id)?.kind ?? 'canvas';
 /** The type the current pick is locked to (that of the first canvas picked), or null with nothing picked. */

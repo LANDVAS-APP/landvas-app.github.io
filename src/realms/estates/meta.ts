@@ -1,6 +1,7 @@
 // Estates: the 2x2 merge tier. Four plots of one type merged into a square can become that type's Estate — a bigger
 // place with its own world, economy and signature minigame (the numbers live on the server, in the realms config).
-import type { EstateKind, PlotKind } from '../../backend/types';
+import type { DomainKind, EstateKind, PlotKind } from '../../backend/types';
+import { DOMAINS, domainOf, isDomain } from './domains';
 import type { RealmMeta } from '../kinds';
 
 export type EstateMeta = RealmMeta & { base: PlotKind; game: string; tagline: string; perks: string[] };
@@ -88,8 +89,17 @@ export const ESTATE_KINDS = Object.keys(ESTATES) as EstateKind[];
 export const isEstate = (k: string | null | undefined): k is EstateKind => !!k && k in ESTATES;
 /** the Estate a base type upgrades to */
 export const estateOf = (base: PlotKind | string | null | undefined): EstateKind | null => (ESTATE_KINDS.find((e) => ESTATES[e].base === base) ?? null);
-/** a type and its Estate are one family: they merge together */
-export const kindFamily = (k: PlotKind | string): PlotKind => (isEstate(k) ? ESTATES[k].base : (k as PlotKind));
+
+/** Every merge tier above a base type: Estates (2x2) and Domains (3x3). */
+export type TierKind = EstateKind | DomainKind;
+export const TIERS: Record<TierKind, EstateMeta> = { ...ESTATES, ...DOMAINS };
+export const isTier = (k: string | null | undefined): k is TierKind => isEstate(k) || isDomain(k);
+/** the square a tier needs: 2 for an Estate, 3 for a Domain, 0 for a base type */
+export const tierSize = (k: string | null | undefined) => (isDomain(k) ? 3 : isEstate(k) ? 2 : 0);
+/** a type, its Estate and its Domain are one family: they all merge together */
+export const kindFamily = (k: PlotKind | string): PlotKind => (isTier(k) ? TIERS[k].base : (k as PlotKind));
+/** the tiers a family offers, smallest first */
+export const tiersOf = (k: PlotKind | string) => { const b = kindFamily(k); return [estateOf(b), domainOf(b)].filter(Boolean) as TierKind[]; };
 
 /** Does this set of plots hold a full 2x2 square? (the server checks this too) */
 export function hasSquare(cells: [number, number, ...unknown[]][], n = 2) {
@@ -101,14 +111,15 @@ export function hasSquare(cells: [number, number, ...unknown[]][], n = 2) {
   }
   return false;
 }
-/** How close the group is to a 2x2 square: the best 2x2 window's filled cells (0–4) and where it is. */
-export function squareProgress(cells: [number, number, ...unknown[]][]) {
+/** How close the group is to an n×n square: the best window's filled cells and where it is. */
+export function squareProgress(cells: [number, number, ...unknown[]][], n = 2) {
   const set = new Set(cells.map((c) => `${c[0]}_${c[1]}`));
   let best = { have: 0, x: cells[0]?.[0] ?? 0, y: cells[0]?.[1] ?? 0 };
-  for (const [cx, cy] of cells) for (const [ox, oy] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) {
-    const x = cx + ox, y = cy + oy; let have = 0;
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) if (set.has(`${x + i}_${y + j}`)) have++;
+  for (const [cx, cy] of cells) for (let ox = 0; ox < n; ox++) for (let oy = 0; oy < n; oy++) {
+    const x = cx - ox, y = cy - oy; let have = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (set.has(`${x + i}_${y + j}`)) have++;
     if (have > best.have) best = { have, x, y };
   }
-  return { ...best, missing: [[0, 0], [1, 0], [0, 1], [1, 1]].map(([i, j]) => [best.x + i, best.y + j] as [number, number]).filter(([x, y]) => !set.has(`${x}_${y}`)) };
+  const all: [number, number][] = []; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) all.push([best.x + i, best.y + j]);
+  return { ...best, n, missing: all.filter(([x, y]) => !set.has(`${x}_${y}`)) };
 }
