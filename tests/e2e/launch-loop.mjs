@@ -132,6 +132,7 @@ try {
     return { rarity: d.rarity, hidden: d.rarity_hidden, rent: d.rent ?? null, acquireRarity: d.acquire?.rarity ?? null, mapRarity: !src || src.type !== 'raster' || !/^lvplots:/.test(src.tiles[0]), panel: !!document.querySelector('[data-testid=mystery-rarity]') };
   }, [START.gx, START.gy]);
   check('unclaimed plots keep their rarity secret', hidden.rarity == null && hidden.hidden === true && hidden.rent == null && hidden.acquireRarity == null && !hidden.mapRarity && hidden.panel, JSON.stringify(hidden));
+  await page.click('[data-testid=plot-name-toggle]');
   await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
   await page.click('[data-testid=claim-plot]');
   await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 });

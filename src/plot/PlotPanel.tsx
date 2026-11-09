@@ -1,12 +1,12 @@
 import { plotBlocks } from '../map/WorldMap';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
 import { kindOf } from './mergeKind';
 import { mergePieces, useMapFx } from '../map/MapFx';
 import { diveInto } from '../map/Hud';
 import { Combine, ArrowUpRight, Brush, Footprints, Gamepad2, Link2, Lock, MapPin, Scissors, Sparkles, Upload, X, Zap } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -19,6 +19,7 @@ import { cn, fmt, plotLabel, safeStorage, saveStorage } from '../lib/utils';
 import { PLOT_TYPES, drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
+import { rarities } from '../shared/rarity';
 import { RarityBadge } from './RarityBadge';
 import { GamePreview } from '../play/GamePreview';
 import { formatRate } from '../shared/rent';
@@ -57,7 +58,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
   return (
     <motion.aside
       initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-      className="glass fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-6 md:left-auto md:right-6 md:top-[116px] md:max-h-none md:w-[400px] md:rounded-[28px] md:p-5"
+      className="glass fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5"
       aria-label="Plot details" data-testid="plot-panel">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
       <div className="flex items-start gap-3">
@@ -65,16 +66,34 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
-            <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : d ? 'Mystery plot' : 'Plot'}</span>
+            {(d?.owned || d?.type_info) && <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>}
           </div>
-          <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>}</h2>
-          {d && <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{plotMetres(d.center.lat).toFixed(1)} m square</p>}
+          <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || (d && !d.owned ? 'Unclaimed land' : <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>)}</h2>
+          {d && (d.owned
+            ? <p className="text-xs text-faint tnum">{d.name ? `Plot ${plotLabel(selected.gx, selected.gy)} · ` : ''}{d.center.lat.toFixed(4)}°, {d.center.lng.toFixed(4)}° · ≈{plotMetres(d.center.lat).toFixed(1)} m square</p>
+            : <p className="text-xs text-faint tnum">Plot {plotLabel(selected.gx, selected.gy)} · ≈{plotMetres(d.center.lat).toFixed(0)} m square</p>)}
         </div>
         <button onClick={() => select(null)} className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close plot panel"><X className="h-5 w-5" /></button>
       </div>
       {q.isLoading && <div className="flex justify-center py-10"><Spinner /></div>}
       {q.error && <p className="mt-4 text-sm text-bad">{toGameError(q.error).message}</p>}
-      {d && (
+      {d && !d.owned && (
+        <div className="mt-4 grid gap-3">
+          {d.type_info && d.plot_type ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface/50 p-2.5">
+              <GamePreview game={d.type_info.minigame} size={44} className="shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-muted">Minigame</div>
+                <div className="truncate font-display font-semibold">{d.type_info.minigame_name}</div>
+              </div>
+            </div>
+          ) : null}
+          {!d.rarity && <RarityOdds />}
+          {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
+          <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />
+        </div>
+      )}
+      {d && d.owned && (
         <div className="mt-4 grid gap-4">
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-line bg-surface/50 p-3">
@@ -117,8 +136,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
           {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
           {d.art && <ArtCard art={d.art} />}
           <NeighborDiagram d={d} />
-          {!d.owned && <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />}
-          {d.owned && !d.is_mine && d.owner && (
+          {!d.is_mine && d.owner && (
             <Link to={`/u/${d.owner.username}`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 hover:border-line-strong">
               <PlayerAvatar p={d.owner} size={40} />
               <div className="min-w-0 flex-1">
@@ -128,7 +146,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
               <span className="text-xs text-muted">Level {d.level}</span>
             </Link>
           )}
-          {d.owned && !d.is_mine && <HabitatVisit d={d} />}
+          {!d.is_mine && <HabitatVisit d={d} />}
           {d.is_mine && <MineBlock d={d} />}
         </div>
       )}
@@ -201,16 +219,12 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const ex = useExplorer();
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [naming, setNaming] = useState(false);
   const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
-    return (
-      <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
-        <div className="flex items-center justify-between"><span className="text-sm text-muted">Status</span><span className="font-bold text-ok">Available</span></div>
-        <Link to="/welcome?next=/" className="rounded-xl bg-accent py-2.5 text-center text-sm font-bold text-white">Sign up to claim plots</Link>
-      </div>
-    );
+    return <GameCta color="#8b6bff" onClick={() => nav('/welcome?next=/')} label="Sign up to claim" />;
   }
   const starter = a?.starter_available;
   const cost = Number(a?.ink ?? 0);
@@ -257,76 +271,170 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       setBusy(null);
     }
   };
-  return (
-    <div className="grid gap-3 rounded-2xl border border-line bg-surface/60 p-4">
-      <div className="flex items-center justify-between text-sm"><span className="text-muted">Status</span><span className="font-bold text-ok">{d.available === false ? 'Unavailable' : 'Available'}</span></div>
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">Price</span>
-        {starter ? <span className="font-bold text-ok">Free starter plot</span> : cost === 0 ? <span className="font-bold text-ok">Free</span> : <Cost cost={{ ink: cost }} />}
+  const freeLeft = Number((a as any)?.free_left ?? 0);
+  const unavailable = d.available === false;
+  const ink = Number(me.balances.ink);
+  const opt = KIND_OPTS.find((o) => o.k === kind) ?? KIND_OPTS[0];
+  const nextToMine = d.neighbors.some((n) => n.is_mine);
+  // 1) no explorer yet → one clear step: turn on location
+  if (!reach?.explorer) {
+    return (
+      <div className="grid justify-items-center gap-2 rounded-2xl border border-line bg-surface/50 p-4 text-center">
+        <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/15"><MapPin className="h-6 w-6 text-accent-2" /></div>
+        <div className="font-display text-[17px] font-semibold">Turn on your location</div>
+        <p className="text-xs text-muted">You claim the land right around where you really are.</p>
+        <Button className="mt-1 w-full" variant="primary" size="lg" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
       </div>
-      {Number((a as any)?.free_left ?? 0) > 0 && (
-        <div className="rounded-xl bg-ok/10 px-3 py-2 text-xs font-semibold text-ok" data-testid="free-plots-left">🎁 {(a as any).free_left} free plot{(a as any).free_left === 1 ? '' : 's'} left for new players</div>
-      )}
-      {!reach?.explorer ? (
-        <div className="grid gap-2 rounded-xl bg-accent/10 p-3 text-sm">
-          <b>Turn on your location first</b>
-          <span className="text-xs text-muted">Your explorer stands where you really are, and you can claim the plots right around it.</span>
-          <Button size="sm" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
+    );
+  }
+  // 2) too far away → how far, and that walking closer is the way
+  if (!inReach) {
+    const dist = reach.distance ?? 0;
+    const steps = Math.min(12, Math.max(1, dist));
+    return (
+      <div className="grid justify-items-center gap-2 rounded-2xl border border-line bg-surface/50 p-4 text-center" data-testid="plot-out-of-reach">
+        <div className="grid h-12 w-12 place-items-center rounded-full bg-accent-2/15"><Footprints className="h-6 w-6 text-accent-2" /></div>
+        <div className="font-display text-[17px] font-semibold"><span className="tnum">{fmt(dist)}</span> plots away</div>
+        <div className="flex items-center gap-1" aria-hidden>
+          {Array.from({ length: steps }, (_, i) => <span key={i} className={cn('h-1.5 w-1.5 rounded-full', i < reach.max ? 'bg-ok' : 'bg-line-strong')} />)}
+          <MapPin className="ml-1 h-3.5 w-3.5 text-[#FFE14D]" />
         </div>
-      ) : inReach ? (
-        <>
-          {(starter || canAfford) && d.available !== false && <PlotKindChoice kind={kind} onPick={pickKind} />}
-          {(starter || canAfford) && (
-            <input className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 text-sm placeholder:text-faint focus:border-accent focus:outline-none" maxLength={32}
-              placeholder="Name your plot (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
-          )}
-          <Button variant={starter ? 'rainbow' : 'primary'} size="lg" loading={busy === 'claim'} disabled={d.available === false || (!starter && !canAfford)} onClick={run} data-testid="claim-plot">
-            <Sparkles className="h-4 w-4" />
-            {starter ? 'Claim my free starter plot' : cost === 0 ? 'Claim this plot free' : canAfford ? `Claim for ${fmt(cost)} Ink` : `Need ${fmt(cost - Number(me.balances.ink))} more Ink`}
-          </Button>
-        </>
+        <p className="text-xs text-muted">Walk within {reach.max} plot{reach.max === 1 ? '' : 's'} to claim it — your explorer follows you.</p>
+        {!gpsOn && <Button className="mt-1 w-full" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
+      </div>
+    );
+  }
+  // 3) in reach: pick what to build, then one big button
+  const affordable = starter || canAfford;
+  return (
+    <div className="grid gap-3">
+      {affordable && !unavailable && <PlotKindChoice kind={kind} onPick={pickKind} />}
+      {nextToMine && affordable && !unavailable && (
+        <div className="flex items-center gap-2 rounded-xl bg-accent-2/10 px-3 py-2 text-xs font-semibold text-accent-2"><Link2 className="h-3.5 w-3.5 shrink-0" /> Next to your land — you can connect them after</div>
+      )}
+      {affordable && !unavailable && (naming ? (
+        <input autoFocus className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 text-sm placeholder:text-faint focus:border-accent focus:outline-none" maxLength={32}
+          placeholder="Plot name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
       ) : (
-        <div className="grid gap-2 rounded-xl border border-line-strong p-3 text-sm">
-          <div className="flex items-center gap-2 font-bold"><Footprints className="h-4 w-4 text-accent-2" /> {reach.distance} plots from your explorer</div>
-          <span className="text-xs text-muted">You can claim plots within {reach.max} plot{reach.max === 1 ? '' : 's'} of your explorer. Walk closer in real life — your explorer follows your GPS.</span>
-          {!gpsOn && <Button size="sm" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
-        </div>
+        <button type="button" onClick={() => setNaming(true)} className="justify-self-start text-xs font-bold text-muted hover:text-fg" data-testid="plot-name-toggle">✎ Name it (optional)</button>
+      ))}
+      {freeLeft > 0 && !unavailable && (
+        <div className="justify-self-center rounded-full bg-ok/15 px-3 py-1 text-[11px] font-bold text-ok" data-testid="free-plots-left">🎁 {freeLeft} free plot{freeLeft === 1 ? '' : 's'} left for new players</div>
       )}
-      {!starter && !canAfford && inReach && (
-        <Button size="sm" variant="secondary" onClick={() => nav('/play')}><Gamepad2 className="h-4 w-4" /> Win minigames to earn Ink</Button>
+      {unavailable ? (
+        <GameCta color="#5a6385" disabled label="Unavailable" />
+      ) : affordable ? (
+        <GameCta color={opt.color} loading={busy === 'claim'} onClick={run} testid="claim-plot"
+          label={starter ? 'Claim free plot' : 'Claim'} sub={opt.title}
+          price={starter || cost === 0 ? <span className="font-extrabold">FREE</span> : <span className="inline-flex items-center gap-1 tnum"><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</span>} />
+      ) : (
+        <div className="grid gap-2.5 rounded-2xl border border-line bg-surface/50 p-3" data-testid="plot-need-ink">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-bold">Not enough Ink</span>
+            <span className="inline-flex items-center gap-1 font-bold tnum"><ResourceIcon r="ink" className="h-3.5 w-3.5" />{fmt(ink)} <span className="text-faint">/ {fmt(cost)}</span></span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-surface-2">
+            <motion.div className="h-full rounded-full bg-[linear-gradient(90deg,#22e3ff,#8b6bff)]" initial={{ width: 0 }} animate={{ width: `${Math.max(4, Math.min(100, (ink / Math.max(1, cost)) * 100))}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }} />
+          </div>
+          <GameCta color="#8b6bff" onClick={() => nav('/play')} label={`Win ${fmt(cost - ink)} more Ink`} icon={<Gamepad2 className="h-5 w-5" />} />
+        </div>
       )}
     </div>
   );
 }
 
+/** Every plot type, in picker order. Same price and rent whichever you pick. */
+const KIND_OPTS: { k: PlotKind; icon: string; title: string; body: string; color: string }[] = [
+  { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF' },
+  { k: 'habitat', icon: '🌳', title: 'Habitat', body: 'A home for your Inkborn — merge plots to grow it', color: '#3DDC97' },
+  { k: 'farm', icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops — 6 soil beds to start', color: '#E0A800' },
+  { k: 'business', icon: '🍋', title: 'Business', body: 'Lemonade stand to empire — +10% to all your income', color: '#D4A500' },
+  { k: 'arcade', icon: '🕹️', title: 'Arcade', body: 'Neon cabinets and prizes — you get 10% of tickets won', color: '#FF3D9A' },
+  ...(['brawl', 'mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({
+    k, icon: REALM_META[k].emoji, color: REALM_META[k].color, body: REALM_META[k].body,
+    title: ({ brawl: 'Arena', mine: 'Mine', sky: 'Sky Island', workshop: 'Workshop', diner: 'Restaurant', dungeon: 'Dungeon' } as const)[k],
+  })),
+];
+
 function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
-  const opts = [
-    { k: 'canvas' as const, icon: '🎨', title: 'Art Canvas', body: 'Paint and publish artwork', color: '#7B5CFF' },
-    { k: 'habitat' as const, icon: '🌳', title: 'Inkborn Habitat', body: 'A sanctuary for your creatures', color: '#3DDC97' },
-    { k: 'farm' as const, icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops', color: '#E0A800' },
-    { k: 'business' as const, icon: '🍋', title: 'Business', body: 'Lemonade stand to corporation', color: '#D4A500' },
-    { k: 'arcade' as const, icon: '🕹️', title: 'Arcade', body: 'Neon cabinets, tickets, prizes', color: '#FF3D9A' },
-    ...(['brawl', 'mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({ k, icon: REALM_META[k].emoji, title: REALM_META[k].name, body: REALM_META[k].body, color: REALM_META[k].color })),
-  ];
+  const row = useRef<HTMLDivElement>(null);
+  const opt = KIND_OPTS.find((o) => o.k === kind) ?? KIND_OPTS[0];
+  // keep the chosen type centred in the row (without scrolling the panel itself)
+  const first = useRef(true);
+  useEffect(() => {
+    const r = row.current; const el = r?.querySelector<HTMLElement>('[aria-checked=true]');
+    if (r && el) r.scrollTo({ left: el.offsetLeft - r.clientWidth / 2 + el.clientWidth / 2, behavior: first.current ? 'auto' : 'smooth' });
+    first.current = false;
+  }, [kind]);
   return (
-    <div className="grid gap-1.5" data-testid="plot-kind-choice">
-      <div className="text-xs font-bold text-muted">What should this plot become?</div>
-      <div className="grid grid-cols-2 gap-2" role="radiogroup">
-        {opts.map((o) => (
-          <motion.button key={o.k} type="button" role="radio" aria-checked={kind === o.k} whileTap={{ scale: 0.96 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
-            className={cn('grid gap-0.5 rounded-2xl border-2 p-2.5 text-left transition', kind === o.k ? 'bg-surface-2' : 'border-line bg-surface/40 opacity-75')}
-            style={{ borderColor: kind === o.k ? o.color : undefined, boxShadow: kind === o.k ? `0 0 24px -10px ${o.color}` : undefined }}>
-            <span className="text-xl">{o.icon}</span>
-            <span className="text-sm font-bold" style={{ color: kind === o.k ? o.color : undefined }}>{o.title}</span>
-            <span className="text-[11px] leading-tight text-muted">{o.body}</span>
-          </motion.button>
+    <div className="grid gap-2" data-testid="plot-kind-choice">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted">Build a…</span>
+        <span className="text-[11px] text-faint">Same price for every type</span>
+      </div>
+      <div ref={row} className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1.5 pt-0.5 scroll-thin" role="radiogroup" aria-label="What this plot becomes">
+        {KIND_OPTS.map((o) => {
+          const on = kind === o.k;
+          return (
+            <motion.button key={o.k} type="button" role="radio" aria-checked={on} aria-label={o.title} whileTap={{ scale: 0.92 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
+              className={cn('relative flex w-[74px] shrink-0 snap-start flex-col items-center gap-1 rounded-2xl border-2 px-1 pb-2 pt-2.5 transition', on ? 'bg-surface-2' : 'border-transparent bg-surface/50 opacity-70 hover:opacity-100')}
+              style={on ? { borderColor: o.color, boxShadow: `0 0 22px -8px ${o.color}, inset 0 0 18px -10px ${o.color}` } : undefined}>
+              <motion.span className="text-[26px] leading-none" animate={on ? { scale: [1, 1.25, 1], rotate: [0, -8, 0] } : { scale: 1 }} transition={{ duration: 0.35 }}>{o.icon}</motion.span>
+              <span className="w-full truncate text-center text-[11px] font-bold" style={{ color: on ? o.color : undefined }}>{o.title}</span>
+            </motion.button>
+          );
+        })}
+      </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p key={opt.k} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
+          className="min-h-[18px] text-center text-xs text-muted">{opt.body}</motion.p>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** The big, chunky, pressable game button (raised edge, sinks when tapped). */
+function GameCta({ color, label, sub, price, icon, onClick, loading, disabled, testid }: {
+  color: string; label: string; sub?: string; price?: ReactNode; icon?: ReactNode; onClick?(): void; loading?: boolean; disabled?: boolean; testid?: string;
+}) {
+  const off = disabled || loading;
+  return (
+    <motion.button type="button" onClick={onClick} disabled={off} data-testid={testid} whileTap={off ? undefined : { y: 4, boxShadow: `0 1px 0 0 color-mix(in srgb, ${color} 55%, black)` }}
+      className={cn('relative flex h-[58px] w-full select-none items-center gap-3 overflow-hidden rounded-2xl px-4 text-left text-white', disabled && 'opacity-60')}
+      style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${color} 72%, white), ${color} 55%)`, boxShadow: `0 5px 0 0 color-mix(in srgb, ${color} 55%, black), 0 16px 30px -14px ${color}` }}>
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" aria-hidden />
+      <span className="relative grid h-8 w-8 shrink-0 place-items-center">{loading ? <Spinner /> : (icon ?? <Sparkles className="h-5 w-5" />)}</span>
+      <span className="relative min-w-0 flex-1 leading-tight">
+        <span className="block truncate font-display text-[18px] font-bold drop-shadow-[0_1px_0_rgba(0,0,0,0.25)]">{label}</span>
+        {sub && <span className="block truncate text-[11px] font-bold uppercase tracking-wider text-white/80">{sub}</span>}
+      </span>
+      {price && <span className="relative shrink-0 rounded-xl bg-black/25 px-3 py-1.5 text-[15px] font-bold">{price}</span>}
+    </motion.button>
+  );
+}
+
+/** What a mystery plot could roll: one bar, five rarities, real odds. */
+function RarityOdds() {
+  const list = rarities();
+  const total = list.reduce((s, r) => s + Number(r.weight), 0) || 1;
+  const pct = (w: number) => { const p = (w / total) * 100; return p < 1 ? `${p.toFixed(1)}%` : `${Math.round(p)}%`; };
+  return (
+    <div className="rounded-2xl border border-line bg-surface/50 p-3" data-testid="mystery-note">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted">What’s inside?</span>
+        <span className="text-[11px] text-faint">Revealed when you claim</span>
+      </div>
+      <div className="mt-2 flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+        {list.map((r) => <div key={r.id} style={{ flex: Number(r.weight), background: r.color, boxShadow: `0 0 10px ${r.color}` }} />)}
+      </div>
+      <div className="mt-2 grid grid-cols-5 gap-1 text-center">
+        {list.map((r) => (
+          <div key={r.id} className="min-w-0">
+            <div className="truncate text-[10px] font-extrabold uppercase" style={{ color: r.glow }}>{r.name}</div>
+            <div className="text-[10px] text-faint tnum">{pct(Number(r.weight))}</div>
+          </div>
         ))}
       </div>
-      {isRealm(kind) && <p className="text-[11px] text-muted">Same price and rent. {REALM_META[kind].long}</p>}
-      {kind === 'arcade' && <p className="text-[11px] text-muted">Same price and rent. Walk your explorer round a neon arcade: Tower Stacker, Claw Crane, Skee-Ball and more. Free to play, win tickets for prizes. You get 10% of the tickets visitors win.</p>}
-      {kind === 'business' && <p className="text-[11px] text-muted">Same price and rent. Start with a lemonade stand and grow an empire that earns while you’re away. Every business plot you own adds 10% to all your income.</p>}
-      {kind === 'farm' && <p className="text-[11px] text-muted">Same price and rent. A farm plot has 6 soil beds and every connected farm plot adds 4 more. Switch types any time without losing anything.</p>}
-      {kind === 'habitat' && <p className="text-[11px] text-muted">Same price and rent. Merge neighbouring habitat plots to grow it: 1 plot is a small glade, 4 a woodland, 16 a big sanctuary. You can switch types any time without losing anything.</p>}
     </div>
   );
 }
