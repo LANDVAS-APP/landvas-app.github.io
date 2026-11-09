@@ -26,3 +26,16 @@ out('statements_by_calls', await query(`${pss} order by calls desc limit 14`));
 out('wal_and_ckpt', await query(`select * from pg_stat_wal`));
 out('bgwriter', await query(`select * from pg_stat_bgwriter`));
 out('realtime_and_cron', await query(`select (select count(*) from pg_publication_tables where pubname='supabase_realtime') realtime_tables, (select count(*) from pg_extension where extname='pg_cron') has_cron`));
+// what lasts: cache hits, cleanup, write cost of indexes, and the size of the machine
+out('cache_hit', await query(`select round(100.0 * sum(heap_blks_hit) / nullif(sum(heap_blks_hit + heap_blks_read), 0), 2) table_hit_pct, round(100.0 * sum(idx_blks_hit) / nullif(sum(idx_blks_hit + idx_blks_read), 0), 2) index_hit_pct from pg_statio_user_tables`));
+out('dead_rows', await query(`select schemaname||'.'||relname t, n_live_tup live, n_dead_tup dead, round(100.0 * n_dead_tup / nullif(n_live_tup + n_dead_tup, 0)) dead_pct, round(100.0 * n_tup_hot_upd / nullif(n_tup_upd, 0)) hot_pct, last_autovacuum::date av from pg_stat_user_tables where n_dead_tup > 500 order by n_dead_tup desc limit 15`));
+out('unused_indexes', await query(`select s.schemaname||'.'||s.relname t, s.indexrelname i, pg_size_pretty(pg_relation_size(s.indexrelid)) size, u.n_tup_ins + u.n_tup_upd + u.n_tup_del table_writes from pg_stat_user_indexes s join pg_stat_user_tables u using (relid) join pg_index x on x.indexrelid = s.indexrelid where s.idx_scan = 0 and not x.indisunique and not x.indisprimary and s.schemaname in ('public','private') order by u.n_tup_ins + u.n_tup_upd + u.n_tup_del desc limit 25`));
+out('unused_index_total', await query(`select count(*) n, pg_size_pretty(sum(pg_relation_size(s.indexrelid))) size from pg_stat_user_indexes s join pg_index x on x.indexrelid = s.indexrelid where s.idx_scan = 0 and not x.indisunique and not x.indisprimary and s.schemaname in ('public','private')`));
+out('stats_since', await query(`select stats_reset, now() - stats_reset age from pg_stat_database where datname = current_database()`));
+out('growing_logs', await query(`select relname t, n_live_tup live, pg_size_pretty(pg_total_relation_size(relid)) size from pg_stat_user_tables where relname ~ '(ledger|_log|logs|feed|chat|notif|history|events|runs|plays|visits|_days)' order by pg_total_relation_size(relid) desc limit 15`));
+out('connections', await query(`select state, count(*) from pg_stat_activity group by 1`));
+{
+  const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/billing/addons`, { headers: { authorization: `Bearer ${token}` } });
+  const j = res.ok ? await res.json() : { error: res.status };
+  out('compute', (j.selected_addons ?? []).map((a) => ({ type: a.type, variant: a.variant?.identifier ?? a.variant?.name })).concat(j.error ? [j] : []));
+}
