@@ -13,7 +13,7 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 env:
-  SUPABASE_PROJECT_REF: fwqzliqbfjpssozavsek
+  SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -42,6 +42,16 @@ jobs:
             echo "::warning::Database unreachable, but this push has no database changes — publishing the site anyway"; exit 0
           fi
           exit 1
+      # Nov 2026 outage: pay Ink earned on the temporary event server (earned + 10%) to main accounts by email.
+      # Runs once; later deploys see it's been loaded and skip it. Remove this step after the temp project is deleted.
+      - name: Fresh Start credit
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TEMP_REF: fwqzliqbfjpssozavsek
+          MAIN_REF: ${{ env.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping"; exit 0; fi
+          node scripts/temp-credit.mjs || echo "::warning::Fresh Start credit did not finish — the next deploy tries again"
       - name: Server memory settings (temporary server only; changes only when different)
         continue-on-error: true
         timeout-minutes: 4
@@ -68,15 +78,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then exit 0; fi
-          SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-fwqzliqbfjpssozavsek}" node scripts/diag-inkborn.mjs
+          SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-ojxqarpmreekylwotbdb}" node scripts/diag-inkborn.mjs
       - name: Auth settings (site address, sign-in redirects)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping auth settings"; exit 0; fi
           if [ -f deploy/CNAME ]; then export SITE_URL="https://$(tr -d ' \r\n' < deploy/CNAME)"; else export SITE_URL="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"; fi
-          # temp server: Supabase's built-in email only sends a few per hour, so skip email confirmation
-          export AUTH_AUTOCONFIRM=true
           export EXTRA_ORIGINS="https://${GITHUB_REPOSITORY_OWNER,,}.github.io,https://landvas.app,https://www.landvas.app"
           node scripts/configure-auth.mjs || echo "::warning::could not update auth settings"
       - name: Edge Functions
