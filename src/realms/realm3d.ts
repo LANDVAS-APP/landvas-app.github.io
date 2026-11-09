@@ -20,12 +20,22 @@ export type RealmEnv = {
   /** the six zones, in order: each has its scenery (shown once open) and a "locked" cover */
   zones: { open: THREE.Group; locked: THREE.Group; at: [number, number] }[];
   /** build one copy of a producer (k-th copy) in its zone */ producer(id: string, k: number): THREE.Object3D | null;
+  /** a themed stand for one of the place's extra games (the i-th), facing the middle; it's given the game's emoji */
+  kiosk?(game: KioskGame, i: number): THREE.Object3D;
+  /** where the extra games' stands go (defaults to GAME_SPOTS) */ gameSpots?: [number, number][];
   update(t: number, dt: number): void;
 };
+export type KioskGame = { id: string; emoji: string; name: string; color: string };
+/** a place's extra game stands: the four corridors between the stations */
+export const GAME_SPOTS: [number, number][] = [[-3.4, -2.3], [3.4, -2.3], [-3.4, 2.5], [3.4, 2.5]];
+/** something you can be standing at: one of the six stations, or a game stand (game:<id>) */
+export type NearKey = Station | `game:${string}`;
 export type RealmSceneOpts = {
   canvas: HTMLCanvasElement; kind: RealmKind; explorerUrl: string; seed: number; reduceMotion?: boolean;
   zoneLevels: number[]; producerIds: string[];
-  onNear?(s: Station | null): void;
+  /** the place's other games (beyond the signature one at "play"), each on its own stand */
+  games?: (KioskGame & { level: number })[];
+  onNear?(s: NearKey | null): void;
 };
 
 export function createRealm3D(o: RealmSceneOpts) {
@@ -76,6 +86,27 @@ export function createRealm3D(o: RealmSceneOpts) {
     scene.add(z.open, z.locked); bake(z.open, T); bake(z.locked, T);
     const l = label(`🔒 Level ${o.zoneLevels[i] ?? '?'}`, ''); l.position.set(z.at[0], 2.8, z.at[1]); l.scale.multiplyScalar(0.8); scene.add(l); zoneTags.push(l);
   });
+  // ---- extra game stands: a themed kiosk each, a name tag, and a lock until the place is high enough ----
+  const spots = new Map<string, { x: number; z: number; lock: THREE.Sprite; tag: THREE.Sprite; level: number; kiosk: THREE.Object3D }>();
+  (o.games ?? []).forEach((gm, i) => {
+    const at = (env.gameSpots ?? GAME_SPOTS)[i]; if (!at) return;
+    const k = env.kiosk ? env.kiosk(gm, i) : defaultKiosk(gm);
+    k.position.set(at[0], 0, at[1]); k.rotation.y = Math.atan2(-at[0], -at[1]) * 0.35; k.traverse((m) => { m.castShadow = true; }); scene.add(k);
+    const tag = label(`${gm.emoji} ${gm.name}`, '', gm.color); tag.position.set(at[0], 3.1, at[1]); tag.scale.multiplyScalar(0.85); scene.add(tag);
+    const lock = label(`🔒 Level ${gm.level}`, ''); lock.position.set(at[0], 2.35, at[1]); lock.scale.multiplyScalar(0.7); scene.add(lock);
+    spots.set(gm.id, { x: at[0], z: at[1], lock, tag, level: gm.level, kiosk: k });
+  });
+  function defaultKiosk(gm: KioskGame) {
+    const g = new THREE.Group();
+    const m = (geo: THREE.BufferGeometry, c: string, y: number, p: THREE.MeshStandardMaterialParameters = {}) => { const x = new THREE.Mesh(T(geo), std(c, p)); x.position.y = y; g.add(x); return x; };
+    m(new THREE.CylinderGeometry(0.7, 0.85, 0.5, 20), '#2A2440', 0.25); m(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 20), gm.color, 0.55, { emissive: gm.color, emissiveIntensity: 0.6 });
+    return g;
+  }
+  // a big emoji over every stand, so you can tell them apart from across the place
+  const emojiSprite = (e: string, size: number) => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!; g.font = '96px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 64, 72); const t = T(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; const sp = new THREE.Sprite(T(new THREE.SpriteMaterial({ map: t, transparent: true }))); sp.scale.setScalar(size); return sp; };
+  const floaters: THREE.Sprite[] = [];
+  (o.games ?? []).forEach((gm) => { const sp = spots.get(gm.id); if (!sp) return; const f = emojiSprite(gm.emoji, 0.9); f.position.set(sp.x, 1.9, sp.z); scene.add(f); floaters.push(f); });
+
   // ---- producers ----
   const built = new Map<string, THREE.Object3D[]>();
   const setProducers = (lv: Record<string, number>) => {
@@ -86,7 +117,10 @@ export function createRealm3D(o: RealmSceneOpts) {
       built.set(id, have);
     }
   };
-  const setLevel = (level: number) => env.zones.forEach((z, i) => { const open = level >= (o.zoneLevels[i] ?? 99); z.open.visible = open; z.locked.visible = !open; zoneTags[i].visible = !open; });
+  const setLevel = (level: number) => {
+    env.zones.forEach((z, i) => { const open = level >= (o.zoneLevels[i] ?? 99); z.open.visible = open; z.locked.visible = !open; zoneTags[i].visible = !open; });
+    spots.forEach((sp) => { sp.lock.visible = level < sp.level; sp.kiosk.traverse((m) => { const mm = (m as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (mm && 'emissiveIntensity' in mm && mm.userData.base === undefined) mm.userData.base = mm.emissiveIntensity; if (mm && mm.userData.base !== undefined) mm.emissiveIntensity = level < sp.level ? 0 : mm.userData.base; }); });
+  };
 
   // ---- you ----
   const meTex = T(new THREE.TextureLoader().load(o.explorerUrl)); meTex.colorSpace = THREE.SRGBColorSpace; meTex.wrapS = THREE.RepeatWrapping;
@@ -118,8 +152,8 @@ export function createRealm3D(o: RealmSceneOpts) {
   // little bursts of emojis (what you collected, made, sold)
   const bursts: { s: THREE.Sprite; v: THREE.Vector3; life: number }[] = [];
   const emojiTex = new Map<string, THREE.CanvasTexture>();
-  const burst = (at: Station, emojis: string[]) => {
-    const sp = env.stations[at];
+  const burst = (at: NearKey, emojis: string[]) => {
+    const sp = at.startsWith('game:') ? spots.get(at.slice(5)) ?? env.stations.play : env.stations[at as Station];
     emojis.slice(0, 14).forEach((e, i) => {
       let t = emojiTex.get(e);
       if (!t) { const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d')!; g.font = '72px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 48, 54); t = T(new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; emojiTex.set(e, t); }
@@ -132,7 +166,7 @@ export function createRealm3D(o: RealmSceneOpts) {
   const camPos = new THREE.Vector3(0, 20, 24), look = new THREE.Vector3();
   const resize = () => { const r = o.canvas.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
-  let near: Station | null = null, last = performance.now(), raf = 0, stop = false;
+  let near: NearKey | null = null, last = performance.now(), raf = 0, stop = false;
   const tick = () => {
     if (stop) return;
     raf = requestAnimationFrame(tick);
@@ -150,8 +184,11 @@ export function createRealm3D(o: RealmSceneOpts) {
     const bob = moving && !o.reduceMotion ? Math.abs(Math.sin(walk)) * 0.1 : 0;
     me.position.set(pos.x, bob, pos.y); ghost.position.copy(me.position); shadow.position.set(pos.x, 0.03, pos.y);
     // near a station?
-    let nk: Station | null = null, best = 2.1;
+    let nk: NearKey | null = null, best = 2.1;
     for (const st of Object.keys(env.stations) as Station[]) { const sp = env.stations[st], d = Math.hypot(sp.x - pos.x, sp.z - pos.y); if (d < best) { best = d; nk = st; } }
+    spots.forEach((sp, id) => { const d = Math.hypot(sp.x - pos.x, sp.z - pos.y); if (d < Math.min(best, 1.7)) { best = d; nk = `game:${id}`; } });
+    floaters.forEach((f, i) => { f.position.y = 1.9 + Math.sin(t * 2 + i) * 0.12; });
+    spots.forEach((sp, id) => { const on = near === `game:${id}`; sp.tag.material.opacity = on ? 1 : 0.8; sp.tag.position.y = 3.1 + (on ? Math.sin(t * 4) * 0.08 : 0); });
     if (nk !== near) { near = nk; o.onNear?.(nk); }
     tags.forEach((s, st) => { s.material.opacity = st === near ? 1 : 0.8; s.position.y = 3.6 + (st === near ? Math.sin(t * 4) * 0.08 : 0); });
     (glow.material as THREE.MeshBasicMaterial).opacity = glowOn ? 0.45 + Math.sin(t * 3) * 0.25 : 0;
@@ -169,7 +206,7 @@ export function createRealm3D(o: RealmSceneOpts) {
   raf = requestAnimationFrame(tick);
   return {
     setState(level: number, producers: Record<string, number>, pending: boolean) { setLevel(level); setProducers(producers); glowOn = pending; },
-    walkTo(st: Station) { const sp = env.stations[st]; target = new THREE.Vector2(sp.x, sp.z + 1.3); },
+    walkTo(st: NearKey) { const sp = st.startsWith('game:') ? spots.get(st.slice(5)) : env.stations[st as Station]; if (sp) target = new THREE.Vector2(sp.x, sp.z + (st.startsWith('game:') ? 1.1 : 1.3)); },
     burst,
     dispose() {
       stop = true; cancelAnimationFrame(raf); ro.disconnect();

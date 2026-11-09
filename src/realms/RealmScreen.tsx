@@ -22,7 +22,7 @@ import { cn } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { sfx } from '../arcade/sfx';
-import { fmt, useRealmCore } from './core';
+import { fmt, gameIds, useRealmCore } from './core';
 import { REALM_META } from './kinds';
 import MineScreen from './mine/MineScreen';
 import SkyScreen from './sky/SkyScreen';
@@ -30,7 +30,7 @@ import WorkshopScreen from './workshop/WorkshopScreen';
 import DinerScreen from './diner/DinerScreen';
 import DungeonScreen from './dungeon/DungeonScreen';
 import BrawlScreen from '../brawl/BrawlScreen';
-import { createRealm3D, STATIONS, type RealmScene, type Station } from './realm3d';
+import { createRealm3D, STATIONS, type NearKey, type RealmScene, type Station } from './realm3d';
 import { ESTATE_GAMES } from './estates/games';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
@@ -59,23 +59,32 @@ function RealmView({ r: initial }: { r: Realm }) {
   const cfg = r.cfg, meta = REALM_META[r.kind];
   const cv = useRef<HTMLCanvasElement>(null);
   const scene = useRef<RealmScene | null>(null);
-  const [near, setNear] = useState<Station | null>(null);
+  const [near, setNear] = useState<NearKey | null>(null);
+  const [games, setGames] = useState(false);
+  // the place's other games, each on its own stand in the world (the signature game is at the play station)
+  const extra = useMemo(() => gameIds(cfg).slice(1).map((id) => ({ id, emoji: cfg.games[id].emoji, name: cfg.games[id].name, level: cfg.games[id].level ?? 1, color: cfg.color })), [cfg]);
   useEffect(() => {
     if (!cv.current) return;
     const style = me?.profile.explorer_style as ExplorerStyle | undefined;
     scene.current = createRealm3D({
       canvas: cv.current, kind: r.kind, seed: r.seed, reduceMotion: reduce,
       explorerUrl: svgUrl(explorerSvg(style, me?.profile.accent_color ?? '#7B5CFF', 184)),
-      zoneLevels: cfg.zones.map((z) => z.level), producerIds: Object.keys(cfg.producers),
+      zoneLevels: cfg.zones.map((z) => z.level), producerIds: Object.keys(cfg.producers), games: extra,
       onNear: (s) => setNear(s),
     });
     return () => { scene.current?.dispose(); scene.current = null; };
   }, [r.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const core = useRealmCore({ r, setR, burst: (at: string, e: string[]) => scene.current?.burst(at as Station, e), extraGames: ESTATE_GAMES });
+  const core = useRealmCore({ r, setR, burst: (at: string, e: string[]) => scene.current?.burst((at === 'play' && lastStand.current ? `game:${lastStand.current}` : at) as NearKey, e), extraGames: ESTATE_GAMES });
+  const lastStand = useRef<string | null>(null);
   const { panel, setPanel, busy, collect, daily, game, wallet, have, cur, sorted, pending, pendingAny, zoneNow, zoneNext } = core;
   useEffect(() => { scene.current?.setState(r.level.level, r.producers, pendingAny); }, [r.level.level, r.producers, pendingAny]);
-  const open = (s: Station) => { if (s === 'collect') void collect(); else setPanel(s); };
-  const gcfg = cfg.games[Object.keys(cfg.games)[0]];
+  const open = (s: NearKey) => {
+    if (s.startsWith('game:')) { const id = s.slice(5); lastStand.current = id; if (r.level.level >= (cfg.games[id]?.level ?? 1)) core.openGame(id); else toast(`${cfg.games[id].emoji} ${cfg.games[id].name} opens at level ${cfg.games[id].level}`, { description: 'Play, build and make things here to level up.' }); return; }
+    lastStand.current = null;
+    if (s === 'collect') void collect(); else if (s === 'play') core.openGame(gameIds(cfg)[0]); else setPanel(s as Exclude<Station, 'play' | 'collect'>);
+  };
+  const gcfg = cfg.games[gameIds(cfg)[0]];
+  const standLabel = (id: string) => { const g = cfg.games[id]; return r.level.level >= (g.level ?? 1) ? `${g.emoji} Play ${g.name}` : `🔒 ${g.emoji} ${g.name} · level ${g.level}`; };
   const nearLabel: Record<Station, string> = { play: `${gcfg.emoji} Play ${gcfg.name}`, collect: pendingAny ? `Collect ${Object.entries(pending).filter(([, v]) => v >= 1).slice(0, 3).map(([k, v]) => `${cfg.resources[k]?.emoji}${fmt(v)}`).join(' ')}` : 'Collect', build: `🏗️ ${meta.crew}`, make: `🔨 ${meta.make}`, market: `⚖️ ${meta.market}`, book: `📖 ${meta.book}` };
   const icons: Record<Station, string> = { play: gcfg.emoji, collect: '📦', build: '🏗️', make: '🔨', market: '⚖️', book: '📖' };
 
@@ -110,19 +119,36 @@ function RealmView({ r: initial }: { r: Realm }) {
         <AnimatePresence>
           {near && !panel && !game && (
             <motion.div key={near} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}>
-              <Button variant="rainbow" size="lg" loading={busy === near || (near === 'play' && busy === 'play')} onClick={() => open(near)} data-testid="realm-action">{nearLabel[near]}</Button>
+              <Button variant="rainbow" size="lg" loading={busy === near || (near === 'play' && busy === 'play')} onClick={() => open(near)} data-testid="realm-action" data-near={near}>{near.startsWith('game:') ? standLabel(near.slice(5)) : nearLabel[near as Station]}</Button>
             </motion.div>
           )}
         </AnimatePresence>
         <div className="flex gap-1.5 rounded-2xl bg-black/55 p-1.5 backdrop-blur" data-testid="realm-stations">
           {STATIONS.map((s) => (
             <button key={s} onClick={() => { scene.current?.walkTo(s); open(s); }} className={cn('relative grid h-11 w-11 place-items-center rounded-xl text-xl', near === s ? 'bg-white/25' : 'bg-white/5 hover:bg-white/15')} aria-label={nearLabel[s]} data-testid={`realm-go-${s}`}>
-              {icons[s]}
+              {s === 'play' ? gcfg.emoji : icons[s]}
               {s === 'collect' && pendingAny && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-[#FFE14D] shadow" />}
             </button>
           ))}
+          {extra.length > 0 && (
+            <button onClick={() => setGames(true)} className="relative grid h-11 w-11 place-items-center rounded-xl bg-white/5 text-xl hover:bg-white/15" aria-label="All games here" data-testid="realm-games">🎮
+              <span className="absolute -right-1 -top-1 rounded-full bg-[#FFE14D] px-1 text-[9px] font-black text-black">{extra.length + 1}</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* every game in the place: tap one to walk to its stand and play */}
+      <Dialog open={games} onOpenChange={setGames} title={<>🎮 Games at {r.name}</>} description={`${gameIds(cfg).length} games — each pays out ${cur.emoji} resources from this place. More open as it levels up.`}>
+        <div className="grid grid-cols-2 gap-2" data-testid="realm-games-list">
+          {gameIds(cfg).map((id, i) => { const g = cfg.games[id], off = r.level.level < (g.level ?? 1); return (
+            <button key={id} disabled={off} onClick={() => { setGames(false); const k: NearKey = i === 0 ? 'play' : `game:${id}`; scene.current?.walkTo(k); open(k); }} className={cn('grid justify-items-center gap-1 rounded-2xl bg-surface-2 p-3 text-center hover:bg-surface-3', off && 'opacity-50')} data-testid={`realm-list-${id}`}>
+              <span className={cn('text-4xl', off && 'grayscale')}>{g.emoji}</span><b className="text-sm">{g.name}</b>
+              <span className="text-[11px] text-muted">{off ? `🔒 Level ${g.level}` : i === 0 ? 'Signature game' : `Best: ${r.me.best[id] ?? 0}`}</span>
+            </button>
+          ); })}
+        </div>
+      </Dialog>
 
       {core.dialogs}
     </div>

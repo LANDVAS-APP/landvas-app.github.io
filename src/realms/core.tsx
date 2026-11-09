@@ -29,7 +29,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
   const [busy, setBusy] = useState<string | null>(null);
   const [game, setGame] = useState<{ session: string; seed: number; level: number; id: string } | null>(null);
   const [result, setResult] = useState<RealmFinish | null>(null);
-  const [pickGame, setPickGame] = useState(Object.keys(cfg.games)[0]);
+  const [pickGame, setPickGame] = useState(gameIds(cfg)[0]);
   // a realm on more merged plots has more of its games open
   const access = usePlaceAccess('realm', r.id).data;
   useEffect(() => { if (access && !isOpen(access, pickGame) && access.allowed[0]) setPickGame(access.allowed[0]); }, [access, pickGame]);
@@ -93,7 +93,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
 
 
   const Game = game ? (extraGames[game.id] ?? REALM_GAMES[game.id]) : null;
-  const gcfg = cfg.games[pickGame] ?? cfg.games[Object.keys(cfg.games)[0]];
+  const gcfg = cfg.games[pickGame] ?? cfg.games[gameIds(cfg)[0]];
   const rcfg = cfg.games[lastGame.current ?? pickGame] ?? gcfg;
   const dialogs = (
     <>
@@ -101,7 +101,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
       <Dialog open={panel === 'play'} onOpenChange={(o) => !o && setPanel(null)} title={<>{gcfg.emoji} {gcfg.name}</>} description={gcfg.blurb}
         footer={<Button variant="rainbow" loading={busy === 'play'} onClick={() => void play(pickGame)} data-testid="realm-play">Play {gcfg.name}</Button>}>
         <div className="grid gap-3 text-sm">
-          {Object.keys(cfg.games).length > 1 && <div className="flex flex-wrap gap-1.5">{Object.entries(cfg.games).map(([k, g]) => { const land = lockLabel(access, k), off = !!land || r.level.level < (g.level ?? 1); return <button key={k} disabled={off} onClick={() => setPickGame(k)} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold', pickGame === k ? 'bg-accent text-white' : 'bg-surface-2', off && 'opacity-50')} data-testid={`realm-game-${k}`}>{g.emoji} {g.name}{land ? ` · 🔒 ${land}` : r.level.level < (g.level ?? 1) && ` · Lv ${g.level}`}</button>; })}</div>}
+          {gameIds(cfg).length > 1 && <div className="flex flex-wrap gap-1.5">{gameIds(cfg).map((k) => [k, cfg.games[k]] as const).map(([k, g]) => { const land = lockLabel(access, k), off = !!land || r.level.level < (g.level ?? 1); return <button key={k} disabled={off} onClick={() => setPickGame(k)} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold', pickGame === k ? 'bg-accent text-white' : 'bg-surface-2', off && 'opacity-50')} data-testid={`realm-game-${k}`}>{g.emoji} {g.name}{land ? ` · 🔒 ${land}` : r.level.level < (g.level ?? 1) && ` · Lv ${g.level}`}</button>; })}</div>}
           <div className="flex flex-wrap gap-1.5">{gcfg.drops.map((d) => <span key={d.res} className={cn('rounded-full px-2 py-1 text-xs', r.level.level >= d.level ? 'bg-surface-2' : 'bg-surface-2/40 text-muted')}>{cfg.resources[d.res]?.emoji} {cfg.resources[d.res]?.name}{r.level.level < d.level && ` · Lv ${d.level}`}</span>)}</div>
           <p className="text-xs text-muted">Free to play. Your score turns into resources from every zone this {meta.one} has opened, a chance of rare finds, XP{r.mine ? '' : ' for the owner’s place (and they get a 10% cut)'} and a little Ink ({r.me.ink_today}/{r.me.daily_cap} today).{r.effects.game_mult > 0 && ` Upgrades here add +${Math.round(r.effects.game_mult * 100)}%.`}</p>
           <div className="flex gap-3 text-xs"><span>Your best: <b>{r.me.best[pickGame] ?? 0}</b></span><span>Plays here: <b>{r.plays}</b></span></div>
@@ -208,7 +208,14 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
       </Dialog>
     </>
   );
-  return { panel, setPanel, busy, act, collect, buy, make, sell, daily, play, game, wallet, have, can, costLine, cur, sorted, levelUp, pending, pendingAny, zoneNow, zoneNext, meta, dialogs };
+  /** open the play panel on one game (from its stand) */
+  const openGame = (gid: string) => { setPickGame(gid); setPanel('play'); };
+  return { panel, setPanel, busy, act, collect, buy, make, sell, daily, play, openGame, pickGame, game, wallet, have, can, costLine, cur, sorted, levelUp, pending, pendingAny, zoneNow, zoneNext, meta, dialogs };
+}
+
+/** a place's games in order: the signature game first (order 0), then its stands in order, then by level */
+export function gameIds(cfg: { games: Record<string, { order?: number; level?: number }> }) {
+  return Object.keys(cfg.games).sort((a, b) => (cfg.games[a].order ?? 0) - (cfg.games[b].order ?? 0) || (cfg.games[a].level ?? 1) - (cfg.games[b].level ?? 1) || a.localeCompare(b));
 }
 
 /** the score, ticking over */
