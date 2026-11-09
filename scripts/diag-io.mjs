@@ -59,3 +59,4 @@ out('helper_timings', [
   await timed('realm config read x20', `select private.rlm_cfg(k) from (select (array['mine','sky','workshop','diner','dungeon'])[1 + (g % 5)] k from generate_series(1, 20) g) x`),
 ]);
 out('config_sizes', await query(`select key, pg_size_pretty(pg_column_size(value)::bigint) size from public.game_config order by pg_column_size(value) desc limit 8`));
+out('scheduled_jobs', await query(`select j.jobname, j.schedule, (select status || ' ' || coalesce(return_message, '') from cron.job_run_details d where d.jobid = j.jobid order by start_time desc limit 1) last_run from cron.job j where j.jobname like 'landvas-%'`));
