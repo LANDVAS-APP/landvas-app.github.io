@@ -6481,7 +6481,9 @@ async function drainQueue(deps2, workerId, max = 100) {
   }
   return n;
 }
-var previewCell = (cols, rows) => Math.max(4, Math.min(PLOT_PX, Math.floor(1024 / Math.max(cols, rows))));
+var PREVIEW_MAX = 1024;
+var THUMB_MAX = 512;
+var previewCell = (cols, rows) => Math.max(4, Math.min(PLOT_PX, Math.floor(PREVIEW_MAX / Math.max(cols, rows))));
 async function processPublication(deps2, publicationId, saved, checkpoint = () => {
 }) {
   const ctx = await deps2.db.call("svc_publication_context", { p_publication_id: publicationId });
@@ -6534,8 +6536,8 @@ async function processPublication(deps2, publicationId, saved, checkpoint = () =
     minis.push({ col: pos.col, row: pos.row, img: b ? await deps2.codec.decode(b) : null });
   }
   const full = stitch(minis, layout.cols, layout.rows, cell);
-  const preview = fitWithin(full, 1024);
-  const thumb = fitWithin(full, 320);
+  const preview = fitWithin(full, PREVIEW_MAX);
+  const thumb = fitWithin(full, THUMB_MAX);
   const previewPng = await deps2.codec.encodePng(preview);
   const thumbPng = await deps2.codec.encodePng(thumb);
   await deps2.store.put(BUCKETS.processed, `${publicationId}/preview.png`, previewPng, "image/png");

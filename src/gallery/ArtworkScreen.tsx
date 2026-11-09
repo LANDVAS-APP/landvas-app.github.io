@@ -13,6 +13,7 @@ import { fmt, timeAgo } from '../lib/utils';
 import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
 import { MadeBadge } from './MadeBadge';
+import { CrispArt } from './CrispArt';
 
 export default function ArtworkScreen() {
   const { id = '' } = useParams();
@@ -32,8 +33,9 @@ export default function ArtworkScreen() {
   return (
     <Page wide>
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <div className="art-paper overflow-hidden rounded-[28px]">
-          {preview ? <img src={preview} alt={a.title} className="h-full w-full object-contain [image-rendering:pixelated]" /> : <div className="aspect-square animate-pulse bg-surface-2" />}
+        {/* sized to the art itself (not stretched to the info column), so no paper shows above or below it */}
+        <div className="art-paper self-start overflow-hidden rounded-[28px]" style={{ aspectRatio: `${a.preview_width || 1} / ${a.preview_height || 1}` }} data-testid="art-preview">
+          <CrispArt src={preview} alt={a.title} />
         </div>
         <div className="grid content-start gap-4">
           <div>

@@ -6,6 +6,7 @@ import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import type { ArtMade, ArtworkCard } from '../backend/types';
 import { MadeMark } from './MadeBadge';
+import { CrispArt } from './CrispArt';
 import { Page, PageHeader } from '../app/Shell';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Empty, Spinner, Tabs, PlayerAvatar } from '../ui';
@@ -18,7 +19,7 @@ export function ArtThumb({ card, className }: { card: Pick<ArtworkCard, 'thumb_p
   const url = useAssetUrl(card.thumb_path);
   return (
     <div className={cn('art-paper relative aspect-square overflow-hidden rounded-2xl', className)}>
-      {url ? <img src={url} alt={card.title} className="h-full w-full object-cover [image-rendering:pixelated]" loading="lazy" /> : <div className="h-full w-full animate-pulse bg-surface-2" />}
+      <CrispArt src={url} alt={card.title} fit="cover" />
       <MadeMark made={card.made} className="absolute bottom-1.5 left-1.5" />
     </div>
   );

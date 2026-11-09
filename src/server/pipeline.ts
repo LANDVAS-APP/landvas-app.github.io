@@ -138,7 +138,9 @@ export async function drainQueue(deps: PipelineDeps, workerId: string, max = 100
 type ProcessProgress = { stage: 'plots' | 'preview'; done: string[]; painted: number };
 
 /** Size each plot takes in the stitched preview (so the preview never needs full-size plots). */
-const previewCell = (cols: number, rows: number) => Math.max(4, Math.min(PLOT_PX, Math.floor(1024 / Math.max(cols, rows))));
+/** Longest side of the stitched preview / the gallery thumbnail (the thumbnail is big enough for retina gallery tiles). */
+export const PREVIEW_MAX = 1024, THUMB_MAX = 512;
+const previewCell = (cols: number, rows: number) => Math.max(4, Math.min(PLOT_PX, Math.floor(PREVIEW_MAX / Math.max(cols, rows))));
 
 export async function processPublication(deps: PipelineDeps, publicationId: string, saved?: ProcessProgress | null, checkpoint: Checkpoint = () => {}) {
   const ctx = await deps.db.call<any>('svc_publication_context', { p_publication_id: publicationId });
@@ -200,8 +202,8 @@ export async function processPublication(deps: PipelineDeps, publicationId: stri
     minis.push({ col: pos.col, row: pos.row, img: b ? await deps.codec.decode(b) : null });
   }
   const full = stitch(minis, layout.cols, layout.rows, cell);
-  const preview = fitWithin(full, 1024);
-  const thumb = fitWithin(full, 320);
+  const preview = fitWithin(full, PREVIEW_MAX);
+  const thumb = fitWithin(full, THUMB_MAX);
   const previewPng = await deps.codec.encodePng(preview);
   const thumbPng = await deps.codec.encodePng(thumb);
   await deps.store.put(BUCKETS.processed, `${publicationId}/preview.png`, previewPng, 'image/png');
