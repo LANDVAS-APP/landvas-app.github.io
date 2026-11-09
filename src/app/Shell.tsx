@@ -13,7 +13,8 @@ import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
 import { isNative } from '../native/native';
 import { initAds } from '../ads/ads';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
 
 /** The five places in the game; each groups the pages that belong together. */
@@ -71,6 +72,9 @@ export function Shell() {
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
   const sec = sectionOf(loc.pathname);
+  // the server is struggling: say so (background refreshes are paused for a moment; taps still go through)
+  const [busy, setBusy] = useState(false);
+  useEffect(() => guard.onChange(setBusy), []);
   // pushes: when your alerts change (or there's news) the server says so, and only then do we look
   const qc = useQueryClient();
   useEffect(() => {
@@ -95,6 +99,7 @@ export function Shell() {
   if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
     <div className="flex h-full bg-bg">
+      {busy && <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="server-busy">🐢 The server is busy — background updates are paused for a moment</div>}
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
         {SECTIONS.map((i) => <RailItem key={i.to} {...i} active={sec?.to === i.to} badge={badge(i.to)} />)}

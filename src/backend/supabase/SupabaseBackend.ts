@@ -6,6 +6,7 @@
 //  * Minigame validation + art pipeline: Supabase Edge Functions (supabase/functions-src)
 //    holding the service key; clients never submit scores, only move logs
 import { poll } from '../../lib/poll';
+import { guard, isStrain, timedFetch } from './guard';
 import { GRID_SIZE } from '../../shared/grid';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
@@ -42,6 +43,7 @@ export class SupabaseBackend implements Backend {
   constructor() {
     this.sb = createClient(config.supabaseUrl, config.supabaseAnonKey, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      global: { fetch: timedFetch },
     });
   }
 
@@ -99,8 +101,14 @@ export class SupabaseBackend implements Backend {
   async rpc<T = any>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
     // signed out (or the sign-in lapsed): a player's own calls would only bounce off the server, so don't send them
     if (!this.session() && PLAYER_ONLY.test(fn)) throw new GameError('not_signed_in', 'Sign in to keep playing.');
+    // the server is struggling: background refreshes wait a moment so what you tap gets through
+    if (guard.skip(fn)) throw new GameError('server_busy', 'The server is busy — trying again shortly.');
     const clean = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined));
-    const { data, error } = await this.sb.rpc(fn, clean);
+    const t0 = Date.now();
+    let data: unknown, error: { code?: string; message: string; details?: string } | null, status = 0;
+    try { ({ data, error, status } = await this.sb.rpc(fn, clean)); }
+    catch (e) { guard.record(Date.now() - t0, true); throw toGameError(e); }
+    guard.record(Date.now() - t0, !!error && isStrain({ ...error, status }));
     if (error) {
       // the server didn't take our sign-in: refresh it once (a phone that slept past its token's expiry), else sign out
       if (error.code === '42501' && /permission denied for function/i.test(error.message) && this.session() && !this.refreshing) {
