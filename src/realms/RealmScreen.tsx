@@ -31,6 +31,7 @@ import DinerScreen from './diner/DinerScreen';
 import DungeonScreen from './dungeon/DungeonScreen';
 import BrawlScreen from '../brawl/BrawlScreen';
 import { createRealm3D, STATIONS, type RealmScene, type Station } from './realm3d';
+import { ESTATE_GAMES } from './estates/games';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const realmKey = (id: string) => ['realm', id] as const;
@@ -70,7 +71,7 @@ function RealmView({ r: initial }: { r: Realm }) {
     });
     return () => { scene.current?.dispose(); scene.current = null; };
   }, [r.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const core = useRealmCore({ r, setR, burst: (at: string, e: string[]) => scene.current?.burst(at as Station, e) });
+  const core = useRealmCore({ r, setR, burst: (at: string, e: string[]) => scene.current?.burst(at as Station, e), extraGames: ESTATE_GAMES });
   const { panel, setPanel, busy, collect, daily, game, wallet, have, cur, sorted, pending, pendingAny, zoneNow, zoneNext } = core;
   useEffect(() => { scene.current?.setState(r.level.level, r.producers, pendingAny); }, [r.level.level, r.producers, pendingAny]);
   const open = (s: Station) => { if (s === 'collect') void collect(); else setPanel(s); };

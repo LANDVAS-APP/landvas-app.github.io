@@ -1,7 +1,9 @@
 // The five realm plot types, as the app talks about them (the rules and numbers come from the server).
 import type { PlotKind, RealmKind } from '../backend/types';
 
-export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl'];
+import { ESTATES, ESTATE_KINDS } from './estates/meta';
+
+export const REALM_KINDS: RealmKind[] = ['mine', 'sky', 'workshop', 'diner', 'dungeon', 'brawl', ...ESTATE_KINDS];
 export const isRealm = (k: PlotKind | string | undefined | null): k is RealmKind => !!k && (REALM_KINDS as string[]).includes(k);
 
 export type RealmMeta = {
@@ -38,6 +40,7 @@ export const REALM_META: Record<RealmKind, RealmMeta> = {
     name: 'Paintbrawl Arena', one: 'arena', many: 'arenas', emoji: '🎨', color: '#FF4FD8', enter: 'Step into the arena',
     body: 'Collect cards, battle players live', crew: 'Cards', make: 'Deck builder', market: 'Pack shop', book: 'Card collection', bookItem: 'card',
     long: 'Paintbrawl: a card battler on a 3D board. Collect painted creature cards from six terrains, build decks, and battle other players live — every match has its own twist. Packs, crafting, gold foils and ranked trophies.',
-  },
+  },  // the Estates (2x2 merge tier)
+  ...ESTATES,
 };
 export const realmRoute = (id: string) => `/realm/${id}`;

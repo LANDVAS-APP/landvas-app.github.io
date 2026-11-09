@@ -5,6 +5,7 @@ import { Combine, Hand, MousePointerClick, Paintbrush, Sparkles, X } from 'lucid
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ESTATES, estateOf, hasSquare, isEstate } from '../realms/estates/meta';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { CanvasGroup } from '../backend/types';
@@ -88,7 +89,9 @@ export function MergeBar() {
       if (useUi.getState().settings.haptics) buzz('success');
       celebrate(g.achievements);
       invalidateGame(qc);
-      toast.success(`Merged into one canvas of ${g.plot_count} plots`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
+      const est = !isEstate(g.kind) ? estateOf(g.kind ?? 'canvas') : null;
+      if (est && hasSquare((g.cells ?? []) as unknown as [number, number][])) toast.success(`${ESTATES[est].emoji} Estate unlocked: ${ESTATES[est].name}!`, { description: 'Your land is a 2×2 square now. Open the plot to upgrade it — or keep it as it is.', duration: 8000 });
+      else toast.success(`Merged into one canvas of ${g.plot_count} plots`, { action: { label: 'Paint it', onClick: () => nav(`/create/${g.id}`) } });
     } catch (e) {
       toast.error(toGameError(e).message);
     } finally { setBusy(false); }

@@ -22,6 +22,8 @@ import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar }
 import { rarities } from '../shared/rarity';
 import { RarityBadge } from './RarityBadge';
 import { MadeBadge } from '../gallery/MadeBadge';
+import { kindFamily } from '../realms/estates/meta';
+import { EstateCard } from './EstateCard';
 import { GamePreview } from '../play/GamePreview';
 import { formatRate } from '../shared/rent';
 import { plotMetres } from '../shared/grid';
@@ -261,7 +263,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         // only plots of the same type can join up (art with art, habitat with habitat)
         const groups = (qc.getQueryData(qk.groups) as CanvasGroup[] | undefined) ?? [];
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
-        const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindOf(id) === kind);
+        const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
           gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab,
           onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
@@ -531,7 +533,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
   };
   // only plots of the same type can merge
   const myGroups = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
-  const sameKind = (d.connections ?? []).filter((c) => !d.group || kindOf(myGroups, c.group_id) === kindOf(myGroups, d.group.id));
+  const myGroup = useQuery({ queryKey: qk.groups, queryFn: api.myGroups }).data?.find((g) => g.id === d.group?.id);
+  const sameKind = (d.connections ?? []).filter((c) => !d.group || kindFamily(kindOf(myGroups, c.group_id)) === kindFamily(kindOf(myGroups, d.group.id)));
   const fuse = async (other: string) => {
     if (!d.group) return;
     setBusy('fuse');
@@ -566,6 +569,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
   return (
     <div className="grid gap-3">
+      {myGroup && <EstateCard group={myGroup} />}
       <RenamePlot d={d} />
       {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">

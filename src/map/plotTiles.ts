@@ -492,6 +492,40 @@ function dungeonCell(ctx: CanvasRenderingContext2D, c: KCell, t = 0) {
   if (cs >= 12 && !c.join.s) { ctx.fillStyle = '#0A080E'; ctx.beginPath(); ctx.arc(px + cs / 2, py + cs * 0.92, cs * 0.16, Math.PI, 0); ctx.fill(); ctx.strokeStyle = c.tier ? c.rc : '#A855F7'; ctx.lineWidth = Math.max(1, cs * 0.03); ctx.stroke(); }
   rareBits(ctx, c);
 }
+/** An Estate from above: a rich floor in the Estate's colour with a gold inlay grid, a corner crown and its emblem's
+ *  colour pattern — so merged-up land reads as something grander than a single plot. */
+const ESTATE_LOOK: Partial<Record<PlotKind, { a: string; b: string; trim: string; dots: string[] }>> = {
+  atelier: { a: '#E9DCC4', b: '#C9A06A', trim: '#A66BFF', dots: ['#E85D75', '#3DA5D9', '#F2C14E', '#5FB49C'] },
+  reserve: { a: '#1F3D24', b: '#2E5A33', trim: '#2FBF71', dots: ['#C7FF8A', '#FF8AD8', '#8AF0FF'] },
+  ranch: { a: '#7DBB4A', b: '#C9A06A', trim: '#B23A2E', dots: ['#F8F8F2', '#E8C35A', '#F28C28'] },
+  exchange: { a: '#1E2A44', b: '#2B3A5A', trim: '#F2C230', dots: ['#FFD98A', '#3DDC97', '#FFD98A'] },
+  boardwalk: { a: '#3A2A1E', b: '#5E402C', trim: '#00E5FF', dots: ['#FF3D9A', '#00E5FF', '#FFE14D'] },
+  gemheart: { a: '#141826', b: '#1C2230', trim: '#19D3C5', dots: ['#19D3C5', '#B57BFF', '#22B8FF', '#FF5A7A'] },
+  skyport: { a: '#2A2052', b: '#4E405E', trim: '#8A7CFF', dots: ['#3DDC97', '#FF7AC8', '#F2C14E'] },
+  foundry: { a: '#3A3A42', b: '#4A4A52', trim: '#E2783B', dots: ['#D9A84A', '#C87533', '#9AE6FF'] },
+  foodhall: { a: '#E8DCC8', b: '#D9CBB4', trim: '#FF6B3D', dots: ['#FF3B2F', '#F2C14E', '#3DDC97'] },
+  citadel: { a: '#1E1A24', b: '#3A3542', trim: '#B23CFF', dots: ['#B57BFF', '#FFD23F', '#FF3D9A'] },
+  colosseum: { a: '#E2C38A', b: '#D9B98A', trim: '#FF5A5F', dots: ['#FF5A5F', '#22B8FF', '#FFE14D', '#3DDC97'] },
+};
+function estateCell(kind: PlotKind) {
+  return (ctx: CanvasRenderingContext2D, c: KCell, t = 0) => {
+    const L = ESTATE_LOOK[kind]!, { px, py, cs, gx, gy } = c;
+    ctx.globalAlpha = 1; ctx.fillStyle = L.a; ctx.fillRect(px, py, cs, cs);
+    if (cs < 6) { ctx.fillStyle = L.trim; ctx.fillRect(px + cs * 0.3, py + cs * 0.3, cs * 0.4, cs * 0.4); return; }
+    // a checkerboard of the two floor tones with a gold inlay grid
+    const n = cs >= 40 ? 4 : 2, q = cs / n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y + gx + gy) % 2) { ctx.fillStyle = L.b; ctx.fillRect(px + x * q, py + y * q, q, q); }
+    if (cs >= 12) { ctx.strokeStyle = 'rgba(217,178,74,0.55)'; ctx.lineWidth = Math.max(1, cs * 0.012); for (let k = 1; k < n; k++) { ctx.beginPath(); ctx.moveTo(px + k * q, py); ctx.lineTo(px + k * q, py + cs); ctx.moveTo(px, py + k * q); ctx.lineTo(px + cs, py + k * q); ctx.stroke(); } }
+    // little lights in the Estate's colours, twinkling
+    if (cs >= 14) L.dots.forEach((d, i) => { const hx = hash(gx, gy, i * 7 + 1), hy = hash(gy, gx, i * 5 + 3); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 2 + i + gx); ctx.fillStyle = d; ctx.beginPath(); ctx.arc(px + cs * (0.15 + hx * 0.7), py + cs * (0.15 + hy * 0.7), Math.max(1, cs * 0.035), 0, Math.PI * 2); ctx.fill(); });
+    ctx.globalAlpha = 1;
+    // the gilded trim on the outside edges
+    ctx.strokeStyle = L.trim; ctx.lineWidth = Math.max(1, cs * 0.05);
+    const w = ctx.lineWidth / 2;
+    ctx.beginPath(); if (!c.join.n) { ctx.moveTo(px, py + w); ctx.lineTo(px + cs, py + w); } if (!c.join.s) { ctx.moveTo(px, py + cs - w); ctx.lineTo(px + cs, py + cs - w); } if (!c.join.w) { ctx.moveTo(px + w, py); ctx.lineTo(px + w, py + cs); } if (!c.join.e) { ctx.moveTo(px + cs - w, py); ctx.lineTo(px + cs - w, py + cs); } ctx.stroke();
+    rareBits(ctx, c);
+  };
+}
 /** The Paintbrawl Arena from above: a round arena floor with four lanes a side in terrain colours. */
 function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs } = c;
@@ -508,9 +542,9 @@ function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.strokeStyle = c.tier ? c.rc : '#FF4FD8'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.strokeRect(b.x0, b.y0, w, h);
   rareBits(ctx, c);
 }
-const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { brawl: brawlCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
-const RIM_BASE: Partial<Record<PlotKind, string>> = { habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)' };
-const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨' };
+const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
+const RIM_BASE: Partial<Record<PlotKind, string>> = { ...Object.fromEntries(Object.entries(ESTATE_LOOK).map(([k, v]) => [k, v!.trim])), habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)' };
+const REALM_SIGN: Partial<Record<PlotKind, string>> = { mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
 function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, y0: number, x1: number, y1: number, rc: string, glow: string, tier: number, seed: number) {
@@ -531,6 +565,7 @@ function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, 
     ctx.lineWidth = Math.max(1, r * 0.2); ctx.strokeStyle = tier ? rc : '#FFFFFF'; ctx.shadowColor = glow; ctx.shadowBlur = SHADOW ? s * 0.04 * tier : 0; ctx.stroke(); ctx.shadowBlur = 0;
     ctx.font = `${Math.round(r * 1.15)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(REALM_SIGN[kind]!, cx, my + r * 0.08);
+    if (ESTATE_LOOK[kind]) { ctx.font = `${Math.round(r * 0.9)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.fillText('👑', cx, my - r * 1.25); }
   } else if (kind === 'business') {
     // a rooftop sign with the rarity colour round it
     const r = s * 0.13, my = y0 + h * 0.3;

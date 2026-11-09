@@ -6,6 +6,8 @@ import { rng } from '../home/party/kit';
 import { flat, grassTex, mesh, motes, scatter, type Ctx, type Inst } from '../home/live3d/kit3d';
 import type { RealmKind } from '../backend/types';
 import type { RealmEnv, Spot, Station } from './realm3d';
+import { atelier, boardwalk, exchange, gemheart, ranch, reserve } from './estates/envsA';
+import { citadel, colosseum, foodhall, foundry, skyport } from './estates/envsB';
 
 const B: [number, number] = [9.5, 7];
 const SPOTS = (labels: Record<Station, string>): Record<Station, Spot> => ({
@@ -462,4 +464,8 @@ function dungeon(ctx: Ctx): RealmEnv {
 }
 
 // (the arena has its own screen; it never uses the shared realm world)
-export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = { mine, sky, workshop, diner, dungeon, brawl: dungeon };
+export const REALM_ENVS: Record<RealmKind, (ctx: Ctx) => RealmEnv> = {
+  mine, sky, workshop, diner, dungeon, brawl: dungeon,
+  // the Estates (2x2 merge tier), each its own world
+  atelier, reserve, ranch, exchange, boardwalk, gemheart, skyport, foundry, foodhall, citadel, colosseum,
+};
