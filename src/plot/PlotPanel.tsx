@@ -619,7 +619,7 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
         <div className="eyebrow">{m.name} · level {rlm.level}</div>
         <div className="truncate text-sm font-semibold">{rlm.name || m.name} · @{rlm.owner.username}</div>
       </div>
-      <span className="text-xs font-bold" style={{ color: m.color }}>Visit & play →</span>
+      <span className="text-xs font-bold" style={{ color: m.color }}>{arc ? `${m.enter} →` : 'Visit & play →'}</span>
     </Link>
   ); }
   if (arc) return (

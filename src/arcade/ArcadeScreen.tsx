@@ -186,6 +186,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
           <div className="flex items-center gap-2">
             <div className="lv-arc-marquee min-w-0 truncate text-base" style={{ ['--glow' as string]: '#FF3D9A' }}>{title}</div>
             <span className="shrink-0 rounded-full bg-[#8B5CFF] px-1.5 text-[10px] font-black">LV {a.level.level}</span>
+            {carnival && <span className="shrink-0 rounded-full bg-[#00E5FF] px-1.5 text-[10px] font-black text-[#05040F]" data-testid="arcade-carnival-badge" title="Arcade Carnival">🎡</span>}
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10" title={`${a.level.into}/${a.level.need} XP`}>
             <div className="h-full rounded-full bg-gradient-to-r from-[#FF3D9A] to-[#22E3FF]" style={{ width: a.level.max ? '100%' : `${(a.level.into / Math.max(1, a.level.need)) * 100}%` }} />

@@ -210,7 +210,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
         <div className="grid grid-cols-2 gap-2">
           <Button variant="rainbow" onClick={show} data-testid="sheet-map"><MapPin className="h-4 w-4" /> Show on map</Button>
           {d.data?.type_info && <Button variant="secondary" onClick={() => nav(`/play/${d.data!.type_info!.minigame}?gx=${r.gx}&gy=${r.gy}`)}><Gamepad2 className="h-4 w-4" /> Play {d.data.type_info.minigame_name}</Button>}
-          {isRealm(kind) && group?.realm_id ? <Button variant="secondary" onClick={() => nav(realmRoute(group.realm_id!))}>{REALM_META[kind].emoji} {REALM_META[kind].enter}</Button>
+          {isRealm(kind) && group?.realm_id ? <Button variant="secondary" onClick={() => nav(group.arcade_id ? `/arcade/${group.arcade_id}` : realmRoute(group.realm_id!))}>{REALM_META[kind].emoji} {REALM_META[kind].enter}</Button>
           : kind === 'arcade' && group?.arcade_id ? <Button variant="secondary" onClick={() => nav(`/arcade/${group.arcade_id}`)}>🕹️ Enter arcade</Button>
           : kind === 'business' && group?.business_id ? <Button variant="secondary" onClick={() => nav(`/business/${group.business_id}`)}>🍋 Open business</Button>
           : kind === 'farm' && group?.farm_id ? <Button variant="secondary" onClick={() => nav(`/farm/${group.farm_id}`)}>🌾 Enter farm</Button>

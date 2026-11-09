@@ -86,7 +86,14 @@ export function EstateCard({ group }: { group: CanvasGroup }) {
     try {
       const r = await api.setGroupKind(group.id, to as never);
       invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.groups }); void qc.invalidateQueries({ queryKey: ['plot'] });
-      if (upgrade && e) {
+      const carnival = (to === 'boardwalk' || to === 'galaxypark') && r.arcade_id;
+      if (carnival) void qc.invalidateQueries({ queryKey: ['arcade'] });
+      if (upgrade && e && carnival) {
+        // the Arcade's Estate is the same arcade, grown a carnival: straight back in, everything kept
+        confettiCannons();
+        toast.success(`${e.emoji} ${e.name} is open!`, { description: 'Same arcade — your level, cabinets, prizes and tickets all come with you. Walk out the front doors to the carnival.', duration: 7000 });
+        nav(`/arcade/${r.arcade_id}`);
+      } else if (upgrade && e) {
         confettiCannons();
         toast.success(`${e.emoji} ${e.name} — your ${tierName(to as TierKind)} is open!`, { description: `${e.tagline} Your first one starts with a charter bonus to spend.`, action: r.realm_id ? { label: e.enter, onClick: () => nav(realmRoute(r.realm_id!)) } : undefined, duration: 7000 });
         if (r.realm_id) nav(realmRoute(r.realm_id));

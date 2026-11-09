@@ -505,6 +505,8 @@ export function createHall(o: HallOpts) {
   const me = new THREE.Sprite(T(new THREE.SpriteMaterial({ map: meTex, transparent: true, alphaTest: 0.05 }))); me.center.set(0.5, 0); me.scale.set(1.3 * (46 / 68), 1.3, 1); scene.add(me);
   const shadow = new THREE.Mesh(T(new THREE.CircleGeometry(0.32, 16)), T(new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.4, depthWrite: false }))); shadow.rotation.x = -Math.PI / 2; scene.add(shadow);
   const P = { x: 0, z: 6.4, face: 1, walk: 0, moving: false, path: [] as THREE.Vector2[], stick: null as THREE.Vector2 | null, keys: { x: 0, z: 0 } };
+  const meRing = new THREE.Mesh(T(new THREE.RingGeometry(0.42, 0.56, 32)), T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0, depthWrite: false })));
+  meRing.rotation.x = -Math.PI / 2; meRing.visible = false; scene.add(meRing);
   const ring = new THREE.Mesh(T(new THREE.RingGeometry(0.25, 0.34, 24)), T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0.8, depthWrite: false }))); ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
   const regulars: { s: THREE.Sprite; bob: number }[] = [];
   const setRegulars = (urls: string[]) => {
@@ -696,10 +698,11 @@ export function createHall(o: HallOpts) {
     outK += ((carn && P.z > CARNIVAL_Z - 0.4 ? 1 : 0) - outK) * Math.min(1, dt * 2.6);
     const ok3 = outK * outK * (3 - 2 * outK);
     // inside: behind you from the door end; outside: behind you from the arcade, looking out at the carnival
-    // (outside, the camera stays out of the hall once you're a few steps from the door, and rises instead of backing in)
-    const zOut = Math.max(P.z - 6.4 * wide, Math.min(CARNIVAL_Z + 1.2, P.z - 2.5)), yOut = 7.6 + Math.max(0, 6.4 * wide - (P.z - zOut)) * 0.7;
-    const follow = tmp.set(P.x * (0.55 - 0.2 * ok3), 6.8 * wide + (yOut - 6.8 * wide) * ok3, P.z + 4.6 * wide + (zOut - P.z - 4.6 * wide) * ok3);
-    const baseLook = new THREE.Vector3(P.x * (0.85 - 0.25 * ok3), 0.9 + 1.1 * ok3, P.z - 2.2 + 11 * ok3);
+    // (outside: close behind you and high above the string lights and balloons, looking down so you're easy to spot;
+    //  it stays out of the hall once you're a few steps from the door, rising instead of backing in)
+    const zOut = Math.max(P.z - 4.2 * wide, Math.min(CARNIVAL_Z + 1.2, P.z - 2.5)), yOut = 7 + Math.max(0, 4.2 * wide - (P.z - zOut)) * 0.6;
+    const follow = tmp.set(P.x * (0.55 + 0.3 * ok3), 6.8 * wide + (yOut - 6.8 * wide) * ok3, P.z + 4.6 * wide + (zOut - P.z - 4.6 * wide) * ok3);
+    const baseLook = new THREE.Vector3(P.x * (0.85 + 0.15 * ok3), 0.9 + 0.1 * ok3, P.z - 2.2 + 5.4 * ok3);
     if (carn) { const f = scene.fog as THREE.Fog; f.near = 22 + 14 * ok3; f.far = 52 + 34 * ok3; }
     if (zoom.cab) {
       const c = zoom.cab, k = zoom.k * zoom.k * (3 - 2 * zoom.k);
@@ -709,6 +712,12 @@ export function createHall(o: HallOpts) {
       if (!zoom.on && zoom.k < 0.02) zoom.cab = null;
     } else { const rc = carn?.rideCamera(t); if (rc) { camPos.lerp(rc.pos, Math.min(1, dt * 3)); camLook.lerp(rc.look, Math.min(1, dt * 3)); } else { camPos.lerp(follow, Math.min(1, dt * 4.5)); camLook.lerp(baseLook, Math.min(1, dt * 5)); } }
     me.visible = shadow.visible = !riding && !(carn && zoom.cab && zoom.k > 0.3);
+    // out at the carnival you're a little bigger, with a glowing ring at your feet, so you stand out
+    if (carn) {
+      const k = 1 + 0.35 * ok3; me.scale.set(1.3 * (46 / 68) * k, 1.3 * k, 1);
+      meRing.visible = ok3 > 0.05 && me.visible;
+      meRing.position.set(P.x, 0.025, P.z); (meRing.material as THREE.MeshBasicMaterial).opacity = (0.55 + Math.sin(t * 4) * 0.2) * ok3;
+    }
     camera.position.copy(camPos); camera.lookAt(camLook);
     // machines come alive (and any between you and the camera fade out of the way)
     for (const c of cabs.values()) {
@@ -809,7 +818,7 @@ export function createHall(o: HallOpts) {
     } : null,
     setOthers, moveOther,
     /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),
-    debug: () => ({ P: { x: P.x, z: P.z }, near, outK, cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
+    debug: () => ({ P: { x: P.x, z: P.z }, near, outK, paused, riding: carn?.riding() ?? '', stick: !!P.stick, keys: { ...P.keys }, zoomOn: zoom.on, next: P.path[0] ? { x: P.path[0].x, z: P.path[0].y } : null, blockedLeft: blocked(P.x - 0.2, P.z), blockedRight: blocked(P.x + 0.2, P.z), walls: walls.filter((b) => P.x - 0.3 > b.x0 - 0.5 && P.x - 0.3 < b.x1 + 0.5 && P.z > b.z0 - 0.5 && P.z < b.z1 + 0.5), cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);

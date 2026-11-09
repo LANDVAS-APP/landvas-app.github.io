@@ -41,7 +41,7 @@ async function clickPlot(gx, gy) {
 /** walk to a carnival spot and wait until you're standing at it */
 async function walkTo(id) {
   await hall(`h.walkTo({ kind: 'carnival', id: '${id}' })`);
-  await page.waitForFunction((id) => window.__landvasArcade.debug().near === `c:${id}`, id, { timeout: 30000 });
+  await page.waitForFunction((id) => window.__landvasArcade.debug().near === `c:${id}`, id, { timeout: 30000 }).catch(async (e) => { console.log('stuck walking to', id, JSON.stringify({ ...(await hall('h.debug()')), cabs: undefined, others: undefined })); throw e; });
   await page.waitForTimeout(900);
 }
 /** play a booth game in the 3D booth like a person would, for a while */
@@ -102,10 +102,12 @@ try {
   // the plot panel opens the arcade (not a separate Estate world)
   await clickPlot(START.gx, START.gy);
   await shot('01-panel');
+  check('the plot panel says Enter Arcade Carnival', /Enter Arcade Carnival/.test(await page.locator('[data-testid=open-realm]').innerText()));
   await page.click('[data-testid=open-realm]');
   await page.waitForSelector('[data-testid=arcade]', { timeout: 30000 }); await page.waitForTimeout(3000);
   const shown = () => page.evaluate(() => window.__landvasArcade ? 'arcade' : 'none');
   check('the Estate opens the same arcade', (await shown()) === 'arcade');
+  check('…with the carnival badge', (await page.locator('[data-testid=arcade-carnival-badge]').count()) === 1);
   const xp = (await sql(`select xp from arcades where id = '${arcadeId}'`))[0].xp;
   check('…with its level kept', Number(xp) >= 3000, String(xp));
   // and the old realm page sends you there too

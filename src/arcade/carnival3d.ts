@@ -107,7 +107,7 @@ export function buildCarnival(k: Kit) {
   for (const b of BOOTHS) {
     const g = new THREE.Group(); g.position.set(b.x, 0, b.z); g.rotation.y = b.x < 0 ? Math.PI / 2 : -Math.PI / 2; root.add(g);
     // local: front (counter) toward +z, back wall at z = -1.4, width 4.2
-    const wall = std('#4A3A5E'), trim = std(b.color, { emissive: b.color, emissiveIntensity: 0.25 });
+    const wall = std('#4A3A5E', { emissive: b.color, emissiveIntensity: 0.12 }), trim = std(b.color, { emissive: b.color, emissiveIntensity: 0.25 });
     box(4.4, 3.4, 0.2, wall, g, 0, 1.7, -1.5); for (const s of [-1, 1]) box(0.2, 3.4, 3, wall, g, s * 2.2, 1.7, 0);
     box(4.4, 1.0, 0.5, std('#F5EEDC'), g, 0, 0.5, 1.25); box(4.5, 0.12, 0.6, trim, g, 0, 1.05, 1.25);
     // a striped awning and a sign with its name
@@ -116,7 +116,6 @@ export function buildCarnival(k: Kit) {
     nm.position.set(0, 4.2, 1.9); nm.rotation.x = -0.15; g.add(nm);
     const bl: THREE.Mesh[] = []; for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(bulbGeo, bulbOn); m.position.set(-2 + i * 0.44, 3.35, 1.85); g.add(m); bl.push(m); }
     const emo = k.emojiSprite(b.emoji, 0.9); emo.position.set(0, 5.2, 1.2); g.add(emo);
-    if (!k.phone || b.z < 30) { const bl2 = new THREE.PointLight(b.color, 9, 7, 1.6); bl2.position.set(0, 3, 2.2); g.add(bl2); }
     const play = new THREE.Group(); g.add(play);
     const toWorld = (v: THREE.Vector3) => v.applyAxisAngle(new THREE.Vector3(0, 1, 0), g.rotation.y).add(g.position);
     const focusLocal = b.id === 'striker' ? new THREE.Vector3(0, 1.9, -0.6) : b.id === 'crabs' ? new THREE.Vector3(0, 1.0, -0.3) : new THREE.Vector3(0, 1.75, -0.6);
@@ -465,7 +464,7 @@ export function buildCarnival(k: Kit) {
   const rr = rngOf(77);
   for (let i = 0; i < (k.phone ? 6 : 10); i++) { const s = k.emojiSprite(['🧒', '👧', '🧑', '👩‍🦰', '🧔', '👵', '👦', '🧑‍🦱', '👨‍👩‍👧', '🤡'][i], 1.1); s.center.set(0.5, 0); root.add(s); const x = (rr() - 0.5) * 5, z = 18 + rr() * 34; folk.push({ s, x, z, tx: x, tz: z, v: 0.8 + rr() * 0.6 }); }
   const balloons: THREE.Group[] = [];
-  for (let i = 0; i < 6; i++) { const bg = new THREE.Group(); const b = BOOTHS[i]; bg.position.set(b.x + (b.x < 0 ? -1.2 : 1.2), 1.4, b.z - 2.4); root.add(bg); for (let j = 0; j < 3; j++) { ball(0.28, std(cols[(i + j) % 6], { roughness: 0.3 }), bg, (j - 1) * 0.35, 3.4 + j * 0.25, 0); } for (let j = 0; j < 3; j++) { const st = cyl(0.008, 0.008, 2.4, std('#ffffff'), bg, (j - 1) * 0.17, 2.1, 0, 4); st.rotation.z = (j - 1) * 0.15; } balloons.push(bg); }
+  for (let i = 0; i < 6; i++) { const bg = new THREE.Group(); const b = BOOTHS[i]; bg.position.set(b.x + (b.x < 0 ? -1.2 : 1.2), 0, b.z - 2.4); root.add(bg); for (let j = 0; j < 3; j++) { ball(0.28, std(cols[(i + j) % 6], { roughness: 0.3 }), bg, (j - 1) * 0.35, 3.4 + j * 0.25, 0); } for (let j = 0; j < 3; j++) { const st = cyl(0.008, 0.008, 2.4, std('#ffffff'), bg, (j - 1) * 0.17, 2.1, 0, 4); st.rotation.z = (j - 1) * 0.15; } balloons.push(bg); }
 
   // ---- fireworks ---------------------------------------------------------------------------------------------------
   type Burst = { pts: THREE.Points; vel: Float32Array; life: number };
