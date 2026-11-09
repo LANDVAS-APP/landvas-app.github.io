@@ -39,7 +39,7 @@ const err = (e: unknown) => toast.error(toGameError(e).message);
 
 export default function ClanHall() {
   const c = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), retry: false, staleTime: 15_000 });
-  const k = useQuery({ queryKey: keepKey, queryFn: api.clanKeep, retry: false, refetchInterval: poll(15_000), enabled: !!c.data?.role });
+  const k = useQuery({ queryKey: keepKey, queryFn: api.clanKeep, retry: false, refetchInterval: poll(45_000), enabled: !!c.data?.role });
   if (c.isLoading || (c.data?.role && k.isLoading)) return <div className="fixed inset-0 grid place-items-center bg-[#2A1B2E]"><Spinner /></div>;
   if (!c.data?.role || !k.data) return <Navigate to="/clans" replace />;
   return <Keep key={c.data.id} c={c.data} k={k.data} />;
@@ -87,7 +87,7 @@ function Keep({ c, k }: { c: Clan; k: ClanKeep }) {
 
   const chatIn = useRef<((m: unknown) => void) | null>(null);
   const room = useHomeLive(c.id, me?.user_id, keep, () => {}, chatIn);
-  const chat = useHomeChat(c.id, me?.user_id, keep, room.send, { list: (a) => api.clanChatList(a), send: (b) => api.clanChatSend(b) });
+  const chat = useHomeChat(c.id, me?.user_id, keep, room.send, { list: (a) => api.clanChatList(a), send: (b) => api.clanChatSend(b), topic: (r) => (r.clan ? `cc:${r.clan}` : null) });
   chatIn.current = chat.onChat;
   const live = room.live;
   const here = (live?.members.length ?? 0) + 1;

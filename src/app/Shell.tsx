@@ -83,10 +83,12 @@ export function Shell() {
     // nudges can't make every phone hammer the server)
     const last: Record<string, number> = {};
     return getBackend().onPush?.((kind) => {
-      const k = kind === 'news' ? 'news' : 'alerts', gap = k === 'news' ? 60_000 : 5_000;
+      const k = kind === 'news' ? 'news' : kind === 'eggs' ? 'eggs' : 'alerts', gap = k === 'news' ? 60_000 : 5_000;
       if (Date.now() - (last[k] ?? 0) < gap) return;
       last[k] = Date.now();
       if (k === 'news') { void qc.invalidateQueries({ queryKey: ['notifications'] }); return; }
+      if (k === 'eggs') { void qc.invalidateQueries({ queryKey: ['ink-eggs'] }); return; }
+      if (kind === 'support') void qc.invalidateQueries({ queryKey: ['support'] });
       for (const q of [['alerts'], ['notifications'], ['friends']]) void qc.invalidateQueries({ queryKey: q });
     });
   }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps

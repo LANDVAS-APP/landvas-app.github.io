@@ -33,7 +33,7 @@ const Stat = ({ children }: { children: React.ReactNode }) => <span className="r
 export function ProfilePlaces({ username, isMe }: { username: string; isMe: boolean }) {
   const me = useOnboardedMe();
   const nav = useNavigate();
-  const q = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), refetchInterval: poll(120_000) });
   const d: PlayerPlaces | undefined = q.data;
   if (!d) return null;
   const n = d.arcades.length + d.habitats.length + d.farms.length + d.businesses.length;

@@ -26,7 +26,7 @@ import { cn, fmt, timeAgo } from '../lib/utils';
 import { Empty, PlayerAvatar, Spinner } from '../ui';
 import { poll } from '../lib/poll';
 
-const LIVE_MS = 15_000;
+const LIVE_MS = 120_000; // the room itself rarely changes while you look; visitors and the guestbook are nudged
 
 export default function VisitRoom() {
   const { username = '' } = useParams();
@@ -83,7 +83,7 @@ export default function VisitRoom() {
         </div>
 
         <ArtShowcase art={gallery} />
-        <RoomGuests username={p.username} />
+        <RoomGuests username={p.username} hostId={p.id} />
 
         <section className="mt-7">
           <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Their land" note="Every canvas they own, by shape. Where it is stays private." />
@@ -222,7 +222,7 @@ function SectionTitle({ title, note, icon }: { title: string; note?: string; ico
 export function CheckIn({ username }: { username: string }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const st = useQuery({ queryKey: ['room-enter', username], queryFn: () => api.roomEnter(username), enabled: !!me, staleTime: 60_000, retry: false });
+  const st = useQuery({ queryKey: ['room-enter', username], queryFn: () => api.roomEnter(username), enabled: !!me, staleTime: 60_000, retry: false, refetchOnWindowFocus: false }); // entering is a visit: not again just for coming back to the app
   const [wait, setWait] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {

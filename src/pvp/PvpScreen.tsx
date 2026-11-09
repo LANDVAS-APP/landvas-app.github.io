@@ -19,6 +19,7 @@ import { PVP_COMPONENTS } from './games';
 import { PvpPreview } from './PvpPreview';
 import { bonusText } from '../play/rates';
 import { poll } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 
 type Phase = { k: 'lobby' } | { k: 'playing'; s: PvpStart } | { k: 'checking' } | { k: 'result'; r: PvpFinish };
 
@@ -34,7 +35,9 @@ const WITHHELD: Record<string, string> = {
 export default function PvpScreen() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const lobby = useQuery({ queryKey: ['pvp'], queryFn: api.pvpLobby, enabled: !!me, refetchInterval: poll(15_000) });
+  const lobby = useQuery({ queryKey: ['pvp'], queryFn: api.pvpLobby, enabled: !!me, refetchInterval: poll(120_000) });
+  // the server nudges 'pvp' when a challenge opens, is taken or finishes
+  useNudge('pvp', () => lobby.refetch(), { enabled: !!me, immediate: false, safetyMs: poll(120_000), fallbackMs: poll(15_000), gapMs: 2000, trailMs: 4000 });
   const [phase, setPhase] = useState<Phase>({ k: 'lobby' });
   const [busy, setBusy] = useState<string | null>(null);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['pvp'] }); invalidateGame(qc); };

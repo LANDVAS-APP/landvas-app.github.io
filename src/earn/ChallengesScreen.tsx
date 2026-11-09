@@ -25,7 +25,7 @@ const PLACE = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '1
 
 export default function ChallengesScreen() {
   const me = useOnboardedMe();
-  const q = useQuery({ queryKey: ['challenges'], queryFn: api.challenges, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['challenges'], queryFn: api.challenges, refetchInterval: poll(120_000) });
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const d = q.data;
   return (

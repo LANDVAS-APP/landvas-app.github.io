@@ -21,7 +21,7 @@ import { poll } from '../lib/poll';
 
 export default function DoodleScreen() {
   const me = useOnboardedMe();
-  const q = useQuery({ queryKey: ['doodle'], queryFn: api.doodleMine, enabled: !!me, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['doodle'], queryFn: api.doodleMine, enabled: !!me, refetchInterval: poll(90_000) });
   const [tab, setTab] = useState<'guess' | 'draw'>('guess');
   if (!me || q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const d = q.data;

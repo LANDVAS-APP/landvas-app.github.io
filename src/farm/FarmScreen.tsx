@@ -29,7 +29,7 @@ const fmtLeft = (ms: number) => { const s = Math.max(0, Math.ceil(ms / 1000)); r
 
 export default function FarmScreen() {
   const { id } = useParams();
-  const q = useQuery({ queryKey: farmKey(id!), queryFn: () => api.farmGet(id!), refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: farmKey(id!), queryFn: () => api.farmGet(id!), refetchInterval: poll(120_000) });
   if (q.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#8FD3FF]"><Spinner /></div>;
   if (q.error || !q.data) {
     return (

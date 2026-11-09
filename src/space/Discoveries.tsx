@@ -20,7 +20,7 @@ const angle = (a: number[], b: number[]) => Math.acos(Math.max(-1, Math.min(1, a
 
 export function useDiscoveries(world: string, ready: boolean, scene: React.RefObject<PlanetScene | null>) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['discoveries', world], queryFn: () => api.planetDiscoveries(world), enabled: ready, refetchInterval: poll(20_000) });
+  const q = useQuery({ queryKey: ['discoveries', world], queryFn: () => api.planetDiscoveries(world), enabled: ready, refetchInterval: poll(60_000) });
   const d = q.data;
   // refetch the moment a storm starts or ends
   useEffect(() => {

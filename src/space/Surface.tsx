@@ -34,6 +34,7 @@ import { cellKey, cellLabel, radiusFor, type Cell } from './planetGrid';
 import { SPACE_KEY, useFlight, useSpace } from './useSpace';
 import { type World, worldKey, worldOf } from './worlds';
 import { poll, live as liveMs } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 
 export default function Surface() {
   const q = useSpace();
@@ -72,7 +73,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const taken = s.samples[s.location] === s.day;
   const isHome = s.home_seed != null && s.location === `exo:${s.home_seed}`;
   const canPlots = w.kind !== 'exo' || isHome;
-  const map = useQuery({ queryKey: planetKey(world), queryFn: () => api.planetMap(world), enabled: canPlots, refetchInterval: poll(15_000) });
+  const map = useQuery({ queryKey: planetKey(world), queryFn: () => api.planetMap(world), enabled: canPlots, refetchInterval: poll(45_000) });
   const sanct = useQuery({ queryKey: ['sanctuaries'], queryFn: api.mySanctuaries, enabled: !!me, staleTime: 60_000 });
   // your companion comes along (or, until you've starred one, whoever's free)
   const buddy = (sanct.data?.companion_id ? sanct.data.creatures.find((c) => c.id === sanct.data!.companion_id) : null) ?? sanct.data?.creatures.find((c) => !c.job) ?? null;
@@ -147,7 +148,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   const [area, setArea] = useState<{ gx: number; gy: number } | null>(null);
   const win = area ? { gx: Math.round(area.gx / 32) * 32, gy: Math.round(area.gy / 32) * 32 } : null;
   const near = useQuery({
-    queryKey: ['planet-near', world, win?.gx, win?.gy], enabled: canPlots && !!win && !!map.data, refetchInterval: poll(15_000), placeholderData: (prev) => prev,
+    queryKey: ['planet-near', world, win?.gx, win?.gy], enabled: canPlots && !!win && !!map.data, refetchInterval: poll(45_000), placeholderData: (prev) => prev,
     queryFn: () => api.planetPlotsNear(world, win!.gx - 120, win!.gx + 120, Math.max(0, win!.gy - 100), Math.min((map.data?.rows ?? 1) - 1, win!.gy + 100)),
   });
   const sectorSize = Math.max(1, Math.round(builtRows / 40));
@@ -162,7 +163,16 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   useEffect(() => { if (ready && sectors.data) scene.current?.setSectors(sectors.data, sectorSize); }, [ready, sectors.data, sectorSize]);
 
   // meteor showers: everyone on the world sees the same ones; first to reach one gets it
-  const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: liveMs(6000) });
+  // they change when someone grabs one (the server nudges this world's sky) and when the next shower starts (on the
+  // clock: we look right then)
+  const shower = useQuery({ queryKey: ['meteors', world], queryFn: () => api.planetMeteors(world), enabled: ready && !lost, refetchInterval: liveMs(120_000) });
+  useNudge(`pm:${world}`, () => shower.refetch(), { enabled: ready && !lost, immediate: false, safetyMs: liveMs(120_000), fallbackMs: liveMs(6000), gapMs: 1500, trailMs: 3000 });
+  useEffect(() => {
+    const ends = shower.data?.ends_at ? new Date(shower.data.ends_at).getTime() : 0;
+    if (!ends || !ready || lost) return;
+    const t = setTimeout(() => void shower.refetch(), Math.max(500, ends - Date.now() + 750));
+    return () => clearTimeout(t);
+  }, [shower.data?.ends_at, ready, lost]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready && shower.data) scene.current?.setMeteors(String(shower.data.win), shower.data.meteors); }, [ready, shower.data]);
   const grabbing = useRef(new Set<number>());
   const farUntil = useRef(new Map<number, number>()); // after "too far", wait a moment before trying that one again

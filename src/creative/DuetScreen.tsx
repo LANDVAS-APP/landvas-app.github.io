@@ -42,7 +42,7 @@ export default function DuetScreen() {
 function DuetHome() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['duets'], queryFn: api.duetsMine, enabled: !!me, refetchInterval: poll(20_000) });
+  const q = useQuery({ queryKey: ['duets'], queryFn: api.duetsMine, enabled: !!me, refetchInterval: poll(90_000) });
   const recent = useQuery({ queryKey: ['duets-recent'], queryFn: () => api.duetsRecent(12) });
   const [cur, setCur] = useState<Duet | null>(null);
   const [busy, setBusy] = useState(false);

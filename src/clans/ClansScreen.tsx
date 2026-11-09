@@ -2,7 +2,7 @@
 // Members get weekly goals, clan chat, battles against other clans and a shared 3D castle, the Keep (/clan/hall).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Crown, LogOut, Search, Send, Shield, Swords, UserMinus, UserPlus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -14,6 +14,7 @@ import { cn, fmt, timeAgo } from '../lib/utils';
 import { Button, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { Bar, ClanBadge, PRIVACY_LABEL, ROLE_LABEL, until } from './ui';
 import { poll, live } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 
 export const clanKeys = { home: ['clan-home'] as const, mine: ['clan', 'mine'] as const, one: (id: string) => ['clan', id] as const };
 const err = (e: unknown) => toast.error(toGameError(e).message);
@@ -217,7 +218,7 @@ const TAB_ITEMS = [
 function MyClan({ home }: { home: ClanHome }) {
   const [sp, setSp] = useSearchParams();
   const tab = sp.get('tab') ?? 'goals';
-  const q = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), refetchInterval: poll(20_000) });
+  const q = useQuery({ queryKey: clanKeys.mine, queryFn: () => api.clanGet(null), refetchInterval: poll(60_000) });
   const c = q.data;
   if (!c) return <div className="flex justify-center py-20"><Spinner /></div>;
   const officer = c.role === 'leader' || c.role === 'officer';
@@ -323,19 +324,23 @@ function Goals({ c, home }: { c: Clan; home: ClanHome }) {
 export function useClanChat(myId: string | undefined) {
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
   const last = useRef(0);
+  // the server nudges the clan's chat topic when someone says something; until we know the clan, look now and then
+  const [clan, setClan] = useState<string | null>(null);
+  const tick = useCallback(async () => {
+    try {
+      const r = await api.clanChatList(last.current);
+      setClan(r.clan ?? null);
+      if (!r.items.length) return;
+      last.current = Math.max(last.current, ...r.items.map((m) => m.id));
+      setMsgs((cur) => { const seen = new Set(cur.map((m) => m.id)); return [...cur, ...r.items.filter((m) => !seen.has(m.id))].sort((a, b) => a.id - b.id).slice(-80); });
+    } catch { /* next time */ }
+  }, []);
+  useNudge(myId && clan ? `cc:${clan}` : null, tick, { enabled: !!myId, immediate: false, safetyMs: live(60_000), fallbackMs: live(6000), gapMs: 1000 });
   useEffect(() => {
-    if (!myId) return;
-    let stop = false;
-    const tick = async () => {
-      try {
-        const r = await api.clanChatList(last.current); if (stop || !r.items.length) return;
-        last.current = Math.max(last.current, ...r.items.map((m) => m.id));
-        setMsgs((cur) => { const seen = new Set(cur.map((m) => m.id)); return [...cur, ...r.items.filter((m) => !seen.has(m.id))].sort((a, b) => a.id - b.id).slice(-80); });
-      } catch { /* next time */ }
-    };
-    void tick(); const t = setInterval(() => { if (!document.hidden) void tick(); }, live(6000));
-    return () => { stop = true; clearInterval(t); };
-  }, [myId]);
+    if (!myId || clan) return;
+    void tick(); const t = setInterval(() => { if (!document.hidden) void tick(); }, live(15_000));
+    return () => clearInterval(t);
+  }, [myId, clan, tick]);
   return {
     msgs,
     send: async (body: string) => { const m = await api.clanChatSend(body); last.current = Math.max(last.current, m.id); setMsgs((cur) => cur.some((x) => x.id === m.id) ? cur : [...cur, m]); },

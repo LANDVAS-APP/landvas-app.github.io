@@ -14,6 +14,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Button, PlayerAvatar, inputCls } from '../ui';
 import { poll } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 
 /** Every artwork, one at a time: swipe, drag, arrow keys or the arrows. */
 export function ArtShowcase({ art }: { art: ArtworkCard[] }) {
@@ -80,10 +81,12 @@ function Slide({ a, active }: { a: ArtworkCard; active: boolean }) {
 }
 
 /** Who's been here, and the guestbook. */
-export function RoomGuests({ username }: { username: string }) {
+export function RoomGuests({ username, hostId }: { username: string; hostId?: string }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: poll(20_000) });
+  const q = useQuery({ queryKey: ['room-social', username], queryFn: () => api.roomSocial(username), refetchInterval: poll(120_000) });
+  // the server nudges this room's topic when someone visits, checks in or signs the guestbook
+  useNudge(hostId ? `rv:${hostId}` : null, () => q.refetch(), { enabled: !!hostId, immediate: false, safetyMs: poll(120_000), fallbackMs: poll(20_000), gapMs: 2000, trailMs: 3000 });
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const d = q.data;

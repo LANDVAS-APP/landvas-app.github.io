@@ -60,7 +60,7 @@ function useCountUp(target: number, ms = 1300) {
 
 export default function InviteScreen() {
   const me = useOnboardedMe();
-  const q = useQuery({ queryKey: ['referrals'], queryFn: api.myReferrals, enabled: !!me, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['referrals'], queryFn: api.myReferrals, enabled: !!me, refetchInterval: poll(300_000) });
   const r = q.data;
   const total = r ? r.stats.earned_ink + (r.stats.share_ink ?? 0) : 0;
   // celebrate new invite Ink since the last visit

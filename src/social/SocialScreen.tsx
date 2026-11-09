@@ -27,6 +27,7 @@ import { PLANET_GAMES } from '../space/planetGames';
 import { SPACE_GAMES } from '../space/games';
 import { GAMES as INK_GAMES } from '../inkborn/games/engines';
 import { poll, live } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -43,7 +44,7 @@ export default function SocialScreen() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab')! : 'feed';
   const me = useOnboardedMe();
-  const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(30_000) });
+  const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000) });
   const incoming = friends.data?.incoming.length ?? 0;
   return (
     <Page wide>
@@ -79,11 +80,9 @@ function FeedTab() {
       setEvents((e) => e ?? []);
     }
   }, []);
-  useEffect(() => {
-    void poll();
-    const t = setInterval(() => { if (document.visibilityState === 'visible') void poll(); }, 8000);
-    return () => clearInterval(t);
-  }, [poll]);
+  // the server nudges the feed (at most every 5 s) when something new is posted; look once more just after, so the
+  // last thing in a burst still shows
+  useNudge('feed', poll, { safetyMs: 120_000, fallbackMs: 8000, gapMs: 2000, trailMs: 6000 });
   const loadOlder = async () => {
     if (!events?.length) return;
     setOlder('loading');
@@ -441,7 +440,7 @@ function FriendsTab() {
   const warpTo = useWarpTo();
   const me = useOnboardedMe();
   const session = useSession();
-  const q = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000) });
   if (!session || !me) return <Empty icon={<UserPlus className="h-6 w-6" />} title="Make friends" action={<Link to="/welcome?next=/social?tab=friends" className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white">Sign in</Link>}>Add players as friends to keep up with their art.</Empty>;
   if (!q.data) return <div className="flex justify-center py-16"><Spinner /></div>;
   const { friends, incoming, outgoing } = q.data;

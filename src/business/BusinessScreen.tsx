@@ -128,7 +128,7 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
   }, [apply]);
   useEffect(() => {
     let quiet = 0;
-    const t = setInterval(() => { quiet += 1; if (pending.current > 0 || quiet >= 8) { quiet = 0; void sync(); } }, 2500);
+    const t = setInterval(() => { quiet += 1; if (pending.current > 0 || quiet >= 24) { quiet = 0; void sync(); } }, 5000); // taps every 5 s; idle re-sync every 2 min
     const hide = () => { if (document.visibilityState === 'hidden' && pending.current > 0) void sync(); };
     document.addEventListener('visibilitychange', hide);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', hide); if (pending.current > 0) void api.bizSync(pending.current).catch(() => undefined); };

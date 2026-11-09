@@ -64,8 +64,8 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
         setLive(r);
       } catch { /* try again next beat */ }
     };
-    // check in often only while a match is being set up or played here; otherwise every half minute
-    const p = pulse(beat, () => !!lastLive && (!!lastLive.match || lastLive.lobbies.length > 0));
+    // check in often only while you're in a match yourself; lobby changes arrive as nudges on the room's channel
+    const p = pulse(beat, () => !!lastLive?.match);
     beatNow.current = () => { p.now(); ch?.send({ t: 'nudge' }); };
     send.current = (m) => ch?.send(m);
     let lastKey = '', lastAt = 0;

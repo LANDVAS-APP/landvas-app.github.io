@@ -63,9 +63,9 @@ export function PlacesSheet({ open, onOpenChange, here, start = 'plots' }: {
   const space = useSpace();
   const s = space.data;
   const go = useGoTo(here);
-  const ov = useQuery({ queryKey: ['planet-overview'], queryFn: api.planetOverview, enabled: open, refetchInterval: open ? poll(20_000) : false });
+  const ov = useQuery({ queryKey: ['planet-overview'], queryFn: api.planetOverview, enabled: open, refetchInterval: open ? poll(60_000) : false });
   const earth = useQuery({ queryKey: ['my-plots'], queryFn: api.myPlots, enabled: open && tab === 'plots', staleTime: 30_000 });
-  const ppl = useQuery({ queryKey: ['planet-here', here?.world], queryFn: () => api.planetHere(here!.world), enabled: open && !!here, refetchInterval: open ? 5000 : false });
+  const ppl = useQuery({ queryKey: ['planet-here', here?.world], queryFn: () => api.planetHere(here!.world), enabled: open && !!here, refetchInterval: open ? poll(15_000) : false });
   const tabs = ([['plots', '📍 My plots'], ...(here ? [['people', `👥 Here now${ppl.data ? ` · ${ppl.data.length}` : ''}`]] : []), ['worlds', '🪐 Worlds']] as [typeof tab, string][]);
   const me = here?.pose() ?? null;
   const byWorld = new Map<string, NonNullable<typeof ov.data>['plots']>();

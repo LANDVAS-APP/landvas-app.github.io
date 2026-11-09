@@ -5,6 +5,7 @@
 // and choose who may use each door.
 import { pulse } from '../lib/pulse';
 import { live } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, BookHeart, Check, DoorOpen, Lock, Paintbrush, RotateCw, Trash2, Volume2, VolumeX } from 'lucide-react';
@@ -130,7 +131,7 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
       } catch { /* next beat */ }
     };
     // check in often only while a table game is being set up or played; otherwise every half minute
-    const p = pulse(beat, () => !!lastLive && (!!lastLive.game || lastLive.tables.length > 0));
+    const p = pulse(beat, () => !!lastLive?.game); // table changes arrive as nudges on the room's channel
     api2.current = { refresh: () => { p.now(); ch?.send({ t: 'nudge' }); }, send: (m) => ch?.send(m) };
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
@@ -145,7 +146,9 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
 
 /** chat for everyone in the house: a chat box, and speech bubbles over whoever said it */
 export function useHomeChat(home: string, myId: string | undefined, scene: { current: LiveScene | null }, send: (m: unknown) => void,
-  fns: { list(after: number): Promise<{ items: PlanetChatMsg[] }>; send(body: string): Promise<PlanetChatMsg> } = { list: (a) => api.homeChatList(home, a), send: (b) => api.homeChatSend(home, b) }) {
+  fns: { list(after: number): Promise<{ items: PlanetChatMsg[]; shard?: number | null; clan?: string | null }>; send(body: string): Promise<PlanetChatMsg>;
+         /** where the server nudges when someone says something (from the list's answer) */ topic?(r: { shard?: number | null; clan?: string | null }): string | null } =
+    { list: (a) => api.homeChatList(home, a), send: (b) => api.homeChatSend(home, b) }) {
   const fnRef = useRef(fns); fnRef.current = fns;
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
   const [unread, setUnread] = useState(0);
@@ -157,17 +160,29 @@ export function useHomeChat(home: string, myId: string | undefined, scene: { cur
     setMsgs((cur) => [...cur, ...fresh].sort((a, b) => a.id - b.id).slice(-40));
     if (!open.current) setUnread((u) => u + fresh.filter((m) => m.player.id !== myId).length);
   }, [scene, myId]);
+  // the server nudges this room's chat topic when someone says something; the list call (filtered and checked) is the
+  // only way messages get in. Until the first answer says which room you're in, look every few seconds.
+  const [topic, setTopic] = useState<string | null>(null);
+  useEffect(() => { setTopic(null); }, [home]);
+  const tick = useCallback(async () => {
+    try {
+      const r = await fnRef.current.list(last.current);
+      const t = fnRef.current.topic ? fnRef.current.topic(r) : r.shard != null ? `hc:${home}:${r.shard}` : null;
+      setTopic(t);
+      add(r.items, !first.current, true); first.current = false;
+    } catch { /* next time */ }
+  }, [home, add]);
+  const nudge = useNudge(myId && topic ? topic : null, tick, { enabled: !!myId, immediate: false, safetyMs: live(60_000), fallbackMs: live(8000), gapMs: 1000 });
   useEffect(() => {
-    if (!myId) return;
-    let stop = false;
-    const tick = async () => { try { const r = await fnRef.current.list(last.current); if (!stop) { add(r.items, !first.current, true); first.current = false; } } catch { /* next time */ } };
-    const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(() => { if (!document.hidden) void tick(); }, live(8000));
-    return () => { stop = true; clearTimeout(t0); clearInterval(t); };
-  }, [home, myId, add]);
+    if (!myId || topic) return;
+    const t0 = setTimeout(() => void tick(), 1500); const t = setInterval(() => { if (!document.hidden) void tick(); }, 5000);
+    return () => { clearTimeout(t0); clearInterval(t); };
+  }, [myId, topic, tick]);
   return {
     msgs, unread,
     send: async (body: string) => { const m = await fnRef.current.send(body); add([m], true); send({ t: 'chat', id: myId, m }); return m; },
-    onChat: (m: unknown) => add([m as PlanetChatMsg], true),
+    // someone in the room says they just sent something: look now (what they sent isn't trusted as-is)
+    onChat: () => nudge.current?.soon(0),
     setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
   };
 }

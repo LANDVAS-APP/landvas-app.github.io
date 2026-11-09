@@ -433,7 +433,7 @@ function Economy({ world, plot, layout, cat, dirty }: { world: string; plot: Pla
   const qc = useQueryClient();
   const key = ['base-state', world, plot.gx, plot.gy];
   const has = layout.length > 0;
-  const q = useQuery({ queryKey: key, queryFn: () => api.baseState(world, plot.gx, plot.gy), enabled: has, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: key, queryFn: () => api.baseState(world, plot.gx, plot.gy), enabled: has, refetchInterval: poll(120_000) });
   const [busy, setBusy] = useState<string | null>(null);
   const s = q.data;
   const info = cat.item_info;

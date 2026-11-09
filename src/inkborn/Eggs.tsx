@@ -6,7 +6,7 @@ import { Egg as EggIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
-import { toGameError } from '../backend/backend';
+import { getBackend, toGameError } from '../backend/backend';
 import type { InkEgg, Inkborn } from '../backend/types';
 import { invalidateGame } from '../lib/queries';
 import { Button, Dialog, inputCls } from '../ui';
@@ -60,7 +60,7 @@ const left = (iso: string, now: number) => {
 /** Your eggs, on the Inkborn page. */
 export function EggsPanel() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['ink-eggs'], queryFn: api.inkEggs, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['ink-eggs'], queryFn: api.inkEggs, refetchInterval: poll(getBackend().onPush ? 300_000 : 30_000) }); // new eggs are pushed
   const [now, setNow] = useState(Date.now());
   const [hatching, setHatching] = useState<InkEgg | null>(null);
   const [name, setName] = useState('');

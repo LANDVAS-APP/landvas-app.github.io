@@ -41,7 +41,7 @@ export function useRover(world: string, scene: { current: PlanetScene | null }, 
     finally { busy.current = false; }
   }, [world, scene, set]);
 
-  // the meter: where you are every 2 s; the server burns fuel for the distance
+  // the meter: where you are every 5 s; the server burns fuel for the distance (capped by the rover's speed)
   useEffect(() => {
     if (!driving) return;
     const t = setInterval(async () => {
@@ -50,7 +50,7 @@ export function useRover(world: string, scene: { current: PlanetScene | null }, 
         set(r);
         if (!r.driving) { scene.current?.setRover(null); setDriving(false); buzz('warning'); toast(r.out_of_fuel ? '⛽ Out of fuel — refuel in the garage.' : 'You hopped out.'); }
       } catch { /* try again next tick */ }
-    }, 2000);
+    }, 5000);
     return () => clearInterval(t);
   }, [driving, world, scene, set]);
 

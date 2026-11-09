@@ -497,7 +497,7 @@ function Logbook({ s }: { s: SpaceState }) {
 
 // ---- friends out in space, and the newest worlds anyone has settled ----------------------------------
 function FriendsInSpace() {
-  const q = useQuery({ queryKey: ['space-social'], queryFn: api.spaceSocial, refetchInterval: poll(30_000) });
+  const q = useQuery({ queryKey: ['space-social'], queryFn: api.spaceSocial, refetchInterval: poll(120_000) });
   const warpTo = useWarpTo();
   const friends = q.data?.friends ?? [], worlds = q.data?.new_worlds ?? [];
   if (!friends.length && !worlds.length) return null;

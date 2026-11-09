@@ -1,7 +1,8 @@
 // Group chat for your live group (up to 10) on a world: a small chat box on screen, and every message
-// pops up as a speech bubble over the explorer who said it. Messages arrive instantly over the group's
-// live channel, and a light fetch every few seconds catches anything missed.
+// pops up as a speech bubble over the explorer who said it. When someone says something the server nudges the
+// group's topic and phones fetch the new messages; a slow safety check catches anything missed.
 import { live } from '../lib/poll';
+import { useNudge } from '../lib/nudge';
 import { MessageCircle, Send, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -31,22 +32,26 @@ export function usePlanetChat(world: string, myId: string | undefined, enabled: 
     if (!open.current) setUnread((u) => u + fresh.filter((m) => m.player.id !== myId).length);
   }, [scene, myId]);
 
-  useEffect(() => { setMsgs([]); setUnread(0); last.current = 0; seen.current = new Set(); first.current = true; }, [world]);
+  // the server nudges your group's topic when someone says something; the list call (filtered and checked) is
+  // the only way messages get in
+  const [shard, setShard] = useState<number | null>(null);
+  useEffect(() => { setMsgs([]); setUnread(0); last.current = 0; seen.current = new Set(); first.current = true; setShard(null); }, [world]);
+  const tick = useCallback(async () => {
+    try {
+      const r = await api.planetChatList(world, last.current);
+      if (r.shard !== null) setShard(r.shard);
+      // the backlog when you arrive goes in the box, without a cloud of old bubbles
+      add(r.items, !first.current, true); first.current = false;
+    } catch { /* next time */ }
+  }, [world, add]);
+  const nudge = useNudge(enabled && shard !== null ? `pc:${world}:${shard}` : null, tick,
+    { enabled, safetyMs: live(60_000), fallbackMs: live(8000), gapMs: 1000 });
+  // until we know our group, look every few seconds (you join one within moments of landing)
   useEffect(() => {
-    if (!enabled) return;
-    let stop = false;
-    const tick = async () => {
-      try {
-        const r = await api.planetChatList(world, last.current);
-        if (stop) return;
-        // the backlog when you arrive goes in the box, without a cloud of old bubbles
-        add(r.items, !first.current, true); first.current = false;
-      } catch { /* next time */ }
-    };
-    void tick();
-    const t = setInterval(() => { if (!document.hidden) void tick(); }, live(8000));
-    return () => { stop = true; clearInterval(t); };
-  }, [enabled, world, add]);
+    if (!enabled || shard !== null) return;
+    const t = setInterval(() => { if (!document.hidden) void tick(); }, 5000);
+    return () => clearInterval(t);
+  }, [enabled, shard, tick]);
 
   const send = useCallback(async (body: string) => {
     const m = await api.planetChatSend(world, body);
@@ -57,7 +62,8 @@ export function usePlanetChat(world: string, myId: string | undefined, enabled: 
 
   return {
     msgs, unread, send, sendRef,
-    onChat: (m: unknown) => add([m as PlanetChatMsg], true),
+    // a group member says they just sent something: look now (what they sent isn't trusted as-is)
+    onChat: () => nudge.current?.soon(0),
     setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
   };
 }

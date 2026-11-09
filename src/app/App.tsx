@@ -80,7 +80,7 @@ const SpaceGame = lazy(() => import('../space/SpaceGame'));
 const PlanetGame = lazy(() => import('../space/PlanetGame'));
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: fresh } },
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, staleTime: fresh } }, // back in the app: stale screens refresh once
 });
 // new balances that calls hand back go straight onto the screen
 watchBalances(queryClient);

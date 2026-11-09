@@ -63,7 +63,7 @@ function useArenaLive(opts: { myId: string | undefined; from: string | null; hal
       } catch { /* next beat */ }
     };
     // check in often only while a match is being set up or played here; otherwise every half minute
-    const p = pulse(beat, () => !!lastLive && (!!lastLive.match || lastLive.lobbies.length > 0));
+    const p = pulse(beat, () => !!lastLive?.match); // lobby changes arrive as nudges on the room's channel
     beatNow.current = () => { p.now(); ch?.send({ t: 'nudge' }); };
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
