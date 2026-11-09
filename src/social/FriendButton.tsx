@@ -4,25 +4,37 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { FriendStatus } from '../backend/types';
+import type { FriendStatus, FriendsList } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { Button, useConfirm } from '../ui';
+
+/** Where you stand with a player, from your friend list (friends, and requests both ways). */
+export function friendStatusFrom(list: FriendsList, playerId: string): FriendStatus {
+  if (list.friends.some((f) => f.player.id === playerId)) return 'friends';
+  if (list.incoming.some((f) => f.player.id === playerId)) return 'incoming';
+  if (list.outgoing.some((f) => f.player.id === playerId)) return 'outgoing';
+  return 'none';
+}
 
 /** Add / accept / remove a friend. Hidden on your own profile and when signed out. */
 export function FriendButton({ playerId, username, size = 'sm' }: { playerId: string; username: string; size?: 'sm' | 'md' }) {
   const me = useOnboardedMe();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const q = useQuery({ queryKey: ['friend', playerId], queryFn: () => api.friendStatus(playerId), enabled: !!me && me.profile.id !== playerId });
+  // every button reads the one friend list the app already keeps (friends, and requests both ways), instead of each
+  // asking the server about its own player
+  const q = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, staleTime: 60_000 });
   const [busy, setBusy] = useState(false);
+  const [after, setAfter] = useState<FriendStatus | null>(null); // what the last button press made it, until the list catches up
   if (!me || me.profile.id === playerId || !q.data) return null;
-  const status: FriendStatus = q.data.status;
+  const status: FriendStatus = after ?? friendStatusFrom(q.data, playerId);
   const act = async (fn: () => Promise<{ status: FriendStatus }>, ok?: string) => {
     setBusy(true);
     try {
       const r = await fn();
-      qc.setQueryData(['friend', playerId], r);
-      void qc.invalidateQueries({ queryKey: ['friends'] });
+      setAfter(r.status);
+      await qc.invalidateQueries({ queryKey: ['friends'] });
+      setAfter(null);
       if (ok) toast.success(ok);
     } catch (e) {
       toast.error(toGameError(e).message);

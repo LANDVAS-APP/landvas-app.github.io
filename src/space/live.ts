@@ -35,6 +35,9 @@ export function usePlanetLive(opts: {
     const world = opts.world, myId = opts.myId;
     let stopped = false, ch: { send(m: unknown): void; close(): void } | null = null, chName = '', first = true;
     let members = new Set<string>();
+    // profiles we already have: check-ins only ask for newcomers in full (and everyone again every few minutes, so
+    // a changed name or companion still shows up)
+    const known = new Map<string, LiveMember>(); let fullAt = 0;
     let lastSent = 0, lastKey = '';
     let lastBeatD: number[] | null = null, lastBeatAt = 0;
     const onMsg = (m: unknown) => {
@@ -54,8 +57,18 @@ export function usePlanetLive(opts: {
       if (stopped || document.hidden) return;
       const pose = ref.current.pose();
       try {
-        const r = await api.planetLive(world, pose?.d ?? null, pose?.face ?? null, pose?.hop ?? 0);
+        const fresh = first || performance.now() - fullAt > 5 * 60_000;
+        const r = await api.planetLive(world, pose?.d ?? null, pose?.face ?? null, pose?.hop ?? 0, fresh ? null : [...known.keys()]);
         if (stopped) return;
+        if (fresh) { known.clear(); fullAt = performance.now(); }
+        // fill in the ones that came back as just a position; one we somehow don't have means a full check next time
+        r.members = r.members.map((m) => {
+          if (!(m as { known?: boolean }).known) { known.set(m.id, m); return m; }
+          const had = known.get(m.id);
+          if (!had) { fullAt = 0; return m; }
+          const merged = { ...had, ...m }; known.set(m.id, merged); return merged;
+        }).filter((m) => !!(m as { username?: string }).username);
+        for (const id of [...known.keys()]) if (!r.members.some((m) => m.id === id)) known.delete(id);
         if (first && r.joined && r.spawn) ref.current.onSpawn?.(r.spawn.d, r.members.find((m) => m.id === r.spawn!.player) ?? null);
         first = false;
         lastBeatD = pose?.d ?? lastBeatD; lastBeatAt = performance.now();

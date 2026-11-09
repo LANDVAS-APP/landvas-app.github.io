@@ -1,6 +1,6 @@
 // TanStack Query hooks: server state with caching and invalidation.
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { api, onBalances } from '../backend/api';
+import { api, onCall, onBalances } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import type { MyState, NewAchievement } from '../backend/types';
 import { toast } from 'sonner';
@@ -35,11 +35,35 @@ export const useOnboardedMe = () => {
  * re-reading everything after every tap.
  */
 let pending: { qc: QueryClient; t: ReturnType<typeof setTimeout>; first: number; me: boolean } | null = null;
+
+/**
+ * Which calls can change more than your state and the place you're in. Actions inside a place (a farm, a business, a
+ * realm, a planet, an arcade, a home, a clan…) can't change your plots, art or minigame records, and those screens
+ * refresh their own data; anything else — claiming, merging, publishing, finishing a minigame, or a call not listed
+ * here — refreshes everything, as before.
+ */
+const LOCAL = /^(farm_|biz_|realm_|mine_|factory_|sky_|diner_|dungeon_|brawl_|keeper_|home_|clan_|inkborn_|habitat_spring|habitat_collect|space_|rover_|base_|planet_(dig|meteor|find|live|chat|item|miner|shaft|quest|rover|base)|arcade_|arena_|room_|sketch_|doodle_|duet_|stamp_|wheel_|friend_|mark_|set_activity|report_position)/;
+/** reads change nothing: they don't count either way */
+const READ = /^(my_|get_|list_)|_(get|list|state|view|today|status|near|map|overview|records|lobby|mine)$|^(plot_details|profile_by_username|realm_for_plot|player_places)$/;
+let recent: { fn: string; at: number }[] = [];
+export function watchCalls() {
+  onCall((fn) => { const now = Date.now(); recent = recent.filter((c) => now - c.at < 5000); recent.push({ fn, at: now }); });
+}
+/** true when every change in a burst stayed inside a place (so plots, art and records needn't be re-read) */
+export function burstIsLocal(fns: string[]) {
+  const writes = fns.filter((fn) => !READ.test(fn));
+  return writes.length > 0 && writes.every((fn) => LOCAL.test(fn));
+}
+const onlyLocal = (since: number) => burstIsLocal(recent.filter((c) => c.at >= since).map((c) => c.fn));
+
 const flush = (qc: QueryClient) => {
   const me = pending?.me ?? true;
+  const local = onlyLocal((pending?.first ?? Date.now()) - 3000);
   pending = null;
   // (your state is only re-read if something in the burst didn't already hand back your new balances)
-  for (const key of [...(me ? [qk.me] : []), qk.groups, qk.myPlots, qk.pubs, qk.records, qk.plotProgress]) void qc.invalidateQueries({ queryKey: key });
+  if (me) void qc.invalidateQueries({ queryKey: qk.me });
+  if (local) return;
+  for (const key of [qk.groups, qk.myPlots, qk.pubs, qk.records, qk.plotProgress]) void qc.invalidateQueries({ queryKey: key });
   void qc.invalidateQueries({ queryKey: ['plot'] });
 };
 

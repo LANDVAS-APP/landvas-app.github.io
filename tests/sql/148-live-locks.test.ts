@@ -59,4 +59,16 @@ describe('Live check-ins and room locks', () => {
     await db.rpc(ids[2], 'arena_live', {});
     expect((await db.sql(`select status from arena_matches`))[0].status).toBe('cancelled');
   });
+
+  it('members the phone already has come back as just their position', async () => {
+    // ids[0] and ids[1] are both on the moon by now
+    const full = await db.rpc(ids[1], 'planet_live', { p_world: 'moon' });
+    const other = full.members.find((m: any) => m.id === ids[0]);
+    expect(other).toMatchObject({ id: ids[0], username: 'lock_0' });
+    const slim = await db.rpc(ids[1], 'planet_live', { p_world: 'moon', p_known: [ids[0]] });
+    const m = slim.members.find((x: any) => x.id === ids[0]);
+    expect(m).toMatchObject({ id: ids[0], known: true });
+    expect(m.username).toBeUndefined();
+    expect(m.d).toBeTruthy();
+  });
 });

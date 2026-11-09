@@ -19,7 +19,7 @@ const send = (kind: ActivityKind, detail: Record<string, string>) => {
   const key = kind + JSON.stringify(detail);
   if (key === lastKey && Date.now() - lastAt < poll(90_000)) return;
   if (timer) clearTimeout(timer);
-  timer = setTimeout(() => { lastKey = key; lastAt = Date.now(); void api.setActivity(kind, detail).catch(() => {}); }, 1500);
+  timer = setTimeout(() => { lastKey = key; lastAt = Date.now(); void api.setActivity(kind, detail).catch(() => {}); }, 4000); // once you settle on a screen, not on every hop
 };
 /** A screen can say more than its route does (digging, a planet). Pass null to stop. */
 export function reportActivity(kind: ActivityKind | null, detail: Record<string, string> = {}) {

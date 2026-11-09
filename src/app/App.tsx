@@ -5,7 +5,7 @@ import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 
 import { isNative } from '../native/native';
 import { useActivityReporter } from '../social/activity';
 import { AlertPopups } from '../updates/Notifications';
-import { useOnboardedMe, watchBalances } from '../lib/queries';
+import { useOnboardedMe, watchBalances, watchCalls } from '../lib/queries';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { getBackend } from '../backend/backend';
@@ -84,6 +84,7 @@ const queryClient = new QueryClient({
 });
 // new balances that calls hand back go straight onto the screen
 watchBalances(queryClient);
+watchCalls();
 
 export function useSession() {
   const b = getBackend();

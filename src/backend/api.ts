@@ -12,7 +12,11 @@ import type { RarityId } from '../shared/rarity';
 /** Hears every new balance a call hands back (so the app can show it without re-reading your whole state). */
 let balanceSink: ((fn: string, b: Balances) => void) | null = null;
 export const onBalances = (cb: typeof balanceSink) => { balanceSink = cb; };
+/** Hears the name of every call made (so a refresh afterwards can be limited to what those calls can change). */
+let callSink: ((fn: string) => void) | null = null;
+export const onCall = (cb: typeof callSink) => { callSink = cb; };
 const rpc = async <T,>(fn: string, args?: Record<string, unknown>) => {
+  callSink?.(fn);
   const r = await getBackend().rpc<T>(fn, args);
   const b = (r as { balances?: unknown } | null)?.balances;
   if (balanceSink && b && typeof b === 'object' && !Array.isArray(b)) balanceSink(fn, b as Balances);
@@ -327,8 +331,9 @@ export const api = {
   spaceSettle: (name: string) => rpc<import('./types').SpaceState>('space_settle', { p_name: name }),
   spaceWorld: (world: string) => rpc<{ world: string; pilots: number; here: number; recent: Profile[] }>('space_world', { p_world: world }),
   spaceGameStart: (game: string) => rpc<{ session: string; seed: number; game: string; seconds: number }>('space_game_start', { p_game: game }),
-  planetLive: (world: string, d?: number[] | null, face?: number[] | null, hop = 0) =>
-    rpc<import('./types').PlanetLive>('planet_live', { p_world: world, p_d: d ?? null, p_face: face ?? null, p_hop: hop }),
+  /** `known`: members whose profiles the phone already has (they come back as just their position) */
+  planetLive: (world: string, d?: number[] | null, face?: number[] | null, hop = 0, known?: string[] | null) =>
+    rpc<import('./types').PlanetLive>('planet_live', { p_world: world, p_d: d ?? null, p_face: face ?? null, p_hop: hop, ...(known?.length ? { p_known: known } : {}) }),
   planetLeave: () => rpc<{ ok: true }>('planet_leave'),
   planetPlotsNear: (world: string, gx0: number, gx1: number, gy0: number, gy1: number) =>
     rpc<import('./types').PlanetPlot[]>('planet_plots_near', { p_world: world, p_gx0: gx0, p_gx1: gx1, p_gy0: gy0, p_gy1: gy1 }),
