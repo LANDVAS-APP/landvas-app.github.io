@@ -12,13 +12,14 @@ async function query(sql) {
 }
 const out = (title, rows) => {
   const msg = JSON.stringify(rows).replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').replace(/%/g, '%25').slice(0, 3800);
-  console.log(`::warning title=${title}::${msg}`);
+  console.log(`::warning title=${title}::${msg.slice(0, 300)}`);
+  console.log(`REPORT ${title} ${JSON.stringify(rows)}`); // the full rows (annotations are capped at 10 a step)
 };
 out('db_size', await query(`select pg_size_pretty(pg_database_size(current_database())) size, (select setting from pg_settings where name='shared_buffers') shared_buffers, now() - pg_postmaster_start_time() up`));
 out('tables_by_writes', await query(`select schemaname||'.'||relname t, n_tup_ins ins, n_tup_upd upd, n_tup_hot_upd hot, n_tup_del del, n_live_tup live, n_dead_tup dead, pg_size_pretty(pg_total_relation_size(relid)) size from pg_stat_user_tables order by n_tup_ins+n_tup_upd+n_tup_del desc limit 15`));
 out('tables_by_disk_reads', await query(`select s.schemaname||'.'||s.relname t, heap_blks_read hr, heap_blks_hit hh, idx_blks_read ir, toast_blks_read tr, seq_scan, seq_tup_read from pg_statio_user_tables s join pg_stat_user_tables u using (relid) order by heap_blks_read+coalesce(idx_blks_read,0)+coalesce(toast_blks_read,0) desc limit 12`));
 out('tables_by_size', await query(`select schemaname||'.'||relname t, pg_size_pretty(pg_total_relation_size(relid)) size from pg_stat_user_tables order by pg_total_relation_size(relid) desc limit 12`));
-const pss = `select left(regexp_replace(query, '\\s+', ' ', 'g'), 110) q, calls, shared_blks_read rd, shared_blks_dirtied dirt, shared_blks_written wr, temp_blks_written tmp, wal_bytes / 1048576 wal_mb, round(total_exec_time) ms from extensions.pg_stat_statements`;
+const pss = `select coalesce(substring(query from '"public"\\."([a-z_0-9]+)"'), left(regexp_replace(query, '\\s+', ' ', 'g'), 80)) q, calls, shared_blks_read rd, shared_blks_dirtied dirt, shared_blks_written wr, temp_blks_written tmp, wal_bytes / 1048576 wal_mb, round(total_exec_time) ms from extensions.pg_stat_statements`;
 out('statements_by_wal', await query(`${pss} order by wal_bytes desc limit 14`));
 out('statements_by_disk_read', await query(`${pss} order by shared_blks_read desc limit 14`));
 out('statements_by_dirtied', await query(`${pss} order by shared_blks_dirtied + shared_blks_written + temp_blks_written desc limit 12`));
@@ -39,3 +40,8 @@ out('connections', await query(`select state, count(*) from pg_stat_activity gro
   const j = res.ok ? await res.json() : { error: res.status };
   out('compute', (j.selected_addons ?? []).map((a) => ({ type: a.type, variant: a.variant?.identifier ?? a.variant?.name })).concat(j.error ? [j] : []));
 }
+out('functions_by_time', await query(`select substring(query from '"public"\\."([a-z_0-9]+)"') fn, sum(calls) calls, round(sum(total_exec_time)) total_ms, round(sum(total_exec_time) / sum(calls)) mean_ms, sum(shared_blks_read) rd, sum(shared_blks_dirtied) dirt, sum(temp_blks_written) tmp, round(sum(wal_bytes) / 1024) wal_kb from extensions.pg_stat_statements where query ~ '"public"\\."[a-z_0-9]+"' group by 1 order by 3 desc limit 30`));
+out('functions_by_wal', await query(`select substring(query from '"public"\\."([a-z_0-9]+)"') fn, sum(calls) calls, round(sum(wal_bytes) / 1024) wal_kb, round(sum(wal_bytes) / sum(calls)) wal_per_call, sum(shared_blks_dirtied) dirt, sum(temp_blks_written) tmp from extensions.pg_stat_statements where query ~ '"public"\\."[a-z_0-9]+"' group by 1 order by 3 desc limit 20`));
+out('presence_indexes', await query(`select tablename t, indexname i, indexdef d from pg_indexes where schemaname = 'public' and tablename in ('planet_presence','arcade_presence','arena_presence','home_presence','player_activity','explorers') order by 1, 2`));
+out('row_counts', await query(`select relname t, reltuples::bigint est_rows from pg_class where relname in ('resource_ledger','minigame_sessions','minigame_rewards','idempotent_ops','client_errors','feed_events','player_notifications','audit_logs','rent_ledger') order by 2 desc`));
+out('oldest_rows', await query(`select 'idempotent_ops' t, min(created_at)::date oldest, count(*) filter (where created_at < now() - interval '30 days') older_30d from private.idempotent_ops union all select 'minigame_sessions', min(created_at)::date, count(*) filter (where created_at < now() - interval '30 days') from public.minigame_sessions union all select 'client_errors', min(created_at)::date, count(*) filter (where created_at < now() - interval '30 days') from private.client_errors`));
