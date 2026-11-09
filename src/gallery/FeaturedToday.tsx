@@ -24,8 +24,14 @@ export function FeaturedToday({ className, compact }: { className?: string; comp
       </div>
       <div className={cn('grid gap-3', !compact && 'md:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)]')}>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <Link to={`/art/${top.id}`} className="glass relative block overflow-hidden rounded-3xl p-3 ring-2 ring-gold/50" data-testid="painting-of-the-day">
-            <span className="absolute left-5 top-5 z-10 flex items-center gap-1 rounded-full bg-gold px-2.5 py-1 text-[11px] font-extrabold text-bg shadow-lg"><Crown className="h-3.5 w-3.5" /> Painting of the day</span>
+          <Link to={`/art/${top.id}`} className={cn('glass relative block overflow-hidden rounded-3xl p-3', top.pick === 'community' ? 'ring-1 ring-line-strong' : 'ring-2 ring-gold/50')} data-testid="painting-of-the-day">
+            {top.pick === 'potd' ? (
+              <span className="absolute left-5 top-5 z-10 flex items-center gap-1 rounded-full bg-gold px-2.5 py-1 text-[11px] font-extrabold text-bg shadow-lg"><Crown className="h-3.5 w-3.5" /> Painting of the day</span>
+            ) : top.pick === 'staff' ? (
+              <span className="absolute left-5 top-5 z-10 flex items-center gap-1 rounded-full bg-gold/90 px-2.5 py-1 text-[11px] font-extrabold text-bg shadow-lg"><Star className="h-3.5 w-3.5" /> Staff pick</span>
+            ) : (
+              <span className="absolute left-5 top-5 z-10 flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-extrabold text-white shadow-lg backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-accent-2" /> Most inspiring today</span>
+            )}
             <ArtThumb card={top} className="w-full" />
             <div className="px-1 pt-2">
               <div className="truncate font-display text-base font-semibold">{top.title}</div>

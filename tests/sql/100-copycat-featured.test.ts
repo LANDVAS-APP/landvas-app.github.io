@@ -35,6 +35,10 @@ describe('Copy Cat and Featured today', () => {
     await db.rpc(kim, 'submit_publication', { p_publication_id: req.publication_id });
     await db.rpc(svc, 'svc_publication_processed', { p_publication_id: req.publication_id, p_result: { ok: true, screening: { provider: 'none' } } });
     await db.rpc(svc, 'svc_mark_published', { p_publication_id: req.publication_id, p_cell_revs: { '2600000_1500000': 1 } });
+    // publishing alone doesn't feature it: a community pick needs at least one Inspire
+    const before = await db.rpc({ role: 'anon' }, 'featured_today', { p_limit: 6 });
+    expect(before.some((c: any) => c.id === req.publication_id)).toBe(false);
+    await db.sql(`update artwork_publications set appreciation_count = 1 where id = $1`, [req.publication_id]); // someone inspired it
     const today = await db.rpc({ role: 'anon' }, 'featured_today', { p_limit: 6 });
     expect(today.some((c: any) => c.id === req.publication_id && c.pick === 'community')).toBe(true);
   });

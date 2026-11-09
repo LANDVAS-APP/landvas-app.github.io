@@ -12,6 +12,7 @@ import type { ArtworkCard } from '../backend/types';
 import { fmt, timeAgo } from '../lib/utils';
 import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
+import { MadeBadge } from './MadeBadge';
 
 export default function ArtworkScreen() {
   const { id = '' } = useParams();
@@ -24,6 +25,9 @@ export default function ArtworkScreen() {
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (!q.data) return <Page><Empty title="Artwork not found">It may have been removed or replaced by a newer version.</Empty></Page>;
   const a = q.data;
+  // `featured` lists the active feature sections; an empty list means not featured
+  const featuredBy = Array.isArray(a.featured) ? a.featured.length > 0 : !!a.featured;
+  const inFeatured = Array.isArray(a.featured) ? a.featured.includes('featured') : !!a.featured;
   // privacy: an artwork page never leads to where the art (and so its artist) is
   return (
     <Page wide>
@@ -34,13 +38,14 @@ export default function ArtworkScreen() {
         <div className="grid content-start gap-4">
           <div>
             <h1 className="font-display text-2xl font-bold">{a.title}</h1>
+            <MadeBadge made={a.made} withText className="mt-2" />
             <Link to={`/u/${a.artist.username}`} className="mt-2 flex items-center gap-2 text-sm">
               <PlayerAvatar p={a.artist} size={28} />
               <span className="font-semibold">{a.artist.display_name || a.artist.username}</span><span className="text-muted">@{a.artist.username}</span>
             </Link>
           </div>
           {a.description && <p className="text-sm text-muted">{a.description}</p>}
-          {a.featured && <div className="flex items-center gap-2 rounded-2xl border border-gold/50 bg-gold/10 px-3 py-2 text-sm font-bold text-gold"><Star className="h-4 w-4 fill-gold" /> Featured by the LANDVAS team</div>}
+          {featuredBy && <div className="flex items-center gap-2 rounded-2xl border border-gold/50 bg-gold/10 px-3 py-2 text-sm font-bold text-gold"><Star className="h-4 w-4 fill-gold" /> Featured by the LANDVAS team</div>}
           <div className="grid grid-cols-4 gap-2 text-center">
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold tnum">{a.plot_count}</div><div className="eyebrow !text-[10px]">Plots</div></div>
             <div className="glass rounded-2xl p-3"><div className="font-display font-semibold tnum">{fmt(a.appreciation_count)}</div><div className="eyebrow !text-[10px]">Inspired</div></div>
@@ -68,11 +73,11 @@ export default function ArtworkScreen() {
             {me?.roles?.some((r: string) => ['owner', 'admin', 'moderator'].includes(r)) && (
               <Button variant="ghost" data-testid="feature-art" onClick={async () => {
                 try {
-                  const r: any = await api.admin.feature(a.id, 'featured', !a.featured);
-                  toast.success(a.featured ? 'No longer featured' : r?.ink ? `Featured · @${a.artist.username} earned ${r.ink} Ink` : 'Featured');
+                  const r: any = await api.admin.feature(a.id, 'featured', !inFeatured);
+                  toast.success(inFeatured ? 'No longer featured' : r?.ink ? `Featured · @${a.artist.username} earned ${r.ink} Ink` : 'Featured');
                   void qc.invalidateQueries({ queryKey: ['artwork', id] });
                 } catch (e) { toast.error(toGameError(e).message); }
-              }}><Star className="h-4 w-4" /> {a.featured ? 'Unfeature' : 'Feature'}</Button>
+              }}><Star className="h-4 w-4" /> {inFeatured ? 'Unfeature' : 'Feature'}</Button>
             )}
             {me?.roles?.includes('owner') && (
               <Button variant="ghost" data-testid="set-potd" onClick={async () => {

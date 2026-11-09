@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
-import type { ArtworkCard } from '../backend/types';
+import type { ArtMade, ArtworkCard } from '../backend/types';
+import { MadeMark } from './MadeBadge';
 import { Page, PageHeader } from '../app/Shell';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { Empty, Spinner, Tabs, PlayerAvatar } from '../ui';
@@ -13,11 +14,12 @@ export function useAssetUrl(path: string | null | undefined) {
   return useQuery({ queryKey: ['asset', path], queryFn: () => getBackend().publicAssetUrl(path), enabled: !!path, staleTime: Infinity }).data ?? null;
 }
 
-export function ArtThumb({ card, className }: { card: Pick<ArtworkCard, 'thumb_path' | 'title'>; className?: string }) {
+export function ArtThumb({ card, className }: { card: Pick<ArtworkCard, 'thumb_path' | 'title'> & { made?: ArtMade }; className?: string }) {
   const url = useAssetUrl(card.thumb_path);
   return (
-    <div className={cn('art-paper aspect-square overflow-hidden rounded-2xl', className)}>
+    <div className={cn('art-paper relative aspect-square overflow-hidden rounded-2xl', className)}>
       {url ? <img src={url} alt={card.title} className="h-full w-full object-cover [image-rendering:pixelated]" loading="lazy" /> : <div className="h-full w-full animate-pulse bg-surface-2" />}
+      <MadeMark made={card.made} className="absolute bottom-1.5 left-1.5" />
     </div>
   );
 }

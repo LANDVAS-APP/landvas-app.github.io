@@ -21,6 +21,7 @@ import type { PlotTypeId } from '../shared/grid';
 import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
 import { rarities } from '../shared/rarity';
 import { RarityBadge } from './RarityBadge';
+import { MadeBadge } from '../gallery/MadeBadge';
 import { GamePreview } from '../play/GamePreview';
 import { formatRate } from '../shared/rent';
 import { plotMetres } from '../shared/grid';
@@ -167,12 +168,15 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
 }
 
 function ArtCard({ art }: { art: NonNullable<PlotDetails['art']> }) {
+  // how the art was made comes with the artwork's own details (shared with its page)
+  const made = useQuery({ queryKey: ['artwork', art.publication_id], queryFn: () => api.artworkDetail(art.publication_id), staleTime: 60_000 }).data?.made;
   return (
     <Link to={`/art/${art.publication_id}`} className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3 hover:border-line-strong">
       <div className="min-w-0">
         <div className="eyebrow">Artwork on this plot</div>
         <div className="truncate font-semibold">{art.title}</div>
         <div className="text-xs text-muted">by @{art.artist.username} · {art.plot_count} plot{art.plot_count === 1 ? '' : 's'} · {art.appreciation_count} ♥</div>
+        <MadeBadge made={made} className="mt-1.5" />
       </div>
       <ArrowUpRight className="h-4 w-4 text-muted group-hover:text-fg" />
     </Link>

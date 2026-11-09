@@ -328,6 +328,8 @@ export type ArtworkCard = {
   craft_score?: number | null;
   craft?: { score: number; coverage: number; colors: number; shading: number; detail: number; noise: number; tips: string[]; paid?: number; tier_ink?: number; picture?: number; originality?: number; imported?: boolean; similar?: { sim: number; title: string; own: boolean } | null } | null;
   featured?: boolean;
+  /** how it was made: drawn in the editor, has an uploaded image, or unknown (published before tracking) */
+  made?: ArtMade;
   /** map position — only for the artist and moderators */
   center_lng?: number;
   center_lat?: number;
@@ -342,13 +344,17 @@ export type ArtworkCard = {
   criteria?: string;
 };
 
-export type ArtworkDetail = ArtworkCard & {
+/** 'drawn' = painted in the LANDVAS editor; 'upload' = an uploaded image is in it; null = predates tracking */
+export type ArtMade = 'drawn' | 'upload' | null;
+
+export type ArtworkDetail = Omit<ArtworkCard, 'featured'> & {
   description: string | null;
   cells: [number, number][];
   is_owner: boolean;
   color_count: number | null;
   decision_reason: string | null;
   live_plots: number;
+  /** active feature sections ('featured', 'staff_pick', 'spotlight'); empty when not featured */
   featured: string[];
   more_by_artist: ArtworkCard[];
 };
