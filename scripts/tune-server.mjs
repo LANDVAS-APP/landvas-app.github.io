@@ -28,8 +28,11 @@ try {
     console.log(`tune: database settings updated without a restart (${diff.map(([k, v]) => `${k}=${v}`).join(', ')})`);
   } else console.log('tune: database settings already right');
 } catch (e) { console.log(`::warning::tune: database settings not changed: ${String(e).slice(0, 300)}`); }
-try {
+// (Supabase timed out applying the pool change on Nov 9 2026 — the API kept working, unchanged — so it's only tried
+// when asked: TUNE_POOL=1)
+if (process.env.TUNE_POOL === '1') try {
   const rest = await api('GET', '/postgrest');
   if (rest.db_pool == null || rest.db_pool > POOL) { await api('PATCH', '/postgrest', { db_pool: POOL }); console.log(`tune: API pool ${rest.db_pool ?? 'default'} -> ${POOL}`); }
   else console.log(`tune: API pool already ${rest.db_pool}`);
 } catch (e) { console.log(`::warning::tune: API pool not changed: ${String(e).slice(0, 300)}`); }
+else console.log('tune: API pool left as it is (TUNE_POOL=1 to cap it)');
