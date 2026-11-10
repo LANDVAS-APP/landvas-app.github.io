@@ -21,6 +21,7 @@ import { config } from '../env';
 import { TrafficLayer, trafficAt, trafficPath, useTraffic, useTrafficPref } from './traffic';
 import type { TravelTraffic } from '../backend/types';
 import { GROUP_KEY, GroupMapLayer, GroupPane, useTravelGroup } from './Group';
+import { GroupGameLayer, GroupPlay } from './GroupPlay';
 import { Button, Dialog, PlayerAvatar, Spinner, Switch, Tabs, inputCls } from '../ui';
 
 export const TRAVEL_KEY = ['travel'] as const;
@@ -523,7 +524,7 @@ export function TravelOverlays() {
   const meAway = useTravelGroup().data?.group?.members.find((m) => m.me)?.away;
   useEffect(() => { if (meAway !== undefined && meAway !== away) void qc.invalidateQueries({ queryKey: TRAVEL_KEY }); }, [meAway, away, qc]);
   const show = useTrafficPref((s) => s.show);
-  return (<><TravelMapLayer /><TrafficLayer enabled={away || show} /><GroupMapLayer /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
+  return (<><TravelMapLayer /><TrafficLayer enabled={away || show} /><GroupMapLayer /><GroupGameLayer /><GroupPlay /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
 }
 
 const ago = (ms: number) => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };

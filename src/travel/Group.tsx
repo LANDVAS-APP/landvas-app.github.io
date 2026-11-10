@@ -15,6 +15,8 @@ import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
 import { Button, PlayerAvatar, Spinner, inputCls } from '../ui';
+import { explorerElement } from '../explorer/character';
+import { bubble, useGroupLive, useGroupLiveSync } from './live';
 
 export const GROUP_KEY = ['travel-group'] as const;
 
@@ -125,40 +127,103 @@ export function GroupPane({ onDone }: { onDone(): void }) {
   );
 }
 
-/** your group on the map: the others, wherever they are travelling (never anyone at home) */
+/** your group on the map: the others, as their own explorers, moving live (never anyone at home) */
 export function GroupMapLayer() {
   const q = useTravelGroup();
-  const mates = useMemo(() => (q.data?.group?.members ?? []).filter((m) => !m.me && m.away), [q.data]);
-  const markers = useRef(new Map<string, maplibregl.Marker>());
+  const group = q.data?.group ?? null;
+  useGroupLiveSync(group?.channel, group?.members ?? []);
+  const live = useGroupLive((s) => s.pos);
+  const emotes = useGroupLive((s) => s.emotes);
+  const pings = useGroupLive((s) => s.pings);
+  const others = useMemo(() => (group?.members ?? []).filter((m) => !m.me), [group]);
+  const markers = useRef(new Map<string, { mk: maplibregl.Marker; el: HTMLElement; at: [number, number] | null; target: [number, number] | null }>());
+  const liveRef = useRef(live); liveRef.current = live;
+  // where each member should be: their live position (fresh), else what the server says while they're away
+  const targetOf = (m: TravelGroupMember, now: number): [number, number] | null => {
+    const l = liveRef.current[m.id];
+    if (l && Date.now() - l.at < 12_000) return [l.lng, l.lat];
+    return memberAt(m, now);
+  };
   useEffect(() => {
     const map = mapHandle.current;
     const have = markers.current;
-    const keep = new Set(mates.map((m) => m.id));
-    for (const [id, mk] of have) if (!keep.has(id)) { mk.remove(); have.delete(id); }
+    const keep = new Set(others.map((m) => m.id));
+    for (const [id, x] of have) if (!keep.has(id)) { x.mk.remove(); have.delete(id); }
     if (!map) return;
-    for (const m of mates) {
-      let mk = have.get(m.id);
-      if (!mk) {
-        const el = document.createElement('div');
-        el.className = 'lv-mate';
-        el.dataset.testid = 'group-mate'; el.dataset.user = m.username;
-        el.innerHTML = `<div class="ring"><span></span></div><div class="who"></div>`;
-        (el.querySelector('.ring span') as HTMLElement).textContent = (m.display_name || m.username).slice(0, 1).toUpperCase();
-        (el.querySelector('.ring') as HTMLElement).style.setProperty('--c', /^#[0-9a-f]{3,8}$/i.test(m.accent_color) ? m.accent_color : '#8B5CFF');
-        (el.querySelector('.who') as HTMLElement).textContent = `@${m.username}`;
-        mk = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([m.lng!, m.lat!]).addTo(map);
-        have.set(m.id, mk);
-      }
-      mk.getElement().classList.toggle('riding', !!m.traveling);
+    for (const m of others) {
+      if (have.has(m.id)) continue;
+      const el = explorerElement(m.explorer_style, /^#[0-9a-f]{3,8}$/i.test(m.accent_color) ? m.accent_color : '#8B5CFF');
+      el.classList.add('lv-mate');
+      el.dataset.testid = 'group-mate'; el.dataset.user = m.username;
+      const nm = document.createElement('div'); nm.className = 'lv-mate-name'; nm.textContent = `@${m.username}`;
+      el.appendChild(nm);
+      el.style.display = 'none';
+      const mk = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] }).setLngLat([0, 0]).addTo(map);
+      have.set(m.id, { mk, el, at: null, target: null });
     }
-    const tick = () => {
+    // glide each one towards where they are (live positions arrive a few times a second)
+    let raf = 0, prev = performance.now();
+    const frame = () => {
+      const t = performance.now(), dt = Math.min(0.1, (t - prev) / 1000); prev = t;
       const now = Date.now() + useExplorer.getState().offset;
-      for (const m of mates) { const p = memberAt(m, now); if (p) have.get(m.id)?.setLngLat(p); }
+      for (const m of others) {
+        const x = have.get(m.id);
+        if (!x) continue;
+        const tgt = targetOf(m, now);
+        if (!tgt) { if (x.el.style.display !== 'none') x.el.style.display = 'none'; x.at = null; continue; }
+        if (x.el.style.display === 'none') { x.el.style.display = ''; x.at = tgt; }
+        const at = x.at ?? tgt;
+        const dx = tgt[0] - at[0], dy = tgt[1] - at[1];
+        // far off (a new leg, a teleport): jump; otherwise ease along
+        const far = Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05;
+        const k = far ? 1 : 1 - Math.exp(-dt * 6);
+        const next: [number, number] = [at[0] + dx * k, at[1] + dy * k];
+        const moving = Math.hypot(dx * 111320 * Math.cos((tgt[1] * Math.PI) / 180), dy * 110574) > 0.4;
+        x.el.classList.toggle('walking', moving);
+        if (Math.abs(dx) > 1e-7) x.el.classList.toggle('left', dx < 0);
+        const l = liveRef.current[m.id];
+        const ride = (l && Date.now() - l.at < 12_000 ? l.r : m.traveling ? (m.trip?.mode === 'train' || m.trip?.mode === 'plane' ? m.trip.mode : null) : null) ?? null;
+        x.el.classList.toggle('ride-train', ride === 'train'); x.el.classList.toggle('ride-plane', ride === 'plane');
+        const v = !ride ? (l?.v ?? m.vehicle) : null;
+        x.el.classList.toggle('veh-bike', v === 'bike'); x.el.classList.toggle('veh-car', v === 'car');
+        x.at = next;
+        x.mk.setLngLat(next);
+      }
+      raf = requestAnimationFrame(frame);
     };
-    tick();
-    const iv = setInterval(tick, 1000);
-    return () => clearInterval(iv);
-  }, [mates]);
-  useEffect(() => () => { for (const m of markers.current.values()) m.remove(); markers.current.clear(); }, []);
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [others]); // eslint-disable-line react-hooks/exhaustive-deps
+  // their emotes pop up over them
+  const seen = useRef<Record<string, number>>({});
+  useEffect(() => {
+    for (const [id, e] of Object.entries(emotes)) {
+      if (seen.current[id] === e.at) continue;
+      seen.current[id] = e.at;
+      const x = markers.current.get(id);
+      if (x) bubble(x.el, e.e);
+    }
+  }, [emotes]);
+  // "meet me here" pins
+  const pinRefs = useRef(new Map<string, maplibregl.Marker>());
+  useEffect(() => {
+    const map = mapHandle.current;
+    const keep = new Set(pings.map((p) => `${p.id}:${p.at}`));
+    for (const [k, mk] of pinRefs.current) if (!keep.has(k)) { mk.remove(); pinRefs.current.delete(k); }
+    if (!map) return;
+    for (const p of pings) {
+      const k = `${p.id}:${p.at}`;
+      if (pinRefs.current.has(k)) continue;
+      const el = document.createElement('div');
+      el.className = 'lv-ping'; el.dataset.testid = 'group-ping';
+      el.innerHTML = '<i></i><b></b><span></span>';
+      (el.querySelector('span') as HTMLElement).textContent = `@${p.who}: meet here!`;
+      pinRefs.current.set(k, new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map));
+    }
+  }, [pings]);
+  useEffect(() => () => {
+    for (const x of markers.current.values()) x.mk.remove(); markers.current.clear();
+    for (const mk of pinRefs.current.values()) mk.remove(); pinRefs.current.clear();
+  }, []);
   return null;
 }

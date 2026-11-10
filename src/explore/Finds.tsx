@@ -13,6 +13,9 @@ import { explorerNow, useExplorer } from '../explorer/explorer';
 import { useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
+import { balloonArt, crystalArt, giftArt, starArt } from './art';
+
+const ART: Record<MapFindKind, () => string> = { crystal: crystalArt, balloon: () => balloonArt(), gift: giftArt, star: starArt };
 
 export const FIND_META: Record<MapFindKind, { emoji: string; name: string; verb: string }> = {
   crystal: { emoji: '💎', name: 'Ink crystal', verb: 'Picked up' },
@@ -20,7 +23,7 @@ export const FIND_META: Record<MapFindKind, { emoji: string; name: string; verb:
   gift: { emoji: '🎁', name: 'Gift', verb: 'Opened' },
   star: { emoji: '🌟', name: 'Golden star', verb: 'Caught' },
 };
-const REACH_M = 45;
+export const REACH_M = 45;
 const AUTO_M = 14;
 const MIN_ZOOM = 14.5;
 
@@ -102,7 +105,7 @@ export function FindsLayer() {
       el.className = `lv-find ${f.kind}`;
       el.dataset.testid = 'map-find'; el.dataset.kind = f.kind; el.dataset.id = f.id;
       el.setAttribute('aria-label', FIND_META[f.kind].name);
-      el.innerHTML = `<span class="b">${FIND_META[f.kind].emoji}</span><span class="sh"></span>`;
+      el.innerHTML = ART[f.kind]();
       el.addEventListener('click', (e) => { e.stopPropagation(); void collectRef.current(f); });
       markers.current.set(f.id, new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([f.lng, f.lat]).addTo(map));
     }

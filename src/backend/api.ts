@@ -109,6 +109,11 @@ export const api = {
   travelGroupAccept: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_accept', { p_group: id }),
   travelGroupDecline: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_decline', { p_group: id }),
   travelGroupLeave: () => rpc<import('./types').TravelGroupState>('travel_group_leave'),
+  groupGameStatus: () => rpc<import('./types').GroupGame | null>('group_game_status'),
+  groupGameStart: (kind: import('./types').GroupGameKind) => rpc<import('./types').GroupGame>('group_game_start', { p_kind: kind }),
+  groupGameHit: (game: string, item: number) => rpc<import('./types').GroupGame>('group_game_hit', { p_game: game, p_item: item }),
+  groupPhoto: () => rpc<import('./types').GroupPhoto>('travel_group_photo'),
+  groupPhotos: () => rpc<import('./types').GroupPhoto[]>('travel_group_photos'),
   travelGroupKick: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_kick', { p_player: id }),
   travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
 

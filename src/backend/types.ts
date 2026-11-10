@@ -834,6 +834,18 @@ export type TravelGroupMember = Profile & {
   trip?: { mode: TravelMode | 'home'; to: string | null } | null;
 };
 export type TravelGroupState = {
-  group: { id: string; code: string; leader: boolean; max: number; members: TravelGroupMember[]; invited: Profile[] } | null;
+  group: { id: string; code: string; leader: boolean; max: number; members: TravelGroupMember[]; invited: Profile[];
+    /** the group's private live channel (members only; it changes when someone leaves) */ channel?: string;
+    /** a game under way */ game?: { id: string; kind: GroupGameKind; ends_at: string } | null } | null;
   invites: { group_id: string; by: Profile; size: number }[];
 };
+
+// ---- travelling together, live (v1.0.0) -------------------------------------------------------------
+export type GroupGameKind = 'balloons' | 'race';
+export type GroupGame = {
+  id: string; kind: GroupGameKind; lng: number; lat: number; starts_at: string; ends_at: string; over: boolean; late?: boolean;
+  winner: Profile | null; started_by: string;
+  items: { i: number; lng: number; lat: number; c: string; by: string | null }[];
+  scores: { id: string; username: string; n: number; me: boolean }[];
+};
+export type GroupPhoto = { id: string; taken_at: string; stop: TravelStop | null; members: Profile[] };

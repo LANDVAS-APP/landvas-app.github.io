@@ -32,6 +32,7 @@ import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscap
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { FindsLayer } from '../explore/Finds';
+import { GroupButton } from '../travel/GroupPlay';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -197,6 +198,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
         </button>
       )}
       {has && <TravelButton />}
+      {has && <GroupButton />}
       {/* space: your rocket, and the trip under way */}
       <button className={cn('lv-gbtn round', flight.flying && 'hot')}
         onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">
