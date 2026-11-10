@@ -26,6 +26,7 @@ export default function ProfileScreen() {
   const q = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username) });
   const land = useQuery({ queryKey: ['land', username], queryFn: () => api.playerLand(username), enabled: !!q.data });
   const places = useQuery({ queryKey: ['places', username], queryFn: () => api.playerPlaces(username), enabled: !!q.data, refetchInterval: poll(120_000) });
+  const house = useQuery({ queryKey: ['home-status', username], queryFn: () => api.homeStatus(username!), enabled: !!q.data && !!me, staleTime: 60_000 });
   const nav = useNavigate();
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (q.error || !q.data) return <Page><Empty title="Profile not found">This artist doesn't exist or isn't visible to you.</Empty></Page>;
@@ -45,9 +46,16 @@ export default function ProfileScreen() {
           <ExplorerFigure style={p.explorer_style} accent={p.accent_color} size={52} className="hidden sm:block" label={`@${p.username}'s explorer`} />
         </div>
         <div className="relative mt-4 flex flex-wrap gap-2">
-          <Button variant="rainbow" size="sm" data-testid="profile-visit" onClick={() => nav(`/u/${p.username}/home`)}>
-            <DoorOpen className="h-4 w-4" /> {d.is_me ? '🏠 My home' : '🏠 Visit their home'}
-          </Button>
+          {/* a house can be visited once its owner has a Residential · Home plot */}
+          {(house.data?.allowed ?? true) ? (
+            <Button variant="rainbow" size="sm" data-testid="profile-visit" onClick={() => nav(`/u/${p.username}/home`)}>
+              <DoorOpen className="h-4 w-4" /> {d.is_me ? '🏠 My home' : '🏠 Visit their home'}{house.data?.has_home && house.data.size > 1 ? ` · ${house.data.name}` : ''}
+            </Button>
+          ) : d.is_me ? (
+            <Button variant="secondary" size="sm" data-testid="profile-build-home" onClick={() => nav('/home')}>🏠 Build your home</Button>
+          ) : (
+            <span className="flex h-9 items-center rounded-xl border border-dashed border-line-strong px-3 text-xs text-muted" data-testid="profile-no-home">🏠 No home built yet</span>
+          )}
           {me && places.data?.arcades[0] && (() => {
             // their busiest arcade, one tap away (and flagged when people are playing there right now)
             const a = [...places.data.arcades].sort((x, y) => y.playing - x.playing || y.plays - x.plays)[0];
@@ -83,7 +91,7 @@ export default function ProfileScreen() {
           </div>
         </section>
       )}
-      {land.data && land.data.total_plots > 0 && <LandSection land={land.data} username={p.username} />}
+      {land.data && land.data.total_plots > 0 && <LandSection land={land.data} username={p.username} home={house.data?.allowed ?? true} />}
       <section className="mt-5">
         <h2 className="mb-3 font-display text-lg font-semibold">Artworks</h2>
         {d.gallery?.length ? <ArtGrid cards={d.gallery} /> : <Empty icon={<Brush className="h-6 w-6" />} title="No published artworks yet" />}
@@ -112,7 +120,7 @@ function StampBook({ username }: { username: string }) {
 }
 
 /** A player's land in brief: rarity mix, rent rate and their biggest canvases (shapes only). */
-function LandSection({ land, username }: { land: PlayerLand; username: string }) {
+function LandSection({ land, username, home = true }: { land: PlayerLand; username: string; home?: boolean }) {
   const counts = RARITY_ORDER.map((r) => [r, land.rarity_counts[r] ?? 0] as const).filter(([, n]) => n > 0);
   return (
     <section className="mt-5" data-testid="profile-land">
@@ -121,13 +129,13 @@ function LandSection({ land, username }: { land: PlayerLand; username: string })
         <span className="text-xs text-muted tnum">{fmt(land.total_plots)} plots · earns {formatRate(Number(land.usd_per_second))}</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">{counts.map(([r, n]) => <span key={r} className="flex items-center gap-1.5"><RarityBadge r={r} small /><b className="text-sm tnum">{n}</b></span>)}</div>
-      <Link to={`/u/${username}/home`} className="glass flex flex-wrap items-center gap-3 rounded-3xl p-3 hover:border-line-strong">
+      <Link to={home ? `/u/${username}/home` : `/u/${username}`} className="glass flex flex-wrap items-center gap-3 rounded-3xl p-3 hover:border-line-strong">
         {land.canvases.slice(0, 5).map((c) => (
           <div key={c.id} className="flex h-20 w-20 items-center justify-center rounded-2xl bg-bg-2/70 p-1.5 shadow-[inset_0_0_0_1px_var(--line)]">
             <LandMosaic canvas={c} size={64} />
           </div>
         ))}
-        <span className="flex items-center gap-1.5 px-2 text-sm font-bold text-accent-2"><DoorOpen className="h-4 w-4" /> Step into their home</span>
+        {home && <span className="flex items-center gap-1.5 px-2 text-sm font-bold text-accent-2"><DoorOpen className="h-4 w-4" /> Step into their home</span>}
       </Link>
     </section>
   );

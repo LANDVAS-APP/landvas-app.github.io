@@ -16,6 +16,7 @@ beforeAll(async () => {
   await db.rpc(ow, 'set_group_kind', { p_group_id: g.id, p_kind: 'arcade' });
   await db.rpc(ow, 'friend_request', { p_player_id: fr });
   await db.rpc(fr, 'friend_respond', { p_player_id: ow, p_accept: true });
+  await db.sql(`insert into homes (player_id, legacy) select id, true from players on conflict (player_id) do update set legacy = true`); // players from before Residential
 });
 afterAll(() => db.close());
 

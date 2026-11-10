@@ -140,6 +140,15 @@ export function WalletDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           </div>
           <BoostButton compact />
         </div>
+        {(rent.landlord?.plots ?? 0) > 0 && (
+          <div className="flex items-center gap-3 rounded-2xl border border-[#6FA3D9]/40 bg-[#3E6E9C]/15 p-3 text-sm" data-testid="wallet-landlord">
+            <span className="text-2xl">🏘️</span>
+            <div>
+              <div className="font-bold">{rent.landlord!.active ? `Rent day! ${rent.landlord!.multiplier}× on your Landlord plots` : `Landlord plots: ${rent.landlord!.multiplier}× on the 1st`}</div>
+              <div className="text-xs text-muted">{rent.landlord!.plots} plot{rent.landlord!.plots === 1 ? '' : 's'} · {formatRate(Number(rent.landlord!.rate))} normally{rent.landlord!.active ? ` · ${formatRate(Number(rent.landlord!.rate) * rent.landlord!.multiplier)} today` : ` · next rent day ${new Date(rent.landlord!.next).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}</div>
+            </div>
+          </div>
+        )}
         <div>
           <div className="eyebrow mb-2">Your plots by rarity</div>
           <div className="grid gap-1.5">

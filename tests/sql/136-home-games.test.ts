@@ -14,6 +14,7 @@ beforeAll(async () => {
   await db.init({ ungated: true, freePlots: 4 });
   for (let i = 0; i < 4; i++) P.push(await db.newPlayer(`party_p${i}`));
   for (let i = 0; i < 3; i++) await seasoned(P[i], 61000 + i * 50);
+  await db.sql(`insert into homes (player_id, legacy) select id, true from players on conflict (player_id) do update set legacy = true`); // players from before Residential
 });
 afterAll(() => db.close());
 

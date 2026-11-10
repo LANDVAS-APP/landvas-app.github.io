@@ -57,6 +57,7 @@ export default function EditorScreen() {
   if (group.data.kind === 'farm' && group.data.farm_id) return <Navigate to={`/farm/${group.data.farm_id}`} replace />;
   if (group.data.kind === 'business' && group.data.business_id) return <Navigate to={`/business/${group.data.business_id}`} replace />;
   if (group.data.kind === 'arcade' && group.data.arcade_id) return <Navigate to={`/arcade/${group.data.arcade_id}`} replace />;
+  if (group.data.kind === 'home') return <Navigate to="/home" replace />;
   if (isRealm(group.data.kind) && group.data.realm_id) return <Navigate to={realmRoute(group.data.realm_id)} replace />;
   if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
   return <PaintEditor />;

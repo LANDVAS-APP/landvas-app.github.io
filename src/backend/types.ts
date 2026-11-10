@@ -194,10 +194,17 @@ export type ArcadeMatch = {
 export type ArcadeLive = { arcade_id: string; shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_arcade: number; lobbies: ArcadeMatch[]; match: ArcadeMatch | null };
 export type HomePlace = { id: string; name: string; plots: number; rarity?: string | null; level?: number; score?: number; starter?: boolean; here?: number };
 export type HomeDoorInfo = { privacy: 'public' | 'friends' | 'hidden'; open: boolean; count: number; places: HomePlace[] };
-export type HomePlaced = { i: string; x: number; z: number; r: number; c?: number };
+export type HomePlaced = { i: string; x: number; z: number; r: number; c?: number; f?: number };
+/** one size of house: what a square of Home plots that big gives you */
+export type HouseSize = { size: number; name: string; floors: number; balcony: boolean; roof: boolean; elevator: boolean; pool: boolean; unlock: string };
+/** a player's house: may it be visited, and how big it is (the biggest square of their Home plots) */
+export type House = HouseSize & { has_home: boolean; legacy: boolean; allowed: boolean; group_id: string | null; plots: number; levels: number; max_items: number; next: HouseSize | null; ladder: HouseSize[] };
+export type HomeStatus = { own: boolean; allowed: boolean; has_home: boolean; size: number; name: string; floors: number };
+/** a drawing in a check-in book: strokes of points on a 400 x 300 page */
+export type BookDrawing = { s: { c: string; w: number; p: number[] }[] };
 export type HomeStyleData = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string; music?: string };
 export type HomeData = {
-  host: Profile & { explorer_style?: unknown }; own: boolean; name: string | null; style: HomeStyleData; layout: HomePlaced[];
+  host: Profile & { explorer_style?: unknown }; own: boolean; house?: House; name: string | null; style: HomeStyleData; layout: HomePlaced[];
   doors: Record<'arcade' | 'habitat' | 'farm' | 'business', HomeDoorInfo> & Partial<Record<RealmKind, HomeDoorInfo>>;
   careers: { arcade: number; keeper: number; farmer: number; merchant: number; creatures: number; plots: number; realms?: Partial<Record<RealmKind, number>> };
   inkborn: { id: string; name: string; genome: unknown; companion: boolean }[];
@@ -416,7 +423,7 @@ export type PvpLobby = {
 // ---- more ways to earn ----
 export type WheelSlice = { label: string; kind: 'ink' | 'pigments' | 'brush_points' | 'gallery_tokens' | 'boost' | 'joystick'; amount: number; color: string; chance?: number };
 export type WheelStatus = { enabled: boolean; slices: WheelSlice[]; spins_left: number; last: { slice: number; prize: WheelSlice; at: string } | null; resets_at: string };
-export type RoomStatus = { enabled: boolean; own: boolean; checked_in: boolean; visitor_ink: number; host_ink: number; stay_seconds: number; paid_today: number; visitor_daily: number; old_enough: boolean; visitors_today: number; resets_at: string };
+export type RoomStatus = { enabled: boolean; own: boolean; checked_in: boolean; signed_today?: boolean; visitor_ink: number; host_ink: number; stay_seconds: number; paid_today: number; visitor_daily: number; old_enough: boolean; visitors_today: number; resets_at: string };
 export type CraftTier = { min: number; ink: number };
 export type EarnOverview = {
   wheel: { enabled: boolean; spins_left: number };
@@ -452,11 +459,11 @@ export type StampInfo = { enabled: boolean; price: number; supply: number; artis
 export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
-  notes: { id: number; body: string; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
+  notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | RealmKind;
+export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | 'home' | 'landlord' | RealmKind;
 /** The 2x2 merge tier: each base type's Estate (see src/realms/estates). */
 export type EstateKind = 'atelier' | 'reserve' | 'ranch' | 'exchange' | 'boardwalk' | 'gemheart' | 'skyport' | 'foundry' | 'foodhall' | 'citadel' | 'colosseum';
 /** The 3x3 merge tier: each base type's Domain. */

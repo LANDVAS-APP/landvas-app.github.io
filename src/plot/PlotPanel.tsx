@@ -1,4 +1,6 @@
 import { plotBlocks } from '../map/WorldMap';
+import { HouseCard, LandlordCard } from '../residential/ResidentialCard';
+import { WalletDialog } from '../rent/RentHud';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { startMerge, useFuseCost } from './MergeBar';
@@ -557,11 +559,15 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const biz = useBizAt(d.gx, d.gy, any || k === 'business').data;
   const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade' || k === 'boardwalk' || k === 'galaxypark').data;
   const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
+  const [wallet, setWallet] = useState(false);
   return (
     <div className="grid gap-3">
-      {myGroup && <EstateCard group={myGroup} />}
+      {wallet && <WalletDialog open onOpenChange={setWallet} />}
+      {myGroup && k === 'home' && <HouseCard group={myGroup} />}
+      {myGroup && k === 'landlord' && <LandlordCard group={myGroup} />}
+      {myGroup && k !== 'home' && k !== 'landlord' && <EstateCard group={myGroup} />}
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
         {rlm && arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
           : rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
@@ -569,6 +575,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
           : biz ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/business/${biz.business_id}`, d.center); }} data-testid="open-business">🍋 Open business</Button>
           : farm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/farm/${farm.farm_id}`, d.center); }} data-testid="open-farm">🌾 Enter farm</Button>
           : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
+          : k === 'home' ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, '/home', d.center); }} data-testid="open-house">🏠 Enter your home</Button>
+          : k === 'landlord' ? <Button variant="primary" onClick={() => setWallet(true)} data-testid="open-rentals">💵 Your rent</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>
@@ -612,6 +620,17 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
   const biz = useBizAt(d.gx, d.gy, true).data;
   const arc = useArcadeAt(d.gx, d.gy, true).data;
   const rlm = useRealmAt(d.gx, d.gy, true).data;
+  const kind = plotBlocks.kindAt(d.gx, d.gy);
+  if ((kind === 'home' || kind === 'landlord') && d.owner) return (
+    <Link to={`/u/${d.owner.username}/home`} className="flex items-center gap-3 rounded-2xl border border-[#E0745C]/40 bg-[#E0745C]/10 p-3 hover:border-[#E0745C]" data-testid="visit-house">
+      <span className="text-2xl">{kind === 'home' ? '🏠' : '🏘️'}</span>
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow">Residential · {kind === 'home' ? 'Home' : 'Landlord'}</div>
+        <div className="truncate text-sm font-semibold">{kind === 'home' ? `@${d.owner.username}’s home` : `@${d.owner.username}’s rentals`}</div>
+      </div>
+      <span className="text-xs font-bold text-[#E0745C]">{kind === 'home' ? 'Visit & check in →' : 'Visit their home →'}</span>
+    </Link>
+  );
   if (rlm) { const m = REALM_META[rlm.kind]; return (
     <Link to={arc ? `/arcade/${arc.arcade_id}` : realmRoute(rlm.realm_id)} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: `${m.color}66`, background: `${m.color}1A` }} data-testid="visit-realm">
       <span className="text-2xl">{m.emoji}</span>

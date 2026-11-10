@@ -45,6 +45,7 @@ beforeAll(async () => {
     await db.rpc(p, 'claim_starter_plot', { p_gx: spots[p][0], p_gy: spots[p][1] });
   }
   for (const p of [ana, ben, cal]) await old(p);
+  await db.sql(`insert into homes (player_id, legacy) select id, true from players on conflict (player_id) do update set legacy = true`); // players from before Residential
 });
 afterAll(() => db.close());
 
@@ -88,6 +89,8 @@ describe('room check-ins', () => {
     expect(st.checked_in).toBe(false);
     await expectError(db.rpc(ben, 'room_checkin', { p_username: 'ana_paints' }), 'look_around_first');
     await db.sql(`update room_visits set entered_at = now() - interval '20 seconds'`);
+    await expectError(db.rpc(ben, 'room_checkin', { p_username: 'ana_paints' }), 'sign_the_book');
+    await db.rpc(ben, 'room_note', { p_username: 'ana_paints', p_body: 'lovely place!' });
     const [bv, av] = [await ink(ben), await ink(ana)];
     const r = await db.rpc(ben, 'room_checkin', { p_username: 'ana_paints' });
     expect(r.earned).toBe(2);
@@ -101,6 +104,7 @@ describe('room check-ins', () => {
   it('new accounts check in but earn nothing (so extra accounts can’t farm a room)', async () => {
     await db.rpc(kid, 'room_enter', { p_username: 'ana_paints' });
     await db.sql(`update room_visits set entered_at = now() - interval '20 seconds'`);
+    await db.rpc(kid, 'room_note', { p_username: 'ana_paints', p_body: 'hi' });
     const av = await ink(ana);
     const r = await db.rpc(kid, 'room_checkin', { p_username: 'ana_paints' });
     expect(r.earned).toBe(0);

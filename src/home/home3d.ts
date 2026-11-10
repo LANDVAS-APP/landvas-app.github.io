@@ -9,11 +9,13 @@ import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { ITEM, buildItem, makeKit, type Built } from './furniture';
 
-export type Placed = { i: string; x: number; z: number; r: number; c?: number };
+export type Placed = { i: string; x: number; z: number; r: number; c?: number; /** which floor: 0 the ground floor, up to the roof terrace */ f?: number };
+/** what the house has: its floors, and the extras bigger houses get */
+export type HouseShape = { floors: number; balcony: boolean; roof: boolean; elevator: boolean; pool: boolean };
 export type HomeStyle = { wall?: string; floor?: string; view?: string; mood?: string; wall_color?: string; floor_color?: string; trim?: string };
 export type HomeDoor = { kind: string; label: string; emoji: string; color: string; plaque: string; state: 'open' | 'locked' | 'empty'; here?: number };
 export type HomeCreature = { id: string; name: string; genome: unknown };
-export type HomeSpot = { kind: 'door'; door: string } | { kind: 'art'; i: number } | { kind: 'item'; i: number; id: string };
+export type HomeSpot = { kind: 'door'; door: string } | { kind: 'art'; i: number } | { kind: 'item'; i: number; id: string } | { kind: 'stairs' } | { kind: 'lift' };
 export type HomeOpts = {
   canvas: HTMLCanvasElement; explorerUrl: string; reduceMotion?: boolean;
   onNear?(s: HomeSpot | null): void;
@@ -199,6 +201,7 @@ export function createHome(o: HomeOpts) {
   const trimMat = std('#ffffff', { roughness: 0.45 });
   const capMat = std('#4A3B32', { roughness: 0.9 });
   const T2 = 0.2;
+  const shellMark = scene.children.length;
   // back wall, in four pieces round the window
   const backParts: [number, number, number, number][] = [
     [-W / 2, WINDOW.x0, 0, H], [WINDOW.x1, W / 2, 0, H], [WINDOW.x0, WINDOW.x1, 0, WINDOW.y0], [WINDOW.x0, WINDOW.x1, WINDOW.y1, H],
@@ -240,6 +243,9 @@ export function createHome(o: HomeOpts) {
   const curtainGeo = (() => { const g = new THREE.PlaneGeometry(0.75, WINDOW.y1 + 0.25 - 0.05, 24, 1); const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, Math.sin(p.getX(i) * 26) * 0.045); g.computeVertexNormals(); return g; })();
   for (const s of [-1, 1]) mesh(curtainGeo, curtainMat, wx + s * (ww / 2 + 0.3), (WINDOW.y1 + 0.25) / 2 + 0.02, -D / 2 + 0.12);
   for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(0.04, 10, 8), std('#B08D57', { metalness: 0.7, roughness: 0.3 }), wx + s * (ww / 2 + 0.72), WINDOW.y1 + 0.28, -D / 2 + 0.16, scene, false);
+  // the room's shell (walls, mouldings, window): the roof terrace has none of it
+  const shell = new THREE.Group(); scene.add(shell);
+  for (const c of scene.children.slice(shellMark)) if (c !== shell) shell.add(c);
 
   // ---- art on the back wall ---------------------------------------------------------------------------------------------
   const artMats = ART_X.map(() => std('#F6F4EE', { roughness: 0.85 }));
@@ -298,9 +304,101 @@ export function createHome(o: HomeOpts) {
     });
   };
 
+  // ---- floors: stairs, a lift, balconies, the roof terrace (and its pool) -----------------------------------------------
+  // Bigger houses have more floors. You're on one at a time: its furniture, its visitors; the ground floor has the doors
+  // and the art. The stairs are in the front-right corner; the lift (big houses) is on the right wall.
+  let house: HouseShape = { floors: 1, balcony: false, roof: false, elevator: false, pool: false };
+  let floorNo = 0;
+  const levels = () => house.floors + (house.roof ? 1 : 0);
+  const onRoof = () => house.roof && floorNo === house.floors;
+  const STAIRS = { x0: 5.0, x1: W / 2, z0: 2.3, z1: D / 2 };
+  const stairSpot = new THREE.Vector3(4.4, 0, 4.3);
+  const liftSpot = new THREE.Vector3(5.9, 0, -2.6);
+  const stairs = new THREE.Group(); scene.add(stairs);
+  {
+    const wood = std('#8A5A3C', { roughness: 0.6 }), rail = std('#3A2E28', { roughness: 0.5 });
+    // a flight going up toward the back wall, with a banister
+    for (let k = 0; k < 10; k++) {
+      const z = STAIRS.z1 - 0.3 - k * 0.34, y = 0.17 + k * 0.32;
+      mesh(new THREE.BoxGeometry(STAIRS.x1 - STAIRS.x0 - 0.1, 0.12, 0.36), wood, (STAIRS.x0 + STAIRS.x1) / 2, y, z, stairs);
+      mesh(new THREE.BoxGeometry(STAIRS.x1 - STAIRS.x0 - 0.1, y, 0.06), std('#6B4A3A'), (STAIRS.x0 + STAIRS.x1) / 2, y / 2, z + 0.15, stairs, false);
+    }
+    const len = Math.hypot(3.4, 3.2), b = mesh(new THREE.BoxGeometry(0.06, 0.06, len), rail, STAIRS.x0 + 0.05, 2.2, (STAIRS.z1 - 0.3 + STAIRS.z1 - 3.7) / 2, stairs, false);
+    b.rotation.x = Math.atan2(3.2, 3.4);
+    for (let k = 0; k < 10; k += 3) mesh(new THREE.BoxGeometry(0.04, 0.9, 0.04), rail, STAIRS.x0 + 0.05, 0.62 + k * 0.32, STAIRS.z1 - 0.3 - k * 0.34, stairs, false);
+    // a soft glow on the first step, so you can see where to go
+    const g = mesh(new THREE.PlaneGeometry(1.4, 0.9), T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending })), stairSpot.x + 0.2, 0.025, stairSpot.z, stairs, false); g.rotation.x = -Math.PI / 2;
+  }
+  stairs.visible = false;
+  // the top floor: a railing round the stairwell instead of a flight up
+  const well = new THREE.Group(); scene.add(well);
+  {
+    const rail = std('#3A2E28', { roughness: 0.5 });
+    mesh(new THREE.BoxGeometry(STAIRS.x1 - STAIRS.x0, 0.05, STAIRS.z1 - STAIRS.z0), std('#1A1410'), (STAIRS.x0 + STAIRS.x1) / 2, 0.02, (STAIRS.z0 + STAIRS.z1) / 2, well, false);
+    for (const [w, d, x, z] of [[STAIRS.x1 - STAIRS.x0, 0.05, (STAIRS.x0 + STAIRS.x1) / 2, STAIRS.z0], [0.05, STAIRS.z1 - STAIRS.z0 - 1.2, STAIRS.x0, (STAIRS.z0 + STAIRS.z1) / 2 - 0.6]] as const) {
+      mesh(new THREE.BoxGeometry(w, 0.06, d), rail, x, 0.95, z, well, false);
+      for (let k = 0; k <= 4; k++) mesh(new THREE.BoxGeometry(0.04, 0.95, 0.04), rail, w > d ? STAIRS.x0 + (k / 4) * w : x, 0.47, w > d ? z : STAIRS.z0 + (k / 4) * d, well, false);
+    }
+  }
+  well.visible = false;
+  // the lift, in the right wall
+  const lift = new THREE.Group(); lift.position.set(W / 2 - 0.02, 0, liftSpot.z); lift.rotation.y = -Math.PI / 2; scene.add(lift);
+  {
+    const steel = std('#C8CCD4', { metalness: 0.85, roughness: 0.25 });
+    mesh(new THREE.BoxGeometry(1.5, 2.5, 0.08), std('#3A3E46', { metalness: 0.6, roughness: 0.4 }), 0, 1.25, 0.02, lift);
+    for (const sx of [-0.36, 0.36]) mesh(new THREE.BoxGeometry(0.7, 2.3, 0.04), steel, sx, 1.17, 0.07, lift);
+    mesh(new THREE.BoxGeometry(0.26, 0.4, 0.04), std('#20242A'), 0.95, 1.2, 0.06, lift);
+    mesh(new THREE.SphereGeometry(0.04, 10, 8), T(new THREE.MeshStandardMaterial({ color: '#FFE14D', emissive: '#FFE14D', emissiveIntensity: 1.6 })), 0.95, 1.28, 0.09, lift, false);
+  }
+  lift.visible = false;
+  // balconies out the front of the upper floors
+  const BALCONY_Z = 8.2;
+  const balcony = new THREE.Group(); scene.add(balcony);
+  {
+    mesh(new THREE.BoxGeometry(W - 1, 0.18, BALCONY_Z - D / 2), std('#B9AFA3', { roughness: 0.8 }), 0, -0.08, (D / 2 + BALCONY_Z) / 2, balcony, false);
+    const glass = T(new THREE.MeshStandardMaterial({ color: '#CFE8FF', transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.3, depthWrite: false }));
+    const rail = std('#FFFFFF', { roughness: 0.4 });
+    mesh(new THREE.BoxGeometry(W - 1, 0.9, 0.04), glass, 0, 0.45, BALCONY_Z, balcony, false);
+    mesh(new THREE.BoxGeometry(W - 1, 0.06, 0.08), rail, 0, 0.92, BALCONY_Z, balcony, false);
+    for (const sx of [-1, 1]) { mesh(new THREE.BoxGeometry(0.04, 0.9, BALCONY_Z - D / 2), glass, sx * (W - 1) / 2, 0.45, (D / 2 + BALCONY_Z) / 2, balcony, false); mesh(new THREE.BoxGeometry(0.08, 0.06, BALCONY_Z - D / 2), rail, sx * (W - 1) / 2, 0.92, (D / 2 + BALCONY_Z) / 2, balcony, false); }
+    for (const x of [-4.5, 4.5]) { mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.45, 12), std('#C8553D'), x, 0.22, BALCONY_Z - 0.5, balcony); mesh(new THREE.SphereGeometry(0.42, 12, 10), std('#4E9A44'), x, 0.7, BALCONY_Z - 0.5, balcony); }
+  }
+  balcony.visible = false;
+  // the roof terrace: decking, a railing all round, planters and festoon lights (and a pool on the biggest houses)
+  const roofDeck = new THREE.Group(); scene.add(roofDeck);
+  const POOL = { x0: -2.2, x1: 2.8, z0: -5.4, z1: -1.6 };
+  let poolWater: THREE.Mesh | null = null;
+  {
+    const deck = mesh(new THREE.PlaneGeometry(W, D), std('#A9876A', { roughness: 0.75 }), 0, 0.012, 0, roofDeck, false); deck.rotation.x = -Math.PI / 2;
+    for (let k = -W / 2 + 0.5; k < W / 2; k += 0.5) mesh(new THREE.BoxGeometry(0.02, 0.005, D), std('#8A6A50'), k, 0.016, 0, roofDeck, false);
+    const rail = std('#FFFFFF', { roughness: 0.4 });
+    for (const [w, d, x, z] of [[W, 0.06, 0, -D / 2], [W, 0.06, 0, D / 2], [0.06, D, -W / 2, 0], [0.06, D, W / 2, 0]] as const) {
+      mesh(new THREE.BoxGeometry(w, 0.07, d), rail, x, 1.0, z, roofDeck, false);
+      const n = Math.round(Math.max(w, d) / 0.8);
+      for (let k = 0; k <= n; k++) mesh(new THREE.BoxGeometry(0.05, 1.0, 0.05), rail, w > d ? -w / 2 + (k / n) * w : x, 0.5, w > d ? z : -d / 2 + (k / n) * d, roofDeck, false);
+    }
+    for (const [x, z] of [[-6.2, -5.2], [-6.2, 5.2], [6.2, -5.2]]) { mesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), std('#6B4A3A'), x, 0.25, z, roofDeck); mesh(new THREE.SphereGeometry(0.55, 12, 10), std('#3F8A3A'), x, 0.8, z, roofDeck); }
+    const bulbs = T(new THREE.MeshStandardMaterial({ color: '#FFE9A8', emissive: '#FFE9A8', emissiveIntensity: 2 }));
+    for (let k = 0; k <= 20; k++) { const f = k / 20; mesh(new THREE.SphereGeometry(0.06, 8, 6), bulbs, -W / 2 + 0.3 + f * (W - 0.6), 2.6 - Math.sin(f * Math.PI) * 0.5, -D / 2 + 0.2, roofDeck, false); }
+  }
+  const poolGroup = new THREE.Group(); roofDeck.add(poolGroup);
+  {
+    const { x0, x1, z0, z1 } = POOL, w = x1 - x0, d = z1 - z0;
+    mesh(new THREE.BoxGeometry(w + 0.4, 0.3, d + 0.4), std('#F4F1EA', { roughness: 0.4 }), (x0 + x1) / 2, 0.15, (z0 + z1) / 2, poolGroup);
+    poolWater = mesh(new THREE.PlaneGeometry(w, d, 12, 8), T(new THREE.MeshStandardMaterial({ color: '#35C6E8', transparent: true, opacity: 0.85, roughness: 0.05, metalness: 0.2, emissive: '#1A8FB0', emissiveIntensity: 0.35 })), (x0 + x1) / 2, 0.31, (z0 + z1) / 2, poolGroup, false);
+    poolWater.rotation.x = -Math.PI / 2;
+    for (const sx of [-0.3, 0.3]) mesh(new THREE.TorusGeometry(0.18, 0.025, 6, 16, Math.PI), std('#C8CCD4', { metalness: 0.9, roughness: 0.2 }), x1 - 0.6 + sx, 0.45, z1 + 0.05, poolGroup, false);
+    const ring = mesh(new THREE.TorusGeometry(0.32, 0.1, 8, 20), std('#FF5A5F'), x0 + 1.2, 0.36, z0 + 1.2, poolGroup, false); ring.rotation.x = Math.PI / 2;
+  }
+  roofDeck.visible = false;
+  const roofSky = new THREE.Color('#7EC8F0');
+  let roomBg = new THREE.Color('#2A1F1A');
+
   // ---- furniture ---------------------------------------------------------------------------------------------------------
   const furn = new THREE.Group(); scene.add(furn);
   let items: Inst[] = [];
+  /** pieces on the other floors */
+  let stored: Placed[] = [];
   let ctx = { art: [] as string[], achievements: [] as string[], reduceMotion: !!o.reduceMotion };
   let lampK = 1;
   const surfaceAt = (x: number, z: number, skip: number) => {
@@ -332,14 +430,16 @@ export function createHome(o: HomeOpts) {
     return { p: { ...p }, holder, built, light };
   };
   const dropInst = (it: Inst) => { furn.remove(it.holder); if (it.light) { scene.remove(it.light); it.light.dispose(); } };
+  const fOf = (p: Placed) => Math.min(Math.max(0, p.f ?? 0), levels() - 1);
   const setLayout = (l: Placed[]) => {
     for (const it of items) dropInst(it);
-    items = [];
-    for (const p of l) { if (!ITEM[p.i]) continue; items.push(makeInst(p)); }
+    items = []; stored = [];
+    for (const p of l) { if (!ITEM[p.i]) continue; if (fOf(p) === floorNo) items.push(makeInst(p)); else stored.push({ ...p }); }
     items.forEach(place);
     walls = solids();
   };
-  const layout = (): Placed[] => items.map((it) => ({ ...it.p }));
+  const tag = (p: Placed): Placed => { const q = { ...p }; delete q.f; return floorNo ? { ...q, f: floorNo } : q; };
+  const layout = (): Placed[] => [...stored, ...items.map((it) => tag(it.p))];
 
   // ---- you, visitors, Inkborn -------------------------------------------------------------------------------------------
   const meTex = T(new THREE.TextureLoader().load(o.explorerUrl)); meTex.colorSpace = THREE.SRGBColorSpace; meTex.wrapS = THREE.RepeatWrapping;
@@ -356,9 +456,9 @@ export function createHome(o: HomeOpts) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false })); sp.scale.set(scale, scale * 0.22, 1); sp.renderOrder = 5; return sp;
   };
-  type Other = { s: THREE.Sprite; tex: THREE.Texture; tag: THREE.Sprite; sh: THREE.Mesh; x: number; z: number; tx: number; tz: number; face: number; walk: number; fresh: number };
+  type Other = { s: THREE.Sprite; tex: THREE.Texture; tag: THREE.Sprite; sh: THREE.Mesh; x: number; z: number; tx: number; tz: number; face: number; walk: number; fresh: number; fl: number };
   const others = new Map<string, Other>();
-  const setOthers = (list: { id: string; url: string; name: string; x: number; z: number }[]) => {
+  const setOthers = (list: { id: string; url: string; name: string; x: number; z: number; fl?: number }[]) => {
     const keep = new Set(list.map((x) => x.id));
     for (const [id, x] of others) if (!keep.has(id)) { scene.remove(x.s, x.tag, x.sh); x.tex.dispose(); x.s.material.dispose(); x.tag.material.map?.dispose(); x.tag.material.dispose(); others.delete(id); }
     for (const it of list) {
@@ -367,12 +467,12 @@ export function createHome(o: HomeOpts) {
         const tx = new THREE.TextureLoader().load(it.url); tx.colorSpace = THREE.SRGBColorSpace; tx.wrapS = THREE.RepeatWrapping;
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, transparent: true, alphaTest: 0.05 })); sp.center.set(0.5, 0); sp.scale.set(1.25 * (46 / 68), 1.25, 1);
         const tag = nameTag(it.name); scene.add(sp, tag);
-        x = { s: sp, tex: tx, tag, sh: blob(0.28), x: it.x, z: it.z, tx: it.x, tz: it.z, face: 1, walk: 0, fresh: 0 }; others.set(it.id, x);
+        x = { s: sp, tex: tx, tag, sh: blob(0.28), x: it.x, z: it.z, tx: it.x, tz: it.z, face: 1, walk: 0, fresh: 0, fl: it.fl ?? 0 }; others.set(it.id, x);
       }
-      if (performance.now() - x.fresh > 3000) { x.tx = it.x; x.tz = it.z; }
+      if (performance.now() - x.fresh > 3000) { x.tx = it.x; x.tz = it.z; x.fl = it.fl ?? 0; }
     }
   };
-  const moveOther = (id: string, x: number, z: number, face?: number) => { const ot = others.get(id); if (!ot) return; ot.tx = x; ot.tz = z; ot.fresh = performance.now(); if (face) ot.face = face; };
+  const moveOther = (id: string, x: number, z: number, face?: number, fl?: number) => { const ot = others.get(id); if (!ot) return; if (fl != null && fl !== ot.fl) { ot.fl = fl; ot.x = x; ot.z = z; } ot.tx = x; ot.tz = z; ot.fresh = performance.now(); if (face) ot.face = face; };
 
   // speech bubbles over whoever's talking
   const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
@@ -415,6 +515,8 @@ export function createHome(o: HomeOpts) {
   type Box = { x0: number; x1: number; z0: number; z1: number };
   const solids = (): Box[] => {
     const out: Box[] = [];
+    if (levels() > 1) out.push({ x0: STAIRS.x0 - 0.05, x1: STAIRS.x1, z0: STAIRS.z0 - 0.05, z1: STAIRS.z1 + 0.4 });
+    if (onRoof() && house.pool) out.push({ x0: POOL.x0 - 0.3, x1: POOL.x1 + 0.3, z0: POOL.z0 - 0.3, z1: POOL.z1 + 0.3 });
     items.forEach((it) => {
       if (!solidItem(it.p.i)) return;
       const [w, d] = rot(it.p);
@@ -424,13 +526,15 @@ export function createHome(o: HomeOpts) {
   };
   let walls: Box[] = [];
   const clampX = (x: number) => Math.max(-W / 2 + 0.45, Math.min(W / 2 - 0.45, x));
-  const clampZ = (z: number) => Math.max(-D / 2 + 0.45, Math.min(D / 2 - 0.3, z));
+  const onBalcony = () => house.balcony && floorNo > 0 && !onRoof();
+  const maxZ = () => (onBalcony() ? BALCONY_Z - 0.35 : D / 2 - 0.3);
+  const clampZ = (z: number) => Math.max(-D / 2 + 0.45, Math.min(maxZ(), z));
   const blocked = (x: number, z: number) => walls.some((b) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1);
   // a* over a quarter-metre grid, then straightened out
-  const CELL = 0.25, NX = Math.round(W / CELL), NZ = Math.round(D / CELL);
+  const CELL = 0.25, NX = Math.round(W / CELL), NZ = Math.round((BALCONY_Z + D / 2) / CELL);
   const cellOf = (x: number, z: number) => [Math.max(0, Math.min(NX - 1, Math.floor((x + W / 2) / CELL))), Math.max(0, Math.min(NZ - 1, Math.floor((z + D / 2) / CELL)))];
   const centre = (cx: number, cz: number) => new THREE.Vector2(-W / 2 + (cx + 0.5) * CELL, -D / 2 + (cz + 0.5) * CELL);
-  const freeCell = (cx: number, cz: number) => { const c = centre(cx, cz); return c.x > -W / 2 + 0.4 && c.x < W / 2 - 0.4 && c.y > -D / 2 + 0.4 && c.y < D / 2 - 0.3 && !blocked(c.x, c.y); };
+  const freeCell = (cx: number, cz: number) => { const c = centre(cx, cz); return c.x > -W / 2 + 0.4 && c.x < W / 2 - 0.4 && c.y > -D / 2 + 0.4 && c.y < maxZ() && !blocked(c.x, c.y); };
   const sightline = (a: THREE.Vector2, b: THREE.Vector2) => { const n = Math.ceil(a.distanceTo(b) / 0.1); for (let i = 1; i < n; i++) { const t = i / n; if (blocked(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)) return false; } return true; };
   const findPath = (from: THREE.Vector2, to: THREE.Vector2): THREE.Vector2[] => {
     if (sightline(from, to)) return [to];
@@ -498,10 +602,12 @@ export function createHome(o: HomeOpts) {
     if (m?.mount === 'wall') { const s = snapWall(x, z, m.w); return { x: Math.round(s.x * 20) / 20, z: Math.round(s.z * 20) / 20, r: s.r }; }
     const [w, d] = r % 2 ? [m.d, m.w] : [m.w, m.d];
     const q = (v: number) => Math.round(v * 4) / 4;
-    return {
-      x: Math.max(Math.max(-5.4, -5.5 + w / 2), Math.min(Math.min(6.7, W / 2 - w / 2 - 0.02), q(x))),
-      z: Math.max(Math.max(-5.7, -D / 2 + d / 2 + 0.02), Math.min(Math.min(5.7, D / 2 - d / 2 - 0.02), q(z))), r,
-    };
+    const xMin = floorNo > 0 ? -6.7 : -5.4, zMax = onBalcony() ? 7.7 : 5.7, dMax = onBalcony() ? BALCONY_Z - 0.1 : D / 2;
+    let cx = Math.max(Math.max(xMin, xMin - 0.1 + w / 2), Math.min(Math.min(6.7, W / 2 - w / 2 - 0.02), q(x)));
+    const cz = Math.max(Math.max(-5.7, -D / 2 + d / 2 + 0.02), Math.min(Math.min(zMax, dMax - d / 2 - 0.02), q(z)));
+    // keep clear of the stairs
+    if (levels() > 1 && m?.mount !== 'ceil' && cx + w / 2 > STAIRS.x0 && cz + d / 2 > STAIRS.z0 && cz - d / 2 < STAIRS.z1) cx = q(STAIRS.x0 - w / 2 - 0.05);
+    return { x: cx, z: cz, r };
   };
   const moveSel = (x: number, z: number) => {
     const it = items[sel]; if (!it) return;
@@ -525,7 +631,7 @@ export function createHome(o: HomeOpts) {
     let x = edit.focus.x, z = edit.focus.z;
     if (m.mount === 'wall') { const s = snapWall(6.9, edit.focus.z, m.w); x = s.x; z = s.z; }
     else { const spot = m.mount === 'rug' || m.mount === 'ceil' || m.small ? new THREE.Vector2(edit.focus.x, edit.focus.z) : fitSpot(id); x = spot.x; z = spot.y; }
-    const p: Placed = { i: id, x, z, r: m.mount === 'wall' ? (x > 6 ? 3 : 0) : 0, ...(col != null ? { c: col } : {}) };
+    const p: Placed = { i: id, x, z, r: m.mount === 'wall' ? (x > 6 ? 3 : 0) : 0, ...(col != null ? { c: col } : {}), ...(floorNo ? { f: floorNo } : {}) };
     items.push(makeInst(p)); sel = items.length - 1; moveSel(p.x, p.z); walls = solids(); edit.focus.set(items[sel].p.x, 0, items[sel].p.z);
     o.onLayout?.(layout()); select(sel); return sel;
   };
@@ -577,7 +683,9 @@ export function createHome(o: HomeOpts) {
     setRay(e);
     // an Inkborn: a happy hop and hearts
     for (const c of critters) if (ray.intersectObject(c.s).length) { c.happy = 1.6; c.st = 'happy'; c.until = 1.6; c.tag.visible = true; for (let k = 0; k < 4; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTex, transparent: true, depthWrite: false })); s.scale.setScalar(0.25); s.position.set(c.x, 0.9, c.z); scene.add(s); hearts.push({ s, t: 0, vx: (k - 1.5) * 0.25 }); } o.onCreature?.(c.c); return; }
-    for (const d of doors) if (ray.intersectObject(d.g, true).length) { go(d.spot.x, d.spot.z); return; }
+    if (floorNo === 0) for (const d of doors) if (ray.intersectObject(d.g, true).length) { go(d.spot.x, d.spot.z); return; }
+    if ((stairs.visible && ray.intersectObject(stairs, true).length) || (well.visible && ray.intersectObject(well, true).length)) { go(stairSpot.x, stairSpot.z); return; }
+    if (lift.visible && ray.intersectObject(lift, true).length) { go(liftSpot.x, liftSpot.z); return; }
     for (let i = 0; i < artGroups.length; i++) if (ray.intersectObject(artGroups[i], true).length) { go(artSpots[i].x, artSpots[i].z); return; }
     const j = itemAt();
     if (j >= 0) {
@@ -608,7 +716,7 @@ export function createHome(o: HomeOpts) {
     hemi.color.set(md.hemi[0]); hemi.groundColor.set(md.hemi[1]); hemi.intensity = md.hemi[2]; amb.intensity = md.amb;
     lampK = md.lamp; for (const it of items) if (it.light) it.light.intensity = (ITEM[it.p.i]?.light?.[1] ?? 3) * lampK;
     fill.intensity = style.mood === 'day' ? 6 : style.mood === 'warm' ? 4 : style.mood === 'neon' ? 3 : 1.5; fill.color.set(style.mood === 'neon' ? '#B07BFF' : '#FFE7C4');
-    scene.background = new THREE.Color(md.bg); renderer.toneMappingExposure = md.exposure;
+    roomBg = new THREE.Color(md.bg); scene.background = onRoof() ? roofSky : roomBg; renderer.toneMappingExposure = md.exposure;
     viewHour = -1; refreshView();
   };
   const refreshView = () => {
@@ -667,8 +775,10 @@ export function createHome(o: HomeOpts) {
     // what you're standing at
     let s = null as HomeSpot | null;
     if (!P.moving && !editing) {
-      for (const d of doors) if (Math.hypot(d.spot.x - P.x, d.spot.z - P.z) < 1.0) s = { kind: 'door', door: d.kind };
-      for (let i = 0; i < artSpots.length; i++) if (Math.hypot(artSpots[i].x - P.x, artSpots[i].z - P.z) < 1.0 && artUrls[i]) s = { kind: 'art', i };
+      if (floorNo === 0) for (const d of doors) if (Math.hypot(d.spot.x - P.x, d.spot.z - P.z) < 1.0) s = { kind: 'door', door: d.kind };
+      for (let i = 0; i < artSpots.length; i++) if (floorNo === 0 && Math.hypot(artSpots[i].x - P.x, artSpots[i].z - P.z) < 1.0 && artUrls[i]) s = { kind: 'art', i };
+      if (levels() > 1 && Math.hypot(stairSpot.x - P.x, stairSpot.z - P.z) < 1.0) s = { kind: 'stairs' };
+      if (house.elevator && !onRoof() && Math.hypot(liftSpot.x - P.x, liftSpot.z - P.z) < 1.0) s = { kind: 'lift' };
       // things you can use: the games tables, the record player / jukebox, the guestbook
       let best = 0.9;
       items.forEach((it, i) => {
@@ -677,7 +787,7 @@ export function createHome(o: HomeOpts) {
         if (dd < best) { best = dd; s = { kind: 'item', i, id: it.p.i }; }
       });
     }
-    const nk = !s ? null : s.kind === 'door' ? `d:${s.door}` : s.kind === 'art' ? `a:${s.i}` : `i:${s.i}`;
+    const nk = !s ? null : s.kind === 'door' ? `d:${s.door}` : s.kind === 'art' ? `a:${s.i}` : s.kind === 'stairs' || s.kind === 'lift' ? `${s.kind}:${floorNo}` : `i:${s.i}`;
     if (nk !== near) { near = nk; o.onNear?.(s); }
     // others glide to where they last said they were
     for (const x of others.values()) {
@@ -686,6 +796,7 @@ export function createHome(o: HomeOpts) {
       x.s.position.set(x.x, mv && !o.reduceMotion ? Math.abs(Math.sin(x.walk)) * 0.07 : 0, x.z);
       (x.s.material.map as THREE.Texture).repeat.x = x.face; (x.s.material.map as THREE.Texture).offset.x = x.face < 0 ? 1 : 0;
       x.tag.position.set(x.x, 1.48, x.z); x.sh.position.set(x.x, 0.02, x.z);
+      x.s.visible = x.tag.visible = x.sh.visible = x.fl === floorNo;
     }
     // Inkborn: wander, look about, nap in the pet bed
     for (const c of critters) {
@@ -724,6 +835,7 @@ export function createHome(o: HomeOpts) {
     if (!o.reduceMotion) for (const it of items) it.built.tick?.(t, dt);
     else if (frame % 60 === 0) for (const it of items) if (it.p.i.includes('clock')) it.built.tick?.(t, dt);
     for (const it of items) if (it.light && (it.p.i === 'fireplace' || style.mood === 'candle')) it.light.intensity = (ITEM[it.p.i]?.light?.[1] ?? 3) * lampK * (0.85 + 0.15 * Math.sin(t * 9 + it.p.x) * Math.sin(t * 13));
+    if (poolWater && roofDeck.visible && !o.reduceMotion && frame % 2 === 0) { const pp = poolWater.geometry.attributes.position as THREE.BufferAttribute; for (let i = 0; i < pp.count; i++) pp.setZ(i, Math.sin(t * 2 + pp.getX(i) * 2.2 + pp.getY(i) * 1.7) * 0.03); pp.needsUpdate = true; }
     for (const d of doors) if (d.state === 'open') (d.glow.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(t * 2.4 + d.spot.z) * 0.5;
     // the camera: behind and above you, or a bird's-eye view while decorating
     const wide = camera.aspect < 1 ? 1 + (1 / camera.aspect - 1) * 0.42 : 1;
@@ -745,10 +857,32 @@ export function createHome(o: HomeOpts) {
   };
   raf = requestAnimationFrame(loop);
 
+  /** show the floor you're on: its furniture, the doors and art (ground floor), the stairs or the stairwell, the
+   *  balcony, the lift, or the open roof terrace */
+  const showFloor = () => {
+    const roof = onRoof(), top = floorNo === levels() - 1;
+    shell.visible = !roof; doorGroup.visible = floorNo === 0; artGroups.forEach((g) => (g.visible = floorNo === 0));
+    stairs.visible = levels() > 1 && !top; well.visible = levels() > 1 && top;
+    lift.visible = house.elevator && !roof; balcony.visible = onBalcony(); roofDeck.visible = roof; poolGroup.visible = roof && house.pool;
+    pool.visible = !roof; ground.visible = !roof;
+    scene.background = roof ? roofSky : roomBg;
+    critters.forEach((c) => { c.s.visible = floorNo === 0; c.tag.visible = c.tag.visible && floorNo === 0; });
+  };
+  const setFloor = (f: number) => {
+    const all = layout();
+    floorNo = Math.max(0, Math.min(levels() - 1, f));
+    setLayout(all); select(-1); showFloor();
+    // arrive at the top of the stairs (or out of the lift)
+    P.path = []; ring.visible = false;
+    const spot = freeSpot(stairSpot.x - 0.6, stairSpot.z - 0.4); P.x = spot.x; P.z = spot.y; near = null;
+  };
   return {
+    /** how big the house is (from the biggest square of Home plots) */
+    setHouse(h: HouseShape) { const all = layout(); house = { ...h }; floorNo = Math.min(floorNo, levels() - 1); setLayout(all); showFloor(); },
+    setFloor, floor: () => floorNo, levels,
     setHome(h: { style: HomeStyle; layout: Placed[]; doors: HomeDoor[]; art: string[]; achievements: string[]; inkborn: HomeCreature[] }) {
       ctx = { art: h.art, achievements: h.achievements, reduceMotion: !!o.reduceMotion };
-      setDoors(h.doors); setLayout(h.layout); applyStyle(h.style); setArt(h.art); setCreatures(h.inkborn);
+      setDoors(h.doors); setLayout(h.layout); applyStyle(h.style); setArt(h.art); setCreatures(h.inkborn); showFloor();
     },
     setStyle: applyStyle,
     setLayout: (l: Placed[]) => { setLayout(l); select(-1); },
@@ -761,12 +895,14 @@ export function createHome(o: HomeOpts) {
     walkTo(s: HomeSpot | { kind: 'item'; id: string }) {
       if (s.kind === 'door') { const d = doors.find((x) => x.kind === s.door); if (d) go(d.spot.x, d.spot.z); }
       else if (s.kind === 'art') go(artSpots[s.i].x, artSpots[s.i].z);
+      else if (s.kind === 'stairs') go(stairSpot.x, stairSpot.z);
+      else if (s.kind === 'lift') go(liftSpot.x, liftSpot.z);
       else { const it = items.find((x) => x.p.i === s.id); if (it) { const [w, d] = rot(it.p); const sm = ITEM[it.p.i]?.small; const base = sm ? items.find((b) => ITEM[b.p.i]?.top && Math.abs(b.p.x - it.p.x) < 1 && Math.abs(b.p.z - it.p.z) < 1) : null; const bd = base ? rot(base.p)[1] : d; go(it.p.x, (base ? base.p.z : it.p.z) + bd / 2 + 0.45); void w; } }
     },
     setOthers, moveOther, say,
-    pose: () => ({ x: P.x, z: P.z, face: P.face }),
+    pose: () => ({ x: P.x, z: P.z, face: P.face, floor: floorNo }),
     setPaused(p: boolean) { paused = p; },
-    debug: () => ({ P: { x: P.x, z: P.z }, near, items: items.length, sel, editing, critters: critters.map((c) => ({ x: c.x, z: c.z, st: c.st })), others: [...others.keys()], path: P.path.length }),
+    debug: () => ({ P: { x: P.x, z: P.z }, near, floor: floorNo, levels: levels(), house, items: items.length, sel, editing, critters: critters.map((c) => ({ x: c.x, z: c.z, st: c.st })), others: [...others.keys()], path: P.path.length }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);

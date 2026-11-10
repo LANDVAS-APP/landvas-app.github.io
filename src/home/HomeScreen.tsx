@@ -32,6 +32,7 @@ import { Button, ResourceIcon, Spinner } from '../ui';
 import { CheckIn } from '../visit/VisitRoom';
 import { randomGenome } from '../inkborn/genome';
 import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
+import { levelName } from '../residential/ladder';
 import { DEFAULT_STYLE, createHome, type HomeDoor, type HomeScene, type HomeSpot, type Placed } from './home3d';
 import { config } from '../env';
 
@@ -75,6 +76,16 @@ export default function HomeScreen() {
   const home = useQuery({ queryKey: ['home', username.toLowerCase()], queryFn: () => api.homeGet(username), enabled: !!username, staleTime: 20_000, refetchOnWindowFocus: false });
   const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profileByUsername(username), enabled: !!username, staleTime: 60_000 });
   if (!username || home.isLoading) return <div className="fixed inset-0 grid place-items-center bg-[#2A1F1A]"><Spinner /></div>;
+  if (home.error && /no_home|built their home/i.test(String((home.error as Error).message))) {
+    return (
+      <div className="fixed inset-0 grid place-content-center gap-3 bg-[#2A1F1A] p-6 text-center text-white" data-testid="home-not-built">
+        <div className="text-6xl">🏗️</div>
+        <p className="max-w-xs text-lg font-bold">@{username} hasn’t built their home yet.</p>
+        <p className="max-w-xs text-sm text-white/70">A house opens to visitors once its owner turns a plot into Residential · Home.</p>
+        <div className="flex justify-center gap-2"><Link to={`/u/${username}`}><Button variant="secondary">Their profile</Button></Link><Link to="/world"><Button variant="ghost">The map</Button></Link></div>
+      </div>
+    );
+  }
   if (home.error || !home.data) {
     return (
       <div className="fixed inset-0 grid place-content-center gap-3 bg-[#2A1F1A] p-6 text-center text-white" data-testid="home-missing">
@@ -89,7 +100,12 @@ export default function HomeScreen() {
 type Prof = { achievements?: { icon?: string; unlocked_at?: string | null }[]; gallery?: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] } | undefined;
 
 /** what the live-room hooks need from a 3D scene (the house, or the Clan Keep) */
-export type LiveScene = Pick<HomeScene, 'pose' | 'setOthers' | 'moveOther' | 'say'>;
+export type LiveScene = {
+  pose(): { x: number; z: number; face: number; floor?: number };
+  setOthers(list: { id: string; url: string; name: string; x: number; z: number; fl?: number }[]): void;
+  moveOther(id: string, x: number, z: number, face?: number, fl?: number): void;
+  say(id: string, text: string): void;
+};
 export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<LiveScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
   const [live, setLive] = useState<HomeLive | null>(null);
   const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
@@ -102,9 +118,9 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
     let others: Parameters<LiveScene['setOthers']>[0] = [];
     let lastLive: HomeLive | null = null;
     const onMsg = (raw: unknown) => {
-      const m = raw as { t: string; id: string; x: number; z: number; f: number; rec?: string };
+      const m = raw as { t: string; id: string; x: number; z: number; f: number; fl?: number; rec?: string };
       if (m?.t === 'nudge') return p.soon(); // someone changed the room (a table, a game): look again
-      if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f);
+      if (m?.t === 'pos' && members.has(m.id)) hall.current?.moveOther(m.id, m.x, m.z, m.f, m.fl);
       else if (m?.t === 'pos' && m.id !== myId) p.soon(); // someone new: fetch the list now
       if (m?.t === 'rec' && typeof m.rec === 'string') recRef.current(m.rec, m.id);
       if (m?.t === 'chat' && members.has(m.id)) chatRef.current?.((raw as { m: unknown }).m);
@@ -118,12 +134,12 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
       if (stopped || document.hidden) return;
       const pose = hall.current?.pose();
       try {
-        const r = await api.homeLive(hostId, pose?.x ?? null, pose?.z ?? null);
+        const r = await api.homeLive(hostId, pose?.x ?? null, pose?.z ?? null, pose?.floor ?? null);
         if (stopped) return;
         members = new Set(r.members.map((m) => m.id));
         others = r.members.map((m) => {
           let u = urls.get(m.id); if (!u) { u = svgUrl(explorerSvg(m.explorer_style as ExplorerStyle | undefined, m.accent_color ?? '#7B5CFF', 184)); urls.set(m.id, u); }
-          return { id: m.id, url: u, name: `@${m.username}`, x: m.x, z: m.z };
+          return { id: m.id, url: u, name: `@${m.username}`, x: m.x, z: m.z, fl: (m as { f?: number }).f ?? 0 };
         });
         hall.current?.setOthers(others);
         if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg, { me: myId, onPeer }) ?? null; }
@@ -137,8 +153,8 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
       const p = hall.current?.pose(); if (!p || !ch) return;
-      const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.face}`, now = performance.now();
-      if (key !== lastKey || now - lastAt > 6000) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face }); }
+      const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.face},${p.floor ?? 0}`, now = performance.now();
+      if (key !== lastKey || now - lastAt > 6000) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: p.x, z: p.z, f: p.face, fl: p.floor ?? 0 }); }
     }, 120);
     return () => { stopped = true; p.stop(); clearInterval(tx); ch?.close(); void api.homeLeave().catch(() => {}); };
   }, [hostId, myId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -245,10 +261,24 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
     if (import.meta.env.DEV || config.e2e) Object.assign(window, { __landvasHome: s, __homeGenome: randomGenome });
     return () => { s.dispose(); hall.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // the house: as big as the owner's biggest square of Home plots (floors, balconies, a roof terrace, a lift, a pool)
+  const house = h.house;
+  const shape = useMemo(() => ({ floors: house?.floors ?? 1, balcony: !!house?.balcony, roof: !!house?.roof, elevator: !!house?.elevator, pool: !!house?.pool }), [house]);
+  const levels = shape.floors + (shape.roof ? 1 : 0);
+  const [floor, setFloor] = useState(0);
+  const [fade, setFade] = useState(false);
+  const goFloor = (f: number) => {
+    if (f === floor || f < 0 || f >= levels) return;
+    setFade(true);
+    setTimeout(() => { hall.current?.setFloor(f); setFloor(f); setTimeout(() => setFade(false), 60); }, 260);
+  };
   useEffect(() => {
     if (edit) return;
+    hall.current?.setHouse(shape);
     hall.current?.setHome({ style: h.style, layout: startLayout, doors, art, achievements, inkborn: h.inkborn });
-  }, [h, startLayout, doors, art, achievements, edit]); // eslint-disable-line react-hooks/exhaustive-deps
+    setFloor(hall.current?.floor() ?? 0);
+  }, [h, startLayout, doors, art, achievements, edit, shape]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [noHomeTip, setNoHomeTip] = useState(true);
 
   const chatIn = useRef<((m: unknown) => void) | null>(null);
   const room = useHomeLive(host.id, me?.user_id, hall, (id, by) => {
@@ -300,6 +330,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
           <div className="truncate font-display text-lg font-black leading-tight" data-testid="home-title">🏠 {title}</div>
           <div className="flex items-center gap-2 text-[11px] text-white/75">
             <Link to={`/u/${host.username}`} className="truncate font-bold hover:underline">@{host.username}</Link>
+            {house && <span className="truncate" data-testid="home-house">🏡 {house.name}{levels > 1 ? ` · ${levelName(floor, shape.floors)}` : ''}</span>}
             <span className="flex items-center gap-1 font-bold text-[#7DFFB2]" data-testid="home-here"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7DFFB2]" />{here}/{live?.room_size ?? 10} here</span>
           </div>
         </div>
@@ -319,8 +350,34 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         </div>
       )}
 
+      {/* walking between floors */}
+      <div className={cn('pointer-events-none absolute inset-0 z-40 bg-black transition-opacity duration-200', fade ? 'opacity-100' : 'opacity-0')} />
+      {own && !edit && house && !house.allowed && noHomeTip && (
+        <div className="absolute inset-x-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+70px)] z-30 mx-auto max-w-md rounded-2xl border border-[#E0745C]/50 bg-black/75 p-3 text-sm backdrop-blur" data-testid="home-build-tip">
+          <div className="flex items-start gap-2"><span className="text-2xl">🏗️</span>
+            <div className="min-w-0 flex-1"><b>Visitors can’t come in yet.</b> Turn a plot into <b>Residential · Home</b> to open your house to everyone — and merge Home plots into bigger squares to add floors.</div>
+            <button onClick={() => setNoHomeTip(false)} className="text-white/60" aria-label="Dismiss">✕</button></div>
+          <div className="mt-2 flex justify-end"><Link to="/plots"><Button size="sm" variant="rainbow">Choose a plot</Button></Link></div>
+        </div>
+      )}
       {/* what you're standing at */}
       <AnimatePresence>
+        {!edit && !game && near?.kind === 'stairs' && (
+          <motion.div key={`stairs-${floor}`} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            {floor < levels - 1 && <button onClick={() => goFloor(floor + 1)} className="flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#C8553D] to-[#FFB13D] px-5 py-3 text-left shadow-2xl" data-testid="home-upstairs"><span className="text-3xl">⬆️</span><span><span className="block font-display text-xl font-black">Upstairs</span><span className="text-xs">{levelName(floor + 1, shape.floors)}</span></span></button>}
+            {floor > 0 && <button onClick={() => goFloor(floor - 1)} className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3 text-left shadow-2xl" data-testid="home-downstairs"><span className="text-3xl">⬇️</span><span><span className="block font-display text-xl font-black">Downstairs</span><span className="text-xs">{levelName(floor - 1, shape.floors)}</span></span></button>}
+          </motion.div>
+        )}
+        {!edit && !game && near?.kind === 'lift' && (
+          <motion.div key={`lift-${floor}`} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
+            <div className="rounded-3xl bg-[#20242A]/90 p-3 shadow-2xl" data-testid="home-lift">
+              <div className="mb-2 text-center text-xs font-bold uppercase tracking-widest text-white/70">🛗 Lift</div>
+              <div className="grid grid-cols-4 gap-1.5">{Array.from({ length: levels }, (_, f) => (
+                <button key={f} onClick={() => goFloor(f)} disabled={f === floor} className={cn('h-12 w-14 rounded-xl border text-sm font-black', f === floor ? 'border-[#FFE14D] text-[#FFE14D]' : 'border-white/20 bg-white/10')} data-testid={`home-lift-${f}`}>{f >= shape.floors ? 'R' : f === 0 ? 'G' : f}</button>
+              ))}</div>
+            </div>
+          </motion.div>
+        )}
         {!edit && nd && (
           <motion.div key={nd} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             {nd === 'more' ? <AllPlacesPanel h={h} onGo={(k, id) => nav(DOOR_META[k].route(id))} /> : <DoorPanel kind={nd} h={h} onGo={(id) => nav(DOOR_META[nd].route(id))} />}
@@ -345,7 +402,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         {!edit && !game && nItem === 'guestbook' && !guests && (
           <motion.div key="gb" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="absolute inset-x-0 bottom-0 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">
             <button onClick={() => setGuests(true)} className="flex items-center gap-3 rounded-3xl bg-[#6B2E2E] px-5 py-3 text-left text-[#F4E3B5] shadow-2xl" data-testid="home-open-book"><span className="text-4xl">📖</span>
-              <span><span className="block font-display text-2xl font-black">{own ? 'Read your guestbook' : 'Sign the guestbook'}</span><span className="block text-xs">Leave @{host.username} a note</span></span></button>
+              <span><span className="block font-display text-2xl font-black">{own ? 'Read your check-in book' : 'Sign the check-in book'}</span><span className="block text-xs">Leave @{host.username} a note or a drawing</span></span></button>
           </motion.div>
         )}
         {!edit && !near && (
@@ -441,7 +498,7 @@ export function Decorator({ h, start, scene, onClose, clan }: { h: HomeData; sta
   const [doors, setDoors] = useState<Record<Kind, string>>(() => Object.fromEntries(KINDS.map((k) => [k, h.doors[k]?.privacy ?? 'public'])) as Record<Kind, string>);
   const [open, setOpen] = useState(true);
   const ink = Number(me?.balances?.ink ?? 0);
-  const freeEach = h.catalog.free_each ?? 6;
+  const freeEach = (h.catalog.free_each ?? 6) * Math.max(1, h.house?.levels ?? 1);
   const dirty = useRef(false);
 
   useEffect(() => {
@@ -456,7 +513,7 @@ export function Decorator({ h, start, scene, onClose, clan }: { h: HomeData; sta
   const isFree = (id: string) => !price(id).ink && !price(id).tickets;
   const needLv = (id: string) => clan?.unlocks[id] ?? 1;
   const canAdd = (id: string) => (clan ? needLv(id) <= clan.level && used(id) < freeEach : isFree(id) ? used(id) < freeEach : (owned[id] ?? 0) > used(id));
-  const add = (id: string) => { if (layout.length >= (h.catalog.max_items ?? 90)) { toast.error('That’s as many pieces as fit.'); return; } scene.addItem(id); setOpen(false); dirty.current = true; };
+  const add = (id: string) => { if (layout.length >= (h.house?.max_items ?? h.catalog.max_items ?? 90)) { toast.error('That’s as many pieces as fit — a bigger house holds more.'); return; } scene.addItem(id); setOpen(false); dirty.current = true; };
   const buy = async (id: string) => {
     setBusy(id);
     try {

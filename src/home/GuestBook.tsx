@@ -8,7 +8,8 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { RoomSocial } from '../backend/types';
+import type { BookDrawing, RoomSocial } from '../backend/types';
+import { DrawPad, DrawingView } from './DrawPad';
 import { sfx } from '../arcade/sfx';
 import { cn, timeAgo } from '../lib/utils';
 import { PlayerAvatar } from '../ui';
@@ -16,7 +17,7 @@ import { poll } from '../lib/poll';
 
 const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Marker Felt", cursive';
 const STICKERS = ['💖', '🌟', '🎨', '🌈', '🐾', '🍰', '🎉', '🌻', '🕹️', '👋'];
-const PER_PAGE = 3;
+const PER_PAGE = 2;
 type Page = { kind: 'cover-in' } | { kind: 'sign' } | { kind: 'notes'; notes: RoomSocial['notes']; n: number } | { kind: 'visitors' } | { kind: 'end' };
 
 export function GuestBook({ username, hostName, own, onClose }: { username: string; hostName: string; own: boolean; onClose(): void }) {
@@ -128,7 +129,7 @@ function Cover({ hostName }: { hostName: string }) {
   return (
     <div className="grid h-full place-content-center rounded-[10px] border-4 border-[#C9A227]/60 bg-gradient-to-br from-[#8B3A3A] to-[#5A2323] text-center shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]" style={{ backfaceVisibility: 'hidden' }}>
       <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border-2 border-[#E9C46A] text-3xl">🏠</div>
-      <div className="font-display text-3xl font-black tracking-wide text-[#E9C46A] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">Guestbook</div>
+      <div className="font-display text-3xl font-black tracking-wide text-[#E9C46A] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">Check-in Book</div>
       <div className="mt-1 text-sm text-[#E9C46A]/80" style={{ fontFamily: HAND }}>{hostName}’s home</div>
     </div>
   );
@@ -140,6 +141,7 @@ function Note({ n, k, canDelete, onDeleted }: { n: RoomSocial['notes'][number]; 
     <div className="group relative" style={{ transform: `rotate(${tilt}deg)`, fontFamily: HAND }} data-testid="guestbook-note">
       <motion.p initial={fresh ? { clipPath: 'inset(0 100% 0 0)' } : false} animate={{ clipPath: 'inset(0 0% 0 0)' }} transition={{ duration: 1.4, ease: 'linear' }}
         className="whitespace-pre-wrap break-words text-[19px] leading-[30px] text-[#1F3A5F]">{n.body}</motion.p>
+      {n.drawing?.s?.length ? <DrawingView d={n.drawing} className="mt-1 max-w-[260px] shadow-sm" /> : null}
       <div className="mt-1 flex items-center gap-1.5 text-sm text-[#8C7A66]"><PlayerAvatar p={n.author} size={18} /> — @{n.author.username}, {timeAgo(n.at)}
         {canDelete && <button className="ml-auto text-xs text-[#B5485D] opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Remove note"
           onClick={async () => { try { await api.roomNoteDelete(n.id); onDeleted(); } catch (e) { toast.error(toGameError(e).message); } }}>remove</button>}
@@ -147,26 +149,60 @@ function Note({ n, k, canDelete, onDeleted }: { n: RoomSocial['notes'][number]; 
     </div>
   );
 }
-function SignPage({ username, own, onSigned }: { username: string; own: boolean; onSigned(r: RoomSocial): void }) {
+/** sign a check-in book: a note, or a drawing (or both) */
+export function SignForm({ username, onSigned, compact }: { username: string; onSigned(r: RoomSocial): void; compact?: boolean }) {
+  const [mode, setMode] = useState<'note' | 'draw'>('note');
   const [body, setBody] = useState('');
+  const [drawing, setDrawing] = useState<BookDrawing | null>(null);
   const [busy, setBusy] = useState(false);
+  const ready = !!body.trim() || !!drawing;
   const sign = async () => {
-    if (!body.trim()) return; setBusy(true);
-    try { onSigned(await api.roomNote(username, body.trim())); setBody(''); toast.success('Signed the guestbook ✍️'); sfx.coin(); }
+    if (!ready) return; setBusy(true);
+    try { onSigned(await api.roomNote(username, body.trim(), drawing)); setBody(''); setDrawing(null); toast.success(drawing ? 'Drew in the book 🎨' : 'Signed the book ✍️'); sfx.coin(); }
     catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
   return (
-    <div className="grid gap-3" style={{ fontFamily: HAND }}>
-      <div className="text-2xl font-bold text-[#5C3A21]">{own ? 'Your guestbook' : 'Sign the book'}</div>
-      {own ? <p className="text-lg leading-[30px] text-[#3B2A20]">Visitors leave you notes here. Turn the page to read them →</p> : (
+    <div className="grid gap-2" style={{ fontFamily: HAND }} data-testid="sign-form">
+      <div className="flex gap-1">
+        {(['note', 'draw'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)} className={cn('rounded-full px-3 py-1 text-base', mode === m ? 'bg-[#3E5C76] text-white' : 'bg-[#F0E4C8] text-[#5C3A21]')} data-testid={`sign-mode-${m}`}>{m === 'note' ? '✍️ Note' : '🎨 Drawing'}</button>
+        ))}
+      </div>
+      {mode === 'note' ? (
         <>
-          <textarea value={body} onChange={(e) => setBody(e.target.value.slice(0, 140))} rows={4} placeholder="Write something nice…" data-testid="guestbook-input"
-            className="w-full resize-none bg-transparent text-[19px] leading-[30px] text-[#1F3A5F] outline-none placeholder:text-[#B5A48E]" style={{ fontFamily: HAND }} />
+          <textarea value={body} onChange={(e) => setBody(e.target.value.slice(0, 140))} rows={compact ? 3 : 4} placeholder="Write something nice…" data-testid="guestbook-input"
+            className="w-full resize-none rounded-lg bg-transparent text-[19px] leading-[30px] text-[#1F3A5F] outline-none placeholder:text-[#B5A48E]" style={{ fontFamily: HAND }} />
           <div className="flex flex-wrap gap-1">{STICKERS.map((s) => <button key={s} onClick={() => setBody((b) => (b + s).slice(0, 140))} className="rounded-lg px-1 text-xl hover:bg-[#F0E4C8]" aria-label={`Add ${s}`}>{s}</button>)}</div>
-          <div className="flex items-center justify-between"><span className="text-sm text-[#B5A48E]">{140 - body.length} left</span>
-            <button onClick={sign} disabled={busy || !body.trim()} className="rounded-full bg-[#3E5C76] px-5 py-1.5 text-lg text-white shadow disabled:opacity-40" data-testid="guestbook-sign">{busy ? '…' : 'Sign ✍️'}</button></div>
         </>
-      )}
+      ) : <DrawPad onChange={setDrawing} />}
+      <div className="flex items-center justify-between"><span className="text-sm text-[#B5A48E]">{mode === 'note' ? `${140 - body.length} left` : drawing ? 'Looking good!' : 'Draw something'}{mode === 'note' && drawing ? ' · + your drawing' : ''}</span>
+        <button onClick={sign} disabled={busy || !ready} className="rounded-full bg-[#3E5C76] px-5 py-1.5 text-lg text-white shadow disabled:opacity-40" data-testid="guestbook-sign">{busy ? '…' : 'Sign ✍️'}</button></div>
+    </div>
+  );
+}
+
+/** checking in: the book opens at a fresh page for your note or drawing */
+export function SignBookDialog({ username, hostName, onSigned, onClose }: { username: string; hostName: string; onSigned(r: RoomSocial): void; onClose(): void }) {
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-3 backdrop-blur-[2px]" onClick={onClose} data-testid="sign-book">
+      <div className="relative w-[min(94vw,460px)] rounded-[18px] bg-[#6B2E2E] p-2.5 shadow-[0_30px_60px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute -right-2 -top-10 rounded-full bg-white/15 p-2 text-white" aria-label="Close"><X className="h-5 w-5" /></button>
+        <div className="rounded-[10px] bg-[#FBF5E6] p-4 shadow-[inset_0_0_30px_rgba(120,90,50,0.18)]">
+          <div className="mb-1 text-2xl font-bold text-[#5C3A21]" style={{ fontFamily: HAND }}>📖 Check in at {hostName}’s</div>
+          <p className="mb-2 text-base text-[#8C7A66]" style={{ fontFamily: HAND }}>To check in, leave a note or a drawing in their book.</p>
+          <SignForm username={username} onSigned={onSigned} compact />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignPage({ username, own, onSigned }: { username: string; own: boolean; onSigned(r: RoomSocial): void }) {
+  return (
+    <div className="grid gap-3" style={{ fontFamily: HAND }}>
+      <div className="text-2xl font-bold text-[#5C3A21]">{own ? 'Your check-in book' : 'Sign the book'}</div>
+      {own ? <p className="text-lg leading-[30px] text-[#3B2A20]">Visitors check in by leaving you a note or a drawing here. Turn the page to see them →</p>
+        : <SignForm username={username} onSigned={onSigned} />}
     </div>
   );
 }

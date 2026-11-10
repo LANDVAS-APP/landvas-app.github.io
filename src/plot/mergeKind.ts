@@ -14,6 +14,8 @@ export const KIND_LABEL: Record<PlotKind, { one: string; many: string; emoji: st
   diner: { one: 'restaurant', many: 'restaurants', emoji: '🍳' },
   dungeon: { one: 'dungeon', many: 'dungeons', emoji: '⚔️' },
   brawl: { one: 'arena', many: 'arenas', emoji: '🎨' },
+  home: { one: 'home', many: 'homes', emoji: '🏠' },
+  landlord: { one: 'rental', many: 'rentals', emoji: '🏘️' },
   ...(Object.fromEntries(Object.entries(TIERS).map(([k, e]) => [k, { one: e.one, many: e.many, emoji: e.emoji }])) as Record<keyof typeof TIERS, { one: string; many: string; emoji: string }>),
 };
 export const kindOf = (groups: CanvasGroup[] | undefined, id: string): PlotKind => groups?.find((g) => g.id === id)?.kind ?? 'canvas';

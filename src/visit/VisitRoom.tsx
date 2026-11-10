@@ -1,6 +1,7 @@
 // An artist's room: their explorer, their art on the walls and every canvas of
 // land they own, laid out by shape only. Nothing here says where in the world
 // any of it is — visitors see the art and the land, never the neighbourhood.
+import { SignBookDialog } from '../home/GuestBook';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -225,6 +226,7 @@ export function CheckIn({ username }: { username: string }) {
   const st = useQuery({ queryKey: ['room-enter', username], queryFn: () => api.roomEnter(username), enabled: !!me, staleTime: 60_000, retry: false, refetchOnWindowFocus: false }); // entering is a visit: not again just for coming back to the app
   const [wait, setWait] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [signing, setSigning] = useState(false);
   useEffect(() => {
     if (!st.data || st.data.own || st.data.checked_in) return;
     const until = Date.now() + st.data.stay_seconds * 1000 + 400;
@@ -237,17 +239,25 @@ export function CheckIn({ username }: { username: string }) {
   const s = st.data;
   if (s.checked_in) return <span className="glass flex h-10 items-center gap-1.5 rounded-2xl px-3 text-sm font-bold text-ok" data-testid="room-checked-in"><CheckCircle2 className="h-4 w-4" /> Checked in today</span>;
   const pays = s.old_enough && s.paid_today < s.visitor_daily ? s.visitor_ink : 0;
+  const checkIn = async () => {
+    setBusy(true);
+    try {
+      const r = await api.roomCheckin(username);
+      toast.success(r.earned > 0 ? `Checked in · +${r.earned} Ink` : 'Checked in', { description: r.host_earned > 0 ? `@${username} earned ${r.host_earned} Ink from your visit.` : s.old_enough ? 'You’ve used today’s paid check-ins.' : 'New accounts earn from check-ins after their first day.' });
+      void qc.invalidateQueries({ queryKey: ['room-enter', username] });
+      invalidateGame(qc);
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
   return (
-    <Button size="sm" variant="rainbow" disabled={(wait ?? 1) > 0} loading={busy} data-testid="room-checkin" onClick={async () => {
-      setBusy(true);
-      try {
-        const r = await api.roomCheckin(username);
-        toast.success(r.earned > 0 ? `Checked in · +${r.earned} Ink` : 'Checked in', { description: r.host_earned > 0 ? `@${username} earned ${r.host_earned} Ink from your visit.` : s.old_enough ? 'You’ve used today’s paid check-ins.' : 'New accounts earn from check-ins after their first day.' });
-        void qc.invalidateQueries({ queryKey: ['room-enter', username] });
-        invalidateGame(qc);
-      } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
-    }}>
-      <DoorOpen className="h-4 w-4" /> {(wait ?? 1) > 0 ? `Look around… ${wait ?? ''}` : pays > 0 ? `Check in · +${pays} Ink` : 'Check in'}
-    </Button>
+    <>
+      {/* checking in means signing their book first: a note or a drawing */}
+      <Button size="sm" variant="rainbow" disabled={(wait ?? 1) > 0} loading={busy} data-testid="room-checkin" onClick={() => (s.signed_today === false ? setSigning(true) : void checkIn())}>
+        <DoorOpen className="h-4 w-4" /> {(wait ?? 1) > 0 ? `Look around… ${wait ?? ''}` : `${s.signed_today === false ? '📖 ' : ''}Check in${pays > 0 ? ` · +${pays} Ink` : ''}`}
+      </Button>
+      {signing && <SignBookDialog username={username} hostName={`@${username}`} onClose={() => setSigning(false)} onSigned={(r) => {
+        qc.setQueryData(['room-social', username], r); setSigning(false);
+        qc.setQueryData(['room-enter', username], { ...s, signed_today: true }); void checkIn();
+      }} />}
+    </>
   );
 }

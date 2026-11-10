@@ -26,6 +26,8 @@ export type RentState = {
   max_offline_days: number;
   boost: RentBoost;
   by_rarity: Record<string, number>;
+  /** Landlord plots: rent day (the 1st of each month, UTC) pays `multiplier`x their rate all day */
+  landlord?: { rate: number | string; multiplier: number; plots: number; active: boolean; day_start: string; day_end: string; next: string };
   server_time: string;
 };
 
@@ -43,14 +45,35 @@ export function liveRent(s: RentState, nowMs: number) {
   const boosted = Math.min(Math.max((until - settled) / 1000, 0), secs);
   const rate = Number(s.rate_usd_per_second) || 0;
   const mult = Number(s.boost?.multiplier) || 1;
-  return Number(s.balance_usd) + rate * ((secs - boosted) + mult * boosted);
+  return Number(s.balance_usd) + rate * ((secs - boosted) + mult * boosted) + landlordExtra(s, Math.max(settled, nowMs - capS * 1000), nowMs);
 }
+
+/** seconds of [from, to] (ms) that fall on the 1st of a month, UTC: Landlord rent day */
+export function rentDaySeconds(fromMs: number, toMs: number) {
+  if (toMs <= fromMs) return 0;
+  let total = 0;
+  const d = new Date(fromMs);
+  let m = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  while (m < toMs) {
+    total += Math.max(0, Math.min(toMs, m + 86400_000) - Math.max(fromMs, m)) / 1000;
+    const md = new Date(m); m = Date.UTC(md.getUTCFullYear(), md.getUTCMonth() + 1, 1);
+  }
+  return total;
+}
+/** what Landlord plots have earned on top, on rent days, between two times */
+export function landlordExtra(s: RentState, fromMs: number, toMs: number) {
+  const r = Number(s.landlord?.rate) || 0;
+  return r ? r * ((Number(s.landlord?.multiplier) || 50) - 1) * rentDaySeconds(fromMs, toMs) : 0;
+}
+/** is it rent day right now (UTC)? */
+export const isRentDay = (nowMs: number) => new Date(nowMs).getUTCDate() === 1;
 
 /** Effective rate right now (boosted while the boost window is open). */
 export function currentRate(s: RentState, nowMs: number) {
   const rate = Number(s.rate_usd_per_second) || 0;
   const until = s.boost?.until ? new Date(s.boost.until).getTime() : 0;
-  return until > nowMs ? rate * (Number(s.boost.multiplier) || 1) : rate;
+  const lr = isRentDay(nowMs) ? (Number(s.landlord?.rate) || 0) * ((Number(s.landlord?.multiplier) || 50) - 1) : 0;
+  return (until > nowMs ? rate * (Number(s.boost.multiplier) || 1) : rate) + lr;
 }
 
 export function boostRemaining(s: RentState, nowMs: number) {

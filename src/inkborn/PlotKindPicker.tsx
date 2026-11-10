@@ -20,10 +20,12 @@ import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
 
 type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; realm_id?: string | null; name: string };
-const KIND_NAME = (k: PlotKind) => (isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
-const KIND_A = (k: PlotKind) => (isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
+const KIND_NAME = (k: PlotKind) => (k === 'home' ? 'Residential · Home' : k === 'landlord' ? 'Residential · Landlord' : isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
+const KIND_A = (k: PlotKind) => (k === 'home' ? 'a Residential Home' : k === 'landlord' ? 'a Residential Landlord plot' : isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
+  if (kind === 'home') return <span className="inline-flex items-center gap-1 rounded-full bg-[#C8553D]/15 px-2 py-0.5 text-[11px] font-bold text-[#E0745C]">🏠 Residential · Home</span>;
+  if (kind === 'landlord') return <span className="inline-flex items-center gap-1 rounded-full bg-[#3E6E9C]/20 px-2 py-0.5 text-[11px] font-bold text-[#6FA3D9]">🏘️ Residential · Landlord</span>;
   if (isRealm(kind)) { const m = REALM_META[kind]; return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `${m.color}26`, color: m.color }}>{m.emoji} {m.name}</span>; }
   if (kind === 'arcade') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FF3D9A]/15 px-2 py-0.5 text-[11px] font-bold text-[#FF3D9A]"><Gamepad2 className="h-3 w-3" /> Arcade</span>;
   if (kind === 'business') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE14D]/20 px-2 py-0.5 text-[11px] font-bold text-[#D4A500]"><Citrus className="h-3 w-3" /> Business</span>;
@@ -44,6 +46,40 @@ export function PlotKindControl({ g, className }: { g: G; className?: string }) 
       <PlotKindDialog g={g} open={open} onOpenChange={setOpen} />
     </>
   );
+}
+
+/** a house (Home) or a little street of rented houses (Landlord), drawn small */
+function HousePreview({ kind }: { kind: 'home' | 'landlord' }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const g = ref.current!.getContext('2d')!;
+    let raf = 0; const t0 = performance.now();
+    const house = (x: number, y: number, w: number, h: number, wall: string, roof: string, lit: boolean) => {
+      g.fillStyle = wall; g.fillRect(x, y, w, h);
+      g.fillStyle = roof; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + w / 2, y - h * 0.6); g.lineTo(x + w + 4, y); g.fill();
+      g.fillStyle = lit ? '#FFE9A8' : '#9FC6E8'; g.fillRect(x + w * 0.15, y + h * 0.2, w * 0.25, h * 0.25); g.fillRect(x + w * 0.6, y + h * 0.2, w * 0.25, h * 0.25);
+      g.fillStyle = '#6B4A3A'; g.fillRect(x + w * 0.4, y + h * 0.55, w * 0.2, h * 0.45);
+    };
+    const frame = (now: number) => {
+      const t = (now - t0) / 1000;
+      g.fillStyle = '#8FD3FF'; g.fillRect(0, 0, 160, 110); g.fillStyle = '#7CC95A'; g.fillRect(0, 84, 160, 26);
+      if (kind === 'home') {
+        // the house grows a floor every few seconds, then starts again
+        const fl = 1 + (Math.floor(t / 1.6) % 3);
+        for (let i = 0; i < fl; i++) { g.fillStyle = '#F2E2C4'; g.fillRect(50, 84 - 22 * (i + 1), 60, 22); g.fillStyle = '#9FC6E8'; g.fillRect(58, 88 - 22 * (i + 1), 12, 10); g.fillRect(90, 88 - 22 * (i + 1), 12, 10); }
+        g.fillStyle = '#C8553D'; g.beginPath(); g.moveTo(44, 84 - 22 * fl); g.lineTo(80, 84 - 22 * fl - 22); g.lineTo(116, 84 - 22 * fl); g.fill();
+        g.fillStyle = '#6B4A3A'; g.fillRect(74, 70, 12, 14);
+      } else {
+        house(10, 60, 40, 24, '#E8D9B8', '#3E6E9C', true); house(60, 60, 40, 24, '#F2E2C4', '#C8553D', false); house(110, 60, 40, 24, '#E8D9B8', '#5FA05A', true);
+        // rent day: coins float up
+        for (let i = 0; i < 5; i++) { const k = (t * 0.6 + i / 5) % 1; g.font = '14px system-ui'; g.globalAlpha = 1 - k; g.fillText('💵', 20 + i * 28, 56 - k * 40); g.globalAlpha = 1; }
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [kind]);
+  return <canvas ref={ref} width={160} height={110} className="h-[110px] w-[160px] rounded-2xl shadow-lg" />;
 }
 
 function ArtPreview() {
@@ -201,6 +237,11 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       } else if (choice === 'arcade') {
         toast.success(`${g.name} is now an Arcade 🕹️`, { description: 'The lights are on and the cabinets are humming.' });
         if (r.arcade_id) nav(`/arcade/${r.arcade_id}`);
+      } else if (choice === 'home') {
+        toast.success(`${g.name} is now your Home 🏠`, { description: 'Your house is open to visitors from your profile. Merge more Home plots into a bigger square to add floors.' });
+        nav('/home');
+      } else if (choice === 'landlord') {
+        toast.success(`${g.name} is now a Landlord plot 🏘️`, { description: 'Tenants move in. On the 1st of every month, rent day, it earns 50× USD rent all day.' });
       } else if (choice === 'farm') {
         toast.success(`${g.name} is now a Farm 🌾`, { description: 'Fresh soil beds are ready to plant.' });
         if (r.farm_id) nav(`/farm/${r.farm_id}`);
@@ -218,6 +259,10 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
     { k: 'arcade', title: 'Arcade', body: 'A neon arcade you walk round with your explorer.', color: '#FF3D9A', icon: <Gamepad2 className="h-4 w-4" />, preview: <ArcadePreview />,
       perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
+    { k: 'home', title: 'Residential · Home', body: 'Your house: the one visitors walk into from your profile.', color: '#E0745C', icon: <span className="text-base leading-none">🏠</span>, preview: <HousePreview kind="home" />,
+      perks: ['Opens “Visit home” on your profile', 'Merge Home plots 2x2 … 10x10 for a bigger house', 'More floors, stairs, balconies, a roof terrace, a lift, a pool', 'Visitors check in by signing your book: a note or a drawing'] },
+    { k: 'landlord', title: 'Residential · Landlord', body: 'Houses you rent out to virtual tenants.', color: '#6FA3D9', icon: <span className="text-base leading-none">🏘️</span>, preview: <HousePreview kind="landlord" />,
+      perks: ['Tenants pay rent on the 1st of every month', 'Rent day: 50× USD rent from these plots, all day', 'Normal rent the rest of the month', 'Switch between Home and Landlord for free'] },
     { k: 'brawl', title: REALM_META.brawl.name, body: REALM_META.brawl.long, color: REALM_META.brawl.color, icon: <span className="text-base leading-none">🎨</span>, preview: <RealmPreview kind="brawl" />,
       perks: ['48 painted creature cards from six terrains', 'Live battles on a 3D board (or a practice bot)', 'Packs, crafting, gold foils, three decks', 'Ranked trophies, a leaderboard, Ink for wins'] },
     ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => {
@@ -250,6 +295,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
                 : cur === 'business' && g.business_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/business/${g.business_id}`); }}>Open business <ArrowRight className="h-4 w-4" /></Button>
                 : isRealm(cur) && g.realm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(realmRoute(g.realm_id!)); }}>{REALM_META[cur].enter} <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'arcade' && g.arcade_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/arcade/${g.arcade_id}`); }}>Enter arcade <ArrowRight className="h-4 w-4" /></Button>
+                : cur === 'home' ? <Button variant="primary" onClick={() => { onOpenChange(false); nav('/home'); }}>Enter your home <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'farm' && g.farm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/farm/${g.farm_id}`); }}>Enter farm <ArrowRight className="h-4 w-4" /></Button>
                 : <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/create/${g.id}`); }}>Keep painting <ArrowRight className="h-4 w-4" /></Button>
             ) : <Button variant="rainbow" onClick={() => setStep('confirm')} data-testid="kind-next">Make it {KIND_A(choice)} <ArrowRight className="h-4 w-4" /></Button>}
@@ -263,6 +309,20 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
               <li>💧 Its minigame, level-ups, rare finds and a daily bonus pay a little Ink (capped a day).</li>
               <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was{cur === 'habitat' ? ', and your creatures wait safely in your starter sanctuary' : ''}. If you switch this plot to another type and back, it keeps its progress too.</li>
               <li>🖌️ While it’s {KIND_A(choice).replace(/^an? /, 'a ')} you can’t paint or publish art here.</li>
+            </ul>
+          ) : choice === 'home' ? (
+            <ul className="grid gap-2">
+              <li>🏠 <b>{g.name}</b> becomes your Home: the house visitors walk into from your profile. On the map it shows as a house roof.</li>
+              <li>📐 The biggest square of Home plots you own sets your house’s size: 2x2 adds an upstairs and a staircase, and each size up to 10x10 adds more (floors, balconies, a roof terrace, a lift, a rooftop pool).</li>
+              <li>📖 Visitors check in by signing your book with a note or a drawing.</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was.</li>
+            </ul>
+          ) : choice === 'landlord' ? (
+            <ul className="grid gap-2">
+              <li>🏘️ <b>{g.name}</b> becomes houses you rent out to virtual tenants. On the map it shows as a little street of houses.</li>
+              <li>💵 On the 1st of every month (rent day, UTC) these plots earn <b>50×</b> their USD rent for the whole day, then their normal rent for the rest of the month.</li>
+              <li>🔁 Switching between Home and Landlord is free.</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was.</li>
             </ul>
           ) : choice === 'arcade' ? (
             <ul className="grid gap-2">

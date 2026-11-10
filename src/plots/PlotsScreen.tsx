@@ -131,7 +131,7 @@ export default function PlotsScreen() {
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
                       <span>{PLOT_TYPES[r.plot_type]?.name ?? r.plot_type}</span>
                       <span>Lv {r.level}</span>
-                      <span>{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
+                      <span>{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'home' ? '🏠 Home' : kind === 'landlord' ? '🏘️ Landlord' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
                       {g && g.plot_count > 1 && <span>part of {g.plot_count}</span>}
                       {d !== null && <span>{d <= 1 ? 'right here' : `${d} plots away`}</span>}
                     </div>
@@ -164,7 +164,7 @@ function PlotTile({ r, kind, size = 48 }: { r: Row; kind: string; size?: number 
   const ri = rarityInfo(r.rarity);
   return (
     <span className="relative grid shrink-0 place-items-center rounded-2xl text-lg" style={{ width: size, height: size, background: kind === 'habitat' ? 'linear-gradient(135deg,#6CC463,#2F7D3A)' : `linear-gradient(135deg, ${t?.a ?? '#888'}, ${t?.b ?? '#444'})`, boxShadow: `0 0 0 2px ${ri.color}, 0 6px 16px -8px ${ri.color}` }}>
-      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : r.has_art ? '🖼️' : ''}
+      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : kind === 'home' ? '🏠' : kind === 'landlord' ? '🏘️' : r.has_art ? '🖼️' : ''}
     </span>
   );
 }
@@ -201,7 +201,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">
-          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : '🎨 Art Canvas'}</span>
+          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'home' ? '🏠 Residential · Home' : kind === 'landlord' ? '🏘️ Residential · Landlord' : '🎨 Art Canvas'}</span>
           {group && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{group.plot_count > 1 ? `Part of “${group.name}” (${group.plot_count} plots)` : 'A single plot'}</span>}
           {d.data?.art && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">🖼️ “{d.data.art.title}”</span>}
           <span className="rounded-full bg-surface-2/70 px-2.5 py-1">Claimed {timeAgo(r.claimed_at)}</span>
@@ -211,6 +211,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           <Button variant="rainbow" onClick={show} data-testid="sheet-map"><MapPin className="h-4 w-4" /> Show on map</Button>
           {d.data?.type_info && <Button variant="secondary" onClick={() => nav(`/play/${d.data!.type_info!.minigame}?gx=${r.gx}&gy=${r.gy}`)}><Gamepad2 className="h-4 w-4" /> Play {d.data.type_info.minigame_name}</Button>}
           {isRealm(kind) && group?.realm_id ? <Button variant="secondary" onClick={() => nav(group.arcade_id ? `/arcade/${group.arcade_id}` : realmRoute(group.realm_id!))}>{REALM_META[kind].emoji} {REALM_META[kind].enter}</Button>
+          : kind === 'home' ? <Button variant="secondary" onClick={() => nav('/home')}>🏠 Enter your home</Button>
           : kind === 'arcade' && group?.arcade_id ? <Button variant="secondary" onClick={() => nav(`/arcade/${group.arcade_id}`)}>🕹️ Enter arcade</Button>
           : kind === 'business' && group?.business_id ? <Button variant="secondary" onClick={() => nav(`/business/${group.business_id}`)}>🍋 Open business</Button>
           : kind === 'farm' && group?.farm_id ? <Button variant="secondary" onClick={() => nav(`/farm/${group.farm_id}`)}>🌾 Enter farm</Button>
