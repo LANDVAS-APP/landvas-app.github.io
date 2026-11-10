@@ -20,6 +20,7 @@ import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
 
 type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; realm_id?: string | null; name: string };
+const RES: PlotKind[] = ['home', 'landlord'];
 const KIND_NAME = (k: PlotKind) => (k === 'home' ? 'Residential · Home' : k === 'landlord' ? 'Residential · Landlord' : isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
 const KIND_A = (k: PlotKind) => (k === 'home' ? 'a Residential Home' : k === 'landlord' ? 'a Residential Landlord plot' : isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
 
@@ -259,10 +260,8 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: ['Tap to sell lemonade, buy 10 kinds of business', 'Earns while you’re away', 'Upgrades, golden customers and going public', '4 money-making games (2D and 3D)'] },
     { k: 'arcade', title: 'Arcade', body: 'A neon arcade you walk round with your explorer.', color: '#FF3D9A', icon: <Gamepad2 className="h-4 w-4" />, preview: <ArcadePreview />,
       perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
-    { k: 'home', title: 'Residential · Home', body: 'Your house: the one visitors walk into from your profile.', color: '#E0745C', icon: <span className="text-base leading-none">🏠</span>, preview: <HousePreview kind="home" />,
-      perks: ['Opens “Visit home” on your profile', 'Merge Home plots 2x2 … 10x10 for a bigger house', 'More floors, stairs, balconies, a roof terrace, a lift, a pool', 'Visitors check in by signing your book: a note or a drawing'] },
-    { k: 'landlord', title: 'Residential · Landlord', body: 'Houses you rent out to virtual tenants.', color: '#6FA3D9', icon: <span className="text-base leading-none">🏘️</span>, preview: <HousePreview kind="landlord" />,
-      perks: ['Tenants pay rent on the 1st of every month', 'Rent day: 50× USD rent from these plots, all day', 'Normal rent the rest of the month', 'Switch between Home and Landlord for free'] },
+    { k: 'home', title: 'Residential', body: 'Houses: your own home, or homes you rent out. Pick a subplot.', color: '#E0745C', icon: <span className="text-base leading-none">🏡</span>, preview: <HousePreview kind={choice === 'landlord' ? 'landlord' : 'home'} />,
+      perks: ['🏠 Home: your house on your profile — grows 2x2 … 10x10 with floors, stairs, balconies, a roof terrace, a lift, a pool; visitors check in with a note or drawing', '🏘️ Landlord: tenants pay on the 1st of each month — 50× USD rent from these plots all day', 'Switch between Home and Landlord for free'] },
     { k: 'brawl', title: REALM_META.brawl.name, body: REALM_META.brawl.long, color: REALM_META.brawl.color, icon: <span className="text-base leading-none">🎨</span>, preview: <RealmPreview kind="brawl" />,
       perks: ['48 painted creature cards from six terrains', 'Live battles on a 3D board (or a practice bot)', 'Packs, crafting, gold foils, three decks', 'Ranked trophies, a leaderboard, Ink for wins'] },
     ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => {
@@ -276,17 +275,29 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       {step === 'pick' ? (
         <div className="grid gap-4" data-testid="plot-kind-dialog">
           <div className="grid gap-3 sm:grid-cols-2">
-            {cards.map((c) => (
-              <motion.button key={c.k} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setChoice(c.k)} aria-pressed={choice === c.k} data-testid={`kind-${c.k}`}
-                className={cn('relative grid justify-items-center gap-2 overflow-hidden rounded-3xl border-2 p-4 text-center transition', choice === c.k ? 'bg-surface-2' : 'border-line bg-surface/40')}
-                style={{ borderColor: choice === c.k ? c.color : undefined, boxShadow: choice === c.k ? `0 0 40px -12px ${c.color}` : undefined }}>
-                {cur === c.k && <span className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">Current</span>}
+            {cards.map((c) => { const res = c.k === 'home', sel = res ? RES.includes(choice) : choice === c.k, isCur = res ? RES.includes(cur) : cur === c.k; return (
+              <motion.button key={c.k} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setChoice(res ? (RES.includes(choice) ? choice : RES.includes(cur) ? cur : 'home') : c.k)} aria-pressed={sel} data-testid={`kind-${res ? 'residential' : c.k}`}
+                className={cn('relative grid justify-items-center gap-2 overflow-hidden rounded-3xl border-2 p-4 text-center transition', sel ? 'bg-surface-2' : 'border-line bg-surface/40')}
+                style={{ borderColor: sel ? c.color : undefined, boxShadow: sel ? `0 0 40px -12px ${c.color}` : undefined }}>
+                {isCur && <span className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">Current{res ? ` · ${cur === 'landlord' ? 'Landlord' : 'Home'}` : ''}</span>}
                 {c.preview}
                 <div className="flex items-center gap-1.5 font-display text-lg font-bold" style={{ color: c.color }}>{c.icon}{c.title}</div>
                 <div className="text-sm text-muted">{c.body}</div>
                 <ul className="grid gap-1 text-left text-xs">{c.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: c.color }}>✦</span>{p}</li>)}</ul>
+                {/* Residential's subplots: open when it's picked */}
+                {res && sel && (
+                  <div className="grid w-full grid-cols-2 gap-2" role="radiogroup" aria-label="Residential subplot" data-testid="kind-subplots" onClick={(e) => e.stopPropagation()}>
+                    {(['home', 'landlord'] as const).map((k) => (
+                      <span key={k} role="radio" aria-checked={choice === k} tabIndex={0} onClick={() => setChoice(k)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setChoice(k); }} data-testid={`kind-${k}`}
+                        className={cn('cursor-pointer rounded-2xl border-2 p-2 text-left text-xs transition', choice === k ? 'bg-black/20' : 'border-line opacity-75 hover:opacity-100')} style={choice === k ? { borderColor: c.color } : undefined}>
+                        <span className="block text-sm font-bold" style={{ color: choice === k ? c.color : undefined }}>{k === 'home' ? '🏠 Home' : '🏘️ Landlord'}</span>
+                        <span className="text-muted">{k === 'home' ? 'Your house: visitors walk in from your profile' : '50× USD rent on the 1st of each month'}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </motion.button>
-            ))}
+            ); })}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>

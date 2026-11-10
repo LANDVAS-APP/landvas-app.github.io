@@ -229,7 +229,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [naming, setNaming] = useState(false);
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -247,6 +247,8 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
     try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; }
       if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; }
       if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; }
+      if (kind === 'home') { toast.success('Your home is built 🏠', { description: 'Visitors can walk in from your profile now.', action: { label: 'Go in', onClick: () => nav('/home') } }); return null; }
+      if (kind === 'landlord') { toast.success('Tenants are moving in 🏘️', { description: 'On the 1st of every month these plots earn 50× USD rent all day.' }); return null; }
       if (isRealm(kind) && g.realm_id) { const m = REALM_META[kind]; toast.success(`Your ${m.one} is ready ${m.emoji}`, { action: { label: m.enter, onClick: () => nav(realmRoute(g.realm_id!)) } }); return null; }
       return g.habitat_id ?? null; }
     catch (e) { toast.error(toGameError(e).message); return null; }
@@ -283,7 +285,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const freeLeft = Number((a as any)?.free_left ?? 0);
   const unavailable = d.available === false;
   const ink = Number(me.balances.ink);
-  const opt = KIND_OPTS.find((o) => o.k === kind) ?? KIND_OPTS[0];
+  const opt = optOf(kind);
   const nextToMine = d.neighbors.some((n) => n.is_mine);
   // 1) no explorer yet → one clear step: turn on location
   if (!reach?.explorer) {
@@ -334,7 +336,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         <GameCta color="#5a6385" disabled label="Unavailable" />
       ) : affordable ? (
         <GameCta color={opt.color} loading={busy === 'claim'} onClick={run} testid="claim-plot"
-          label={starter ? 'Claim free plot' : 'Claim'} sub={opt.title}
+          label={starter ? 'Claim free plot' : 'Claim'} sub={SUBS[kind] ? `${opt.title} · ${SUBS[kind]!.title}` : opt.title}
           price={starter || cost === 0 ? <span className="font-extrabold">FREE</span> : <span className="inline-flex items-center gap-1 tnum"><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</span>} />
       ) : (
         <div className="grid gap-2.5 rounded-2xl border border-line bg-surface/50 p-3" data-testid="plot-need-ink">
@@ -352,51 +354,109 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   );
 }
 
-/** Every plot type, in picker order. Same price and rent whichever you pick. */
-const KIND_OPTS: { k: PlotKind; icon: string; title: string; body: string; color: string }[] = [
-  { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF' },
-  { k: 'habitat', icon: '🌳', title: 'Habitat', body: 'A home for your Inkborn — merge plots to grow it', color: '#3DDC97' },
-  { k: 'farm', icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops — 6 soil beds to start', color: '#E0A800' },
-  { k: 'business', icon: '🍋', title: 'Business', body: 'Lemonade stand to empire — +10% to all your income', color: '#D4A500' },
-  { k: 'arcade', icon: '🕹️', title: 'Arcade', body: 'Neon cabinets and prizes — you get 10% of tickets won', color: '#FF3D9A' },
+/** Every plot type, in picker order. Same price and rent whichever you pick. Residential is one type with two
+ *  subplots (Home, Landlord): picking it opens the choice between them. */
+type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[] };
+const KIND_OPTS: KindOpt[] = [
+  { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF', perks: ['Paint with every brush and tool', 'Publish your art onto the map', 'Merge neighbours into one mural'] },
+  { k: 'habitat', icon: '🌳', title: 'Habitat', body: 'A home for your Inkborn — merge plots to grow it', color: '#3DDC97', perks: ['A woodland sanctuary to walk around', 'Room for more Inkborn as it grows', 'Trees, nests and lanterns to place'] },
+  { k: 'farm', icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops — 6 soil beds to start', color: '#E0A800', perks: ['Soil beds in a 3D farmyard', 'Farm levels, buildings and orders', 'Farm games, 2D and 3D'] },
+  { k: 'business', icon: '🍋', title: 'Business', body: 'Lemonade stand to empire — +10% to all your income', color: '#D4A500', perks: ['Ten kinds of business to buy', 'Earns while you’re away', 'Money-making games'] },
+  { k: 'arcade', icon: '🕹️', title: 'Arcade', body: 'Neon cabinets and prizes — you get 10% of tickets won', color: '#FF3D9A', perks: ['Free cabinets: win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Grows a carnival outside as an Estate'] },
+  { k: 'home', icon: '🏡', title: 'Residential', body: 'Houses: your home, or homes you rent out', color: '#E0745C', subs: ['home', 'landlord'], perks: ['Two subplots — choose Home or Landlord', 'Switch between them for free'] },
   ...(['brawl', 'mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({
     k, icon: REALM_META[k].emoji, color: REALM_META[k].color, body: REALM_META[k].body,
     title: ({ brawl: 'Arena', mine: 'Mine', sky: 'Sky Island', workshop: 'Workshop', diner: 'Restaurant', dungeon: 'Dungeon' } as const)[k],
+    perks: k === 'brawl' ? ['Painted creature cards, live battles', 'Packs, crafting and ranked trophies'] : ['Six zones that open as it levels', `${REALM_META[k].crew} that work while you’re away`, 'A signature minigame anyone can play'],
   })),
 ];
+/** the subplots, by kind */
+const SUBS: Partial<Record<PlotKind, { icon: string; title: string; body: string; perks: string[] }>> = {
+  home: { icon: '🏠', title: 'Home', body: 'Your house: visitors walk in from your profile', perks: ['Opens “Visit home” on your profile', 'Merge 2×2 … 10×10 for a bigger house: floors, stairs, balconies, a roof terrace, a lift, a pool', 'Visitors check in with a note or a drawing in your book'] },
+  landlord: { icon: '🏘️', title: 'Landlord', body: 'Homes you rent to virtual tenants', perks: ['Tenants pay on the 1st of every month', 'Rent day: 50× USD rent from these plots all day', 'Normal rent the rest of the month'] },
+};
+/** the type a kind belongs to (a subplot belongs to its main type) */
+const optOf = (k: PlotKind) => KIND_OPTS.find((o) => o.k === k || o.subs?.includes(k)) ?? KIND_OPTS[0];
 
 function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
-  const row = useRef<HTMLDivElement>(null);
-  const opt = KIND_OPTS.find((o) => o.k === kind) ?? KIND_OPTS[0];
-  // keep the chosen type centred in the row (without scrolling the panel itself)
-  const first = useRef(true);
-  useEffect(() => {
-    const r = row.current; const el = r?.querySelector<HTMLElement>('[aria-checked=true]');
-    if (r && el) r.scrollTo({ left: el.offsetLeft - r.clientWidth / 2 + el.clientWidth / 2, behavior: first.current ? 'auto' : 'smooth' });
-    first.current = false;
-  }, [kind]);
+  const [details, setDetails] = useState(false);
+  const opt = optOf(kind);
+  const sub = SUBS[kind];
   return (
     <div className="grid gap-2" data-testid="plot-kind-choice">
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted">Build a…</span>
         <span className="text-[11px] text-faint">Same price for every type</span>
       </div>
-      <div ref={row} className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1.5 pt-0.5 scroll-thin" role="radiogroup" aria-label="What this plot becomes">
+      {/* every type at once: tiny squares */}
+      <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="What this plot becomes">
         {KIND_OPTS.map((o) => {
-          const on = kind === o.k;
+          const on = opt.k === o.k;
           return (
-            <motion.button key={o.k} type="button" role="radio" aria-checked={on} aria-label={o.title} whileTap={{ scale: 0.92 }} onClick={() => onPick(o.k)} data-testid={`buy-as-${o.k}`}
-              className={cn('relative flex w-[74px] shrink-0 snap-start flex-col items-center gap-1 rounded-2xl border-2 px-1 pb-2 pt-2.5 transition', on ? 'bg-surface-2' : 'border-transparent bg-surface/50 opacity-70 hover:opacity-100')}
-              style={on ? { borderColor: o.color, boxShadow: `0 0 22px -8px ${o.color}, inset 0 0 18px -10px ${o.color}` } : undefined}>
-              <motion.span className="text-[26px] leading-none" animate={on ? { scale: [1, 1.25, 1], rotate: [0, -8, 0] } : { scale: 1 }} transition={{ duration: 0.35 }}>{o.icon}</motion.span>
-              <span className="w-full truncate text-center text-[11px] font-bold" style={{ color: on ? o.color : undefined }}>{o.title}</span>
+            <motion.button key={o.k} type="button" role="radio" aria-checked={on} aria-label={o.title} title={o.title} whileTap={{ scale: 0.9 }}
+              onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} data-testid={`buy-as-${o.subs ? 'residential' : o.k}`}
+              className={cn('relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border-2 p-0.5 transition', on ? 'bg-surface-2' : 'border-transparent bg-surface/50 opacity-75 hover:opacity-100')}
+              style={on ? { borderColor: o.color, boxShadow: `0 0 16px -6px ${o.color}` } : undefined}>
+              <span className="text-[20px] leading-none">{o.icon}</span>
+              <span className="w-full truncate text-center text-[9px] font-bold leading-tight" style={{ color: on ? o.color : undefined }}>{o.title}</span>
+              {o.subs && <span className="absolute right-0.5 top-0.5 text-[8px] leading-none text-faint" aria-hidden>▾</span>}
             </motion.button>
           );
         })}
       </div>
+      {/* Residential: pick the subplot */}
+      <AnimatePresence initial={false}>
+        {opt.subs && (
+          <motion.div key="subs" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border p-1.5" style={{ borderColor: `${opt.color}55`, background: `${opt.color}12` }} role="radiogroup" aria-label="Residential subplot" data-testid="buy-subplots">
+              {opt.subs.map((k) => {
+                const sp = SUBS[k]!, on = kind === k;
+                return (
+                  <button key={k} type="button" role="radio" aria-checked={on} onClick={() => onPick(k)} data-testid={`buy-as-${k}`}
+                    className={cn('flex items-center gap-2 rounded-xl border-2 px-2 py-1.5 text-left transition', on ? 'bg-surface-2' : 'border-transparent opacity-75 hover:opacity-100')} style={on ? { borderColor: opt.color } : undefined}>
+                    <span className="text-xl">{sp.icon}</span>
+                    <span className="min-w-0"><span className="block text-xs font-bold" style={{ color: on ? opt.color : undefined }}>{sp.title}</span><span className="block text-[10px] leading-tight text-muted">{sp.body}</span></span>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence mode="wait" initial={false}>
-        <motion.p key={opt.k} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
-          className="min-h-[18px] text-center text-xs text-muted">{opt.body}</motion.p>
+        <motion.p key={kind} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
+          className="min-h-[18px] text-center text-xs text-muted">{sub ? `${sub.icon} ${opt.title} · ${sub.title}: ${sub.body}` : opt.body}</motion.p>
+      </AnimatePresence>
+      {/* every type's details (and the subplots') */}
+      <button type="button" onClick={() => setDetails((v) => !v)} className="justify-self-center text-[11px] font-bold text-muted hover:text-fg" aria-expanded={details} data-testid="buy-details-toggle">
+        {details ? '▴ Hide details' : '▾ What can each type do?'}
+      </button>
+      <AnimatePresence initial={false}>
+        {details && (
+          <motion.div key="details" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="grid max-h-[46vh] gap-1.5 overflow-y-auto pr-1 scroll-thin" data-testid="buy-details">
+              {KIND_OPTS.map((o) => (
+                <div key={o.k} className={cn('rounded-xl border p-2', optOf(kind).k === o.k ? '' : 'border-line')} style={optOf(kind).k === o.k ? { borderColor: o.color } : undefined}>
+                  <button type="button" onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} className="flex w-full items-center gap-2 text-left">
+                    <span className="text-xl">{o.icon}</span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-bold" style={{ color: o.color }}>{o.title}</span><span className="block text-[11px] text-muted">{o.body}</span></span>
+                  </button>
+                  <ul className="mt-1 grid gap-0.5 pl-8 text-[11px]">{o.perks.map((p) => <li key={p} className="flex gap-1"><span style={{ color: o.color }}>✦</span>{p}</li>)}</ul>
+                  {o.subs && (
+                    <div className="mt-1.5 grid gap-1.5 pl-8">
+                      {o.subs.map((k) => { const sp = SUBS[k]!; return (
+                        <button key={k} type="button" onClick={() => onPick(k)} className={cn('rounded-lg border p-1.5 text-left', kind === k ? '' : 'border-line')} style={kind === k ? { borderColor: o.color } : undefined} data-testid={`buy-detail-${k}`}>
+                          <div className="text-xs font-bold">{sp.icon} {sp.title} <span className="font-normal text-muted">— {sp.body}</span></div>
+                          <ul className="mt-0.5 grid gap-0.5 text-[10.5px] text-muted">{sp.perks.map((p) => <li key={p}>· {p}</li>)}</ul>
+                        </button>
+                      ); })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

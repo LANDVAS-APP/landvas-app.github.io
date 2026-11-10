@@ -85,6 +85,21 @@ try {
       await clickPlot(START.gx + dx, START.gy + dy).catch(() => {});
       if (await page.locator('[data-testid=claim-plot]').count()) break;
     }
+    if (!dx && !dy) {
+      // the purchase screen: every type as a tiny square; Residential opens its subplots; details for all
+      const squares = await page.locator('[data-testid=plot-kind-choice] [role=radiogroup] >> nth=0').locator('[role=radio]').count();
+      check('every plot type shows as a square', squares === 12, `${squares}`);
+      await page.click('[data-testid=buy-as-residential]'); await page.waitForTimeout(500);
+      check('Residential opens its two subplots', (await page.locator('[data-testid=buy-subplots] [role=radio]').count()) === 2);
+      await page.click('[data-testid=buy-as-landlord]'); await page.waitForTimeout(300);
+      check('…and the claim button says which', /Residential · Landlord/i.test(await page.locator('[data-testid=claim-plot]').innerText()));
+      await page.locator('[data-testid=plot-kind-choice]').scrollIntoViewIfNeeded(); await shot('00-buy-residential');
+      await page.click('[data-testid=buy-details-toggle]'); await page.waitForTimeout(500);
+      check('details for every type, with the subplots', (await page.locator('[data-testid=buy-details] > div').count()) === 12 && (await page.locator('[data-testid=buy-detail-home]').count()) === 1);
+      await page.locator('[data-testid=buy-detail-home]').scrollIntoViewIfNeeded(); await shot('00b-buy-details');
+      await page.click('[data-testid=buy-details-toggle]');
+      await page.click('[data-testid=buy-as-canvas]'); await page.waitForTimeout(300);
+    }
     await page.click('[data-testid=claim-plot]');
     await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 }); await page.waitForTimeout(2200);
     await page.keyboard.press('Escape'); await page.waitForTimeout(600);
@@ -115,9 +130,12 @@ try {
   await nav('/world'); await page.waitForTimeout(2000);
   await clickPlot(START.gx, START.gy);
   await page.click('[data-testid=plot-kind]'); await page.waitForSelector('[data-testid=plot-kind-dialog]', { timeout: 10000 });
-  await page.locator('[data-testid=kind-home]').scrollIntoViewIfNeeded(); await page.waitForTimeout(1200);
+  await page.locator('[data-testid=kind-residential]').scrollIntoViewIfNeeded(); await page.waitForTimeout(1200);
   await shot('03-picker');
-  await page.click('[data-testid=kind-home]'); await page.click('[data-testid=kind-next]');
+  await page.click('[data-testid=kind-residential]'); await page.waitForSelector('[data-testid=kind-subplots]', { timeout: 5000 });
+  await page.click('[data-testid=kind-landlord]'); await page.click('[data-testid=kind-home]');
+  await page.locator('[data-testid=kind-subplots]').scrollIntoViewIfNeeded(); await shot('03b-picker-subplots');
+  await page.click('[data-testid=kind-next]');
   await page.waitForSelector('[data-testid=plot-kind-confirm]', { timeout: 10000 }); await shot('04-confirm');
   await page.click('[data-testid=kind-confirm]');
   await page.waitForSelector('[data-testid=home]', { timeout: 30000 }); await page.waitForTimeout(2500);
