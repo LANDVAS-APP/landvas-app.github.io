@@ -46,6 +46,12 @@ async function signUp(email, username) {
   await page.fill('#email', email); await page.fill('#password', 'paint-the-world'); await page.click('button[type=submit]');
   await page.waitForSelector('#username', { timeout: 20000 }); await page.fill('#username', username); await page.check('input[type=checkbox]'); await page.click('button[type=submit]');
 }
+/** sign out and back to the sign-in screen, without reloading (the local database lives in this page) */
+async function switchUser() {
+  await page.evaluate(async () => { await window.__landvasBackend.db.syncToFs?.(); await window.__landvasBackend.signOut(); });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => window.__landvasNav('/world')); await page.waitForTimeout(1500);
+}
 /** fast-forward the trip under way to its arrival, and let the game check in */
 async function arrive() {
   await sql(`update travel_trips set arrives_at = now() - interval '1 second' where not arrived`);
@@ -55,6 +61,15 @@ async function arrive() {
 
 try {
   await page.goto(URL, { waitUntil: 'load' });
+  // ---- another traveller: pip flies Salt Lake City → London ---------------------------------------------------------
+  await signUp('pip@example.test', 'pip_pilot');
+  await page.waitForFunction(() => !!window.__landvasApi, null, { timeout: 30000 }); await page.waitForTimeout(2500);
+  const here = ll(START.gx, START.gy);
+  await api('reportPosition', here.longitude, here.latitude, 8);
+  const pipStart = await api('claimStarter', START.gx + 4, START.gy + 3, 'Pip field');
+  await api('setGroupKind', pipStart.group_id, 'plane');
+  await api('travelDepart', 'plane', 'ap:LHR');
+  await switchUser();
   await signUp('tess@example.test', 'tess_travel');
   await page.waitForSelector('[data-testid=place-gps]', { timeout: 20000 }); await page.click('[data-testid=place-gps]');
   await page.waitForFunction(() => document.querySelector('.lv-explorer') !== null, null, { timeout: 20000 }); await page.waitForTimeout(1500);
@@ -102,6 +117,10 @@ try {
   check('the ride is a real distance', plan.km > 590 && plan.km < 800, `${plan.km} km, ${plan.seconds}s, ${plan.stops.length} stops: ${plan.stops.map((s) => s.name).join(', ')}`);
   await shot('03-plan');
   await page.click('[data-testid=travel-board]'); await page.waitForTimeout(2500);
+  // the test takes longer than the 2-minute ride: slow this train down 30× so it only arrives when the test says so
+  await sql(`update explorers set speed_mps = speed_mps / 30 where trip_id = (select id from travel_trips where mode = 'train' and not arrived)`);
+  await sql(`update travel_trips set arrives_at = departs_at + (arrives_at - departs_at) * 30 where mode = 'train' and not arrived`);
+  await refresh(); await page.waitForTimeout(1200);
 
   // ---- riding -------------------------------------------------------------------------------------------------------
   await page.waitForSelector('[data-testid=travel-bar]', { timeout: 10000 });
@@ -110,8 +129,20 @@ try {
   check('your explorer rides the train', await page.evaluate(() => document.querySelector('.lv-explorer')?.classList.contains('ride-train')));
   const ex = await explorer();
   check('the explorer is travelling', ex?.mode === 'travel' && ex.traveling && ex.trip?.to?.id === 'us:DEN');
+  // other travellers show while you're away: pip's plane, with their name
+  await page.evaluate(() => { const m = window.__landvasMap; m.jumpTo({ center: [-60, 52], zoom: 2.2 }); }); await page.waitForTimeout(3500);
+  check('pip’s flight shows on the map, with their name', (await page.locator('[data-testid=traveller][data-user=pip_pilot]').count()) === 1
+    && /@pip_pilot/.test(await page.locator('[data-testid=traveller][data-user=pip_pilot]').innerText()));
+  await shot('04b-travellers-map');
+  await page.click('[data-testid=travel-button]'); await page.waitForTimeout(700);
+  await page.locator('[role=tab]').filter({ hasText: /Travellers/ }).first().click(); await page.waitForTimeout(1500);
+  const row = await page.locator('[data-testid=traveller-row]').first().innerText().catch(() => '');
+  check('the Travellers list has pip flying to London', /pip_pilot/.test(row) && /London Heathrow/.test(row) && /lands in/.test(row), row.replace(/\n/g, ' '));
+  await shot('04c-travellers-list');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  await page.evaluate(() => { const m = window.__landvasMap; m.jumpTo({ center: [-109.5, 39.5], zoom: 6.4 }); }); await page.waitForTimeout(1000);
   // halfway: past a few stations, on the line between them
-  await sql(`update explorers set fixed_at = fixed_at - make_interval(secs => ${Math.round(plan.seconds * 0.5)})`);
+  await sql(`update explorers set fixed_at = fixed_at - make_interval(secs => ${Math.round(plan.seconds * 30 * 0.5)})`);
   await refresh(); await page.waitForTimeout(2000);
   const half = await explorer();
   check('halfway it has moved on past the first stations', half.trip?.leg >= 2 && half.traveling, `leg ${half.trip?.leg}, next ${plan.stops[half.trip?.leg]?.name}`);
@@ -122,7 +153,12 @@ try {
 
   // ---- arriving -----------------------------------------------------------------------------------------------------
   await arrive();
-  await page.waitForSelector('[data-testid=travel-arrival]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid=travel-arrival]', { timeout: 15000 }).catch(async (e) => {
+    console.log('DEBUG trips', JSON.stringify(await sql(`select mode, arrived, leg, arrival is not null has_arrival, arrival_seen, arrives_at < now() due from travel_trips order by departs_at`)));
+    console.log('DEBUG explorers', JSON.stringify(await sql(`select mode, trip_id is not null trip, dest_lng, fixed_at from explorers`)));
+    console.log('DEBUG ui', JSON.stringify(await page.evaluate(() => window.__landvasTravel.ui.getState().arrival)));
+    throw e;
+  });
   check('arriving gives a new stamp', (await page.locator('[data-testid=arrival-new-stamp]').count()) === 1);
   await shot('05-arrival');
   await page.click('[data-testid=arrival-close]'); await page.waitForTimeout(800);

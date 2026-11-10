@@ -12,14 +12,35 @@ import type { LayerSpecification, Map as MLMap, StyleSpecification } from 'mapli
 import { feature, mesh, neighbors } from 'topojson-client';
 import countriesUrl from '../data/countries-50m.json?url';
 import { config } from '../env';
-import { effectiveDark, useUi } from '../lib/store';
+import { DEFAULT_MAP_THEME, effectiveDark, useUi, type MapTheme } from '../lib/store';
 
 export type ThemeColors = { ocean: string; land: string; border: string; coast: string; grat: string; bg: string; palette: string[]; dark: boolean };
 
 const DARK_PALETTE = ['#1e6e58', '#6b318a', '#9c4b22', '#25528f', '#8c2a52', '#5f7020', '#1f7d88'];
 const LIGHT_PALETTE = ['#c3efdd', '#e6d1f4', '#f8d7c1', '#cddcf7', '#f6cddc', '#e4edbd', '#c3e9ee'];
 
+// ---- map themes ---------------------------------------------------------------------
+//  * Neon: the original — jewel-toned countries and a neon night city (or lavender by day), following the app theme.
+//  * Terrain: a light, true-to-life physical map — blue seas, green lowlands, tan and brown mountains, snowy peaks,
+//    shaded relief from real elevation data, and natural streets (green parks, blue water, white roads).
+//  * Atlas: bright, light, colourful countries with the same shaded relief and natural streets.
+export const MAP_THEMES: { id: MapTheme; name: string; hint: string; swatch: string[] }[] = [
+  { id: 'neon', name: 'Neon', hint: 'The original glow', swatch: ['#0b0820', '#6b318a', '#ff4fa3'] },
+  { id: 'terrain', name: 'Terrain', hint: 'Real land, sea and mountains', swatch: ['#9fd3ea', '#bfe0a0', '#dcb98e'] },
+  { id: 'atlas', name: 'Atlas', hint: 'Bright, colourful countries', swatch: ['#a9dcf2', '#ffe39a', '#f7b9d6'] },
+];
+export const mapTheme = (): MapTheme => useUi.getState().settings.mapTheme ?? DEFAULT_MAP_THEME;
+/** whether the map (not the app) is dark: only Neon follows the app's dark mode */
+export const mapIsDark = () => mapTheme() === 'neon' && effectiveDark(useUi.getState().settings.theme);
+
+// near-identical greens: Terrain doesn't colour countries in (the relief does the colouring)
+const TERRAIN_PALETTE = ['#e4ecd0', '#e7eed2', '#e2ead0', '#e6edd4', '#e3ebcf', '#e8efd5', '#e5ecd1'];
+const ATLAS_PALETTE = ['#bfe7a8', '#ffe39a', '#ffc6a8', '#f7bfd8', '#cdc6f7', '#a9e3da', '#f4d9a2'];
+
 export function themeColors(): ThemeColors {
+  const t = mapTheme();
+  if (t === 'terrain') return { ocean: '#9fd3ea', land: '#e6edd2', border: 'rgba(105, 95, 85, 0.45)', coast: '#5f9fc4', grat: 'rgba(40, 100, 150, 0.08)', bg: '#f4f7f2', palette: TERRAIN_PALETTE, dark: false };
+  if (t === 'atlas') return { ocean: '#a9dcf2', land: '#f3efe2', border: 'rgba(70, 70, 100, 0.55)', coast: '#4f97c2', grat: 'rgba(40, 100, 150, 0.1)', bg: '#f6f8fb', palette: ATLAS_PALETTE, dark: false };
   const cs = getComputedStyle(document.documentElement);
   const v = (n: string) => cs.getPropertyValue(n).trim();
   const dark = effectiveDark(useUi.getState().settings.theme);
@@ -94,6 +115,16 @@ const DAY: StreetPalette = {
   roadText: '#3b2d6b', placeText: '#1d1640', waterText: '#1b6f8c', halo: '#ffffff',
 };
 
+/** Terrain and Atlas streets: true to life, light and bright */
+const NATURAL: StreetPalette = {
+  land: '#f3f0e6', residential: '#ede8dd', commercial: '#f7e4dc', industrial: '#e9e4ea', civic: '#f5e3d8', cemetery: '#d5e8d0', sport: '#cbeccb',
+  park: '#c3e6ae', parkLine: '#7cc06a', wood: '#acd698', farm: '#eef0cb', sand: '#f6e8b6', wetland: '#c8e6da', ice: '#f4fbff', rock: '#dfdbd3',
+  water: '#9fd3ea', waterLine: '#68b6dc', waterway: '#86c6e3', casing: '#d5cdbf', motorway: '#f7a35c', trunk: '#f9bf6e', primary: '#fcd98a',
+  secondary: '#fff0ae', tertiary: '#ffffff', minor: '#ffffff', service: '#fbfaf6', path: '#b89f86', rail: '#a7a1ac', runway: '#d9d5de',
+  bld: [[0, '#e6decf'], [20, '#ddd2be'], [60, '#d0c3ab'], [150, '#c2b398']],
+  roadText: '#4a4038', placeText: '#2d2a26', waterText: '#2a6f96', halo: '#ffffff',
+};
+
 const STREETS_MIN = 8;
 // touch devices skip the blurred road glows: wide blurred lines are the most expensive
 // thing a phone GPU draws, and the roads read just as well without them
@@ -145,7 +176,7 @@ export function streetLayers(p: StreetPalette): { base: LayerSpecification[]; la
       id: `st-road-${r.id}-glow`, type: 'line', ...src, 'source-layer': 'transportation', minzoom: r.min,
       filter: ['all', cls(...r.classes), ['!=', ['get', 'brunnel'], 'tunnel']] as any,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': p[r.color] as string, 'line-width': widths(r.w.map(([z, w]) => [z, w * 3.2])), 'line-blur': widths(r.w.map(([z, w]) => [z, w * 1.6])), 'line-opacity': fadeIn(r.min, r.min + 1.5, p === NIGHT ? 0.32 : 0.18) },
+      paint: { 'line-color': p[r.color] as string, 'line-width': widths(r.w.map(([z, w]) => [z, w * 3.2])), 'line-blur': widths(r.w.map(([z, w]) => [z, w * 1.6])), 'line-opacity': fadeIn(r.min, r.min + 1.5, p === NIGHT ? 0.32 : p === DAY ? 0.18 : 0) },
     })),
     ...ROADS.map((r): LayerSpecification => ({
       id: `st-road-${r.id}-casing`, type: 'line', ...src, 'source-layer': 'transportation', minzoom: Math.max(r.min, 12),
@@ -201,7 +232,33 @@ export function streetLayers(p: StreetPalette): { base: LayerSpecification[]; la
   return { base, labels };
 }
 
-export const streetPalette = (dark: boolean) => (dark ? NIGHT : DAY);
+export const streetPalette = (dark: boolean) => (mapTheme() !== 'neon' ? NATURAL : dark ? NIGHT : DAY);
+
+// ---- relief: real elevation (AWS Terrain Tiles, public, no key) as colour and shading --------------------------------
+const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+export const RELIEF_LAYERS = ['lv-relief', 'lv-hillshade'];
+function reliefLayers(streets: boolean): LayerSpecification[] {
+  const t = mapTheme();
+  const vis = (on: boolean) => ({ visibility: on ? 'visible' : 'none' }) as const;
+  const out = (from: number, to: number, v: number) => (streets ? ['interpolate', ['linear'], ['zoom'], from, v, to, 0] as any : v);
+  return [
+    // land coloured by height: green lowlands, yellow-green hills, tan and brown mountains, snow on the peaks
+    { id: 'lv-relief', type: 'color-relief', source: 'dem', layout: vis(t === 'terrain'),
+      paint: {
+        'color-relief-color': ['interpolate', ['linear'], ['elevation'],
+          -12000, 'rgba(0,0,0,0)', -1, 'rgba(0,0,0,0)', 0, 'rgba(198,228,170,0.9)', 150, 'rgba(184,220,150,0.9)', 500, 'rgba(214,226,158,0.9)',
+          1000, 'rgba(234,218,160,0.9)', 1700, 'rgba(222,190,142,0.92)', 2600, 'rgba(198,160,128,0.92)', 3600, 'rgba(184,160,150,0.9)',
+          4500, 'rgba(236,234,236,0.95)', 6000, 'rgba(255,255,255,1)'] as any,
+        'color-relief-opacity': out(STREETS_MIN + 0.5, STREETS_MIN + 2.5, 0.92),
+      } } as LayerSpecification,
+    // shaded relief: mountains and valleys stand out
+    { id: 'lv-hillshade', type: 'hillshade', source: 'dem', layout: vis(t !== 'neon'),
+      paint: {
+        'hillshade-exaggeration': ['interpolate', ['linear'], ['zoom'], 2, 0.55, 8, 0.4, 13, 0.25, 16, 0.1] as any,
+        'hillshade-shadow-color': 'rgba(72, 58, 44, 0.55)', 'hillshade-highlight-color': 'rgba(255, 255, 255, 0.45)', 'hillshade-accent-color': 'rgba(60, 50, 40, 0.25)',
+      } } as LayerSpecification,
+  ];
+}
 
 function atlasLayers(c: ThemeColors, streets: boolean): LayerSpecification[] {
   const p = streetPalette(c.dark);
@@ -227,10 +284,21 @@ export async function offlineStyle(c: ThemeColors, streets?: { url: string }): P
       land: { type: 'geojson', data: g.land, attribution: 'Natural Earth' },
       borders: { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: g.borders } },
       grat: { type: 'geojson', data: graticule() },
+      dem: { type: 'raster-dem', tiles: [DEM_TILES], tileSize: 256, maxzoom: 14, encoding: 'terrarium', attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a>' },
       ...(streets ? { streets: { type: 'vector', url: streets.url, attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' } } : {}),
     },
-    layers: [...atlasLayers(c, !!streets), ...(st ? [...st.base, ...st.labels] : [])],
+    layers: withRelief([...atlasLayers(c, !!streets), ...(st ? [...st.base, ...st.labels] : [])], !!streets),
   } as StyleSpecification;
+}
+
+/** relief colour sits on the land; the shading sits over the streets' parks and fields (under water and roads) */
+function withRelief(layers: LayerSpecification[], streets: boolean) {
+  const [relief, shade] = reliefLayers(streets);
+  const out = [...layers];
+  out.splice(out.findIndex((l) => l.id === 'lv-coast'), 0, relief);
+  const at = out.findIndex((l) => l.id === 'st-water');
+  out.splice(at >= 0 ? at : out.findIndex((l) => l.id === 'lv-coast'), 0, shade);
+  return out;
 }
 
 export const STREET_LABEL_LAYERS = ['st-label-road', 'st-label-water', 'st-label-place'];
@@ -239,6 +307,10 @@ export const STREET_LABEL_LAYERS = ['st-label-road', 'st-label-water', 'st-label
 export function recolorOffline(map: MLMap, c: ThemeColors, streets: boolean) {
   for (const l of atlasLayers(c, streets)) {
     for (const [k, v] of Object.entries(l.paint ?? {})) if (map.getLayer(l.id)) map.setPaintProperty(l.id, k as any, v as any);
+  }
+  for (const l of reliefLayers(streets)) {
+    if (!map.getLayer(l.id)) continue;
+    map.setLayoutProperty(l.id, 'visibility', (l.layout as { visibility?: 'visible' | 'none' })?.visibility ?? 'visible');
   }
   if (!streets) return;
   const st = streetLayers(streetPalette(c.dark));

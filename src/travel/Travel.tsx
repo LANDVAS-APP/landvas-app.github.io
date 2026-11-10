@@ -18,7 +18,9 @@ import { useOnboardedMe, useInvalidate } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { config } from '../env';
-import { Button, Dialog, PlayerAvatar, Spinner, Tabs, inputCls } from '../ui';
+import { TrafficLayer, trafficAt, trafficPath, useTraffic, useTrafficPref } from './traffic';
+import type { TravelTraffic } from '../backend/types';
+import { Button, Dialog, PlayerAvatar, Spinner, Switch, Tabs, inputCls } from '../ui';
 
 export const TRAVEL_KEY = ['travel'] as const;
 const MODE_META: Record<TravelMode, { name: string; emoji: string; stop: string; stops: string; verb: string }> = {
@@ -154,7 +156,7 @@ export function TravelSheet() {
   const setOpen = useTravelUi((s) => s.setOpen);
   const q = useTravel();
   const d = q.data;
-  const [tab, setTab] = useState<'train' | 'plane' | 'passport'>('train');
+  const [tab, setTab] = useState<'train' | 'plane' | 'passport' | 'people'>('train');
   useEffect(() => {
     // open on the kind of plot you have
     if (open && d && !d.train.plots && d.plane.plots) setTab((t) => (t === 'train' ? 'plane' : t));
@@ -163,9 +165,10 @@ export function TravelSheet() {
     <Dialog open={open} onOpenChange={setOpen} title={<span className="flex items-center gap-2">🧳 Travel</span>}
       description="Ride trains and fly to real stations and airports. When you arrive you’re really there.">
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-3"
-        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }]} />
+        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }, { value: 'people', label: '🌍 Travellers' }]} />
       {!d ? <div className="flex justify-center py-8"><Spinner /></div>
         : tab === 'passport' ? <Passport status={d} />
+        : tab === 'people' ? <Travellers status={d} onDone={() => setOpen(false)} />
         : <ModePane key={tab} mode={tab} status={d} onDone={() => setOpen(false)} />}
     </Dialog>
   );
@@ -432,6 +435,8 @@ export function TravelMapLayer() {
     const read = () => {
       map = mapHandle.current;
       if (!map) return;
+      // zoomed far out, only the destination keeps its name (the stations on the way would pile up)
+      map.getContainer().classList.toggle('lv-zoom-far', map.getZoom() < 6);
       if (map.getZoom() < 7) { setBbox(null); return; }
       const b = map.getBounds();
       const r = (x: number) => Math.round(x * 20) / 20;
@@ -501,7 +506,60 @@ export function TravelMapLayer() {
 
 /** everything Travel adds to the map screen */
 export function TravelOverlays() {
-  return (<><TravelMapLayer /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
+  const away = !!useTravel().data?.away;
+  const show = useTrafficPref((s) => s.show);
+  return (<><TravelMapLayer /><TrafficLayer enabled={away || show} /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
+}
+
+const ago = (ms: number) => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+
+/** who else is travelling: their rides and flights, and whether yours show */
+function Travellers({ status, onDone }: { status: TravelStatus; onDone(): void }) {
+  const q = useTraffic(true);
+  const qc = useQueryClient();
+  const pref = useTrafficPref();
+  const requestFly = useUi((s) => s.requestFly);
+  useNow(1000);
+  const [share, setShare] = useState(status.share !== false);
+  const now = Date.now() + useExplorer.getState().offset;
+  const look = (t: TravelTraffic) => {
+    const { p } = trafficAt(t, trafficPath(t), now);
+    pref.set(true);
+    useExplorer.getState().setFollowing(false);
+    requestFly({ lng: p[0], lat: p[1], zoom: t.mode === 'plane' ? 4 : 7 });
+    onDone();
+  };
+  return (
+    <div className="space-y-3" data-testid="travel-people">
+      <div className="grid gap-2 rounded-2xl bg-surface-2/60 p-3">
+        <Switch id="show-traffic" checked={pref.show || status.away} onCheckedChange={(v) => pref.set(v)} label="Show travellers on the map" hint={status.away ? 'Always on while you’re away' : 'Their trains and planes, with their names'} />
+        <Switch id="share-trips" checked={share} label="Share my trips" hint="Others see your rides and flights (never your trips home, nor the station by your home)"
+          onCheckedChange={async (v) => { setShare(v); try { await api.travelShare(v); void qc.invalidateQueries({ queryKey: TRAVEL_KEY }); } catch (e) { setShare(!v); toast.error(toGameError(e).message); } }} />
+      </div>
+      {q.isLoading ? <div className="flex justify-center py-6"><Spinner /></div>
+        : !q.data?.length ? <div className="py-6 text-center text-sm text-muted">Nobody else is travelling right now. Check back soon!</div>
+        : (
+          <div className="grid gap-1.5">
+            {q.data.map((t) => {
+              const left = (new Date(t.arrives_at).getTime() - now) / 1000;
+              const done = t.arrived || left <= 0;
+              return (
+                <button key={t.trip} onClick={() => look(t)} className="flex items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2/70" data-testid="traveller-row">
+                  <PlayerAvatar p={t} size={36} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">@{t.username} <span className="font-normal">{t.mode === 'plane' ? '✈️' : '🚆'}</span></span>
+                    <span className="block truncate text-[11px] text-muted">{t.from ? (t.from.code || t.from.name) : '…'} → {t.to.name}</span>
+                  </span>
+                  <span className={cn('shrink-0 text-right text-[11px] tnum', done ? 'text-muted' : 'font-bold text-[#2FA4D9]')}>
+                    {done ? `arrived ${ago(now - new Date(t.arrives_at).getTime())}` : `${t.mode === 'plane' ? 'lands' : 'arrives'} in ${fmtDur(left)}`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+    </div>
+  );
 }
 
 

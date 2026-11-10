@@ -803,7 +803,11 @@ export type TravelTrip = {
 export type TravelArrival = { home?: true; stop?: TravelStop; new_stamp?: boolean; new_country?: boolean; ink?: number; mode?: TravelMode };
 export type TravelStatus = {
   train: { plots: number; left: number }; plane: { plots: number; left: number };
-  trip: TravelTrip | null; arrival: TravelArrival | null; away: boolean; stamps: number; countries: number; explorer: ExplorerState | null;
+  trip: TravelTrip | null; arrival: TravelArrival | null; away: boolean; stamps: number; countries: number; share?: boolean; explorer: ExplorerState | null;
+};
+/** someone else's ride or flight (a train from home shows from its first stop: `from` is null) */
+export type TravelTraffic = Profile & {
+  trip: string; mode: TravelMode; km: number; arrived: boolean; from: TravelStop | null; to: TravelStop; stops: TravelWayStop[]; starts_at: string; arrives_at: string;
 };
 export type TravelPlan = { mode: TravelMode; from: TravelStop; to: TravelStop; board_km: number; left: number; plots: number; km: number; seconds: number; stops: TravelWayStop[] };
 export type TravelStamp = TravelStop & { first_at: string; last_at: string; visits: number };

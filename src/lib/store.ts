@@ -5,7 +5,10 @@ import { safeStorage, saveStorage } from './utils';
 
 export type MapMode = 'atlas' | 'canvas' | 'discovery' | 'land';
 export type Theme = 'dark' | 'light' | 'system';
-export type Settings = { theme: Theme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean; tilt3d: boolean; mobileTabs?: string[] };
+export type MapTheme = 'neon' | 'terrain' | 'atlas';
+/** the map's look until a player picks one (View → Map style) */
+export const DEFAULT_MAP_THEME: MapTheme = 'terrain';
+export type Settings = { theme: Theme; mapTheme?: MapTheme; crispPixels: boolean; globe: boolean; reduceMotion: boolean; showGrid: boolean; haptics: boolean; tilt3d: boolean; mobileTabs?: string[] };
 
 type View = { lng: number; lat: number; zoom: number };
 

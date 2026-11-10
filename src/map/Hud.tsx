@@ -2,6 +2,7 @@
 // the time of day, bubbles over your plots (collect an Ink Spring, step into a sanctuary) and the
 // "dive in" transition that zooms the map down into a plot before its screen opens.
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MAP_THEMES } from './basemap';
 import { AnimatePresence, motion } from 'motion/react';
 import { Compass, Layers, MapPinned, Palette } from 'lucide-react';
 import * as maplibregl from 'maplibre-gl';
@@ -12,7 +13,7 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { useExplorer } from '../explorer/explorer';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
-import { useUi, type MapMode } from '../lib/store';
+import { DEFAULT_MAP_THEME, useUi, type MapMode } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
 import { RarityBadge } from '../plot/RarityBadge';
@@ -67,6 +68,26 @@ const MODES: { id: MapMode; label: string; icon: typeof Layers; hint: string }[]
   { id: 'discovery', label: 'Discover', icon: Compass, hint: 'Claimable mystery plots and who owns the land around you' },
   { id: 'land', label: 'My Land', icon: Layers, hint: 'Your plots, canvases and upgrade options' },
 ];
+/** the map's look: Neon, Terrain or Atlas */
+export function MapThemePicker() {
+  const cur = useUi((s) => s.settings.mapTheme ?? DEFAULT_MAP_THEME);
+  const update = useUi((s) => s.updateSettings);
+  return (
+    <div className="grid gap-1 px-1 pt-1" role="radiogroup" aria-label="Map style" data-testid="map-theme-picker">
+      <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-white/55">Map style</span>
+      <div className="grid grid-cols-3 gap-1.5">
+        {MAP_THEMES.map((t) => (
+          <button key={t.id} role="radio" aria-checked={cur === t.id} title={t.hint} onClick={() => { update({ mapTheme: t.id }); buzz('light'); }} data-testid={`map-theme-${t.id}`}
+            className={cn('grid justify-items-center gap-1 rounded-xl border-2 p-1.5 text-[11px] font-bold transition', cur === t.id ? 'border-white/80 bg-white/10' : 'border-transparent opacity-80 hover:opacity-100')}>
+            <span className="h-7 w-full rounded-lg" style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0 38%, ${t.swatch[1]} 38% 72%, ${t.swatch[2]} 72%)` }} />
+            {t.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ModeButton() {
   const mode = useUi((s) => s.mode);
   const setMode = useUi((s) => s.setMode);
@@ -88,6 +109,7 @@ export function ModeButton() {
                 <m.icon className="h-4 w-4 shrink-0" /><span className="grid"><span>{m.label}</span><span className="text-[10px] font-semibold opacity-70">{m.hint}</span></span>
               </button>
             ))}
+            <MapThemePicker />
             <button className="rounded-xl px-3 py-1.5 text-left text-xs font-bold text-white/70" onClick={() => setLegend((l) => !l)} aria-expanded={legend}>{legend ? 'Hide' : 'Show'} the legend</button>
             {legend && (
               <div className="grid gap-1.5 px-1 pb-1 text-[11px]">

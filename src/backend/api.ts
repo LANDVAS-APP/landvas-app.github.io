@@ -95,6 +95,8 @@ export const api = {
   travelHome: () => rpc<import('./types').TravelStatus>('travel_home'),
   travelPassport: () => rpc<import('./types').TravelStamp[]>('travel_passport'),
   travelBuildings: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').TravelBuilding[]>('travel_buildings', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
+  travelTraffic: () => rpc<import('./types').TravelTraffic[]>('travel_traffic'),
+  travelShare: (share: boolean) => rpc<{ share: boolean }>('travel_share', { p_share: share }),
   travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
 
   // more ways to earn

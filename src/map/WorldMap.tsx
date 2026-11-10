@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { canPick, pickKind, sameKindMessage } from '../plot/mergeKind';
 import { config } from '../env';
 import { qk, useOnboardedMe, useWorld } from '../lib/queries';
-import { effectiveDark, useUi, type MapMode } from '../lib/store';
+import { DEFAULT_MAP_THEME, useUi, type MapMode } from '../lib/store';
 import { outlineEdges } from '../shared/fusion';
 import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygon, latToY, lngLatToCell, viewportCells, xToLng, yToLat } from '../shared/grid';
 import { rarities } from '../shared/rarity';
@@ -21,7 +21,7 @@ import { explorerNow, useExplorer } from '../explorer/explorer';
 import { ArtIndex, registerArtProtocol } from './artTiles';
 import { CELLS_MIN_ZOOM, GRIDLINES_MIN_ZOOM, PLOTS_MIN_ZOOM, PlotBlocks, registerPlotProtocols } from './plotTiles';
 import { useCelebration } from '../plot/ClaimCelebration';
-import { BUILDING_LAYERS, STREET_LABEL_LAYERS, recolorOffline, resolveStyle, themeColors } from './basemap';
+import { BUILDING_LAYERS, STREET_LABEL_LAYERS, mapIsDark, recolorOffline, resolveStyle, themeColors } from './basemap';
 import { citiesInView } from './places';
 import { mapHandle } from './mapHandle';
 import { explorerElement } from '../explorer/character';
@@ -119,6 +119,12 @@ export function WorldMap() {
         pixelRatio: PIXEL_RATIO,
       });
       map = m;
+      // terrain tiles that don't arrive (offline, a blip) just leave the land unshaded: not an error worth reporting
+      m.on('error', (ev) => {
+        const e = ev as unknown as { sourceId?: string; error?: Error };
+        if (e.sourceId === 'dem' || /elevation-tiles/.test(String(e.error?.message ?? ''))) return;
+        console.error(e.error ?? e);
+      });
       m.touchZoomRotate.disableRotation();
       m.keyboard.disableRotation();
       m.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Artwork © LANDVAS artists · Natural Earth · GeoNames' }), 'bottom-left');
@@ -336,7 +342,7 @@ export function WorldMap() {
       const el = document.createElement('div');
       el.className = 'city-label';
       el.textContent = c.name;
-      markers.set(k, new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, 4] }).setLngLat([c.lng, c.lat]).addTo(map));
+      markers.set(k, new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, 4], opacityWhenCovered: '0' }).setLngLat([c.lng, c.lat]).addTo(map));
     }
   }
 
@@ -600,9 +606,12 @@ export function WorldMap() {
       if (!onlineRef.current) recolorOffline(map, themeColors(), streetsRef.current);
       applySky(map);
       if (map.getLayer('lv-veil')) map.setPaintProperty('lv-veil', 'background-color', themeColors().bg || '#0b0820');
+      // a light map (Terrain, Atlas, or Neon by day) gets dark labels with a white halo
+      const light = !mapIsDark();
+      container.current?.classList.toggle('lv-map-light', light);
       if (map.getLayer('lv-cities')) {
-        map.setPaintProperty('lv-cities', 'text-color', cssVar('--muted', '#a1abd6'));
-        map.setPaintProperty('lv-cities', 'text-halo-color', cssVar('--bg', '#070b1c'));
+        map.setPaintProperty('lv-cities', 'text-color', light ? '#3a3550' : cssVar('--muted', '#a1abd6'));
+        map.setPaintProperty('lv-cities', 'text-halo-color', light ? '#ffffff' : cssVar('--bg', '#070b1c'));
       }
     };
     recolor();
@@ -614,7 +623,7 @@ export function WorldMap() {
       mq.removeEventListener('change', recolor);
       obs.disconnect();
     };
-  }, [settings.theme, ready]);
+  }, [settings.theme, settings.mapTheme, ready]);
 
   return (
     <div className="absolute inset-0">
@@ -708,12 +717,13 @@ function addPill(map: MLMap, id: string, rim: string) {
 const cssVar = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
 
 function applySky(map: MLMap) {
-  const dark = effectiveDark(useUi.getState().settings.theme);
+  const dark = mapIsDark();
+  const natural = !dark && (useUi.getState().settings.mapTheme ?? DEFAULT_MAP_THEME) !== 'neon';
   try {
     map.setSky({
-      'sky-color': dark ? '#0a0620' : '#e9e3ff',
-      'horizon-color': dark ? '#6b2fb3' : '#c7b4ff',
-      'fog-color': dark ? '#120a2e' : '#f4f0ff',
+      'sky-color': dark ? '#0a0620' : natural ? '#bfe3ff' : '#e9e3ff',
+      'horizon-color': dark ? '#6b2fb3' : natural ? '#e8f4ff' : '#c7b4ff',
+      'fog-color': dark ? '#120a2e' : natural ? '#f2f8fc' : '#f4f0ff',
       'sky-horizon-blend': 0.6,
       'horizon-fog-blend': 0.6,
       'fog-ground-blend': 0.6,

@@ -1226,3 +1226,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-stop.way .bld { width: 28px; height: 24px; }
 .lv-stop.way .nm { font-size: 9.5px; padding: 1px 6px; background: rgba(11,14,36,.65); }
 .lv-stop.dest .nm { background: #FFB020; color: #1B1400; }
+/* other travellers: their trains and planes, with their names */
+.lv-traveller { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.lv-traveller .veh { line-height: 0; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); transition: transform .4s linear; }
+.lv-traveller .who {
+  margin-top: 1px; border-radius: 999px; background: rgba(11,14,36,.78); color: #fff; padding: 1px 6px;
+  font-size: 10px; font-weight: 800; white-space: nowrap;
+}
+.lv-traveller.plane .who { background: rgba(29,111,163,.9); }
+.lv-traveller.landed { opacity: .5; }
+/* a light map (Terrain, Atlas, Neon by day) in a dark app: dark place names */
+.lv-map-light .city-label { color: #3a3550; text-shadow: 0 1px 3px #fff, 0 0 8px #fff; }
+.lv-zoom-far .lv-stop.way { display: none; }
+.lv-zoom-far .lv-stop:not(.dest) .nm { display: none; }
