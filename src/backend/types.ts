@@ -80,6 +80,7 @@ export type MyState =
 export type ExplorerState = {
   mode: 'gps' | 'manual' | 'travel';
   trip?: TravelTrip | null;
+  vehicle?: VehicleState;
   lng: number;
   lat: number;
   gx: number;
@@ -798,18 +799,41 @@ export type TravelStop = { id: string; kind: 'station' | 'airport'; name: string
 export type TravelWayStop = { id: string; name: string; country: string; lng: number; lat: number; t: number };
 export type TravelTrip = {
   id: string; mode: TravelMode | 'home'; km: number; leg: number; departs_at: string; arrives_at: string; arrived: boolean;
-  from: TravelStop | null; to: TravelStop | null; stops: TravelWayStop[]; home: { lng: number; lat: number };
+  from: TravelStop | null; to: TravelStop | null; stops: TravelWayStop[]; group?: boolean;
 };
 export type TravelArrival = { home?: true; stop?: TravelStop; new_stamp?: boolean; new_country?: boolean; ink?: number; mode?: TravelMode };
 export type TravelStatus = {
   train: { plots: number; left: number }; plane: { plots: number; left: number };
   trip: TravelTrip | null; arrival: TravelArrival | null; away: boolean; stamps: number; countries: number; share?: boolean; explorer: ExplorerState | null;
+  /** after boarding as a group's leader: who rode along */
+  group?: { with: string[]; left_behind: string[] } | null;
 };
 /** someone else's ride or flight (a train from home shows from its first stop: `from` is null) */
 export type TravelTraffic = Profile & {
-  trip: string; mode: TravelMode; km: number; arrived: boolean; from: TravelStop | null; to: TravelStop; stops: TravelWayStop[]; starts_at: string; arrives_at: string;
+  trip: string; mode: TravelMode; km: number | null; arrived: boolean; from: TravelStop | null; to: TravelStop; stops: TravelWayStop[];
+  /** set off from home: only where it's going shows (no start, no route, no departure time) */
+  inbound?: boolean; starts_at: string | null; arrives_at: string;
 };
 export type TravelPlan = { mode: TravelMode; from: TravelStop; to: TravelStop; board_km: number; left: number; plots: number; km: number; seconds: number; stops: TravelWayStop[] };
 export type TravelStamp = TravelStop & { first_at: string; last_at: string; visits: number };
 export type TravelBuilding = TravelStop & { visitors: number };
 export type TravelStopInfo = TravelStop & { visitors: number; recent: (Profile & { at: string })[]; mine: { first_at: string; visits: number } | null };
+
+// ---- out and about (v0.9.9) ------------------------------------------------------------------------
+export type VehicleKind = 'walk' | 'bike' | 'car';
+export type VehicleInfo = { id: VehicleKind; name: string; speed_kmh: number; range_m: number; ink: number; fuel: boolean; needs: VehicleKind | null; owned: boolean };
+export type VehicleState = { current: VehicleKind; speed_kmh: number; range_m: number; fuel: boolean; all: VehicleInfo[] };
+export type MapFindKind = 'crystal' | 'balloon' | 'gift' | 'star';
+export type MapFind = { id: string; kind: MapFindKind; lng: number; lat: number };
+export type MapFindClaim = { id: string; kind: MapFindKind; ink: number; capped: boolean; today: number; balances: Balances };
+/** a group member: where they are only while they're away travelling (never GPS, never home) */
+export type TravelGroupMember = Profile & {
+  leader: boolean; me: boolean; away: boolean;
+  lng?: number; lat?: number; traveling?: boolean; dest_lng?: number | null; dest_lat?: number | null; arrives_at?: string | null;
+  fixed_at?: string; speed_mps?: number | null; origin_lng?: number; origin_lat?: number; vehicle?: VehicleKind;
+  trip?: { mode: TravelMode | 'home'; to: string | null } | null;
+};
+export type TravelGroupState = {
+  group: { id: string; code: string; leader: boolean; max: number; members: TravelGroupMember[]; invited: Profile[] } | null;
+  invites: { group_id: string; by: Profile; size: number }[];
+};

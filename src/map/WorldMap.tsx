@@ -368,7 +368,7 @@ export function WorldMap() {
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
     let lastLng = NaN, lastLat = NaN;
-    const cls = { walking: false, left: false, gps: false, 'ride-train': false, 'ride-plane': false, 'ride-home': false };
+    const cls = { walking: false, left: false, gps: false, 'ride-train': false, 'ride-plane': false, 'ride-home': false, 'veh-bike': false, 'veh-car': false };
     const toggle = (k: keyof typeof cls, on: boolean) => { if (cls[k] !== on) { cls[k] = on; el.classList.toggle(k, on); } };
     // runs every frame only while something's moving; standing still it checks a few times a second
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -387,6 +387,9 @@ export function WorldMap() {
         toggle('gps', gps === 'on');
         // riding a train or a plane: the explorer is in it
         const ride = state?.mode === 'travel' && p.traveling ? state.trip?.mode : null;
+        // steering on a bike or in a car: you're on it (on GPS you're on foot — that's really you)
+        const veh = !ride && state && state.mode !== 'gps' ? state.vehicle?.current : null;
+        toggle('veh-bike', veh === 'bike'); toggle('veh-car', veh === 'car');
         toggle('ride-train', ride === 'train'); toggle('ride-plane', ride === 'plane'); toggle('ride-home', ride === 'home');
         const t = performance.now();
         // the companion animates at 20 fps walking, 8 standing still, and holds while the map moves
@@ -625,6 +628,15 @@ export function WorldMap() {
     };
   }, [settings.theme, settings.mapTheme, ready]);
 
+  // "Hide plots": the map without any plots on it, for a smoother, faster map (their tiles aren't even fetched)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const hide = !!settings.hidePlots;
+    for (const id of PLOT_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', hide ? 'none' : 'visible');
+    container.current?.classList.toggle('lv-hide-plots', hide);
+  }, [settings.hidePlots, ready]);
+
   return (
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
@@ -635,6 +647,9 @@ export function WorldMap() {
 }
 
 // ---- layers & modes ----------------------------------------------------------------
+
+/** everything drawn for plots (hidden by "Hide plots") */
+const PLOT_LAYERS = ['lv-plots', 'lv-groups-glow', 'lv-groups-line', 'lv-art', 'lv-habitats', 'lv-names', 'lv-density'];
 
 function addLayers(map: MLMap, glyphs: boolean) {
   // Canvas mode lays a veil over the base map so the art leads
@@ -754,7 +769,7 @@ export function applyMode(map: MLMap, mode: MapMode, online: boolean) {
   const vis = (id: string, on: boolean) => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   const p = (id: string, prop: string, v: unknown) => map.getLayer(id) && map.setPaintProperty(id, prop as any, v as any);
   dimBase(map, mode === 'canvas', online);
-  vis('lv-density', true);
+  vis('lv-density', !useUi.getState().settings.hidePlots);
   // the art itself is never tinted or faded: modes only change the overlays around it
   p('lv-art', 'raster-opacity', 1);
   switch (mode) {

@@ -163,14 +163,15 @@ describe('joystick tank and GPS snap-back', () => {
     expect(ex.has_gps_fix).toBe(true);
   });
 
-  it('moves at most the speed allows; a far request is clamped, not teleported', async () => {
+  it('moves at most the speed allows (walking: 6 km/h); a far request is clamped, not teleported', async () => {
     const r = await db.rpc(j, 'joystick_step', { p_lng: east(home, 30).lng, p_lat: home.lat });
     expect(r.mode).toBe('manual');
-    expect(r.moved_m).toBeGreaterThan(29);
-    expect(r.clamped).toBe(false);
+    expect(r.vehicle.current).toBe('walk');
+    expect(r.moved_m).toBeGreaterThan(6); // the first burst: 4 s at 6 km/h ≈ 6.7 m
+    expect(r.moved_m).toBeLessThan(7);
     const far = await db.rpc(j, 'joystick_step', { p_lng: east(home, 5000).lng, p_lat: home.lat });
     expect(far.clamped).toBe(true);
-    expect(dist(home, far)).toBeLessThan(30 + 45); // bucket: 4 s at 40 km/h ≈ 44 m
+    expect(dist(home, far)).toBeLessThan(15);
   });
 
   it('spamming requests cannot beat the speed limit', async () => {
@@ -178,19 +179,26 @@ describe('joystick tank and GPS snap-back', () => {
     let last: any;
     for (let i = 0; i < 20; i++) last = await db.rpc(j, 'joystick_step', { p_lng: east(before, 2000).lng, p_lat: home.lat });
     // 20 back-to-back calls take far less than a second; only the drained bucket's refill is allowed
-    expect(dist(before, last)).toBeLessThan(15);
+    expect(dist(before, last)).toBeLessThan(5);
   });
 
-  it('charges the tank one second per second at full speed, and stops when empty', async () => {
+  it('walking is free; only the Car burns the tank, and stops when it is empty', async () => {
     const ex = await db.rpc(j, 'my_explorer');
-    expect(ex.joystick.seconds_left).toBeLessThan(60);
-    expect(ex.joystick.seconds_left).toBeGreaterThan(50);
+    expect(ex.joystick.seconds_left).toBe(60);
+    await db.sql(`insert into vehicles_owned (player_id, kind) values ($1, 'bike'), ($1, 'car') on conflict do nothing`, [j]);
+    expect((await db.rpc(j, 'vehicle_use', { p_kind: 'car' })).vehicle).toMatchObject({ current: 'car', speed_kmh: 60, fuel: true });
     await db.sql(`update explorers set joy_seconds = 0.5, joy_bucket_m = 1000, joy_day = now() + interval '1 day' where player_id = $1`, [j]);
     const r = await db.rpc(j, 'joystick_step', { p_lng: east(ex, 500).lng, p_lat: home.lat });
-    expect(r.moved_m).toBeLessThan(6); // 0.5 s at 11.1 m/s
+    expect(r.moved_m).toBeLessThan(9); // 0.5 s at 16.7 m/s
     expect(r.empty).toBe(true);
     const none = await db.rpc(j, 'joystick_step', { p_lng: east(ex, 600).lng, p_lat: home.lat });
     expect(none.moved_m).toBe(0);
+    // walking still works with an empty tank
+    await db.rpc(j, 'vehicle_use', { p_kind: 'walk' });
+    await db.sql(`update explorers set joy_bucket_m = 1000 where player_id = $1`, [j]);
+    const walk = await db.rpc(j, 'joystick_step', { p_lng: east(ex, 600).lng, p_lat: home.lat });
+    expect(walk.moved_m).toBeGreaterThan(0);
+    expect(walk.empty).toBe(false);
   });
 
   it('a GPS fix snaps the explorer straight back — joystick moves are not jumps', async () => {

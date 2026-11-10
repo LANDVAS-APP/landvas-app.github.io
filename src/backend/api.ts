@@ -97,6 +97,19 @@ export const api = {
   travelBuildings: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').TravelBuilding[]>('travel_buildings', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
   travelTraffic: () => rpc<import('./types').TravelTraffic[]>('travel_traffic'),
   travelShare: (share: boolean) => rpc<{ share: boolean }>('travel_share', { p_share: share }),
+  // out and about: vehicles, finds, travel groups
+  vehicleBuy: (kind: 'bike' | 'car') => rpc<ExplorerState & { balances: Balances; cost: number }>('vehicle_buy', { p_kind: kind }),
+  vehicleUse: (kind: import('./types').VehicleKind) => rpc<ExplorerState>('vehicle_use', { p_kind: kind }),
+  mapFinds: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').MapFind[]>('map_finds', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
+  mapFindClaim: (id: string) => rpc<import('./types').MapFindClaim>('map_find_claim', { p_id: id }),
+  travelGroup: () => rpc<import('./types').TravelGroupState>('travel_group'),
+  travelGroupCreate: () => rpc<import('./types').TravelGroupState>('travel_group_create'),
+  travelGroupJoin: (code: string) => rpc<import('./types').TravelGroupState>('travel_group_join', { p_code: code }),
+  travelGroupInvite: (username: string) => rpc<import('./types').TravelGroupState>('travel_group_invite', { p_username: username }),
+  travelGroupAccept: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_accept', { p_group: id }),
+  travelGroupDecline: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_decline', { p_group: id }),
+  travelGroupLeave: () => rpc<import('./types').TravelGroupState>('travel_group_leave'),
+  travelGroupKick: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_kick', { p_player: id }),
   travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
 
   // more ways to earn

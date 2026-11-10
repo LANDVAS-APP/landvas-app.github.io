@@ -28,9 +28,10 @@ import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } 
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
-import { Joystick, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
+import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
+import { FindsLayer } from '../explore/Finds';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -123,6 +124,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
       {me && !away && <TravelOverlays />}
+      {me && !away && <FindsLayer />}
       {me && !selected && !joystick && !merging && !away && !travelling && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}
@@ -217,7 +219,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
       </button>
       {has && joy?.enabled !== false && (
         <button className={cn('lv-gbtn round', joystick && 'on')} onClick={onJoystick} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
-          <Gamepad className="h-5 w-5" /><span className="lbl tnum">{joy ? fmtTank(Number(joy.seconds_left)) : 'Move'}</span>
+          <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move`}</span>
         </button>
       )}
       {has && (

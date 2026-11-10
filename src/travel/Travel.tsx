@@ -20,6 +20,7 @@ import { cn, fmt } from '../lib/utils';
 import { config } from '../env';
 import { TrafficLayer, trafficAt, trafficPath, useTraffic, useTrafficPref } from './traffic';
 import type { TravelTraffic } from '../backend/types';
+import { GROUP_KEY, GroupMapLayer, GroupPane, useTravelGroup } from './Group';
 import { Button, Dialog, PlayerAvatar, Spinner, Switch, Tabs, inputCls } from '../ui';
 
 export const TRAVEL_KEY = ['travel'] as const;
@@ -47,7 +48,7 @@ export function useTravel() {
   const invalidate = useInvalidate();
   const q = useQuery({ queryKey: TRAVEL_KEY, queryFn: api.travelStatus, enabled: !!me, staleTime: 15_000, refetchInterval: (x) => (x.state.data?.away ? 30_000 : false) });
   const d = q.data;
-  if (typeof window !== 'undefined' && (config.e2e || import.meta.env.DEV)) (window as any).__landvasTravel = { refresh: () => qc.invalidateQueries({ queryKey: TRAVEL_KEY }), ui: useTravelUi };
+  if (typeof window !== 'undefined' && (config.e2e || import.meta.env.DEV)) (window as any).__landvasTravel = { refresh: () => qc.invalidateQueries({ queryKey: TRAVEL_KEY }), ui: useTravelUi, qc };
   useEffect(() => {
     if (!d || seen === d) return;
     seen = d;
@@ -156,7 +157,7 @@ export function TravelSheet() {
   const setOpen = useTravelUi((s) => s.setOpen);
   const q = useTravel();
   const d = q.data;
-  const [tab, setTab] = useState<'train' | 'plane' | 'passport' | 'people'>('train');
+  const [tab, setTab] = useState<'train' | 'plane' | 'group' | 'passport' | 'people'>('train');
   useEffect(() => {
     // open on the kind of plot you have
     if (open && d && !d.train.plots && d.plane.plots) setTab((t) => (t === 'train' ? 'plane' : t));
@@ -165,10 +166,11 @@ export function TravelSheet() {
     <Dialog open={open} onOpenChange={setOpen} title={<span className="flex items-center gap-2">🧳 Travel</span>}
       description="Ride trains and fly to real stations and airports. When you arrive you’re really there.">
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-3"
-        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }, { value: 'people', label: '🌍 Travellers' }]} />
+        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'group', label: '👥 Group' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }, { value: 'people', label: '🌍 Travellers' }]} />
       {!d ? <div className="flex justify-center py-8"><Spinner /></div>
         : tab === 'passport' ? <Passport status={d} />
         : tab === 'people' ? <Travellers status={d} onDone={() => setOpen(false)} />
+        : tab === 'group' ? <GroupPane onDone={() => setOpen(false)} />
         : <ModePane key={tab} mode={tab} status={d} onDone={() => setOpen(false)} />}
     </Dialog>
   );
@@ -261,6 +263,7 @@ function PlanView({ mode, stop, status, onBack, onDone }: { mode: TravelMode; st
   const [busy, setBusy] = useState(false);
   const p: TravelPlan | undefined = plan.data;
   const riding = !!status.trip && !status.trip.arrived;
+  const grp = useTravelGroup().data?.group;
   const board = async () => {
     setBusy(true);
     try {
@@ -271,7 +274,10 @@ function PlanView({ mode, stop, status, onBack, onDone }: { mode: TravelMode; st
         requestFly({ lng: st.explorer.lng, lat: st.explorer.lat, zoom: mode === 'plane' ? 4 : 7 });
         useExplorer.getState().setFollowing(true);
       }
-      toast.success(`${m.emoji} All aboard!`, { description: `${p?.from.name} → ${stop.name}` });
+      const w = st.group?.with ?? [], left = st.group?.left_behind ?? [];
+      toast.success(`${m.emoji} All aboard!`, { description: `${p?.from.name} → ${stop.name}${w.length ? ` · riding with ${w.map((u) => '@' + u).join(', ')}` : ''}` });
+      if (left.length) toast(`${left.map((u) => '@' + u).join(', ')} couldn’t come this time`, { description: 'They’re still on the way somewhere, or there’s no stop near them for this ride.' });
+      if (st.group) void qc.invalidateQueries({ queryKey: GROUP_KEY });
       onDone();
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
@@ -309,6 +315,11 @@ function PlanView({ mode, stop, status, onBack, onDone }: { mode: TravelMode; st
             <Button variant="primary" className="w-full" loading={busy} disabled={!p.plots || p.left < 1 || riding} onClick={board} data-testid="travel-board">
               {!p.plots ? `Needs a Travel · ${m.name} plot` : p.left < 1 ? 'No trips left today' : riding ? 'Still on the way' : `${m.emoji} Board · ${p.left} ${p.left === 1 ? 'trip' : 'trips'} left`}
             </Button>
+            {grp && grp.members.length > 1 && (
+              <div className="rounded-xl bg-accent/10 px-3 py-2 text-center text-[12px]" data-testid="plan-group">
+                {grp.leader ? `👥 Your group rides with you: ${grp.members.length - 1} ${grp.members.length === 2 ? 'traveller' : 'travellers'}, each from the stop nearest them.` : '👥 You’re in a group: this trip is just you. You ride along when the leader boards.'}
+              </div>
+            )}
             <div className="text-center text-[11px] text-muted">While you’re away your GPS rests. Head home any time.</div>
           </>
         )}
@@ -507,8 +518,12 @@ export function TravelMapLayer() {
 /** everything Travel adds to the map screen */
 export function TravelOverlays() {
   const away = !!useTravel().data?.away;
+  // your group's leader set off and you're riding along: catch up
+  const qc = useQueryClient();
+  const meAway = useTravelGroup().data?.group?.members.find((m) => m.me)?.away;
+  useEffect(() => { if (meAway !== undefined && meAway !== away) void qc.invalidateQueries({ queryKey: TRAVEL_KEY }); }, [meAway, away, qc]);
   const show = useTrafficPref((s) => s.show);
-  return (<><TravelMapLayer /><TrafficLayer enabled={away || show} /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
+  return (<><TravelMapLayer /><TrafficLayer enabled={away || show} /><GroupMapLayer /><TravelSheet /><ArrivalCard /><StopInfoDialog /></>);
 }
 
 const ago = (ms: number) => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };

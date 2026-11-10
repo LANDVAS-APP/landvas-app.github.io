@@ -68,6 +68,19 @@ const MODES: { id: MapMode; label: string; icon: typeof Layers; hint: string }[]
   { id: 'discovery', label: 'Discover', icon: Compass, hint: 'Claimable mystery plots and who owns the land around you' },
   { id: 'land', label: 'My Land', icon: Layers, hint: 'Your plots, canvases and upgrade options' },
 ];
+/** "Hide plots": just the map, for a smoother flow */
+export function HidePlotsToggle() {
+  const on = useUi((s) => !!s.settings.hidePlots);
+  const update = useUi((s) => s.updateSettings);
+  return (
+    <button role="switch" aria-checked={on} onClick={() => { update({ hidePlots: !on }); buzz('light'); }} data-testid="hide-plots"
+      className="mx-1 flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left text-xs font-bold text-white/85 hover:bg-white/10">
+      <span>{on ? '🙈' : '🧩'} Hide plots<span className="block text-[10px] font-semibold text-white/50">Just the map — smoother and faster</span></span>
+      <span className={cn('relative h-5 w-9 shrink-0 rounded-full transition', on ? 'bg-[#22E3FF]' : 'bg-white/20')}><span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', on ? 'left-[18px]' : 'left-0.5')} /></span>
+    </button>
+  );
+}
+
 /** the map's look: Neon, Terrain or Atlas */
 export function MapThemePicker() {
   const cur = useUi((s) => s.settings.mapTheme ?? DEFAULT_MAP_THEME);
@@ -110,6 +123,7 @@ export function ModeButton() {
               </button>
             ))}
             <MapThemePicker />
+            <HidePlotsToggle />
             <button className="rounded-xl px-3 py-1.5 text-left text-xs font-bold text-white/70" onClick={() => setLegend((l) => !l)} aria-expanded={legend}>{legend ? 'Hide' : 'Show'} the legend</button>
             {legend && (
               <div className="grid gap-1.5 px-1 pb-1 text-[11px]">

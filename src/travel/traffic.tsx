@@ -54,6 +54,8 @@ export function trafficPath(t: TravelTraffic): { pts: Pt[]; cum: number[] } {
 }
 /** where the train or plane is now (0..1 of the way) */
 export function trafficAt(t: TravelTraffic, path: { pts: Pt[]; cum: number[] }, now: number): { p: Pt; f: number; next: Pt } {
+  // set off from home: only the destination is known — it waits there, arriving
+  if (!t.starts_at || t.inbound) { const p: Pt = [t.to.lng, t.to.lat]; return { p, f: now >= new Date(t.arrives_at).getTime() ? 1 : 0.99, next: p }; }
   const a = new Date(t.starts_at).getTime(), b = new Date(t.arrives_at).getTime();
   const f = Math.min(1, Math.max(0, (now - a) / Math.max(b - a, 1)));
   const { pts, cum } = path, L = cum[cum.length - 1], d = f * L;
@@ -71,8 +73,9 @@ function vehicleEl(t: TravelTraffic) {
   const el = document.createElement('div');
   el.className = `lv-traveller ${t.mode}`;
   el.dataset.testid = 'traveller'; el.dataset.user = t.username;
+  if (t.inbound) el.classList.add('inbound');
   el.innerHTML = `<div class="veh">${t.mode === 'plane' ? PLANE : TRAIN}</div><div class="who"></div>`;
-  (el.querySelector('.who') as HTMLElement).textContent = `@${t.username}`;
+  (el.querySelector('.who') as HTMLElement).textContent = t.inbound ? `@${t.username} · arriving` : `@${t.username}`;
   el.title = `@${t.username} → ${t.to.name}`;
   return el;
 }
@@ -93,7 +96,7 @@ export function TrafficLayer({ enabled }: { enabled: boolean }) {
     const draw = () => {
       const map = mapHandle.current;
       if (!map || !map.isStyleLoaded()) { if (tries++ < 40) timer = setTimeout(draw, 500); return; }
-      const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: list.map((t) => ({ type: 'Feature', properties: { mode: t.mode, done: t.arrived ? 1 : 0 }, geometry: { type: 'LineString', coordinates: paths.get(t.trip)!.pts } })) };
+      const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: list.filter((t) => !t.inbound).map((t) => ({ type: 'Feature', properties: { mode: t.mode, done: t.arrived ? 1 : 0 }, geometry: { type: 'LineString', coordinates: paths.get(t.trip)!.pts } })) };
       const src = map.getSource('lv-traffic') as maplibregl.GeoJSONSource | undefined;
       if (src) { src.setData(data); return; }
       map.addSource('lv-traffic', { type: 'geojson', data });
@@ -127,7 +130,7 @@ export function TrafficLayer({ enabled }: { enabled: boolean }) {
         m.setLngLat(p);
         const el = m.getElement();
         el.classList.toggle('landed', f >= 1);
-        if (t.mode === 'plane') {
+        if (t.mode === 'plane' && !t.inbound) {
           // point the plane the way it's flying (the map is always north-up)
           const a = map.project(p), b = map.project(next);
           if (Math.hypot(b.x - a.x, b.y - a.y) > 0.5) (el.querySelector('.veh') as HTMLElement).style.transform = `rotate(${Math.atan2(b.x - a.x, a.y - b.y)}rad)`;

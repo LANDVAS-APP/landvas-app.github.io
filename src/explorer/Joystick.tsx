@@ -9,7 +9,9 @@
 //  * the D-pad — four arrows plus diagonals, laid out for a phone turned sideways. Hold an arrow
 //    to keep walking; tap it to step exactly one plot.
 import { motion } from 'motion/react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDot, Clapperboard, Fuel, Gamepad2, Satellite, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDot, Clapperboard, Fuel, Gamepad2, Joystick as Joystick2, Satellite, X } from 'lucide-react';
+import type { VehicleKind, VehicleState } from '../backend/types';
+import { Button, Dialog } from '../ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -111,7 +113,7 @@ export function useLandscapePhone() {
   }, []);
   return on;
 }
-type Layout = 'wheel' | 'dpad';
+type Layout = 'stick' | 'wheel' | 'dpad';
 const LAYOUT_KEY = 'landvas.joystick.layout';
 
 export function Joystick({ onClose }: { onClose(): void }) {
@@ -122,11 +124,15 @@ export function Joystick({ onClose }: { onClose(): void }) {
   const qc = useQueryClient();
   const landscape = useLandscapePhone();
   // the D-pad is the default sideways; either layout can be picked (and is remembered per orientation)
-  const [pref, setPref] = useState<Record<'portrait' | 'landscape', Layout>>(() => ({ portrait: 'wheel', landscape: 'dpad', ...safeStorage<Partial<Record<'portrait' | 'landscape', Layout>>>(LAYOUT_KEY, {}) }));
+  const [pref, setPref] = useState<Record<'portrait' | 'landscape', Layout>>(() => ({ portrait: 'stick', landscape: 'dpad', ...safeStorage<Partial<Record<'portrait' | 'landscape', Layout>>>(LAYOUT_KEY, {}) }));
   const layout: Layout = pref[landscape ? 'landscape' : 'portrait'];
   const setLayout = (l: Layout) => { const p = { ...pref, [landscape ? 'landscape' : 'portrait']: l }; setPref(p); saveStorage(LAYOUT_KEY, p); };
   const [refilling, setRefilling] = useState(false);
-  const speed = Number(joy?.speed_kmh ?? world.data?.explorer?.joystick?.speed_kmh ?? 40) / 3.6;
+  // your vehicle sets the speed; only the Car burns the tank (fuel)
+  const veh = ex.state?.vehicle;
+  const speed = Number(veh?.speed_kmh ?? joy?.speed_kmh ?? world.data?.explorer?.joystick?.speed_kmh ?? 6) / 3.6;
+  const fuel = veh ? veh.fuel : true;
+  const [garage, setGarage] = useState(false);
   const tank = Number(joy?.tank_seconds ?? 600);
   const [secs, setSecs] = useState(Number(joy?.seconds_left ?? tank));
   const [knob, setKnob] = useState({ x: 0, y: 0, active: false });
@@ -176,7 +182,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       secsRef.current = Math.max(0, Number(r.joystick?.seconds_left ?? secsRef.current) - spentSince);
       setSecs(secsRef.current);
       useExplorer.getState().set({ ...r, lng: corrected.lng, lat: corrected.lat, origin: corrected } as ExplorerState);
-      if (r.empty) {
+      if (r.empty && fuel) {
         toast('Joystick tank is empty', { description: r.joystick?.ads_enabled ? 'Watch an ad to refill it.' : `It refills for free at ${new Date(r.joystick?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
       }
     } catch (e) {
@@ -208,7 +214,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       else if (stepRef.current && stepRef.current.left > 0.05) { mag = 1; mx = stepRef.current.x; my = stepRef.current.y; }
       // a fresh press (pad or key) starts counting how far it has walked, for the tap-to-step rule
       const pressing = v.active || !!kv;
-      if (mag > 0.08 && secsRef.current > 0) {
+      if (mag > 0.08 && (!fuel || secsRef.current > 0)) {
         if (!local.current) {
           const p = explorerNow(st.state, st.offset);
           if (p) local.current = { lng: p.lng, lat: p.lat };
@@ -220,9 +226,9 @@ export function Joystick({ onClose }: { onClose(): void }) {
           else if (pressing) { press.current.moved += dist; stepRef.current = null; }
           const m = Math.hypot(mx, my) || 1;
           local.current = offset(local.current, (mx / m) * dist, (-my / m) * dist);
-          secsRef.current = Math.max(0, secsRef.current - mag * dt);
+          if (fuel) secsRef.current = Math.max(0, secsRef.current - mag * dt);
           lastDrive = now;
-          st.set({ ...st.state, mode: 'manual', lng: local.current.lng, lat: local.current.lat, origin: { ...local.current }, dest: null, speed_mps: null, traveling: false });
+          st.set({ ...st.state, mode: st.state.mode === 'travel' ? 'travel' : 'manual', lng: local.current.lng, lat: local.current.lat, origin: { ...local.current }, dest: null, speed_mps: null, traveling: false });
           if (!st.following) st.setFollowing(true);
           void send(!stepRef.current && !pressing);
         }
@@ -240,7 +246,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
     const tick = setInterval(() => { if (secsRef.current !== lastSecs) { lastSecs = secsRef.current; setSecs(secsRef.current); } }, 250);
     let lastSecs = -1;
     return () => { cancelAnimationFrame(raf); if (idle) clearTimeout(idle); clearInterval(tick); };
-  }, [speed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [speed, fuel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const feel = () => { if (settings.haptics) { buzz('light'); navigator.vibrate?.(8); } };
 
@@ -285,7 +291,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
   };
 
   const pct = tank > 0 ? Math.max(0, Math.min(1, secs / tank)) : 0;
-  const empty = secs <= 0.05;
+  const empty = fuel && secs <= 0.05;
   const C = 2 * Math.PI * 70;
 
   const refillInk = async () => {
@@ -319,21 +325,66 @@ export function Joystick({ onClose }: { onClose(): void }) {
   );
   const tankInfo = (
     <div>
-      <div className="eyebrow !text-[10px]">Joystick tank</div>
-      <div className={cn('font-display text-2xl font-semibold tnum', empty && 'text-bad')} data-testid="joystick-tank">{fmtTank(secs)}</div>
-      <div className="text-[11px] text-muted">{Math.round(speed * 3.6)} km/h · tap = 1 plot</div>
+      <div className="eyebrow !text-[10px]">{fuel ? 'Fuel' : 'Free to roam'}</div>
+      <div className={cn('font-display text-2xl font-semibold tnum', empty && 'text-bad')} data-testid="joystick-tank">{fuel ? fmtTank(secs) : '∞'}</div>
+      <div className="text-[11px] text-muted">{VEH_EMOJI[veh?.current ?? 'walk']} {Math.round(speed * 3.6)} km/h · tap = 1 plot</div>
       {gpsWasOn && <div className="text-[10.5px] font-semibold text-ok" data-testid="gps-paused-note">GPS is fine — paused while you steer</div>}
     </div>
   );
   const switcher = (
     <div className="flex rounded-xl bg-surface-2 p-0.5" role="radiogroup" aria-label="Controller">
+      <button role="radio" aria-checked={layout === 'stick'} onClick={() => setLayout('stick')} title="Thumb-stick (like on planets)"
+        className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', layout === 'stick' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="layout-stick" aria-label="Stick"><Joystick2 className="h-3.5 w-3.5" />{layout !== 'stick' && ' Stick'}</button>
       <button role="radio" aria-checked={layout === 'wheel'} onClick={() => setLayout('wheel')} title="Drag wheel"
-        className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', layout === 'wheel' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="layout-wheel"><CircleDot className="h-3.5 w-3.5" /> Wheel</button>
+        className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', layout === 'wheel' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="layout-wheel" aria-label="Wheel"><CircleDot className="h-3.5 w-3.5" />{layout !== 'stick' && ' Wheel'}</button>
       <button role="radio" aria-checked={layout === 'dpad'} onClick={() => setLayout('dpad')} title="D-pad"
-        className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', layout === 'dpad' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="layout-dpad"><Gamepad2 className="h-3.5 w-3.5" /> D-pad</button>
+        className={cn('flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold', layout === 'dpad' ? 'bg-surface text-fg shadow' : 'text-muted')} data-testid="layout-dpad" aria-label="D-pad"><Gamepad2 className="h-3.5 w-3.5" />{layout !== 'stick' && ' D-pad'}</button>
     </div>
   );
   const closeBtn = <button className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-muted hover:text-fg" onClick={onClose} data-testid="joystick-close"><X className="h-3.5 w-3.5" /> Close</button>;
+
+  const vehicles = (
+    <VehicleBar veh={veh} onGarage={() => setGarage(true)} />
+  );
+  const garageDialog = <Garage open={garage} onOpenChange={setGarage} veh={veh} />;
+
+  // ---- the stick: like walking on a planet — drag anywhere in the pad ----
+  if (layout === 'stick') {
+    return (
+      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+        className="pointer-events-none flex w-full items-end justify-start gap-3" data-testid="joystick" data-layout="stick">
+        <div className="pointer-events-auto grid justify-items-start gap-2">
+          <div className="glass flex items-center gap-2 rounded-2xl py-1.5 pl-3 pr-1.5">
+            <div className="text-[11px] leading-tight text-muted" data-testid="joystick-speed"><b className="text-fg">{Math.round(speed * 3.6)} km/h</b> · up to {fmtRange(veh?.range_m ?? 600)}<br />{ex.state?.mode === 'travel' ? 'from the station' : 'from where you are'}</div>
+            {fuel && <div className={cn('text-[11px] font-bold tnum', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
+            {switcher}
+            <button className="grid h-8 w-8 place-items-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg" onClick={onClose} aria-label="Close the joystick" data-testid="joystick-close"><X className="h-4 w-4" /></button>
+          </div>
+          {fuel && <div className="flex flex-wrap gap-1">{controls}</div>}
+          {vehicles}
+          <div ref={pad} role="slider" aria-label="Joystick: drag to move your explorer (or use WASD / the arrow keys)" aria-valuetext={fuel ? `${fmtTank(secs)} of fuel left` : 'walk freely'} tabIndex={0}
+            className={cn('relative h-36 w-36 touch-none select-none rounded-full border border-white/25 bg-black/35 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur', empty ? 'opacity-50' : '')}
+            onPointerDown={(e) => {
+              if (empty) { toast('Out of fuel', { description: 'Refill the tank, or walk or bike — they’re free.' }); return; }
+              try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+              feel(); setFromPointer(e);
+            }}
+            onPointerMove={(e) => knob.active && setFromPointer(e)} onPointerUp={release} onPointerCancel={release} data-testid="joystick-pad">
+            <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-extrabold tracking-widest text-white/35"><span className="absolute top-2">N</span></span>
+            {fuel && (
+              <svg viewBox="0 0 144 144" className="pointer-events-none absolute inset-0" aria-hidden>
+                <circle cx="72" cy="72" r="68" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="4" />
+                <circle cx="72" cy="72" r="68" fill="none" stroke="#FFB020" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 68 * pct} ${2 * Math.PI * 68}`} transform="rotate(-90 72 72)" />
+              </svg>
+            )}
+            <div className={cn('pointer-events-none absolute left-1/2 top-1/2 grid h-16 w-16 place-items-center rounded-full border border-white/50 bg-white/25 text-2xl shadow-lg', !knob.active && 'transition-transform duration-200')}
+              style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}>{VEH_EMOJI[veh?.current ?? 'walk']}</div>
+          </div>
+        </div>
+        {garageDialog}
+      </motion.div>
+    );
+  }
 
   if (layout === 'dpad') {
     const arrow = (d: { x: number; y: number }) => !!dir && Math.sign(dir.x) === d.x && Math.sign(dir.y) === d.y;
@@ -371,6 +422,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
         </div>
         {/* tank and buttons */}
         <div className={cn('grid min-w-[150px] gap-2', landscape && 'glass rounded-[22px] p-3')}>
+          {vehicles}{garageDialog}
           <div className="flex items-start justify-between gap-2">{tankInfo}{landscape && closeBtn}</div>
           <div className="h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-[linear-gradient(90deg,#22E3FF,#8B5CFF,#FF3D9A)] transition-[width]" style={{ width: `${pct * 100}%` }} /></div>
           <div className={cn('flex flex-wrap gap-1.5', !landscape && 'flex-col')}>{controls}</div>
@@ -412,11 +464,85 @@ export function Joystick({ onClose }: { onClose(): void }) {
         </div>
       </div>
       <div className="grid min-w-[118px] gap-2">
+        {vehicles}{garageDialog}
         {tankInfo}
-        {controls}
+        {fuel && controls}
         {switcher}
         {closeBtn}
       </div>
     </motion.div>
+  );
+}
+
+// ---- vehicles: walk, then a Bike, then a Car --------------------------------------------------------------
+export const VEH_EMOJI: Record<VehicleKind, string> = { walk: '🚶', bike: '🚲', car: '🚗' };
+const fmtRange = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${Math.round(m)} m`);
+
+async function rideVehicle(kind: VehicleKind) {
+  try {
+    const r = await api.vehicleUse(kind);
+    useExplorer.getState().set(r);
+    buzz('light');
+  } catch (e) { toast.error(toGameError(e).message); }
+}
+
+/** walk / bike / car: tap one you have to ride it; the garage sells the rest */
+function VehicleBar({ veh, onGarage }: { veh: VehicleState | undefined; onGarage(): void }) {
+  const all = veh?.all ?? [{ id: 'walk', owned: true } as VehicleState['all'][number]];
+  return (
+    <div className="flex items-center gap-1 rounded-2xl bg-black/40 p-1 backdrop-blur" role="radiogroup" aria-label="Vehicle" data-testid="vehicle-bar">
+      {all.map((v) => (
+        <button key={v.id} role="radio" aria-checked={veh?.current === v.id} data-testid={`vehicle-${v.id}`}
+          title={v.owned ? `${v.name ?? v.id}: ${v.speed_kmh} km/h` : `${v.name}: ${v.ink} Ink in the garage`}
+          onClick={() => (v.owned ? void rideVehicle(v.id) : onGarage())}
+          className={cn('relative grid h-9 w-9 place-items-center rounded-xl text-lg transition', veh?.current === v.id ? 'bg-white/90 shadow' : 'hover:bg-white/15', !v.owned && 'opacity-45 grayscale')}>
+          {VEH_EMOJI[v.id]}
+          {!v.owned && <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#FFB020] px-1 text-[8px] font-black text-black">+</span>}
+        </button>
+      ))}
+      <button className="rounded-xl px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-white/15" onClick={onGarage} data-testid="open-garage">Garage</button>
+    </div>
+  );
+}
+
+/** the garage: buy a Bike, then a Car */
+export function Garage({ open, onOpenChange, veh }: { open: boolean; onOpenChange(o: boolean): void; veh: VehicleState | undefined }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<VehicleKind | null>(null);
+  const buy = async (kind: 'bike' | 'car') => {
+    setBusy(kind);
+    try {
+      const r = await api.vehicleBuy(kind);
+      useExplorer.getState().set(r);
+      qc.invalidateQueries({ queryKey: qk.me });
+      buzz('success');
+      toast.success(kind === 'bike' ? 'Your new Bike 🚲' : 'Your new Car 🚗', { description: `−${r.cost} Ink · ride it with the joystick` });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title="🚲 Garage" description="Faster wheels go further with the joystick. Walking and biking are free; the Car runs on your tank.">
+      <div className="grid gap-2" data-testid="garage">
+        {(veh?.all ?? []).map((v) => {
+          const locked = !v.owned && v.needs && !veh?.all.find((x) => x.id === v.needs)?.owned;
+          return (
+            <div key={v.id} className={cn('flex items-center gap-3 rounded-2xl border p-3', veh?.current === v.id ? 'border-accent bg-accent/10' : 'border-line bg-surface-2/50')} data-testid={`garage-${v.id}`}>
+              <span className="text-3xl">{VEH_EMOJI[v.id]}</span>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">{v.name}</div>
+                <div className="text-[12px] text-muted">{v.speed_kmh} km/h · roams {fmtRange(v.range_m)}{v.fuel ? ' · uses fuel' : ' · free'}</div>
+              </div>
+              {v.owned ? (
+                veh?.current === v.id ? <span className="text-xs font-bold text-accent">Riding</span>
+                  : <Button size="sm" variant="ghost" onClick={() => void rideVehicle(v.id)} data-testid={`use-${v.id}`}>Use</Button>
+              ) : (
+                <Button size="sm" variant="primary" disabled={!!locked} loading={busy === v.id} onClick={() => void buy(v.id as 'bike' | 'car')} data-testid={`buy-${v.id}`}>
+                  {locked ? 'Bike first' : `${v.ink} Ink`}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Dialog>
   );
 }

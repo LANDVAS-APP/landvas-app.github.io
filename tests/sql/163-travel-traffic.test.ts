@@ -28,8 +28,10 @@ describe('Travellers', () => {
     const t = await db.rpc(cat, 'travel_traffic');
     expect(t).toHaveLength(1);
     expect(t[0]).toMatchObject({ username: 'ann_fly', mode: 'plane', arrived: false });
-    expect(t[0].from.id).toBe('ap:SLC');
     expect(t[0].to.id).toBe('ap:LHR');
+    // set off from home: only where it's going shows — no start, no route, no departure time
+    expect(t[0]).toMatchObject({ inbound: true, from: null, starts_at: null, km: null, stops: [] });
+    expect(JSON.stringify(t[0])).not.toContain('SLC');
     expect(new Date(t[0].arrives_at).getTime()).toBeGreaterThan(Date.now() - 5000);
     // not your own
     expect(await db.rpc(ann, 'travel_traffic')).toHaveLength(0);
@@ -38,10 +40,22 @@ describe('Travellers', () => {
   it('a train from home starts at its first stop on the way: the home station stays private', async () => {
     await db.rpc(bob, 'travel_depart', { p_mode: 'train', p_to: 'us:DEN' });
     const t = (await db.rpc(cat, 'travel_traffic')).find((x: any) => x.username === 'bob_rail');
-    expect(t.from).toBeNull();
+    expect(t).toMatchObject({ inbound: true, from: null, stops: [], starts_at: null });
+    expect(JSON.stringify(t)).not.toContain('SLC');
+    expect(JSON.stringify(t)).not.toContain('Provo');
+  });
+
+  it('a trip onward from a stop you travelled to shows its whole route', async () => {
+    await db.sql(`update travel_trips set arrives_at = now() - interval '1 second' where player_id = $1 and not arrived`, [bob]);
+    await db.sql(`update explorers set fixed_at = fixed_at - interval '2 hours' where player_id = $1`, [bob]);
+    await db.rpc(bob, 'travel_status');
+    await db.rpc(bob, 'travel_depart', { p_mode: 'train', p_to: 'us:SLC' });
+    const t = (await db.rpc(cat, 'travel_traffic')).find((x: any) => x.username === 'bob_rail' && !x.arrived);
+    expect(t).toMatchObject({ inbound: false });
+    expect(t.from.id).toBe('us:DEN');
     expect(t.stops.length).toBeGreaterThan(0);
-    expect(JSON.stringify(t)).not.toContain('us:SLC');
-    expect(new Date(t.starts_at).getTime()).toBeGreaterThan(Date.now() - 2000);
+    // and nobody's own trip carries their home point
+    expect((await db.rpc(bob, 'travel_status')).trip.home).toBeUndefined();
   });
 
   it('an arrival noticed by a GPS report still brings the welcome card next time', async () => {
