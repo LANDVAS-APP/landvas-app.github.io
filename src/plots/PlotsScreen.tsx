@@ -131,7 +131,7 @@ export default function PlotsScreen() {
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
                       <span>{PLOT_TYPES[r.plot_type]?.name ?? r.plot_type}</span>
                       <span>Lv {r.level}</span>
-                      <span>{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'home' ? '🏠 Home' : kind === 'landlord' ? '🏘️ Landlord' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
+                      <span>{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'train' ? '🚆 Train' : kind === 'plane' ? '✈️ Plane' : kind === 'home' ? '🏠 Home' : kind === 'landlord' ? '🏘️ Landlord' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
                       {g && g.plot_count > 1 && <span>part of {g.plot_count}</span>}
                       {d !== null && <span>{d <= 1 ? 'right here' : `${d} plots away`}</span>}
                     </div>
@@ -164,7 +164,7 @@ function PlotTile({ r, kind, size = 48 }: { r: Row; kind: string; size?: number 
   const ri = rarityInfo(r.rarity);
   return (
     <span className="relative grid shrink-0 place-items-center rounded-2xl text-lg" style={{ width: size, height: size, background: kind === 'habitat' ? 'linear-gradient(135deg,#6CC463,#2F7D3A)' : `linear-gradient(135deg, ${t?.a ?? '#888'}, ${t?.b ?? '#444'})`, boxShadow: `0 0 0 2px ${ri.color}, 0 6px 16px -8px ${ri.color}` }}>
-      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : kind === 'home' ? '🏠' : kind === 'landlord' ? '🏘️' : r.has_art ? '🖼️' : ''}
+      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : kind === 'train' ? '🚆' : kind === 'plane' ? '✈️' : kind === 'home' ? '🏠' : kind === 'landlord' ? '🏘️' : r.has_art ? '🖼️' : ''}
     </span>
   );
 }
@@ -201,7 +201,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">
-          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'home' ? '🏠 Residential · Home' : kind === 'landlord' ? '🏘️ Residential · Landlord' : '🎨 Art Canvas'}</span>
+          <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Inkborn Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'train' ? '🚆 Travel · Train' : kind === 'plane' ? '✈️ Travel · Plane' : kind === 'home' ? '🏠 Residential · Home' : kind === 'landlord' ? '🏘️ Residential · Landlord' : '🎨 Art Canvas'}</span>
           {group && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">{group.plot_count > 1 ? `Part of “${group.name}” (${group.plot_count} plots)` : 'A single plot'}</span>}
           {d.data?.art && <span className="rounded-full bg-surface-2/70 px-2.5 py-1">🖼️ “{d.data.art.title}”</span>}
           <span className="rounded-full bg-surface-2/70 px-2.5 py-1">Claimed {timeAgo(r.claimed_at)}</span>

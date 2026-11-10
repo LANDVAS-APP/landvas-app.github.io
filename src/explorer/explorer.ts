@@ -147,7 +147,7 @@ export function startGps(opts: { onFirstFix?: (lng: number, lat: number) => void
         const r = await api.reportPosition(lng, lat, Math.round(accuracy));
         lastReport = { at: Date.now(), lng, lat };
         useExplorer.getState().set(r);
-        if (r.accepted === false && !warned) {
+        if (r.accepted === false && !warned && !(r as { away?: boolean }).away) {
           warned = true;
           const mins = Math.ceil((r.wait_seconds ?? 0) / 60);
           toast.warning('That GPS jump was too far to be real', { description: `Your explorer stays put. Try again in about ${mins} min.` });

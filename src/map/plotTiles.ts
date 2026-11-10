@@ -580,6 +580,29 @@ function landlordCell(ctx: CanvasRenderingContext2D, c: KCell) {
   }
   rareBits(ctx, c);
 }
+/** A Train plot from above: gravel, two tracks with sleepers running through, and a platform canopy. */
+function trainCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#B9AE9C'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#2FA4D9'; ctx.fillRect(px, py + cs * 0.4, cs, cs * 0.2); return; }
+  for (const t of [0.3, 0.62]) {
+    const y = py + cs * t, g = cs * 0.1;
+    if (cs >= 10) { ctx.fillStyle = '#7A5A3E'; for (let x = 0; x < 6; x++) ctx.fillRect(px + (x + 0.2) * cs / 6, y - g * 0.3, cs / 14, g * 1.6); }
+    ctx.fillStyle = '#5A5F66'; ctx.fillRect(px, y, cs, Math.max(1, cs * 0.025)); ctx.fillRect(px, y + g, cs, Math.max(1, cs * 0.025));
+  }
+  if (!c.join.s) { ctx.fillStyle = '#D8CFC0'; ctx.fillRect(px, py + cs * 0.82, cs, cs * 0.18); ctx.fillStyle = c.tier ? c.rc : '#2FA4D9'; ctx.fillRect(px + cs * 0.08, py + cs * 0.84, cs * 0.84, cs * 0.08); }
+  rareBits(ctx, c);
+}
+/** A Plane plot from above: grass, a runway with its centre line, and a terminal. */
+function planeCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs } = c;
+  ctx.globalAlpha = 1; ctx.fillStyle = '#8CC36E'; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) { ctx.fillStyle = '#5A5F66'; ctx.fillRect(px, py + cs * 0.35, cs, cs * 0.3); return; }
+  ctx.fillStyle = '#4E545C'; ctx.fillRect(px, py + cs * 0.32, cs, cs * 0.36);
+  if (cs >= 10) { ctx.fillStyle = '#F4F1E8'; for (let x = 0; x < 4; x++) ctx.fillRect(px + (x + 0.15) * cs / 4, py + cs * 0.49, cs / 8, Math.max(1, cs * 0.025)); }
+  if (!c.join.n) { ctx.fillStyle = '#B9C6D6'; ctx.fillRect(px + cs * 0.12, py + cs * 0.06, cs * 0.5, cs * 0.18); ctx.fillStyle = c.tier ? c.rc : '#2FA4D9'; ctx.fillRect(px + cs * 0.7, py + cs * 0.04, cs * 0.1, cs * 0.22); }
+  rareBits(ctx, c);
+}
 /** The Paintbrawl Arena from above: a round arena floor with four lanes a side in terrain colours. */
 function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs } = c;
@@ -596,9 +619,9 @@ function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.strokeStyle = c.tier ? c.rc : '#FF4FD8'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.strokeRect(b.x0, b.y0, w, h);
   rareBits(ctx, c);
 }
-const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, home: homeCell, landlord: landlordCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
+const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, home: homeCell, landlord: landlordCell, train: trainCell, plane: planeCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
 const RIM_BASE: Partial<Record<PlotKind, string>> = { ...Object.fromEntries(Object.entries(ESTATE_LOOK).map(([k, v]) => [k, v!.trim])), habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)', home: 'rgba(200,85,61,0.9)', landlord: 'rgba(62,110,156,0.9)' };
-const REALM_SIGN: Partial<Record<PlotKind, string>> = { home: '🏠', landlord: '🏘️', mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️', museum: '🌌', sanctuary: '🦢', kingdom: '🏰', megacorp: '🏢', galaxypark: '🛸', core: '🌋', observatory: '🔭', automaton: '🤖', banquet: '🎂', abyss: '👁️', titans: '⚡' };
+const REALM_SIGN: Partial<Record<PlotKind, string>> = { home: '🏠', landlord: '🏘️', train: '🚆', plane: '✈️', mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️', museum: '🌌', sanctuary: '🦢', kingdom: '🏰', megacorp: '🏢', galaxypark: '🛸', core: '🌋', observatory: '🔭', automaton: '🤖', banquet: '🎂', abyss: '👁️', titans: '⚡' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
 function centrepiece(ctx: CanvasRenderingContext2D, kind: PlotKind, x0: number, y0: number, x1: number, y1: number, rc: string, glow: string, tier: number, seed: number) {

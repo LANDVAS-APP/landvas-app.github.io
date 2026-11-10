@@ -78,7 +78,8 @@ export type MyState =
     };
 
 export type ExplorerState = {
-  mode: 'gps' | 'manual';
+  mode: 'gps' | 'manual' | 'travel';
+  trip?: TravelTrip | null;
   lng: number;
   lat: number;
   gx: number;
@@ -463,7 +464,7 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | 'home' | 'landlord' | RealmKind;
+export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | 'home' | 'landlord' | 'train' | 'plane' | RealmKind;
 /** The 2x2 merge tier: each base type's Estate (see src/realms/estates). */
 export type EstateKind = 'atelier' | 'reserve' | 'ranch' | 'exchange' | 'boardwalk' | 'gemheart' | 'skyport' | 'foundry' | 'foodhall' | 'citadel' | 'colosseum';
 /** The 3x3 merge tier: each base type's Domain. */
@@ -790,3 +791,21 @@ export type ClanKeep = {
 
 /** Which of a place's games are open: a quarter on one plot, half on two or three, all on four or more. */
 export type PlaceAccess = { plots: number; total: number; open: number; games: string[]; allowed: string[]; next: { plots: number; open: number } | null };
+
+// ---- Travel (v0.9.7) ----------------------------------------------------------------------------
+export type TravelMode = 'train' | 'plane';
+export type TravelStop = { id: string; kind: 'station' | 'airport'; name: string; code: string; country: string; region: string; lng: number; lat: number; km?: number | null; from_point_km?: number };
+export type TravelWayStop = { id: string; name: string; country: string; lng: number; lat: number; t: number };
+export type TravelTrip = {
+  id: string; mode: TravelMode | 'home'; km: number; leg: number; departs_at: string; arrives_at: string; arrived: boolean;
+  from: TravelStop | null; to: TravelStop | null; stops: TravelWayStop[]; home: { lng: number; lat: number };
+};
+export type TravelArrival = { home?: true; stop?: TravelStop; new_stamp?: boolean; new_country?: boolean; ink?: number; mode?: TravelMode };
+export type TravelStatus = {
+  train: { plots: number; left: number }; plane: { plots: number; left: number };
+  trip: TravelTrip | null; arrival: TravelArrival | null; away: boolean; stamps: number; countries: number; explorer: ExplorerState | null;
+};
+export type TravelPlan = { mode: TravelMode; from: TravelStop; to: TravelStop; board_km: number; left: number; plots: number; km: number; seconds: number; stops: TravelWayStop[] };
+export type TravelStamp = TravelStop & { first_at: string; last_at: string; visits: number };
+export type TravelBuilding = TravelStop & { visitors: number };
+export type TravelStopInfo = TravelStop & { visitors: number; recent: (Profile & { at: string })[]; mine: { first_at: string; visits: number } | null };

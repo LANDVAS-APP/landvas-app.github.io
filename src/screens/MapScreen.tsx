@@ -30,6 +30,7 @@ import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
+import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -69,6 +70,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   }, [landscape, canDrive]);
   const merging = useUi((s) => s.merge !== null);
   const celebrating = useCelebration((s) => s.hidden !== null);
+  const travel = useTravel();
+  const travelling = !!me && !!travel.data?.away;
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className={cn('absolute inset-0', away && 'lv-away')}>
@@ -93,7 +96,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           )}
         </div>
       </div>
-      <ZoomHint zoom={view.zoom} />
+      {!travelling && <ZoomHint zoom={view.zoom} />}
       {me && !away && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
       {away && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-8">
@@ -116,7 +119,11 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
         <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
       </div>
-      {me && !selected && !joystick && !merging && !away && <Checklist />}
+      {me && !away && travelling && !selected && !joystick && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
+      )}
+      {me && !away && <TravelOverlays />}
+      {me && !selected && !joystick && !merging && !away && !travelling && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}
       <ClaimCelebration />
@@ -187,6 +194,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
           <Combine className="h-5 w-5" /><span className="lbl">Merge</span>
         </button>
       )}
+      {has && <TravelButton />}
       {/* space: your rocket, and the trip under way */}
       <button className={cn('lv-gbtn round', flight.flying && 'hot')}
         onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">

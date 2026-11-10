@@ -2,6 +2,7 @@
 // other side safe — artwork and every version stay saved, and a habitat keeps its layout and
 // remembers who lived there — so switching back brings it all back.
 import { useQueryClient } from '@tanstack/react-query';
+import { useTravelUi } from '../travel/Travel';
 import { motion } from 'motion/react';
 import { ArrowRight, Brush, Citrus, Gamepad2, PawPrint, ShieldCheck, TreePine, Wheat } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -21,11 +22,18 @@ import { randomGenome } from './genome';
 
 type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; realm_id?: string | null; name: string };
 const RES: PlotKind[] = ['home', 'landlord'];
-const KIND_NAME = (k: PlotKind) => (k === 'home' ? 'Residential · Home' : k === 'landlord' ? 'Residential · Landlord' : isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
-const KIND_A = (k: PlotKind) => (k === 'home' ? 'a Residential Home' : k === 'landlord' ? 'a Residential Landlord plot' : isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
+const TRV: PlotKind[] = ['train', 'plane'];
+/** the main types with subplots: Residential (Home, Landlord) and Travel (Train, Plane) */
+const SUBG: Partial<Record<PlotKind, { subs: PlotKind[]; tid: string; label: Record<string, string>; blurb: Record<string, string> }>> = {
+  home: { subs: RES, tid: 'residential', label: { home: '🏠 Home', landlord: '🏘️ Landlord' }, blurb: { home: 'Your house: visitors walk in from your profile', landlord: '50× USD rent on the 1st of each month' } },
+  train: { subs: TRV, tid: 'travel', label: { train: '🚆 Train', plane: '✈️ Plane' }, blurb: { train: 'Ride to real stations on the rail network', plane: 'Fly to 3,000+ real airports worldwide' } },
+};
+const KIND_NAME = (k: PlotKind) => (k === 'train' ? 'Travel · Train' : k === 'plane' ? 'Travel · Plane' : k === 'home' ? 'Residential · Home' : k === 'landlord' ? 'Residential · Landlord' : isRealm(k) ? REALM_META[k].name : k === 'habitat' ? 'Inkborn Habitat' : k === 'farm' ? 'Farm' : k === 'business' ? 'Business' : k === 'arcade' ? 'Arcade' : 'Art Canvas');
+const KIND_A = (k: PlotKind) => (k === 'train' ? 'a Travel · Train plot' : k === 'plane' ? 'a Travel · Plane plot' : k === 'home' ? 'a Residential Home' : k === 'landlord' ? 'a Residential Landlord plot' : isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
   if (kind === 'home') return <span className="inline-flex items-center gap-1 rounded-full bg-[#C8553D]/15 px-2 py-0.5 text-[11px] font-bold text-[#E0745C]">🏠 Residential · Home</span>;
+  if (kind === 'train' || kind === 'plane') return <span className="inline-flex items-center gap-1 rounded-full bg-[#2FA4D9]/15 px-2 py-0.5 text-[11px] font-bold text-[#2FA4D9]">{kind === 'train' ? '🚆 Travel · Train' : '✈️ Travel · Plane'}</span>;
   if (kind === 'landlord') return <span className="inline-flex items-center gap-1 rounded-full bg-[#3E6E9C]/20 px-2 py-0.5 text-[11px] font-bold text-[#6FA3D9]">🏘️ Residential · Landlord</span>;
   if (isRealm(kind)) { const m = REALM_META[kind]; return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `${m.color}26`, color: m.color }}>{m.emoji} {m.name}</span>; }
   if (kind === 'arcade') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FF3D9A]/15 px-2 py-0.5 text-[11px] font-bold text-[#FF3D9A]"><Gamepad2 className="h-3 w-3" /> Arcade</span>;
@@ -46,6 +54,25 @@ export function PlotKindControl({ g, className }: { g: G; className?: string }) 
       </button>
       <PlotKindDialog g={g} open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+/** a little train at a station, or a plane over a runway */
+function TravelPreview({ kind }: { kind: 'train' | 'plane' }) {
+  return (
+    <svg viewBox="0 0 120 80" className="h-20 w-28" aria-hidden>
+      <rect width="120" height="80" rx="14" fill={kind === 'plane' ? '#BFE6FF' : '#CFEAD6'} />
+      {kind === 'train' ? (<>
+        <rect x="0" y="58" width="120" height="4" fill="#6B5B4B" />{[8, 22, 36, 50, 64, 78, 92, 106].map((x) => <rect key={x} x={x} y="62" width="6" height="3" fill="#8B7B6B" />)}
+        <path d="M70 30 92 18l22 12z" fill="#8E3B2E" /><rect x="72" y="30" width="40" height="28" fill="#C9B79C" /><rect x="87" y="40" width="10" height="18" rx="5" fill="#2E3A55" />
+        <rect x="10" y="38" width="48" height="18" rx="6" fill="#2FA4D9" /><rect x="14" y="42" width="9" height="7" rx="1.5" fill="#E9F7FF" /><rect x="27" y="42" width="9" height="7" rx="1.5" fill="#E9F7FF" /><rect x="40" y="42" width="9" height="7" rx="1.5" fill="#E9F7FF" />
+        <circle cx="20" cy="57" r="3" fill="#333" /><circle cx="48" cy="57" r="3" fill="#333" />
+      </>) : (<>
+        <rect x="0" y="56" width="120" height="24" fill="#7C8C9C" /><rect x="10" y="66" width="100" height="3" fill="#fff" strokeDasharray="6 6" />
+        <rect x="84" y="36" width="30" height="20" fill="#B9C6D6" /><rect x="104" y="20" width="5" height="16" fill="#93A3B8" /><path d="M101 14h11l-2 6h-7z" fill="#3D5878" />
+        <g transform="translate(18 18) rotate(-12)"><rect x="0" y="10" width="52" height="9" rx="4.5" fill="#fff" /><path d="M20 12 30 -4h6l-4 16z" fill="#2FA4D9" /><path d="M22 17 30 30h6l-4-13z" fill="#2FA4D9" /><path d="M0 12 -2 2h6l6 9z" fill="#2FA4D9" /></g>
+      </>)}
+    </svg>
   );
 }
 
@@ -241,6 +268,8 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       } else if (choice === 'home') {
         toast.success(`${g.name} is now your Home 🏠`, { description: 'Your house is open to visitors from your profile. Merge more Home plots into a bigger square to add floors.' });
         nav('/home');
+      } else if (choice === 'train' || choice === 'plane') {
+        toast.success(`${g.name} is now ${KIND_A(choice)} ${choice === 'train' ? '🚆' : '✈️'}`, { description: choice === 'train' ? 'Tap Travel on the map to ride to real stations.' : 'Tap Travel on the map to fly to real airports.' });
       } else if (choice === 'landlord') {
         toast.success(`${g.name} is now a Landlord plot 🏘️`, { description: 'Tenants move in. On the 1st of every month, rent day, it earns 50× USD rent all day.' });
       } else if (choice === 'farm') {
@@ -262,6 +291,8 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       perks: ['6 cabinets: Tower Stacker, Claw Crane, Skee-Ball…', 'Free to play — win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Levels up as visitors play (you get 10%)'] },
     { k: 'home', title: 'Residential', body: 'Houses: your own home, or homes you rent out. Pick a subplot.', color: '#E0745C', icon: <span className="text-base leading-none">🏡</span>, preview: <HousePreview kind={choice === 'landlord' ? 'landlord' : 'home'} />,
       perks: ['🏠 Home: your house on your profile — grows 2x2 … 10x10 with floors, stairs, balconies, a roof terrace, a lift, a pool; visitors check in with a note or drawing', '🏘️ Landlord: tenants pay on the 1st of each month — 50× USD rent from these plots all day', 'Switch between Home and Landlord for free'] },
+    { k: 'train', title: 'Travel', body: 'Ride trains and fly to real stations and airports. Pick a subplot.', color: '#2FA4D9', icon: <span className="text-base leading-none">🧳</span>, preview: <TravelPreview kind={choice === 'plane' ? 'plane' : 'train'} />,
+      perks: ['🚆 Train: board at the station nearest you, stop at real stations on the way', '✈️ Plane: fly to any of 3,000+ real airports', 'Arrive and really be there: claim plots and play', 'A souvenir stamp for every new stop; switch Train/Plane free'] },
     { k: 'brawl', title: REALM_META.brawl.name, body: REALM_META.brawl.long, color: REALM_META.brawl.color, icon: <span className="text-base leading-none">🎨</span>, preview: <RealmPreview kind="brawl" />,
       perks: ['48 painted creature cards from six terrains', 'Live battles on a 3D board (or a practice bot)', 'Packs, crafting, gold foils, three decks', 'Ranked trophies, a leaderboard, Ink for wins'] },
     ...(['mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => {
@@ -275,23 +306,23 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
       {step === 'pick' ? (
         <div className="grid gap-4" data-testid="plot-kind-dialog">
           <div className="grid gap-3 sm:grid-cols-2">
-            {cards.map((c) => { const res = c.k === 'home', sel = res ? RES.includes(choice) : choice === c.k, isCur = res ? RES.includes(cur) : cur === c.k; return (
-              <motion.button key={c.k} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setChoice(res ? (RES.includes(choice) ? choice : RES.includes(cur) ? cur : 'home') : c.k)} aria-pressed={sel} data-testid={`kind-${res ? 'residential' : c.k}`}
+            {cards.map((c) => { const sg = SUBG[c.k], res = !!sg, sel = sg ? sg.subs.includes(choice) : choice === c.k, isCur = sg ? sg.subs.includes(cur) : cur === c.k; return (
+              <motion.button key={c.k} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setChoice(sg ? (sg.subs.includes(choice) ? choice : sg.subs.includes(cur) ? cur : sg.subs[0]) : c.k)} aria-pressed={sel} data-testid={`kind-${sg ? sg.tid : c.k}`}
                 className={cn('relative grid justify-items-center gap-2 overflow-hidden rounded-3xl border-2 p-4 text-center transition', sel ? 'bg-surface-2' : 'border-line bg-surface/40')}
                 style={{ borderColor: sel ? c.color : undefined, boxShadow: sel ? `0 0 40px -12px ${c.color}` : undefined }}>
-                {isCur && <span className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">Current{res ? ` · ${cur === 'landlord' ? 'Landlord' : 'Home'}` : ''}</span>}
+                {isCur && <span className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">Current{sg ? ` · ${sg.label[cur]?.replace(/^\S+ /, '') ?? ''}` : ''}</span>}
                 {c.preview}
                 <div className="flex items-center gap-1.5 font-display text-lg font-bold" style={{ color: c.color }}>{c.icon}{c.title}</div>
                 <div className="text-sm text-muted">{c.body}</div>
                 <ul className="grid gap-1 text-left text-xs">{c.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: c.color }}>✦</span>{p}</li>)}</ul>
                 {/* Residential's subplots: open when it's picked */}
                 {res && sel && (
-                  <div className="grid w-full grid-cols-2 gap-2" role="radiogroup" aria-label="Residential subplot" data-testid="kind-subplots" onClick={(e) => e.stopPropagation()}>
-                    {(['home', 'landlord'] as const).map((k) => (
+                  <div className="grid w-full grid-cols-2 gap-2" role="radiogroup" aria-label={`${c.title} subplot`} data-testid="kind-subplots" onClick={(e) => e.stopPropagation()}>
+                    {sg.subs.map((k) => (
                       <span key={k} role="radio" aria-checked={choice === k} tabIndex={0} onClick={() => setChoice(k)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setChoice(k); }} data-testid={`kind-${k}`}
                         className={cn('cursor-pointer rounded-2xl border-2 p-2 text-left text-xs transition', choice === k ? 'bg-black/20' : 'border-line opacity-75 hover:opacity-100')} style={choice === k ? { borderColor: c.color } : undefined}>
-                        <span className="block text-sm font-bold" style={{ color: choice === k ? c.color : undefined }}>{k === 'home' ? '🏠 Home' : '🏘️ Landlord'}</span>
-                        <span className="text-muted">{k === 'home' ? 'Your house: visitors walk in from your profile' : '50× USD rent on the 1st of each month'}</span>
+                        <span className="block text-sm font-bold" style={{ color: choice === k ? c.color : undefined }}>{sg.label[k]}</span>
+                        <span className="text-muted">{sg.blurb[k]}</span>
                       </span>
                     ))}
                   </div>
@@ -306,6 +337,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
                 : cur === 'business' && g.business_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/business/${g.business_id}`); }}>Open business <ArrowRight className="h-4 w-4" /></Button>
                 : isRealm(cur) && g.realm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(realmRoute(g.realm_id!)); }}>{REALM_META[cur].enter} <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'arcade' && g.arcade_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/arcade/${g.arcade_id}`); }}>Enter arcade <ArrowRight className="h-4 w-4" /></Button>
+                : cur === 'train' || cur === 'plane' ? <Button variant="primary" onClick={() => { onOpenChange(false); nav('/'); useTravelUi.getState().setOpen(true); }}>Travel <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'home' ? <Button variant="primary" onClick={() => { onOpenChange(false); nav('/home'); }}>Enter your home <ArrowRight className="h-4 w-4" /></Button>
                 : cur === 'farm' && g.farm_id ? <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/farm/${g.farm_id}`); }}>Enter farm <ArrowRight className="h-4 w-4" /></Button>
                 : <Button variant="primary" onClick={() => { onOpenChange(false); nav(`/create/${g.id}`); }}>Keep painting <ArrowRight className="h-4 w-4" /></Button>
@@ -326,6 +358,14 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
               <li>🏠 <b>{g.name}</b> becomes your Home: the house visitors walk into from your profile. On the map it shows as a house roof.</li>
               <li>📐 The biggest square of Home plots you own sets your house’s size: 2x2 adds an upstairs and a staircase, and each size up to 10x10 adds more (floors, balconies, a roof terrace, a lift, a rooftop pool).</li>
               <li>📖 Visitors check in by signing your book with a note or a drawing.</li>
+              <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was.</li>
+            </ul>
+          ) : choice === 'train' || choice === 'plane' ? (
+            <ul className="grid gap-2">
+              <li>{choice === 'train' ? '🚆' : '✈️'} <b>{g.name}</b> becomes {KIND_A(choice)}. Tap Travel on the map to {choice === 'train' ? 'ride to real train stations: you board at the station nearest you and stop at the real stations on the way' : 'fly to any of 3,000+ real airports: you board at the airport nearest you'}.</li>
+              <li>📍 When you arrive you’re really there: claim plots, play and check in nearby. Head home whenever you like.</li>
+              <li>🛂 Every new station and airport is a souvenir stamp in your passport (and a little Ink).</li>
+              <li>🎟️ {choice === 'train' ? '4 trips a day, +1 for each extra Train plot' : '2 flights a day, +1 for each extra Plane plot'}. Switching between Train and Plane is free.</li>
               <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was.</li>
             </ul>
           ) : choice === 'landlord' ? (

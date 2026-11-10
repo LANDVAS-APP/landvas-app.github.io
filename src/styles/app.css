@@ -1200,3 +1200,29 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   opacity: 0.55;
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><path fill='%23080510' d='M0 300V190h40v-30h20v30h30v-60h-10v-20h50v20h-10v60h40V150h20v-25h15v25h20v40h70v-80h-12V85h24v-15h20v15h24v25h-12v80h60v-50h20v-20h20v20h20v50h50V120h-15V95h30V75h18V45h12v-15l14 15h12v30h18v20h30v25h-15v70h60v-40h25v-20h20v20h25v40h70V140h-14v-22h30v-18h16v18h30v22h-14v50h60v-35h20v-18h18v18h20v35h50v110z'/></svg>") bottom/100% 100% no-repeat;
 }
+
+/* Travel: riding a train or a plane, and the stations and airports people have travelled to */
+.lv-explorer.ride-train::after, .lv-explorer.ride-plane::after, .lv-explorer.ride-home::after {
+  position: absolute; z-index: 2; left: 50%; bottom: -6px; transform: translateX(-50%);
+  font-size: 34px; line-height: 1; filter: drop-shadow(0 3px 4px rgba(0,0,0,.45));
+  animation: lv-ride .9s ease-in-out infinite;
+}
+.lv-explorer.ride-train::after { content: '🚆'; }
+.lv-explorer.ride-plane::after { content: '✈️'; bottom: 14px; font-size: 38px; }
+.lv-explorer.ride-home::after { content: '🚕'; }
+.lv-explorer.ride-train .body, .lv-explorer.ride-home .body { animation: none; transform: translateY(-14px) scale(.72); }
+.lv-explorer.ride-plane .body { animation: none; transform: translateY(-34px) scale(.6); }
+.lv-explorer.ride-plane .shadow, .lv-explorer.ride-train .shadow { opacity: .35; }
+@keyframes lv-ride { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-2px); } }
+.lv-stop {
+  display: flex; flex-direction: column; align-items: center; cursor: pointer; user-select: none;
+}
+.lv-stop .bld { width: 46px; height: 38px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); transition: transform .15s; }
+.lv-stop:hover .bld { transform: translateY(-2px) scale(1.06); }
+.lv-stop .nm {
+  margin-top: 2px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 999px; background: rgba(11,14,36,.82); color: #fff; padding: 2px 8px; font-size: 10.5px; font-weight: 700;
+}
+.lv-stop.way .bld { width: 28px; height: 24px; }
+.lv-stop.way .nm { font-size: 9.5px; padding: 1px 6px; background: rgba(11,14,36,.65); }
+.lv-stop.dest .nm { background: #FFB020; color: #1B1400; }

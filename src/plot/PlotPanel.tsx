@@ -1,4 +1,5 @@
 import { plotBlocks } from '../map/WorldMap';
+import { TravelPlotCard, useTravelUi } from '../travel/Travel';
 import { HouseCard, LandlordCard } from '../residential/ResidentialCard';
 import { WalletDialog } from '../rent/RentHud';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -229,7 +230,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [naming, setNaming] = useState(false);
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -248,6 +249,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
       if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; }
       if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; }
       if (kind === 'home') { toast.success('Your home is built 🏠', { description: 'Visitors can walk in from your profile now.', action: { label: 'Go in', onClick: () => nav('/home') } }); return null; }
+      if (kind === 'train' || kind === 'plane') { toast.success(kind === 'train' ? 'Your rail depot is open 🚆' : 'Your airfield is open ✈️', { description: kind === 'train' ? 'Tap Travel on the map to ride to real stations.' : 'Tap Travel on the map to fly to real airports.' }); return null; }
       if (kind === 'landlord') { toast.success('Tenants are moving in 🏘️', { description: 'On the 1st of every month these plots earn 50× USD rent all day.' }); return null; }
       if (isRealm(kind) && g.realm_id) { const m = REALM_META[kind]; toast.success(`Your ${m.one} is ready ${m.emoji}`, { action: { label: m.enter, onClick: () => nav(realmRoute(g.realm_id!)) } }); return null; }
       return g.habitat_id ?? null; }
@@ -356,14 +358,15 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
 
 /** Every plot type, in picker order. Same price and rent whichever you pick. Residential is one type with two
  *  subplots (Home, Landlord): picking it opens the choice between them. */
-type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[] };
+type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[]; tid?: string };
 const KIND_OPTS: KindOpt[] = [
   { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF', perks: ['Paint with every brush and tool', 'Publish your art onto the map', 'Merge neighbours into one mural'] },
   { k: 'habitat', icon: '🌳', title: 'Habitat', body: 'A home for your Inkborn — merge plots to grow it', color: '#3DDC97', perks: ['A woodland sanctuary to walk around', 'Room for more Inkborn as it grows', 'Trees, nests and lanterns to place'] },
   { k: 'farm', icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops — 6 soil beds to start', color: '#E0A800', perks: ['Soil beds in a 3D farmyard', 'Farm levels, buildings and orders', 'Farm games, 2D and 3D'] },
   { k: 'business', icon: '🍋', title: 'Business', body: 'Lemonade stand to empire — +10% to all your income', color: '#D4A500', perks: ['Ten kinds of business to buy', 'Earns while you’re away', 'Money-making games'] },
   { k: 'arcade', icon: '🕹️', title: 'Arcade', body: 'Neon cabinets and prizes — you get 10% of tickets won', color: '#FF3D9A', perks: ['Free cabinets: win tickets and Ink', 'Prize counter, upgrades, neon decor', 'Grows a carnival outside as an Estate'] },
-  { k: 'home', icon: '🏡', title: 'Residential', body: 'Houses: your home, or homes you rent out', color: '#E0745C', subs: ['home', 'landlord'], perks: ['Two subplots — choose Home or Landlord', 'Switch between them for free'] },
+  { k: 'home', icon: '🏡', title: 'Residential', body: 'Houses: your home, or homes you rent out', color: '#E0745C', subs: ['home', 'landlord'], tid: 'residential', perks: ['Two subplots — choose Home or Landlord', 'Switch between them for free'] },
+  { k: 'train', icon: '🧳', title: 'Travel', body: 'Ride trains and fly to real stations and airports', color: '#2FA4D9', subs: ['train', 'plane'], tid: 'travel', perks: ['Two subplots — choose Train or Plane', 'Arrive and really be there: claim and play', 'A souvenir stamp for every stop', 'Switch between them for free'] },
   ...(['brawl', 'mine', 'sky', 'workshop', 'diner', 'dungeon'] as const).map((k) => ({
     k, icon: REALM_META[k].emoji, color: REALM_META[k].color, body: REALM_META[k].body,
     title: ({ brawl: 'Arena', mine: 'Mine', sky: 'Sky Island', workshop: 'Workshop', diner: 'Restaurant', dungeon: 'Dungeon' } as const)[k],
@@ -373,6 +376,8 @@ const KIND_OPTS: KindOpt[] = [
 /** the subplots, by kind */
 const SUBS: Partial<Record<PlotKind, { icon: string; title: string; body: string; perks: string[] }>> = {
   home: { icon: '🏠', title: 'Home', body: 'Your house: visitors walk in from your profile', perks: ['Opens “Visit home” on your profile', 'Merge 2×2 … 10×10 for a bigger house: floors, stairs, balconies, a roof terrace, a lift, a pool', 'Visitors check in with a note or a drawing in your book'] },
+  train: { icon: '🚆', title: 'Train', body: 'Ride to real stations on the rail network', perks: ['Board at the station nearest you', 'Stop at the real stations on the way', '4 trips a day, +1 for each extra Train plot'] },
+  plane: { icon: '✈️', title: 'Plane', body: 'Fly to 3,000+ real airports worldwide', perks: ['Board at the airport nearest you', 'Fly anywhere in the world in minutes', '2 flights a day, +1 for each extra Plane plot'] },
   landlord: { icon: '🏘️', title: 'Landlord', body: 'Homes you rent to virtual tenants', perks: ['Tenants pay on the 1st of every month', 'Rent day: 50× USD rent from these plots all day', 'Normal rent the rest of the month'] },
 };
 /** the type a kind belongs to (a subplot belongs to its main type) */
@@ -394,7 +399,7 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           const on = opt.k === o.k;
           return (
             <motion.button key={o.k} type="button" role="radio" aria-checked={on} aria-label={o.title} title={o.title} whileTap={{ scale: 0.9 }}
-              onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} data-testid={`buy-as-${o.subs ? 'residential' : o.k}`}
+              onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} data-testid={`buy-as-${o.tid ?? o.k}`}
               className={cn('relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border-2 p-0.5 transition', on ? 'bg-surface-2' : 'border-transparent bg-surface/50 opacity-75 hover:opacity-100')}
               style={on ? { borderColor: o.color, boxShadow: `0 0 16px -6px ${o.color}` } : undefined}>
               <span className="text-[20px] leading-none">{o.icon}</span>
@@ -404,11 +409,11 @@ function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind):
           );
         })}
       </div>
-      {/* Residential: pick the subplot */}
+      {/* Residential / Travel: pick the subplot */}
       <AnimatePresence initial={false}>
         {opt.subs && (
           <motion.div key="subs" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border p-1.5" style={{ borderColor: `${opt.color}55`, background: `${opt.color}12` }} role="radiogroup" aria-label="Residential subplot" data-testid="buy-subplots">
+            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border p-1.5" style={{ borderColor: `${opt.color}55`, background: `${opt.color}12` }} role="radiogroup" aria-label={`${opt.title} subplot`} data-testid="buy-subplots">
               {opt.subs.map((k) => {
                 const sp = SUBS[k]!, on = kind === k;
                 return (
@@ -625,9 +630,10 @@ function MineBlock({ d }: { d: PlotDetails }) {
       {wallet && <WalletDialog open onOpenChange={setWallet} />}
       {myGroup && k === 'home' && <HouseCard group={myGroup} />}
       {myGroup && k === 'landlord' && <LandlordCard group={myGroup} />}
-      {myGroup && k !== 'home' && k !== 'landlord' && <EstateCard group={myGroup} />}
+      {myGroup && (k === 'train' || k === 'plane') && <TravelPlotCard mode={k} />}
+      {myGroup && k !== 'home' && k !== 'landlord' && k !== 'train' && k !== 'plane' && <EstateCard group={myGroup} />}
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
         {rlm && arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
           : rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
@@ -637,6 +643,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
           : hab ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/habitat/${hab.habitat_id}`, d.center); }} data-testid="open-habitat">🐾 Enter sanctuary</Button>
           : k === 'home' ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, '/home', d.center); }} data-testid="open-house">🏠 Enter your home</Button>
           : k === 'landlord' ? <Button variant="primary" onClick={() => setWallet(true)} data-testid="open-rentals">💵 Your rent</Button>
+          : k === 'train' || k === 'plane' ? <Button variant="primary" onClick={() => { useUi.getState().select(null); useTravelUi.getState().setOpen(true); }} data-testid="open-travel">{k === 'train' ? '🚆 Ride a train' : '✈️ Take a flight'}</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>

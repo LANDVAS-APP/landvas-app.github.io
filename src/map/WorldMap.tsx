@@ -362,7 +362,7 @@ export function WorldMap() {
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
     let lastLng = NaN, lastLat = NaN;
-    const cls = { walking: false, left: false, gps: false };
+    const cls = { walking: false, left: false, gps: false, 'ride-train': false, 'ride-plane': false, 'ride-home': false };
     const toggle = (k: keyof typeof cls, on: boolean) => { if (cls[k] !== on) { cls[k] = on; el.classList.toggle(k, on); } };
     // runs every frame only while something's moving; standing still it checks a few times a second
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -379,6 +379,9 @@ export function WorldMap() {
         toggle('walking', p.traveling || performance.now() < movingUntil);
         toggle('left', heading < 0);
         toggle('gps', gps === 'on');
+        // riding a train or a plane: the explorer is in it
+        const ride = state?.mode === 'travel' && p.traveling ? state.trip?.mode : null;
+        toggle('ride-train', ride === 'train'); toggle('ride-plane', ride === 'plane'); toggle('ride-home', ride === 'home');
         const t = performance.now();
         // the companion animates at 20 fps walking, 8 standing still, and holds while the map moves
         if (pet && companion && t - lastPet > (cls.walking ? 50 : 125) && !container.current?.classList.contains('lv-map-moving')) {

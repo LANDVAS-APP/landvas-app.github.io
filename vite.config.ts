@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => {
             clientsClaim: true,
             cleanupOutdatedCaches: true,
             globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-            globIgnores: ['**/pglite*', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'og-image.png'],
+            globIgnores: ['**/pglite*', '**/LocalBackend-*.js', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'og-image.png'],
             maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
             navigateFallback: 'index.html',
             runtimeCaching: [

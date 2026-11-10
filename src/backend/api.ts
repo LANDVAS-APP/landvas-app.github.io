@@ -86,6 +86,17 @@ export const api = {
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
+  // travel: ride to real stations and airports (Train and Plane plots)
+  travelStatus: () => rpc<import('./types').TravelStatus>('travel_status'),
+  travelSearch: (mode: import('./types').TravelMode, q: string | null, at?: { lng: number; lat: number }) =>
+    rpc<import('./types').TravelStop[]>('travel_search', { p_mode: mode, p_q: q, p_lng: at?.lng ?? null, p_lat: at?.lat ?? null }),
+  travelPlan: (mode: import('./types').TravelMode, to: string) => rpc<import('./types').TravelPlan>('travel_plan', { p_mode: mode, p_to: to }),
+  travelDepart: (mode: import('./types').TravelMode, to: string) => rpc<import('./types').TravelStatus>('travel_depart', { p_mode: mode, p_to: to }),
+  travelHome: () => rpc<import('./types').TravelStatus>('travel_home'),
+  travelPassport: () => rpc<import('./types').TravelStamp[]>('travel_passport'),
+  travelBuildings: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').TravelBuilding[]>('travel_buildings', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
+  travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
+
   // more ways to earn
   earnOverview: () => rpc<EarnOverview>('earn_overview'),
   wheelStatus: () => rpc<WheelStatus>('wheel_status'),
