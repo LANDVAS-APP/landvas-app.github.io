@@ -20,6 +20,6 @@ function svg(size, pad) {
     <rect width="${size}" height="${size}" fill="url(#g)"/>${cells}</svg>`;
 }
 for (const [name, size, pad] of [['icon-192.png', 192, 30], ['icon-512.png', 512, 80], ['icon-maskable-512.png', 512, 128], ['apple-touch-icon.png', 180, 28]]) {
-  await sharp(Buffer.from(svg(size, pad))).png().toFile(path.join(OUT, name));
+  await sharp(Buffer.from(svg(size, pad))).png({ compressionLevel: 9, effort: 10 }).toFile(path.join(OUT, name));
   console.log(name);
 }

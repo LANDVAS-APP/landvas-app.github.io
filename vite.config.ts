@@ -80,13 +80,18 @@ export default defineConfig(({ mode }) => {
             clientsClaim: true,
             cleanupOutdatedCaches: true,
             globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-            globIgnores: ['**/pglite*', '**/LocalBackend-*.js', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'og-image.png'],
+            // admin-only screen and non-Latin font subsets still load on demand, they just aren't
+            // pre-downloaded onto every player's device
+            globIgnores: ['**/pglite*', '**/LocalBackend-*.js', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'og-image.png',
+              '**/AdminScreen-*.js', '**/*-{cyrillic,cyrillic-ext,greek,vietnamese}-wght-*.woff2'],
             maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
             navigateFallback: 'index.html',
             runtimeCaching: [
-              { urlPattern: /\.(?:wasm|data)$/, handler: 'CacheFirst', options: { cacheName: 'landvas-engine' } },
+              { urlPattern: /\.(?:wasm|data)$/, handler: 'CacheFirst',
+                options: { cacheName: 'landvas-engine', expiration: { maxEntries: 4, purgeOnQuotaError: true } } },
+              // artwork tiles: keep the recently seen ones on the device, not an ever-growing pile
               { urlPattern: /\/storage\/v1\/object\/public\/public-art\//, handler: 'CacheFirst',
-                options: { cacheName: 'landvas-art', expiration: { maxEntries: 4000, maxAgeSeconds: 60 * 60 * 24 * 30 } } },
+                options: { cacheName: 'landvas-art', expiration: { maxEntries: 1200, maxAgeSeconds: 60 * 60 * 24 * 14, purgeOnQuotaError: true } } },
             ],
           },
         }),
@@ -99,7 +104,8 @@ export default defineConfig(({ mode }) => {
       outDir: artifact ? 'dist-artifact' : 'dist',
       assetsInlineLimit: 0,
       chunkSizeWarningLimit: 2500,
-      sourcemap: !artifact,
+      // source maps double the deploy size and are never served to players; opt in for debugging
+      sourcemap: process.env.LANDVAS_SOURCEMAP === '1',
     },
     server: { host: true },
   };

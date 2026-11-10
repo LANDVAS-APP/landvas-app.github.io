@@ -373,9 +373,12 @@ export function getBackend(): Backend {
 export function initBackend(): Promise<Backend> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
+    // Written with import.meta.env directly (not config.backend) so Vite folds it to a constant:
+    // hosted builds then drop LocalBackend + PGlite (~20 MB) from the output entirely.
+    const hosted = !!(import.meta.env.VITE_BACKEND === 'supabase' && import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
     const b: Backend =
       import.meta.env.VITE_DEMO === 'brawl' ? new (await import('./demo/DemoBackend')).DemoBackend()
-      : config.backend === 'supabase'
+      : hosted
         ? new (await import('./supabase/SupabaseBackend')).SupabaseBackend()
         : new (await import('./local/LocalBackend')).LocalBackend();
     await b.init();
