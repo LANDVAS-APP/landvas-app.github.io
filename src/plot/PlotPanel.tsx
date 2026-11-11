@@ -33,7 +33,7 @@ import { formatRate } from '../shared/rent';
 import { plotMetres } from '../shared/grid';
 import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
-import { PlotKindControl } from '../inkborn/PlotKindPicker';
+import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -617,24 +617,27 @@ function MineBlock({ d }: { d: PlotDetails }) {
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   // ask only about what this plot is (the map already knows); if it doesn't, ask about each kind of place
-  const k = d.group ? plotBlocks.kindAt(d.gx, d.gy) : null;
+  // your own plot: its real type; anyone's: what the map knows (Base is never mistaken for Art)
+  const k = myGroup?.kind ?? (d.group ? plotBlocks.kindAt(d.gx, d.gy) : null);
   const any = k === undefined;
-  const isRealm = !!k && !['canvas', 'habitat', 'farm', 'business', 'arcade'].includes(k);
+  const isRealm = !!k && !['canvas', 'base', 'habitat', 'farm', 'business', 'arcade', 'home', 'landlord', 'train', 'plane'].includes(k);
   const hab = useHabitatAt(d.gx, d.gy, any || k === 'habitat').data;
   const farm = useFarmAt(d.gx, d.gy, any || k === 'farm').data;
   const biz = useBizAt(d.gx, d.gy, any || k === 'business').data;
   const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade' || k === 'boardwalk' || k === 'galaxypark').data;
   const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
   const [wallet, setWallet] = useState(false);
+  const [typing, setTyping] = useState(false);
   return (
     <div className="grid gap-3">
       {wallet && <WalletDialog open onOpenChange={setWallet} />}
+      {typing && d.group && <PlotKindDialog g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: 'base' }} open onOpenChange={setTyping} />}
       {myGroup && k === 'home' && <HouseCard group={myGroup} />}
       {myGroup && k === 'landlord' && <LandlordCard group={myGroup} />}
       {myGroup && (k === 'train' || k === 'plane') && <TravelPlotCard mode={k} />}
       {myGroup && k !== 'home' && k !== 'landlord' && k !== 'train' && k !== 'plane' && <EstateCard group={myGroup} />}
       <RenamePlot d={d} />
-      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
+      {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || k === 'base' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
       <div className="grid grid-cols-2 gap-2">
         {rlm && arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
           : rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
@@ -645,6 +648,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
           : k === 'home' ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, '/home', d.center); }} data-testid="open-house">🏠 Enter your home</Button>
           : k === 'landlord' ? <Button variant="primary" onClick={() => setWallet(true)} data-testid="open-rentals">💵 Your rent</Button>
           : k === 'train' || k === 'plane' ? <Button variant="primary" onClick={() => { useUi.getState().select(null); useTravelUi.getState().setOpen(true); }} data-testid="open-travel">{k === 'train' ? '🚆 Ride a train' : '✈️ Take a flight'}</Button>
+          : k === 'base' ? <Button variant="primary" onClick={() => setTyping(true)} data-testid="give-type">🟩 Give it a type</Button>
           : <Button variant="primary" onClick={() => { if (!d.group) return; useUi.getState().select(null); diveInto(nav, `/create/${d.group.id}`, d.center); }} data-testid="open-canvas"><Brush className="h-4 w-4" /> Paint canvas</Button>}
         <Button onClick={() => nav(`/play/${d.type_info!.minigame}?gx=${d.gx}&gy=${d.gy}`)}><Gamepad2 className="h-4 w-4" /> {d.type_info!.minigame_name}</Button>
       </div>

@@ -121,6 +121,7 @@ const MESSAGES: Record<string, string> = {
   upgrades_removed: 'Plot upgrades have been retired — merge plots to open more games instead.',
   domain_needs_square: 'A Domain needs nine plots merged into a 3×3 square — merge a few more first.',
   estate_wrong_type: 'That Estate is built on a different plot type.',
+  not_a_canvas: 'Only Art plots can be painted. Give this plot the Art type first — it’s free for a Base plot.',
   habitat_plot: 'This plot is an Inkborn Habitat. Switch it back to an Art Canvas to publish art.',
   invalid_plot_kind: 'That plot type isn’t available.',
   daily_ad_cap: 'That’s all the bonus ads for today — more after the evening reset.',

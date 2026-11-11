@@ -864,8 +864,9 @@ h1, h2, h3 {
 .lv-step::after { content: ""; position: absolute; inset: auto -30% -60% auto; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 30%, transparent), transparent); pointer-events: none; }
 .lv-aurora { position: absolute; inset: 0; background: radial-gradient(40% 50% at 15% 30%, rgba(61, 220, 151, 0.16), transparent), radial-gradient(40% 50% at 85% 70%, rgba(123, 92, 255, 0.2), transparent), radial-gradient(30% 40% at 60% 20%, rgba(255, 179, 31, 0.12), transparent); animation: lv-aurora 14s ease-in-out infinite alternate; }
 @keyframes lv-aurora { to { transform: scale(1.15) translate(2%, -3%); } }
-.lv-game { transition: transform 0.3s ease; }
-.lv-game:hover { transform: translateY(-6px) rotate(-0.5deg); }
+/* landing-page game cards (not .lv-game, the in-game UI: tilting that shifted whole screens on phones) */
+.lv-gamecard { transition: transform 0.3s ease; }
+.lv-gamecard:hover { transform: translateY(-6px) rotate(-0.5deg); }
 .lv-social { background: radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--c) 100%, #fff 10%), color-mix(in srgb, var(--c) 70%, #000 30%)); box-shadow: 0 30px 70px -30px var(--c); transition: transform 0.3s ease; }
 .lv-social:hover { transform: translateY(-6px) scale(1.01); }
 .lv-social::after { content: ""; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); }

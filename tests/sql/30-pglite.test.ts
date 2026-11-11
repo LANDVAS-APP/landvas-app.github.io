@@ -32,6 +32,8 @@ describe('PGlite local runtime', () => {
     await db.query(`update resource_balances set amount = 500 where player_id = $1 and resource = 'ink'`, [u]);
     await rpc(u, 'acquire_plot', { p_gx: 101, p_gy: 100, p_idempotency_key: 'local-acquire-1' });
     const groups = await rpc(u, 'my_groups');
+    // new plots start as Base plots: these two become Art plots (free) so they can be painted
+    for (const g of groups) await rpc(u, 'set_group_kind', { p_group_id: g.id, p_kind: 'canvas' });
     const fused = await rpc(u, 'fuse_groups', { p_group_ids: groups.map((g: any) => g.id) });
     expect(fused.plot_count).toBe(2);
     const proj = await rpc(u, 'get_project', { p_project_id: fused.project_id });

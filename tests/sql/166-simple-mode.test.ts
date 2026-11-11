@@ -7,7 +7,7 @@ let sam: string, tia: string;
 const plots = (u: string) => db.sql(`select gx, gy, rarity from world_plots where owner_id = $1`, [u]);
 
 beforeAll(async () => {
-  await db.init({ ungated: true, freePlots: 2 });
+  await db.init({ ungated: true, freePlots: 2, basePlots: true });
   sam = await db.newPlayer('sam_simple'); tia = await db.newPlayer('tia_near');
 });
 afterAll(() => db.close());
@@ -72,5 +72,17 @@ describe('Base plots', () => {
     const r = await db.rpc(tia, 'set_group_kind', { p_group_id: g.id, p_kind: 'farm' });
     expect(r.kind).toBe('farm');
     expect(Number(r.fee)).toBe(0);
+  });
+});
+
+describe('only Art plots can be painted', () => {
+  it('a Base plot can’t save or publish art; once it’s an Art plot, it can', async () => {
+    const g = (await db.rpc(sam, 'my_groups')).find((x: any) => x.kind === 'base');
+    const proj = await db.rpc(sam, 'get_project', { p_project_id: g.project_id });
+    const save = () => db.rpc(sam, 'save_draft', { p_project_id: g.project_id, p_base_version_id: proj.project.current_version_id, p_manifest: proj.version.manifest, p_force: true });
+    await expectError(save(), 'not_a_canvas');
+    await db.rpc(sam, 'set_group_kind', { p_group_id: g.id, p_kind: 'canvas' });
+    const r = await save();
+    expect(r.version_id).toBeTruthy();
   });
 });

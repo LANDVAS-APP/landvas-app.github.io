@@ -9,7 +9,9 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
-import type { ProjectBundle, Publication, VersionInfo } from '../backend/types';
+import type { CanvasGroup, ProjectBundle, Publication, VersionInfo } from '../backend/types';
+import { kindFamily } from '../realms/estates/meta';
+import { PlotKindControl } from '../inkborn/PlotKindPicker';
 import { config } from '../env';
 import { celebrate, invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
@@ -59,8 +61,24 @@ export default function EditorScreen() {
   if (group.data.kind === 'arcade' && group.data.arcade_id) return <Navigate to={`/arcade/${group.data.arcade_id}`} replace />;
   if (group.data.kind === 'home') return <Navigate to="/home" replace />;
   if (isRealm(group.data.kind) && group.data.realm_id) return <Navigate to={realmRoute(group.data.realm_id)} replace />;
+  // only Art plots are painted (the server refuses the rest too)
+  if (kindFamily(group.data.kind ?? 'canvas') !== 'canvas') return <NotACanvas g={group.data} />;
   if (huge) return bundle.data ? <HugeMural bundle={bundle.data} /> : <div className="flex h-full items-center justify-center"><Spinner /></div>;
   return <PaintEditor />;
+}
+
+/** A plot that isn't an Art plot: say so, and offer to make it one */
+function NotACanvas({ g }: { g: CanvasGroup }) {
+  const nav = useNavigate();
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center" data-testid="not-a-canvas">
+      <div className="text-5xl">🎨</div>
+      <h1 className="font-display text-2xl font-semibold">Only Art plots can be painted</h1>
+      <p className="max-w-sm text-sm text-muted">{g.kind === 'base' ? 'This is a Base plot. Give it the Art type (free) and you can paint it.' : 'This plot has a different type, so it isn’t a canvas.'}</p>
+      <PlotKindControl g={g} className="justify-center" />
+      <Button variant="secondary" onClick={() => nav(-1)}>Back</Button>
+    </div>
+  );
 }
 
 function PaintEditor() {

@@ -118,7 +118,7 @@ export function Shell() {
           </NavLink>
         ) : null}
       </nav>
-      <main className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin')}>
+      <main className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin', simple && 'overflow-x-hidden')}>
         {!isMap && <Ambient />}
         {!isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
         {isMap ? <Outlet /> : (

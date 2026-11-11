@@ -14,7 +14,7 @@ import { GamePreview } from './GamePreview';
 import { activeBoost, bonusText, boostLeft, fullClearInk } from './rates';
 import { Zap } from 'lucide-react';
 
-const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
+export const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
   ['lightlines', 'paintpop', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
 ).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 

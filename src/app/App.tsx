@@ -18,6 +18,12 @@ import { Shell } from './Shell';
 // the map (and everything heavy that comes with it) only downloads when it's shown: never in simple mode
 const MapScreen = lazy(() => import('../screens/MapScreen').then((m) => ({ default: m.MapScreen })));
 const SimpleHome = lazy(() => import('../simple/SimpleHome'));
+const SimplePlay = lazy(() => import('../simple/SimplePlay'));
+/** The Play tab: in simple mode, just the plot minigames */
+function PlayRoute() {
+  const simple = __ui((s) => !!s.settings.simpleMode);
+  return simple ? <Suspense fallback={<div className="absolute inset-0 bg-bg" />}><SimplePlay /></Suspense> : <PlayHub />;
+}
 /** The World tab: the map, or in simple mode the one-screen game */
 function WorldRoute() {
   const simple = __ui((s) => !!s.settings.simpleMode);
@@ -208,7 +214,7 @@ const routes: RouteObject[] = [
           { path: '/', element: <RootRoute /> },
           { path: '/world', element: <WorldRoute /> },
           { path: '/canvases', element: player(<CanvasesScreen />) },
-          { path: '/play', element: player(<PlayHub />) },
+          { path: '/play', element: player(<PlayRoute />) },
           { path: '/gallery', element: p(<GalleryScreen />) },
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },

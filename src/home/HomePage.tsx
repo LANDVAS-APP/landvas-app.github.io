@@ -401,7 +401,7 @@ export function Minigames() {
       </div>
       <div className="mt-12 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {GAMES.map((g) => (
-          <article key={g} className="lv-game glass group rounded-3xl p-3">
+          <article key={g} className="lv-gamecard glass group rounded-3xl p-3">
             <GamePreview game={g} className="transition duration-500 group-hover:scale-[1.03]" />
             <div className="px-1.5 pb-1 pt-3">
               <h3 className="font-display text-base font-semibold">{GAME_INFO[g].name}</h3>

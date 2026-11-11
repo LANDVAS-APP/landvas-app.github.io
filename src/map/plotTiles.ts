@@ -619,8 +619,94 @@ function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.strokeStyle = c.tier ? c.rc : '#FF4FD8'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.strokeRect(b.x0, b.y0, w, h);
   rareBits(ctx, c);
 }
-const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, home: homeCell, landlord: landlordCell, train: trainCell, plane: planeCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
-const RIM_BASE: Partial<Record<PlotKind, string>> = { ...Object.fromEntries(Object.entries(ESTATE_LOOK).map(([k, v]) => [k, v!.trim])), habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)', home: 'rgba(200,85,61,0.9)', landlord: 'rgba(62,110,156,0.9)' };
+// ---- Base plots: plain land, a stone slab whose finish climbs with rarity ------------------------------------------
+// common: bare slate · rare: blue stone with brass studs · epic: purple with a diamond inlay · legendary: gold with a
+// sunburst · mythic: iridescent crystal. A little claim stake in the middle.
+const BASE_SLAB: [string, string][] = [['#5E6A78', '#3D4653'], ['#3D7FC4', '#22508A'], ['#7A4FD8', '#4A2A9A'], ['#E8A928', '#A86A0E'], ['#FF5FB4', '#6E3BFF']];
+function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs, gx, gy, tier } = c;
+  const [a, b] = BASE_SLAB[tier] ?? BASE_SLAB[0];
+  const gr = ctx.createLinearGradient(px, py, px + cs, py + cs);
+  gr.addColorStop(0, a); gr.addColorStop(1, b);
+  if (tier === 4) gr.addColorStop(0.5, '#3FE0FF');
+  ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) return;
+  const m = inner(c, cs * 0.08);
+  // bevel: light top-left, shade bottom-right
+  ctx.globalAlpha = 0.28; ctx.fillStyle = '#fff'; ctx.fillRect(m.x0, m.y0, m.x1 - m.x0, cs * 0.05);
+  ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(m.x0, m.y1 - cs * 0.05, m.x1 - m.x0, cs * 0.05);
+  ctx.globalAlpha = 1;
+  if (cs < 12) return;
+  if (tier === 0) {
+    // slate grain
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = Math.max(1, cs * 0.02);
+    for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + cs * (i / 4), py + cs * 0.1); ctx.lineTo(px + cs * (i / 4 - 0.12), py + cs * 0.9); ctx.stroke(); }
+  } else if (tier === 1) {
+    ctx.fillStyle = '#E8C46A';
+    for (const [u, v] of [[0.18, 0.18], [0.82, 0.18], [0.18, 0.82], [0.82, 0.82]]) { ctx.beginPath(); ctx.arc(px + cs * u, py + cs * v, cs * 0.045, 0, Math.PI * 2); ctx.fill(); }
+  } else if (tier === 2) {
+    const cx = px + cs / 2, cy = py + cs / 2, d = cs * 0.3;
+    ctx.strokeStyle = c.glow; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.moveTo(cx, cy - d); ctx.lineTo(cx + d, cy); ctx.lineTo(cx, cy + d); ctx.lineTo(cx - d, cy); ctx.closePath(); ctx.stroke();
+    ctx.globalAlpha = 1;
+  } else if (tier === 3) {
+    const cx = px + cs / 2, cy = py + cs / 2;
+    ctx.globalAlpha = 0.35; ctx.fillStyle = '#FFF4C2';
+    for (let i = 0; i < 12; i++) { const t = (i / 12) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, cs * 0.46, t, t + Math.PI / 24); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else {
+    const cx = px + cs / 2, cy = py + cs / 2, r0 = cs * 0.22;
+    ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.95; ctx.fillStyle = '#C9F6FF';
+    ctx.beginPath(); ctx.moveTo(cx, cy - r0 * 1.3); ctx.lineTo(cx + r0 * 0.7, cy); ctx.lineTo(cx, cy + r0); ctx.lineTo(cx - r0 * 0.7, cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = c.rc; ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.moveTo(cx, cy - r0 * 1.3); ctx.lineTo(cx + r0 * 0.7, cy); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // the claim stake (not on the mythic crystal)
+  if (tier < 4 && cs >= 18 && hash(gx, gy, 41) < 0.9) {
+    const sx = px + cs * 0.5, sy = py + cs * 0.62;
+    ctx.strokeStyle = '#2A1C10'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - cs * 0.3); ctx.stroke();
+    ctx.fillStyle = tier ? c.rc : '#E9EEF5'; ctx.beginPath(); ctx.moveTo(sx, sy - cs * 0.3); ctx.lineTo(sx + cs * 0.18, sy - cs * 0.24); ctx.lineTo(sx, sy - cs * 0.18); ctx.closePath(); ctx.fill();
+  }
+  rareBits(ctx, c);
+}
+
+// ---- Art plots waiting for art: a blank canvas in a frame that gets fancier with rarity -----------------------------
+// common: linen in a wood frame · rare: a blue paint splash · epic: a gallery frame and two strokes · legendary: an
+// ornate gold frame · mythic: a holographic frame and a rainbow swirl.
+const FRAME = ['#8A5A34', '#2B6CB0', '#5B34B5', '#D9A11E', '#FF3D9A'];
+function canvasCell(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs, gx, gy, tier } = c;
+  ctx.globalAlpha = 1;
+  if (tier === 4) { const g = ctx.createLinearGradient(px, py, px + cs, py + cs); g.addColorStop(0, '#FF3D9A'); g.addColorStop(0.35, '#FFD84D'); g.addColorStop(0.65, '#3DDC97'); g.addColorStop(1, '#22E3FF'); ctx.fillStyle = g; }
+  else ctx.fillStyle = FRAME[tier];
+  ctx.fillRect(px, py, cs, cs);
+  if (cs < 6) return;
+  const f = cs * (tier >= 3 ? 0.13 : 0.1), m = inner(c, f);
+  ctx.fillStyle = '#FBF6EC'; ctx.fillRect(m.x0, m.y0, m.x1 - m.x0, m.y1 - m.y0);
+  if (cs < 12) return;
+  // linen weave
+  ctx.globalAlpha = 0.06; ctx.fillStyle = '#7A5A30';
+  for (let i = 0; i < 6; i++) ctx.fillRect(m.x0, m.y0 + (m.y1 - m.y0) * (i / 6), m.x1 - m.x0, Math.max(1, cs * 0.008));
+  ctx.globalAlpha = 1;
+  const W = m.x1 - m.x0, H = m.y1 - m.y0;
+  const stroke = (col: string, y: number, wv: number) => { ctx.strokeStyle = col; ctx.lineWidth = cs * 0.09; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(m.x0 + W * 0.15, m.y0 + H * y); ctx.bezierCurveTo(m.x0 + W * 0.4, m.y0 + H * (y - wv), m.x0 + W * 0.6, m.y0 + H * (y + wv), m.x0 + W * 0.85, m.y0 + H * y); ctx.stroke(); };
+  if (tier === 1) { ctx.fillStyle = '#2FB8FF'; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(m.x0 + W * 0.72, m.y0 + H * 0.3, W * 0.14, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(m.x0 + W * 0.55, m.y0 + H * 0.42, W * 0.05, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  if (tier === 2) { stroke('#A45CFF', 0.4, 0.18); stroke('#FF6FA5', 0.66, 0.14); }
+  if (tier === 3) { stroke('#FFB31F', 0.36, 0.16); stroke('#FF3D7F', 0.62, 0.16); ctx.fillStyle = '#FFE3A1';
+    for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { ctx.beginPath(); ctx.arc(px + f / 2 + u * (cs - f), py + f / 2 + v * (cs - f), f * 0.45, 0, Math.PI * 2); ctx.fill(); } }
+  if (tier === 4) { const cx = m.x0 + W / 2, cy = m.y0 + H / 2; ['#FF3D9A', '#FFB31F', '#3DDC97', '#2FB8FF', '#A45CFF'].forEach((col, i) => { ctx.strokeStyle = col; ctx.lineWidth = cs * 0.045; ctx.beginPath(); ctx.arc(cx, cy, W * (0.1 + i * 0.075), i, i + Math.PI * 1.3); ctx.stroke(); }); }
+  // a tiny easel brush on common & rare, so a blank canvas reads as "paint me"
+  if (tier <= 1 && cs >= 18 && hash(gx, gy, 43) < 0.8) {
+    ctx.strokeStyle = '#6B4423'; ctx.lineWidth = Math.max(1, cs * 0.03); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(m.x0 + W * 0.2, m.y1 - H * 0.15); ctx.lineTo(m.x0 + W * 0.45, m.y1 - H * 0.38); ctx.stroke();
+    ctx.fillStyle = tier ? '#2FB8FF' : '#FF3D7F'; ctx.beginPath(); ctx.arc(m.x0 + W * 0.47, m.y1 - H * 0.4, cs * 0.035, 0, Math.PI * 2); ctx.fill();
+  }
+  rareBits(ctx, c);
+}
+
+const CELL_DRAW: Partial<Record<PlotKind, (ctx: CanvasRenderingContext2D, c: KCell) => void>> = { ...Object.fromEntries(Object.keys(ESTATE_LOOK).map((k) => [k, estateCell(k as PlotKind)])), brawl: brawlCell, home: homeCell, landlord: landlordCell, train: trainCell, plane: planeCell, base: baseCell, canvas: canvasCell, habitat: habitatCell, farm: farmCell, business: businessCell, arcade: arcadeCell, mine: mineCell, sky: skyCell, workshop: workshopCell, diner: dinerCell, dungeon: dungeonCell };
+const RIM_BASE: Partial<Record<PlotKind, string>> = { ...Object.fromEntries(Object.entries(ESTATE_LOOK).map(([k, v]) => [k, v!.trim])), base: 'rgba(255,255,255,0.35)', canvas: 'rgba(255,255,255,0.55)', habitat: 'rgba(255,255,255,0.45)', farm: 'rgba(176,122,71,0.9)', business: 'rgba(212,165,0,0.9)', arcade: 'rgba(255,61,154,0.9)', mine: 'rgba(124,92,255,0.9)', sky: 'rgba(56,189,248,0.9)', workshop: 'rgba(245,158,11,0.9)', diner: 'rgba(239,68,68,0.9)', dungeon: 'rgba(168,85,247,0.9)', brawl: 'rgba(255,79,216,0.9)', home: 'rgba(200,85,61,0.9)', landlord: 'rgba(62,110,156,0.9)' };
 const REALM_SIGN: Partial<Record<PlotKind, string>> = { home: '🏠', landlord: '🏘️', train: '🚆', plane: '✈️', mine: '⛏️', sky: '☁️', workshop: '🛠️', diner: '🍳', dungeon: '⚔️', brawl: '🎨', atelier: '🖼️', reserve: '🦌', ranch: '🐎', exchange: '🏙️', boardwalk: '🎡', gemheart: '💎', skyport: '🎈', foundry: '⚙️', foodhall: '🍱', citadel: '🐉', colosseum: '🏟️', museum: '🌌', sanctuary: '🦢', kingdom: '🏰', megacorp: '🏢', galaxypark: '🛸', core: '🌋', observatory: '🔭', automaton: '🤖', banquet: '🎂', abyss: '👁️', titans: '⚡' };
 
 /** One centrepiece for a whole plot or merged group (drawn in every tile it reaches, so it spans them). */
@@ -709,7 +795,7 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   const bx0 = gx0 >> BLOCK_SHIFT, by0 = gy0 >> BLOCK_SHIFT, bn = Math.max(1, n >> BLOCK_SHIFT);
   const lists: PlotRow[][] = [];
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
-  const rows = lists.flat().filter((r) => r[11] && r[11] !== 'canvas' && CELL_DRAW[r[11]] && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
+  const rows = lists.flat().filter((r) => r[11] && CELL_DRAW[r[11]] && !(r[11] === 'canvas' && r[6]) && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
   if (!rows.length) return null;
   const cs = PX / n;
   const ctx = ctx2d();
@@ -746,6 +832,7 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
           }
         }
       }
+      if (r[11] === 'base' || r[11] === 'canvas') continue; // their look is all in the cells
       const hidden = opts?.hidden && seenHidden(opts.hidden, x0, y0, x1, y1);
       const info = hidden ? NEUTRAL : rarityInfo(best[9]);
       if (hasTierScene(r[11])) {

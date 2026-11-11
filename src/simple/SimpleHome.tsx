@@ -14,9 +14,10 @@ import { celebrate, invalidateGame, qk, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
-import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
+import { InkRoll, type RollResult } from './InkRoll';
 import { RarityBadge } from '../plot/RarityBadge';
 import { KIND_LABEL } from '../plot/mergeKind';
+import { BasePlotArt } from '../plot/BasePlotArt';
 import { BoostButton, LiveUsd, WalletDialog, useRaritySync, useRent } from '../rent/RentHud';
 import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
 import { currentRate, formatRate } from '../shared/rent';
@@ -37,6 +38,7 @@ export default function SimpleHome() {
   const [wallet, setWallet] = useState(false);
   const [wheel, setWheel] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [roll, setRoll] = useState<{ open: boolean; result: RollResult | null }>({ open: false, result: null });
   const quote = useQuery({ queryKey: ['quick-buy-quote'], queryFn: api.quickBuyQuote, enabled: !!me });
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
@@ -57,24 +59,24 @@ export default function SimpleHome() {
     if (!canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.', action: { label: 'Play', onClick: () => nav('/play') } }); return; }
     setBusy(true);
     if (haptics) buzz('medium');
+    // the roll starts at once (the ink is already falling while the server picks the plot)
+    setRoll({ open: true, result: null });
     try {
       const r = await api.quickBuyPlot();
+      setRoll({ open: true, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter } });
       celebrate(r.achievements);
-      useCelebration.getState().show({
-        gx: r.gx, gy: r.gy, rarity: r.rarity as RarityId, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second),
-        groupId: r.group_id, first: r.starter, base: true, again: () => void buy(),
-      });
       invalidateGame(qc);
       for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote']]) void qc.invalidateQueries({ queryKey: k });
     } catch (e) {
+      setRoll({ open: false, result: null });
       toast.error(toGameError(e).message);
     } finally { setBusy(false); }
   };
 
   return (
-    <div className="lv-game relative mx-auto grid w-full max-w-md gap-4 px-4 pb-[calc(104px+env(safe-area-inset-bottom,0px))] pt-[max(14px,env(safe-area-inset-top,0px))] text-white md:pb-10" data-testid="simple-home">
-      {/* top bar */}
-      <div className="flex items-center gap-2">
+    <div className="lv-game relative mx-auto grid w-full min-w-0 max-w-md gap-4 overflow-x-clip px-4 pb-[calc(104px+env(safe-area-inset-bottom,0px))] text-white md:pb-10" data-testid="simple-home">
+      {/* top bar: always on screen, with the switch to the full game */}
+      <div className="sticky top-0 z-20 -mx-4 flex items-center gap-2 bg-[#0B0E24]/85 px-4 pb-2 pt-[max(10px,env(safe-area-inset-top,0px))] backdrop-blur-md">
         <Link to="/me" className="flex min-w-0 items-center gap-2">
           <PlayerAvatar p={me.profile} size={36} />
           <span className="truncate text-sm font-extrabold">{me.profile.display_name || me.profile.username}</span>
@@ -82,6 +84,9 @@ export default function SimpleHome() {
         <div className="ml-auto flex items-center gap-1.5">
           <ResourcePill r="ink" value={me.balances.ink} />
           <NotificationBell size="sm" />
+          <button onClick={() => { update({ simpleMode: false }); buzz('light'); }} className="flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 text-[12px] font-extrabold" data-testid="simple-mode-off" aria-label="Switch to the full game">
+            <MapIcon className="h-4 w-4" /> Full game
+          </button>
         </div>
       </div>
 
@@ -153,7 +158,7 @@ export default function SimpleHome() {
           return (
             <motion.div key={`${p.gx}_${p.gy}`} initial={i < 8 ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 8) * 0.03 }}
               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5" data-testid="simple-plot">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🟩'}</span>
+              {k === 'base' ? <BasePlotArt rarity={p.rarity} size={40} className="shrink-0" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🎨'}</span>}
               <span className="grid min-w-0 flex-1 leading-tight">
                 <span className="truncate text-sm font-bold">{p.name || `Plot ${list.length - i}`}</span>
                 <span className="text-[11px] font-semibold text-white/50">{k === 'base' ? 'Base plot' : KIND_LABEL[k]?.one ?? k}</span>
@@ -167,16 +172,11 @@ export default function SimpleHome() {
         })}
       </div>
 
-      {/* the rest of the game */}
-      <button onClick={() => { update({ simpleMode: false }); buzz('light'); }} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left" data-testid="simple-mode-off">
-        <MapIcon className="h-5 w-5 shrink-0 text-white/60" />
-        <span className="grid flex-1 leading-tight"><span className="text-sm font-bold">Switch to the full game</span><span className="text-[11px] text-white/50">The world map, plot types, worlds and more</span></span>
-        <ChevronRight className="h-4 w-4 text-white/40" />
-      </button>
-
       <WalletDialog open={wallet} onOpenChange={setWallet} />
       <DailyWheel open={wheel} onOpenChange={setWheel} />
-      <ClaimCelebration />
+      <InkRoll open={roll.open} result={roll.result} onClose={() => setRoll({ open: false, result: null })}
+        onAgain={() => { setRoll({ open: false, result: null }); setTimeout(() => void buy(), 260); }}
+        canAgain={canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(cost)} Ink`} />
     </div>
   );
 }

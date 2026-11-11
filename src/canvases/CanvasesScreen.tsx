@@ -17,6 +17,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { GRID_SIZE, Z_HOUSE, cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, inputCls } from '../ui';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
+import { kindFamily } from '../realms/estates/meta';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   published: { label: 'Live on the map', cls: 'text-ok' },
@@ -104,7 +105,9 @@ export default function CanvasesScreen() {
                     : g.kind === 'farm' && g.farm_id ? <Button size="sm" variant="primary" onClick={() => nav(`/farm/${g.farm_id}`)}>🌾 Enter farm</Button>
                       : g.kind === 'habitat' && g.habitat_id
                       ? <Button size="sm" variant="primary" onClick={() => nav(`/habitat/${g.habitat_id}`)}>🐾 Enter sanctuary</Button>
-                      : <Button size="sm" variant="primary" onClick={() => nav(`/create/${g.id}`)}><Brush className="h-4 w-4" /> Paint</Button>}
+                      // only Art plots are painted; a Base plot is given a type from its badge above
+                      : kindFamily(g.kind ?? 'canvas') === 'canvas' ? <Button size="sm" variant="primary" onClick={() => nav(`/create/${g.id}`)}><Brush className="h-4 w-4" /> Paint</Button>
+                      : null}
                     <Button size="sm" variant="ghost" onClick={() => {
                       const [gx, gy] = g.cells[0];
                       const [lng, lat] = cellCenter(gx, gy);

@@ -28,19 +28,30 @@ try {
   check('simple mode shows the one-screen home', true);
   check('no map was loaded', !reqs.some((u) => /maplibre|MapScreen/.test(u)) && !(await page.locator('[data-testid=world-map]').count()), reqs.filter((u) => /maplibre|MapScreen/.test(u)).join(','));
   await shot('01-home');
-  await page.click('[data-testid=simple-buy]'); await page.waitForTimeout(500); await shot('02-rolling');
-  await page.waitForSelector('[data-testid=celebration-close]', { timeout: 15000 }); await page.waitForTimeout(2500);
-  const rar = await page.textContent('[data-testid=claim-rarity]');
+  // nothing on the page is wider than the phone (no sideways shift)
+  const wide = () => page.evaluate(() => { const vw = innerWidth; const els = [document.scrollingElement, ...document.querySelectorAll('main')]; return Math.max(...els.map((e) => e.scrollWidth)) - vw; });
+  check('the switch to the full game is at the top', await page.locator('[data-testid=simple-mode-off]').isVisible() && (await page.locator('[data-testid=simple-mode-off]').boundingBox()).y < 90);
+  // the roll: ink drops onto a blank canvas, cycles through rarities, lands on one
+  await page.click('[data-testid=simple-buy]'); await page.waitForTimeout(350); await shot('02-ink-drop');
+  check('the roll is full screen', await page.evaluate(() => { const r = document.querySelector('[data-testid=ink-roll]')?.getBoundingClientRect(); return !!r && r.width >= innerWidth && r.height >= innerHeight; }));
+  await page.waitForTimeout(1100); await shot('02b-spinning');
+  check('…and doesn\'t shift the page sideways', (await wide()) <= 0, `${await wide()}px`);
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 15000 }); await page.waitForTimeout(1600);
+  const rar = await page.textContent('[data-testid=roll-rarity]');
   check('the first plot is free and its rarity rolls', !!rar, rar);
-  check('…a Base plot: no paint buttons', (await page.locator('[data-testid=choose-draw]').count()) === 0);
   await shot('03-rolled');
-  await page.click('[data-testid=buy-again]'); await page.waitForTimeout(500);
-  await page.waitForSelector('[data-testid=celebration-close]', { timeout: 15000 }); await page.waitForTimeout(2500);
-  await page.click('[data-testid=celebration-close]'); await page.waitForTimeout(1500);
+  await page.click('[data-testid=roll-again]');
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 15000 }); await page.waitForTimeout(1600);
+  await page.click('[data-testid=roll-done]'); await page.waitForTimeout(1200);
   const n = await page.locator('[data-testid=simple-plot]').count();
-  check('"Roll another" buys a second plot; both are listed', n === 2, `${n}`);
+  check('"Roll again" buys a second plot; both are listed', n === 2, `${n}`);
   const groups = await api('myGroups');
   check('…both Base plots', groups.every((g) => g.kind === 'base'), groups.map((g) => g.kind).join(','));
+  // scrolling the plot list keeps everything on screen, the switch stays at the top
+  await page.mouse.wheel(0, 900); await page.waitForTimeout(600);
+  check('scrolling the plots: nothing wider than the screen', (await wide()) <= 0, `${await wide()}px`);
+  check('…and the switch stays on screen', await page.locator('[data-testid=simple-mode-off]').isVisible() && (await page.locator('[data-testid=simple-mode-off]').boundingBox()).y < 90);
+  await page.mouse.wheel(0, -2000); await page.waitForTimeout(400);
   // the ticker keeps its dimmed zeros through re-renders (no blinking)
   const samples = [];
   for (let i = 0; i < 14; i++) { samples.push(await page.evaluate(() => { const e = document.querySelector('[data-testid=simple-money] [data-testid=usd-live]'); return e ? `${e.children.length}:${e.textContent}` : 'none'; })); await page.waitForTimeout(150); }
@@ -51,6 +62,14 @@ try {
   // the tab bar is just Home, Play, Me
   const tabs = await page.locator('nav.lv-game a').allTextContents();
   check('simple tab bar', tabs.join('|') === 'Home|Play|Me', tabs.join('|'));
+  // the Play tab is just the plot minigames
+  await page.locator('nav.lv-game a').filter({ hasText: 'Play' }).first().click();
+  await page.waitForSelector('[data-testid=simple-play]', { timeout: 15000 }); await page.waitForTimeout(1200);
+  const playable = await page.locator('[data-testid^=simple-game-]:not([disabled])').count(), all = await page.locator('[data-testid^=simple-game-]').count();
+  check('simple Play: one card per plot minigame, the ones for your plots playable', all >= 6 && playable >= 1, `${playable}/${all}`);
+  check('…nothing wider than the screen', (await wide()) <= 0, `${await wide()}px`);
+  await shot('05-play');
+  await page.locator('nav.lv-game a').filter({ hasText: 'Home' }).first().click(); await page.waitForTimeout(1500);
   // the full game is one tap away
   await page.click('[data-testid=simple-mode-off]'); await page.waitForTimeout(3000);
   check('switching to the full game brings the map back', (await page.locator('[data-testid=world-map]').count()) === 1);

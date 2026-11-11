@@ -10,7 +10,7 @@ afterAll(() => db.close());
 
 describe('plot_blocks', () => {
   beforeAll(async () => {
-    await db.init();
+    await db.init({ basePlots: true });
     a = await db.newPlayer('blocka');
     b = await db.newPlayer('blockb');
     await db.placeAt(a, HOME.gx, HOME.gy);

@@ -1,5 +1,6 @@
 // /plots — every plot you own, in one place: sort, filter and search them, see what each one
 // earns and does, and jump straight to it (on the map, into its sanctuary or canvas, or its game).
+import { kindFamily } from '../realms/estates/meta';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -27,13 +28,13 @@ import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 
 type Row = { gx: number; gy: number; plot_type: PlotTypeId; rarity: string; level: number; claimed_at: string; group_id: string | null; has_art: boolean; name: string | null; usd_per_second: number };
 type Sort = 'newest' | 'oldest' | 'rarity' | 'rent' | 'level' | 'nearest' | 'name' | 'type';
-type Filter = 'all' | 'canvas' | 'habitat' | 'art' | 'blank';
+type Filter = 'all' | 'base' | 'canvas' | 'habitat' | 'art' | 'blank';
 const SORTS: { id: Sort; label: string }[] = [
   { id: 'rarity', label: 'Rarity' }, { id: 'rent', label: 'Rent' }, { id: 'level', label: 'Level' }, { id: 'nearest', label: 'Nearest' },
   { id: 'newest', label: 'Newest' }, { id: 'oldest', label: 'Oldest' }, { id: 'name', label: 'Name' }, { id: 'type', label: 'Type' },
 ];
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'All' }, { id: 'canvas', label: '🎨 Canvases' }, { id: 'habitat', label: '🐾 Habitats' }, { id: 'art', label: 'With art' }, { id: 'blank', label: 'Blank' },
+  { id: 'all', label: 'All' }, { id: 'base', label: '🟩 Base' }, { id: 'canvas', label: '🎨 Art' }, { id: 'habitat', label: '🐾 Habitats' }, { id: 'art', label: 'With art' }, { id: 'blank', label: 'Blank' },
 ];
 const DAY = 86400;
 export const plotTitle = (r: { name: string | null; gx: number; gy: number }) => r.name || `Plot ${r.gx.toLocaleString()} · ${r.gy.toLocaleString()}`;
@@ -51,14 +52,15 @@ export default function PlotsScreen() {
   const byGroup = useMemo(() => new Map((groups.data ?? []).map((g) => [g.id, g])), [groups.data]);
   const here = useMemo(() => { const p = explorerNow(ex.state, ex.offset); return p ? lngLatToCell(p.lng, p.lat) : null; }, [ex.state?.lng, ex.state?.lat]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = (plots.data ?? []) as Row[];
-  const kindOf = (r: Row) => (r.group_id ? byGroup.get(r.group_id)?.kind ?? 'canvas' : 'canvas');
+  const kindOf = (r: Row) => (r.group_id ? byGroup.get(r.group_id)?.kind ?? 'base' : 'base');
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     let out = rows.filter((r) => {
-      if (filter === 'canvas' && kindOf(r) !== 'canvas') return false;
+      if (filter === 'base' && kindOf(r) !== 'base') return false;
+      if (filter === 'canvas' && kindFamily(kindOf(r)) !== 'canvas') return false;
       if (filter === 'habitat' && kindOf(r) !== 'habitat') return false;
       if (filter === 'art' && !r.has_art) return false;
-      if (filter === 'blank' && (r.has_art || kindOf(r) !== 'canvas')) return false;
+      if (filter === 'blank' && (r.has_art || kindFamily(kindOf(r)) !== 'canvas')) return false;
       if (!s) return true;
       const g = r.group_id ? byGroup.get(r.group_id) : null;
       return plotTitle(r).toLowerCase().includes(s) || `${r.gx} ${r.gy}`.includes(s) || r.plot_type.includes(s) || r.rarity.includes(s) || (g?.name ?? '').toLowerCase().includes(s);
@@ -164,7 +166,7 @@ function PlotTile({ r, kind, size = 48 }: { r: Row; kind: string; size?: number 
   const ri = rarityInfo(r.rarity);
   return (
     <span className="relative grid shrink-0 place-items-center rounded-2xl text-lg" style={{ width: size, height: size, background: kind === 'habitat' ? 'linear-gradient(135deg,#6CC463,#2F7D3A)' : `linear-gradient(135deg, ${t?.a ?? '#888'}, ${t?.b ?? '#444'})`, boxShadow: `0 0 0 2px ${ri.color}, 0 6px 16px -8px ${ri.color}` }}>
-      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : kind === 'train' ? '🚆' : kind === 'plane' ? '✈️' : kind === 'home' ? '🏠' : kind === 'landlord' ? '🏘️' : r.has_art ? '🖼️' : ''}
+      {isRealm(kind) ? REALM_META[kind].emoji : kind === 'habitat' ? '🐾' : kind === 'farm' ? '🌾' : kind === 'business' ? '🍋' : kind === 'arcade' ? '🕹️' : kind === 'train' ? '🚆' : kind === 'plane' ? '✈️' : kind === 'home' ? '🏠' : kind === 'landlord' ? '🏘️' : kind === 'base' ? '🟩' : r.has_art ? '🖼️' : '🎨'}
     </span>
   );
 }
@@ -178,7 +180,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
   const d = useQuery({ queryKey: qk.plot(r.gx, r.gy), queryFn: () => api.plotDetails(r.gx, r.gy) });
   const [busy, setBusy] = useState<string | null>(null);
   const eco = world.data?.economy;
-  const kind = group?.kind ?? 'canvas';
+  const kind = group?.kind ?? 'base';
   const show = () => {
     const [lng, lat] = cellCenter(r.gx, r.gy);
     useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE + 0.6 });
@@ -216,7 +218,7 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
           : kind === 'business' && group?.business_id ? <Button variant="secondary" onClick={() => nav(`/business/${group.business_id}`)}>🍋 Open business</Button>
           : kind === 'farm' && group?.farm_id ? <Button variant="secondary" onClick={() => nav(`/farm/${group.farm_id}`)}>🌾 Enter farm</Button>
             : kind === 'habitat' && group?.habitat_id ? <Button variant="secondary" onClick={() => nav(`/habitat/${group.habitat_id}`)}><PawPrint className="h-4 w-4" /> Enter sanctuary</Button>
-            : group ? <Button variant="secondary" onClick={() => nav(`/create/${group.id}`)}><Brush className="h-4 w-4" /> Paint canvas</Button> : null}
+            : group && kindFamily(kind) === 'canvas' ? <Button variant="secondary" onClick={() => nav(`/create/${group.id}`)}><Brush className="h-4 w-4" /> Paint canvas</Button> : null}
           {group && <Button variant="secondary" onClick={() => { startMerge(group.id); show(); }}><Combine className="h-4 w-4" /> Merge</Button>}
         </div>
       </div>
