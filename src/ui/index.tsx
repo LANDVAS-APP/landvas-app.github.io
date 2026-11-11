@@ -312,9 +312,17 @@ export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, c
 }
 
 // ---- Logo -----------------------------------------------------------------------------------
-/** The LANDVAS logo: the multiverse mark (the same as the app icons), small. */
 export function LogoMark({ size = 28 }: { size?: number }) {
-  return <img src="/favicon.svg" width={size} height={size} alt="" aria-hidden className="shrink-0" draggable={false} />;
+  const cells = [
+    [0, 0, '#FF4D6D'], [0, 1, '#FF9F1C'], [0, 2, '#FFE14D'], [1, 2, '#3DDC97'], [2, 2, '#34C3FF'],
+  ] as const;
+  return (
+    <svg viewBox="0 0 30 30" width={size} height={size} aria-hidden>
+      <rect width="30" height="30" rx="8" fill="#0B1230" />
+      {[0, 1, 2].flatMap((x) => [0, 1, 2].map((y) => <rect key={`${x}${y}`} x={4 + x * 7.6} y={4 + y * 7.6} width="6.4" height="6.4" rx="1.6" fill="#1D2A63" />))}
+      {cells.map(([x, y, c]) => <rect key={`c${x}${y}`} x={4 + x * 7.6} y={4 + y * 7.6} width="6.4" height="6.4" rx="1.6" fill={c} />)}
+    </svg>
+  );
 }
 export function Wordmark({ className }: { className?: string }) {
   return (
