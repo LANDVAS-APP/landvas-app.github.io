@@ -10,7 +10,7 @@ import { Slider, Spinner, Empty } from '../ui';
 import { cn } from '../lib/utils';
 import {
   COMPETITORS, SECONDS_PER_MONTH, boostPerDay, expectedRate, groupCaps, minigameCap, minigameInk, minigameInkAt, otherCappedInk, overtakeDay, plotPrice,
-  profiles, project, pvpInk, scoreGames, streakInkPerDay,
+  profiles, project, pvpInk, rarityChoices, scoreGames, streakInkPerDay,
   type Guide as GuideData, type Projection,
 } from '../guide/model';
 
@@ -285,6 +285,7 @@ function Controls({ k, showPace }: { k: ReturnType<typeof useControls>; showPace
 
 function Calculator({ g }: { g: GuideData }) {
   const k = useControls();
+  const rar = useRarity(g);
   const real = num(g.stats.ink_per_active_hour_median);
   const enough = num(g.stats.players) >= 5 && real > 0;
   const [basis, setBasis] = useState<'real' | 'pace'>(enough ? 'real' : 'pace');
@@ -292,7 +293,7 @@ function Calculator({ g }: { g: GuideData }) {
   const b = boostPerDay(g);
   const rate = expectedRate(g);
   const free = num(g.config.economy?.free_plots, 1);
-  const lv = project(g, k.hours, k.days, k.wph)[0];
+  const lv = project(g, k.hours, k.days, k.wph, undefined, rar.mult)[0];
   const inkPerDay = basis === 'real' && enough ? real * k.hours + streakInkPerDay(g) : lv.plotsPerDay * price;
   const plots = free + Math.floor((inkPerDay * k.days) / price);
   const perPlotMonth = rate * b.avg * SECONDS_PER_MONTH;
@@ -301,6 +302,7 @@ function Calculator({ g }: { g: GuideData }) {
     <Section id="calc" title="🧮 Grind calculator" intro="How many plots you’d have and what they’d earn, if you play this much every day, buy plots with all your Ink and use your free boost every day.">
       <Card className="grid gap-4">
         <Controls k={k} showPace={basis === 'pace'} />
+        {basis === 'pace' && <RarityPicker g={g} value={rar.id} onChange={rar.setId} />}
         <div className="flex flex-wrap gap-1.5 text-xs">
           <button className={cn('rounded-full px-3 py-1.5 font-bold', basis === 'real' ? 'bg-accent text-white' : 'bg-surface-2', !enough && 'opacity-40')} disabled={!enough} onClick={() => setBasis('real')} data-testid="calc-real">What players really earn ({fmt(real)} Ink/h)</button>
           <button className={cn('rounded-full px-3 py-1.5 font-bold', basis === 'pace' ? 'bg-accent text-white' : 'bg-surface-2')} onClick={() => setBasis('pace')} data-testid="calc-pace">Focused grinding (game rates)</button>
@@ -316,6 +318,26 @@ function Calculator({ g }: { g: GuideData }) {
     </Section>
   );
 }
+
+/** which plots' Ink bonus the game-rate estimate uses */
+function RarityPicker({ g, value, onChange }: { g: GuideData; value: string; onChange(id: string): void }) {
+  const ch = rarityChoices(g);
+  const cur = ch.find((c) => c.id === value) ?? ch[0];
+  return (
+    <div className="grid gap-1.5">
+      <div className="text-xs text-muted">Plot rarity Ink bonus on minigame wins</div>
+      <div className="flex flex-wrap gap-1.5" data-testid="rarity-picker">
+        {ch.map((c) => (
+          <button key={c.id} onClick={() => onChange(c.id)} className={cn('rounded-full px-3 py-1.5 text-xs font-bold', c.id === cur.id ? 'bg-accent text-white' : 'bg-surface-2')} data-testid={`rarity-${c.id}`}>
+            {c.name} ×{c.mult.toFixed(2)}
+          </button>
+        ))}
+      </div>
+      <div className="text-[11px] text-faint">×{cur.mult.toFixed(2)}: {cur.note}.</div>
+    </div>
+  );
+}
+const useRarity = (g: GuideData) => { const ch = rarityChoices(g); const [id, setId] = useState(ch[0].id); return { id, setId, mult: (ch.find((c) => c.id === id) ?? ch[0]).mult }; };
 
 // ---- vs Atlas Earth and TerraMine -----------------------------------------------------------------------------------
 
@@ -355,11 +377,16 @@ function Bars({ rows, unit }: { rows: { name: string; color: string; v: number }
 
 function Compare({ g }: { g: GuideData }) {
   const k = useControls();
-  const series = useMemo(() => project(g, k.hours, k.days, k.wph), [g, k.hours, k.days, k.wph]);
+  const top = profiles(g).find((p) => p.id === 'top');
+  const [mode, setMode] = useState<'top' | 'rates'>(top ? 'top' : 'rates');
+  const rar = useRarity(g);
+  const useTop = mode === 'top' && !!top;
+  const hours = useTop ? top!.hours : k.hours;
+  const series = useMemo(() => project(g, hours, k.days, k.wph, useTop ? top!.inkPerDay : undefined, rar.mult), [g, hours, k.days, k.wph, useTop, top, rar.mult]);
   const [lv, tm, ae] = series;
   const A = COMPETITORS.atlas, T = COMPETITORS.terramine;
   const b = boostPerDay(g);
-  const mg = minigameInk(g);
+  const mg = minigameInk(g, 1, 34, rar.mult);
   const price = plotPrice(g);
   const end = (p: Projection) => p.plots[p.plots.length - 1];
   const lead = (v: (p: Projection) => number) => { const [x, ...rest] = series; const best = Math.max(...rest.map(v)); return best > 0 ? v(x) / best : Infinity; };
@@ -377,7 +404,7 @@ function Compare({ g }: { g: GuideData }) {
           <div className="sticky top-0 z-10 grid grid-cols-3 gap-2 rounded-t-3xl bg-bg-2/95 px-3 py-2.5 text-xs font-black backdrop-blur"><span className="text-[#B69CFF]">LANDVAS</span><span style={{ color: T.color }}>{T.emoji} TerraMine</span><span style={{ color: A.color }}>{A.emoji} Atlas Earth</span></div>
             {row('Free to start', `${A.startPlots} parcel`, `${T.startPlots} mines (1,000 TB)`, `${fmt(num(g.config.economy?.free_plots, 1))} plot${num(g.config.economy?.free_plots, 1) === 1 ? '' : 's'}`)}
             {row('A plot costs', `${A.plotCost} Atlas Bucks`, `${T.plotCost} TerraBucks`, `${fmt(price)} Ink`)}
-            {row('Earned per minigame win', 'no minigame currency (2 Atlas Bucks per ad)', `${fmt(T.earn.perWin, 1)} TB (levels 1–34)`, `${fmt(mg.perWin, 1)} Ink (levels 1–34)`)}
+            {row('Earned per minigame win', 'no minigame currency (2 Atlas Bucks per ad)', `${fmt(T.earn.perWin, 1)} TB (levels 1–34, mine mix)`, `${fmt(mg.perWin, 1)} Ink (levels 1–34, ×${rar.mult.toFixed(2)} rarity)`)}
             {row('Minigame wins per plot', '50 ads per parcel', fmt(T.plotCost / T.earn.perWin), fmt(price / mg.perWin, 1))}
             {row('Average rent / plot / day, no boost', `${usd(A.ratePerPlot * 86400)} (Common)`, usd(T.ratePerPlot * 86400), usd(expectedRate(g) * 86400))}
             {row('Rent boost', `×${A.boost.mult}, up to ${A.boost.hours} h a day`, `×${T.boost.mult}, up to ${T.boost.hours} h stacked`, `×${b.mult}, ${fmt(b.hours, 1)} free h a day`)}
@@ -388,7 +415,24 @@ function Compare({ g }: { g: GuideData }) {
       </Card>
 
       <Card className="grid gap-4">
-        <Controls k={k} showPace />
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          <button className={cn('rounded-full px-3 py-1.5 font-bold', useTop ? 'bg-accent text-white' : 'bg-surface-2', !top && 'opacity-40')} disabled={!top} onClick={() => setMode('top')} data-testid="compare-mode-top">Top players (real, every source)</button>
+          <button className={cn('rounded-full px-3 py-1.5 font-bold', !useTop ? 'bg-accent text-white' : 'bg-surface-2')} onClick={() => setMode('rates')} data-testid="compare-mode-rates">Game rates (pick hours)</button>
+        </div>
+        {useTop ? (
+          <>
+            <p className="-mt-1 text-xs text-muted" data-testid="compare-top-note">LANDVAS: {fmt(top!.inkPerDay)} Ink a day, what top players really earn over about {fmt(top!.hours, 1)} h from every source{num(g.stats.minigame_rarity?.top?.avg_mult) > 0 ? `, their minigame wins averaging a ×${num(g.stats.minigame_rarity?.top?.avg_mult).toFixed(2)} plot-rarity bonus` : ', plot-rarity bonuses included'}. TerraMine and Atlas Earth get the same {fmt(top!.hours, 1)} h.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Slider id="c-days" label="For" value={k.days} min={7} max={365} step={1} onChange={k.setDays} format={(d) => `${d} days`} />
+              <Slider id="c-pace" label="Their minigame wins an hour" value={k.wph} min={10} max={90} step={5} onChange={k.setWph} format={(w) => `${w}`} />
+            </div>
+          </>
+        ) : (
+          <>
+            <Controls k={k} showPace />
+            <RarityPicker g={g} value={rar.id} onChange={rar.setId} />
+          </>
+        )}
         <div className="grid grid-cols-3 gap-2" data-testid="compare-results">
           {series.map((p) => (
             <div key={p.id} className="rounded-2xl p-3" style={{ background: `${p.color}1f`, boxShadow: `inset 0 0 0 1.5px ${p.color}55` }} data-testid={`compare-${p.id}`}>
@@ -415,7 +459,8 @@ function Compare({ g }: { g: GuideData }) {
           <summary className="cursor-pointer font-bold">How this is worked out</summary>
           <ul className="mt-2 grid list-disc gap-1 pl-4">
             <li>Everyone spends all their currency on plots, uses their boost every day, and plays the same hours at the same pace (minigame wins an hour).</li>
-            <li>LANDVAS counts only minigames, PvP, the capped games (Inkborn, planets, space, arena) and the daily streak, each with its daily limit. Farms, businesses, realms, arcades, art and invites are left out, so LANDVAS’s line is a floor.</li>
+            <li>“Top players” uses what LANDVAS’s top tenth of days really earned, from every Ink source, with their plots’ rarity bonuses already in it.</li>
+            <li>“Game rates” multiplies minigame Ink by the plot-rarity bonus you pick (the default is what top players’ plots really averaged), and counts only minigames, PvP, the capped games (Inkborn, planets, space, arena) and the daily streak, each with its daily limit. Farms, businesses, realms, arcades, art and invites are left out, so LANDVAS’s line is a floor.</li>
             <li>TerraMine: {T.earn.note}, weighted by how often each mine type comes up; its minigames’ daily limits aren’t published, so none are applied. Rent is Rock’s community-measured {usd(0.002851)} a month × the published 1/1.5/2/4 mine multipliers and 60/30/9/1 odds, boosted {T.boost.hours} hours a day.</li>
             <li>Atlas Earth has no minigame currency: {A.earn.note} ({A.earn.perDayCap} a day at most). Rent uses the Common rate because Atlas doesn’t publish its rarity odds; rarer parcels earn up to 4×. Boost: {A.boost.note}.</li>
             <li>Per plot, LANDVAS rent is lower once boosts are counted (fewer free boost hours a day), but LANDVAS players get plots several times faster, so they come out ahead in total.</li>
@@ -440,6 +485,7 @@ function MinigameByRarity({ g }: { g: GuideData }) {
   const cap = minigameCap(g);
   const bonus = num(m.plot_level_bonus, 0.05);
   const rows = g.rarities.filter((r) => num(r.chance) > 0 || r.ultra || num(r.ink_mult) > 1);
+  const mr = g.stats.minigame_rarity;
   return (
     <Section id="minigames" title="🎮 Ink per minigame win, by rarity" intro={<>Every plot’s minigame pays the level’s Ink × the plot’s rarity bonus × its plot-level bonus (+{fmt(bonus * 100)}% per plot level, so a level-10 plot pays ×{(1 + bonus * 9).toFixed(2)}). {Number.isFinite(cap) ? `Each game pays for ${cap} wins a day; after that wins are practice.` : 'There is no daily limit right now: every win pays.'}</>}>
       <Card className="p-0">
@@ -458,6 +504,9 @@ function MinigameByRarity({ g }: { g: GuideData }) {
         </table>
         <p className="px-3 pb-3 text-[11px] text-faint">Ink for clearing a level on a plot-level-1 plot, averaged over the {Object.keys(m.games ?? {}).length} minigames. Multiply by the plot-level bonus for upgraded plots.</p>
       </Card>
+      {mr?.all && num(mr.all.wins) > 0 && (
+        <p className="text-xs font-semibold text-[#3DDC97]" data-testid="guide-mg-real">📊 Players’ paid wins in the last {g.stats.days} days averaged a ×{num(mr.all.avg_mult).toFixed(2)} rarity bonus (plot level {num(mr.all.avg_plot_level).toFixed(1)}){mr.top && num(mr.top.wins) > 0 ? `; top players’ averaged ×${num(mr.top.avg_mult).toFixed(2)} (plot level ${num(mr.top.avg_plot_level).toFixed(1)})` : ''}.</p>
+      )}
     </Section>
   );
 }
@@ -564,7 +613,7 @@ function Progression({ g }: { g: GuideData }) {
   const real = profiles(g);
   const fallback = [{ id: 'model', name: '1 h a day (game rates)', inkPerDay: project(g, 1, 1, 30)[0].currencyPerDay, hours: 1, note: 'no measured data yet' }];
   const list = real.length ? real : fallback;
-  const [pid, setPid] = useState(list[Math.min(2, list.length - 1)].id);
+  const [pid, setPid] = useState(list[0].id);
   const p = list.find((x) => x.id === pid) ?? list[0];
   const [days, setDays] = useState(90);
   const [wph, setWph] = useState(30);

@@ -15,6 +15,7 @@ export type GuideStats = {
   grinders?: { days: number; avg_ink: number | null; avg_hours: number | null; ink_per_active_hour: number | null; p50: number | null; p90: number | null };
   top10pct?: { days: number; avg_ink: number | null; avg_hours: number | null; ink_per_active_hour: number | null };
   top_days_sources?: Record<string, number>;
+  minigame_rarity?: { all?: { wins: number; avg_mult: number | null; avg_plot_level: number | null }; top?: { wins: number; avg_mult: number | null; avg_plot_level: number | null; players: number }; by_mult?: { mult: number; wins: number }[] };
   claims_per_day?: { player_days: number; avg: number | null; p50: number | null; p90: number | null; max: number | null };
   minigames: { plays: number; win_rate: number | null; median_seconds: number | null };
 };
@@ -44,10 +45,22 @@ export function boostPerDay(g: Guide) {
 export function plotPrice(g: Guide) { return n(g.config.economy?.acquire?.base_ink, 100); }
 
 /** the classic minigames: Ink for a win at each level (averaged over the games), with the plot's expected rarity bonus */
-export function minigameInk(g: Guide, from = 1, to = 34) {
+export function minigameInk(g: Guide, from = 1, to = 34, inkMult?: number) {
   const games = Object.values(g.config.minigames?.games ?? {}).filter((x: any) => x?.enabled !== false) as any[];
   const per = games.map((x) => avg((x.level_ink ?? []).slice(from - 1, to).map(Number)) * n(x.ink_multiplier, 1));
-  return { perWin: avg(per) * expectedInkMult(g), games: games.length, winsPerGamePerDay: n(g.config.minigames?.daily_rewarded_wins_per_game, Infinity) };
+  return { perWin: avg(per) * (inkMult ?? expectedInkMult(g)), games: games.length, winsPerGamePerDay: n(g.config.minigames?.daily_rewarded_wins_per_game, Infinity) };
+}
+
+export type RarityChoice = { id: string; name: string; mult: number; note: string };
+/** which plots' Ink bonus to use for minigame wins: the average claim, what players really got, or a rarity */
+export function rarityChoices(g: Guide): RarityChoice[] {
+  const mr = g.stats?.minigame_rarity;
+  const out: RarityChoice[] = [];
+  if (mr?.top && n(mr.top.wins) >= 20 && n(mr.top.avg_mult) > 0) out.push({ id: 'top', name: 'Top players’ plots', mult: n(mr.top.avg_mult), note: `the real average rarity bonus on top players’ wins (${n(mr.top.wins).toLocaleString()} wins)` });
+  if (mr?.all && n(mr.all.wins) >= 20 && n(mr.all.avg_mult) > 0) out.push({ id: 'all', name: 'All players’ plots', mult: n(mr.all.avg_mult), note: 'the real average rarity bonus on everyone’s wins' });
+  out.push({ id: 'claim', name: 'An average claim', mult: expectedInkMult(g), note: 'each rarity’s chance × its Ink bonus' });
+  for (const r of g.rarities.filter((x) => !x.ultra && n(x.chance) > 0 && n(x.ink_mult, 1) > 1)) out.push({ id: r.id, name: `All ${r.name}`, mult: n(r.ink_mult, 1), note: `every win on ${r.name} plots` });
+  return out;
 }
 /** is the classic minigames' daily paid-win cap on? (an admin can switch it off) */
 export function minigameCap(g: Guide) {
@@ -95,12 +108,13 @@ export function profiles(g: Guide): Profile[] {
   const s = g.stats;
   const d = s.player_days;
   if (!d || n(s.players) < 5) return [];
-  const out: Profile[] = [
-    { id: 'typical', name: 'Typical day', inkPerDay: n(d.p50), hours: Math.max(0.25, n(d.hours_p50, 1)), note: 'the median day of play' },
-    { id: 'keen', name: 'Keen player', inkPerDay: n(d.p75), hours: Math.max(0.25, n(d.hours_p75, 1)), note: 'better than 3 in 4 days' },
-  ];
-  if (s.grinders && n(s.grinders.days) > 0) out.push({ id: 'grinder', name: 'Grinder', inkPerDay: n(s.grinders.avg_ink), hours: n(s.grinders.avg_hours, 3), note: 'the average day with 3+ hours of play' });
-  if (s.top10pct && n(s.top10pct.days) > 0) out.push({ id: 'top', name: 'Top 10% days', inkPerDay: n(s.top10pct.avg_ink), hours: n(s.top10pct.avg_hours, 3), note: 'the average of the best tenth of days' });
+  const rb = n(s.minigame_rarity?.top?.avg_mult);
+  const out: Profile[] = [];
+  if (s.top10pct && n(s.top10pct.days) > 0) out.push({ id: 'top', name: 'Top players', inkPerDay: n(s.top10pct.avg_ink), hours: n(s.top10pct.avg_hours, 3),
+    note: `the average of the best tenth of days, with Ink from every source${rb > 0 ? ` (their minigame wins averaged a ×${rb.toFixed(2)} plot-rarity bonus, already counted)` : ' (plot-rarity bonuses already counted)'}` });
+  if (s.grinders && n(s.grinders.days) > 0) out.push({ id: 'grinder', name: 'Grinder', inkPerDay: n(s.grinders.avg_ink), hours: n(s.grinders.avg_hours, 3), note: 'the average day with 3+ hours of play, every source' });
+  out.push({ id: 'keen', name: 'Keen player', inkPerDay: n(d.p75), hours: Math.max(0.25, n(d.hours_p75, 1)), note: 'better than 3 in 4 days' });
+  out.push({ id: 'typical', name: 'Typical day', inkPerDay: n(d.p50), hours: Math.max(0.25, n(d.hours_p50, 1)), note: 'the median day of play' });
   return out;
 }
 
@@ -174,8 +188,8 @@ export type GameId = 'landvas' | 'atlas' | 'terramine';
 export type Projection = { id: GameId; name: string; color: string; plots: number[]; monthly: number[]; earned: number[]; perPlotMonthly: number; plotsPerDay: number; currencyPerDay: number };
 
 /** where each game gets you after `days` days of `hours` of play a day, `winsPerHour` minigame wins an hour */
-export function project(g: Guide, hours: number, days: number, winsPerHour: number, landvasInkPerDay?: number): Projection[] {
-  const mg = minigameInk(g);
+export function project(g: Guide, hours: number, days: number, winsPerHour: number, landvasInkPerDay?: number, inkMult?: number): Projection[] {
+  const mg = minigameInk(g, 1, 34, inkMult);
   const pv = pvpInk(g);
   const wins = hours * winsPerHour;
   // LANDVAS: classic minigame wins (with their daily cap), then PvP wins (with theirs), then the other games that have a

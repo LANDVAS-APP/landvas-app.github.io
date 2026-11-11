@@ -54,6 +54,18 @@ describe('game guide', () => {
     const c = (await db.rpc(null, 'game_guide')).config;
     expect(c.arcade.games).toBeTruthy(); expect(c.realms.kinds).toBeUndefined(); expect(Array.isArray(c.realms.games)).toBe(true);
   });
+  it('measures the plot-rarity Ink bonus players really got on minigame wins, for everyone and the top players', async () => {
+    const mk = async (uid: string, rm: number, ink: number) => {
+      const sid = (await db.sql(`insert into minigame_sessions (player_id, game, level, seed, gx, gy, status, expires_at) values ($1, 'tracecraft', 1, 1, 1, 1, 'validated', now() + interval '1 hour') returning id`, [uid]))[0].id;
+      await db.sql(`insert into minigame_rewards (session_id, player_id, ink, breakdown) values ($1, $2, $3, jsonb_build_object('rarity', $4::numeric, 'plot_level', 1))`, [sid, uid, ink, rm]);
+    };
+    await mk(b, 2.25, 13); await mk(b, 1.7, 10); await mk(a, 1, 6);
+    await db.sql(`delete from private.guide_cache`);
+    const r = (await db.rpc(null, 'game_guide')).stats.minigame_rarity;
+    expect(r.all.wins).toBe(3);
+    expect(Number(r.all.avg_mult)).toBeCloseTo((2.25 + 1.7 + 1) / 3, 2);
+    expect(Number(r.top.avg_mult)).toBeCloseTo((2.25 + 1.7) / 2, 2); // b earned the most
+  });
   it('a rate change shows up straight away (only the stats are cached)', async () => {
     await db.sql(`update plot_rarities set usd_per_second = 0.000000002 where id = 'common'`);
     await db.sql(`update game_config set value = jsonb_set(value, '{acquire,base_ink}', '90') where key = 'economy'`);

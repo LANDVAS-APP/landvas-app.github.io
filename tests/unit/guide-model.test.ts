@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boostPerDay, expectedRate, minigameInk, minigameInkAt, minigameCap, scoreGames, groupCaps, profiles, overtakeDay, project, COMPETITORS, SECONDS_PER_MONTH, type Guide } from '../../src/guide/model';
+import { boostPerDay, expectedRate, minigameInk, minigameInkAt, minigameCap, scoreGames, groupCaps, profiles, overtakeDay, rarityChoices, project, COMPETITORS, SECONDS_PER_MONTH, type Guide } from '../../src/guide/model';
 
 const level_ink = Array.from({ length: 60 }, (_, i) => 6 + Math.floor(i * 0.4));
 const g = (over: Record<string, any> = {}): Guide => ({
@@ -67,12 +67,20 @@ describe('guide model', () => {
   it('real profiles come from the measured days, and LANDVAS uses that Ink in the race', () => {
     const x = g(); x.stats = { players: 20, player_days: { p50: 400, p75: 1200, hours_p50: 1, hours_p75: 2 }, grinders: { days: 5, avg_ink: 6000, avg_hours: 5 }, top10pct: { days: 3, avg_ink: 8000, avg_hours: 6 } } as any;
     const ps = profiles(x);
-    expect(ps.map((p) => p.id)).toEqual(['typical', 'keen', 'grinder', 'top']);
+    expect(ps.map((p) => p.id)).toEqual(['top', 'grinder', 'keen', 'typical']);
     const [lv, tm] = project(x, 5, 30, 30, 6000);
     expect(lv.plotsPerDay).toBe(60);
     expect(tm.currencyPerDay).toBeCloseTo(5 * 30 * COMPETITORS.terramine.earn.perWin);
     expect(overtakeDay(lv, tm)).not.toBeNull();
     const few = g(); few.stats = { players: 2 } as any;
     expect(profiles(few)).toEqual([]);
+  });
+  it('plot-rarity Ink: choices from real wins and each rarity, and they change minigame Ink', () => {
+    const x = g(); x.stats = { players: 20, minigame_rarity: { top: { wins: 500, avg_mult: 1.8 }, all: { wins: 900, avg_mult: 1.2 } } } as any;
+    const ch = rarityChoices(x);
+    expect(ch.map((c) => c.id)).toEqual(['top', 'all', 'claim', 'rare']);
+    expect(minigameInk(x, 1, 1, 1.8).perWin).toBeCloseTo(6 * 1.8);
+    const base = project(x, 1, 5, 10, undefined, 1)[0].plotsPerDay, topMix = project(x, 1, 5, 10, undefined, 1.8)[0].plotsPerDay;
+    expect(topMix).toBeGreaterThan(base);
   });
 });
