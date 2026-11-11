@@ -142,6 +142,10 @@ export function ModeButton() {
               <span>📘 The guide<span className="block text-[10px] font-semibold text-white/50">Live rates, Ink per activity, what you can earn</span></span>
               <span className="text-white/50">›</span>
             </Link>
+            <div className="mx-1 grid grid-cols-2 gap-1.5">
+              <Link to="/rankings/rarities" onClick={() => setOpen(false)} data-testid="open-rarity-rankings" className="rounded-xl bg-white/[0.06] px-2 py-1.5 text-xs font-bold text-white/90 hover:bg-white/10">💎 Rarity rankings</Link>
+              <Link to="/royalty" onClick={() => setOpen(false)} data-testid="open-royalty" className="rounded-xl bg-white/[0.06] px-2 py-1.5 text-xs font-bold text-[#FFD84D] hover:bg-white/10">👑 Royalty</Link>
+            </div>
             <Link to="/legend" onClick={() => setOpen(false)} data-testid="open-legend"
               className="mx-1 flex items-center justify-between gap-3 rounded-xl bg-white/[0.06] px-2 py-1.5 text-left text-xs font-bold text-white/90 hover:bg-white/10">
               <span>📖 Rarity guide<span className="block text-[10px] font-semibold text-white/50">Every rarity: what it earns and how to get it</span></span>

@@ -471,6 +471,7 @@ function Earnings() {
     <div className="grid gap-4 xl:grid-cols-2">
       <MinigameEarnings value={cfg.data.config.minigames.value} rarities={cfg.data.rarities} />
       <div className="grid content-start gap-4">
+        <OddsEditor rarities={cfg.data.rarities} config={cfg.data.config} />
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
@@ -623,6 +624,100 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
   );
 }
 
+const EVERYDAY: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+const CROWNS = ['crown', 'crown_state', 'crown_country'] as const;
+/** the real odds of every roll, in plain numbers: % for the everyday table, "1 in N" for ultras, Crowns and Shiny */
+function OddsEditor({ rarities, config }: { rarities: any[]; config: Record<string, { value: any }> }) {
+  const qc = useQueryClient();
+  const save = useSaveConfig();
+  const everyday = EVERYDAY.map((id) => rarities.find((r: any) => r.id === id)).filter(Boolean);
+  const ultras = rarities.filter((r: any) => !EVERYDAY.includes(r.id) && !r.id.startsWith('crown'));
+  const totalW = everyday.reduce((t: number, r: any) => t + (Number(r.weight) || 0), 0) || 1;
+  const startPct = () => Object.fromEntries(everyday.map((r: any) => [r.id, +((Number(r.weight) / totalW) * 100).toFixed(4)])) as Record<string, number>;
+  const startOne = () => Object.fromEntries(ultras.map((r: any) => [r.id, Number(r.ppm) > 0 ? Math.round(1_000_000 / Number(r.ppm)) : 0])) as Record<string, number>;
+  const ab = config.rarity_abilities?.value ?? {};
+  const sh = config.shiny?.value ?? {};
+  const [pct, setPct] = useState(startPct);
+  const [oneIn, setOneIn] = useState(startOne);
+  const [crown, setCrown] = useState<Record<string, number>>(() => Object.fromEntries(CROWNS.map((k) => [k, Number(ab[k]?.ppm) > 0 ? Math.round(1_000_000 / Number(ab[k].ppm)) : 0])));
+  const [shiny, setShiny] = useState(Number(sh.one_in ?? 1000));
+  useEffect(() => { setPct(startPct()); setOneIn(startOne()); }, [rarities]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sum = Object.values(pct).reduce((t, v) => t + (Number(v) || 0), 0);
+  const ultraTotal = Object.values(oneIn).reduce((t, v) => t + (v > 0 ? 1 / v : 0), 0);
+  const ok = Math.abs(sum - 100) < 0.01 && ultraTotal < 0.5 && Object.values(oneIn).every((v) => v === 0 || v >= 1);
+  const balance = () => setPct({ ...pct, common: +Math.max(0, (Number(pct.common) || 0) + 100 - sum).toFixed(4) });
+  const changed = everyday.some((r: any) => Math.abs((Number(pct[r.id]) || 0) - startPct()[r.id]) > 1e-9) || ultras.some((r: any) => oneIn[r.id] !== startOne()[r.id]);
+  const saveRolls = async () => {
+    try {
+      for (const r of everyday) {
+        const w = Math.round((Number(pct[r.id]) || 0) * 10_000); // 100% = 1,000,000
+        if (w !== Number(r.weight)) await api.admin.updateRarity(r.id, { weight: w });
+      }
+      for (const r of ultras) {
+        const ppm = oneIn[r.id] > 0 ? Math.max(1, Math.round(1_000_000 / oneIn[r.id])) : 0;
+        if (ppm !== Number(r.ppm)) await api.admin.updateRarity(r.id, { ppm });
+      }
+      toast.success('Odds saved — new claims roll with them now');
+    } catch (e) { toast.error(toGameError(e).message); }
+    void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); void qc.invalidateQueries({ queryKey: ['world'] }); void qc.invalidateQueries({ queryKey: ['game-guide'] });
+  };
+  const num = (v: string) => (v === '' ? 0 : Number(v));
+  const pctText = (p: number) => (p >= 1 ? `${p.toFixed(2)}%` : p > 0 ? `${p.toPrecision(2)}% (1 in ${Math.round(100 / p).toLocaleString()})` : '—');
+  return (
+    <Card title="🎲 Odds: how often each rarity is rolled">
+      <div className="grid gap-3 text-sm" data-testid="admin-odds">
+        <p className="text-xs text-muted">Every claim first rolls each ultra on its own (“1 in N”). If none hits, it rolls the everyday table below, by these percentages. Changes apply to plots not yet claimed, straight away. The Guide and Rarities pages update by themselves.</p>
+        <div className="grid gap-1.5">
+          <div className="grid grid-cols-[1fr_6.5rem_7rem] gap-2 text-[11px] font-bold uppercase tracking-wide text-muted"><span>Everyday</span><span>% of the table</span><span className="text-right">Real chance a claim</span></div>
+          {everyday.map((r: any) => (
+            <div key={r.id} className="grid grid-cols-[1fr_6.5rem_7rem] items-center gap-2">
+              <RarityBadge r={r.id} small />
+              <span className="flex items-center gap-1"><input type="number" step="0.01" min={0} max={100} className={cn(inputCls, 'h-8 text-xs tnum')} value={pct[r.id] ?? 0} onChange={(e) => setPct({ ...pct, [r.id]: num(e.target.value) })} data-testid={`odds-pct-${r.id}`} />%</span>
+              <span className="text-right text-xs tnum text-muted">{pctText((Number(pct[r.id]) || 0) * (1 - ultraTotal))}</span>
+            </div>
+          ))}
+          <div className={cn('flex flex-wrap items-center gap-2 text-xs font-bold', Math.abs(sum - 100) < 0.01 ? 'text-ok' : 'text-hot')} data-testid="odds-sum">
+            Total {sum.toFixed(2)}%{Math.abs(sum - 100) >= 0.01 && <> — must be 100% <Button size="sm" variant="secondary" onClick={balance} data-testid="odds-balance">Put the difference in Common</Button></>}
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <div className="grid grid-cols-[1fr_6.5rem_7rem] gap-2 text-[11px] font-bold uppercase tracking-wide text-muted"><span>Ultras</span><span>1 in …</span><span className="text-right">Chance a claim</span></div>
+          {ultras.map((r: any) => (
+            <div key={r.id} className="grid grid-cols-[1fr_6.5rem_7rem] items-center gap-2">
+              <RarityBadge r={r.id} small />
+              <input type="number" min={0} className={cn(inputCls, 'h-8 text-xs tnum')} value={oneIn[r.id] ?? 0} onChange={(e) => setOneIn({ ...oneIn, [r.id]: Math.max(0, Math.round(num(e.target.value))) })} data-testid={`odds-onein-${r.id}`} />
+              <span className="text-right text-xs tnum text-muted">{oneIn[r.id] > 0 ? pctText(100 / oneIn[r.id]) : 'off'}</span>
+            </div>
+          ))}
+          <p className="text-[11px] text-faint">0 turns an ultra off. All ultras together: {pctText(ultraTotal * 100)} of claims.{ultraTotal >= 0.5 ? ' That’s too many — keep it under 50%.' : ''}</p>
+        </div>
+        <div><Button disabled={!ok || !changed} onClick={() => void saveRolls()} data-testid="odds-save">Save rarity odds</Button></div>
+
+        <div className="grid gap-1.5 border-t border-line pt-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-muted">Crowns (only roll where that kingdom has none yet) and Shiny</div>
+          {CROWNS.map((k) => (
+            <div key={k} className="grid grid-cols-[1fr_6.5rem_7rem] items-center gap-2">
+              <RarityBadge r={k} small />
+              <input type="number" min={1} className={cn(inputCls, 'h-8 text-xs tnum')} value={crown[k]} onChange={(e) => setCrown({ ...crown, [k]: Math.max(1, Math.round(num(e.target.value))) })} data-testid={`odds-crown-${k}`} />
+              <span className="text-right text-xs tnum text-muted">{pctText(100 / Math.max(1, crown[k]))}</span>
+            </div>
+          ))}
+          <div className="grid grid-cols-[1fr_6.5rem_7rem] items-center gap-2">
+            <span className="text-xs font-bold">✨ Shiny (on top of any rarity)</span>
+            <input type="number" min={1} className={cn(inputCls, 'h-8 text-xs tnum')} value={shiny} onChange={(e) => setShiny(Math.max(1, Math.round(num(e.target.value))))} data-testid="odds-shiny" />
+            <span className="text-right text-xs tnum text-muted">{pctText(100 / Math.max(1, shiny))}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" data-testid="odds-crowns-save" onClick={() => void save('rarity_abilities', { ...ab, ...Object.fromEntries(CROWNS.map((k) => [k, { ...(ab[k] ?? {}), ppm: Math.max(1, Math.round(1_000_000 / Math.max(1, crown[k]))) }])) }, 'Crown odds saved')}>Save Crown odds</Button>
+            <Button size="sm" variant="secondary" data-testid="odds-shiny-save" onClick={() => void save('shiny', { ...sh, one_in: shiny }, 'Shiny odds saved')}>Save Shiny odds</Button>
+          </div>
+          <p className="text-[11px] text-faint">In the Hot Zone, ultras and Crowns are ×{Number(config.hot_zones?.value?.ultra_mult ?? 5)} likelier and Shiny ×{Number(config.hot_zones?.value?.shiny_mult ?? 2)}; full Luck makes ultras likelier too.</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function RarityRates({ rarities }: { rarities: any[] }) {
   const qc = useQueryClient();
   type Edit = { usd?: string; ink?: string; odds?: string; emoji?: string; ability?: string; name?: string };
@@ -641,7 +736,7 @@ function RarityRates({ rarities }: { rarities: any[] }) {
     run(() => api.admin.updateRarity(id as RarityId, patch), `${r.name} updated`, () => { setEdit({ ...edit, [id]: {} }); refresh(); });
   };
   return (
-    <Card title="Rarities: odds, rent, Ink bonus and abilities">
+    <Card title="Rarities: rent, Ink bonus and abilities">
       <div className="grid gap-3" data-testid="admin-rarities">
         {RARITY_ORDER.map((id) => {
           const r = rarities.find((x: any) => x.id === id);
@@ -658,7 +753,6 @@ function RarityRates({ rarities }: { rarities: any[] }) {
                 <span className="text-xs tnum text-muted">{odds} · {formatRate(Number(r.usd_per_second))} · ×{Number(r.ink_reward_multiplier).toFixed(2)} Ink</span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                {!crown && <input className={cn(inputCls, 'h-8 w-28 text-xs')} placeholder={ultra ? '1 in N' : 'Weight'} value={e.odds ?? ''} onChange={set('odds')} data-testid={`rarity-odds-${id}`} />}
                 <input className={cn(inputCls, 'h-8 w-32 text-xs')} placeholder="USD / second" value={e.usd ?? ''} onChange={set('usd')} />
                 <input className={cn(inputCls, 'h-8 w-16 text-xs')} placeholder="Ink ×" value={e.ink ?? ''} onChange={set('ink')} />
                 <input className={cn(inputCls, 'h-8 w-28 text-xs')} placeholder={r.name} value={e.name ?? ''} onChange={set('name')} />
@@ -669,7 +763,7 @@ function RarityRates({ rarities }: { rarities: any[] }) {
             </div>
           );
         })}
-        <p className="text-xs text-faint">Everyday rarities share the table by weight; ultras each roll on their own (“1 in N”). Odds changes apply to plots not yet claimed; rent changes bank everyone’s rent first, so they never apply retroactively. Crowns have their own rolls (one per kingdom) in the rarity_abilities config.</p>
+        <p className="text-xs text-faint">Set how often each rarity rolls in the Odds card above. Rent changes bank everyone’s rent first, so they never apply retroactively.</p>
       </div>
     </Card>
   );

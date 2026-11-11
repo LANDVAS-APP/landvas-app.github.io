@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, BookOpen, Brush, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
+import { Award, BookOpen, Brush, Crown, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -41,6 +41,8 @@ export default function MeHub() {
     { to: '/clans', label: 'My clan', icon: Users, hint: 'Clan hall, goals, battles' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top players' },
+    { to: '/rankings/rarities', label: 'Rarity rankings', icon: Trophy, hint: 'Who owns the most of each rarity' },
+    { to: '/royalty', label: 'Royalty', icon: Crown, hint: 'Every Crown and who holds it' },
     { to: `/u/${p.username}`, label: 'Public profile', icon: Brush, hint: 'What others see' },
     { to: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Theme, GPS, tabs, account' },
     { to: '/pvp', label: 'PvP minigames', icon: Gamepad2, hint: 'Free head-to-head games' },

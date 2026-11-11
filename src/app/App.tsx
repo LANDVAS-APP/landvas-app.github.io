@@ -51,6 +51,8 @@ const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
+const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
+const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
 const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
@@ -135,7 +137,7 @@ function OnboardingGate() {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/clans/, 'Clans'], [/^\/clan\/hall/, 'Clan hall'],
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
@@ -232,6 +234,8 @@ const routes: RouteObject[] = [
           { path: '/achievements', element: player(<AchievementsScreen />) },
           { path: '/legend', element: p(<LegendScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },
+          { path: '/royalty', element: p(<RoyaltyScreen />) },
+          { path: '/rankings/rarities', element: p(<RarityRankingsScreen />) },
           { path: '/leaderboards', element: p(<LeaderboardsScreen />) },
           { path: '/inventory', element: player(<InventoryScreen />) },
           { path: '/events', element: p(<EventsScreen />) },

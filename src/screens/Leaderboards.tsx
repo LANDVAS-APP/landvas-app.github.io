@@ -31,6 +31,10 @@ export default function Leaderboards() {
   return (
     <Page>
       <PageHeader eyebrow="Real players only" title="Rankings">The top 50 in each category. Everyone listed is a real account.</PageHeader>
+      <div className="mb-3 grid grid-cols-2 gap-2" data-testid="lb-links">
+        <Link to="/rankings/rarities" className="glass flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold">💎 Rarity rankings<span className="ml-auto text-muted">›</span></Link>
+        <Link to="/royalty" className="glass flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold text-[#FFD84D]">👑 Royalty<span className="ml-auto text-muted">›</span></Link>
+      </div>
       <div className="mb-4 overflow-x-auto scroll-thin"><Tabs value={kind} onValueChange={setKind} items={KINDS.map(({ value, label }) => ({ value, label }))} /></div>
       {q.isLoading ? <div className="flex justify-center py-16"><Spinner /></div> : !rows.length ? (
         <Empty icon={<Trophy className="h-6 w-6" />} title="No one here yet">Be the first — this board fills up as players claim, paint and play.</Empty>

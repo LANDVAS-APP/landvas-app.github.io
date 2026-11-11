@@ -86,7 +86,7 @@ function GuideBody({ g }: { g: GuideData }) {
       </PageHeader>
       <div className="-mt-3 mb-5 flex flex-wrap items-center gap-2 text-xs text-muted" data-testid="guide-live">
         <span className="lv-live"><i /> Live</span> Rates checked {ago(g.updated_at)} · player averages from the last {s.days} days, refreshed {ago(g.stats_at)}
-        <Link to="/legend" className="ml-auto font-semibold text-accent-2 hover:underline">Every rarity in detail →</Link>
+        <span className="ml-auto flex gap-3"><Link to="/rankings/rarities" className="font-semibold text-accent-2 hover:underline">Rarity rankings</Link><Link to="/royalty" className="font-semibold text-[#FFD84D] hover:underline">Royalty</Link><Link to="/legend" className="font-semibold text-accent-2 hover:underline">Every rarity →</Link></span>
       </div>
       <nav className="mb-7 flex flex-wrap gap-1.5">
         {TOC.map(([id, t]) => <a key={id} href={`#${id}`} className="rounded-full bg-surface-2/70 px-3 py-1.5 text-xs font-bold hover:bg-surface-2">{t}</a>)}

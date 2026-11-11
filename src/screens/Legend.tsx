@@ -80,6 +80,10 @@ export default function Legend() {
       <Link to="/guide" className="glass mb-6 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold" data-testid="legend-to-guide">
         <span>📘 The full guide<span className="block text-xs font-semibold text-muted">Live rates, Ink per activity, what players earn, and LANDVAS vs Atlas Earth & TerraMine</span></span><span className="text-muted">›</span>
       </Link>
+      <div className="-mt-3 mb-6 grid grid-cols-2 gap-2">
+        <Link to="/rankings/rarities" className="glass rounded-2xl px-3 py-2.5 text-sm font-bold" data-testid="legend-to-rankings">🏆 Rarity rankings</Link>
+        <Link to="/royalty" className="glass rounded-2xl px-3 py-2.5 text-sm font-bold text-[#FFD84D]">👑 Royalty</Link>
+      </div>
 
       <section className="mb-7 grid gap-3" data-testid="legend-basics">
         <h2 className="eyebrow">How it works</h2>
@@ -101,7 +105,7 @@ export default function Legend() {
               <div key={r} className="glass flex items-center gap-3 rounded-2xl p-3" data-testid={`legend-${r}`}>
                 <BasePlotArt rarity={r} size={44} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2"><b style={{ color: i.color }}>{i.name}</b><span className="text-xs font-bold text-muted tnum">{odds(r)} of claims</span></div>
+                  <div className="flex items-baseline justify-between gap-2"><b style={{ color: i.color }}>{i.name}</b><span className="text-xs font-bold text-muted tnum">{odds(r)} of claims · <Link to={`/rankings/rarities?r=${r}`} className="text-accent-2 hover:underline">🏆</Link></span></div>
                   <div className="text-xs text-muted tnum">{formatRate(rate(r))} rent · ×{(rate(r) / base).toFixed(1)} a Common · ×{ink(r)} Ink</div>
                 </div>
               </div>
@@ -129,6 +133,7 @@ export default function Legend() {
                 <p className="text-sm leading-relaxed"><b>What it does: </b>{d?.what ?? i.ability}</p>
                 {d && <p className="text-sm leading-relaxed"><b>How to get it: </b>{d.get}</p>}
                 {d && <p className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs text-muted">💡 {d.tip}</p>}
+                <Link to={`/rankings/rarities?r=${r}`} className="text-xs font-bold text-accent-2 hover:underline">🏆 Who owns the most {i.name} →</Link>
               </article>
             );
           })}
@@ -155,7 +160,7 @@ export default function Legend() {
             <p>Sacrifice Base plots (rarer plots give more), Inkborn ({n(lk.inkborn, 12)} Luck, {n(lk.inkborn_bonded, 20)} if bonded), eggs ({n(lk.egg, 8)}, rare eggs {n(lk.egg_rare, 18)}) or offer Ink ({n(lk.ink_per_point, 50)} Ink a point) to charge your Luck up to {n(lk.max, 100)}. Your next claim spends all of it: one extra roll for every {n(lk.points_per_roll, 20)} Luck (up to {n(lk.max_rolls, 6)}) — it keeps the best — and every ultra gets likelier (×{+(1 + n(lk.max, 100) / Math.max(1, n(lk.points_per_ultra_x, 10))).toFixed(1)} at full Luck). Tap the 🍀 chip to open the altar.</p>
           </article>
           <article className="glass grid gap-1.5 rounded-3xl p-4 text-sm leading-relaxed" data-testid="legend-crowns">
-            <b>👑 Crowns: a kingdom of your own</b>
+            <b>👑 Crowns: a kingdom of your own <Link to="/royalty" className="ml-1 text-xs font-bold text-[#FFD84D] hover:underline" data-testid="legend-royalty">See who rules →</Link></b>
             <p>City Crown ×{+crowns[0].toFixed(2)}, State Crown ×{+crowns[1].toFixed(2)}, Country Crown ×{+crowns[2].toFixed(2)}. Only your best Crown of each tier counts, and the tiers add up — all three is ×{+(crowns[0] + crowns[1] + crowns[2] - 2).toFixed(2)} on everything you own.</p>
             <p>A Crown is only as strong as its kingdom: it grows to full strength as other players claim land there ({n(c.rarity_abilities?.crown?.need, 5)} in a city, {n(c.rarity_abilities?.crown_state?.need, 25)} in a state, {n(c.rarity_abilities?.crown_country?.need, 100)} in a country). An empty town’s Crown is worth very little — until people show up.</p>
           </article>

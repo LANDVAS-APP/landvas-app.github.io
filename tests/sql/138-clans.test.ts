@@ -154,7 +154,7 @@ describe('Clans', () => {
     // make sure the week has a realm and a party goal for the test
     const others = w.filter((g: any) => !['realm', 'party'].includes(g.k) && !['realm', 'party'].includes(g.cat)).slice(0, 2);
     const goals = [...others, { k: 'realm', cat: 'realm', emoji: '⛏️', label: 'Earn Ink in realms', unit: 'ink', target: 100 }, { k: 'party', cat: 'party', emoji: '🎉', label: 'Win Ink in house party games', unit: 'ink', target: 100 }];
-    await db.sql(`update clan_weeks set goals = $2, progress = progress - 'realm' - 'party' where clan_id = $1`, [clanId, JSON.stringify(goals)]);
+    await db.sql(`update clan_weeks set goals = $2, progress = '{}'::jsonb where clan_id = $1`, [clanId, JSON.stringify(goals)]);
     await earn(mem, 40, 'realm', 'realm');
     await earn(mem, 25, 'minigame', 'home_game');
     const c = await db.rpc(mem, 'clan_get');

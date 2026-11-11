@@ -216,7 +216,8 @@ function FeedGroup({ g, p, set }: { g: (typeof FEED_KEYS)[number]; p: Record<str
 const PROFILE_KEYS: { k: string; label: string; hint: string }[] = [
   { k: 'profile_badges', label: 'Badges on my profile', hint: 'The badges you’ve earned' },
   { k: 'profile_games', label: 'Game records on my profile', hint: 'Your minigame levels, best scores and wins' },
-  { k: 'profile_stats', label: 'Stats on my profile', hint: 'How many plots and artworks you have, your level' },
+  { k: 'profile_stats', label: 'Stats on my profile', hint: 'How many plots and artworks you have, your level — and your place in the rarity rankings' },
+  { k: 'royalty', label: 'Show me on the Royalty page', hint: 'If you hold a Crown, your name next to it (off: “a secret monarch”)' },
 ];
 /** what others can see: the live feed (all of it, or kind by kind) and parts of your public profile */
 function PrivacySettings() {
