@@ -382,7 +382,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
     let prev: { lng: number; lat: number } | null = null;
     let movingUntil = 0;
     let lastLng = NaN, lastLat = NaN;
-    const cls = { walking: false, left: false, gps: false, 'ride-train': false, 'ride-plane': false, 'ride-home': false, 'veh-bike': false, 'veh-car': false };
+    const cls = { walking: false, left: false, gps: false, 'ride-train': false, 'ride-plane': false, 'ride-home': false, 'veh-bike': false, 'veh-car': false, 'veh-jet': false };
     const toggle = (k: keyof typeof cls, on: boolean) => { if (cls[k] !== on) { cls[k] = on; el.classList.toggle(k, on); } };
     // runs every frame only while something's moving; standing still it checks a few times a second
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -403,7 +403,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         const ride = state?.mode === 'travel' && p.traveling ? state.trip?.mode : null;
         // steering on a bike or in a car: you're on it (on GPS you're on foot — that's really you)
         const veh = !ride && state && state.mode !== 'gps' ? state.vehicle?.current : null;
-        toggle('veh-bike', veh === 'bike'); toggle('veh-car', veh === 'car');
+        toggle('veh-bike', veh === 'bike'); toggle('veh-car', veh === 'car'); toggle('veh-jet', veh === 'jet');
         toggle('ride-train', ride === 'train'); toggle('ride-plane', ride === 'plane'); toggle('ride-home', ride === 'home');
         const t = performance.now();
         // the companion animates at 20 fps walking, 8 standing still, and holds while the map moves

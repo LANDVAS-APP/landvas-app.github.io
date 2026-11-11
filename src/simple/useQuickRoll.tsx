@@ -19,6 +19,9 @@ export function useQuickRoll() {
   const qc = useQueryClient();
   const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts }>({ open: false, result: null, opts: {} });
   const busy = useRef(false);
+  const settle = useRef<(() => void) | null>(null);
+  const refresh = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection']]) void qc.invalidateQueries({ queryKey: k }); };
+  const settleNow = () => { const f = settle.current; settle.current = null; f?.(); };
   const quote = useQuery({ queryKey: ['quick-buy-quote'], queryFn: api.quickBuyQuote, enabled: !!me });
   const ink = Number(me?.balances.ink ?? 0);
   const cost = Number(quote.data?.ink ?? 0);
@@ -34,9 +37,8 @@ export function useQuickRoll() {
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
       setState({ open: true, opts, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, guaranteed: opts.ticketRarity ?? null } });
-      celebrate(r.achievements);
-      invalidateGame(qc);
-      for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection']]) void qc.invalidateQueries({ queryKey: k });
+      // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
+      settle.current = () => { celebrate(r.achievements); refresh(); };
     } catch (e) {
       setState({ open: false, result: null, opts: {} });
       toast.error(toGameError(e).message);
@@ -44,8 +46,9 @@ export function useQuickRoll() {
   };
 
   const element = (
-    <InkRoll open={state.open} result={state.result} onClose={() => setState({ open: false, result: null, opts: {} })}
-      onAgain={() => { const hot = state.opts.hot; setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
+    <InkRoll open={state.open} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
+      onRevealed={() => setTimeout(settleNow, 1600)}
+      onAgain={() => { const hot = state.opts.hot; settleNow(); setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
       canAgain={canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(cost)} Ink`} />
   );
   return { roll, element, canBuy, cost, free, quote };

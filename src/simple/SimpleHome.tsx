@@ -21,7 +21,6 @@ import { BoostButton, LiveUsd, WalletDialog, useRaritySync, useRent } from '../r
 import { RARITY_ORDER, isUltra, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
 import { useQuickRoll } from './useQuickRoll';
 import { StreakChip, StreakDialog, useDaily, useStreakPrompt } from '../daily/Streak';
-import { HotZoneCard } from '../daily/HotZone';
 import { CollectionCard, CollectionDialog } from '../daily/Collection';
 import { currentRate, formatRate } from '../shared/rent';
 import type { PlotTypeId } from '../shared/grid';
@@ -109,9 +108,6 @@ export default function SimpleHome() {
         </div>
       </motion.button>
 
-      {/* today's Hot Zone: boosted rarities in one real city */}
-      <HotZoneCard onRoll={() => void quick.roll({ hot: true })} cost={cost} free={free} canBuy={canBuy} />
-
       {/* what you can roll */}
       <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">
         {RARITY_ORDER.map((id) => {
@@ -125,7 +121,7 @@ export default function SimpleHome() {
           );
         })}
       </div>
-      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way.</p>
+      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link></p>
 
       <CollectionCard onOpen={() => setAlbum(true)} />
 

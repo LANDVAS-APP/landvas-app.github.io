@@ -41,7 +41,8 @@ try {
   check('the first plot is free and its rarity rolls', !!rar, rar);
   await shot('03-rolled');
   await page.click('[data-testid=roll-again]');
-  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 15000 }); await page.waitForTimeout(1600);
+  await page.waitForSelector('[data-testid=ink-roll][data-phase=spin]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 20000 }); await page.waitForTimeout(1600);
   await page.click('[data-testid=roll-done]'); await page.waitForTimeout(1200);
   const n = await page.locator('[data-testid=simple-plot]').count();
   check('"Roll again" buys a second plot; both are listed', n === 2, `${n}`);
@@ -71,14 +72,8 @@ try {
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
   // a guaranteed roll (as if it were day 7)
   await page.evaluate(() => window.__landvasApi.dailyStatus()); // (warm)
-  // the Hot Zone: roll a plot inside today's city
-  const hz = await api('hotZone');
-  check('a Hot Zone city today (and tomorrow)', !!hz.today?.name && !!hz.tomorrow?.name, `${hz.today?.name} → ${hz.tomorrow?.name}`);
-  await page.click('[data-testid=hot-zone-roll]');
-  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 15000 }); await page.waitForTimeout(1600);
-  check('…a Hot Zone roll says so', (await page.locator('text=Hot Zone roll').count()) === 1);
-  await shot('07-hot-roll');
-  await page.click('[data-testid=roll-done]'); await page.waitForTimeout(900);
+  // simple mode has no Hot Zone (it's a map thing)
+  check('simple mode shows no Hot Zone', (await page.locator('[data-testid=hot-zone-roll], [data-testid=hot-zone-chip]').count()) === 0);
   // the collection album
   await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
   const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
@@ -99,6 +94,13 @@ try {
   // the full game is one tap away
   await page.click('[data-testid=simple-mode-off]'); await page.waitForTimeout(3000);
   check('switching to the full game brings the map back', (await page.locator('[data-testid=world-map]').count()) === 1);
+  // the rarity guide, from the map's View button
+  await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+  await page.click('[data-testid=mode-button]'); await page.waitForTimeout(500);
+  await page.click('[data-testid=open-legend]'); await page.waitForSelector('[data-testid=legend-ultras]', { timeout: 15000 }); await page.waitForTimeout(800);
+  check('View → Rarity guide: every rarity explained', (await page.locator('[data-testid^=legend-]').filter({ has: page.locator('svg') }).count()) >= 15, `${await page.locator('[data-testid^=legend-]').count()}`);
+  await shot('09-legend');
+  await page.locator('[data-testid=legend-ultras]').scrollIntoViewIfNeeded(); await shot('10-legend-ultras');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run completed', false, e.message.split('\n')[0]); await shot('99-err'); }
 await browser.close(); server.close();

@@ -76,7 +76,7 @@ export const api = {
   /** your plot-type album and the rarities you've found */
   myCollection: () => rpc<import('./types').Collection>('my_collection'),
   /** every city's Crown and who holds it */
-  crowns: () => rpc<{ city: string; holder: string | null; since: string | null }[]>('crowns'),
+  crowns: () => rpc<{ total: number; held: { city: string; country: string; holder: string; since: string }[] }>('crowns'),
   quickBuyQuote: () => rpc<{ ink: number; owned: number; free_left: number; starter: boolean; enabled: boolean }>('quick_buy_quote'),
   namePlot: (gx: number, gy: number, name: string | null) => rpc<{ gx: number; gy: number; name: string | null }>('name_plot', { p_gx: gx, p_gy: gy, p_name: name }),
   upgradePlot: (gx: number, gy: number) =>
@@ -95,6 +95,8 @@ export const api = {
   myExplorer: () => rpc<ExplorerState | null>('my_explorer'),
   reportPosition: (lng: number, lat: number, accuracy: number | null) =>
     rpc<ExplorerState & { accepted: boolean; rejected?: string; wait_seconds?: number; reanchored?: boolean; placed?: boolean }>('report_position', { p_lng: lng, p_lat: lat, p_accuracy_m: accuracy }),
+  /** Home: back to your last real location (no GPS prompt) */
+  explorerHome: () => rpc<ExplorerState>('explorer_home'),
   joystickStep: (lng: number, lat: number) =>
     rpc<ExplorerState & { moved_m: number; clamped: boolean; empty: boolean }>('joystick_step', { p_lng: lng, p_lat: lat }),
 
@@ -110,7 +112,7 @@ export const api = {
   travelTraffic: () => rpc<import('./types').TravelTraffic[]>('travel_traffic'),
   travelShare: (share: boolean) => rpc<{ share: boolean }>('travel_share', { p_share: share }),
   // out and about: vehicles, finds, travel groups
-  vehicleBuy: (kind: 'bike' | 'car') => rpc<ExplorerState & { balances: Balances; cost: number }>('vehicle_buy', { p_kind: kind }),
+  vehicleBuy: (kind: 'bike' | 'car' | 'jet') => rpc<ExplorerState & { balances: Balances; cost: number }>('vehicle_buy', { p_kind: kind }),
   vehicleUse: (kind: import('./types').VehicleKind) => rpc<ExplorerState>('vehicle_use', { p_kind: kind }),
   mapFinds: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').MapFind[]>('map_finds', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
   mapFindClaim: (id: string) => rpc<import('./types').MapFindClaim>('map_find_claim', { p_id: id }),

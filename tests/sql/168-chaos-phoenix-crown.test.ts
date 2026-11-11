@@ -85,7 +85,7 @@ describe('Phoenix', () => {
 
 describe('the Crown', () => {
   it('only one per city: once a city has its Crown, nobody else can roll it there', async () => {
-    const [tokyo] = (await db.sql(`select c from game_config, jsonb_array_elements(value -> 'cities') c where key = 'hot_zones' and c ->> 'name' = 'Tokyo'`)).map((x: any) => x.c);
+    const [tokyo] = await db.sql(`select gx, gy from world_cities where name = 'Tokyo'`);
     // force every roll in cities to be a Crown
     await cfg({ crown: { ppm: 1000000, pct: 100, max: 1 } });
     const a = await db.sql(`select private.take_plot($1, $2, $3, 'acquire', '{}') r`, [kim, tokyo.gx + 3, tokyo.gy + 3]);
@@ -100,7 +100,24 @@ describe('the Crown', () => {
   it('its holder earns 2× on all their rent, and the city lists them', async () => {
     expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(2, 6);
     const crowns = await db.rpc(kim, 'crowns');
-    expect(crowns.find((c: any) => c.city === 'Tokyo').holder).toBe('kim_crown');
-    expect(crowns.find((c: any) => c.city === 'Paris').holder).toBeNull();
+    expect(crowns.total).toBeGreaterThan(2500);
+    expect(crowns.held).toEqual([expect.objectContaining({ city: 'Tokyo', country: 'JP', holder: 'kim_crown' })]);
+  });
+  it('every city in the world has a Crown to win, not just the Hot Zone cities', async () => {
+    // a small city that was never a Hot Zone: Sunnyvale
+    const [boise] = await db.sql(`select id, gx, gy from world_cities where name = 'Sunnyvale' and country = 'US'`);
+    expect(boise).toBeTruthy();
+    expect((await db.sql(`select private.city_at($1, $2) ->> 'name' n`, [boise.gx + 40, boise.gy - 30]))[0].n).toBe('Sunnyvale');
+    await cfg({ crown: { ppm: 1000000, pct: 100, max: 1 } });
+    const a = await db.sql(`select private.take_plot($1, $2, $3, 'acquire', '{}') r`, [lee, boise.gx + 2, boise.gy + 2]);
+    expect(a[0].r.rarity).toBe('crown');
+    await cfg({ crown: { ppm: 1000, pct: 100, max: 1 } });
+    expect((await db.rpc(lee, 'crowns')).held.map((c: any) => c.city).sort()).toEqual(['Sunnyvale', 'Tokyo']);
+  });
+  it('the Hot Zone is a different city every day, drawn from all of them', async () => {
+    const days = await db.sql(`select private.hot_zone(date '2027-01-01' + i) ->> 'id' id from generate_series(0, 59) i`);
+    const ids = new Set(days.map((d: any) => d.id));
+    expect(ids.size).toBeGreaterThan(50);
+    expect([...ids].some((id) => Number(id) > 200)).toBe(true); // (not just the biggest cities)
   });
 });

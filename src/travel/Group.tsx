@@ -185,7 +185,7 @@ export function GroupMapLayer() {
         const ride = (l && Date.now() - l.at < 12_000 ? l.r : m.traveling ? (m.trip?.mode === 'train' || m.trip?.mode === 'plane' ? m.trip.mode : null) : null) ?? null;
         x.el.classList.toggle('ride-train', ride === 'train'); x.el.classList.toggle('ride-plane', ride === 'plane');
         const v = !ride ? (l?.v ?? m.vehicle) : null;
-        x.el.classList.toggle('veh-bike', v === 'bike'); x.el.classList.toggle('veh-car', v === 'car');
+        x.el.classList.toggle('veh-bike', v === 'bike'); x.el.classList.toggle('veh-car', v === 'car'); x.el.classList.toggle('veh-jet', v === 'jet');
         x.at = next;
         x.mk.setLngLat(next);
       }

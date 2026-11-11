@@ -33,7 +33,7 @@ describe('vehicles', () => {
   it('everyone can walk; a Bike costs Ink, and a Car needs a Bike first', async () => {
     const ex = await db.rpc(max, 'my_explorer');
     expect(ex.vehicle).toMatchObject({ current: 'walk', speed_kmh: 6, range_m: 600, fuel: false });
-    expect(ex.vehicle.all.map((v: any) => [v.id, v.owned])).toEqual([['walk', true], ['bike', false], ['car', false]]);
+    expect(ex.vehicle.all.map((v: any) => [v.id, v.owned])).toEqual([['walk', true], ['bike', false], ['car', false], ['jet', false]]);
     await expectError(db.rpc(max, 'vehicle_use', { p_kind: 'bike' }), 'vehicle_not_owned');
     await ink(max, 2000);
     await expectError(db.rpc(max, 'vehicle_buy', { p_kind: 'car' }), 'needs_bike_first');

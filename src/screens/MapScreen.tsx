@@ -104,7 +104,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         </div>
         {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
-        {me && <HotZoneChip className="self-start" />}
+        {me && <HotZoneChip className="self-start" onRoll={() => void quick.roll({ hot: true })} />}
+        {me && !away && !joystick && <JoystickSpot />}
         <div className="flex flex-col items-start gap-2.5">
           <ModeButton />
           {me && <StreakChip onOpen={() => setStreak(true)} />}
@@ -177,10 +178,13 @@ function useExplorerSync(away = false) {
     st.setFollowing(true);
   }, [hasExplorer]); // eslint-disable-line react-hooks/exhaustive-deps
   const wantGps = !!me && safeStorage('landvas.gps', false);
+  // on a joystick spot, GPS stays off (it would pull the explorer back, and ask for location) until you pick GPS or Home
+  const exMode = useExplorer((x) => x.state?.mode) ?? me?.explorer?.mode;
+  const onSpot = exMode === 'manual';
   useEffect(() => {
     if (away) { stopGps(); return; }
-    if (wantGps) startGps();
-  }, [wantGps, away]);
+    if (wantGps && !onSpot) startGps();
+  }, [wantGps, away, onSpot]);
 }
 
 function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoystick(): void }) {
@@ -328,6 +332,31 @@ function PlacementPrompt() {
         <p className="text-xs text-muted">LANDVAS needs GPS — explorers can’t be placed by hand or teleported. Your location is never shown to other players.</p>
       </div>
     </Dialog>
+  );
+}
+
+/** You steered the explorer somewhere: it stays there (through refreshes) until you go back to GPS or Home. */
+function JoystickSpot() {
+  const ex = useExplorer();
+  const requestFly = useUi((s) => s.requestFly);
+  const [busy, setBusy] = useState(false);
+  if (ex.state?.mode !== 'manual') return null;
+  const home = async () => {
+    setBusy(true);
+    try {
+      const r = await api.explorerHome();
+      useExplorer.getState().set(r);
+      saveStorage('landvas.joySpot', false);
+      requestFly({ lng: r.lng, lat: r.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
+      useExplorer.getState().setFollowing(true);
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="pointer-events-auto lv-hud !h-9 self-start gap-1 !rounded-full !pl-3 !pr-1 text-[12px] font-extrabold" data-testid="joystick-spot">
+      <span>🕹️ Joystick spot</span>
+      {gpsSupported() && <button className="ml-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px]" onClick={() => { saveStorage('landvas.joySpot', false); enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 })); }} data-testid="spot-gps">📡 GPS</button>}
+      <button className="rounded-full bg-white/10 px-2.5 py-1 text-[11px]" disabled={busy} onClick={home} data-testid="spot-home">🏠 Home</button>
+    </div>
   );
 }
 

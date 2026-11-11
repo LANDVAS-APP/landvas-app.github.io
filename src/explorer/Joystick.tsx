@@ -23,7 +23,7 @@ import { cn, safeStorage } from '../lib/utils';
 import { qk, useWorld } from '../lib/queries';
 import { plotMetres } from '../shared/grid';
 import { buzz } from '../native/native';
-import { explorerNow, gpsSupported, pauseGps, resumeGps, useExplorer } from './explorer';
+import { enableGps, explorerNow, gpsSupported, pauseGps, resumeGps, stopGps, useExplorer } from './explorer';
 import { saveStorage } from '../lib/utils';
 import { AdButton } from '../ads/AdButton';
 import { adsSupported } from '../ads/ads';
@@ -161,7 +161,8 @@ export function Joystick({ onClose }: { onClose(): void }) {
   useEffect(() => {
     if (!gpsWasOn) return;
     pauseGps();
-    return () => { if (back.current) resumeGps(); };
+    // (steered somewhere? GPS stays off — the spot stays until you pick GPS or Home)
+    return () => { if (back.current) resumeGps(); else stopGps(); };
   }, [gpsWasOn]);
 
   async function send(force = false) {
@@ -182,6 +183,8 @@ export function Joystick({ onClose }: { onClose(): void }) {
       secsRef.current = Math.max(0, Number(r.joystick?.seconds_left ?? secsRef.current) - spentSince);
       setSecs(secsRef.current);
       useExplorer.getState().set({ ...r, lng: corrected.lng, lat: corrected.lat, origin: corrected } as ExplorerState);
+      // once you've steered somewhere, that's your spot: GPS stays off (no location prompts) until you choose it
+      if (r.moved_m > 0) { back.current = false; saveStorage('landvas.joySpot', true); }
       if (r.empty && fuel) {
         toast('Joystick tank is empty', { description: r.joystick?.ads_enabled ? 'Watch an ad to refill it.' : `It refills for free at ${new Date(r.joystick?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
       }
@@ -319,7 +322,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
         }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>
       )}
       {gpsWasOn && gpsSupported() && (
-        <button className={cn(btn, 'text-ok')} onClick={() => { saveStorage('landvas.gps', true); onClose(); }} data-testid="back-to-gps"><Satellite className="h-3.5 w-3.5" /> Back to GPS</button>
+        <button className={cn(btn, 'text-ok')} onClick={() => { back.current = false; saveStorage('landvas.joySpot', false); onClose(); setTimeout(() => enableGps(), 0); }} data-testid="back-to-gps"><Satellite className="h-3.5 w-3.5" /> Back to GPS</button>
       )}
     </>
   );
@@ -475,7 +478,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
 }
 
 // ---- vehicles: walk, then a Bike, then a Car --------------------------------------------------------------
-export const VEH_EMOJI: Record<VehicleKind, string> = { walk: '🚶', bike: '🚲', car: '🚗' };
+export const VEH_EMOJI: Record<VehicleKind, string> = { walk: '🚶', bike: '🚲', car: '🚗', jet: '🚀' };
 const fmtRange = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${Math.round(m)} m`);
 
 async function rideVehicle(kind: VehicleKind) {
@@ -486,7 +489,7 @@ async function rideVehicle(kind: VehicleKind) {
   } catch (e) { toast.error(toGameError(e).message); }
 }
 
-/** walk / bike / car: tap one you have to ride it; the garage sells the rest */
+/** walk / bike / car / jetpack: tap one you have to ride it; the garage sells the rest */
 function VehicleBar({ veh, onGarage }: { veh: VehicleState | undefined; onGarage(): void }) {
   const all = veh?.all ?? [{ id: 'walk', owned: true } as VehicleState['all'][number]];
   return (
@@ -509,18 +512,18 @@ function VehicleBar({ veh, onGarage }: { veh: VehicleState | undefined; onGarage
 export function Garage({ open, onOpenChange, veh }: { open: boolean; onOpenChange(o: boolean): void; veh: VehicleState | undefined }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<VehicleKind | null>(null);
-  const buy = async (kind: 'bike' | 'car') => {
+  const buy = async (kind: 'bike' | 'car' | 'jet') => {
     setBusy(kind);
     try {
       const r = await api.vehicleBuy(kind);
       useExplorer.getState().set(r);
       qc.invalidateQueries({ queryKey: qk.me });
       buzz('success');
-      toast.success(kind === 'bike' ? 'Your new Bike 🚲' : 'Your new Car 🚗', { description: `−${r.cost} Ink · ride it with the joystick` });
+      toast.success(kind === 'bike' ? 'Your new Bike 🚲' : kind === 'car' ? 'Your new Car 🚗' : 'Your new Jetpack 🚀', { description: `−${r.cost} Ink · ride it with the joystick` });
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🚲 Garage" description="Faster wheels go further with the joystick. Walking and biking are free; the Car runs on your tank.">
+    <Dialog open={open} onOpenChange={onOpenChange} title="🚲 Garage" description="Faster wheels go further with the joystick. Walking and biking are free; the Car and the Jetpack run on your tank.">
       <div className="grid gap-2" data-testid="garage">
         {(veh?.all ?? []).map((v) => {
           const locked = !v.owned && v.needs && !veh?.all.find((x) => x.id === v.needs)?.owned;
@@ -535,8 +538,8 @@ export function Garage({ open, onOpenChange, veh }: { open: boolean; onOpenChang
                 veh?.current === v.id ? <span className="text-xs font-bold text-accent">Riding</span>
                   : <Button size="sm" variant="ghost" onClick={() => void rideVehicle(v.id)} data-testid={`use-${v.id}`}>Use</Button>
               ) : (
-                <Button size="sm" variant="primary" disabled={!!locked} loading={busy === v.id} onClick={() => void buy(v.id as 'bike' | 'car')} data-testid={`buy-${v.id}`}>
-                  {locked ? 'Bike first' : `${v.ink} Ink`}
+                <Button size="sm" variant="primary" disabled={!!locked} loading={busy === v.id} onClick={() => void buy(v.id as 'bike' | 'car' | 'jet')} data-testid={`buy-${v.id}`}>
+                  {locked ? `${v.needs === 'car' ? 'Car' : 'Bike'} first` : `${v.ink} Ink`}
                 </Button>
               )}
             </div>

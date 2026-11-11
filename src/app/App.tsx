@@ -49,6 +49,7 @@ const InventoryScreen = lazy(() => import('../screens/Inventory'));
 const EventsScreen = lazy(() => import('../screens/Events'));
 const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
+const LegendScreen = lazy(() => import('../screens/Legend'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
@@ -226,6 +227,7 @@ const routes: RouteObject[] = [
           { path: '/players', element: p(<PlayersScreen />) },
           { path: '/me', element: player(<MeHub />) },
           { path: '/achievements', element: player(<AchievementsScreen />) },
+          { path: '/legend', element: p(<LegendScreen />) },
           { path: '/leaderboards', element: p(<LeaderboardsScreen />) },
           { path: '/inventory', element: player(<InventoryScreen />) },
           { path: '/events', element: p(<EventsScreen />) },

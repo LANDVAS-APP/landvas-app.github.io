@@ -168,8 +168,47 @@ try {
   const east = (srv.lng - before.lng) * 111320 * Math.cos((before.lat * Math.PI) / 180);
   check('…and moved east at bike speed (the server agrees)', east > 10 && east < 45, `${east.toFixed(1)} m (~5 s at 20 km/h)`);
 
+  // ---- the joystick spot sticks: no GPS snap-back, even after a refresh, until you pick GPS or Home -------------------
+  await page.click('[data-testid=joystick-close]'); await page.waitForTimeout(800);
+  // home from London (skip the flight), then steer away from your real spot at home
+  await api('travelHome');
+  await sql(`update travel_trips set arrives_at = now() - interval '1 second' where player_id = (select id from profiles where username = 'lea_lead') and not arrived`);
+  await sql(`update explorers set fixed_at = fixed_at - interval '30 hours' where player_id = (select id from profiles where username = 'lea_lead')`);
+  await api('travelStatus'); await syncExplorer(); await page.waitForTimeout(1500);
+  await page.click('[data-testid=arrival-close]').catch(() => {}); await page.waitForTimeout(500);
+  await page.click('[data-testid=joystick-toggle]'); await page.waitForTimeout(1200);
+  const hx = await syncExplorer();
+  await jump(hx.lng, hx.lat, 17); await page.waitForTimeout(800);
+  const pad2 = await page.locator('[data-testid=joystick-pad]').boundingBox();
+  await page.mouse.move(pad2.x + pad2.width / 2, pad2.y + pad2.height / 2);
+  await page.mouse.down(); await page.mouse.move(pad2.x + pad2.width / 2, pad2.y + pad2.height / 2 - 60, { steps: 4 });
+  await page.waitForTimeout(2500); await page.mouse.up(); await page.waitForTimeout(1500);
+  const spot = await syncExplorer();
+  await page.click('[data-testid=joystick-close]'); await page.waitForTimeout(1500);
+  check('steered at home: closing the joystick keeps you at the joystick spot (a "Joystick spot" pill)', spot.mode === 'manual' && (await page.locator('[data-testid=joystick-spot]').count()) === 1, `${hx.mode} → ${spot.mode}`);
+  // (the local test build keeps its database in memory, so a real reload would wipe it — instead: GPS is on and
+  //  permitted here, and must not pull the explorer back; the server side of a refresh is tests/sql/169)
+  await page.waitForTimeout(6000);
+  const kept = await syncExplorer();
+  check('…the spot stays put: GPS doesn’t pull you back', Math.abs(kept.lng - spot.lng) < 1e-6 && Math.abs(kept.lat - spot.lat) < 1e-6 && kept.mode === 'manual', `${kept.mode} ${kept.lng},${kept.lat}`);
+  check('…and no "no GPS" popup', (await page.locator('text=/GPS (is )?(required|needed)|no GPS/i').count()) === 0);
+  await shot('06b-joystick-spot');
+  await page.click('[data-testid=spot-home]'); await page.waitForTimeout(2500);
+  const home = await syncExplorer();
+  check('🏠 Home: back to your last real location, the pill goes away', home.mode === 'gps' && (await page.locator('[data-testid=joystick-spot]').count()) === 0, `${home.mode} ${home.lng},${home.lat}`);
+
+  // ---- the Hot Zone chip: a sheet with "Fly there" -------------------------------------------------------------------
+  const hz = await api('hotZone');
+  await page.click('[data-testid=hot-zone-chip]'); await page.waitForSelector('[data-testid=hot-zone-sheet]', { timeout: 10000 });
+  check('the Hot Zone chip opens a sheet: fly there, or roll a plot there', (await page.locator('[data-testid=hot-zone-fly]').count()) === 1 && (await page.locator('[data-testid=hot-zone-roll-map]').count()) === 1);
+  await shot('06c-hot-zone-sheet');
+  await page.click('[data-testid=hot-zone-fly]'); await page.waitForTimeout(6000);
+  const c = await page.evaluate(() => { const m = window.__landvasMap; const x = m.getCenter(); return { lng: x.lng, lat: x.lat, z: m.getZoom() }; });
+  const hc = ll(hz.today.gx, hz.today.gy);
+  check('🗺️ Fly there: the map flies to today’s city (and stays)', Math.abs(c.lng - hc.longitude) < 0.05 && Math.abs(c.lat - hc.latitude) < 0.05, `${hz.today.name}: ${c.lng.toFixed(3)},${c.lat.toFixed(3)} z${c.z.toFixed(1)}`);
+  await shot('06d-hot-zone');
+
   // ---- no collectables on the map (finds were retired) -------------------------------------------------------------
-  await page.click('[data-testid=joystick-close]'); await page.waitForTimeout(500);
   await jump(srv.lng, srv.lat, 15.6); await page.waitForTimeout(3000);
   check('no collectables on the map', (await page.locator('[data-testid=map-find]').count()) === 0);
   await shot('07-no-finds');

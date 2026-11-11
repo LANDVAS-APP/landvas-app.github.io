@@ -216,7 +216,7 @@ describe('joystick tank and GPS snap-back', () => {
     expect(again.accepted).toBe(false);
   });
 
-  it('the joystick needs a recent GPS fix and stays on a leash around it', async () => {
+  it('the joystick needs a GPS fix (any age) and stays on a leash around it', async () => {
     const leash = await db.newPlayer('leashed');
     await db.rpc(leash, 'report_position', { p_lng: home.lng, p_lat: home.lat, p_accuracy_m: 10 });
     // even with a big tank, it can't wander more than one tank (60 s at 40 km/h ≈ 667 m) from the player
@@ -226,7 +226,10 @@ describe('joystick tank and GPS snap-back', () => {
     expect(out.leash).toBe(true);
     const back = await db.rpc(leash, 'joystick_step', { p_lng: east(home, 690).lng, p_lat: home.lat });
     expect(back.moved_m).toBeGreaterThan(5); // heading back toward the player is fine
-    await db.sql(`update explorers set gps_at = now() - interval '1 hour' where player_id = $1`, [leash]);
+    // an old fix is fine (the joystick spot survives a refresh, with no "no GPS" popup) — only no fix at all is refused
+    await db.sql(`update explorers set gps_at = now() - interval '1 hour', joy_bucket_m = 1000 where player_id = $1`, [leash]);
+    expect((await db.rpc(leash, 'joystick_step', { p_lng: east(home, 650).lng, p_lat: home.lat })).moved_m).toBeGreaterThan(0);
+    await db.sql(`update explorers set gps_lng = null, gps_lat = null, gps_at = null where player_id = $1`, [leash]);
     await expectError(db.rpc(leash, 'joystick_step', { p_lng: home.lng, p_lat: home.lat }), 'gps_required');
   });
 

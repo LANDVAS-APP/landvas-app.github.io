@@ -820,7 +820,7 @@ export type TravelBuilding = TravelStop & { visitors: number };
 export type TravelStopInfo = TravelStop & { visitors: number; recent: (Profile & { at: string })[]; mine: { first_at: string; visits: number } | null };
 
 // ---- out and about (v0.9.9) ------------------------------------------------------------------------
-export type VehicleKind = 'walk' | 'bike' | 'car';
+export type VehicleKind = 'walk' | 'bike' | 'car' | 'jet';
 export type VehicleInfo = { id: VehicleKind; name: string; speed_kmh: number; range_m: number; ink: number; fuel: boolean; needs: VehicleKind | null; owned: boolean };
 export type VehicleState = { current: VehicleKind; speed_kmh: number; range_m: number; fuel: boolean; all: VehicleInfo[] };
 export type MapFindKind = 'crystal' | 'balloon' | 'gift' | 'star';
