@@ -40,7 +40,7 @@ export default function ProfileScreen() {
           <PlayerAvatar p={p} size={84} />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold">{p.display_name || p.username}</h1>
-            <p className="text-sm text-muted">@{p.username} · Artist level {d.stats.artist_level} · since {new Date(d.stats.member_since).toLocaleDateString()}</p>
+            <p className="text-sm text-muted">@{p.username}{d.stats.artist_level != null ? ` · Artist level ${d.stats.artist_level}` : ''} · since {new Date(d.stats.member_since).toLocaleDateString()}</p>
             {p.bio && <p className="mt-2 max-w-xl text-sm">{p.bio}</p>}
           </div>
           <ExplorerFigure style={p.explorer_style} accent={p.accent_color} size={52} className="hidden sm:block" label={`@${p.username}'s explorer`} />
@@ -68,14 +68,15 @@ export default function ProfileScreen() {
             }}><Ban className="h-4 w-4" /> {d.blocked ? 'Unblock' : 'Block'}</Button>
           )}
         </div>
-        <div className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {d.hidden?.stats ? <div className="relative mt-5 rounded-2xl border border-line bg-surface/50 p-3 text-center text-xs text-muted" data-testid="profile-stats-hidden">🔒 @{p.username} keeps their stats private</div> : <div className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[['Plots', d.stats.plots], ['Artworks', d.stats.artworks], ['Mural area', d.stats.canvas_area], ['Appreciations', d.stats.appreciations]].map(([l, v]) => (
             <div key={l as string} className="rounded-2xl border border-line bg-surface/50 p-3 text-center">
               <div className="font-display text-lg font-semibold tnum">{fmt(v as number)}</div>
               <div className="eyebrow !text-[10px]">{l}</div>
             </div>
           ))}
-        </div>
+        </div>}
+        {d.hidden?.games && <div className="relative mt-2 text-center text-xs text-muted">🔒 Game records are private</div>}
       </section>
       <ProfilePlaces username={p.username} isMe={!!d.is_me} />
       {Object.keys(d.minigames ?? {}).length > 0 && (

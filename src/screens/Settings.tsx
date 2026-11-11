@@ -76,6 +76,12 @@ export default function Settings() {
         </Section>
 
         {me && (
+          <Section title="Privacy">
+            <PrivacySettings />
+          </Section>
+        )}
+
+        {me && (
           <Section title="Account">
             <div className="flex items-center gap-3">
               <PlayerAvatar p={me.profile} size={48} />
@@ -159,6 +165,44 @@ function DeleteAccount({ onDone }: { onDone(): void }) {
         }}><Trash2 className="h-4 w-4" /> Delete everything</Button>
         <Button variant="ghost" size="sm" onClick={() => { setOpen(false); setWord(''); }}>Keep my account</Button>
       </div>
+    </div>
+  );
+}
+
+const FEED_KEYS: { k: string; label: string; hint: string }[] = [
+  { k: 'feed_claims', label: 'Plots & Crowns', hint: 'Plots you claim (and their rarity), Crowns, planet plots' },
+  { k: 'feed_badges', label: 'Badges', hint: 'Badges you earn' },
+  { k: 'feed_games', label: 'Game wins', hint: 'Minigames, PvP, arcade scores, challenges, levels' },
+  { k: 'feed_art', label: 'Art', hint: 'Art you publish, duets, stamps' },
+  { k: 'feed_luck', label: 'Luck', hint: 'Sacrifices at the Altar and your lucky picks' },
+  { k: 'feed_travel', label: 'Travel', hint: 'Flights to the Hot Zone, exploring other worlds (never where you are)' },
+  { k: 'feed_places', label: 'Places', hint: 'Harvests, estates, IPOs, bases, playdates' },
+];
+const PROFILE_KEYS: { k: string; label: string; hint: string }[] = [
+  { k: 'profile_badges', label: 'Badges on my profile', hint: 'The badges you’ve earned' },
+  { k: 'profile_games', label: 'Game records on my profile', hint: 'Your minigame levels, best scores and wins' },
+  { k: 'profile_stats', label: 'Stats on my profile', hint: 'How many plots and artworks you have, your level' },
+];
+/** what others can see: the live feed (all of it, or kind by kind) and parts of your public profile */
+function PrivacySettings() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['privacy'], queryFn: api.myPrivacy });
+  const p = q.data;
+  const set = async (k: string, v: boolean) => {
+    qc.setQueryData(['privacy'], { ...(p ?? {}), [k]: v });
+    try { qc.setQueryData(['privacy'], await api.setPrivacy({ [k]: v })); } catch (e) { toast.error(toGameError(e).message); void q.refetch(); }
+  };
+  if (!p) return <div className="text-sm text-muted">Loading…</div>;
+  return (
+    <div className="grid gap-4" data-testid="privacy-settings">
+      <p className="flex items-start gap-2 text-xs text-muted"><Shield className="mt-0.5 h-4 w-4 shrink-0" /> Everything is public unless you turn it off. You always see your own activity. Your location is never shown, whatever you choose.</p>
+      <Switch id="pv-feed" label="Show my activity on the live feed" checked={p.feed} onCheckedChange={(v) => void set('feed', v)} />
+      {p.feed && (
+        <div className="grid gap-3 border-l-2 border-line pl-4">
+          {FEED_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}
+        </div>
+      )}
+      {PROFILE_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}
     </div>
   );
 }

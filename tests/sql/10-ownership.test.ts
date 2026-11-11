@@ -236,7 +236,7 @@ describe('accounts and ownership', () => {
     const rows = await db.rpc(null, 'plots_in_bbox', { p_min_gx: -10, p_min_gy: 29990, p_max_gx: 10, p_max_gy: 30010 });
     const hit = rows.find((r: any[]) => r[0] === 4194303 && r[1] === 30000);
     expect(hit).toBeTruthy();
-    expect(['common', 'rare', 'epic', 'legendary', 'mythic']).toContain(hit[9]);
+    expect((await db.sql(`select id from plot_rarities`)).map((x: any) => x.id)).toContain(hit[9]);
     await expectError(db.rpc(null, 'plots_in_bbox', { p_min_gx: 0, p_min_gy: 0, p_max_gx: 5000, p_max_gy: 5000 }), 'bbox_too_large');
   });
 
