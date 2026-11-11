@@ -128,6 +128,9 @@ export function WorldMap() {
       m.touchZoomRotate.disableRotation();
       m.keyboard.disableRotation();
       m.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Artwork © LANDVAS artists · Natural Earth · GeoNames' }), 'bottom-left');
+      // MapLibre opens the credits on load; start them folded to the little (i) so they don't cover the HUD
+      const foldCredits = () => m.getContainer().querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')?.classList.remove('maplibregl-compact-show');
+      m.once('styledata', foldCredits); m.once('idle', foldCredits);
       mapRef.current = m;
       mapHandle.current = m;
       if (config.e2e || import.meta.env.DEV) (window as any).__landvasMap = m;

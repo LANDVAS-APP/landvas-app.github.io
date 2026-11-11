@@ -29,7 +29,14 @@ export function useRent(): { rent: RentState | null; offset: number; update(r: R
   return { rent, offset, update };
 }
 
-export function LiveUsd({ rent, offset, decimals = 10, className }: { rent: RentState; offset: number; decimals?: number; className?: string }) {
+/** "$0.0000012345" → the leading zeros dimmed, so the digits that are ticking up stand out. */
+function usdHtml(t: string) {
+  const i = t.slice(1).search(/[1-9]/);
+  if (i < 0) return `<span style="opacity:.42">${t}</span>`;
+  return `<span style="opacity:.42">${t.slice(0, i + 1)}</span>${t.slice(i + 1)}`;
+}
+
+export function LiveUsd({ rent, offset, decimals = 10, className, dim }: { rent: RentState; offset: number; decimals?: number; className?: string; dim?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     // ~12 updates a second still reads as a live, ticking counter, without re-laying-out the screen on
@@ -38,12 +45,12 @@ export function LiveUsd({ rent, offset, decimals = 10, className }: { rent: Rent
     const tick = () => {
       if (document.hidden || !ref.current) return;
       const t = formatUsd(liveRent(rent, Date.now() + offset), decimals);
-      if (t !== last) { ref.current.textContent = t; last = t; }
+      if (t !== last) { if (dim) ref.current.innerHTML = usdHtml(t); else ref.current.textContent = t; last = t; }
     };
     tick();
     const iv = setInterval(tick, 85);
     return () => clearInterval(iv);
-  }, [rent, offset, decimals]);
+  }, [rent, offset, decimals, dim]);
   return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint' }} data-testid="usd-live">{formatUsd(liveRent(rent, Date.now() + offset), decimals)}</span>;
 }
 
@@ -104,7 +111,7 @@ export function RentHud() {
       <button onClick={() => setOpen(true)} className="glass pointer-events-auto flex h-10 min-w-0 items-center gap-2 rounded-2xl px-3 text-left" aria-label="Your USD rent" data-testid="rent-hud">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#3DDC97]/20 text-[13px] font-black text-[#3DDC97]">$</span>
         <span className="min-w-0">
-          <LiveUsd rent={rent} offset={offset} className="block font-display text-[13.5px] font-semibold leading-tight" />
+          <LiveUsd rent={rent} offset={offset} dim className="block font-display text-[13.5px] font-semibold leading-tight" />
           <span className={cn('block text-[10.5px] font-semibold leading-tight tnum', boosted ? 'text-gold' : 'text-muted')}>{formatRate(rate)}{boosted ? ` · ${rent.boost.multiplier}×` : ''}</span>
         </span>
       </button>

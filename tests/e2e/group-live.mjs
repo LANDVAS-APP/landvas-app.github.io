@@ -23,6 +23,12 @@ const server = await serve(DIST, PORT);
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 430, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', geolocation: { ...ll(START.gx, START.gy), accuracy: 8 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+// HUD buttons that aren't happening right now sit in the map's "+" tray: open it first if needed
+async function hud(id) {
+  const el = page.locator(`[data-testid=${id}]`).first();
+  if (!(await el.isVisible().catch(() => false))) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(450); }
+  await el.click();
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL/.test(m.text())) errors.push(m.text()); });
@@ -71,7 +77,7 @@ async function signIn(email) {
   await page.waitForTimeout(3000);
 }
 async function openTravel(tab) {
-  await page.click('[data-testid=travel-button]'); await page.waitForTimeout(800);
+  await hud('travel-button'); await page.waitForTimeout(800);
   if (tab) { await page.locator('[role=tab]').filter({ hasText: tab }).first().click(); await page.waitForTimeout(1000); }
 }
 
@@ -139,7 +145,7 @@ try {
   await say({ t: 'ping', id: maxId, lng: at.lng + 80 / R, lat: at.lat - 40 / 110574 }); await page.waitForTimeout(700);
   check('max pings “meet me here”', (await page.locator('[data-testid=group-ping]').count()) === 1 && (await page.locator('[data-sonner-toast]').filter({ hasText: /meet me here/ }).count()) >= 1);
   await say({ t: 'pos', id: maxId, lng: at.lng + 100 / R, lat: at.lat + 10 / 110574, v: 'bike' }); await page.waitForTimeout(300);
-  await page.click('[data-testid=group-button]'); await page.waitForTimeout(800);
+  await hud('group-button'); await page.waitForTimeout(800);
   check('the group panel: max is here, live', /live/.test(await page.locator('[data-testid=play-member]').filter({ hasText: 'max_mate' }).innerText()));
   await shot('03-group-panel');
   await page.click('[data-testid=emote-dance]'); await page.waitForTimeout(600);
@@ -149,7 +155,7 @@ try {
   // ---- Balloon Rush ---------------------------------------------------------------------------------------------
   // max is really there too (the server's view), so the group can play
   await sql(`update explorers set lng = ${at.lng + 60 / R}, lat = ${at.lat} where player_id = '${maxId}'`);
-  await page.click('[data-testid=group-button]'); await page.waitForTimeout(700);
+  await hud('group-button'); await page.waitForTimeout(700);
   await page.click('[data-testid=start-balloons]'); await page.waitForTimeout(1200);
   check('Balloon Rush: a countdown', (await page.locator('[data-testid=game-countdown]').count()) === 1);
   await jump(at.lng, at.lat, 15.4); await page.waitForTimeout(1500);
@@ -172,7 +178,7 @@ try {
   await page.click('[data-testid=game-result-close]').catch(() => {}); await page.waitForTimeout(600);
 
   // ---- Flag Race ------------------------------------------------------------------------------------------------
-  await page.click('[data-testid=group-button]'); await page.waitForTimeout(700);
+  await hud('group-button'); await page.waitForTimeout(700);
   await page.click('[data-testid=start-race]'); await page.waitForTimeout(1200);
   const race = await api('groupGameStatus');
   check('Flag Race: a flag goes up', race.kind === 'race' && (await page.locator('[data-testid=game-item]').count()) === 1);
@@ -191,7 +197,7 @@ try {
   await sql(`update explorers set lng = ${at.lng}, lat = ${at.lat} where player_id = '${leaId}'`);
   await sql(`update explorers set lng = ${at.lng + 30 / R}, lat = ${at.lat} where player_id = '${maxId}'`);
   await syncExplorer();
-  await page.click('[data-testid=group-button]'); await page.waitForTimeout(700);
+  await hud('group-button'); await page.waitForTimeout(700);
   await page.click('[data-testid=group-photo]'); await page.waitForTimeout(1500);
   const pol = await page.locator('[data-testid=polaroid]').innerText().catch(() => '');
   check('a group photo at Heathrow with lea and max', /Heathrow/.test(pol) && /@lea_lead/.test(pol) && /@max_mate/.test(pol), pol.replace(/\n/g, ' '));
@@ -199,11 +205,9 @@ try {
   await page.click('[data-testid=photo-close]'); await page.waitForTimeout(400);
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
-  // ---- the 3D things on the map ---------------------------------------------------------------------------------
-  await jump(at.lng, at.lat, 15.6); await page.waitForTimeout(4000);
-  const kinds = await page.locator('[data-testid=map-find] .lv3d').evaluateAll((els) => [...new Set(els.map((e) => e.className.split(' ')[1]))]);
-  check('finds are drawn in 3D (no emojis)', kinds.length >= 2 && (await page.locator('[data-testid=map-find] .lv3d.gift .cube i').count()) % 6 === 0, kinds.join(','));
-  await shot('08-finds-3d');
+  // ---- the map stays clean: no collectables -----------------------------------------------------------------------
+  await jump(at.lng, at.lat, 15.6); await page.waitForTimeout(3000);
+  check('no collectables on the map', (await page.locator('[data-testid=map-find]:not(.game)').count()) === 0);
 
   // ---- heading home: lea drops off the channel -------------------------------------------------------------------
   await tab.evaluate(() => { window.heard = []; });

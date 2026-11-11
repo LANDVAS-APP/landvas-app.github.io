@@ -2,7 +2,7 @@
 //  - travel groups: lea starts one (she has a Travel · Plane plot), max joins with the code; when lea boards a flight,
 //    max rides too and lea sees him on the map — and nobody's location shows while at home
 //  - the joystick, planet style: a thumb-stick; buy a Bike in the garage and ride it (faster)
-//  - finds on the map: tap one too far away (it says so), walk up and collect it
+//  - no collectables on the map
 //  - "Hide plots": the plot layers go away
 // Run: npm run build:artifact && node tests/e2e/explore.mjs
 import { serve, launch } from './browser.mjs';
@@ -22,6 +22,12 @@ const server = await serve(DIST, PORT);
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 430, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', geolocation: { ...ll(START.gx, START.gy), accuracy: 8 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+// HUD buttons that aren't happening right now sit in the map's "+" tray: open it first if needed
+async function hud(id) {
+  const el = page.locator(`[data-testid=${id}]`).first();
+  if (!(await el.isVisible().catch(() => false))) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(450); }
+  await el.click();
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL/.test(m.text())) errors.push(m.text()); });
@@ -70,7 +76,7 @@ async function signIn(email) {
   await page.waitForTimeout(3000);
 }
 async function openTravel(tab) {
-  await page.click('[data-testid=travel-button]'); await page.waitForTimeout(800);
+  await hud('travel-button'); await page.waitForTimeout(800);
   if (tab) { await page.locator('[role=tab]').filter({ hasText: tab }).first().click(); await page.waitForTimeout(1000); }
 }
 
@@ -162,28 +168,11 @@ try {
   const east = (srv.lng - before.lng) * 111320 * Math.cos((before.lat * Math.PI) / 180);
   check('…and moved east at bike speed (the server agrees)', east > 10 && east < 45, `${east.toFixed(1)} m (~5 s at 20 km/h)`);
 
-  // ---- finds ----------------------------------------------------------------------------------------------------
+  // ---- no collectables on the map (finds were retired) -------------------------------------------------------------
   await page.click('[data-testid=joystick-close]'); await page.waitForTimeout(500);
-  await jump(srv.lng, srv.lat, 15.6); await page.waitForTimeout(4000);
-  const nFinds = await page.locator('[data-testid=map-find]').count();
-  check('finds show around you on the map', nFinds > 0, `${nFinds}`);
-  // one on screen
-  const finds = await page.locator('[data-testid=map-find]').evaluateAll((els) => els.filter((e) => { const r = e.getBoundingClientRect(); return r.top > 150 && r.bottom < innerHeight - 200 && r.left > 20 && r.right < innerWidth - 20; }).map((e) => ({ id: e.dataset.id, kind: e.dataset.kind })));
-  const list = await api('mapFinds', { w: srv.lng - 0.01, s: srv.lat - 0.01, e: srv.lng + 0.01, n: srv.lat + 0.01 });
-  const f = list.find((x) => finds.some((y) => y.id === x.id));
-  await shot('07-finds');
-  await page.evaluate((id) => document.querySelector(`[data-testid=map-find][data-id="${id}"]`).click(), f.id); await page.waitForTimeout(800);
-  check('tapping one too far away says how far', (await page.locator('[data-sonner-toast]').filter({ hasText: / m away/ }).count()) >= 1);
-  const inkBefore = (await api('myState')).balances?.ink ?? 0;
-  // walk up to it (the test puts the explorer right by it; riding right past collects it, a tap does too)
-  await sql(`update explorers set lng = ${f.lng + 0.0001}, lat = ${f.lat} where player_id = (select id from profiles where username = 'lea_lead')`);
-  await syncExplorer(); await page.waitForTimeout(500);
-  await page.evaluate((id) => document.querySelector(`[data-testid=map-find][data-id="${id}"]`).click(), f.id); await page.waitForTimeout(1800);
-  check('next to it: collected', (await page.locator('[data-sonner-toast]').filter({ hasText: /Picked up|Popped|Opened|Caught/ }).count()) >= 1);
-  const inkAfter = (await api('myState')).balances?.ink ?? 0;
-  check('…for Ink', inkAfter > inkBefore, `${inkBefore} → ${inkAfter}`);
-  check('…and it’s gone from the map', (await page.locator(`[data-testid=map-find][data-id="${f.id}"]`).count()) === 0);
-  await shot('08-found');
+  await jump(srv.lng, srv.lat, 15.6); await page.waitForTimeout(3000);
+  check('no collectables on the map', (await page.locator('[data-testid=map-find]').count()) === 0);
+  await shot('07-no-finds');
 
   // ---- hide plots -----------------------------------------------------------------------------------------------
   await jump(here.longitude, here.latitude, 18.5); await page.waitForTimeout(2000);

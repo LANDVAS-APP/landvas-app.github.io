@@ -1,0 +1,30 @@
+# GitHub sometimes can't find a free Mac for the iOS build in time ("The job was not acquired by
+# Runner"). That's GitHub's capacity, not our code, so re-run just the failed jobs — up to twice.
+name: Retry iOS
+on:
+  workflow_run:
+    workflows: ['Native apps']
+    types: [completed]
+permissions:
+  actions: write
+jobs:
+  retry:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-run if it was a runner shortage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          jobs=$(gh api "repos/$REPO/actions/runs/$RUN/jobs" -q '.jobs[] | select(.conclusion=="failure") | .id')
+          starved=0
+          for j in $jobs; do
+            # a starved job never got a machine: it has no steps that ran
+            ran=$(gh api "repos/$REPO/actions/jobs/$j" -q '[.steps[]? | select(.conclusion!=null and .conclusion!="skipped")] | length')
+            [ "$ran" = "0" ] && starved=1
+          done
+          if [ "$starved" = "1" ]; then echo "Runner shortage — re-running failed jobs"; gh run rerun "$RUN" --failed -R "$REPO"
+          else echo "A real build failure — not retrying"; fi

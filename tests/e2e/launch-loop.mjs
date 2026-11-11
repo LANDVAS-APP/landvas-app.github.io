@@ -24,6 +24,12 @@ const browser = await launch();
 const START_LL = (() => { const gx = 12398 * 64 + 32, gy = 24628 * 64 + 32, G = 4194304; const n = Math.PI * (1 - (2 * (gy + 0.5)) / G); return { longitude: ((gx + 0.5) / G) * 360 - 180, latitude: (180 / Math.PI) * Math.atan(Math.sinh(n)) }; })();
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 }, colorScheme: 'dark', geolocation: { ...START_LL, accuracy: 8 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+// HUD buttons that aren't happening right now sit in the map's "+" tray: open it first if needed
+async function hud(id) {
+  const el = page.locator(`[data-testid=${id}]`).first();
+  if (!(await el.isVisible().catch(() => false))) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(450); }
+  await el.click();
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g/.test(m.text())) errors.push(m.text()); });
@@ -251,11 +257,11 @@ try {
   check('the joystick moves the explorer (server-checked) and drains the tank', exAfter.mode === 'manual' && movedM > 8 && movedM < 80 && exAfter.joystick.seconds_left < exBefore.joystick.seconds_left && exAfter.lng > exBefore.lng,
     `${movedM.toFixed(1)} m, tank ${Number(exBefore.joystick.seconds_left).toFixed(1)} → ${Number(exAfter.joystick.seconds_left).toFixed(1)} s`);
   await page.click('[data-testid=joystick-close]');
-  await page.click('[data-testid=tilt-3d]');
+  await hud('tilt-3d');
   await page.waitForFunction(() => window.__landvasMap.getPitch() > 40, null, { timeout: 8000 }).catch(() => {});
   const pitch = await page.evaluate(() => window.__landvasMap.getPitch());
   check('the 3D button tilts the map', pitch > 40, pitch.toFixed(1));
-  await page.click('[data-testid=tilt-3d]');
+  await hud('tilt-3d');
   await page.waitForTimeout(1200);
 
   // paint + publish the starter plot, then see it on the map

@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, Combine, Crosshair, Gamepad, LayoutGrid, Rocket, Satellite, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronRight, Combine, Crosshair, Gamepad, LayoutGrid, Plus, Rocket, Satellite, Sparkles, X } from 'lucide-react';
 import { CurrencyPills, DayNight, ModeButton, PlayerBadge, takeReturn } from '../map/Hud';
 import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { worldOf } from '../space/worlds';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -31,8 +31,11 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
-import { FindsLayer } from '../explore/Finds';
 import { GroupButton } from '../travel/GroupPlay';
+import { useTravelGroup } from '../travel/Group';
+import { buzz } from '../native/native';
+import { confetti } from '../ui/confetti';
+import { DailyChip } from '../earn/DailyChip';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -89,13 +92,9 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         </div>
         {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-start gap-2.5">
           <ModeButton />
-          {me && (
-            <Link to="/plots" className="pointer-events-auto lv-gbtn round" aria-label="My plots" data-testid="hud-plots">
-              <LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span>
-            </Link>
-          )}
+          {me && <DailyChip />}
         </div>
       </div>
       {!travelling && <ZoomHint zoom={view.zoom} />}
@@ -125,7 +124,6 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
       {me && !away && <TravelOverlays />}
-      {me && !away && <FindsLayer />}
       {me && !selected && !joystick && !merging && !away && !travelling && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}
@@ -175,11 +173,14 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
   const tilt = useUi((s) => s.settings.tilt3d);
+  const haptics = useUi((s) => s.settings.haptics);
   const updateSettings = useUi((s) => s.updateSettings);
   const joy = ex.state?.joystick;
   const has = !!ex.state;
   const space = useSpace();
   const flight = useFlight(space.data);
+  const travel = useTravel();
+  const group = useTravelGroup();
   // one tap into merge mode whenever some of your plots touch each other
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: has });
   const merging = useUi((s) => s.merge !== null);
@@ -188,55 +189,102 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
     return act.some((g) => touchingGroups(act, [g.id]).length > 1);
   }, [groups.data]);
   const nav = useNavigate();
+  const [more, setMore] = useState(false);
+  const tap = () => { if (haptics) buzz('light'); };
+  // a live trip, flight or group comes out of the tray onto the rail by itself
+  const trip = travel.data?.trip;
+  const tripLive = !!travel.data?.away || (!!trip && !trip.arrived);
+  const groupLive = !!group.data?.group && tripLive;
+  const flying = flight.flying;
   const gpsLabel = { off: 'Use GPS', asking: 'Finding you…', on: 'GPS on', paused: 'GPS paused', denied: 'Location blocked', unavailable: 'No GPS here' }[ex.gps];
-  const spaceLabel = !space.data?.built ? 'Space' : flight.flying ? fmtLeft(flight.left) : space.data.location !== 'earth' ? placeName(space.data, space.data.location).replace('The ', '') : 'Space';
-  return (
-    <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 md:bottom-8" data-testid="hud-rail">
-      {canMerge && !merging && (
-        <button className="lv-gbtn round" onClick={() => startMerge(null)} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
-          <Combine className="h-5 w-5" /><span className="lbl">Merge</span>
-        </button>
-      )}
-      {has && <TravelButton />}
-      {has && <GroupButton />}
-      {/* space: your rocket, and the trip under way */}
-      <button className={cn('lv-gbtn round', flight.flying && 'hot')}
-        onClick={() => nav(space.data && space.data.location !== 'earth' && !flight.flying ? '/space/surface' : '/space')} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">
-        <Rocket className={cn('h-5 w-5', flight.flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} /><span className="lbl tnum max-w-[48px] truncate">{spaceLabel}</span>
-      </button>
-      <button
-        className={cn('lv-gbtn round', (ex.gps === 'on' || ex.gps === 'paused') && 'go')}
-        onClick={() => {
-          if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
-          enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
-        }}
-        title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
-        aria-label={gpsLabel}
-        data-testid="gps-toggle"
-      >
-        <Satellite className="h-5 w-5" /><span className="lbl">{{ off: 'GPS', asking: '…', on: 'GPS', paused: 'Paused', denied: 'Blocked', unavailable: 'No GPS' }[ex.gps]}</span>
-      </button>
-      <button className={cn('lv-gbtn round', tilt && 'on')} onClick={() => updateSettings({ tilt3d: !tilt })} aria-pressed={tilt} title="Tilt the map to see buildings in 3D" data-testid="tilt-3d">
+  const spaceLabel = !space.data?.built ? 'Space' : flying ? fmtLeft(flight.left) : space.data.location !== 'earth' ? placeName(space.data, space.data.location).replace('The ', '') : 'Space';
+  const spaceBtn = (
+    <button className={cn('lv-gbtn round', flying && 'hot')}
+      onClick={() => { tap(); setMore(false); nav(space.data && space.data.location !== 'earth' && !flying ? '/space/surface' : '/space'); }} title="Your rocket — fly to the Moon, the planets and beyond" data-testid="space-button">
+      <Rocket className={cn('h-5 w-5', flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} /><span className="lbl tnum max-w-[48px] truncate">{spaceLabel}</span>
+    </button>
+  );
+  const gpsBtn = (
+    <button
+      className={cn('lv-gbtn round', (ex.gps === 'on' || ex.gps === 'paused') && 'go')}
+      onClick={() => {
+        tap();
+        if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
+        enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
+      }}
+      title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
+      aria-label={gpsLabel}
+      data-testid="gps-toggle"
+    >
+      <Satellite className="h-5 w-5" /><span className="lbl">{{ off: 'GPS', asking: '…', on: 'GPS', paused: 'Paused', denied: 'Blocked', unavailable: 'No GPS' }[ex.gps]}</span>
+    </button>
+  );
+  const tray: { key: string; node: ReactNode; label: string }[] = [
+    { key: 'plots', label: 'My plots', node: <Link to="/plots" className="lv-gbtn round" aria-label="My plots" data-testid="hud-plots" onClick={() => { tap(); setMore(false); }}><LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span></Link> },
+    ...(has && !tripLive ? [{ key: 'travel', label: 'Trains & planes', node: <TravelButton /> }] : []),
+    ...(has && !groupLive && group.data?.group ? [{ key: 'group', label: 'Your group', node: <GroupButton /> }] : []),
+    ...(!flying ? [{ key: 'space', label: 'Your rocket', node: spaceBtn }] : []),
+    ...(canMerge && !merging ? [{ key: 'merge', label: 'Merge plots', node: (
+      <button className="lv-gbtn round" onClick={() => { tap(); setMore(false); startMerge(null); }} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
+        <Combine className="h-5 w-5" /><span className="lbl">Merge</span>
+      </button>) }] : []),
+    { key: 'gps', label: gpsLabel, node: gpsBtn },
+    { key: 'tilt', label: tilt ? '3D buildings' : 'Flat map', node: (
+      <button className={cn('lv-gbtn round', tilt && 'on')} onClick={() => { tap(); updateSettings({ tilt3d: !tilt }); }} aria-pressed={tilt} title="Tilt the map to see buildings in 3D" data-testid="tilt-3d">
         <Box className="h-5 w-5" /><span className="lbl">{tilt ? '3D' : '2D'}</span>
-      </button>
-      {has && joy?.enabled !== false && (
-        <button className={cn('lv-gbtn round', joystick && 'on')} onClick={onJoystick} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
-          <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move`}</span>
+      </button>) },
+  ];
+  // something worth a look in the tray: a merge you can make
+  const nudge = canMerge && !merging;
+  return (
+    <>
+      <AnimatePresence>
+        {more && <motion.button key="scrim" aria-label="Close" className="absolute inset-0 z-[9] cursor-default bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />}
+      </AnimatePresence>
+      <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 md:bottom-8" data-testid="hud-rail">
+        <AnimatePresence>
+          {more && (
+            <motion.div key="tray" data-testid="hud-tray" role="menu"
+              initial={{ opacity: 0, y: 16, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.94 }} transition={{ type: 'spring', stiffness: 520, damping: 32 }}
+              className="absolute bottom-[calc(100%+10px)] right-0 grid w-[236px] origin-bottom-right grid-cols-3 gap-x-2 gap-y-3 rounded-[26px] border-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(28,34,88,0.97),rgba(12,15,44,0.98))] p-3 pb-3.5 text-white shadow-[0_24px_60px_-18px_rgba(0,0,0,0.9)]">
+              {tray.map((t, i) => (
+                <motion.div key={t.key} className="grid justify-items-center gap-1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.025 * i }}
+                  onClickCapture={() => { if (t.key === 'travel' || t.key === 'group') { tap(); setMore(false); } }}>
+                  {t.node}
+                  <span className="max-w-[70px] truncate text-center text-[10px] font-bold text-white/60">{t.label}</span>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* live things sit on the rail while they're happening */}
+        {has && tripLive && <TravelButton />}
+        {has && groupLive && <GroupButton />}
+        {flying && spaceBtn}
+        <button className={cn('lv-gbtn round', more && 'on')} onClick={() => { tap(); setMore((m) => !m); }} aria-expanded={more} aria-label="More" data-testid="hud-more">
+          <motion.span animate={{ rotate: more ? 45 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 26 }}><Plus className="h-6 w-6" strokeWidth={2.6} /></motion.span>
+          {nudge && !more && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-[#0b0e24] bg-hot" />}
         </button>
-      )}
-      {has && (
-        <button className={cn('lv-gbtn round', ex.following && 'on')} aria-label="Center on my explorer"
-          onClick={() => {
-            const p = explorerNow(ex.state, ex.offset);
-            if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
-            ex.setFollowing(true);
-          }}
-          data-testid="locate-me"
-        >
-          <Crosshair className="h-5 w-5" /><span className="lbl">Me</span>
-        </button>
-      )}
-    </div>
+        {has && joy?.enabled !== false && (
+          <button className={cn('lv-gbtn round', joystick && 'on')} onClick={() => { tap(); onJoystick(); }} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
+            <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move`}</span>
+          </button>
+        )}
+        {has && (
+          <button className={cn('lv-gbtn round !h-[60px] !w-[60px]', ex.following ? 'on' : '')} aria-label="Center on my explorer"
+            onClick={() => {
+              tap();
+              const p = explorerNow(ex.state, ex.offset);
+              if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
+              ex.setFollowing(true);
+            }}
+            data-testid="locate-me"
+          >
+            <Crosshair className="h-6 w-6" /><span className="lbl">Me</span>
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -300,15 +348,15 @@ export function TypeDot({ t, size = 14 }: { t: PlotTypeId; size?: number }) {
 function Checklist() {
   const me = useOnboardedMe();
   const nav = useNavigate();
-  const qc = useQueryClient();
   const [hidden, setHidden] = useState(() => safeStorage('landvas.checklist.hidden', false));
   // (only while the list is showing: a hidden or finished list asks the server nothing)
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me && !hidden });
   const pubs = useQuery({ queryKey: qk.pubs, queryFn: api.myPublications, enabled: !!me && !hidden });
   const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me && !hidden });
-  const [collapsed, setCollapsed] = useState(() => typeof innerWidth === 'number' && innerWidth < 640);
+  const [open, setOpen] = useState(false);
   const guide = useRef(safeStorage<string | null>('landvas.guide', null));
   const requestFly = useUi((s) => s.requestFly);
+  const haptics = useUi((s) => s.settings.haptics);
   useEffect(() => {
     if (guide.current === 'starter' && me && !me.player.starter_plot_claimed && me.explorer) {
       toast('Pick your free starter plot', { description: 'Tap any plot inside the dashed square around your explorer.' });
@@ -317,54 +365,79 @@ function Checklist() {
       if (useUi.getState().view.zoom < 3) requestFly({ lng: -40, lat: 30, zoom: 2.2 });
     }
   }, [me, requestFly]);
-  if (!me || hidden) return null;
   const g = groups.data ?? [];
   const p = pubs.data ?? [];
-  const steps = [
-    { label: 'Place your explorer', done: !!me.explorer },
-    { label: 'Claim your free starter plot', done: me.player.starter_plot_claimed },
-    { label: 'Win its minigame to earn Ink', done: Object.values(records.data?.records ?? {}).some((r: any) => r.wins > 0) },
-    { label: 'Buy a second plot with Ink', done: me.plot_count >= 2 },
-    { label: 'Hit the 20× rent boost', done: (me.rent?.boost?.used_today ?? 0) > 0 || !!me.rent?.boost?.active },
-    { label: 'Paint & publish your plot', done: p.some((x) => ['published', 'pending_review', 'approved', 'processing', 'superseded'].includes(x.status)) },
-    { label: 'Connect plots into a mural', done: g.some((x) => x.plot_count >= 2) },
-  ];
+  const steps = me ? [
+    { label: 'Place your explorer', reward: 'Start', done: !!me.explorer },
+    { label: 'Claim your free starter plot', reward: 'Free plot', done: me.player.starter_plot_claimed },
+    { label: 'Win its minigame to earn Ink', reward: 'Ink', done: Object.values(records.data?.records ?? {}).some((r: any) => r.wins > 0) },
+    { label: 'Buy a second plot with Ink', reward: 'More rent', done: me.plot_count >= 2 },
+    { label: 'Hit the 20× rent boost', reward: '20× rent', done: (me.rent?.boost?.used_today ?? 0) > 0 || !!me.rent?.boost?.active },
+    { label: 'Paint & publish your plot', reward: 'On the map', done: p.some((x) => ['published', 'pending_review', 'approved', 'processing', 'superseded'].includes(x.status)) },
+    { label: 'Connect plots into a mural', reward: 'Mural', done: g.some((x) => x.plot_count >= 2) },
+  ] : [];
   const doneCount = steps.filter((s) => s.done).length;
+  // a step just got done: celebrate it (only once the data has settled, not on first load)
+  const seen = useRef<number | null>(null);
+  const settled = !!me && !groups.isLoading && !pubs.isLoading && !records.isLoading;
+  useEffect(() => {
+    if (!settled) return;
+    if (seen.current !== null && doneCount > seen.current) {
+      confetti({ y: innerHeight - 160, count: 90 });
+      if (haptics) buzz('success');
+      toast.success(`Quest complete! ${doneCount}/${steps.length}`, { description: steps[doneCount] ? `Next: ${steps[doneCount].label}` : 'You’ve finished getting started 🎉' });
+    }
+    seen.current = doneCount;
+  }, [doneCount, settled]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!me || hidden) return null;
   // all done: remember it, so the map stops asking for the list's data from now on
   if (doneCount === steps.length) { if (!safeStorage('landvas.checklist.hidden', false)) saveStorage('landvas.checklist.hidden', true); return null; }
   const nextIdx = steps.findIndex((s) => !s.done);
-  void qc;
+  const next = steps[nextIdx];
+  const go = () => {
+    if (nextIdx === 0) enableGps((lng, lat) => useUi.getState().requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
+    else if (nextIdx === 2) nav('/play');
+    else if (nextIdx >= 5) nav('/canvases');
+    else setOpen((o) => !o);
+  };
+  const pct = doneCount / steps.length;
+  const R = 15, C = 2 * Math.PI * R;
   return (
-    <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] left-[max(16px,env(safe-area-inset-left,0px))] z-10 w-[min(320px,calc(100vw-120px))] md:bottom-6">
-      <div className="glass rounded-2xl p-3">
-        <div className="flex items-center justify-between gap-2">
-          <button className="flex items-center gap-2 text-left" onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed}>
-            <span className="eyebrow">Getting started</span>
-            <span className="text-xs font-bold tnum text-accent-2">{doneCount}/{steps.length}</span>
-          </button>
-          <button aria-label="Hide checklist" onClick={() => { setHidden(true); saveStorage('landvas.checklist.hidden', true); }}><X className="h-4 w-4 text-faint" /></button>
-        </div>
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full shimmer" style={{ width: `${(doneCount / steps.length) * 100}%` }} /></div>
-        {!collapsed && (
-          <ol className="mt-3 grid gap-1.5">
+    <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] left-[max(12px,env(safe-area-inset-left,0px))] z-10 w-[min(300px,calc(100vw-96px))] md:bottom-6" data-testid="quest">
+      <AnimatePresence>
+        {open && (
+          <motion.ol initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+            className="mb-2 grid gap-1.5 rounded-2xl border-[1.5px] border-white/12 bg-[#0e1336]/95 p-3 text-white shadow-2xl">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-white/60">Getting started</span>
+              <button aria-label="Hide checklist" onClick={() => { setHidden(true); saveStorage('landvas.checklist.hidden', true); }} className="text-[11px] font-bold text-white/45">Hide</button>
+            </div>
             {steps.map((s, i) => (
-              <li key={s.label} className={cn('flex items-center gap-2 text-[13px]', s.done ? 'text-faint line-through' : i === nextIdx ? 'font-bold text-fg' : 'text-muted')}>
-                <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', s.done ? 'border-ok bg-ok text-bg' : i === nextIdx ? 'border-accent-2' : 'border-line-strong')}>
+              <li key={s.label} className={cn('flex items-center gap-2 text-[13px]', s.done ? 'text-white/35 line-through' : i === nextIdx ? 'font-bold' : 'text-white/60')}>
+                <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', s.done ? 'border-ok bg-ok text-bg' : i === nextIdx ? 'border-[#22E3FF]' : 'border-white/25')}>
                   {s.done && <Check className="h-3 w-3" />}
                 </span>
-                {s.label}
+                <span className="flex-1">{s.label}</span>
+                {!s.done && <span className="rounded-full bg-white/8 px-1.5 text-[10px] font-bold text-gold">{s.reward}</span>}
               </li>
             ))}
-          </ol>
+          </motion.ol>
         )}
-        {!collapsed && nextIdx === 0 && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => enableGps((lng, lat) => useUi.getState().requestFly({ lng, lat, zoom: Z_STREET + 0.5 }))}>Use my location</Button>
-        )}
-        {!collapsed && nextIdx === 2 && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav('/play')}>Play my minigame</Button>
-        )}
-        {!collapsed && nextIdx >= 5 && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={() => nav('/canvases')}>Open my canvases</Button>
+      </AnimatePresence>
+      <div className="flex items-stretch gap-1.5">
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} data-testid="quest-pill"
+          className="lv-hud !h-auto min-w-0 flex-1 gap-2.5 !rounded-2xl !py-1.5 !pl-1.5 !pr-3 text-left">
+          <span className="relative grid h-[38px] w-[38px] shrink-0 place-items-center">
+            <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90"><circle cx="18" cy="18" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="4" /><circle cx="18" cy="18" r={R} fill="none" stroke="url(#lvq)" strokeWidth="4" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} style={{ transition: 'stroke-dashoffset .6s' }} /><defs><linearGradient id="lvq"><stop stopColor="#22E3FF" /><stop offset="1" stopColor="#8B5CFF" /></linearGradient></defs></svg>
+            <span className="text-[11px] font-black tnum">{doneCount}/{steps.length}</span>
+          </span>
+          <span className="grid min-w-0 leading-tight">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#22E3FF]">Next quest</span>
+            <span className="truncate text-[13px] font-extrabold">{next.label}</span>
+          </span>
+        </button>
+        {(nextIdx === 0 || nextIdx === 2 || nextIdx >= 5) && (
+          <button onClick={go} className="lv-gbtn go shrink-0 px-3 text-[13px]" data-testid="quest-go">GO<ChevronRight className="h-4 w-4" /></button>
         )}
       </div>
     </div>

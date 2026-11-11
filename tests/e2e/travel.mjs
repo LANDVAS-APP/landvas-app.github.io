@@ -22,6 +22,12 @@ const server = await serve(DIST, PORT);
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 430, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', geolocation: { ...ll(START.gx, START.gy), accuracy: 8 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+// HUD buttons that aren't happening right now sit in the map's "+" tray: open it first if needed
+async function hud(id) {
+  const el = page.locator(`[data-testid=${id}]`).first();
+  if (!(await el.isVisible().catch(() => false))) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(450); }
+  await el.click();
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL/.test(m.text())) errors.push(m.text()); });
@@ -134,7 +140,7 @@ try {
   check('pip’s flight shows on the map, with their name', (await page.locator('[data-testid=traveller][data-user=pip_pilot]').count()) === 1
     && /@pip_pilot/.test(await page.locator('[data-testid=traveller][data-user=pip_pilot]').innerText()));
   await shot('04b-travellers-map');
-  await page.click('[data-testid=travel-button]'); await page.waitForTimeout(700);
+  await hud('travel-button'); await page.waitForTimeout(700);
   await page.locator('[role=tab]').filter({ hasText: /Travellers/ }).first().click(); await page.waitForTimeout(1500);
   const row = await page.locator('[data-testid=traveller-row]').first().innerText().catch(() => '');
   check('the Travellers list has pip flying to London', /pip_pilot/.test(row) && /London Heathrow/.test(row) && /lands in/.test(row), row.replace(/\n/g, ' '));
@@ -180,7 +186,7 @@ try {
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
 
   // ---- passport, then home ------------------------------------------------------------------------------------------
-  await page.click('[data-testid=travel-button]'); await page.waitForTimeout(700);
+  await hud('travel-button'); await page.waitForTimeout(700);
   await page.locator('[role=tab]').filter({ hasText: /Passport/ }).first().click().catch(async () => { await page.locator('button').filter({ hasText: /Passport/ }).first().click(); });
   await page.waitForSelector('[data-testid=passport-stamp]', { timeout: 10000 });
   check('the passport has the Denver stamp', (await page.locator('[data-testid=passport-stamp]').count()) === 1);
