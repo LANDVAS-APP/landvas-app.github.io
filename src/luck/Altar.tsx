@@ -41,7 +41,7 @@ export function LuckChip({ className }: { className?: string }) {
       <button onClick={() => setOpen(true)} data-testid="luck-chip"
         className={cn('pointer-events-auto relative flex items-center gap-2 rounded-full border border-white/12 bg-[#0f1a2e]/90 py-1 pl-1 pr-3 text-[12px] font-extrabold text-white', l.luck > 0 && 'shadow-[0_0_18px_rgba(61,220,151,0.45)]', className)}>
         <span className="relative grid place-items-center"><Ring luck={l.luck} max={l.max} /><span className="absolute text-[15px]">🍀</span></span>
-        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55">{l.luck > 0 ? `next roll: best of ${l.rolls}` : 'Sacrifice for a better roll'}</span></span>
+        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55">{l.rolls > 1 ? `next plot: ${l.rolls} rolls, you pick` : 'Sacrifice for free rerolls'}</span></span>
       </button>
       <AltarDialog open={open} onOpenChange={setOpen} />
     </>
@@ -54,6 +54,19 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const [busy, setBusy] = useState<string | null>(null);
   const [burn, setBurn] = useState<{ key: string; rarity: RarityId; gained: number } | null>(null);
   const [confirm, setConfirm] = useState<{ gx: number; gy: number; rarity: RarityId; luck: number } | null>(null);
+  const [confirmThing, setConfirmThing] = useState<{ kind: 'inkborn' | 'egg'; id: string; luck: number; label: string } | null>(null);
+  const offerThing = async (kind: 'inkborn' | 'egg', id: string, luck: number, label: string) => {
+    setBusy(id); setConfirmThing(null);
+    try {
+      const r = kind === 'inkborn' ? await api.luckSacrificeInkborn(id) : await api.luckSacrificeEgg(id);
+      buzz('heavy');
+      setBurn({ key: `${id}${Date.now()}`, rarity: 'mythic', gained: r.gained });
+      setTimeout(() => setBurn(null), 1600);
+      toast(`🔥 ${label} went into the flames`, { description: `+${r.gained} Luck` });
+      qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r, inkborn: old.inkborn.filter((x) => x.id !== id), eggs: old.eggs.filter((x) => x.id !== id) } : old));
+      after(); void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
   const l = q.data;
   const after = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['luck'], ['collection'], ['quick-buy-quote']]) void qc.invalidateQueries({ queryKey: k }); };
 
@@ -81,7 +94,7 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots or offer Ink to charge your Luck. Your next plot roll spends all of it.">
+    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots, Inkborn, eggs or Ink to charge your Luck. Every 20 Luck is a free reroll on your next plot — then you choose which one to keep.">
       {l && (
         <div className="grid gap-4" data-testid="altar">
           {/* the meter */}
@@ -99,23 +112,49 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               </AnimatePresence>
             </div>
             <div className="text-center text-sm font-bold">
-              {l.luck > 0 ? <>Next roll: <span className="text-[#3DDC97]">best of {l.rolls}</span> · ultras <span className="text-[#FFE14D]">×{Number(l.ultra_x).toFixed(1)}</span></> : 'No Luck yet — your next roll is a normal one.'}
+              {l.rolls > 1 ? <>Next plot: <span className="text-[#3DDC97]">{l.rolls} rolls — you pick one</span></> : l.luck > 0 ? `${20 - (l.luck % 20)} more Luck for a free reroll` : 'No Luck yet — your next roll is a normal one.'}
             </div>
-            <div className="text-[11px] text-white/50">Every 20 Luck = one extra roll (keep the best) · ultras get likelier with every point</div>
+            <div className="text-[11px] text-white/50">Every 20 Luck = a free reroll on your next plot (up to 6 rolls) — you see them all and keep the one you like · rerolls roll ultras likelier</div>
+            <div className="mt-1 flex gap-1">{Array.from({ length: 5 }, (_, i) => <span key={i} className={cn('h-2 w-7 rounded-full transition-colors', l.luck >= (i + 1) * 20 ? 'bg-[linear-gradient(90deg,#3DDC97,#FFE14D)]' : 'bg-white/12')} />)}</div>
           </div>
 
           {/* Ink */}
           <section className="grid gap-2">
-            <h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">Offer Ink · {l.ink_per_point} Ink a point · {l.ink_left_today} left today</h3>
+            <h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">Offer Ink · {l.ink_per_point} Ink a point</h3>
             <div className="grid grid-cols-3 gap-2">
-              {[1, 5, 10].map((n) => (
-                <button key={n} disabled={!!busy || n > l.ink_left_today || l.luck + n > l.max} onClick={() => void offer(n)} data-testid={`luck-ink-${n}`}
+              {[5, 20, 100].map((n) => (
+                <button key={n} disabled={!!busy || l.luck >= l.max} onClick={() => void offer(Math.min(n, l.max - l.luck))} data-testid={`luck-ink-${n}`}
                   className="grid rounded-2xl border border-white/12 bg-white/[0.06] px-2 py-2 text-center disabled:opacity-40">
-                  <span className="text-[15px] font-black">+{n} 🍀</span><span className="text-[11px] font-semibold text-white/60">{fmt(n * l.ink_per_point)} Ink</span>
+                  <span className="text-[15px] font-black">{n === 100 ? 'Fill up' : `+${n}`} 🍀</span><span className="text-[11px] font-semibold text-white/60">{fmt(Math.min(n, Math.max(0, l.max - l.luck)) * l.ink_per_point)} Ink</span>
                 </button>
               ))}
             </div>
           </section>
+
+          {/* Inkborn and eggs */}
+          {(l.inkborn.length > 1 || l.eggs.length > 0) && (
+            <section className="grid gap-2">
+              <h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">Sacrifice an Inkborn or an egg</h3>
+              <div className="grid max-h-56 gap-1.5 overflow-y-auto pr-1">
+                {l.eggs.map((e) => (
+                  <div key={e.id} className="flex items-center gap-2.5 rounded-2xl bg-white/[0.04] p-2" data-testid="luck-egg">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl text-2xl" style={{ background: `radial-gradient(circle at 40% 35%, ${e.shell?.a ?? '#fff'}, ${e.shell?.b ?? '#c9b8ff'})` }}>🥚</span>
+                    <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black capitalize">{e.kind} egg{e.mutated ? ' ✨' : ''}</span><span className="text-[11px] text-white/50">Unhatched</span></span>
+                    <button disabled={!!busy || l.luck >= l.max} onClick={() => void offerThing('egg', e.id, e.luck, `${e.kind} egg`)} data-testid="luck-sacrifice-egg"
+                      className="rounded-xl bg-[linear-gradient(135deg,#FF6A1F,#FF2E63)] px-3 py-1.5 text-[12px] font-black text-white shadow-[0_3px_0_#7a1030] disabled:opacity-40">🔥 +{e.luck}</button>
+                  </div>
+                ))}
+                {l.inkborn.length > 1 && l.inkborn.map((i) => (
+                  <div key={i.id} className="flex items-center gap-2.5 rounded-2xl bg-white/[0.04] p-2" data-testid="luck-inkborn">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-2xl">🐾</span>
+                    <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black">{i.name}</span><span className="text-[11px] text-white/50">Bond {i.bond}{i.bond >= 50 ? ' · close friends' : ''}</span></span>
+                    <button disabled={!!busy || l.luck >= l.max} onClick={() => setConfirmThing({ kind: 'inkborn', id: i.id, luck: i.luck, label: i.name })} data-testid="luck-sacrifice-inkborn"
+                      className="rounded-xl bg-[linear-gradient(135deg,#FF6A1F,#FF2E63)] px-3 py-1.5 text-[12px] font-black text-white shadow-[0_3px_0_#7a1030] disabled:opacity-40">🔥 +{i.luck}</button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* plots */}
           <section className="grid gap-2">
@@ -138,6 +177,14 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <p className="text-[11px] text-white/45">A sacrificed plot goes back to the world for good. Rarer plots give more Luck; an ultra fills the altar.</p>
           </section>
 
+          <Dialog open={!!confirmThing} onOpenChange={(o) => !o && setConfirmThing(null)} title={`Sacrifice ${confirmThing?.label ?? ''}?`} description={confirmThing ? `${confirmThing.label} is gone for good, for +${confirmThing.luck} Luck. This can’t be undone.` : ''}>
+            {confirmThing && (
+              <div className="grid grid-cols-2 gap-2">
+                <button className="h-11 rounded-2xl bg-white/10 font-bold" onClick={() => setConfirmThing(null)}>Keep them</button>
+                <button className="h-11 rounded-2xl bg-[linear-gradient(135deg,#FF6A1F,#FF2E63)] font-black text-white" onClick={() => void offerThing(confirmThing.kind, confirmThing.id, confirmThing.luck, confirmThing.label)} data-testid="luck-confirm-thing">🔥 Sacrifice</button>
+              </div>
+            )}
+          </Dialog>
           <Dialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)} title="Sacrifice this plot?" description={confirm ? `Your ${rarityInfo(confirm.rarity).name} plot goes back to the world for +${confirm.luck} Luck. This can’t be undone.` : ''}>
             {confirm && (
               <div className="grid grid-cols-2 gap-2">

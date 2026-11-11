@@ -33,9 +33,8 @@ const SHOWS: Partial<Record<RarityId, { overlay?: Overlay; run(x: Ctx): void }>>
   comet: { run: (x) => { for (let i = 0; i < 3; i++) x.later(i * 260, () => streaks(x, ['#22E3FF', '#C9F8FF', '#fff'], 14, Math.PI * 0.78, { x: W() * 1.05, y: -40 }, [W() * 0.6, 60], 26)); pop(x, ['☄️'], 8, 14); } },
   chaos: { run: (x) => { rain(x, ['🎲', '🎲', '❓'], 28, 4); for (let i = 0; i < 4; i++) x.later(i * 180, () => sparks(x, RAINBOW, 60, 14, { x: Math.random() * W(), y: H() * (0.2 + Math.random() * 0.5) })); } },
   phoenix: { overlay: 'fire', run: (x) => { rise(x, ['#FF5A1F', '#FFD166', '#FF2E2E'], 160, 'drop'); x.later(200, () => rise(x, ['#fff'], 26, 'emoji', ['🔥', '🔥', '🪶'])); x.later(500, () => pop(x, ['🔥', '✨'], 14, 15)); } },
-  dragon: { run: (x) => { ring(x, ['#4ADE80', '#BBF7D0', '#22C55E'], 140, 300, 11); x.later(450, () => { pop(x, ['🐉', '🔥', '💚'], 16, 16); sparks(x, ['#4ADE80', '#FDE047'], 100, 17); }); } },
-  eclipse: { overlay: 'dark', run: (x) => { x.later(500, () => { ring(x, ['#FDE68A', '#fff'], 160, 40, -12); pop(x, ['🌑', '✨', '⭐'], 14, 13); }); } },
-  vampire: { overlay: 'night', run: (x) => { pop(x, ['🦇', '🦇', '🦇', '🩸'], 26, 19); x.later(300, () => x.fx.burst({ x: W() / 2, y: -10, area: [W(), 10], angle: Math.PI / 2, spread: 0.2, speed: 6, gravity: 0.3, colors: ['#DC2626', '#7F1D1D'], count: 70, kind: 'drop' })); } },
+  gemini: { run: (x) => { const L = { x: x.c.x - 90, y: x.c.y }, R2 = { x: x.c.x + 90, y: x.c.y }; sparks(x, ['#F472B6', '#FBCFE8', '#fff'], 80, 15, L); sparks(x, ['#F472B6', '#FBCFE8', '#fff'], 80, 15, R2); x.later(350, () => { pop(x, ['♊', '💞', '✨'], 16, 14); ring(x, ['#F472B6', '#fff'], 120, 220); }); } },
+  kraken: { overlay: 'night', run: (x) => { x.fx.burst({ x: W() / 2, y: H() + 20, area: [W(), 10], angle: -Math.PI / 2, spread: 0.5, speed: 13, gravity: 0.12, drag: 0.99, colors: ['#fff'], kind: 'emoji', emojis: ['🐙', '🦑', '🫧', '🫧'], count: 30, life: 1.4 }); x.later(250, () => ring(x, ['#0EA5A4', '#99F6E4', '#fff'], 160, 320, 12)); x.later(650, () => sparks(x, ['#14B8A6', '#99F6E4', '#fff'], 140, 18)); } },
   ancient: { overlay: 'gold', run: (x) => { rise(x, ['#F1E2BF', '#C9A66B', '#fff'], 120, 'glitter'); pop(x, ['🏛️', '📜', '🏺'], 12, 12); } },
   mirror: { run: (x) => { x.fx.burst({ x: x.c.x, y: x.c.y, colors: ['#fff', '#BAE6FD', '#7DD3FC', '#E0F2FE'], count: 160, speed: 20, kind: 'glitter', gravity: 0.3, size: 2.4 }); pop(x, ['🪞', '💠'], 10, 12); x.later(600, () => ring(x, ['#fff', '#BAE6FD'], 120)); } },
   prismatic: { run: (x) => { for (let i = 0; i < 7; i++) streaks(x, [RAINBOW[i]], 8, (i / 7) * Math.PI * 2, { x: x.c.x, y: x.c.y }, [10, 10], 16); pop(x, ['🌈', '💎'], 12, 14); x.later(400, () => sparks(x, RAINBOW, 120, 16)); } },
@@ -58,4 +57,4 @@ export function celebrate(r: RarityId, shiny: boolean, ctx: Ctx): Overlay {
   return s?.overlay ?? null;
 }
 /** how long a rarity's celebration holds the stage before the buttons fade in (ms) */
-export const celebrateDelay = (r: RarityId) => (r === 'singularity' ? 900 : r === 'eclipse' || r === 'genesis' || r === 'dragon' ? 550 : SHOWS[r] ? 380 : 380);
+export const celebrateDelay = (r: RarityId) => (r === 'singularity' ? 900 : r === 'kraken' || r === 'genesis' ? 550 : SHOWS[r] ? 380 : 380);

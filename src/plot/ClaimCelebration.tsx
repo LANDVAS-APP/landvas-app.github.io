@@ -8,6 +8,9 @@ import { create } from 'zustand';
 import type { PlotTypeId } from '../shared/grid';
 import type { RarityId } from '../shared/rarity';
 import { RollReveal } from '../roll/RollReveal';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../backend/api';
+import { celebrate, invalidateGame, qk } from '../lib/queries';
 import { Button } from '../ui';
 
 export type Celebration = {
@@ -21,6 +24,8 @@ export type Celebration = {
   shiny?: boolean;
   /** Luck from the altar made this roll better */
   lucky?: boolean;
+  /** Luck's rerolls: every roll; the player keeps one */
+  choices?: RarityId[] | null;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -43,6 +48,7 @@ export function ClaimCelebration() {
 
 function Show({ c }: { c: Celebration }) {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const close = () => useCelebration.getState().close();
   const go = (start: 'draw' | 'upload') => { close(); nav(`/create/${c.groupId}?start=${start}`); };
   const actions = c.base ? (
@@ -60,7 +66,9 @@ function Show({ c }: { c: Celebration }) {
   );
   return (
     <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close}
-      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky }}
+      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices }}
+      luck={(qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck}
+      onPick={async (i) => { const p = await api.luckPick(c.gx, c.gy, i); celebrate(p.achievements); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.myPlots }); }}
       onRevealed={() => useCelebration.getState().reveal()}
       actions={<>
         {actions}

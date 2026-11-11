@@ -628,7 +628,7 @@ const BASE_SLAB: Record<string, [string, string]> = {
   legendary: ['#E8A928', '#A86A0E'], mythic: ['#FF5FB4', '#6E3BFF'], solar: ['#FFB43A', '#E0521B'], lunar: ['#1E2A6B', '#0B1033'],
   comet: ['#0E2A4A', '#05101E'], ancient: ['#D9B77A', '#8E6B37'], prismatic: ['#FF7AE0', '#5FD3FF'], genesis: ['#1A0838', '#000004'],
   chaos: ['#FF2E63', '#3A0CA3'], phoenix: ['#FF8A1F', '#8E1B00'], crown: ['#5B2A9E', '#24104A'],
-  dragon: ['#16A34A', '#052E16'], eclipse: ['#1E1B4B', '#020617'], vampire: ['#7F1D1D', '#1C0505'], mirror: ['#BAE6FD', '#475569'],
+  kraken: ['#0F766E', '#042F2E'], gemini: ['#F472B6', '#7E22CE'], mirror: ['#BAE6FD', '#475569'],
   singularity: ['#111827', '#000000'], crown_state: ['#6D28D9', '#2E1065'], crown_country: ['#9F1239', '#3B0012'],
 };
 /** The ultra rarities' (and Uncommon's) emblem, drawn into a box. */
@@ -679,23 +679,17 @@ function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: nu
     ctx.beginPath(); ctx.moveTo(cx, cy + m * 0.38); ctx.quadraticCurveTo(cx - m * 0.22, cy + m * 0.14, cx - m * 0.06, cy - m * 0.08); ctx.quadraticCurveTo(cx - m * 0.02, cy - m * 0.24, cx, cy - m * 0.38);
     ctx.quadraticCurveTo(cx + m * 0.14, cy - m * 0.14, cx + m * 0.08, cy - m * 0.02); ctx.quadraticCurveTo(cx + m * 0.22, cy + m * 0.16, cx, cy + m * 0.38); ctx.fill();
     ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.ellipse(cx, cy + m * 0.14, m * 0.06, m * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-  } else if (rid === 'dragon') {
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#4ADE80'; ctx.lineWidth = m * 0.13;
-    ctx.beginPath(); ctx.moveTo(x + w * 0.18, y + h * 0.74); ctx.bezierCurveTo(x + w * 0.3, y + h * 0.92, x + w * 0.56, y + h * 0.84, x + w * 0.52, y + h * 0.66);
-    ctx.bezierCurveTo(x + w * 0.48, y + h * 0.5, x + w * 0.22, y + h * 0.54, x + w * 0.28, y + h * 0.38); ctx.bezierCurveTo(x + w * 0.34, y + h * 0.24, x + w * 0.58, y + h * 0.24, x + w * 0.66, y + h * 0.34); ctx.stroke();
-    ctx.fillStyle = '#22C55E'; ctx.beginPath(); ctx.moveTo(x + w * 0.6, y + h * 0.26); ctx.lineTo(x + w * 0.8, y + h * 0.22); ctx.lineTo(x + w * 0.84, y + h * 0.34); ctx.lineTo(x + w * 0.7, y + h * 0.42); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#FDE047'; ctx.beginPath(); ctx.arc(x + w * 0.75, y + h * 0.29, m * 0.026, 0, Math.PI * 2); ctx.fill();
-  } else if (rid === 'eclipse') {
-    ctx.globalAlpha = 0.55; ctx.fillStyle = '#FDE68A';
-    for (let i = 0; i < 18; i++) { const t = (i / 18) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx + Math.cos(t) * m * 0.26, cy + Math.sin(t) * m * 0.26); ctx.lineTo(cx + Math.cos(t + 0.09) * m * 0.44, cy + Math.sin(t + 0.09) * m * 0.44); ctx.lineTo(cx + Math.cos(t + 0.18) * m * 0.26, cy + Math.sin(t + 0.18) * m * 0.26); ctx.closePath(); ctx.fill(); }
-    ctx.globalAlpha = 0.9; ctx.fillStyle = '#FFF7D6'; ctx.beginPath(); ctx.arc(cx, cy, m * 0.28, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1; ctx.fillStyle = '#0B0A1F'; ctx.beginPath(); ctx.arc(cx, cy, m * 0.25, 0, Math.PI * 2); ctx.fill();
-  } else if (rid === 'vampire') {
-    ctx.globalAlpha = 0.85; ctx.fillStyle = '#EF4444'; ctx.beginPath(); ctx.arc(x + w * 0.66, y + h * 0.3, m * 0.17, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1; ctx.fillStyle = '#0A0A0A';
-    ctx.beginPath(); ctx.moveTo(cx, y + h * 0.52); ctx.quadraticCurveTo(x + w * 0.34, y + h * 0.4, x + w * 0.22, y + h * 0.46); ctx.quadraticCurveTo(x + w * 0.3, y + h * 0.56, x + w * 0.24, y + h * 0.6);
-    ctx.quadraticCurveTo(x + w * 0.38, y + h * 0.58, x + w * 0.42, y + h * 0.66); ctx.lineTo(cx, y + h * 0.6); ctx.lineTo(x + w * 0.58, y + h * 0.66);
-    ctx.quadraticCurveTo(x + w * 0.62, y + h * 0.58, x + w * 0.76, y + h * 0.6); ctx.quadraticCurveTo(x + w * 0.7, y + h * 0.56, x + w * 0.78, y + h * 0.46); ctx.quadraticCurveTo(x + w * 0.66, y + h * 0.4, cx, y + h * 0.52); ctx.fill();
+  } else if (rid === 'kraken') {
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = m * 0.07;
+    for (const dx of [-0.34, -0.12, 0.12, 0.34]) { ctx.beginPath(); ctx.moveTo(cx + dx * 0.4 * w, y + h * 0.7); ctx.bezierCurveTo(cx + dx * w, y + h * 0.8, cx + dx * 1.3 * w, y + h * 0.62, cx + dx * 1.1 * w, y + h * 0.46); ctx.stroke(); }
+    ctx.fillStyle = '#14B8A6'; ctx.beginPath(); ctx.ellipse(cx, y + h * 0.46, m * 0.2, m * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; for (const dx of [-0.07, 0.07]) { ctx.beginPath(); ctx.arc(cx + dx * w, y + h * 0.48, m * 0.045, 0, Math.PI * 2); ctx.fill(); }
+  } else if (rid === 'gemini') {
+    ctx.fillStyle = '#FBCFE8'; ctx.beginPath(); ctx.arc(x + w * 0.34, cy, m * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#F9A8D4'; ctx.beginPath(); ctx.arc(x + w * 0.66, cy, m * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7E22CE'; ctx.lineWidth = m * 0.045; ctx.lineCap = 'round'; ctx.beginPath();
+    ctx.moveTo(x + w * 0.27, y + h * 0.36); ctx.lineTo(x + w * 0.73, y + h * 0.36); ctx.moveTo(x + w * 0.27, y + h * 0.64); ctx.lineTo(x + w * 0.73, y + h * 0.64);
+    ctx.moveTo(x + w * 0.4, y + h * 0.36); ctx.lineTo(x + w * 0.4, y + h * 0.64); ctx.moveTo(x + w * 0.6, y + h * 0.36); ctx.lineTo(x + w * 0.6, y + h * 0.64); ctx.stroke();
   } else if (rid === 'mirror') {
     ctx.fillStyle = '#D4AF37'; ctx.beginPath(); ctx.ellipse(cx, cy, m * 0.27, m * 0.34, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#E0F2FE'; ctx.beginPath(); ctx.ellipse(cx, cy, m * 0.22, m * 0.29, 0, 0, Math.PI * 2); ctx.fill();
@@ -737,7 +731,7 @@ function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: nu
   }
   ctx.restore();
 }
-const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown', 'dragon', 'eclipse', 'vampire', 'mirror', 'singularity', 'crown_state', 'crown_country']);
+const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown', 'kraken', 'gemini', 'mirror', 'singularity', 'crown_state', 'crown_country']);
 function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
   const rid = c.rid ?? 'common';

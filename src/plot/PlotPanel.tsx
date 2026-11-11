@@ -33,6 +33,7 @@ import { formatRate } from '../shared/rent';
 import { plotMetres } from '../shared/grid';
 import { enableGps, useExplorer } from '../explorer/explorer';
 import { useCelebration } from './ClaimCelebration';
+import type { RarityId } from '../shared/rarity';
 import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 
@@ -262,7 +263,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         const hab = await becomeHabitat(r.group_id);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
@@ -272,7 +273,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky,
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null,
           onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }

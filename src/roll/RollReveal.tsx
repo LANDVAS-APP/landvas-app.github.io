@@ -7,10 +7,11 @@
 // in one requestAnimationFrame loop that writes transforms and a CSS variable straight to the DOM; particles live on
 // one canvas; nothing animates a blur, a filter or a layout property; and the app underneath is hidden while the roll
 // covers it, so the map isn't composited behind it.
-import { motion, useAnimationControls, useIsPresent } from 'motion/react';
+import { AnimatePresence, motion, useAnimationControls, useIsPresent } from 'motion/react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useUi } from '../lib/store';
+import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
@@ -19,8 +20,9 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { Fx } from './fx';
 import { celebrate, celebrateDelay, type Overlay } from './celebrate';
 
-export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null };
-type Phase = 'drop' | 'spin' | 'reveal';
+export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null;
+  /** Luck's rerolls: every roll (the first is the plot's own); the player keeps one */ choices?: RarityId[] | null };
+type Phase = 'drop' | 'spin' | 'pick' | 'reveal';
 
 const INK = '#1B1240';
 const BLOB = 'M50 8 C63 8 70 18 78 22 C90 28 94 40 92 52 C90 64 96 74 86 84 C76 94 62 90 50 92 C38 94 26 96 17 86 C8 76 10 64 8 52 C6 40 10 28 22 21 C31 15 38 8 50 8Z';
@@ -29,6 +31,9 @@ const H = 58; // one drum row
 const SLOTS = 7;
 const RAINBOW = '#FF3D9A, #FFB31F, #FFE14D, #3DDC97, #22E3FF, #8FA8FF, #A45CFF, #FF3D9A';
 
+/** which of Luck's rolls is best (to suggest it) */
+const bestIdx = (c: RarityId[]) => c.reduce((b, r, i) => (rank(r) > rank(c[b]) ? i : b), 0);
+const rank = (r: RarityId) => { const i = rarityInfo(r); return r.startsWith('crown') ? 1e9 : i.ppm ? 1000 + 1e6 / i.ppm : i.sort; };
 const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
 const easeOutBack = (x: number) => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2; };
 
@@ -38,13 +43,17 @@ export function RollReveal(props: {
   testId: string;
   rarityTestId: string;
   onRevealed?(): void;
+  /** Luck's rerolls: keep this one (the server makes it so) */
+  onPick?(idx: number): Promise<unknown>;
+  /** the player's Luck before this roll (for the meter) */
+  luck?: number;
   onClose(): void;
   actions: ReactNode;
 }) {
   return createPortal(<Roll {...props} />, document.body);
 }
 
-function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions }: Parameters<typeof RollReveal>[0]) {
+function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions, onPick, luck = 0 }: Parameters<typeof RollReveal>[0]) {
   const reduce = useUi((s) => s.settings.reduceMotion);
   const haptics = useUi((s) => s.settings.haptics);
   const present = useIsPresent();
@@ -56,6 +65,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   const cardRef = useRef<HTMLDivElement>(null);
   const chargeRef = useRef<HTMLDivElement>(null);
   const inkRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef<number | null>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -65,7 +75,14 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   resultRef.current = result;
   const skip = useRef(false);
   const shake = useAnimationControls();
-  const final = result?.rarity ?? 'common';
+  const choices = result?.choices && result.choices.length > 1 ? result.choices : null;
+  const [rollIdx, setRollIdx] = useState(0);
+  const [rolled, setRolled] = useState<RarityId[]>([]);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [sel, setSel] = useState(0);
+  const [picking, setPicking] = useState(false);
+  const target = (i: number): RarityId => (resultRef.current?.choices && resultRef.current.choices.length > 1 ? resultRef.current.choices[i] : resultRef.current!.rarity);
+  const final = (choices && picked != null ? choices[picked] : result?.rarity) ?? 'common';
   const info = rarityInfo(final);
   const tier = result ? rarityTier(final) : 0;
   const revealed = phase === 'reveal' && !!result;
@@ -120,19 +137,22 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     const root = rootRef.current!;
     const charge = chargeRef.current!;
     const t0 = performance.now();
-    let pos = Math.random() * N, last = t0, raf = 0;
+    let pos = posRef.current ?? Math.random() * N, last = t0, raf = 0;
     let v = reduce ? 40 : 24; // rows per second, free spin
     let land: { p0: number; pT: number; ov: number; t0: number; D: number; settle: number } | null = null;
     let centerK = NaN, done = false, charged = false;
-    const minSpin = reduce ? 0 : 900;
+    const minSpin = reduce || rollIdx > 0 ? 0 : 900;
+    if (rollIdx > 0) v = 30;
     // the ink: a splash that keeps spreading while the drum spins, and floods the whole canvas as it lands
     const ink = inkRef.current;
     let fill = 0.32, fill0 = 0.32;
-    const setInk = (sc: number, t: number) => { if (ink) ink.style.transform = `scale(${sc}) rotate(${(t - t0) * 0.012}deg)`; };
+    const setInk = (_sc: number, _t: number) => { void ink; };
 
-    const begin = (now: number, quick: boolean) => {
-      const f = resultRef.current!.rarity;
+    const begin = (now: number, quickIn: boolean) => {
+      let quick = quickIn;
+      const f = target(rollIdx);
       const tr = rarityTier(f);
+      if (rollIdx > 0) quick = true; // (Luck's rerolls are quicker)
       const fi = RARITY_ORDER.indexOf(f);
       const dist = N + (quick ? 0 : tr * 3); // always through every rarity at least once
       let pT = Math.ceil((pos + dist - fi) / N) * N + fi;
@@ -190,15 +210,27 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           if (y >= 1 && !done) { done = true; pos = land.pT; }
         }
         // the build-up: Epic and up charge the canvas for the last stretch
-        const tr = rarityTier(resultRef.current!.rarity);
+        const tr = rarityTier(target(rollIdx));
         if (!charged && tr >= 2 && !reduce && x > 0.5) { charged = true; charge.classList.add('lv-rr-charge'); charge.style.setProperty('--amp', `${0.6 + tr * 0.45}px`); }
       }
       paint();
+      posRef.current = pos;
       setInk(fill, now);
       if (done) {
         charge.classList.remove('lv-rr-charge');
-        const f = rarityInfo(resultRef.current!.rarity);
+        const fr = target(rollIdx), f = rarityInfo(fr);
         root.style.setProperty('--c', f.color); root.style.setProperty('--g', f.glow);
+        const multi = resultRef.current?.choices && resultRef.current.choices.length > 1;
+        if (multi) {
+          // one of Luck's rolls lands: into the tray it goes, then the next — or, after the last, you choose
+          const n = resultRef.current!.choices!.length;
+          const c = center();
+          if (!reduce) fx.current?.burst({ x: c.x, y: c.y, colors: [f.color, f.glow, '#fff'], count: 50 + rarityTier(fr) * 25, speed: 10, kind: 'spark' });
+          if (haptics) buzz(rarityTier(fr) >= 3 ? 'heavy' : 'medium');
+          setRolled((r) => [...r, fr]);
+          setTimeout(() => { if (rollIdx < n - 1) setRollIdx(rollIdx + 1); else { setSel(bestIdx(resultRef.current!.choices!)); setPhase('pick'); } }, reduce ? 0 : 520);
+          return;
+        }
         setTimeout(() => setPhase('reveal'), reduce ? 0 : 110);
         return;
       }
@@ -206,13 +238,12 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, rollIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // once it lands, the ink is the rarity's colour (set straight on the element, after every other write)
   useLayoutEffect(() => {
     if (!revealed || !rootRef.current) return;
     rootRef.current.style.setProperty('--c', info.color); rootRef.current.style.setProperty('--g', info.glow);
-    if (inkRef.current) inkRef.current.style.transform = 'scale(2.7)';
   }, [revealed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the name always fits on one line (measured — fonts and emoji vary by phone)
@@ -252,7 +283,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     const t1 = performance.now() + (reduce ? 0 : 450);
     const tick = (now: number) => {
       const x = Math.max(0, Math.min(1, (now - t1) / 900));
-      if (rentRef.current) rentRef.current.textContent = `+${formatRate(result.usd * easeOutCubic(x))}`;
+      if (rentRef.current) rentRef.current.textContent = `+${formatRate((choices && picked != null ? rarityInfo(final).usd_per_second : result.usd) * easeOutCubic(x))}`;
       if (x < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -305,6 +336,17 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
 
         {/* the canvas */}
         <div ref={chargeRef} className="relative">
+          {revealed && result?.shiny && !reduce && (
+            <div className="pointer-events-none absolute -inset-8 z-10" data-testid="roll-shiny-fx">
+              {Array.from({ length: 16 }, (_, i) => {
+                const a = (i / 16) * Math.PI * 2, rr = 46 + (i % 3) * 6;
+                return <span key={i} className="lv-twinkle absolute text-white" style={{ left: `${50 + Math.cos(a) * rr}%`, top: `${50 + Math.sin(a) * rr}%`, fontSize: 10 + (i % 4) * 5, animationDelay: `${0.9 + (i % 8) * 0.17}s` }}>✦</span>;
+              })}
+              <motion.div className="absolute -right-3 -top-4 grid place-items-center" initial={{ scale: 3, opacity: 0, rotate: -12 }} animate={{ scale: 1, opacity: 1, rotate: 10 }} transition={{ delay: 0.75, type: 'spring', stiffness: 500, damping: 14 }}>
+                <span className="lv-shiny-stamp rounded-xl px-3 py-1 font-display text-[22px] font-black text-[#1a0b2e]">✨ SHINY! ✨</span>
+              </motion.div>
+            </div>
+          )}
           <motion.div ref={cardRef} className="relative aspect-square w-[min(72vw,310px)]" style={{ willChange: 'transform' }}
             initial={{ scale: 0.55, rotate: -6, opacity: 0 }} animate={{ scale: revealed ? [0.92, 1.06, 1] : 1, rotate: 0, opacity: 1 }}
             transition={revealed ? { duration: 0.5, times: [0, 0.45, 1] } : { type: 'spring', stiffness: 260, damping: 19 }}>
@@ -312,27 +354,16 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
             <div className="lv-rr-card absolute inset-0 overflow-hidden rounded-[28px] border-[6px] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)]" style={{ borderColor: revealed ? info.color : '#E9DFC8' }}>
               <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'repeating-linear-gradient(0deg,#6B4A22 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,#6B4A22 0 1px,transparent 1px 6px)' }} />
               {/* the ink */}
-              {phase !== 'drop' && (
-                <div ref={inkRef} className="absolute inset-0" style={{ willChange: 'transform', transform: revealed ? 'scale(2.7)' : 'scale(0.32)' }}>
-                  <div className={revealed ? 'absolute inset-0' : 'lv-rr-breathe absolute inset-0'}>
-                    <svg viewBox="0 0 100 100" className="h-full w-full overflow-visible">
-                      <defs><radialGradient id="rr-shine" cx="38%" cy="32%" r="70%"><stop offset="0" stopColor="#fff" stopOpacity="0.45" /><stop offset="0.4" stopColor="#fff" stopOpacity="0" /></radialGradient></defs>
-                      <path d={BLOB} className="lv-rr-ink" />
-                      {/* little drops that spread out and join the pool */}
-                      <circle cx="16" cy="22" r="9" className="lv-rr-ink" /><circle cx="86" cy="30" r="7" className="lv-rr-ink" /><circle cx="78" cy="88" r="8" className="lv-rr-ink" /><circle cx="14" cy="80" r="6" className="lv-rr-ink" />
-                      <path d={BLOB} fill="url(#rr-shine)" />
-                    </svg>
-                  </div>
-                </div>
-              )}
+              {phase !== 'drop' && <InkSplash key={rollIdx} still={reduce} />}
               {/* the plot rises out of the ink */}
               {revealed && result && (
                 <motion.div className="absolute inset-[14%]" data-testid={testId === 'ink-roll' ? 'roll-plot' : 'claim-plot-art'}
                   initial={{ opacity: 0, scale: 0.3, rotate: -14, y: 24 }} animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }} transition={{ delay: 0.2, type: 'spring', stiffness: 330, damping: 15 }}>
-                  <BasePlotArt rarity={result.rarity} shiny={result.shiny} size="100%" />
+                  <BasePlotArt rarity={final} shiny={result.shiny} size="100%" />
                 </motion.div>
               )}
               {revealed && (result?.shiny || tier >= 3) && !reduce && <div className="lv-rr-sheen pointer-events-none absolute inset-0" />}
+              {revealed && result?.shiny && !reduce && <div className="lv-rr-foil pointer-events-none absolute inset-0" />}
             </div>
             {/* the falling drop */}
             {phase === 'drop' && (
@@ -368,8 +399,111 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           )}
         </div>
       </motion.div>
+        {/* Luck's rerolls: the meter and the rolls so far */}
+        {choices && phase !== 'reveal' && phase !== 'pick' && (
+          <div className="pointer-events-none absolute inset-x-0 top-[max(18px,env(safe-area-inset-top,0px))] grid justify-items-center gap-1.5" data-testid="roll-luck">
+            <div className="flex items-center gap-2 rounded-full bg-[#3DDC97]/15 px-3 py-1 text-[13px] font-black text-[#8CF5C6]">
+              🍀 {rollIdx === 0 ? `Luck ${luck}: ${choices.length} rolls!` : `Lucky reroll ${rollIdx} of ${choices.length - 1}`}
+              <span className="flex gap-0.5">{choices.slice(1).map((_, i) => <motion.span key={i} className="h-2 w-4 rounded-full" animate={{ backgroundColor: i < rollIdx ? 'rgba(255,255,255,0.15)' : '#3DDC97', scale: i === rollIdx - 1 ? [1, 1.5, 1] : 1 }} transition={{ duration: 0.4 }} />)}</span>
+            </div>
+          </div>
+        )}
+      {/* the rolls Luck gave you, as they land */}
+      {choices && rolled.length > 0 && phase !== 'pick' && phase !== 'reveal' && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[max(18px,env(safe-area-inset-bottom,0px))] flex justify-center gap-2 px-4" data-testid="roll-tray">
+          {rolled.map((r, i) => (
+            <motion.div key={i} className="grid justify-items-center gap-0.5" initial={{ y: -260, scale: 1.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}>
+              <BasePlotArt rarity={r} size={44} />
+              <span className="text-[9px] font-black uppercase" style={{ color: rarityInfo(r).color }}>{rarityInfo(r).name}</span>
+            </motion.div>
+          ))}
+        </div>
+      )}
+      {/* choose the one you keep */}
+      <AnimatePresence>
+        {phase === 'pick' && choices && (
+          <motion.div className="absolute inset-0 z-10 grid place-items-center bg-[#05040F]/95 px-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="roll-pick">
+            <div className="grid w-full max-w-[380px] gap-4 text-center">
+              <div>
+                <div className="font-display text-[26px] font-black text-white">🍀 Pick your plot</div>
+                <div className="text-[13px] font-semibold text-white/60">Luck rolled it {choices.length} times — keep the one you want.</div>
+              </div>
+              <div className="grid grid-cols-3 gap-2.5">
+                {choices.map((r, i) => {
+                  const ri = rarityInfo(r), on = sel === i;
+                  return (
+                    <motion.button key={i} onClick={() => { setSel(i); if (haptics) buzz('light'); }} data-testid={`roll-choice-${i}`}
+                      className="relative grid justify-items-center gap-1 rounded-2xl border-2 bg-white/[0.05] px-1 py-2.5"
+                      style={{ borderColor: on ? ri.color : 'rgba(255,255,255,0.1)', boxShadow: on ? `0 0 24px ${ri.color}88` : undefined }}
+                      initial={{ y: 30, opacity: 0, rotateY: 90 }} animate={{ y: 0, opacity: 1, rotateY: 0, scale: on ? 1.06 : 1 }} transition={{ delay: i * 0.07, type: 'spring', stiffness: 360, damping: 22 }}>
+                      <BasePlotArt rarity={r} size={58} />
+                      <span className="max-w-full truncate px-1 text-[11px] font-black uppercase" style={{ color: ri.color }}>{ri.emoji ? `${ri.emoji} ` : ''}{ri.name}</span>
+                      <span className="text-[9px] font-bold text-white/50 tnum">{formatRate(ri.usd_per_second)}</span>
+                      {i === bestIdx(choices) && <span className="absolute -right-1 -top-2 rounded-full bg-[#FFE14D] px-1.5 text-[9px] font-black text-[#1a0b2e]">BEST</span>}
+                    </motion.button>
+                  );
+                })}
+              </div>
+              <button disabled={picking} onClick={async () => {
+                setPicking(true);
+                try { await onPick?.(sel); } catch { /* the server keeps the best */ }
+                setPicked(sel); setPicking(false); setPhase('reveal');
+              }} className="h-[54px] rounded-2xl bg-[linear-gradient(135deg,#3DDC97,#1FA971)] font-display text-[17px] font-black text-white shadow-[0_5px_0_#147a52] disabled:opacity-60" data-testid="roll-keep">
+                Keep the {rarityInfo(choices[sel]).name}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* particles on top of everything */}
       <canvas ref={cvRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
     </motion.div>
+  );
+}
+
+/** a smooth closed blob through n random points round (cx, cy) */
+function blobPath(rnd: () => number, cx: number, cy: number, r: number, n = 12, wob = 0.35) {
+  const pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + rnd() * 0.3, rr = r * (1 - wob / 2 + rnd() * wob); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
+  let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d + 'Z';
+}
+
+/** The ink hitting the canvas: a different splash every time — a pool that bursts out, splatters flung round it,
+ *  tendrils running out to them, and blooms that soak across until the whole canvas is ink. All in well under a
+ *  second, all transforms (no layout, no filters). */
+function InkSplash({ still }: { still: boolean }) {
+  const shapes = useMemo(() => {
+    let seed = Math.floor(Math.random() * 1e9);
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    const cx = 44 + rnd() * 12, cy = 44 + rnd() * 12;
+    const splats = Array.from({ length: 8 + Math.floor(rnd() * 4) }, () => {
+      const a = rnd() * Math.PI * 2, dist = 20 + rnd() * 26;
+      return { x: cx + Math.cos(a) * dist, y: cy + Math.sin(a) * dist, r: 3 + rnd() * 9, d: 0.08 + rnd() * 0.22 };
+    });
+    const blooms = Array.from({ length: 5 }, (_, i) => {
+      const a = (i / 5) * Math.PI * 2 + rnd(), dist = 18 + rnd() * 18;
+      return { x: cx + Math.cos(a) * dist, y: cy + Math.sin(a) * dist, r: 10 + rnd() * 8, d: 0.16 + rnd() * 0.2 };
+    });
+    return {
+      main: blobPath(rnd, cx, cy, 20, 14, 0.4), cx, cy,
+      splats: splats.map((p) => ({ ...p, path: blobPath(rnd, p.x, p.y, p.r, 8, 0.5) })),
+      tendrils: splats.slice(0, 6).map((p) => ({ d: `M${cx} ${cy} Q${(cx + p.x) / 2 + (rnd() - 0.5) * 10} ${(cy + p.y) / 2 + (rnd() - 0.5) * 10} ${p.x} ${p.y}`, w: 2 + rnd() * 3, dl: p.d * 0.6 })),
+      blooms: blooms.map((p) => ({ ...p, path: blobPath(rnd, p.x, p.y, p.r, 10, 0.45) })),
+    };
+  }, []);
+  const g = (s: number, d: number, dl: number) => ({ ['--s' as string]: s, ['--d' as string]: `${d}s`, ['--dl' as string]: `${dl}s` }) as React.CSSProperties;
+  return (
+    <svg viewBox="0 0 100 100" className={cn('absolute inset-0 h-full w-full overflow-visible', still && 'lv-ink-still')} aria-hidden>
+      <defs><radialGradient id="rr-shine" cx="38%" cy="32%" r="70%"><stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="0.45" stopColor="#fff" stopOpacity="0" /></radialGradient></defs>
+      {shapes.tendrils.map((t, i) => <path key={`t${i}`} d={t.d} className="lv-rr-ink-stroke lv-ink-draw" strokeWidth={t.w} style={{ ['--dl' as string]: `${t.dl}s` } as React.CSSProperties} pathLength={1} />)}
+      {shapes.splats.map((p, i) => <path key={`s${i}`} d={p.path} className="lv-rr-ink lv-ink-grow" style={g(1.25, 0.32, p.d)} />)}
+      {shapes.blooms.map((p, i) => <path key={`b${i}`} d={p.path} className="lv-rr-ink lv-ink-grow" style={g(2.6, 0.55, p.d)} />)}
+      <path d={shapes.main} className="lv-rr-ink lv-ink-grow" style={g(3.6, 0.7, 0)} />
+      <circle cx={shapes.cx} cy={shapes.cy} r="40" fill="url(#rr-shine)" className="lv-ink-grow" style={g(1.6, 0.7, 0.1)} />
+    </svg>
   );
 }

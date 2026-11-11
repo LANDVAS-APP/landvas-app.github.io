@@ -2,7 +2,7 @@
 // them) and revealed when a plot is claimed. Six on the usual table (Common … Mythic, with Uncommon), and six ultra
 // rarities on their own one-in-thousands roll, each with its own way of earning (see `ability`).
 
-export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis' | 'chaos' | 'phoenix' | 'crown' | 'dragon' | 'eclipse' | 'vampire' | 'mirror' | 'singularity' | 'crown_state' | 'crown_country';
+export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis' | 'chaos' | 'phoenix' | 'crown' | 'kraken' | 'gemini' | 'mirror' | 'singularity' | 'crown_state' | 'crown_country';
 
 export type RarityInfo = {
   id: RarityId;
@@ -36,19 +36,18 @@ export const DEFAULT_RARITIES: RarityInfo[] = [
   { id: 'prismatic', name: 'Prismatic', weight: 0, ppm: 10, emoji: '🌈', ability: 'Every plot you own earns +5% more (stacks, up to +50%).', usd_per_second: 0.00000003, ink_reward_multiplier: 3.5, price_multiplier: 1, color: '#FF7AE0', glow: '#FFFFFF', sort: 11 },
   { id: 'genesis', name: 'Genesis', weight: 0, ppm: 2, emoji: '🌌', ability: 'One in half a million. Every plot you own earns +25% more.', usd_per_second: 0.0000003, ink_reward_multiplier: 5, price_multiplier: 1, color: '#FFFFFF', glow: '#FFD6FF', sort: 12 },
   { id: 'chaos', name: 'Chaos', weight: 0, ppm: 300, emoji: '🎲', ability: 'Its rent multiplier re-rolls every day: anywhere from ×0 to ×20.', usd_per_second: 0.00000001, ink_reward_multiplier: 2.8, price_multiplier: 1, color: '#FF2E63', glow: '#FFE14D', sort: 13 },
-  { id: 'phoenix', name: 'Phoenix', weight: 0, ppm: 300, emoji: '🔥', ability: '×2 rent on days you check in, fades 25% each day you miss — and is reborn ×10 the day you come back.', usd_per_second: 0.000000012, ink_reward_multiplier: 3, price_multiplier: 1, color: '#FF5A1F', glow: '#FFD166', sort: 14 },
+  { id: 'phoenix', name: 'Phoenix', weight: 0, ppm: 300, emoji: '🔥', ability: 'Grows with your daily streak: +10% rent for every day in a row you check in — all the way to a 365-day streak (×37.5). Miss a day and it falls to ashes.', usd_per_second: 0.000000012, ink_reward_multiplier: 3, price_multiplier: 1, color: '#FF5A1F', glow: '#FFD166', sort: 14 },
   { id: 'crown', name: 'City Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'One per city. Its holder earns ×1.5 on all their rent — at full strength once 5 other players own land in the city.', usd_per_second: 0.00000005, ink_reward_multiplier: 4, price_multiplier: 1, color: '#FFD23F', glow: '#FFF4B8', sort: 15 },
-  { id: 'dragon', name: 'Dragon', weight: 0, ppm: 250, emoji: '🐉', ability: 'Grows with your daily streak: +10% rent for every day in a row you check in, up to ×10. Miss a day and it sleeps.', usd_per_second: 0.000000013, ink_reward_multiplier: 2.9, price_multiplier: 1, color: '#22C55E', glow: '#BBF7D0', sort: 16 },
-  { id: 'eclipse', name: 'Eclipse', weight: 0, ppm: 250, emoji: '🌑', ability: 'Most days an ordinary plot — but about one day in seven the eclipse comes: ×25 rent all day.', usd_per_second: 0.000000013, ink_reward_multiplier: 3, price_multiplier: 1, color: '#7C3AED', glow: '#FDE68A', sort: 17 },
-  { id: 'vampire', name: 'Vampire', weight: 0, ppm: 200, emoji: '🧛', ability: 'Feeds on its neighbours: +50% rent for every other player’s plot within about 100 m, up to ×10.', usd_per_second: 0.000000014, ink_reward_multiplier: 3, price_multiplier: 1, color: '#DC2626', glow: '#FECDD3', sort: 18 },
+  { id: 'kraken', name: 'Kraken', weight: 0, ppm: 200, emoji: '🐙', ability: 'Lurks under the map and drags in the rent around it: +75% for every other player’s plot within about 200 m, up to ×20.', usd_per_second: 0.000000015, ink_reward_multiplier: 3.2, price_multiplier: 1, color: '#0EA5A4', glow: '#99F6E4', sort: 23 },
+  { id: 'gemini', name: 'Gemini', weight: 0, ppm: 250, emoji: '♊', ability: 'Comes alive in pairs: on its own an ordinary ultra, but own two Gemini plots and each earns ×12.', usd_per_second: 0.000000014, ink_reward_multiplier: 3, price_multiplier: 1, color: '#F472B6', glow: '#FBCFE8', sort: 24 },
   { id: 'mirror', name: 'Mirror', weight: 0, ppm: 100, emoji: '🪞', ability: 'Copies the rent of your best other plot — pair it with an ultra and it earns like one.', usd_per_second: 0.000000015, ink_reward_multiplier: 3.2, price_multiplier: 1, color: '#7DD3FC', glow: '#F0F9FF', sort: 19 },
   { id: 'singularity', name: 'Singularity', weight: 0, ppm: 1, emoji: '🕳️', ability: 'One in a million. Bends everything around it: every plot you own earns double.', usd_per_second: 0.000001, ink_reward_multiplier: 8, price_multiplier: 1, color: '#B4FF39', glow: '#F2FFD6', sort: 20 },
   { id: 'crown_state', name: 'State Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'One per state or province. Its holder earns ×5 on all their rent — at full strength once 25 other players own land in the state.', usd_per_second: 0.0000002, ink_reward_multiplier: 6, price_multiplier: 1, color: '#C084FC', glow: '#F5D0FE', sort: 21 },
   { id: 'crown_country', name: 'Country Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'One per country. Its holder earns ×10 on all their rent — at full strength once 100 other players own land in the country.', usd_per_second: 0.0000008, ink_reward_multiplier: 10, price_multiplier: 1, color: '#F43F5E', glow: '#FFE4E6', sort: 22 },
 ];
 
-export const RARITY_ORDER: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'chaos', 'phoenix', 'dragon', 'eclipse', 'vampire', 'ancient', 'mirror', 'prismatic', 'crown', 'crown_state', 'genesis', 'crown_country', 'singularity'];
-export const ULTRA: RarityId[] = ['solar', 'lunar', 'comet', 'chaos', 'phoenix', 'dragon', 'eclipse', 'vampire', 'ancient', 'mirror', 'prismatic', 'crown', 'crown_state', 'genesis', 'crown_country', 'singularity'];
+export const RARITY_ORDER: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'chaos', 'phoenix', 'gemini', 'kraken', 'ancient', 'mirror', 'prismatic', 'crown', 'crown_state', 'genesis', 'crown_country', 'singularity'];
+export const ULTRA: RarityId[] = ['solar', 'lunar', 'comet', 'chaos', 'phoenix', 'gemini', 'kraken', 'ancient', 'mirror', 'prismatic', 'crown', 'crown_state', 'genesis', 'crown_country', 'singularity'];
 /** the three Crowns: one per city, state and country */
 export const CROWNS: RarityId[] = ['crown', 'crown_state', 'crown_country'];
 export const isUltra = (r: string | null | undefined) => ULTRA.includes(r as RarityId);

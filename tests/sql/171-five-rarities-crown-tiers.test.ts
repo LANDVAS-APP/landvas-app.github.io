@@ -22,9 +22,10 @@ describe('the rarity table', () => {
   it('has the five new ultras, Singularity at 1 in 1,000,000, and three Crowns', async () => {
     const r = Object.fromEntries((await db.sql(`select id, ppm, name from plot_rarities`)).map((x: any) => [x.id, x]));
     expect(r.singularity.ppm).toBe(1);
-    for (const id of ['dragon', 'eclipse', 'vampire', 'mirror']) expect(r[id].ppm).toBeGreaterThan(0);
+    for (const id of ['phoenix', 'kraken', 'gemini', 'mirror']) expect(r[id].ppm).toBeGreaterThan(0);
+    expect(r.eclipse).toBeUndefined(); expect(r.vampire).toBeUndefined(); expect(r.dragon).toBeUndefined();
     expect(r.crown.name).toBe('City Crown'); expect(r.crown_state.name).toBe('State Crown'); expect(r.crown_country.name).toBe('Country Crown');
-    expect(Object.keys(r).length).toBe(22);
+    expect(Object.keys(r).length).toBe(21);
   });
   it('the collection is an album now: owning every type adds nothing', async () => {
     const types = ['graphite', 'pigment', 'mosaic', 'prism', 'fresco', 'bloom', 'neon', 'ember'];
@@ -36,37 +37,37 @@ describe('the rarity table', () => {
 });
 
 describe('the new ultras', () => {
-  it('Dragon grows +10% per streak day, up to ×10, and sleeps when the streak breaks', async () => {
-    await own(a, 10, 4_000_000, 'dragon');
+  it('Phoenix (with the Dragon’s old power) grows +10% per streak day, up to a 365-day streak, and sleeps when it breaks', async () => {
+    await own(a, 10, 4_000_000, 'phoenix');
     expect(await mult(10, 4_000_000)).toBe(1);
     await db.sql(`insert into daily_streaks (player_id, last_day, streak, best, total_days) values ($1, private.game_day(now()), 12, 12, 12)`, [a]);
     expect(await mult(10, 4_000_000)).toBeCloseTo(2.2, 9);
     await db.sql(`update daily_streaks set streak = 300 where player_id = $1`, [a]);
-    expect(await mult(10, 4_000_000)).toBe(10);
+    expect(await mult(10, 4_000_000)).toBeCloseTo(31, 9);
     await db.sql(`update daily_streaks set last_day = private.game_day(now()) - 3 where player_id = $1`, [a]);
     expect(await mult(10, 4_000_000)).toBe(1);
   });
-  it('Eclipse: ×25 on about one day in seven, the same all day', async () => {
-    const [r] = await db.sql(`select count(*) filter (where m = 25) hits, count(*) filter (where m not in (1, 25)) odd
-      from (select private.eclipse_mult(77, 88, date '2027-01-01' + i) m from generate_series(0, 699) i) x`);
-    expect(Number(r.odd)).toBe(0);
-    expect(Number(r.hits)).toBeGreaterThan(70); expect(Number(r.hits)).toBeLessThan(130);
-  });
-  it('Vampire: +50% per neighbouring plot of another player (within ~100 m), up to ×10 — your own don’t count', async () => {
-    await own(a, 500, 4_000_000, 'vampire');
+  it('Kraken: +75% per neighbouring plot of another player (within ~200 m), up to ×20 — your own don’t count (v1.3b)', async () => {
+    await own(a, 500, 4_000_000, 'kraken');
     expect(await mult(500, 4_000_000)).toBe(1);
     await own(a, 503, 4_000_000, 'common');
     expect(await mult(500, 4_000_000)).toBe(1);
-    await own(b, 505, 4_000_003, 'common'); await own(b, 490, 4_000_000, 'common'); await own(b, 520, 4_000_000, 'common'); // (the last is too far)
-    expect(await mult(500, 4_000_000)).toBe(2);
-    for (let i = 0; i < 30; i++) await own(b, 495 + (i % 10), 4_000_005 + Math.floor(i / 10), 'common');
-    expect(await mult(500, 4_000_000)).toBe(10);
+    await own(b, 505, 4_000_003, 'common'); await own(b, 515, 4_000_000, 'common'); await own(b, 540, 4_000_000, 'common'); // (the last is too far)
+    expect(await mult(500, 4_000_000)).toBe(2.5);
+    for (let i = 0; i < 40; i++) await own(b, 490 + (i % 20), 4_000_005 + Math.floor(i / 20), 'common');
+    expect(await mult(500, 4_000_000)).toBe(20);
+  });
+  it('Gemini: ×12 each once you own a pair', async () => {
+    await own(a, 700, 4_000_000, 'gemini');
+    expect(await mult(700, 4_000_000)).toBe(1);
+    await own(a, 710, 4_000_000, 'gemini');
+    expect(await mult(700, 4_000_000)).toBe(12); expect(await mult(710, 4_000_000)).toBe(12);
   });
   it('Mirror copies the rate of your best other plot', async () => {
     await own(a, 900, 4_000_000, 'mirror');
-    const [r] = await db.sql(`select (select usd_per_second from plot_rarities where id = 'dragon') d, (select usd_per_second from plot_rarities where id = 'mirror') m`);
-    // a's best other plot is the Vampire (its own rate, without its day multiplier)
-    const [v] = await db.sql(`select usd_per_second u from plot_rarities where id = 'vampire'`);
+    const [r] = await db.sql(`select (select usd_per_second from plot_rarities where id = 'phoenix') d, (select usd_per_second from plot_rarities where id = 'mirror') m`);
+    // a's best other plot is the Kraken (its own rate, without its day multiplier)
+    const [v] = await db.sql(`select usd_per_second u from plot_rarities where id = 'kraken'`);
     expect(await mult(900, 4_000_000)).toBeCloseTo(Math.max(1, Number(v.u) / Number(r.m), Number(r.d) / Number(r.m)), 6);
     await own(a, 901, 4_000_000, 'genesis');
     const [g] = await db.sql(`select usd_per_second u from plot_rarities where id = 'genesis'`);

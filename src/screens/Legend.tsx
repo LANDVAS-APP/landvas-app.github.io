@@ -29,9 +29,9 @@ const DETAIL: Partial<Record<RarityId, { what: string; get: string; tip: string 
     tip: 'Check your plot each day to see what today rolled.',
   },
   phoenix: {
-    what: 'Lives on your daily check-in. ×2 rent on every day you check in. Each day you miss, it fades 25% (down to nothing after four missed days). The day you come back and check in, it’s reborn at ×10 for that whole day.',
-    get: 'Claim any plot anywhere. Keep it burning with the daily streak check-in.',
-    tip: 'Missed a few days? Checking in brings it back bigger than ever.',
+    what: 'Lives on your daily check-in streak: +10% rent for every day in a row you check in — a 30-day streak is ×4, 100 days ×11, all the way to ×37.5 at a full year (365 days). Miss a day and it falls to ashes (×1) until a new streak lights it again.',
+    get: 'Claim any plot anywhere. Keep it burning with the daily check-in.',
+    tip: 'The longer the streak, the bigger the bird. Never miss a day.',
   },
   ancient: {
     what: 'Grows with age: +3% rent for every day you own it, up to ×6. It never fades, so the longer you hold it the better it gets.',
@@ -43,20 +43,15 @@ const DETAIL: Partial<Record<RarityId, { what: string; get: string; tip: string 
     get: 'Claim any plot anywhere. One claim in 100,000.',
     tip: 'The more land you own, the more a Prismatic is worth.',
   },
-  dragon: {
-    what: 'Grows with your daily streak: +10% rent for every day in a row you’ve checked in — a 10-day streak is ×2, a 30-day streak ×4, up to ×10 at 90 days. Miss a day and it falls asleep (×1) until you start a new streak.',
-    get: 'Claim any plot anywhere. Feed it with the daily check-in.',
-    tip: 'The longer you keep your streak, the scarier it gets.',
+  kraken: {
+    what: 'Lurks under the map and drags in the rent around it: +75% for every plot owned by another player within about 200 m, up to ×20. Your own plots don’t feed it — it needs a crowd.',
+    get: 'Claim any plot anywhere — it’s at its best downtown, in the Hot Zone, or anywhere busy.',
+    tip: 'Every new neighbour makes it stronger: a Kraken in a busy city can hit ×20.',
   },
-  eclipse: {
-    what: 'An ordinary plot most of the time — but about one day in seven the eclipse comes and it earns ×25 rent for the whole day. Every Eclipse plot has its own eclipse days, and nobody knows which day until it begins.',
-    get: 'Claim any plot anywhere.',
-    tip: 'Open the game each day: your plot list says “ECLIPSE TODAY” when it hits.',
-  },
-  vampire: {
-    what: 'Feeds on its neighbours: +50% rent for every plot owned by another player within about 100 m of it, up to ×10. Your own plots don’t count — it needs other people around.',
-    get: 'Claim any plot anywhere — best in busy neighbourhoods.',
-    tip: 'Roll one downtown and every new neighbour makes it hungrier.',
+  gemini: {
+    what: 'Comes alive in pairs. One Gemini plot is an ordinary ultra — but own two and each of them earns ×12.',
+    get: 'Claim any plot anywhere, and keep hunting for its twin.',
+    tip: 'The second Gemini is the jackpot: it lights up the first one too.',
   },
   mirror: {
     what: 'Copies the rent of your best other plot. On its own it earns like a decent ultra; next to a Genesis, a Crown or a Singularity it earns like one of those.',

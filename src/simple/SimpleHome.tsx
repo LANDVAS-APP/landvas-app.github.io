@@ -205,11 +205,9 @@ function StreakStrip({ onOpen }: { onOpen(): void }) {
 /** Chaos: today's roll · Phoenix: lit, fading, ashes or reborn */
 function TodayMult({ rarity, m }: { rarity: string; m: number }) {
   const x = Math.round(m * 100) / 100;
-  if (rarity === 'dragon') return <span className={cn('font-black', m > 1 ? 'text-[#4ADE80]' : 'text-white/60')} data-testid="dragon-today">🐉 ×{x} {m > 1 ? '· keep your streak!' : '· asleep — check in daily'}</span>;
-  if (rarity === 'eclipse') return <span className={cn('font-black', m > 1 ? 'text-[#FDE68A]' : 'text-white/60')} data-testid="eclipse-today">🌑 {m > 1 ? `ECLIPSE TODAY · ×${x}` : 'No eclipse today'}</span>;
-  if (rarity === 'vampire') return <span className={cn('font-black', m > 1 ? 'text-[#FCA5A5]' : 'text-white/60')} data-testid="vampire-today">🧛 ×{x} {m > 1 ? '· feeding on neighbours' : '· no neighbours to feed on'}</span>;
+  if (rarity === 'kraken') return <span className={cn('font-black', m > 1 ? 'text-[#5EEAD4]' : 'text-white/60')} data-testid="kraken-today">🐙 ×{x} {m > 1 ? '· dragging in its neighbours' : '· no neighbours to drag in'}</span>;
+  if (rarity === 'gemini') return <span className={cn('font-black', m > 1 ? 'text-[#F9A8D4]' : 'text-white/60')} data-testid="gemini-today">♊ ×{x} {m > 1 ? '· twins united!' : '· find its twin for ×12'}</span>;
   if (rarity === 'mirror') return <span className="font-black text-[#BAE6FD]" data-testid="mirror-today">🪞 ×{x} · copying your best plot</span>;
   if (rarity === 'chaos') return <span className={cn('font-black', m >= 5 ? 'text-[#FFE14D]' : m >= 1 ? 'text-white/80' : 'text-[#FF6B8B]')} data-testid="chaos-today">🎲 ×{m} today</span>;
-  const label = m >= 10 ? 'Reborn!' : m >= 2 ? 'Burning bright' : m > 0 ? 'Fading — check in!' : 'Ashes — check in to revive';
-  return <span className={cn('font-black', m >= 2 ? 'text-[#FFD166]' : 'text-[#FF6B8B]')} data-testid="phoenix-today">🔥 ×{m} · {label}</span>;
+  return <span className={cn('font-black', m > 1 ? 'text-[#FFD166]' : 'text-white/60')} data-testid="phoenix-today">🔥 ×{x} {m > 1 ? '· keep your streak burning!' : '· ashes — check in daily to light it'}</span>;
 }

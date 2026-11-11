@@ -71,7 +71,7 @@ export const api = {
   acquirePlot: (gx: number, gy: number, name?: string) =>
     rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
   /** simple mode: buy a plot from the home screen; the server picks where (and so its rarity) */
-  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
+  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
   /** the daily streak: status, and today's check-in */
   dailyStatus: () => rpc<import('./types').DailyStatus>('daily_status'),
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
@@ -86,7 +86,12 @@ export const api = {
   estateGarden: (id: string) => rpc<EstateState>('estate_garden', { p_group: id }),
   myEstates: () => rpc<EstateState[]>('my_estates'),
   // the Altar of Luck
-  luckStatus: () => rpc<LuckState & { plots: { gx: number; gy: number; rarity: RarityId; shiny: boolean; name: string | null; luck: number }[] }>('luck_status'),
+  luckStatus: () => rpc<LuckState & { per_roll: number; max_rolls: number; plots: { gx: number; gy: number; rarity: RarityId; shiny: boolean; name: string | null; luck: number }[];
+    inkborn: { id: string; name: string; genome: unknown; bond: number; luck: number }[]; eggs: { id: string; kind: string; shell: Record<string, string>; mutated: boolean; luck: number }[] }>('luck_status'),
+  luckSacrificeInkborn: (id: string) => rpc<LuckState & { gained: number }>('luck_sacrifice_inkborn', { p_id: id }),
+  luckSacrificeEgg: (id: string) => rpc<LuckState & { gained: number }>('luck_sacrifice_egg', { p_id: id }),
+  /** keep one of the rolls Luck gave you */
+  luckPick: (gx: number, gy: number, idx: number) => rpc<{ rarity: RarityId; usd_per_second: number; achievements: NewAchievement[] }>('luck_pick', { p_gx: gx, p_gy: gy, p_idx: idx }),
   luckSacrificePlot: (gx: number, gy: number) => rpc<LuckState & { gained: number; rarity: RarityId }>('luck_sacrifice_plot', { p_gx: gx, p_gy: gy }),
   luckOfferInk: (points: number) => rpc<LuckState & { gained: number; cost: number }>('luck_offer_ink', { p_points: points }),
   /** every city's Crown and who holds it */

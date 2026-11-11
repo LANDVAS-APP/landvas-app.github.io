@@ -18,7 +18,7 @@ export type RollOpts = { ticket?: string; ticketRarity?: string; hot?: boolean }
 export function useQuickRoll() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts }>({ open: false, result: null, opts: {} });
+  const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts; at?: { gx: number; gy: number }; luck?: number }>({ open: false, result: null, opts: {} });
   const busy = useRef(false);
   const settle = useRef<(() => void) | null>(null);
   const refresh = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection'], ['luck']]) void qc.invalidateQueries({ queryKey: k }); };
@@ -36,10 +36,11 @@ export function useQuickRoll() {
     if (!opts.ticket && !opts.hot && !canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.' }); return; }
     busy.current = true;
     if (useUi.getState().settings.haptics) buzz('medium');
-    setState({ open: true, result: null, opts });
+    const luckBefore = (qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck ?? 0;
+    setState({ open: true, result: null, opts, luck: luckBefore });
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
-      setState({ open: true, opts, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, guaranteed: opts.ticketRarity ?? null } });
+      setState({ open: true, opts, luck: luckBefore, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, guaranteed: opts.ticketRarity ?? null } });
       // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
       settle.current = () => { celebrate(r.achievements); refresh(); };
     } catch (e) {
@@ -49,13 +50,15 @@ export function useQuickRoll() {
   };
 
   // (tests and dev: show the roll for any rarity, without buying anything)
-  if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false, choices: RarityId[] | null = null) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     setState({ open: true, result: null, opts: {} });
-    setTimeout(() => setState({ open: true, opts: {}, result: { rarity, usd: 0.00000001, type: 'pigment', first: false, shiny } }), 300);
+    setTimeout(() => setState({ open: true, opts: {}, result: { rarity, usd: 0.00000001, type: 'pigment', first: false, shiny, choices } }), 300);
   };
   const element = (
     <InkRoll open={state.open} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
       onRevealed={() => setTimeout(settleNow, 1600)}
+      luck={state.luck}
+      onPick={state.at ? async (i) => { const p = await api.luckPick(state.at!.gx, state.at!.gy, i); celebrate(p.achievements); } : undefined}
       onAgain={() => { const hot = state.opts.hot; settleNow(); setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
       canAgain={state.opts.hot ? free || ink >= 150 : canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(state.opts.hot ? 150 : cost)} Ink`} />
   );

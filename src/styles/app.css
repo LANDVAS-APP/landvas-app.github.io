@@ -1376,3 +1376,20 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-hot-pin i { font-style: normal; font-size: 9px; letter-spacing: 0.14em; opacity: 0.85; }
 .lv-hot-pin::after { content: ''; position: absolute; left: 50%; bottom: -7px; margin-left: -6px; border: 6px solid transparent; border-top-color: #FF2E63; border-bottom: 0; }
 @keyframes lv-hot-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,106,31,0.65), 0 6px 16px rgba(0,0,0,0.35); } 100% { box-shadow: 0 0 0 16px rgba(255,106,31,0), 0 6px 16px rgba(0,0,0,0.35); } }
+/* a shiny pull: holographic foil sweeping the plot, stars twinkling round it, a stamp */
+.lv-rr-foil { background: linear-gradient(115deg, transparent 20%, rgba(255,122,224,0.55) 32%, rgba(255,225,77,0.55) 40%, rgba(61,220,151,0.5) 48%, rgba(34,227,255,0.55) 56%, rgba(164,92,255,0.55) 64%, transparent 76%);
+  background-size: 260% 100%; mix-blend-mode: color-dodge; animation: lv-foil 2.2s 0.8s ease-in-out infinite both; }
+@keyframes lv-foil { 0% { background-position: 130% 0; opacity: 0; } 15% { opacity: 1; } 100% { background-position: -130% 0; opacity: 1; } }
+.lv-twinkle { transform: translate(-50%, -50%) scale(0); text-shadow: 0 0 8px #fff, 0 0 16px #FFE6FF; animation: lv-twinkle 1.4s ease-in-out infinite both; will-change: transform, opacity; }
+@keyframes lv-twinkle { 0%, 100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; } 50% { transform: translate(-50%, -50%) scale(1.2) rotate(90deg); opacity: 1; } }
+.lv-shiny-stamp { background: linear-gradient(90deg, #FF7AE0, #FFE14D, #3DDC97, #22E3FF, #A45CFF, #FF7AE0); background-size: 200% 100%; animation: lv-shiny-stamp 1.6s linear infinite;
+  box-shadow: 0 0 0 3px #fff, 0 0 30px rgba(255,255,255,0.8); }
+@keyframes lv-shiny-stamp { to { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) { .lv-rr-foil, .lv-twinkle, .lv-shiny-stamp { animation: none; } }
+/* the ink splash (src/roll/RollReveal.tsx InkSplash): every piece grows out from its own middle */
+.lv-ink-grow { transform-box: fill-box; transform-origin: center; animation: lv-ink-grow var(--d, .6s) var(--dl, 0s) cubic-bezier(.1,.85,.2,1) both; will-change: transform; }
+@keyframes lv-ink-grow { 0% { transform: scale(0); } 70% { transform: scale(calc(var(--s, 1) * 1.04)); } 100% { transform: scale(var(--s, 1)); } }
+.lv-rr-ink-stroke { fill: none; stroke: var(--c); stroke-linecap: round; transition: stroke .09s linear; }
+.lv-ink-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: lv-ink-draw .28s var(--dl, 0s) ease-out both; }
+@keyframes lv-ink-draw { to { stroke-dashoffset: 0; } }
+.lv-ink-still .lv-ink-grow, .lv-ink-still .lv-ink-draw { animation-duration: 1ms; animation-delay: 0s; }

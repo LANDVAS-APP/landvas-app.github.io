@@ -54,31 +54,25 @@ describe('Chaos', () => {
   });
 });
 
-describe('Phoenix', () => {
-  it('lit (×2) on a day you checked in', async () => {
+describe('Phoenix (v1.3b: it took the Dragon’s power — your streak, for a whole year)', () => {
+  it('lit by your streak: +10% a day you keep it going', async () => {
     await own(phil, 200, 200, 'phoenix');
     await db.rpc(phil, 'daily_claim');
-    const [p] = await db.rpc(phil, 'my_plots');
-    expect(Number(p.today_mult)).toBe(2);
+    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBeCloseTo(1.1, 9);
+    await db.sql(`update daily_streaks set streak = 200 where player_id = $1`, [phil]);
+    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBeCloseTo(21, 9);
+    await db.sql(`update daily_streaks set streak = 999 where player_id = $1`, [phil]);
+    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBeCloseTo(37.5, 9); // (365 days at most)
   });
-  it('fades 25% for each day missed', async () => {
+  it('miss a day and it falls to ashes (×1)', async () => {
     await db.sql(`update daily_streaks set last_day = private.today() - 2 where player_id = $1`, [phil]);
-    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBe(0.5);
-    await db.sql(`update daily_streaks set last_day = private.today() - 9 where player_id = $1`, [phil]);
-    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBe(0); // ashes
+    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBe(1);
   });
-  it('reborn ×10 the day you come back — and rent is settled at that moment', async () => {
-    await settledAgo(phil, 3);
-    const before = Number((await db.sql(`select lifetime_usd from rent_accounts where player_id = $1`, [phil]))[0].lifetime_usd);
-    await db.rpc(phil, 'daily_claim');
-    expect(Number((await db.rpc(phil, 'my_plots'))[0].today_mult)).toBe(10);
-    // the 3 hours as ashes earned nothing
-    const after = Number((await db.sql(`select lifetime_usd from rent_accounts where player_id = $1`, [phil]))[0].lifetime_usd);
-    expect(after - before).toBeCloseTo(0, 15);
-    // from now on it earns ×10, and the ticker agrees
-    await db.sql(`update rent_accounts set settled_at = now() - interval '1 hour', balance_usd = 0 where player_id = $1`, [phil]);
+  it('the ticker agrees with the server', async () => {
+    await db.sql(`update daily_streaks set last_day = private.today(), streak = 30 where player_id = $1`, [phil]);
+    await settledAgo(phil, 1);
     const { server, client } = await live(phil);
-    expect(server).toBeGreaterThan((await base('phoenix')) * 10 * 3600 * 0.5); // (part of that hour may be yesterday)
+    expect(server).toBeGreaterThan((await base('phoenix')) * 4 * 3600 * 0.5);
     expect(Math.abs(client - server) / server).toBeLessThan(1e-6);
   });
 });

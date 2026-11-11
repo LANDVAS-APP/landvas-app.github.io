@@ -47,16 +47,27 @@ try {
   await page.locator('[data-testid=luck-sacrifice]').first().click(); await page.click('[data-testid=luck-confirm]'); await page.waitForTimeout(1500);
   const afterPlot = Number(await page.textContent('[data-testid=luck-value]'));
   check('sacrificing a plot charges Luck (and the plot is gone)', afterPlot > 0 && (await api('myGroups')).length === 2, `${afterPlot}`);
-  await page.click('[data-testid=luck-ink-10]'); await page.waitForTimeout(1200);
+  await page.click('[data-testid=luck-ink-20]'); await page.waitForTimeout(1200);
   const afterInk = Number(await page.textContent('[data-testid=luck-value]'));
-  check('offering Ink adds 10 more', afterInk === afterPlot + 10, `${afterPlot} → ${afterInk}`);
+  check('offering Ink adds 20 more (no daily limit any more)', afterInk === afterPlot + 20, `${afterPlot} → ${afterInk}`);
   await shot('02-altar-charged');
   // fill it up and roll
   await sql(`update player_luck set luck = 100 where player_id = '${me}'`);
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
-  const lucky = await roll();
+  await page.click('[data-testid=simple-buy]');
+  await page.waitForSelector('[data-testid=roll-luck]', { timeout: 20000 });
+  check('with Luck, the roll shows the meter', /6 rolls/.test(await page.textContent('[data-testid=roll-luck]')));
+  await page.waitForTimeout(2500); await shot('03-lucky-rerolls');
+  await page.waitForSelector('[data-testid=roll-pick]', { timeout: 60000 }); await page.waitForTimeout(900);
+  const n = await page.locator('[data-testid^=roll-choice-]').count();
+  check('6 rolls to choose from', n === 6, `${n}`);
+  await shot('03b-pick');
+  await page.click('[data-testid=roll-choice-0]'); await page.click('[data-testid=roll-keep]');
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 20000 }); await page.waitForTimeout(1200);
+  await page.click('[data-testid=roll-done]'); await page.waitForTimeout(900);
   const st = await api('luckStatus');
-  check('the next roll spends all the Luck', st.luck === 0 && st.lucky_rolls === 1, JSON.stringify({ luck: st.luck, rolls: st.lucky_rolls, lucky }));
+  const kept = await sql(`select options, picked from luck_choices where player_id = '${me}'`);
+  check('the Luck is spent and the first roll was kept', st.luck === 0 && kept[0]?.picked === 0, JSON.stringify({ luck: st.luck, picked: kept[0]?.picked }));
 
   // ---- a Landlord estate ----
   const g = (await api('myGroups'))[0];

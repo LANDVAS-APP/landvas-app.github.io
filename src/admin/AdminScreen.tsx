@@ -11,7 +11,7 @@ import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt, plotLabel, timeAgo } from '../lib/utils';
-import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
@@ -625,26 +625,51 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
 
 function RarityRates({ rarities }: { rarities: any[] }) {
   const qc = useQueryClient();
-  const [edit, setEdit] = useState<Record<string, { usd?: string; ink?: string }>>({});
+  type Edit = { usd?: string; ink?: string; odds?: string; emoji?: string; ability?: string; name?: string };
+  const [edit, setEdit] = useState<Record<string, Edit>>({});
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); void qc.invalidateQueries({ queryKey: ['world'] }); };
+  const totalW = rarities.reduce((t: number, r: any) => t + (Number(r.weight) || 0), 0) || 1;
+  const save = (id: string, r: any, e: Edit) => {
+    const ultra = Number(r.ppm) > 0 || Number(r.weight) === 0;
+    const patch: Record<string, unknown> = {};
+    if (e.usd) patch.usd_per_second = Number(e.usd);
+    if (e.ink) patch.ink_reward_multiplier = Number(e.ink);
+    if (e.odds) { if (ultra) patch.ppm = Math.round(1_000_000 / Math.max(1, Number(e.odds))); else patch.weight = Math.round(Number(e.odds)); }
+    if (e.emoji !== undefined) patch.emoji = e.emoji;
+    if (e.ability !== undefined) patch.ability = e.ability;
+    if (e.name) patch.name = e.name;
+    run(() => api.admin.updateRarity(id as RarityId, patch), `${r.name} updated`, () => { setEdit({ ...edit, [id]: {} }); refresh(); });
+  };
   return (
-    <Card title="Rarities: USD rent & Ink bonus">
-      <div className="grid gap-2">
+    <Card title="Rarities: odds, rent, Ink bonus and abilities">
+      <div className="grid gap-3" data-testid="admin-rarities">
         {RARITY_ORDER.map((id) => {
           const r = rarities.find((x: any) => x.id === id);
           if (!r) return null;
           const e = edit[id] ?? {};
+          const ultra = Number(r.ppm) > 0 || Number(r.weight) === 0;
+          const crown = id.startsWith('crown');
+          const odds = crown ? 'own roll (config: rarity_abilities)' : ultra ? `1 in ${Math.round(1_000_000 / Math.max(1, Number(r.ppm))).toLocaleString()}` : `weight ${r.weight} · ${((Number(r.weight) / totalW) * 100).toFixed(1)}%`;
+          const set = (k: keyof Edit) => (ev: React.ChangeEvent<HTMLInputElement>) => setEdit({ ...edit, [id]: { ...e, [k]: ev.target.value } });
           return (
-            <div key={id} className="flex flex-wrap items-center gap-2 text-sm">
-              <RarityBadge r={id} small />
-              <span className="w-44 text-xs tnum text-muted">{formatRate(Number(r.usd_per_second))} · ×{Number(r.ink_reward_multiplier).toFixed(2)} Ink · {(r.weight / 10).toFixed(1)}%</span>
-              <input className={cn(inputCls, "h-8 w-32 text-xs")} placeholder="USD / second" value={e.usd ?? ''} onChange={(ev) => setEdit({ ...edit, [id]: { ...e, usd: ev.target.value } })} />
-              <input className={cn(inputCls, "h-8 w-20 text-xs")} placeholder="Ink ×" value={e.ink ?? ''} onChange={(ev) => setEdit({ ...edit, [id]: { ...e, ink: ev.target.value } })} />
-              <Button size="sm" disabled={!e.usd && !e.ink} onClick={() => run(() => api.admin.updateRarity(id, { ...(e.usd ? { usd_per_second: Number(e.usd) } : {}), ...(e.ink ? { ink_reward_multiplier: Number(e.ink) } : {}) }), `${r.name} updated`, () => { setEdit({ ...edit, [id]: {} }); refresh(); })}>Set</Button>
+            <div key={id} className="grid gap-1.5 rounded-2xl border border-line p-2.5 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <RarityBadge r={id} small />
+                <span className="text-xs tnum text-muted">{odds} · {formatRate(Number(r.usd_per_second))} · ×{Number(r.ink_reward_multiplier).toFixed(2)} Ink</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {!crown && <input className={cn(inputCls, 'h-8 w-28 text-xs')} placeholder={ultra ? '1 in N' : 'Weight'} value={e.odds ?? ''} onChange={set('odds')} data-testid={`rarity-odds-${id}`} />}
+                <input className={cn(inputCls, 'h-8 w-32 text-xs')} placeholder="USD / second" value={e.usd ?? ''} onChange={set('usd')} />
+                <input className={cn(inputCls, 'h-8 w-16 text-xs')} placeholder="Ink ×" value={e.ink ?? ''} onChange={set('ink')} />
+                <input className={cn(inputCls, 'h-8 w-28 text-xs')} placeholder={r.name} value={e.name ?? ''} onChange={set('name')} />
+                <input className={cn(inputCls, 'h-8 w-14 text-xs')} placeholder={r.emoji ?? 'emoji'} value={e.emoji ?? ''} onChange={set('emoji')} />
+              </div>
+              {ultra && <input className={cn(inputCls, 'h-8 text-xs')} placeholder={r.ability ?? 'What it does (shown to players)'} value={e.ability ?? ''} onChange={set('ability')} />}
+              <div><Button size="sm" disabled={!Object.values(e).some((v) => v !== undefined && v !== '')} onClick={() => save(id, r, e)} data-testid={`rarity-save-${id}`}>Save {r.name}</Button></div>
             </div>
           );
         })}
-        <p className="text-xs text-faint">Rent changes bank everyone’s rent first, so they never apply retroactively. Atlas Earth’s common rate is 0.0000000011 USD/s.</p>
+        <p className="text-xs text-faint">Everyday rarities share the table by weight; ultras each roll on their own (“1 in N”). Odds changes apply to plots not yet claimed; rent changes bank everyone’s rent first, so they never apply retroactively. Crowns have their own rolls (one per kingdom) in the rarity_abilities config.</p>
       </div>
     </Card>
   );

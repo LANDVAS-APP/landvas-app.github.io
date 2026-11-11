@@ -1,4 +1,5 @@
 // Social: the live feed of what everyone is doing, the global chat, and friends.
+import { rarityInfo } from '../shared/rarity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star } from 'lucide-react';
@@ -133,7 +134,7 @@ function FeedRow({ e }: { e: FeedEvent }) {
     case 'claim': {
       const t = e.data.plot_type as keyof typeof PLOT_TYPES | undefined;
       icon = <Flag className="h-4 w-4 text-ok" />;
-      body = <>{who} {e.data.starter ? 'claimed their first plot' : 'claimed a plot'}{t && PLOT_TYPES[t] ? <> · <span className="text-muted">{PLOT_TYPES[t].name}</span></> : null}</>;
+      body = <>{who} {e.data.starter ? 'claimed their first plot' : e.data.shiny ? <b className="bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] bg-clip-text text-transparent">claimed a ✨ SHINY plot</b> : 'claimed a plot'}{t && PLOT_TYPES[t] ? <> · <span className="text-muted">{PLOT_TYPES[t].name}</span></> : null}</>;
       if (e.data.rarity) extra = <RarityBadge r={e.data.rarity} small />;
       break;
     }
@@ -243,6 +244,34 @@ function FeedRow({ e }: { e: FeedEvent }) {
       }
       break;
     }
+    case 'luck': {
+      const d = e.data as Record<string, any>;
+      icon = <span className="text-[12px] leading-none">🍀</span>;
+      if (d.sub === 'pick') {
+        body = <>{who} rolled <b>{d.of}</b> times with Luck and kept a <b style={{ color: rarityInfo(d.rarity).color }}>{rarityInfo(d.rarity).emoji ?? ''} {rarityInfo(d.rarity).name}</b></>;
+        extra = <RarityBadge r={d.rarity} small />;
+      } else {
+        const what = d.what === 'ink' ? <><b className="tnum">{fmt(Number(d.ink))} Ink</b></> : d.what === 'inkborn' ? <>their Inkborn <b>{d.name}</b> 🐾</> : d.what === 'egg' ? <>a <b>{d.egg}</b> egg 🥚</> : <>a <b style={{ color: rarityInfo(d.rarity).color }}>{rarityInfo(d.rarity).name}</b>{d.shiny ? ' ✨' : ''} plot</>;
+        body = <>{who} sacrificed {what} at the Altar of Luck <span className="text-[#3DDC97]">· +{d.gained} 🍀</span>{d.luck != null ? <span className="text-muted"> (Luck {d.luck})</span> : null}</>;
+      }
+      break;
+    }
+    case 'crown': {
+      const d = e.data as Record<string, any>;
+      const tier = d.tier === 'crown_country' ? 'Country' : d.tier === 'crown_state' ? 'State' : 'City';
+      icon = <span className="text-[12px] leading-none">👑</span>;
+      body = <>{who} claimed the <b style={{ color: rarityInfo(d.tier).color }}>{tier} Crown of {d.place}</b>{d.tier !== 'crown_country' && d.country ? <span className="text-muted"> · {d.country}</span> : null} 👑</>;
+      extra = <RarityBadge r={d.tier} small />;
+      break;
+    }
+    case 'flight':
+      icon = <span className="text-[12px] leading-none">✈️</span>;
+      body = e.data.hot ? <>{who} flew to the <b className="text-[#FF8A3D]">🔥 {String(e.data.to).replace('Hot Zone · ', 'Hot Zone in ')}</b></> : <>{who} dropped a pin and flew off somewhere ✈️</>;
+      break;
+    case 'estate':
+      icon = <span className="text-[12px] leading-none">🏘️</span>;
+      body = <>{who} finished their estate’s checklist — <b className="text-gold">{e.data.mult}× rent</b> on the 1st for {e.data.houses} house{Number(e.data.houses) === 1 ? '' : 's'} 💵</>;
+      break;
     case 'stamp':
       icon = <Star className="h-4 w-4 text-gold" />;
       body = <>{who} collected stamp <b>#{e.data.serial}</b> of <Link to={`/art/${e.data.publication_id}`} className="font-semibold hover:underline">“{e.data.title}”</Link></>;
