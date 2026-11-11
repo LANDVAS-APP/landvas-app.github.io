@@ -21,11 +21,27 @@ try {
   await page.waitForSelector('#email'); await page.fill('#email', 'g@example.test'); await page.fill('#password', 'paint-the-world'); await page.click('button[type=submit]');
   await page.waitForSelector('#username', { timeout: 20000 }); await page.fill('#username', 'guide_gwen'); await page.check('input[type=checkbox]'); await page.click('button[type=submit]');
   await page.waitForTimeout(2500);
+  // sample measured stats (the local game has no history): a cache entry the guide reads like the real one
+  const stats = { days: 14, players: 40, active_hours: 900, ink: 250000, ink_per_active_hour: 260, ink_per_active_hour_median: 120, ink_per_active_hour_p90: 900, ink_per_active_day_median: 450, ink_per_active_day_p90: 3200, hours_per_active_day_avg: 2.1,
+    player_days: { count: 300, p50: 450, p75: 1300, p90: 3200, p95: 4800, p99: 7600, max: 8240, hours_p50: 1, hours_p75: 3, ge_1000: 90, ge_3000: 32, ge_5000: 12, ge_8000: 2 },
+    top_days: [{ ink: 8240, hours: 7, span_hours: 9.5, rewards: 900, sources: { arcade: 5100, minigame: 1800, business: 900 } }, { ink: 8010, hours: 6, span_hours: 8, rewards: 800, sources: { arcade: 4000, realm: 2500 } }],
+    grinders: { days: 40, avg_ink: 4100, avg_hours: 4.6, ink_per_active_hour: 890, p50: 3600, p90: 7100 }, top10pct: { days: 30, avg_ink: 5200, avg_hours: 5.1, ink_per_active_hour: 1020 },
+    by_source: { arcade: { ink: 120000, times: 20000, players: 30, avg: 6, per_hour: 610, p90_hour: 1100, max_hour: 1500 }, minigame: { ink: 60000, times: 5000, players: 38, avg: 12, per_hour: 180, p90_hour: 400, max_hour: 700 } },
+    top_days_sources: { arcade: 90000, minigame: 30000, business: 12000, realm: 9000 },
+    plots: { owners: 40, avg: 60, median: 20, total: 2400, p90: 200, max: 900 }, claims_per_day: { player_days: 200, avg: 8, p50: 3, p90: 25, max: 82 }, minigames: { plays: 9000, win_rate: 0.8, median_seconds: 35 } };
+  await sql(`insert into private.guide_cache (id, at, data) values (1, now(), '${JSON.stringify(stats).replace(/'/g, "''")}'::jsonb) on conflict (id) do update set at = now(), data = excluded.data`);
   await page.evaluate(() => window.__landvasNav('/guide'));
   await page.waitForSelector('[data-testid=guide-rates]', { timeout: 20000 }); await page.waitForTimeout(800);
   await shot('01-top');
-  for (const s of ['facts', 'rates', 'ink', 'real', 'calc', 'compare', 'how']) check(`section ${s}`, (await page.locator(`[data-testid=guide-${s}]`).count()) === 1);
+  for (const s of ['facts', 'rates', 'minigames', 'score', 'ink', 'real', 'grind', 'progress', 'calc', 'compare', 'how']) check(`section ${s}`, (await page.locator(`[data-testid=guide-${s}]`).count()) === 1);
   check('rates table lists Common with its live rate', /0\.0000000011/.test(await text('[data-testid=guide-rate-common]')), await text('[data-testid=guide-rate-common]'));
+  check('minigame Ink by rarity: Mythic pays more than Common at level 1', await page.evaluate(() => { const c = +document.querySelector('[data-testid=guide-mg-common] td:nth-child(2)').textContent; const m = +document.querySelector('[data-testid=guide-mg-mythic] td:nth-child(2)').textContent; return m > c && c > 0; }));
+  check('arcade cabinets say they have no daily cap', /no daily cap/.test(await text('[data-testid="guide-score-Arcade cabinets"]')));
+  check('grinders: best day shown', /8,240 Ink/.test(await text('[data-testid=guide-grind-tiles]')));
+  check('top days listed with sources, no names', (await page.locator('[data-testid=guide-top-days] > *').count()) === 2 && !/@/.test(await text('[data-testid=guide-top-days]')));
+  await page.click('[data-testid=progress-grinder]'); await page.waitForTimeout(300);
+  const ot = await text('[data-testid=progress-overtake]');
+  check('progression race: grinder overtakes both', /passes TerraMine|out-earns TerraMine/.test(ot) && /passes Atlas Earth|out-earns Atlas Earth/.test(ot), ot);
   check('Ink sources listed', (await page.locator('[data-testid=guide-ink-sources] > *').count()) >= 10);
   const lead = await page.locator('[data-testid=compare-lead]').count() ? await text('[data-testid=compare-lead]') : '';
   check('the comparison shows LANDVAS ahead at 1 h a day', /LANDVAS: [\d.]+× the plots/.test(lead), lead);
@@ -37,7 +53,7 @@ try {
   await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['game-guide'] })); await page.waitForTimeout(1500);
   check('a rate change shows up on the page', /0\.0000000022/.test(await text('[data-testid=guide-rate-common]')), await text('[data-testid=guide-rate-common]'));
   await page.locator('[data-testid=guide-how-list] details').first().click(); await page.waitForTimeout(300);
-  for (const sec of ['facts', 'rates', 'ink', 'real', 'calc', 'compare', 'how']) { await page.locator(`[data-testid=guide-${sec}]`).scrollIntoViewIfNeeded(); await page.evaluate((s) => document.querySelector(`[data-testid=guide-${s}]`).scrollIntoView({ block: 'start' }), sec); await page.waitForTimeout(300); await shot(`s-${sec}`); }
+  for (const sec of ['minigames', 'score', 'grind', 'progress']) { await page.locator(`[data-testid=guide-${sec}]`).scrollIntoViewIfNeeded(); await page.evaluate((s) => document.querySelector(`[data-testid=guide-${s}]`).scrollIntoView({ block: 'start' }), sec); await page.waitForTimeout(300); await shot(`s-${sec}`); }
   // the Rarities page is live too: change the game's settings and it follows
   await sql(`update game_config set value = jsonb_set(value, '{one_in}', '500') where key = 'shiny'`);
   await sql(`update game_config set value = jsonb_set(value, '{comet,mult}', '40') where key = 'rarity_abilities'`);

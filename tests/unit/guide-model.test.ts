@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boostPerDay, expectedRate, minigameInk, project, COMPETITORS, SECONDS_PER_MONTH, type Guide } from '../../src/guide/model';
+import { boostPerDay, expectedRate, minigameInk, minigameInkAt, minigameCap, scoreGames, groupCaps, profiles, overtakeDay, project, COMPETITORS, SECONDS_PER_MONTH, type Guide } from '../../src/guide/model';
 
 const level_ink = Array.from({ length: 60 }, (_, i) => 6 + Math.floor(i * 0.4));
 const g = (over: Record<string, any> = {}): Guide => ({
@@ -45,5 +45,34 @@ describe('guide model', () => {
   it('LANDVAS stops counting minigame Ink past the daily cap', () => {
     const a = project(g(), 10, 5, 30)[0], b = project(g(), 20, 5, 30)[0];
     expect(a.plotsPerDay).toBe(b.plotsPerDay);
+  });
+  it('Ink for a level by rarity and plot level', () => {
+    expect(minigameInkAt(g(), 1, 1)).toBe(6);
+    expect(minigameInkAt(g(), 1, 2.25)).toBeCloseTo(13.5);
+    expect(minigameInkAt(g({ minigames: { ...g().config.minigames, plot_level_bonus: 0.05 } }), 1, 1, 11)).toBeCloseTo(9);
+  });
+  it('the minigame cap can be switched off', () => {
+    expect(minigameCap(g())).toBe(6);
+    expect(minigameCap(g({ minigames: { ...g().config.minigames, limit_paid_runs: false } }))).toBe(Infinity);
+    const capped = project(g(), 10, 5, 30)[0].plotsPerDay;
+    const open = project(g({ minigames: { ...g().config.minigames, limit_paid_runs: false } }), 10, 5, 30)[0].plotsPerDay;
+    expect(open).toBeGreaterThan(capped);
+  });
+  it('score games: top prize a play and Ink an hour back to back; no cap means Infinity', () => {
+    const x = g({ arcade: { daily_cap: null, games: { bop: { name: 'Bop', max_ink: 10, points_per_ink: 240, per_second: 20, min_seconds: 15 } } } });
+    const bop = scoreGames(x).find((q) => q.id === 'bop')!;
+    expect(bop.secs).toBe(120); expect(bop.perHour).toBeCloseTo(10 * 3600 / 130);
+    expect(groupCaps(x)['Arcade cabinets']).toBe(Infinity);
+  });
+  it('real profiles come from the measured days, and LANDVAS uses that Ink in the race', () => {
+    const x = g(); x.stats = { players: 20, player_days: { p50: 400, p75: 1200, hours_p50: 1, hours_p75: 2 }, grinders: { days: 5, avg_ink: 6000, avg_hours: 5 }, top10pct: { days: 3, avg_ink: 8000, avg_hours: 6 } } as any;
+    const ps = profiles(x);
+    expect(ps.map((p) => p.id)).toEqual(['typical', 'keen', 'grinder', 'top']);
+    const [lv, tm] = project(x, 5, 30, 30, 6000);
+    expect(lv.plotsPerDay).toBe(60);
+    expect(tm.currencyPerDay).toBeCloseTo(5 * 30 * COMPETITORS.terramine.earn.perWin);
+    expect(overtakeDay(lv, tm)).not.toBeNull();
+    const few = g(); few.stats = { players: 2 } as any;
+    expect(profiles(few)).toEqual([]);
   });
 });

@@ -36,6 +36,24 @@ describe('game guide', () => {
     expect(Number(s.ink_per_active_hour)).toBeCloseTo(83.3, 1);
     expect(s.by_source.minigame.ink).toBe(160); expect(s.by_source.referral).toBeUndefined();
   });
+  it('grinders: a day’s Ink by percentile, the top days (no names), and each source’s rate per hour', async () => {
+    // a grinding day: 8,000 Ink over 4 hours, mostly arcade
+    await db.sql(`insert into resource_ledger (player_id, resource, delta, balance_after, reason, created_at)
+      select $1, 'ink', 500, 0, case when i % 4 = 0 then 'minigame' else 'arcade' end, date_trunc('hour', now()) - interval '5 hours' + (i % 4) * interval '1 hour' + interval '1 minute'
+      from generate_series(1, 16) i`, [b]);
+    await db.sql(`delete from private.guide_cache`);
+    const s = (await db.rpc(null, 'game_guide')).stats;
+    expect(Number(s.player_days.max)).toBeGreaterThanOrEqual(8000);
+    expect(s.player_days.ge_8000).toBeGreaterThanOrEqual(1);
+    const top = s.top_days[0];
+    expect(Number(top.ink)).toBeGreaterThanOrEqual(8000); expect(top.player_id).toBeUndefined();
+    expect(Number(top.sources.arcade)).toBe(6000);
+    expect(s.grinders.days).toBeGreaterThanOrEqual(1);
+    expect(Number(s.by_source.arcade.per_hour)).toBeGreaterThan(0);
+    expect(JSON.stringify(s)).not.toContain(b);
+    const c = (await db.rpc(null, 'game_guide')).config;
+    expect(c.arcade.games).toBeTruthy(); expect(c.realms.kinds).toBeUndefined(); expect(Array.isArray(c.realms.games)).toBe(true);
+  });
   it('a rate change shows up straight away (only the stats are cached)', async () => {
     await db.sql(`update plot_rarities set usd_per_second = 0.000000002 where id = 'common'`);
     await db.sql(`update game_config set value = jsonb_set(value, '{acquire,base_ink}', '90') where key = 'economy'`);

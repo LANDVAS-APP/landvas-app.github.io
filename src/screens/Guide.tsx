@@ -9,7 +9,8 @@ import { api } from '../backend/api';
 import { Slider, Spinner, Empty } from '../ui';
 import { cn } from '../lib/utils';
 import {
-  COMPETITORS, SECONDS_PER_MONTH, boostPerDay, expectedRate, minigameInk, otherCappedInk, plotPrice, project, pvpInk, streakInkPerDay,
+  COMPETITORS, SECONDS_PER_MONTH, boostPerDay, expectedRate, groupCaps, minigameCap, minigameInk, minigameInkAt, otherCappedInk, overtakeDay, plotPrice,
+  profiles, project, pvpInk, scoreGames, streakInkPerDay,
   type Guide as GuideData, type Projection,
 } from '../guide/model';
 
@@ -59,8 +60,8 @@ function Tile({ k, v, hint }: { k: string; v: React.ReactNode; hint?: string }) 
 }
 
 const TOC: [string, string][] = [
-  ['rates', 'Live rates'], ['ink', 'Ways to earn Ink'], ['real', 'What players really earn'], ['calc', 'Grind calculator'],
-  ['compare', 'vs Atlas Earth & TerraMine'], ['how', 'How everything works'],
+  ['rates', 'Live rates'], ['minigames', 'Ink per win by rarity'], ['score', 'Uncapped games'], ['ink', 'Every Ink source'], ['real', 'What players earn'],
+  ['grind', 'What grinders make'], ['progress', 'Progression race'], ['calc', 'Grind calculator'], ['compare', 'vs Atlas Earth & TerraMine'], ['how', 'How everything works'],
 ];
 
 function GuideBody({ g }: { g: GuideData }) {
@@ -101,8 +102,12 @@ function GuideBody({ g }: { g: GuideData }) {
       </div>
 
       <Rates g={g} />
+      <MinigameByRarity g={g} />
+      <ScoreGames g={g} />
       <InkSources g={g} mg={mg} mgLate={mgLate} pv={pv} streak={streak} oc={oc} />
       <RealStats g={g} enough={enoughData} />
+      <Grinders g={g} enough={enoughData} />
+      <Progression g={g} />
       <Calculator g={g} />
       <Compare g={g} />
       <HowItWorks g={g} />
@@ -173,7 +178,8 @@ function InkSources({ g, mg, mgLate, pv, streak, oc }: { g: GuideData; mg: Mg; m
     const hits = keys.map((k) => by[k]).filter(Boolean);
     if (!hits.length) return null;
     const ink = hits.reduce((s, h) => s + num(h.ink), 0), times = hits.reduce((s, h) => s + num(h.times), 0);
-    return `Players got ${fmt(ink / Math.max(1, times), 1)} Ink a time on average (${fmt(times)} times in ${g.stats.days} days)`;
+    const hr = Math.max(...hits.map((h) => num(h.per_hour))), best = Math.max(...hits.map((h) => num(h.max_hour)));
+    return `Players got ${fmt(ink / Math.max(1, times), 1)} Ink a time${hr > 0 ? `, ${fmt(hr)} an hour while playing it (best hour ${fmt(best)})` : ''} — ${fmt(times)} times in ${g.stats.days} days`;
   };
   const wheel = (c.earn?.wheel?.slices ?? []) as any[];
   const wheelInk = wheel.length ? wheel.reduce((s, x) => s + (x.kind === 'ink' ? num(x.amount) * num(x.weight) : 0), 0) / wheel.reduce((s, x) => s + num(x.weight), 0) : 0;
@@ -188,15 +194,16 @@ function InkSources({ g, mg, mgLate, pv, streak, oc }: { g: GuideData; mg: Mg; m
   const ref = c.referrals ?? {};
   const rows: { name: string; what: React.ReactNode; ink: React.ReactNode; cap?: React.ReactNode; real?: string | null }[] = [
     { name: '🎮 Plot minigames', what: `Every plot hosts a minigame. Clear a level to win Ink; each plot climbs its own ${num(c.minigames?.max_level, 60)} levels. Rarer plots pay more (the Ink bonus).`,
-      ink: <>{fmt(mg.perWin, 1)} a win at levels 1–34, {fmt(mgLate.perWin, 1)} at 35–60</>, cap: <>{mg.winsPerGamePerDay} paid wins per game a day ({mg.games} games, so {mg.games * mg.winsPerGamePerDay} a day)</>, real: seen('minigame') },
+      ink: <>{fmt(mg.perWin, 1)} a win at levels 1–34, {fmt(mgLate.perWin, 1)} at 35–60</>, cap: Number.isFinite(minigameCap(g)) ? <>{minigameCap(g)} paid wins per game a day ({mg.games} games, so {mg.games * minigameCap(g)} a day)</> : <>none — every win pays</>, real: seen('minigame') },
     { name: '⚔️ PvP', what: 'Head-to-head against a rival on the same board. Nobody stakes Ink; the winner gets paid.', ink: <>{fmt(pv.perWin, 1)} a win</>, cap: <>{pv.perDay} paid matches a day</>, real: seen('pvp', 'pvp_match') },
     { name: '📅 Daily streak', what: 'Check in every day. Every 7th day in a row: a free roll guaranteed Rare or better; every 30th: Legendary or better.', ink: <>{(c.daily_streak?.ink ?? []).join(' → ')} Ink over a week, +{fmt(num(c.daily_streak?.day30_ink))} on day 30</>, cap: <>≈ {fmt(streak)} Ink a day on average</>, real: seen('daily_streak', 'day') },
     { name: '🎡 Daily wheel', what: 'One free spin a day: Ink, Pigments, a rent boost, a joystick refill, XP — or the 100 Ink jackpot.', ink: <>≈ {fmt(wheelInk, 1)} Ink a spin on average</>, cap: <>{num(c.earn?.wheel?.spins_per_day, 1)} spin a day</>, real: seen('wheel', 'wheel_spin') },
     { name: '🐾 Inkborn', what: 'Creatures you design. Play their games, send them on jobs, and their Ink Spring fills while you’re away.', ink: <>games up to {ibGames.length ? Math.max(...ibGames.map((x) => num(x.max_ink))) : 25} Ink each · jobs {jobs.map((j) => `${j.ink}`).join(' / ')} Ink · spring {num(ib.spring?.per_creature_hour)} Ink per creature an hour</>, cap: <>{fmt(num(ib.daily_cap))} Ink a day</>, real: seen('inkborn', 'inkborn_game') },
     { name: '🚀 Space & planets', what: 'Build a rocket, fly to the planets, claim plots there, dig, catch meteors and play each world’s games.', ink: <>planet games up to {plGames.length ? Math.max(...plGames.map((x) => num(x.max_ink))) : 25} Ink · meteors {num(pl.meteors?.ink_min)}–{num(pl.meteors?.ink_max)} (golden {num(pl.meteors?.golden_ink)})</>, cap: <>{fmt(num(pl.daily_cap_total))} a day on planets, {fmt(num(c.space?.daily_cap))} from space</>, real: seen('space', 'planet', 'planet_game', 'planet_core', 'dig_layer') },
     { name: '🌾 Farms', what: 'Plant seeds (bought with Ink), water, harvest and sell. Longer crops are worth more; golden harvests pay extra.', ink: bestCrop ? <>best crop now: {bestCrop.emoji} {bestCrop.name}, ≈ {fmt(bestCrop.profit, 1)} Ink profit an hour per bed</> : '—', cap: 'more beds with more connected plots', real: seen('farm') },
-    { name: '🕹️ Arcade', what: 'Arcade plots hold cabinets anyone can play for tickets; the arena has live party games.', ink: <>arena: {num(c.arcade?.arena?.rewards?.win_ink)} Ink a win, {num(c.arcade?.arena?.rewards?.play_ink)} a game</>, cap: <>{num(c.arcade?.arena?.daily_ink_cap)} Ink a day from the arena</>, real: seen('arcade') },
-    { name: '🍋 Business & 🏰 Realms', what: 'Idle plots that build up while you’re away: a lemonade-stand empire, a mine, a sky island, a workshop, a diner or a dungeon.', ink: 'grows as you upgrade', real: seen('business', 'realm') },
+    { name: '🕹️ Arcade', what: 'Arcade plots hold cabinets anyone can play for tickets; the arena has live party games.', ink: <>cabinets up to {Math.max(0, ...Object.values(c.arcade?.games ?? {}).map((x: any) => num(x.max_ink)))} Ink a play (×{num(c.arcade?.hot?.ink, 1)} in the Hot Zone) · arena {num(c.arcade?.arena?.rewards?.win_ink)} a win</>, cap: <>{c.arcade?.daily_cap == null ? 'cabinets: no daily cap' : `${fmt(num(c.arcade.daily_cap))} a day`} · arena {num(c.arcade?.arena?.daily_ink_cap)} a day</>, real: seen('arcade') },
+    { name: '🍋 Business', what: 'An idle empire: open ventures, catch golden customers, take it public for dividends, and play its games.', ink: <>games up to {Math.max(0, ...Object.values(c.business?.games ?? {}).map((x: any) => num(x.max_ink)))} Ink a play · IPO {fmt(num(c.business?.ipo_ink))} Ink</>, cap: c.business?.daily_cap ? <>{fmt(num(c.business.daily_cap))} a day</> : 'no daily cap', real: seen('business') },
+    { name: '🏰 Realms', what: 'Mine, Sky Island, Workshop, Diner, Dungeon and the estates: producers run while you’re away; their games, levels and rare finds pay Ink.', ink: <>games up to {Math.max(0, ...((c.realms?.games ?? []) as any[]).map((x) => num(x.max_ink)))} Ink a play · {num(c.realms?.level_ink)} Ink a level</>, cap: c.realms?.daily_cap ? <>{fmt(num(c.realms.daily_cap))} a day</> : 'no daily cap', real: seen('realm') },
     { name: '🎨 Art & creative', what: 'Sketch of the Day, Draw & Guess, duets, selling stamps of your art, getting Inspired or Featured, and the craft bonus.', ink: <>Sketch prizes {(cr.sketch?.prizes ?? []).slice(0, 3).join(' / ')}… · guess {num(cr.doodle?.guesser_ink)} · duet {num(cr.duet?.complete_ink)} · Featured {num(c.earn?.featured?.ink)}</>, real: seen('sketch', 'doodle', 'duet', 'stamp_sale', 'inspire', 'craft', 'featured') },
     { name: '🚪 Visiting rooms', what: 'Check in at other players’ rooms; they get Ink when you do.', ink: <>{num(c.earn?.rooms?.visitor_ink)} each visit, {num(c.earn?.rooms?.host_ink)} for the host</>, cap: <>{num(c.earn?.rooms?.visitor_daily)} visits / {num(c.earn?.rooms?.host_daily)} hosted a day</>, real: seen('room_visit', 'room_host') },
     { name: '💌 Invites', what: 'When a friend joins with your code and wins their first minigame you get a bonus, plus a share of what they earn.', ink: <>{fmt(num(ref.reward_ink))} Ink, then {num(ref.share?.pct)}% of their Ink up to {fmt(num(ref.share?.cap_ink))}</>, cap: <>{num(ref.daily_cap)} invites a day</> },
@@ -419,6 +426,190 @@ function Compare({ g }: { g: GuideData }) {
             {[...T.sources, ...A.sources].map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="text-accent-2 hover:underline">{s.label}</a>)}
           </div>
         </details>
+      </Card>
+    </Section>
+  );
+}
+
+// ---- minigame Ink by rarity -------------------------------------------------------------------------------------------
+
+function MinigameByRarity({ g }: { g: GuideData }) {
+  const m = g.config.minigames ?? {};
+  const max = num(m.max_level, 60);
+  const levels = [1, 10, 20, 30, 45, max].filter((l, i, a) => l <= max && a.indexOf(l) === i);
+  const cap = minigameCap(g);
+  const bonus = num(m.plot_level_bonus, 0.05);
+  const rows = g.rarities.filter((r) => num(r.chance) > 0 || r.ultra || num(r.ink_mult) > 1);
+  return (
+    <Section id="minigames" title="🎮 Ink per minigame win, by rarity" intro={<>Every plot’s minigame pays the level’s Ink × the plot’s rarity bonus × its plot-level bonus (+{fmt(bonus * 100)}% per plot level, so a level-10 plot pays ×{(1 + bonus * 9).toFixed(2)}). {Number.isFinite(cap) ? `Each game pays for ${cap} wins a day; after that wins are practice.` : 'There is no daily limit right now: every win pays.'}</>}>
+      <Card className="p-0">
+        <table className="w-full text-[12.5px]" data-testid="guide-mg-table">
+          <thead className="text-left text-[10.5px] uppercase tracking-wide text-muted">
+            <tr><th className="p-2 pl-3">Rarity</th>{levels.map((l) => <th key={l} className="p-2 text-right">Lv {l}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t border-line/60" data-testid={`guide-mg-${r.id}`}>
+                <td className="p-2 pl-3"><b style={{ color: r.color }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</b><span className="block text-[10.5px] text-faint">×{num(r.ink_mult, 1)}</span></td>
+                {levels.map((l) => <td key={l} className="p-2 text-right tnum">{fmt(Math.floor(minigameInkAt(g, l, num(r.ink_mult, 1))))}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="px-3 pb-3 text-[11px] text-faint">Ink for clearing a level on a plot-level-1 plot, averaged over the {Object.keys(m.games ?? {}).length} minigames. Multiply by the plot-level bonus for upgraded plots.</p>
+      </Card>
+    </Section>
+  );
+}
+
+// ---- score games (arcade, business, realms, Inkborn, planets) --------------------------------------------------------
+
+function ScoreGames({ g }: { g: GuideData }) {
+  const games = scoreGames(g);
+  const caps = groupCaps(g);
+  const by = g.stats.by_source ?? {};
+  const real: Record<string, string[]> = { 'Arcade cabinets': ['arcade'], Carnival: ['arcade'], Business: ['business'], Realms: ['realm'], Inkborn: ['inkborn_game', 'inkborn'], Planets: ['planet_game', 'planet', 'space'] };
+  const groups = [...new Set(games.map((x) => x.group))];
+  const c = g.config;
+  return (
+    <Section id="score" title="🕹️ Score games: Ink a play, Ink an hour" intro={<>These games pay by score, up to a top prize each play. “Back to back” is the most an hour if you score the top prize every time with ~10 s between plays; the green line is what players really made an hour while playing them. Arcade cabinets pay ×{num(c.arcade?.hot?.ink, 1)} in the Hot Zone, and every cabinet upgrade adds +{fmt(num(c.arcade?.upgrade?.bonus) * 100)}%.</>}>
+      <div className="grid gap-2" data-testid="guide-score-list">
+        {groups.map((grp) => {
+          const list = games.filter((x) => x.group === grp).sort((a, b) => b.perHour - a.perHour);
+          const cap = caps[grp] ?? Infinity;
+          const r = (real[grp] ?? []).map((k) => by[k]).filter(Boolean);
+          const hr = r.length ? Math.max(...r.map((h) => num(h.per_hour))) : 0, best = r.length ? Math.max(...r.map((h) => num(h.max_hour))) : 0;
+          return (
+            <details key={grp} className="glass group rounded-2xl p-3.5" data-testid={`guide-score-${grp}`}>
+              <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-3">
+                <b>{grp}</b>
+                <span className="text-xs font-bold">{Number.isFinite(cap) ? <span className="text-muted">cap {fmt(cap)} Ink a day</span> : <span className="text-[#3DDC97]">no daily cap</span>} · up to {fmt(list[0]?.perHour ?? 0)} Ink/h back to back</span>
+              </summary>
+              {hr > 0 && <p className="mt-1 text-xs font-semibold text-[#3DDC97]">📊 Players made {fmt(hr)} Ink an hour while playing these (best hour {fmt(best)})</p>}
+              <div className="mt-2 grid gap-1">
+                {list.map((x) => (
+                  <div key={x.id} className="grid grid-cols-[1fr_auto_auto] gap-3 text-xs">
+                    <span className="truncate">{x.emoji} {x.name}</span>
+                    <span className="tnum text-muted">{fmt(x.maxInk)} a play · ~{fmt(x.secs)} s</span>
+                    <span className="tnum font-bold">{fmt(x.perHour)}/h</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+// ---- what grinders make --------------------------------------------------------------------------------------------
+
+function Grinders({ g, enough }: { g: GuideData; enough: boolean }) {
+  const s = g.stats;
+  const d = s.player_days;
+  const price = plotPrice(g);
+  if (!enough || !d) return <Section id="grind" title="🔥 What grinders really make"><Card><p className="text-sm text-muted">Not enough recent play to show this fairly yet.</p></Card></Section>;
+  const top = s.top_days ?? [];
+  const src = Object.entries(s.top_days_sources ?? {}).sort((a, b) => num(b[1]) - num(a[1])).slice(0, 8);
+  const srcMax = Math.max(1, ...src.map(([, v]) => num(v)));
+  const gr = s.grinders;
+  return (
+    <Section id="grind" title="🔥 What grinders really make" intro={<>Every day any player played in the last {s.days} days ({fmt(num(d.count))} player-days), ranked by the Ink they earned by playing. Names are never shown.</>}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="guide-grind-tiles">
+        <Tile k="Typical day" v={`${fmt(num(d.p50))} Ink`} hint={`about ${fmt(num(d.hours_p50), 1)} h of play`} />
+        <Tile k="Keen (top 25%)" v={`${fmt(num(d.p75))} Ink`} hint={`${fmt(num(d.p75) / price, 1)} plots`} />
+        <Tile k="Top 10%" v={`${fmt(num(d.p90))} Ink`} hint={`${fmt(num(d.p90) / price, 1)} plots`} />
+        <Tile k="Top 1%" v={`${fmt(num(d.p99))} Ink`} hint={`${fmt(num(d.p99) / price, 1)} plots`} />
+        <Tile k="Best day" v={`${fmt(num(d.max))} Ink`} hint={`${fmt(num(d.max) / price)} plots in a day`} />
+        {gr && num(gr.days) > 0 && <Tile k="Grinders (3+ h)" v={`${fmt(num(gr.avg_ink))} Ink/day`} hint={`${fmt(num(gr.avg_hours), 1)} h · ${fmt(num(gr.ink_per_active_hour))} Ink an hour`} />}
+      </div>
+      <p className="text-xs text-muted" data-testid="guide-grind-counts">Days over 1,000 Ink: <b>{fmt(num(d.ge_1000))}</b> · over 3,000: <b>{fmt(num(d.ge_3000))}</b> · over 5,000: <b>{fmt(num(d.ge_5000))}</b> · over 8,000: <b>{fmt(num(d.ge_8000))}</b></p>
+      {top.length > 0 && (
+        <Card className="p-0">
+          <div className="px-3 pt-3 text-sm font-bold">The best days</div>
+          <div className="grid" data-testid="guide-top-days">
+            {top.map((t, i) => (
+              <div key={i} className="grid grid-cols-[1.6rem_1fr_auto] items-baseline gap-2 border-t border-line/60 px-3 py-2 text-xs first:border-t-0">
+                <span className="font-black text-muted">#{i + 1}</span>
+                <span className="min-w-0"><b className="tnum text-sm">{fmt(num(t.ink))} Ink</b> <span className="text-muted">· {fmt(num(t.hours))} h with play over {fmt(num(t.span_hours), 1)} h</span>
+                  <span className="block truncate text-faint">{Object.entries(t.sources ?? {}).map(([k, v]) => `${label(k)} ${fmt(num(v))}`).join(' · ')}</span></span>
+                <span className="tnum text-muted">{fmt(num(t.ink) / price)} plots</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      {src.length > 0 && (
+        <Card>
+          <div className="mb-2 text-sm font-bold">Where the top 10% of days got their Ink</div>
+          <div className="grid gap-1.5">
+            {src.map(([k, v]) => (
+              <div key={k} className="grid grid-cols-[9.5rem_1fr_auto] items-center gap-2 text-xs">
+                <span className="truncate">{label(k)}</span>
+                <span className="h-2.5 rounded-full bg-surface-2"><span className="block h-full rounded-full bg-[linear-gradient(90deg,#FF7A3D,#FFE14D)]" style={{ width: `${(num(v) / srcMax) * 100}%` }} /></span>
+                <span className="tnum text-muted">{fmt(num(v))}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </Section>
+  );
+}
+
+// ---- progression race ----------------------------------------------------------------------------------------------
+
+function Progression({ g }: { g: GuideData }) {
+  const real = profiles(g);
+  const fallback = [{ id: 'model', name: '1 h a day (game rates)', inkPerDay: project(g, 1, 1, 30)[0].currencyPerDay, hours: 1, note: 'no measured data yet' }];
+  const list = real.length ? real : fallback;
+  const [pid, setPid] = useState(list[Math.min(2, list.length - 1)].id);
+  const p = list.find((x) => x.id === pid) ?? list[0];
+  const [days, setDays] = useState(90);
+  const [wph, setWph] = useState(30);
+  const series = useMemo(() => project(g, p.hours, days, wph, p.inkPerDay), [g, p, days, wph]);
+  const [lv, tm, ae] = series;
+  const checkpoints = [1, 7, 30, 90, 180, 365].filter((d) => d <= days);
+  const perDay = (x: Projection, d: number) => x.monthly[d] / 30;
+  const otT = overtakeDay(lv, tm), otA = overtakeDay(lv, ae);
+  const ratioT = tm.perPlotMonthly / lv.perPlotMonthly, ratioA = ae.perPlotMonthly / lv.perPlotMonthly;
+  const say = (o: number | null, name: string) => (o === null ? `doesn’t pass ${name} within ${days} days` : o === 0 ? `out-earns ${name} from day one` : `passes ${name} on day ${o}`);
+  return (
+    <Section id="progress" title="📈 Progression race: faster plots vs bigger rates" intro={<>TerraMine and Atlas Earth pay more per plot ({ratioT.toFixed(1)}× and {ratioA.toFixed(1)}× LANDVAS’s boosted rate), but they hand out plots far more slowly. Pick a real kind of LANDVAS day below; the other games get the same hours of play.</>}>
+      <Card className="grid gap-4">
+        <div className="flex flex-wrap gap-1.5" data-testid="progress-profiles">
+          {list.map((x) => (
+            <button key={x.id} onClick={() => setPid(x.id)} className={cn('rounded-full px-3 py-1.5 text-xs font-bold', x.id === p.id ? 'bg-accent text-white' : 'bg-surface-2')} data-testid={`progress-${x.id}`}>
+              {x.name} · {fmt(x.inkPerDay)} Ink
+            </button>
+          ))}
+        </div>
+        <p className="-mt-2 text-xs text-muted">{p.name}: {p.note} — {fmt(p.inkPerDay)} Ink ({fmt(p.inkPerDay / plotPrice(g), 1)} plots) a day over about {fmt(p.hours, 1)} h. TerraMine gets {fmt(tm.currencyPerDay)} TB ({fmt(tm.plotsPerDay, 1)} mines) and Atlas Earth {fmt(ae.currencyPerDay)} Atlas Bucks ({fmt(ae.plotsPerDay, 2)} parcels) a day from the same hours.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Slider id="p-days" label="Days" value={days} min={7} max={365} step={1} onChange={setDays} format={(d) => `${d}`} />
+          <Slider id="p-pace" label="Their minigame wins an hour" value={wph} min={10} max={90} step={5} onChange={setWph} format={(w) => `${w}`} />
+        </div>
+        <p className="text-sm font-bold" data-testid="progress-overtake">LANDVAS {say(otT, 'TerraMine')} and {say(otA, 'Atlas Earth')} in rent a day.</p>
+        <div>
+          <div className="mb-1 text-xs font-bold text-muted">Rent a day</div>
+          <LineChart series={series} days={days} pick={(x) => x.monthly.map((m) => m / 30)} unit={usd} />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[340px] text-[12px]" data-testid="progress-table">
+            <thead className="text-left text-[10.5px] uppercase tracking-wide text-muted"><tr><th className="p-1.5">Day</th>{series.map((x) => <th key={x.id} className="p-1.5" style={{ color: x.color }}>{x.name}</th>)}</tr></thead>
+            <tbody>
+              {checkpoints.map((d) => (
+                <tr key={d} className="border-t border-line/60">
+                  <td className="p-1.5 font-bold">{d}</td>
+                  {series.map((x) => <td key={x.id} className="p-1.5 tnum"><b>{fmt(x.plots[d])}</b> plots<span className="block text-muted">{usd(perDay(x, d))}/day · {usd(x.monthly[d])}/mo</span></td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs">{series.map((x) => <span key={x.id} className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: x.color }} />{x.name}: {usd(x.perPlotMonthly)} a plot a month</span>)}</div>
+        <p className="text-[11px] text-faint">LANDVAS’s Ink a day is what real players earned on that kind of day. TerraMine and Atlas Earth get the same hours, at their published rewards (TerraMine at {wph} wins an hour, with no daily limit). Rent assumes the boost every day and every plot bought straight away; rent converted back into plots isn’t counted for anyone.</p>
       </Card>
     </Section>
   );
