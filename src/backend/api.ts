@@ -207,6 +207,9 @@ export const api = {
   reportChat: (id: number, reason: string) => rpc('report_chat_message', { p_message_id: id, p_reason: reason }),
   feed: (afterId?: number | null, beforeId?: number | null, limit = 40) => rpc<FeedEvent[]>('feed_recent', { p_after_id: afterId ?? null, p_before_id: beforeId ?? null, p_limit: limit }),
 
+  // the Guide: every live rate and real averages (works signed out)
+  gameGuide: () => rpc<import('../guide/model').Guide>('game_guide'),
+
   // USD rent -> Ink
   convertUsd: (usd: number | null) => rpc<{ ink: number; usd: number; rate: number; balances: Balances; rent: RentState }>('convert_usd_to_ink', { p_usd: usd, p_idempotency_key: idemKey('convert') }),
 

@@ -1,6 +1,6 @@
 // The rarity guide: every rarity in plain words — what it earns, what makes it special, and how to get one.
 // Odds and rates come from the live rarity table, so the page never drifts from the game.
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Page, PageHeader } from '../app/Shell';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { RARITY_ORDER, ULTRA, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
@@ -93,6 +93,10 @@ export default function Legend() {
   return (
     <Page>
       <PageHeader eyebrow="The guide" title="📖 Rarities">Every plot you claim rolls a rarity the moment it’s yours. Here’s what each one does for you, and how to get it.</PageHeader>
+
+      <Link to="/guide" className="glass mb-6 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold" data-testid="legend-to-guide">
+        <span>📘 The full guide<span className="block text-xs font-semibold text-muted">Live rates, Ink per activity, what players earn, and LANDVAS vs Atlas Earth & TerraMine</span></span><span className="text-muted">›</span>
+      </Link>
 
       <section className="mb-7 grid gap-3" data-testid="legend-basics">
         <h2 className="eyebrow">How it works</h2>

@@ -137,6 +137,11 @@ export function ModeButton() {
             <MapThemePicker />
             <HidePlotsToggle />
             <SimpleModeToggle />
+            <Link to="/guide" onClick={() => setOpen(false)} data-testid="open-guide"
+              className="mx-1 flex items-center justify-between gap-3 rounded-xl bg-white/[0.06] px-2 py-1.5 text-left text-xs font-bold text-white/90 hover:bg-white/10">
+              <span>📘 The guide<span className="block text-[10px] font-semibold text-white/50">Live rates, Ink per activity, what you can earn</span></span>
+              <span className="text-white/50">›</span>
+            </Link>
             <Link to="/legend" onClick={() => setOpen(false)} data-testid="open-legend"
               className="mx-1 flex items-center justify-between gap-3 rounded-xl bg-white/[0.06] px-2 py-1.5 text-left text-xs font-bold text-white/90 hover:bg-white/10">
               <span>📖 Rarity guide<span className="block text-[10px] font-semibold text-white/50">Every rarity: what it earns and how to get it</span></span>

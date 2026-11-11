@@ -126,7 +126,7 @@ export default function SimpleHome() {
           );
         })}
       </div>
-      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link></p>
+      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link> · <Link to="/guide" className="font-bold text-white/70 underline" data-testid="simple-guide">The full guide →</Link></p>
 
       <CollectionCard onOpen={() => setAlbum(true)} />
 
