@@ -169,15 +169,50 @@ function DeleteAccount({ onDone }: { onDone(): void }) {
   );
 }
 
-const FEED_KEYS: { k: string; label: string; hint: string }[] = [
-  { k: 'feed_claims', label: 'Plots & Crowns', hint: 'Plots you claim (and their rarity), Crowns, planet plots' },
-  { k: 'feed_badges', label: 'Badges', hint: 'Badges you earn' },
-  { k: 'feed_games', label: 'Game wins', hint: 'Minigames, PvP, arcade scores, challenges, levels' },
-  { k: 'feed_art', label: 'Art', hint: 'Art you publish, duets, stamps' },
-  { k: 'feed_luck', label: 'Luck', hint: 'Sacrifices at the Altar and your lucky picks' },
-  { k: 'feed_travel', label: 'Travel', hint: 'Flights to the Hot Zone, exploring other worlds (never where you are)' },
-  { k: 'feed_places', label: 'Places', hint: 'Harvests, estates, IPOs, bases, playdates' },
+type Act = { k: string; label: string };
+const FEED_KEYS: { k: string; label: string; hint: string; acts: Act[] }[] = [
+  { k: 'feed_account', label: 'Account', hint: 'Joining LANDVAS, inviting friends', acts: [
+    { k: 'fa_join', label: 'Joining LANDVAS' }, { k: 'fa_referral', label: 'Inviting a friend' }] },
+  { k: 'feed_claims', label: 'Plots & Crowns', hint: 'Plots you claim (and their rarity), Crowns, planet plots', acts: [
+    { k: 'fa_claim', label: 'Claiming a plot' }, { k: 'fa_shiny', label: 'Claiming a ✨ shiny plot' }, { k: 'fa_crown', label: 'Claiming a Crown' },
+    { k: 'fa_planet_plot', label: 'Claiming a planet plot' }, { k: 'fa_core', label: 'Reaching a planet’s core' }] },
+  { k: 'feed_badges', label: 'Badges', hint: 'Badges you earn', acts: [{ k: 'fa_achievement', label: 'Earning a badge' }] },
+  { k: 'feed_games', label: 'Game wins', hint: 'Minigames, PvP, arcade, challenges, levels', acts: [
+    { k: 'fa_minigame', label: 'Clearing a minigame level' }, { k: 'fa_pvp', label: 'Winning a PvP match' }, { k: 'fa_challenge', label: 'Placing in a challenge' },
+    { k: 'fa_sketch', label: 'Placing in Sketch of the Day' }, { k: 'fa_level', label: 'Reaching an artist level' },
+    { k: 'fa_arcade_playing', label: 'Playing in an arcade' }, { k: 'fa_arcade_record', label: 'Arcade high scores' }, { k: 'fa_arcade_prize', label: 'Arcade prizes' },
+    { k: 'fa_arcade_cosmetic', label: 'Unlocking arcade gear' }, { k: 'fa_arcade_level', label: 'Your arcade levelling up' }, { k: 'fa_arcade_install', label: 'Installing arcade machines' }] },
+  { k: 'feed_art', label: 'Art', hint: 'Art you publish, duets, stamps', acts: [
+    { k: 'fa_publish', label: 'Publishing art' }, { k: 'fa_featured', label: 'Getting Featured' }, { k: 'fa_duet', label: 'Finishing a duet' }, { k: 'fa_stamp', label: 'Collecting a stamp' }] },
+  { k: 'feed_luck', label: 'Luck', hint: 'Sacrifices at the Altar and your lucky picks', acts: [
+    { k: 'fa_luck_ink', label: 'Sacrificing Ink for Luck' }, { k: 'fa_luck_inkborn', label: 'Sacrificing an Inkborn' }, { k: 'fa_luck_egg', label: 'Sacrificing an egg' },
+    { k: 'fa_luck_plot', label: 'Sacrificing a plot' }, { k: 'fa_luck_pick', label: 'Lucky picks (rolling with Luck)' }] },
+  { k: 'feed_travel', label: 'Travel', hint: 'Flights to the Hot Zone, exploring other worlds (never where you are)', acts: [
+    { k: 'fa_flight', label: 'Flying somewhere' }, { k: 'fa_exploring', label: 'Exploring a world' }, { k: 'fa_settle', label: 'Settling a new world' }] },
+  { k: 'feed_places', label: 'Places', hint: 'Harvests, estates, IPOs, bases, digs, playdates', acts: [
+    { k: 'fa_harvest', label: 'Golden harvests' }, { k: 'fa_estate', label: 'Finishing an estate checklist' }, { k: 'fa_ipo', label: 'Taking a business public' },
+    { k: 'fa_base', label: 'Building a base' }, { k: 'fa_dig', label: 'Digging deeper' }, { k: 'fa_playdate', label: 'Inkborn playdates' }] },
 ];
+/** a category switch, with each of its activities one tap away */
+function FeedGroup({ g, p, set }: { g: (typeof FEED_KEYS)[number]; p: Record<string, boolean>; set(k: string, v: boolean): void }) {
+  const [open, setOpen] = useState(false);
+  const hidden = g.acts.filter((a) => p[a.k] === false).length;
+  return (
+    <div data-testid={`pv-group-${g.k}`}>
+      <Switch id={`pv-${g.k}`} label={g.label} hint={g.hint} checked={p[g.k] !== false} onCheckedChange={(v) => set(g.k, v)} />
+      {p[g.k] !== false && g.acts.length > 1 && (
+        <button type="button" className="text-xs font-semibold text-accent-2 hover:underline" onClick={() => setOpen(!open)} data-testid={`pv-more-${g.k}`}>
+          {open ? '▾' : '▸'} Choose each one{hidden ? ` · ${hidden} hidden` : ''}
+        </button>
+      )}
+      {open && p[g.k] !== false && g.acts.length > 1 && (
+        <div className="mt-1 grid border-l-2 border-line pl-4">
+          {g.acts.map((a) => <Switch key={a.k} id={`pv-${a.k}`} label={a.label} checked={p[a.k] !== false} onCheckedChange={(v) => set(a.k, v)} />)}
+        </div>
+      )}
+    </div>
+  );
+}
 const PROFILE_KEYS: { k: string; label: string; hint: string }[] = [
   { k: 'profile_badges', label: 'Badges on my profile', hint: 'The badges you’ve earned' },
   { k: 'profile_games', label: 'Game records on my profile', hint: 'Your minigame levels, best scores and wins' },
@@ -195,11 +230,11 @@ function PrivacySettings() {
   if (!p) return <div className="text-sm text-muted">Loading…</div>;
   return (
     <div className="grid gap-4" data-testid="privacy-settings">
-      <p className="flex items-start gap-2 text-xs text-muted"><Shield className="mt-0.5 h-4 w-4 shrink-0" /> Everything is public unless you turn it off. You always see your own activity. Your location is never shown, whatever you choose.</p>
+      <p className="flex items-start gap-2 text-xs text-muted"><Shield className="mt-0.5 h-4 w-4 shrink-0" /> Everything is public unless you turn it off — the whole feed, a category, or any single activity. You always see your own activity. Your location is never shown, whatever you choose.</p>
       <Switch id="pv-feed" label="Show my activity on the live feed" checked={p.feed} onCheckedChange={(v) => void set('feed', v)} />
       {p.feed && (
         <div className="grid gap-3 border-l-2 border-line pl-4">
-          {FEED_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}
+          {FEED_KEYS.map((g) => <FeedGroup key={g.k} g={g} p={p} set={(k, v) => void set(k, v)} />)}
         </div>
       )}
       {PROFILE_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}

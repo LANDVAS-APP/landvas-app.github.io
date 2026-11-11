@@ -1,6 +1,8 @@
 // v1.3c: privacy you control — hide your activity from the live feed (all of it, or by kind) and your badges, game
 // records and stats from your public profile. Public by default.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { TestDb } from '../helpers/db';
 
 const db = new TestDb();
@@ -32,6 +34,28 @@ describe('privacy', () => {
     await db.rpc(a, 'set_privacy', { p_patch: { feed: false } });
     expect(await feedFor(b, 'pri_vacy')).toEqual([]);
     expect(await feedFor(null, 'pri_vacy')).toEqual([]);
+  });
+  it('hide any single activity — e.g. sacrificing an egg but not Ink', async () => {
+    await db.rpc(a, 'set_privacy', { p_patch: { feed: true, feed_games: true } });
+    await db.sql(`insert into feed_events (kind, player_id, data) values ('luck', $1, '{"sub":"sacrifice","what":"egg","egg":"glimmer","gained":8}'),
+      ('luck', $1, '{"sub":"sacrifice","what":"inkborn","name":"Blob","gained":12}'), ('arcade', $1, '{"sub":"prize","prize":"x"}'), ('arcade', $1, '{"sub":"record","score":5}')`, [a]);
+    const what = async () => (await db.rpc(b, 'feed_recent', { p_limit: 100 })).filter((e: any) => e.player.username === 'pri_vacy')
+      .map((e: any) => e.data.what ?? e.data.sub ?? e.kind);
+    expect(await what()).toEqual(expect.arrayContaining(['egg', 'inkborn', 'ink', 'prize', 'record']));
+    const p = await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_egg: false, fa_luck_inkborn: false, fa_arcade_prize: false, fa_join: false } });
+    expect(p).toMatchObject({ fa_luck_egg: false, fa_luck_ink: true, fa_arcade_record: true });
+    const seen = await what();
+    expect(seen).not.toContain('egg'); expect(seen).not.toContain('inkborn'); expect(seen).not.toContain('prize'); expect(seen).not.toContain('join');
+    expect(seen).toEqual(expect.arrayContaining(['ink', 'record', 'claim']));
+    expect((await db.rpc(a, 'feed_recent', { p_limit: 100 })).some((e: any) => e.data.what === 'egg')).toBe(true);
+  });
+  it('the settings screen has a switch for every activity, and every kind of feed event has one', async () => {
+    const keys = Object.keys(await db.rpc(a, 'my_privacy'));
+    const src = readFileSync(join(__dirname, '../../src/screens/Settings.tsx'), 'utf8');
+    const listed = [...src.matchAll(/k: '((?:fa|feed)_[a-z_]+)'/g)].map((m) => m[1]);
+    expect(new Set(listed)).toEqual(new Set(keys.filter((k) => k.startsWith('fa_') || (k.startsWith('feed_')))));
+    const kinds = (await db.sql(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'feed_events_kind_check'`))[0].d.match(/'([a-z_]+)'/g).map((x: string) => x.slice(1, -1));
+    for (const k of kinds) expect(keys, k).toContain('fa_' + (k === 'luck' ? 'luck_ink' : k === 'arcade' ? 'arcade_playing' : k));
   });
   it('hide badges, game records and stats from the public profile', async () => {
     await db.sql(`insert into player_achievements (player_id, achievement_key) values ($1, 'first_plot')`, [a]);
