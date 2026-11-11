@@ -22,6 +22,8 @@ export type Celebration = {
   habitatId?: string | null;
   /** a Base plot (no extras): no painting buttons; `again` offers another buy (simple mode) */
   base?: boolean; again?: () => void;
+  /** a shiny plot (1 in 1,000, ×5 rent) */
+  shiny?: boolean;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -218,6 +220,8 @@ function Card({ c, reduce, revealed, onRevealed }: { c: Celebration; reduce: boo
             {shown.name}
           </div>
           <div className="mt-1 h-5 text-sm font-bold" style={{ color: info.glow }}>{revealed ? (epic ? `Incredible — a ${info.name} plot!` : c.rarity === 'common' ? 'A solid start' : `Nice — a ${info.name} plot`) : 'Revealing rarity…'}</div>
+          {revealed && c.shiny && <div className="mx-auto mt-2 w-fit rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-3 py-1 font-display text-sm font-black text-[#1a0b2e]" data-testid="claim-shiny">✨ SHINY · ×5 rent ✨</div>}
+          {revealed && info.ability && <div className="mx-auto mt-2 max-w-[280px] rounded-xl bg-white/[0.06] px-3 py-1.5 text-xs font-semibold" style={{ color: info.glow }}>{info.emoji} {info.ability}</div>}
           {c.name && <div className="mt-2 truncate font-display text-lg font-semibold">“{c.name}”</div>}
           <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted">
             <span>{PLOT_TYPES[c.type].name} · {PLOT_TYPES[c.type].game}</span>

@@ -13,7 +13,7 @@ import { config } from '../env';
 import type { PlotKind, PlotRow } from '../backend/types';
 import type { MapMode } from '../lib/store';
 import { GRID_LEVEL, GRID_SIZE, type PlotTypeId } from '../shared/grid';
-import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
+import { rarityInfo, rarityTier } from '../shared/rarity';
 import { PLOT_TYPES, drawPlotDesign } from './plotStyle';
 import { isPhone } from '../lib/gfx';
 
@@ -252,9 +252,9 @@ const hash = (x: number, y: number, k: number) => {
 // plots merged into one group draw as one place: the seams between them disappear, buildings, beds and roofs
 // run straight across, the outline goes only round the outside, and the group gets one big centrepiece.
 type Sides = { n: boolean; e: boolean; s: boolean; w: boolean };
-type KCell = { gx: number; gy: number; px: number; py: number; cs: number; rc: string; glow: string; tier: number; join: Sides };
+type KCell = { gx: number; gy: number; px: number; py: number; cs: number; rc: string; glow: string; tier: number; join: Sides; rid?: string; shiny?: boolean };
 const NO_JOIN: Sides = { n: false, e: false, s: false, w: false };
-const tierOf = (r: string | null | undefined) => Math.max(0, RARITY_ORDER.indexOf((r ?? 'common') as RarityId));
+const tierOf = (r: string | null | undefined) => Math.min(4, rarityTier(r));
 const NEUTRAL = { color: '#B9B4D6', glow: '#E6E2FF' };
 
 /** The part of a plot a building fills: inset from its edges, except where it joins the next plot of its group. */
@@ -619,16 +619,66 @@ function brawlCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.strokeStyle = c.tier ? c.rc : '#FF4FD8'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.strokeRect(b.x0, b.y0, w, h);
   rareBits(ctx, c);
 }
-// ---- Base plots: plain land, a stone slab whose finish climbs with rarity ------------------------------------------
-// common: bare slate · rare: blue stone with brass studs · epic: purple with a diamond inlay · legendary: gold with a
-// sunburst · mythic: iridescent crystal. A little claim stake in the middle.
-const BASE_SLAB: [string, string][] = [['#5E6A78', '#3D4653'], ['#3D7FC4', '#22508A'], ['#7A4FD8', '#4A2A9A'], ['#E8A928', '#A86A0E'], ['#FF5FB4', '#6E3BFF']];
+// ---- Base plots: plain land, a stone slab whose finish is its rarity ------------------------------------------------
+// common: bare slate · uncommon: teal with a clover · rare: blue stone with brass studs · epic: purple with a diamond
+// inlay · legendary: gold with a sunburst · mythic: iridescent crystal · the ultras: sun, moon, comet, temple, prism,
+// galaxy (see ultraMotif). A little claim stake in the middle of the everyday ones.
+const BASE_SLAB: Record<string, [string, string]> = {
+  common: ['#5E6A78', '#3D4653'], uncommon: ['#2AA39A', '#17675F'], rare: ['#3D7FC4', '#22508A'], epic: ['#7A4FD8', '#4A2A9A'],
+  legendary: ['#E8A928', '#A86A0E'], mythic: ['#FF5FB4', '#6E3BFF'], solar: ['#FFB43A', '#E0521B'], lunar: ['#1E2A6B', '#0B1033'],
+  comet: ['#0E2A4A', '#05101E'], ancient: ['#D9B77A', '#8E6B37'], prismatic: ['#FF7AE0', '#5FD3FF'], genesis: ['#1A0838', '#000004'],
+};
+/** The ultra rarities' (and Uncommon's) emblem, drawn into a box. */
+function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: number, w: number, h: number, seed: number) {
+  const cx = x + w / 2, cy = y + h / 2, m = Math.min(w, h);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); // (rays and facets stay inside the plot)
+  if (rid === 'uncommon') {
+    ctx.fillStyle = '#7CF0B9'; ctx.globalAlpha = 0.9;
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) { ctx.beginPath(); ctx.arc(x + w * 0.74 + dx * m * 0.08, y + h * 0.26 + dy * m * 0.08, m * 0.07, 0, Math.PI * 2); ctx.fill(); }
+  } else if (rid === 'solar') {
+    ctx.globalAlpha = 0.4; ctx.fillStyle = '#FFF1A8';
+    for (let i = 0; i < 16; i++) { const t = (i / 16) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, m * 0.7, t, t + 0.1); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1; ctx.fillStyle = '#FFE14D'; ctx.beginPath(); ctx.arc(cx, cy, m * 0.24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFF6C9'; ctx.beginPath(); ctx.arc(cx, cy, m * 0.17, 0, Math.PI * 2); ctx.fill();
+  } else if (rid === 'lunar') {
+    ctx.fillStyle = '#fff'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(x + w * hash(seed, i, 1), y + h * hash(seed, i, 2), m * 0.015, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#E8EEFF'; ctx.beginPath(); ctx.arc(cx + m * 0.02, cy, m * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BASE_SLAB.lunar[1]; ctx.beginPath(); ctx.arc(cx + m * 0.14, cy - m * 0.08, m * 0.23, 0, Math.PI * 2); ctx.fill();
+  } else if (rid === 'comet') {
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#22E3FF'; ctx.globalAlpha = 0.35; ctx.lineWidth = m * 0.14;
+    ctx.beginPath(); ctx.moveTo(x + w * 0.14, y + h * 0.86); ctx.lineTo(x + w * 0.62, y + h * 0.38); ctx.stroke();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = '#C9F8FF'; ctx.lineWidth = m * 0.06;
+    ctx.beginPath(); ctx.moveTo(x + w * 0.22, y + h * 0.78); ctx.lineTo(x + w * 0.62, y + h * 0.38); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + w * 0.66, y + h * 0.34, m * 0.11, 0, Math.PI * 2); ctx.fill();
+  } else if (rid === 'ancient') {
+    ctx.fillStyle = '#F4E2B8';
+    ctx.beginPath(); ctx.moveTo(x + w * 0.22, y + h * 0.34); ctx.lineTo(cx, y + h * 0.18); ctx.lineTo(x + w * 0.78, y + h * 0.34); ctx.closePath(); ctx.fill();
+    for (const u of [0.28, 0.42, 0.56, 0.7]) ctx.fillRect(x + w * (u - 0.03), y + h * 0.4, w * 0.06, h * 0.34);
+    ctx.fillRect(x + w * 0.18, y + h * 0.74, w * 0.64, h * 0.06);
+  } else if (rid === 'prismatic') {
+    const C = ['#FF3D9A', '#FF9F1C', '#FFE14D', '#3DDC97', '#22E3FF', '#2F7BFF', '#A45CFF', '#FF7AE0'];
+    ctx.globalAlpha = 0.55;
+    for (let i = 0; i < 8; i++) { const t = (i / 8) * Math.PI * 2; ctx.fillStyle = C[i]; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, m * 0.75, t, t + Math.PI / 4); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 0.85; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx, cy - m * 0.24); ctx.lineTo(cx + m * 0.2, cy); ctx.lineTo(cx, cy + m * 0.24); ctx.lineTo(cx - m * 0.2, cy); ctx.closePath(); ctx.fill();
+  } else if (rid === 'genesis') {
+    ctx.fillStyle = '#fff'; for (let i = 0; i < 14; i++) { ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(x + w * hash(seed, i, 3), y + h * hash(seed, i, 4), m * 0.012, 0, Math.PI * 2); ctx.fill(); }
+    ctx.translate(cx, cy); ctx.rotate(-0.45);
+    ctx.globalAlpha = 0.6; ctx.fillStyle = '#A45CFF'; ctx.beginPath(); ctx.ellipse(0, 0, m * 0.4, m * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.7; ctx.fillStyle = '#FF7AE0'; ctx.beginPath(); ctx.ellipse(0, 0, m * 0.26, m * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1; const g = ctx.createRadialGradient(0, 0, 0, 0, 0, m * 0.13); g.addColorStop(0, '#fff'); g.addColorStop(0.3, '#FFD6FF'); g.addColorStop(1, 'rgba(164,92,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, m * 0.13, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis']);
 function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
-  const [a, b] = BASE_SLAB[tier] ?? BASE_SLAB[0];
+  const rid = c.rid ?? 'common';
+  const [a, b] = BASE_SLAB[rid] ?? BASE_SLAB.common;
   const gr = ctx.createLinearGradient(px, py, px + cs, py + cs);
   gr.addColorStop(0, a); gr.addColorStop(1, b);
-  if (tier === 4) gr.addColorStop(0.5, '#3FE0FF');
+  if (rid === 'mythic') gr.addColorStop(0.5, '#3FE0FF');
   ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.fillRect(px, py, cs, cs);
   if (cs < 6) return;
   const m = inner(c, cs * 0.08);
@@ -637,24 +687,24 @@ function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(m.x0, m.y1 - cs * 0.05, m.x1 - m.x0, cs * 0.05);
   ctx.globalAlpha = 1;
   if (cs < 12) return;
-  if (tier === 0) {
-    // slate grain
+  if (ULTRA_IDS.has(rid) || rid === 'uncommon') ultraMotif(ctx, rid, px, py, cs, cs, gx * 31 + gy);
+  if (rid === 'common') {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = Math.max(1, cs * 0.02);
     for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + cs * (i / 4), py + cs * 0.1); ctx.lineTo(px + cs * (i / 4 - 0.12), py + cs * 0.9); ctx.stroke(); }
-  } else if (tier === 1) {
+  } else if (rid === 'rare') {
     ctx.fillStyle = '#E8C46A';
     for (const [u, v] of [[0.18, 0.18], [0.82, 0.18], [0.18, 0.82], [0.82, 0.82]]) { ctx.beginPath(); ctx.arc(px + cs * u, py + cs * v, cs * 0.045, 0, Math.PI * 2); ctx.fill(); }
-  } else if (tier === 2) {
+  } else if (rid === 'epic') {
     const cx = px + cs / 2, cy = py + cs / 2, d = cs * 0.3;
     ctx.strokeStyle = c.glow; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.globalAlpha = 0.8;
     ctx.beginPath(); ctx.moveTo(cx, cy - d); ctx.lineTo(cx + d, cy); ctx.lineTo(cx, cy + d); ctx.lineTo(cx - d, cy); ctx.closePath(); ctx.stroke();
     ctx.globalAlpha = 1;
-  } else if (tier === 3) {
+  } else if (rid === 'legendary') {
     const cx = px + cs / 2, cy = py + cs / 2;
     ctx.globalAlpha = 0.35; ctx.fillStyle = '#FFF4C2';
     for (let i = 0; i < 12; i++) { const t = (i / 12) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, cs * 0.46, t, t + Math.PI / 24); ctx.closePath(); ctx.fill(); }
     ctx.globalAlpha = 1;
-  } else {
+  } else if (rid === 'mythic') {
     const cx = px + cs / 2, cy = py + cs / 2, r0 = cs * 0.22;
     ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 1.5, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.95; ctx.fillStyle = '#C9F6FF';
@@ -662,23 +712,39 @@ function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
     ctx.fillStyle = c.rc; ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.moveTo(cx, cy - r0 * 1.3); ctx.lineTo(cx + r0 * 0.7, cy); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // the claim stake (not on the mythic crystal)
-  if (tier < 4 && cs >= 18 && hash(gx, gy, 41) < 0.9) {
+  // the claim stake on the everyday rarities
+  if (tier < 4 && !ULTRA_IDS.has(rid) && cs >= 18 && hash(gx, gy, 41) < 0.9) {
     const sx = px + cs * 0.5, sy = py + cs * 0.62;
     ctx.strokeStyle = '#2A1C10'; ctx.lineWidth = Math.max(1, cs * 0.035); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - cs * 0.3); ctx.stroke();
-    ctx.fillStyle = tier ? c.rc : '#E9EEF5'; ctx.beginPath(); ctx.moveTo(sx, sy - cs * 0.3); ctx.lineTo(sx + cs * 0.18, sy - cs * 0.24); ctx.lineTo(sx, sy - cs * 0.18); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rid === 'common' ? '#E9EEF5' : c.rc; ctx.beginPath(); ctx.moveTo(sx, sy - cs * 0.3); ctx.lineTo(sx + cs * 0.18, sy - cs * 0.24); ctx.lineTo(sx, sy - cs * 0.18); ctx.closePath(); ctx.fill();
   }
   rareBits(ctx, c);
+}
+/** A shiny plot (1 in 1,000): a sheen across it and twinkling sparkles, whatever kind of plot it is. */
+function shinyOver(ctx: CanvasRenderingContext2D, c: KCell) {
+  const { px, py, cs, gx, gy } = c;
+  if (cs < 6) return;
+  ctx.save();
+  const g = ctx.createLinearGradient(px, py, px + cs, py + cs);
+  g.addColorStop(0.3, 'rgba(255,255,255,0)'); g.addColorStop(0.47, 'rgba(255,255,255,0.45)'); g.addColorStop(0.5, 'rgba(255,214,255,0.6)'); g.addColorStop(0.53, 'rgba(201,248,255,0.45)'); g.addColorStop(0.7, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(px, py, cs, cs);
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 4; i++) { const x = px + cs * (0.12 + hash(gx, gy, 500 + i) * 0.76), y = py + cs * (0.12 + hash(gx, gy, 520 + i) * 0.76); star(ctx, x, y, cs * 0.07, cs * 0.02, 4); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = Math.max(1, cs * 0.03); outerEdges(ctx, c, cs * 0.015);
+  ctx.restore();
 }
 
 // ---- Art plots waiting for art: a blank canvas in a frame that gets fancier with rarity -----------------------------
 // common: linen in a wood frame · rare: a blue paint splash · epic: a gallery frame and two strokes · legendary: an
 // ornate gold frame · mythic: a holographic frame and a rainbow swirl.
 const FRAME = ['#8A5A34', '#2B6CB0', '#5B34B5', '#D9A11E', '#FF3D9A'];
+const FRAME_BY: Record<string, string> = { uncommon: '#1E8C82', solar: '#E86A1B', lunar: '#26347E', comet: '#0E3A63', ancient: '#9C7A44', prismatic: '#FF7AE0', genesis: '#1A0838' };
 function canvasCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
   ctx.globalAlpha = 1;
-  if (tier === 4) { const g = ctx.createLinearGradient(px, py, px + cs, py + cs); g.addColorStop(0, '#FF3D9A'); g.addColorStop(0.35, '#FFD84D'); g.addColorStop(0.65, '#3DDC97'); g.addColorStop(1, '#22E3FF'); ctx.fillStyle = g; }
+  const rid = c.rid ?? 'common';
+  if (FRAME_BY[rid]) ctx.fillStyle = FRAME_BY[rid];
+  else if (tier === 4) { const g = ctx.createLinearGradient(px, py, px + cs, py + cs); g.addColorStop(0, '#FF3D9A'); g.addColorStop(0.35, '#FFD84D'); g.addColorStop(0.65, '#3DDC97'); g.addColorStop(1, '#22E3FF'); ctx.fillStyle = g; }
   else ctx.fillStyle = FRAME[tier];
   ctx.fillRect(px, py, cs, cs);
   if (cs < 6) return;
@@ -695,6 +761,8 @@ function canvasCell(ctx: CanvasRenderingContext2D, c: KCell) {
   if (tier === 2) { stroke('#A45CFF', 0.4, 0.18); stroke('#FF6FA5', 0.66, 0.14); }
   if (tier === 3) { stroke('#FFB31F', 0.36, 0.16); stroke('#FF3D7F', 0.62, 0.16); ctx.fillStyle = '#FFE3A1';
     for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { ctx.beginPath(); ctx.arc(px + f / 2 + u * (cs - f), py + f / 2 + v * (cs - f), f * 0.45, 0, Math.PI * 2); ctx.fill(); } }
+  if (ULTRA_IDS.has(rid)) { const pg = ctx.createLinearGradient(m.x0, m.y0, m.x1, m.y1); pg.addColorStop(0, BASE_SLAB[rid][0]); pg.addColorStop(1, BASE_SLAB[rid][1]); ctx.fillStyle = pg; ctx.globalAlpha = 0.85; ctx.fillRect(m.x0, m.y0, W, H); ctx.globalAlpha = 1; ultraMotif(ctx, rid, m.x0, m.y0, W, H, gx * 31 + gy); rareBits(ctx, c); return; }
+  if (rid === 'uncommon') ultraMotif(ctx, 'uncommon', m.x0, m.y0, W, H, 0);
   if (tier === 4) { const cx = m.x0 + W / 2, cy = m.y0 + H / 2; ['#FF3D9A', '#FFB31F', '#3DDC97', '#2FB8FF', '#A45CFF'].forEach((col, i) => { ctx.strokeStyle = col; ctx.lineWidth = cs * 0.045; ctx.beginPath(); ctx.arc(cx, cy, W * (0.1 + i * 0.075), i, i + Math.PI * 1.3); ctx.stroke(); }); }
   // a tiny easel brush on common & rare, so a blank canvas reads as "paint me"
   if (tier <= 1 && cs >= 18 && hash(gx, gy, 43) < 0.8) {
@@ -804,8 +872,9 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   for (const r of rows) {
     const hidden = opts?.hidden && opts.hidden.gx === r[0] && opts.hidden.gy === r[1]; // still rolling: no rarity yet
     const info = hidden ? NEUTRAL : rarityInfo(r[9]);
-    const c: KCell = { gx: r[0], gy: r[1], px: (r[0] - gx0) * cs, py: (r[1] - gy0) * cs, cs, rc: info.color, glow: info.glow, tier: hidden ? 0 : tierOf(r[9]), join: cs >= 6 ? joinOf(r, look) : NO_JOIN };
+    const c: KCell = { gx: r[0], gy: r[1], px: (r[0] - gx0) * cs, py: (r[1] - gy0) * cs, cs, rc: info.color, glow: info.glow, tier: hidden ? 0 : tierOf(r[9]), join: cs >= 6 ? joinOf(r, look) : NO_JOIN, rid: hidden ? 'common' : r[9] ?? 'common', shiny: !hidden && !!r[12] };
     CELL_DRAW[r[11]!]!(ctx, c);
+    if (c.shiny) shinyOver(ctx, c);
     cells.push({ r, c });
   }
   // one centrepiece per plot or merged group, centred on the whole group (it may reach over several tiles)

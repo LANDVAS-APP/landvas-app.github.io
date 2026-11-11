@@ -14,18 +14,21 @@ import { celebrate, invalidateGame, qk, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
-import { InkRoll, type RollResult } from './InkRoll';
 import { RarityBadge } from '../plot/RarityBadge';
 import { KIND_LABEL } from '../plot/mergeKind';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { BoostButton, LiveUsd, WalletDialog, useRaritySync, useRent } from '../rent/RentHud';
-import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
+import { RARITY_ORDER, isUltra, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
+import { useQuickRoll } from './useQuickRoll';
+import { StreakChip, StreakDialog, useDaily, useStreakPrompt } from '../daily/Streak';
+import { HotZoneCard } from '../daily/HotZone';
+import { CollectionCard, CollectionDialog } from '../daily/Collection';
 import { currentRate, formatRate } from '../shared/rent';
 import type { PlotTypeId } from '../shared/grid';
 import { PlayerAvatar, ResourcePill, Spinner } from '../ui';
 import { NotificationBell } from '../updates/Notifications';
 
-type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string };
+type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean };
 
 export default function SimpleHome() {
   const me = useOnboardedMe();
@@ -37,9 +40,11 @@ export default function SimpleHome() {
   const { rent, offset } = useRent();
   const [wallet, setWallet] = useState(false);
   const [wheel, setWheel] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [roll, setRoll] = useState<{ open: boolean; result: RollResult | null }>({ open: false, result: null });
-  const quote = useQuery({ queryKey: ['quick-buy-quote'], queryFn: api.quickBuyQuote, enabled: !!me });
+  const [streak, setStreak] = useState(false);
+  const [album, setAlbum] = useState(false);
+  const quick = useQuickRoll();
+  const quote = quick.quote;
+  useStreakPrompt(() => setStreak(true));
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
   const spins = useQuery({ queryKey: ['wheel'], queryFn: api.wheelStatus, enabled: !!me, staleTime: 5 * 60_000 });
@@ -54,24 +59,8 @@ export default function SimpleHome() {
   const spinsLeft = spins.data?.enabled ? spins.data.spins_left : 0;
   const rate = rent ? currentRate(rent, Date.now() + offset) : 0;
 
-  const buy = async () => {
-    if (busy) return;
-    if (!canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.', action: { label: 'Play', onClick: () => nav('/play') } }); return; }
-    setBusy(true);
-    if (haptics) buzz('medium');
-    // the roll starts at once (the ink is already falling while the server picks the plot)
-    setRoll({ open: true, result: null });
-    try {
-      const r = await api.quickBuyPlot();
-      setRoll({ open: true, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter } });
-      celebrate(r.achievements);
-      invalidateGame(qc);
-      for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote']]) void qc.invalidateQueries({ queryKey: k });
-    } catch (e) {
-      setRoll({ open: false, result: null });
-      toast.error(toGameError(e).message);
-    } finally { setBusy(false); }
-  };
+  const busy = false;
+  const buy = () => { if (!canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.', action: { label: 'Play', onClick: () => nav('/play') } }); return; } void quick.roll(); };
 
   return (
     <div className="lv-game relative mx-auto grid w-full min-w-0 max-w-md gap-4 overflow-x-clip px-4 pb-[calc(104px+env(safe-area-inset-bottom,0px))] text-white md:pb-10" data-testid="simple-home">
@@ -103,6 +92,9 @@ export default function SimpleHome() {
         </div>
       )}
 
+      {/* today: the streak */}
+      <StreakStrip onOpen={() => setStreak(true)} />
+
       {/* the one big button */}
       <motion.button whileTap={{ scale: 0.96 }} onClick={buy} disabled={busy || !quote.data} data-testid="simple-buy"
         className={cn('relative overflow-hidden rounded-[28px] px-5 py-5 text-left shadow-[0_6px_0_#2c1a8a,0_22px_40px_-16px_rgba(123,92,255,0.9)] transition disabled:opacity-70',
@@ -117,18 +109,25 @@ export default function SimpleHome() {
         </div>
       </motion.button>
 
+      {/* today's Hot Zone: boosted rarities in one real city */}
+      <HotZoneCard onRoll={() => void quick.roll({ hot: true })} cost={cost} free={free} canBuy={canBuy} />
+
       {/* what you can roll */}
-      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6" aria-label="Rarities you can roll">
+      <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">
         {RARITY_ORDER.map((id) => {
           const r = rarityInfo(id);
+          const ultra = isUltra(id);
           return (
-            <div key={id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-2 py-1.5 text-center">
-              <div className="truncate text-[11px] font-black uppercase" style={{ color: r.color }}>{r.name}</div>
-              <div className="text-[10px] font-semibold text-white/50 tnum">{formatRate(Number(r.usd_per_second))}</div>
+            <div key={id} className={cn('rounded-2xl border px-2 py-1.5 text-center', ultra ? 'border-white/15 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]' : 'border-white/10 bg-white/[0.04]')}>
+              <div className="truncate text-[11px] font-black uppercase" style={{ color: r.color }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</div>
+              <div className="text-[10px] font-semibold text-white/50 tnum">{rarityOdds(id)}</div>
             </div>
           );
         })}
       </div>
+      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way.</p>
+
+      <CollectionCard onOpen={() => setAlbum(true)} />
 
       {/* ways to get more */}
       <div className="grid grid-cols-2 gap-2.5">
@@ -158,9 +157,9 @@ export default function SimpleHome() {
           return (
             <motion.div key={`${p.gx}_${p.gy}`} initial={i < 8 ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 8) * 0.03 }}
               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5" data-testid="simple-plot">
-              {k === 'base' ? <BasePlotArt rarity={p.rarity} size={40} className="shrink-0" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🎨'}</span>}
+              {k === 'base' ? <BasePlotArt rarity={p.rarity} shiny={p.shiny} size={40} className="shrink-0" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🎨'}</span>}
               <span className="grid min-w-0 flex-1 leading-tight">
-                <span className="truncate text-sm font-bold">{p.name || `Plot ${list.length - i}`}</span>
+                <span className="truncate text-sm font-bold">{p.shiny ? '✨ ' : ''}{p.name || `Plot ${list.length - i}`}</span>
                 <span className="text-[11px] font-semibold text-white/50">{k === 'base' ? 'Base plot' : KIND_LABEL[k]?.one ?? k}</span>
               </span>
               <span className="grid justify-items-end gap-0.5">
@@ -174,9 +173,28 @@ export default function SimpleHome() {
 
       <WalletDialog open={wallet} onOpenChange={setWallet} />
       <DailyWheel open={wheel} onOpenChange={setWheel} />
-      <InkRoll open={roll.open} result={roll.result} onClose={() => setRoll({ open: false, result: null })}
-        onAgain={() => { setRoll({ open: false, result: null }); setTimeout(() => void buy(), 260); }}
-        canAgain={canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(cost)} Ink`} />
+      {quick.element}
+      <StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} />
+      <CollectionDialog open={album} onOpenChange={setAlbum} />
     </div>
+  );
+}
+
+/** today's streak, right under the money: claim it, or see what's coming */
+function StreakStrip({ onOpen }: { onOpen(): void }) {
+  const q = useDaily();
+  const d = q.data;
+  if (!d?.enabled) return null;
+  const toWeek = 7 - (d.streak % 7); // days until the next guaranteed roll
+  return (
+    <button onClick={onOpen} data-testid="streak-strip"
+      className={cn('flex items-center gap-3 rounded-[22px] border-[1.5px] px-3.5 py-2.5 text-left', !d.claimed_today ? 'border-[#FFB31F]/60 bg-[linear-gradient(135deg,#FF6A1F33,#FFB31F1a)] shadow-[0_0_30px_-12px_#FFB31F]' : 'border-white/10 bg-white/[0.04]')}>
+      <span className="font-display text-[26px] font-black leading-none tnum">🔥{d.streak}</span>
+      <span className="grid min-w-0 flex-1 leading-tight">
+        {!d.claimed_today ? <><span className="text-[14px] font-black">Claim day {d.streak + 1}!</span><span className="text-[11px] font-semibold text-white/70">+{fmt(d.next.ink)} Ink{d.next.ticket ? ` + a guaranteed ${rarityInfo(d.next.ticket).name}+ roll` : ''}</span></>
+          : <><span className="text-[14px] font-black">{d.streak}-day streak</span><span className="text-[11px] font-semibold text-white/60">{d.tickets.length ? `${d.tickets.length} guaranteed roll${d.tickets.length === 1 ? '' : 's'} waiting!` : toWeek === 1 ? 'Guaranteed Rare+ roll tomorrow!' : `${toWeek} more day${toWeek === 1 ? '' : 's'} to a guaranteed Rare+ roll`}</span></>}
+      </span>
+      {d.tickets.length > 0 && <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#14103a]">🎟️ {d.tickets.length}</span>}
+    </button>
   );
 }

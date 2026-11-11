@@ -62,6 +62,31 @@ try {
   // the tab bar is just Home, Play, Me
   const tabs = await page.locator('nav.lv-game a').allTextContents();
   check('simple tab bar', tabs.join('|') === 'Home|Play|Me', tabs.join('|'));
+  // the daily streak: claim day 1 from the strip under the money
+  await page.click('[data-testid=streak-strip]'); await page.waitForSelector('[data-testid=streak-dialog]', { timeout: 10000 });
+  await shot('06-streak');
+  await page.click('[data-testid=streak-claim]', { force: true }); await page.waitForTimeout(1200); // (it pulses, so it's never "still")
+  const st = await api('dailyStatus');
+  check('daily streak: day 1 claimed', st.streak === 1 && st.claimed_today === true, JSON.stringify({ s: st.streak, c: st.claimed_today }));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  // a guaranteed roll (as if it were day 7)
+  await page.evaluate(() => window.__landvasApi.dailyStatus()); // (warm)
+  // the Hot Zone: roll a plot inside today's city
+  const hz = await api('hotZone');
+  check('a Hot Zone city today (and tomorrow)', !!hz.today?.name && !!hz.tomorrow?.name, `${hz.today?.name} → ${hz.tomorrow?.name}`);
+  await page.click('[data-testid=hot-zone-roll]');
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 15000 }); await page.waitForTimeout(1600);
+  check('…a Hot Zone roll says so', (await page.locator('text=Hot Zone roll').count()) === 1);
+  await shot('07-hot-roll');
+  await page.click('[data-testid=roll-done]'); await page.waitForTimeout(900);
+  // the collection album
+  await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
+  const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
+  check('the collection: every plot type and all 12 rarities', nRar === 12 && types >= 8, `${types} types, ${nRar} rarities`);
+  await shot('08-collection');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  check('the odds show all 12 rarities, ultras as "1 in …"', (await page.locator('[data-testid=simple-odds] > div').count()) === 12 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 6);
+
   // the Play tab is just the plot minigames
   await page.locator('nav.lv-game a').filter({ hasText: 'Play' }).first().click();
   await page.waitForSelector('[data-testid=simple-play]', { timeout: 15000 }); await page.waitForTimeout(1200);

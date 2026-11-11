@@ -7,12 +7,12 @@ import { createPortal } from 'react-dom';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
 import { BasePlotArt } from '../plot/BasePlotArt';
-import { RARITY_ORDER, rarityInfo, type RarityId } from '../shared/rarity';
+import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { confetti, confettiCannons } from '../ui/confetti';
 
-export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean };
+export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; guaranteed?: string | null };
 type Phase = 'drop' | 'spin' | 'land' | 'reveal';
 
 const INK = '#1B1240';
@@ -35,7 +35,7 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
   const final = result?.rarity;
   const finalRef = useRef(final);
   finalRef.current = final;
-  const tier = final ? RARITY_ORDER.indexOf(final) : 0;
+  const tier = final ? rarityTier(final) : 0; // 0 … 5 (the ultras)
   const info = rarityInfo(shown);
 
   // drop → splash
@@ -46,6 +46,7 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
     if (phase === 'drop') return;
     let alive = true, i = 0, delay = 70, landing = false, steps = 0;
     const order = RARITY_ORDER;
+    // (the slot flicks through everything, ultras included)
     const tick = () => {
       if (!alive) return;
       const final = finalRef.current;
@@ -73,10 +74,11 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
     if (phase !== 'reveal') return;
     if (haptics) buzz(tier >= 3 ? 'heavy' : 'success');
     if (reduce) return;
-    if (tier >= 3) void shake.start({ x: [0, -14, 12, -9, 7, -4, 0], y: [0, 6, -8, 5, -3, 2, 0], transition: { duration: 0.55 } });
+    if (tier >= 5) void shake.start({ x: [0, -22, 20, -16, 12, -8, 4, 0], y: [0, 10, -12, 8, -6, 3, 0], transition: { duration: 0.8 } });
+    else if (tier >= 3) void shake.start({ x: [0, -14, 12, -9, 7, -4, 0], y: [0, 6, -8, 5, -3, 2, 0], transition: { duration: 0.55 } });
     else if (tier >= 1) void shake.start({ x: [0, -6, 5, -3, 0], transition: { duration: 0.35 } });
     const t1 = setTimeout(() => { if (tier >= 2) confettiCannons(); else confetti({ y: innerHeight * 0.4, count: 60 }); }, 120);
-    const t2 = tier >= 4 ? setTimeout(() => confettiCannons(), 700) : 0;
+    const t2 = tier >= 4 || result?.shiny ? setTimeout(() => confettiCannons(), 700) : 0;
     return () => { clearTimeout(t1); if (t2) clearTimeout(t2); };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -109,7 +111,7 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
               <motion.div key="r" data-testid="roll-rarity" className="font-display text-[52px] font-black uppercase leading-none tracking-wide"
                 style={{ color: '#fff', WebkitTextStroke: `2px ${info.color}`, textShadow: `0 0 24px ${info.color}, 0 0 60px ${info.glow}, 0 6px 0 ${info.color}` }}
                 initial={{ scale: 3, opacity: 0, rotate: -8 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 420, damping: 16 }}>
-                {info.name}{tier >= 3 ? '!' : ''}
+                {info.emoji ? `${info.emoji} ` : ''}{info.name}{tier >= 3 ? '!' : ''}
               </motion.div>
             ) : (
               <motion.div key={shown} className="font-display text-[36px] font-black uppercase leading-none" style={{ color: info.color, textShadow: `0 0 18px ${info.color}` }}
@@ -141,7 +143,7 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
             {revealed && result && (
               <motion.div className="absolute inset-[14%] drop-shadow-[0_14px_20px_rgba(0,0,0,0.45)]" data-testid="roll-plot"
                 initial={{ opacity: 0, scale: 0.3, rotate: -12, y: 20 }} animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }} transition={{ delay: 0.22, type: 'spring', stiffness: 320, damping: 15 }}>
-                <BasePlotArt rarity={result.rarity} size="100%" />
+                <BasePlotArt rarity={result.rarity} shiny={result.shiny} size="100%" />
               </motion.div>
             )}
             {/* splash droplets */}
@@ -173,8 +175,15 @@ function Roll({ result, onClose, onAgain, canAgain, againLabel }: { result: Roll
           <AnimatePresence>
             {revealed && result && (
               <motion.div className="grid gap-3 text-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+                {(result.shiny || result.hot) && (
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {result.shiny && <motion.span initial={{ scale: 0 }} animate={{ scale: [0, 1.25, 1] }} transition={{ delay: 0.5 }} className="rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-3 py-1 font-display text-[15px] font-black text-[#1a0b2e] shadow-[0_0_24px_#fff8]" data-testid="roll-shiny">✨ SHINY · ×5 rent ✨</motion.span>}
+                    {result.hot && <span className="rounded-full bg-[#FF6A1F]/25 px-3 py-1 text-[12px] font-extrabold text-[#FFB27A]">🔥 Hot Zone roll</span>}
+                  </div>
+                )}
+                {info.ability && <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-3 py-2 text-[13px] font-semibold leading-snug" style={{ color: info.glow }} data-testid="roll-ability">{info.ability}</div>}
                 <div className="text-sm font-bold text-white/80">
-                  {result.first ? 'Your first plot · ' : ''}<span style={{ color: t?.a }}>{t?.name ?? 'A'} plot</span> · <span className="text-[#3DDC97] tnum">{formatRate(result.usd)}</span>
+                  {result.guaranteed ? `Guaranteed ${rarityInfo(result.guaranteed).name}+ · ` : result.first ? 'Your first plot · ' : ''}<span style={{ color: t?.a }}>{t?.name ?? 'A'} plot</span> · <span className="text-[#3DDC97] tnum">{formatRate(result.usd)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <button onClick={onClose} className="h-[52px] rounded-2xl border-[1.5px] border-white/20 bg-white/10 font-display text-[16px] font-black text-white" data-testid="roll-done">Collect</button>

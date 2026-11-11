@@ -84,7 +84,10 @@ describe('plot types and rarities are secret', () => {
     expect(matches / rows.length).toBeLessThan(0.45);
     const counts = rows.reduce<Record<string, number>>((m, r) => ((m[r.t] = (m[r.t] ?? 0) + 1), m), {});
     expect(Object.keys(counts).sort()).toEqual(['clay', 'fresco', 'glass', 'graphite', 'lumina', 'mosaic', 'pigment', 'prism']);
-    expect(new Set(rows.map((r) => r.r)).size).toBe(5);
+    // all six everyday rarities show up; the six ultras (about 1 in 830 together) only now and then
+    const seen = new Set(rows.map((r) => r.r));
+    for (const r of ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']) expect(seen.has(r)).toBe(true);
+    expect(rows.filter((r) => ['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis'].includes(r.r)).length).toBeLessThan(20);
   });
 });
 

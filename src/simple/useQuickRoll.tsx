@@ -1,0 +1,52 @@
+// Roll a plot from anywhere (simple mode's big button, a streak ticket, a Hot Zone roll): the full-screen ink roll
+// starts at once, the server picks the plot, and the roll lands on what it rolled.
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { api } from '../backend/api';
+import { toGameError } from '../backend/backend';
+import { celebrate, invalidateGame, qk, useOnboardedMe } from '../lib/queries';
+import { useUi } from '../lib/store';
+import { fmt } from '../lib/utils';
+import { buzz } from '../native/native';
+import type { RarityId } from '../shared/rarity';
+import { InkRoll, type RollResult } from './InkRoll';
+
+export type RollOpts = { ticket?: string; ticketRarity?: string; hot?: boolean };
+
+export function useQuickRoll() {
+  const me = useOnboardedMe();
+  const qc = useQueryClient();
+  const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts }>({ open: false, result: null, opts: {} });
+  const busy = useRef(false);
+  const quote = useQuery({ queryKey: ['quick-buy-quote'], queryFn: api.quickBuyQuote, enabled: !!me });
+  const ink = Number(me?.balances.ink ?? 0);
+  const cost = Number(quote.data?.ink ?? 0);
+  const free = !!quote.data && (quote.data.starter || cost === 0);
+  const canBuy = !!quote.data && (free || ink >= cost);
+
+  const roll = async (opts: RollOpts = {}) => {
+    if (busy.current) return;
+    if (!opts.ticket && !canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.' }); return; }
+    busy.current = true;
+    if (useUi.getState().settings.haptics) buzz('medium');
+    setState({ open: true, result: null, opts });
+    try {
+      const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
+      setState({ open: true, opts, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, guaranteed: opts.ticketRarity ?? null } });
+      celebrate(r.achievements);
+      invalidateGame(qc);
+      for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection']]) void qc.invalidateQueries({ queryKey: k });
+    } catch (e) {
+      setState({ open: false, result: null, opts: {} });
+      toast.error(toGameError(e).message);
+    } finally { busy.current = false; }
+  };
+
+  const element = (
+    <InkRoll open={state.open} result={state.result} onClose={() => setState({ open: false, result: null, opts: {} })}
+      onAgain={() => { const hot = state.opts.hot; setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
+      canAgain={canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(cost)} Ink`} />
+  );
+  return { roll, element, canBuy, cost, free, quote };
+}

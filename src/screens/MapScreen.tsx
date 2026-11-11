@@ -36,6 +36,9 @@ import { useTravelGroup } from '../travel/Group';
 import { buzz } from '../native/native';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
+import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
+import { HotZoneChip, HotZoneLayer } from '../daily/HotZoneMap';
+import { useQuickRoll } from '../simple/useQuickRoll';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -63,6 +66,10 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   useRaritySync();
   useExplorerSync(!!away);
   const [joystick, setJoystick] = useState(false);
+  // the daily loop: streak (opens once a day), guaranteed rolls, the Hot Zone
+  const [streak, setStreak] = useState(false);
+  const quick = useQuickRoll();
+  useStreakPrompt(() => setStreak(true));
   const exState = useExplorer((s) => s.state);
   const canDrive = !!me && !!exState && exState.joystick?.enabled !== false && !away;
   // WASD / arrow keys walk the explorer (and open the joystick if it's closed)
@@ -84,6 +91,9 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       {/* switching the lite map rebuilds it from scratch, so nothing plot-related is left loaded */}
       <WorldMap key={lite ? 'lite' : 'full'} lite={lite} />
       {!lite && <DayNight />}
+      {me && <HotZoneLayer />}
+      {me && <StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} />}
+      {me && quick.element}
       {/* the game HUD */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
         <div className="flex items-start gap-2">
@@ -94,8 +104,10 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         </div>
         {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
+        {me && <HotZoneChip className="self-start" />}
         <div className="flex flex-col items-start gap-2.5">
           <ModeButton />
+          {me && <StreakChip onOpen={() => setStreak(true)} />}
           {me && <DailyChip />}
         </div>
       </div>

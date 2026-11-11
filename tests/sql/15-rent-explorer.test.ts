@@ -8,7 +8,7 @@ let p: string;
 const HOME = { gx: 793500, gy: 1576200 }; // Salt Lake City on the zoom-22 grid (~7 m plots)
 afterAll(() => db.close());
 
-const RATES: Record<string, number> = { common: 1.1e-9, rare: 1.6e-9, epic: 2.2e-9, legendary: 4.4e-9, mythic: 8.8e-9 };
+const RATES: Record<string, number> = { common: 1.1e-9, uncommon: 1.3e-9, rare: 1.6e-9, epic: 2.2e-9, legendary: 4.4e-9, mythic: 8.8e-9, solar: 1.2e-8, lunar: 1.2e-8, comet: 1.5e-8, ancient: 2e-8, prismatic: 3e-8, genesis: 3e-7 };
 
 async function rate(uid: string) {
   const rows = await db.sql(`select p.rarity from world_plots p where p.owner_id = $1`, [uid]);
@@ -27,7 +27,7 @@ describe('USD rent and boost', () => {
 
   it('publishes the Atlas Earth / TerraMine rate ladder plus Mythic', async () => {
     const r = await db.sql(`select id, usd_per_second::float8 as v, weight from plot_rarities order by sort`);
-    expect(r.map((x: any) => x.id)).toEqual(['common', 'rare', 'epic', 'legendary', 'mythic']);
+    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis']);
     for (const x of r) expect(x.v).toBeCloseTo(RATES[x.id], 20);
     expect(r.reduce((s: number, x: any) => s + x.weight, 0)).toBe(1000);
   });
@@ -241,8 +241,8 @@ describe('client mirrors of server math', () => {
     const rows = await db.sql(`select private.plot_rarity_for(i * 7919 + 13, i * 104729 % 4000000 + 7) r, count(*)::int n
                                from generate_series(1, 20000) i group by 1`);
     const share = Object.fromEntries(rows.map((r: any) => [r.r, r.n / 20000]));
-    expect(share.common).toBeGreaterThan(0.45);
-    expect(share.common).toBeLessThan(0.55);
+    expect(share.common).toBeGreaterThan(0.3);
+    expect(share.common).toBeLessThan(0.4);
     expect(share.mythic).toBeGreaterThan(0.005);
     expect(share.mythic).toBeLessThan(0.02);
   });

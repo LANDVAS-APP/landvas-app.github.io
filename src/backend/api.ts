@@ -67,7 +67,14 @@ export const api = {
   acquirePlot: (gx: number, gy: number, name?: string) =>
     rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
   /** simple mode: buy a plot from the home screen; the server picks where (and so its rarity) */
-  quickBuyPlot: () => rpc<ClaimResult & { starter: boolean; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy') }),
+  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
+  /** the daily streak: status, and today's check-in */
+  dailyStatus: () => rpc<import('./types').DailyStatus>('daily_status'),
+  dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
+  /** today's Hot Zone (a real city with boosted rarities) and tomorrow's */
+  hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),
+  /** your plot-type album and the rarities you've found */
+  myCollection: () => rpc<import('./types').Collection>('my_collection'),
   quickBuyQuote: () => rpc<{ ink: number; owned: number; free_left: number; starter: boolean; enabled: boolean }>('quick_buy_quote'),
   namePlot: (gx: number, gy: number, name: string | null) => rpc<{ gx: number; gy: number; name: string | null }>('name_plot', { p_gx: gx, p_gy: gy, p_name: name }),
   upgradePlot: (gx: number, gy: number) =>

@@ -81,8 +81,11 @@ describe('accounts and ownership', () => {
       from generate_series(20000, 20099) gx, generate_series(30000, 30099) gy group by 1`);
     const total = rows.reduce((s: number, r: any) => s + r.n, 0);
     const share = Object.fromEntries(rows.map((r: any) => [r.r, r.n / total]));
-    expect(share.common).toBeGreaterThan(0.46);
-    expect(share.common).toBeLessThan(0.54);
+    // v1.1: Uncommon took the top of Common's share (35% + 15%)
+    expect(share.common).toBeGreaterThan(0.31);
+    expect(share.common).toBeLessThan(0.39);
+    expect(share.uncommon).toBeGreaterThan(0.12);
+    expect(share.uncommon).toBeLessThan(0.18);
     expect(share.rare).toBeGreaterThan(0.27);
     expect(share.rare).toBeLessThan(0.33);
     expect(share.epic).toBeGreaterThan(0.12);

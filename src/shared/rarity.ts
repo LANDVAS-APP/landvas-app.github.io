@@ -1,8 +1,8 @@
-// Plot rarities: five tiers fixed per cell on the server (private.plot_rarity_for,
-// salted with a secret so nobody can predict them). A plot's rarity is revealed
-// when it is claimed.
+// Plot rarities, fixed per cell on the server (private.plot_rarity_for, salted with a secret so nobody can predict
+// them) and revealed when a plot is claimed. Six on the usual table (Common … Mythic, with Uncommon), and six ultra
+// rarities on their own one-in-thousands roll, each with its own way of earning (see `ability`).
 
-export type RarityId = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
+export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis';
 
 export type RarityInfo = {
   id: RarityId;
@@ -14,18 +14,44 @@ export type RarityInfo = {
   color: string;
   glow: string;
   sort: number;
+  /** ultra rarities: parts per million (their own roll) */
+  ppm?: number;
+  emoji?: string | null;
+  /** what an ultra rarity does with the rent it earns */
+  ability?: string | null;
 };
 
 /** Defaults identical to the seed migration (used until world_config loads). */
 export const DEFAULT_RARITIES: RarityInfo[] = [
-  { id: 'common', name: 'Common', weight: 500, usd_per_second: 0.0000000011, ink_reward_multiplier: 1, price_multiplier: 1, color: '#3DDC97', glow: '#A6FFD6', sort: 1 },
-  { id: 'rare', name: 'Rare', weight: 300, usd_per_second: 0.0000000016, ink_reward_multiplier: 1.15, price_multiplier: 1, color: '#2FB8FF', glow: '#B3E5FF', sort: 2 },
-  { id: 'epic', name: 'Epic', weight: 140, usd_per_second: 0.0000000022, ink_reward_multiplier: 1.35, price_multiplier: 1, color: '#A45CFF', glow: '#DABDFF', sort: 3 },
-  { id: 'legendary', name: 'Legendary', weight: 50, usd_per_second: 0.0000000044, ink_reward_multiplier: 1.7, price_multiplier: 1, color: '#FFB31F', glow: '#FFE3A1', sort: 4 },
-  { id: 'mythic', name: 'Mythic', weight: 10, usd_per_second: 0.0000000088, ink_reward_multiplier: 2.25, price_multiplier: 1, color: '#FF3D9A', glow: '#FFC4E1', sort: 5 },
+  { id: 'common', name: 'Common', weight: 350, usd_per_second: 0.0000000011, ink_reward_multiplier: 1, price_multiplier: 1, color: '#3DDC97', glow: '#A6FFD6', sort: 1 },
+  { id: 'uncommon', name: 'Uncommon', weight: 150, usd_per_second: 0.0000000013, ink_reward_multiplier: 1.07, price_multiplier: 1, color: '#2DD4BF', glow: '#B2F5EA', sort: 2 },
+  { id: 'rare', name: 'Rare', weight: 300, usd_per_second: 0.0000000016, ink_reward_multiplier: 1.15, price_multiplier: 1, color: '#2FB8FF', glow: '#B3E5FF', sort: 3 },
+  { id: 'epic', name: 'Epic', weight: 140, usd_per_second: 0.0000000022, ink_reward_multiplier: 1.35, price_multiplier: 1, color: '#A45CFF', glow: '#DABDFF', sort: 4 },
+  { id: 'legendary', name: 'Legendary', weight: 50, usd_per_second: 0.0000000044, ink_reward_multiplier: 1.7, price_multiplier: 1, color: '#FFB31F', glow: '#FFE3A1', sort: 5 },
+  { id: 'mythic', name: 'Mythic', weight: 10, usd_per_second: 0.0000000088, ink_reward_multiplier: 2.25, price_multiplier: 1, color: '#FF3D9A', glow: '#FFC4E1', sort: 6 },
+  { id: 'solar', name: 'Solar', weight: 0, ppm: 400, emoji: '☀️', ability: 'Earns ×3 rent while the sun is up where it really is on Earth.', usd_per_second: 0.000000012, ink_reward_multiplier: 2.5, price_multiplier: 1, color: '#FF9F1C', glow: '#FFE08A', sort: 7 },
+  { id: 'lunar', name: 'Lunar', weight: 0, ppm: 400, emoji: '🌙', ability: 'Earns ×3 rent while it’s night where it really is on Earth.', usd_per_second: 0.000000012, ink_reward_multiplier: 2.5, price_multiplier: 1, color: '#8FA8FF', glow: '#E1E8FF', sort: 8 },
+  { id: 'comet', name: 'Comet', weight: 0, ppm: 200, emoji: '☄️', ability: 'Once a day its comet passes: ×30 rent for a whole hour.', usd_per_second: 0.000000015, ink_reward_multiplier: 2.8, price_multiplier: 1, color: '#22E3FF', glow: '#C9F8FF', sort: 9 },
+  { id: 'ancient', name: 'Ancient', weight: 0, ppm: 100, emoji: '🏛️', ability: 'Grows +3% rent for every day you own it, up to ×6.', usd_per_second: 0.00000002, ink_reward_multiplier: 3, price_multiplier: 1, color: '#C9A66B', glow: '#F1E2BF', sort: 10 },
+  { id: 'prismatic', name: 'Prismatic', weight: 0, ppm: 50, emoji: '🌈', ability: 'Every plot you own earns +5% more (stacks, up to +50%).', usd_per_second: 0.00000003, ink_reward_multiplier: 3.5, price_multiplier: 1, color: '#FF7AE0', glow: '#FFFFFF', sort: 11 },
+  { id: 'genesis', name: 'Genesis', weight: 0, ppm: 2, emoji: '🌌', ability: 'One in half a million. Every plot you own earns +25% more.', usd_per_second: 0.0000003, ink_reward_multiplier: 5, price_multiplier: 1, color: '#FFFFFF', glow: '#FFD6FF', sort: 12 },
 ];
 
-export const RARITY_ORDER: RarityId[] = ['common', 'rare', 'epic', 'legendary', 'mythic'];
+export const RARITY_ORDER: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis'];
+export const ULTRA: RarityId[] = ['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis'];
+export const isUltra = (r: string | null | undefined) => ULTRA.includes(r as RarityId);
+/** How "big" a rarity is for visuals (0 Common/Uncommon · 1 Rare · 2 Epic · 3 Legendary · 4 Mythic · 5 the ultras). */
+export function rarityTier(r: string | null | undefined) {
+  return ({ common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 } as Record<string, number>)[r ?? 'common'] ?? (isUltra(r) ? 5 : 0);
+}
+/** "35%" / "1 in 2,500" */
+export function rarityOdds(r: RarityId | string) {
+  const i = rarityInfo(r);
+  if (i.ppm) return `1 in ${Math.round(1_000_000 / i.ppm).toLocaleString()}`;
+  const total = table.reduce((s, x) => s + (Number(x.weight) || 0), 0) || 1000;
+  const pct = (i.weight / total) * 100;
+  return pct >= 1 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
+}
 
 let table: RarityInfo[] = DEFAULT_RARITIES;
 let byId = new Map<RarityId, RarityInfo>(DEFAULT_RARITIES.map((r) => [r.id, r]));
@@ -34,7 +60,7 @@ let byId = new Map<RarityId, RarityInfo>(DEFAULT_RARITIES.map((r) => [r.id, r]))
 export function setRarities(list: RarityInfo[] | undefined | null) {
   if (!list?.length) return;
   table = [...list]
-    .map((r) => ({ ...r, weight: Number(r.weight), usd_per_second: Number(r.usd_per_second), ink_reward_multiplier: Number(r.ink_reward_multiplier), price_multiplier: Number(r.price_multiplier), sort: Number(r.sort) }))
+    .map((r) => ({ ...r, weight: Number(r.weight), usd_per_second: Number(r.usd_per_second), ink_reward_multiplier: Number(r.ink_reward_multiplier), price_multiplier: Number(r.price_multiplier), sort: Number(r.sort), ppm: Number(r.ppm ?? 0) }))
     .sort((a, b) => a.sort - b.sort || (a.id < b.id ? -1 : 1));
   byId = new Map(table.map((r) => [r.id, r]));
 }
