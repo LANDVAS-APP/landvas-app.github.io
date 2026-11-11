@@ -152,8 +152,9 @@ describe('Clans', () => {
   it('realm and party-game Ink fill their own goals', async () => {
     const w = (await db.sql(`select goals from clan_weeks where clan_id = $1`, [clanId]))[0].goals;
     // make sure the week has a realm and a party goal for the test
-    const goals = [w[0], w[1], { k: 'realm', cat: 'realm', emoji: '⛏️', label: 'Earn Ink in realms', unit: 'ink', target: 100 }, { k: 'party', cat: 'party', emoji: '🎉', label: 'Win Ink in house party games', unit: 'ink', target: 100 }];
-    await db.sql(`update clan_weeks set goals = $2 where clan_id = $1`, [clanId, JSON.stringify(goals)]);
+    const others = w.filter((g: any) => !['realm', 'party'].includes(g.k) && !['realm', 'party'].includes(g.cat)).slice(0, 2);
+    const goals = [...others, { k: 'realm', cat: 'realm', emoji: '⛏️', label: 'Earn Ink in realms', unit: 'ink', target: 100 }, { k: 'party', cat: 'party', emoji: '🎉', label: 'Win Ink in house party games', unit: 'ink', target: 100 }];
+    await db.sql(`update clan_weeks set goals = $2, progress = progress - 'realm' - 'party' where clan_id = $1`, [clanId, JSON.stringify(goals)]);
     await earn(mem, 40, 'realm', 'realm');
     await earn(mem, 25, 'minigame', 'home_game');
     const c = await db.rpc(mem, 'clan_get');

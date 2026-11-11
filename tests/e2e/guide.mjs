@@ -38,6 +38,16 @@ try {
   check('a rate change shows up on the page', /0\.0000000022/.test(await text('[data-testid=guide-rate-common]')), await text('[data-testid=guide-rate-common]'));
   await page.locator('[data-testid=guide-how-list] details').first().click(); await page.waitForTimeout(300);
   for (const sec of ['facts', 'rates', 'ink', 'real', 'calc', 'compare', 'how']) { await page.locator(`[data-testid=guide-${sec}]`).scrollIntoViewIfNeeded(); await page.evaluate((s) => document.querySelector(`[data-testid=guide-${s}]`).scrollIntoView({ block: 'start' }), sec); await page.waitForTimeout(300); await shot(`s-${sec}`); }
+  // the Rarities page is live too: change the game's settings and it follows
+  await sql(`update game_config set value = jsonb_set(value, '{one_in}', '500') where key = 'shiny'`);
+  await sql(`update game_config set value = jsonb_set(value, '{comet,mult}', '40') where key = 'rarity_abilities'`);
+  await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['game-guide'] }));
+  await page.evaluate(() => window.__landvasNav('/legend')); await page.waitForSelector('[data-testid=legend-basics]', { timeout: 20000 }); await page.waitForTimeout(1500);
+  const leg = await page.locator('main, body').first().innerText();
+  check('Rarities page: Shiny odds are live (1 in 500)', /1 in 500 claims/.test(leg));
+  check('Rarities page: Comet multiplier is live (×40)', /×40 rent/.test(leg));
+  check('Rarities page: no stale hard-coded Luck cap', !/30 points a day/.test(leg));
+  await page.locator('[data-testid=legend-luck]').scrollIntoViewIfNeeded(); await shot('04-legend-luck');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();
