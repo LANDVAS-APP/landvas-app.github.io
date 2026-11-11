@@ -10,6 +10,8 @@ const SLAB: Record<string, [string, string]> = {
   legendary: ['#E8A928', '#A86A0E'], mythic: ['#FF5FB4', '#6E3BFF'], solar: ['#FFB43A', '#E0521B'], lunar: ['#1E2A6B', '#0B1033'],
   comet: ['#0E2A4A', '#05101E'], ancient: ['#D9B77A', '#8E6B37'], prismatic: ['#FF7AE0', '#5FD3FF'], genesis: ['#1A0838', '#000004'],
   chaos: ['#FF2E63', '#3A0CA3'], phoenix: ['#FF8A1F', '#8E1B00'], crown: ['#5B2A9E', '#24104A'],
+  dragon: ['#16A34A', '#052E16'], eclipse: ['#1E1B4B', '#020617'], vampire: ['#7F1D1D', '#1C0505'], mirror: ['#BAE6FD', '#475569'],
+  singularity: ['#111827', '#000000'], crown_state: ['#6D28D9', '#2E1065'], crown_country: ['#9F1239', '#3B0012'],
 };
 const sparkle = (x: number, y: number, s: number) => `M${x} ${y - s} L${x + s * 0.25} ${y - s * 0.25} L${x + s} ${y} L${x + s * 0.25} ${y + s * 0.25} L${x} ${y + s} L${x - s * 0.25} ${y + s * 0.25} L${x - s} ${y} L${x - s * 0.25} ${y - s * 0.25}Z`;
 
@@ -75,6 +77,50 @@ export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: R
           <path d="M50 82 C38 72 40 60 46 54 C46 62 52 64 52 58 C52 50 56 44 56 38 C64 50 64 72 50 82Z" fill="#FFF4D6" />
           <path d="M40 52 C24 44 14 48 8 56 C20 54 28 58 36 62Z M60 52 C76 44 86 48 92 56 C80 54 72 58 64 62Z" fill="#FF5A1F" />
         </>}
+        {rarity === 'dragon' && <>
+          <path d="M18 74 C30 92 56 84 52 66 C48 50 22 54 28 38 C34 24 58 24 66 34" fill="none" stroke="#4ADE80" strokeWidth="13" strokeLinecap="round" />
+          <path d="M18 74 C30 92 56 84 52 66 C48 50 22 54 28 38 C34 24 58 24 66 34" fill="none" stroke="#BBF7D0" strokeWidth="3" strokeDasharray="3 6" strokeLinecap="round" />
+          <path d="M60 26 L80 22 L84 34 L70 42 Z" fill="#22C55E" stroke="#052E16" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M66 26 L64 14 M74 24 L76 12" stroke="#FDE68A" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="75" cy="29" r="2.6" fill="#FDE047" /><path d="M84 32 q8 2 10 -4" stroke="#F97316" strokeWidth="3" fill="none" strokeLinecap="round" />
+        </>}
+        {rarity === 'eclipse' && <>
+          {[[14, 18], [84, 14], [88, 80], [16, 84], [70, 90]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={1.2 + (i % 2)} fill="#fff" />)}
+          {Array.from({ length: 18 }, (_, i) => { const t = (i / 18) * Math.PI * 2; return <path key={i} d={`M${50 + Math.cos(t) * 26} ${50 + Math.sin(t) * 26} L${50 + Math.cos(t + 0.09) * 44} ${50 + Math.sin(t + 0.09) * 44} L${50 + Math.cos(t + 0.18) * 26} ${50 + Math.sin(t + 0.18) * 26}Z`} fill="#FDE68A" opacity="0.55" />; })}
+          <circle cx="50" cy="50" r="28" fill="#FFF7D6" opacity="0.9" /><circle cx="50" cy="50" r="25" fill="#0B0A1F" />
+          <path d="M30 40 a25 25 0 0 1 12 -12" stroke="#FDE68A" strokeWidth="2" fill="none" opacity="0.7" />
+        </>}
+        {rarity === 'vampire' && <>
+          <circle cx="66" cy="30" r="17" fill="#EF4444" opacity="0.85" /><circle cx="66" cy="30" r="22" fill="#EF4444" opacity="0.2" />
+          <path d="M50 52 C44 44 34 42 22 46 C28 50 28 56 24 60 C32 58 38 60 42 66 C44 60 48 58 50 60 C52 58 56 60 58 66 C62 60 68 58 76 60 C72 56 72 50 78 46 C66 42 56 44 50 52Z" fill="#0A0A0A" />
+          <circle cx="47" cy="54" r="1.6" fill="#F87171" /><circle cx="53" cy="54" r="1.6" fill="#F87171" />
+          <path d="M44 80 l3 8 l3 -8 M52 80 l3 8 l3 -8" fill="#fff" />
+        </>}
+        {rarity === 'mirror' && <>
+          <ellipse cx="50" cy="50" rx="27" ry="34" fill="#D4AF37" /><ellipse cx="50" cy="50" rx="22" ry="29" fill="#E0F2FE" />
+          <path d="M34 36 L58 20 M36 52 L66 30 M40 66 L66 46" stroke="#fff" strokeWidth="4" opacity="0.8" strokeLinecap="round" />
+          <ellipse cx="50" cy="50" rx="22" ry="29" fill="none" stroke="#7DD3FC" strokeWidth="1.5" />
+          <circle cx="50" cy="15" r="4" fill="#D4AF37" /><circle cx="50" cy="85" r="4" fill="#D4AF37" />
+        </>}
+        {rarity === 'singularity' && <>
+          {Array.from({ length: 26 }, (_, i) => <circle key={i} cx={(i * 41) % 100} cy={(i * 67) % 100} r={0.6 + (i % 3) * 0.5} fill="#fff" opacity="0.7" />)}
+          <g transform="rotate(-18 50 50)">
+            <ellipse cx="50" cy="50" rx="44" ry="12" fill="none" stroke="#B4FF39" strokeWidth="5" opacity="0.55" />
+            <ellipse cx="50" cy="50" rx="36" ry="9" fill="none" stroke="#FDE047" strokeWidth="4" opacity="0.8" />
+          </g>
+          <circle cx="50" cy="50" r="19" fill="none" stroke="#F2FFD6" strokeWidth="2.5" opacity="0.9" />
+          <circle cx="50" cy="50" r="16" fill="#000" />
+          <path d="M14 56 A36 9 -18 0 0 86 44" transform="rotate(-18 50 50)" fill="none" stroke="#FDE047" strokeWidth="4" opacity="0.9" />
+        </>}
+        {(rarity === 'crown_state' || rarity === 'crown_country') && <>
+          {Array.from({ length: 16 }, (_, i) => { const t = (i / 16) * Math.PI * 2; return <path key={i} d={`M50 52 L${50 + Math.cos(t) * 70} ${52 + Math.sin(t) * 70} L${50 + Math.cos(t + 0.1) * 70} ${52 + Math.sin(t + 0.1) * 70}Z`} fill={rarity === 'crown_state' ? '#F5D0FE' : '#FFE4E6'} opacity="0.2" />; })}
+          <path d="M18 72 L14 32 L32 46 L42 22 L50 38 L58 22 L68 46 L86 32 L82 72Z" fill={rarity === 'crown_state' ? '#E5E7EB' : '#FFD23F'} stroke={rarity === 'crown_state' ? '#6B7280' : '#B8860B'} strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M22 72 Q50 58 78 72 L78 64 Q50 50 22 64Z" fill={rarity === 'crown_state' ? '#7C3AED' : '#BE123C'} />
+          <rect x="18" y="72" width="64" height="10" rx="3" fill={rarity === 'crown_state' ? '#D1D5DB' : '#E8B923'} />
+          {[30, 50, 70].map((x, i) => <circle key={x} cx={x} cy="77" r="3.2" fill={['#22E3FF', '#FF3D7F', '#3DDC97'][i]} />)}
+          {rarity === 'crown_country' ? <><circle cx="50" cy="14" r="6" fill="#FFD23F" stroke="#B8860B" strokeWidth="2" /><path d="M50 4 V10 M47 7 H53" stroke="#B8860B" strokeWidth="2.5" /></> : <circle cx="50" cy="18" r="4.5" fill="#F5D0FE" />}
+          {[[14, 32], [42, 22], [58, 22], [86, 32]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r="3.2" fill="#fff" />)}
+        </>}
         {rarity === 'crown' && <>
           {Array.from({ length: 12 }, (_, i) => { const t = (i / 12) * Math.PI * 2; return <path key={i} d={`M50 52 L${50 + Math.cos(t) * 70} ${52 + Math.sin(t) * 70} L${50 + Math.cos(t + 0.12) * 70} ${52 + Math.sin(t + 0.12) * 70}Z`} fill="#FFD23F" opacity="0.18" />; })}
           <path d="M22 70 L18 34 L36 50 L50 26 L64 50 L82 34 L78 70Z" fill="#FFD23F" stroke="#B8860B" strokeWidth="2.5" strokeLinejoin="round" />
@@ -87,7 +133,7 @@ export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: R
           <path d="M50 64 V34" stroke="#2A1C10" strokeWidth="3.5" strokeLinecap="round" />
           <path d="M50 34 L68 40 L50 46Z" fill={rarity === 'common' ? '#E9EEF5' : info.color} />
         </>}
-        {['legendary', 'mythic', 'solar', 'prismatic', 'genesis', 'crown', 'phoenix'].includes(rarity) && [[22, 26, 6], [78, 72, 5], [76, 24, 4]].map(([x, y, s]) => <path key={`${x}`} d={sparkle(x, y, s)} fill={rarity === 'legendary' ? '#FFF4C2' : '#fff'} />)}
+        {['legendary', 'mythic', 'solar', 'prismatic', 'genesis', 'crown', 'phoenix', 'crown_state', 'crown_country', 'singularity', 'mirror', 'dragon'].includes(rarity) && [[22, 26, 6], [78, 72, 5], [76, 24, 4]].map(([x, y, s]) => <path key={`${x}`} d={sparkle(x, y, s)} fill={rarity === 'legendary' ? '#FFF4C2' : '#fff'} />)}
         {shiny && <>
           <rect width="100" height="100" fill={`url(#${id}sh)`}><animate attributeName="x" values="-100;100" dur="2.4s" repeatCount="indefinite" /></rect>
           {[[16, 16, 7], [84, 50, 6], [30, 86, 5], [62, 14, 4]].map(([x, y, s]) => <path key={`s${x}`} d={sparkle(x, y, s)} fill="#fff"><animate attributeName="opacity" values="1;0.2;1" dur={`${1 + (x % 3) * 0.4}s`} repeatCount="indefinite" /></path>)}

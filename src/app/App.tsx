@@ -50,6 +50,7 @@ const EventsScreen = lazy(() => import('../screens/Events'));
 const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 const LegendScreen = lazy(() => import('../screens/Legend'));
+const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
 const AdminScreen = lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
@@ -194,6 +195,7 @@ const routes: RouteObject[] = [
       { path: '/inkborn/playdate/:theirs', element: player(<Playdate />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/farm/:id', element: player(<FarmScreen />) },
+      { path: '/landlord/:id', element: player(<EstateScreen />) },
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },
       { path: '/business/:id', element: player(<BusinessScreen />) },
       { path: '/arcade/:id', element: player(<ArcadeScreen />) },

@@ -223,7 +223,8 @@ try {
   await page.locator('[data-testid=wallet-landlord]').scrollIntoViewIfNeeded(); await shot('21-wallet');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
   const st = await api('myState');
-  check('rent knows the Landlord rate', Number(st.rent.landlord?.rate) > 0 && st.rent.landlord.multiplier === 50, JSON.stringify(st.rent.landlord));
+  // (v1.3: rent day has to be earned — no Landlord rate until the estate's monthly checklist is done)
+  check('rent knows the Landlord plots (rate 0 until the checklist is done)', st.rent.landlord?.plots >= 1 && Number(st.rent.landlord.rate) === 0 && st.rent.landlord.multiplier === 50, JSON.stringify(st.rent.landlord));
 
   // ---- the visitor checks in with a drawing ------------------------------------------------------------------------------
   await signIn('vic@example.test');

@@ -1,7 +1,9 @@
 // In the plot panel for a Residential plot: your house (its size, what it has, what the next size adds and how
 // close you are), or your rentals (when rent day is, and the 50x it pays).
 import { ArrowRight, Lock } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../backend/api';
 import type { CanvasGroup } from '../backend/types';
 import { squareProgress } from '../realms/estates/meta';
 import { useTicker } from '../play/common';
@@ -64,9 +66,27 @@ export function LandlordCard({ group }: { group: CanvasGroup }) {
           {r.today
             ? <div className="font-display text-base font-bold text-gold">💵 It’s rent day! {LANDLORD_MULT}× USD rent for {left(r.end - Date.now())} more</div>
             : <div className="font-display text-base font-bold">Next rent day in {left(r.next - Date.now())}</div>}
-          <div className="text-xs text-muted">Your tenants pay on the 1st of every month (UTC, {new Date(r.today ? r.start : r.next).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} your time): these plots earn {LANDLORD_MULT}× their USD rent all day, then normal rent the rest of the month.</div>
+          <div className="text-xs text-muted">Your tenants pay on the 1st of every month (UTC, {new Date(r.today ? r.start : r.next).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} your time): these plots earn {LANDLORD_MULT}× their USD rent all day — if this month’s checklist is done.</div>
         </div>
       </div>
+      <EstateStatus group={group} />
+    </div>
+  );
+}
+
+/** this estate's checklist at a glance, and the way in */
+function EstateStatus({ group }: { group: CanvasGroup }) {
+  const nav = useNavigate();
+  const q = useQuery({ queryKey: ['estates'], queryFn: api.myEstates, staleTime: 60_000 });
+  const e = q.data?.find((x) => x.group_id === group.id);
+  const done = e ? (['inspect', 'repairs', 'requests', 'garden'] as const).filter((k) => e.tasks[k].done >= e.tasks[k].need).length : 0;
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-xl bg-black/20 p-2.5">
+      <div className="min-w-0 flex-1 text-xs">
+        <div className="font-bold">{e?.eligible ? `✓ Checklist done — ${LANDLORD_MULT}× on rent day` : `📋 Checklist ${done}/4 — needed for ${LANDLORD_MULT}× on rent day`}</div>
+        <div className="text-muted">Inspect, fix repairs, help tenants and water the garden in your 3D estate.</div>
+      </div>
+      <Button size="sm" variant="primary" onClick={() => nav(`/landlord/${group.id}`)} data-testid="enter-estate">🏘️ Enter <ArrowRight className="h-3.5 w-3.5" /></Button>
     </div>
   );
 }

@@ -87,7 +87,7 @@ describe('the Crown', () => {
   it('only one per city: once a city has its Crown, nobody else can roll it there', async () => {
     const [tokyo] = await db.sql(`select gx, gy from world_cities where name = 'Tokyo'`);
     // force every roll in cities to be a Crown
-    await cfg({ crown: { ppm: 1000000, pct: 100, max: 1 } });
+    await cfg({ crown: { ppm: 1000000, pct: 50, need: 5 } });
     const a = await db.sql(`select private.take_plot($1, $2, $3, 'acquire', '{}') r`, [kim, tokyo.gx + 3, tokyo.gy + 3]);
     expect(a[0].r.rarity).toBe('crown');
     const b = await db.sql(`select private.take_plot($1, $2, $3, 'acquire', '{}') r`, [lee, tokyo.gx + 9, tokyo.gy + 9]);
@@ -95,23 +95,27 @@ describe('the Crown', () => {
     expect(Number((await db.sql(`select count(*) n from world_plots where rarity = 'crown'`))[0].n)).toBe(1);
     // and outside any city the Crown never rolls
     expect((await db.sql(`select private.plot_rarity_for(5, 5) r`))[0].r).not.toBe('crown');
-    await cfg({ crown: { ppm: 1000, pct: 100, max: 1 } });
+    await cfg({ crown: { ppm: 1000, pct: 50, need: 5 } });
   });
-  it('its holder earns 2× on all their rent, and the city lists them', async () => {
-    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(2, 6);
+  it('its holder earns ×1.5 on all their rent once the city has 5 other players — and the city lists them', async () => {
+    // one other player in Tokyo (lee): the Crown is at 1/5 strength
+    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(1.1, 6);
+    const [t] = await db.sql(`select gx, gy from world_cities where name = 'Tokyo'`);
+    for (let i = 0; i < 5; i++) { const u = await db.newPlayer(`tokyo_${i}`); await own(u, t.gx + 50 + i, t.gy + 50, 'common'); }
+    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(1.5, 6);
     const crowns = await db.rpc(kim, 'crowns');
     expect(crowns.total).toBeGreaterThan(2500);
-    expect(crowns.held).toEqual([expect.objectContaining({ city: 'Tokyo', country: 'JP', holder: 'kim_crown' })]);
+    expect(crowns.held).toEqual([expect.objectContaining({ tier: 'crown', city: 'Tokyo', country: 'JP', holder: 'kim_crown', strength: 1, rivals: 6, need: 5 })]);
   });
   it('every city in the world has a Crown to win, not just the Hot Zone cities', async () => {
     // a small city that was never a Hot Zone: Sunnyvale
     const [boise] = await db.sql(`select id, gx, gy from world_cities where name = 'Sunnyvale' and country = 'US'`);
     expect(boise).toBeTruthy();
     expect((await db.sql(`select private.city_at($1, $2) ->> 'name' n`, [boise.gx + 40, boise.gy - 30]))[0].n).toBe('Sunnyvale');
-    await cfg({ crown: { ppm: 1000000, pct: 100, max: 1 } });
+    await cfg({ crown: { ppm: 1000000, pct: 50, need: 5 } });
     const a = await db.sql(`select private.take_plot($1, $2, $3, 'acquire', '{}') r`, [lee, boise.gx + 2, boise.gy + 2]);
     expect(a[0].r.rarity).toBe('crown');
-    await cfg({ crown: { ppm: 1000, pct: 100, max: 1 } });
+    await cfg({ crown: { ppm: 1000, pct: 50, need: 5 } });
     expect((await db.rpc(lee, 'crowns')).held.map((c: any) => c.city).sort()).toEqual(['Sunnyvale', 'Tokyo']);
   });
   it('the Hot Zone is a different city every day, drawn from all of them', async () => {

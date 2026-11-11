@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { ChevronRight, Gamepad2, Map as MapIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { LuckChip } from '../luck/Altar';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -108,6 +109,9 @@ export default function SimpleHome() {
         </div>
       </motion.button>
 
+      {/* the Altar of Luck: sacrifice for a better roll */}
+      <LuckChip className="justify-self-start" />
+
       {/* what you can roll */}
       <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">
         {RARITY_ORDER.map((id) => {
@@ -197,6 +201,11 @@ function StreakStrip({ onOpen }: { onOpen(): void }) {
 
 /** Chaos: today's roll · Phoenix: lit, fading, ashes or reborn */
 function TodayMult({ rarity, m }: { rarity: string; m: number }) {
+  const x = Math.round(m * 100) / 100;
+  if (rarity === 'dragon') return <span className={cn('font-black', m > 1 ? 'text-[#4ADE80]' : 'text-white/60')} data-testid="dragon-today">🐉 ×{x} {m > 1 ? '· keep your streak!' : '· asleep — check in daily'}</span>;
+  if (rarity === 'eclipse') return <span className={cn('font-black', m > 1 ? 'text-[#FDE68A]' : 'text-white/60')} data-testid="eclipse-today">🌑 {m > 1 ? `ECLIPSE TODAY · ×${x}` : 'No eclipse today'}</span>;
+  if (rarity === 'vampire') return <span className={cn('font-black', m > 1 ? 'text-[#FCA5A5]' : 'text-white/60')} data-testid="vampire-today">🧛 ×{x} {m > 1 ? '· feeding on neighbours' : '· no neighbours to feed on'}</span>;
+  if (rarity === 'mirror') return <span className="font-black text-[#BAE6FD]" data-testid="mirror-today">🪞 ×{x} · copying your best plot</span>;
   if (rarity === 'chaos') return <span className={cn('font-black', m >= 5 ? 'text-[#FFE14D]' : m >= 1 ? 'text-white/80' : 'text-[#FF6B8B]')} data-testid="chaos-today">🎲 ×{m} today</span>;
   const label = m >= 10 ? 'Reborn!' : m >= 2 ? 'Burning bright' : m > 0 ? 'Fading — check in!' : 'Ashes — check in to revive';
   return <span className={cn('font-black', m >= 2 ? 'text-[#FFD166]' : 'text-[#FF6B8B]')} data-testid="phoenix-today">🔥 ×{m} · {label}</span>;

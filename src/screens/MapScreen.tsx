@@ -30,6 +30,7 @@ import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
+import { LuckChip } from '../luck/Altar';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
@@ -104,7 +105,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         </div>
         {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
-        {me && <HotZoneChip className="self-start" onRoll={() => void quick.roll({ hot: true })} />}
+        {me && <div className="flex flex-wrap items-center gap-2 self-start"><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><LuckChip className="!h-9 !py-0.5" /></div>}
         {me && !away && !joystick && <JoystickSpot />}
         <div className="flex flex-col items-start gap-2.5">
           <ModeButton />

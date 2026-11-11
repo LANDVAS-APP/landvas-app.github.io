@@ -77,11 +77,11 @@ try {
   // the collection album
   await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
   const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
-  check('the collection: every plot type and all 15 rarities', nRar === 15 && types >= 8, `${types} types, ${nRar} rarities`);
+  check('the collection: every plot type and all 22 rarities', nRar === 22 && types >= 8, `${types} types, ${nRar} rarities`);
   check('…and the Crowns of the world', (await page.locator('[data-testid=crowns]').count()) === 1);
   await shot('08-collection');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  check('the odds show all 15 rarities: ultras as "1 in …", the Crown "1 per city"', (await page.locator('[data-testid=simple-odds] > div').count()) === 15 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 8 && (await page.locator('[data-testid=simple-odds] >> text=1 per city').count()) === 1);
+  check('the odds show all 22 rarities: ultras as "1 in …", the Crowns "1 per city/state/country"', (await page.locator('[data-testid=simple-odds] > div').count()) === 22 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 13 && (await page.locator('[data-testid=simple-odds] >> text=/^1 per (city|state|country)$/').count()) === 3);
 
   // the Play tab is just the plot minigames
   await page.locator('nav.lv-game a').filter({ hasText: 'Play' }).first().click();
@@ -98,7 +98,7 @@ try {
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
   await page.click('[data-testid=mode-button]'); await page.waitForTimeout(500);
   await page.click('[data-testid=open-legend]'); await page.waitForSelector('[data-testid=legend-ultras]', { timeout: 15000 }); await page.waitForTimeout(800);
-  check('View → Rarity guide: every rarity explained', (await page.locator('[data-testid^=legend-]').filter({ has: page.locator('svg') }).count()) >= 15, `${await page.locator('[data-testid^=legend-]').count()}`);
+  check('View → Rarity guide: every rarity explained', (await page.locator('[data-testid^=legend-]').filter({ has: page.locator('svg') }).count()) >= 22, `${await page.locator('[data-testid^=legend-]').count()}`);
   await shot('09-legend');
   await page.locator('[data-testid=legend-ultras]').scrollIntoViewIfNeeded(); await shot('10-legend-ultras');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));

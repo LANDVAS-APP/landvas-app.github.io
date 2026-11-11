@@ -115,6 +115,10 @@ describe('Residential', () => {
     const g = (await groups(bob))[0];
     expect(Number((await db.sql(`select private.landlord_rate($1) r`, [bob]))[0].r)).toBe(0);
     await db.rpc(bob, 'set_group_kind', { p_group_id: g.id, p_kind: 'landlord' });
+    // (v1.3: rent day has to be earned — an estate's monthly checklist; done here by hand, see 173-landlord-estates)
+    expect(Number((await db.sql(`select private.landlord_rate($1) r`, [bob]))[0].r)).toBe(0);
+    await db.sql(`insert into landlord_progress (group_id, cycle, inspect_days, garden_days, repaired, requests)
+      values ($1, private.landlord_cycle(now()), array[current_date, current_date - 1, current_date - 2], array[current_date, current_date - 1], array['a','b','c','d','e','f'], 3)`, [g.id]);
     const rate = Number((await db.sql(`select private.landlord_rate($1) r`, [bob]))[0].r);
     expect(rate).toBeGreaterThan(0);
     const st = await db.rpc(bob, 'my_state');

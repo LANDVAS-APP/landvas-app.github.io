@@ -1,5 +1,5 @@
-// The collection: every plot type (own one of each for +25% rent on everything, +5% at half the set) and every
-// rarity — the ultras you haven't found yet stay a mystery, with just their odds showing.
+// The collection: an album of every plot type and every rarity — the ultras you haven't found yet stay a mystery,
+// with just their odds showing — and the Crowns of the world.
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { api } from '../backend/api';
@@ -22,39 +22,48 @@ export function CollectionCard({ onOpen }: { onOpen(): void }) {
   const c = q.data;
   if (!c) return null;
   const have = c.types.filter((t) => t.owned > 0).length, all = c.types.length;
-  const next = c.tiers.find((t) => t.types > have);
   return (
     <button onClick={onOpen} className="grid gap-2 rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 text-left" data-testid="collection-card">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-[14px] font-black">📖 Collection</span>
-        <span className="text-[12px] font-bold text-white/60 tnum">{have}/{all} plot types{Number(c.pct) > 0 ? ` · +${c.pct}% rent` : ''}</span>
+        <span className="text-[12px] font-bold text-white/60 tnum">{have}/{all} plot types · {c.rarities.filter((r) => r.owned > 0).length}/{c.rarities.length} rarities</span>
       </div>
       <div className="flex gap-1">
         {c.types.map((t) => { const p = PLOT_TYPES[t.id]; return <span key={t.id} className="h-3 flex-1 rounded-full" style={{ background: t.owned ? `linear-gradient(90deg, ${p?.a}, ${p?.b})` : 'rgba(255,255,255,0.1)' }} />; })}
       </div>
-      {next && <span className="text-[11px] font-semibold text-white/50">{next.types - have} more type{next.types - have === 1 ? '' : 's'} → +{next.pct}% rent on all your plots</span>}
     </button>
   );
 }
 
-/** the Crowns of the world: one per city — every city on Earth — and who holds them */
+/** the Crowns of the world: City, State and Country — who holds them, and how strong each one is */
+const TIER_LABEL: Record<string, string> = { crown_country: 'Country', crown_state: 'State', crown: 'City' };
 function Crowns() {
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['crowns'], queryFn: api.crowns, enabled: !!me, staleTime: 5 * 60_000 });
   if (!q.data) return null;
-  const { total, held } = q.data;
+  const { total, states, countries, held } = q.data;
   return (
     <section className="grid gap-2" data-testid="crowns">
-      <div className="flex items-baseline justify-between"><h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">👑 Crowns of the world</h3><span className="text-[12px] font-bold tnum">{held.length}/{total.toLocaleString()} claimed</span></div>
-      <p className="-mt-1 text-[11px] text-white/45">Every city in the world has one Crown, rolled only by claiming a plot there (5× likelier in the Hot Zone). Its holder earns 2× rent on everything.</p>
+      <div className="flex items-baseline justify-between"><h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">👑 Crowns of the world</h3><span className="text-[12px] font-bold tnum">{held.length} claimed</span></div>
+      <p className="-mt-1 text-[11px] text-white/45">{total.toLocaleString()} City Crowns (×1.5), {states.toLocaleString()} State Crowns (×5) and {countries} Country Crowns (×10). A Crown only reaches full strength when enough other players own land in its kingdom.</p>
       {held.length ? (
-        <div className="grid grid-cols-2 gap-1.5">
-          {held.slice(0, 40).map((c) => (
-            <div key={`${c.city}-${c.country}-${c.since}`} className="flex items-center gap-2 rounded-xl bg-[#FFD23F]/12 px-2.5 py-1.5 text-[12px]">
-              <span>👑</span>
-              <span className="grid min-w-0 leading-tight"><span className="truncate font-bold">{c.city} <span className="text-white/40">{c.country}</span></span><span className="truncate text-[10px] font-bold text-[#FFD23F]">@{c.holder}</span></span>
-            </div>
-          ))}
+        <div className="grid gap-1.5">
+          {held.slice(0, 60).map((c) => {
+            const info = rarityInfo(c.tier);
+            return (
+              <div key={`${c.tier}-${c.city}-${c.since}`} className={cn('flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12px]', c.mine ? 'bg-[#FFD23F]/15' : 'bg-white/[0.04]')} data-testid={`crown-${c.tier}`}>
+                <BasePlotArt rarity={c.tier} size={26} />
+                <span className="grid min-w-0 flex-1 leading-tight">
+                  <span className="truncate font-bold">{c.city} <span className="text-white/40">{c.tier === 'crown_country' ? '' : c.country}</span></span>
+                  <span className="truncate text-[10px] font-bold" style={{ color: info.color }}>{TIER_LABEL[c.tier]} Crown · @{c.holder}</span>
+                </span>
+                <span className="grid justify-items-end leading-tight">
+                  <span className="text-[11px] font-black tnum" style={{ color: c.strength >= 1 ? '#3DDC97' : '#FFD166' }}>{Math.round(c.strength * 100)}%</span>
+                  <span className="text-[9px] text-white/40 tnum">{Math.min(c.rivals, c.need)}/{c.need} rivals</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : <div className="rounded-xl bg-white/[0.04] px-3 py-2 text-[12px] text-white/50">No Crowns claimed yet — every one is up for grabs.</div>}
     </section>
@@ -66,7 +75,7 @@ export function CollectionDialog({ open, onOpenChange }: { open: boolean; onOpen
   const c = q.data;
   const have = c ? c.types.filter((t) => t.owned > 0).length : 0;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="📖 Collection" description="Collect every plot type for a rent bonus on all your land — and chase every rarity.">
+    <Dialog open={open} onOpenChange={onOpenChange} title="📖 Collection" description="Every plot type, every rarity you’ve found, and the Crowns of the world.">
       {c && (
         <div className="grid gap-5" data-testid="collection-dialog">
           <section className="grid gap-2">
@@ -83,13 +92,6 @@ export function CollectionDialog({ open, onOpenChange }: { open: boolean; onOpen
                   </motion.div>
                 );
               })}
-            </div>
-            <div className="grid gap-1.5">
-              {c.tiers.map((t) => (
-                <div key={t.types} className={cn('flex items-center justify-between rounded-xl px-3 py-2 text-[12px] font-bold', have >= t.types ? 'bg-[#3DDC97]/15 text-[#3DDC97]' : 'bg-white/[0.04] text-white/60')}>
-                  <span>{have >= t.types ? '✓' : '○'} {t.types} plot types</span><span>+{t.pct}% rent on everything</span>
-                </div>
-              ))}
             </div>
           </section>
           <section className="grid gap-2">

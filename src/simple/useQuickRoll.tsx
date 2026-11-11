@@ -20,7 +20,7 @@ export function useQuickRoll() {
   const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts }>({ open: false, result: null, opts: {} });
   const busy = useRef(false);
   const settle = useRef<(() => void) | null>(null);
-  const refresh = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection']]) void qc.invalidateQueries({ queryKey: k }); };
+  const refresh = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection'], ['luck']]) void qc.invalidateQueries({ queryKey: k }); };
   const settleNow = () => { const f = settle.current; settle.current = null; f?.(); };
   const quote = useQuery({ queryKey: ['quick-buy-quote'], queryFn: api.quickBuyQuote, enabled: !!me });
   const ink = Number(me?.balances.ink ?? 0);
@@ -36,7 +36,7 @@ export function useQuickRoll() {
     setState({ open: true, result: null, opts });
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
-      setState({ open: true, opts, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, guaranteed: opts.ticketRarity ?? null } });
+      setState({ open: true, opts, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, guaranteed: opts.ticketRarity ?? null } });
       // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
       settle.current = () => { celebrate(r.achievements); refresh(); };
     } catch (e) {

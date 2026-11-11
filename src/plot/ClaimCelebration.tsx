@@ -19,6 +19,8 @@ export type Celebration = {
   base?: boolean; again?: () => void;
   /** a shiny plot (1 in 1,000, ×5 rent) */
   shiny?: boolean;
+  /** Luck from the altar made this roll better */
+  lucky?: boolean;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -58,7 +60,7 @@ function Show({ c }: { c: Celebration }) {
   );
   return (
     <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close}
-      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny }}
+      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky }}
       onRevealed={() => useCelebration.getState().reveal()}
       actions={<>
         {actions}

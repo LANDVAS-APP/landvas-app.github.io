@@ -43,10 +43,45 @@ const DETAIL: Partial<Record<RarityId, { what: string; get: string; tip: string 
     get: 'Claim any plot anywhere. One claim in 100,000.',
     tip: 'The more land you own, the more a Prismatic is worth.',
   },
+  dragon: {
+    what: 'Grows with your daily streak: +10% rent for every day in a row you’ve checked in — a 10-day streak is ×2, a 30-day streak ×4, up to ×10 at 90 days. Miss a day and it falls asleep (×1) until you start a new streak.',
+    get: 'Claim any plot anywhere. Feed it with the daily check-in.',
+    tip: 'The longer you keep your streak, the scarier it gets.',
+  },
+  eclipse: {
+    what: 'An ordinary plot most of the time — but about one day in seven the eclipse comes and it earns ×25 rent for the whole day. Every Eclipse plot has its own eclipse days, and nobody knows which day until it begins.',
+    get: 'Claim any plot anywhere.',
+    tip: 'Open the game each day: your plot list says “ECLIPSE TODAY” when it hits.',
+  },
+  vampire: {
+    what: 'Feeds on its neighbours: +50% rent for every plot owned by another player within about 100 m of it, up to ×10. Your own plots don’t count — it needs other people around.',
+    get: 'Claim any plot anywhere — best in busy neighbourhoods.',
+    tip: 'Roll one downtown and every new neighbour makes it hungrier.',
+  },
+  mirror: {
+    what: 'Copies the rent of your best other plot. On its own it earns like a decent ultra; next to a Genesis, a Crown or a Singularity it earns like one of those.',
+    get: 'Claim any plot anywhere.',
+    tip: 'The better your best plot, the better your Mirror.',
+  },
   crown: {
-    what: 'Every city in the world has exactly one Crown. Whoever holds a city’s Crown is its ruler: 2× rent on everything they own (one Crown’s boost per player).',
-    get: 'Only rolls when you claim a plot inside a city whose Crown hasn’t been claimed yet — and once it’s taken, nobody else can roll it there. It’s 5× likelier in the Hot Zone. The Collection shows every Crown that’s been claimed.',
-    tip: 'Smaller cities count too. Thousands of Crowns are waiting.',
+    what: 'Every city in the world (2,900+) has exactly one City Crown. Its holder earns ×1.5 on all their rent.',
+    get: 'Only rolls when you claim a plot inside a city whose Crown hasn’t been claimed — 5× likelier in the Hot Zone. Once it’s taken, nobody else can roll it there.',
+    tip: 'A Crown is only as strong as its kingdom: it reaches full strength once 5 other players own land in the city.',
+  },
+  crown_state: {
+    what: 'One per state or province, worldwide. Its holder earns ×5 on all their rent.',
+    get: 'Rolls (about 1 in 20,000) when you claim a plot in any city of a state that has no State Crown yet.',
+    tip: 'Full strength once 25 other players own land in the state.',
+  },
+  crown_country: {
+    what: 'One per country. Its holder earns ×10 on all their rent — the biggest boost in LANDVAS.',
+    get: 'Rolls (about 1 in 200,000) when you claim a plot in any city of a country that has no Country Crown yet.',
+    tip: 'Full strength once 100 other players own land in the country.',
+  },
+  singularity: {
+    what: 'One claim in a million. It bends everything around it: every plot you own earns double, and it earns a fortune on its own.',
+    get: 'Claim any plot anywhere. Good luck.',
+    tip: 'There may only ever be a handful of these.',
   },
   genesis: {
     what: 'The rarest plot in LANDVAS: every plot you own earns +25% more rent, on top of its own huge rate.',
@@ -133,9 +168,14 @@ export default function Legend() {
             <b>📅 The daily streak</b>
             <p>Check in every day for Ink. Every 7th day in a row you get a free roll that’s guaranteed Rare or better; every 30th day, guaranteed Legendary or better, plus 500 Ink. Checking in also keeps your Phoenix plots lit.</p>
           </article>
-          <article className="glass grid gap-1.5 rounded-3xl p-4 text-sm leading-relaxed">
-            <b>📖 The collection</b>
-            <p>Own plots of 4 different types for +5% rent on everything; all 8 types for +25%. Prismatic, Genesis and a Crown stack on top.</p>
+          <article className="glass grid gap-1.5 rounded-3xl p-4 text-sm leading-relaxed" data-testid="legend-luck">
+            <b>🍀 The Altar of Luck</b>
+            <p>Sacrifice Base plots (rarer plots give more) or offer Ink (50 a point, 30 points a day) to charge your Luck up to 100. Your next claim spends all of it: one extra roll for every 20 Luck — it keeps the best — and every ultra gets likelier (×11 at full Luck). Tap the 🍀 chip to open the altar.</p>
+          </article>
+          <article className="glass grid gap-1.5 rounded-3xl p-4 text-sm leading-relaxed" data-testid="legend-crowns">
+            <b>👑 Crowns: a kingdom of your own</b>
+            <p>City Crown ×1.5, State Crown ×5, Country Crown ×10. Only your best Crown of each tier counts, and the tiers add up — all three is ×14.5 on everything you own.</p>
+            <p>A Crown is only as strong as its kingdom: it grows to full strength as other players claim land there (5 in a city, 25 in a state, 100 in a country). An empty town’s Crown is worth very little — until people show up.</p>
           </article>
         </div>
       </section>

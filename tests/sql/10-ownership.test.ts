@@ -45,7 +45,7 @@ describe('accounts and ownership', () => {
     const r = await db.rpc(alice, 'claim_starter_plot', { p_gx: SLC.gx, p_gy: SLC.gy });
     expect(r.gx).toBe(SLC.gx);
     expect(r.group_id).toBeTruthy();
-    expect(['common', 'rare', 'epic', 'legendary', 'mythic']).toContain(r.rarity);
+    expect((await db.sql(`select id from plot_rarities`)).map((x: any) => x.id)).toContain(r.rarity);
     expect(r.balances.ink).toBe(0); // Ink only comes from minigame wins
     expect(r.balances.pigments).toBe(5);
     expect(r.achievements.map((a: any) => a.key)).toContain('first_plot');

@@ -18,7 +18,7 @@ import { formatRate } from '../shared/rent';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { Fx } from './fx';
 
-export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; guaranteed?: string | null };
+export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null };
 type Phase = 'drop' | 'spin' | 'reveal';
 
 const INK = '#1B1240';
@@ -318,9 +318,10 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           {revealed && result && (
             <motion.div className="grid gap-2.5 text-center" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.3 }}>
               <div className="text-[15px] font-extrabold" style={{ color: info.glow }}>{subtitle}</div>
-              {(result.shiny || result.hot) && (
+              {(result.shiny || result.hot || result.lucky) && (
                 <div className="flex flex-wrap justify-center gap-1.5">
                   {result.shiny && <motion.span initial={{ scale: 0 }} animate={{ scale: [0, 1.25, 1] }} transition={{ delay: 0.55 }} className="rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-3 py-1 font-display text-[15px] font-black text-[#1a0b2e] shadow-[0_0_24px_#fff8]" data-testid={testId === 'ink-roll' ? 'roll-shiny' : 'claim-shiny'}>✨ SHINY · ×5 rent ✨</motion.span>}
+                  {result.lucky && <span className="rounded-full bg-[#3DDC97]/20 px-3 py-1 text-[12px] font-extrabold text-[#8CF5C6]" data-testid="roll-lucky">🍀 Lucky roll</span>}
                   {result.hot && <span className="rounded-full bg-[#FF6A1F]/25 px-3 py-1 text-[12px] font-extrabold text-[#FFB27A]">🔥 Hot Zone roll</span>}
                 </div>
               )}

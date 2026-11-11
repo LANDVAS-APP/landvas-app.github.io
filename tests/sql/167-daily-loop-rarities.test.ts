@@ -21,7 +21,8 @@ afterAll(() => db.close());
 describe('rarities', () => {
   it('Uncommon sits between Common and Rare; the ultras are on their own tiny roll', async () => {
     const r = await db.sql(`select id, weight, ppm, sort from plot_rarities order by sort`);
-    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown']);
+    expect(r.slice(0, 6).map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']);
+    expect(r.slice(6).every((x: any) => x.weight === 0)).toBe(true);
     expect(r.filter((x: any) => x.weight > 0).reduce((a: number, x: any) => a + x.weight, 0)).toBe(1000);
   });
   it('a big sample rolls every normal rarity, about the right mix, and ultras only rarely', async () => {
@@ -81,16 +82,14 @@ describe('rent abilities', () => {
     expect(Number(st.live_usd)).toBeGreaterThan(solarDay * 0.95);
     expect(Math.abs(client - Number(st.live_usd)) / Number(st.live_usd)).toBeLessThan(1e-6);
   });
-  it('the collection: half the plot types adds 5%, all of them 25%', async () => {
+  it('the collection is an album: every plot type owned shows there, but adds no rent (v1.3)', async () => {
     await db.sql(`delete from world_plots where owner_id = $1`, [ann]);
     const types = (await db.sql(`select id from plot_types order by id`)).map((t: any) => t.id);
-    for (let i = 0; i < 4; i++) await db.sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values ($1, 20, $2, 'common', $3, now())`, [30 + i, types[i], ann]);
-    expect(Number((await db.sql(`select private.collection_pct($1) p`, [ann]))[0].p)).toBe(5);
-    for (let i = 4; i < types.length; i++) await db.sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values ($1, 20, $2, 'common', $3, now())`, [30 + i, types[i], ann]);
-    expect(Number((await db.sql(`select private.collection_pct($1) p`, [ann]))[0].p)).toBe(25);
+    for (let i = 0; i < types.length; i++) await db.sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values ($1, 20, $2, 'common', $3, now())`, [30 + i, types[i], ann]);
+    expect(Number((await db.sql(`select private.collection_pct($1) p`, [ann]))[0].p)).toBe(0);
     const c = await db.rpc(ann, 'my_collection');
     expect(c.types.every((t: any) => t.owned >= 1)).toBe(true);
-    expect(Number(c.pct)).toBe(25);
+    expect(Number(c.pct)).toBe(0);
   });
 });
 
