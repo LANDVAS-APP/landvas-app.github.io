@@ -20,6 +20,8 @@ export type Celebration = {
   groupId: string; first: boolean; onDone?: () => void;
   /** set when the plot was bought as an Inkborn Habitat */
   habitatId?: string | null;
+  /** a Base plot (no extras): no painting buttons; `again` offers another buy (simple mode) */
+  base?: boolean; again?: () => void;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -53,7 +55,7 @@ function usePlotPoint(gx: number, gy: number) {
         const p = m.project([lng, lat]);
         const r = m.getContainer().getBoundingClientRect();
         setPt({ x: r.left + p.x, y: r.top + p.y, size: Math.max(18, 256 * 2 ** (m.getZoom() - GRID_LEVEL)) });
-      } else setPt({ x: innerWidth / 2, y: innerHeight / 2, size: 40 });
+      } else setPt({ x: innerWidth / 2, y: innerHeight * 0.3, size: 0 }); // no map (simple mode): the burst, without a plot outline
       raf = requestAnimationFrame(loop);
     };
     loop();
@@ -87,7 +89,7 @@ function Show({ c }: { c: Celebration }) {
           {[0, 1, 2].map((i) => (
             <span key={i} className="pointer-events-none absolute rounded-full lv-claim-ring" style={{ left: pt.x, top: pt.y, borderColor: '#ffffff', animationDelay: `${i * 0.22}s`, boxShadow: '0 0 18px rgba(255,255,255,0.6)' }} />
           ))}
-          <PlotSquare x={pt.x} y={pt.y} size={pt.size} color="#C9D4F2" glow="#ffffff" />
+          {pt.size > 0 && <PlotSquare x={pt.x} y={pt.y} size={pt.size} color="#C9D4F2" glow="#ffffff" />}
         </>
       )}
       {!reduce && pt && revealed && (
@@ -98,7 +100,7 @@ function Show({ c }: { c: Celebration }) {
           ))}
           {epic && <div className="pointer-events-none absolute lv-claim-rays" style={{ left: pt.x, top: pt.y, ['--c' as any]: info.color, ['--g' as any]: info.glow }} />}
           <Burst x={pt.x} y={pt.y} colors={[info.color, info.glow, '#ffffff', PLOT_TYPES[c.type].a, PLOT_TYPES[c.type].b, '#FFE14D']} count={epic ? 220 : 130} />
-          <PlotSquare x={pt.x} y={pt.y} size={pt.size} color={info.color} glow={info.glow} />
+          {pt.size > 0 && <PlotSquare x={pt.x} y={pt.y} size={pt.size} color={info.color} glow={info.glow} />}
         </>
       )}
       <div className="absolute inset-0 bg-black/25" onClick={() => revealed && useCelebration.getState().close()} />
@@ -221,7 +223,12 @@ function Card({ c, reduce, revealed, onRevealed }: { c: Celebration; reduce: boo
             <span>{PLOT_TYPES[c.type].name} · {PLOT_TYPES[c.type].game}</span>
             <span className="font-bold tnum" style={{ color: revealed ? '#3DDC97' : undefined }}>{revealed ? `+${formatRate(c.usd)} rent` : '+$? / s'}</span>
           </div>
-          {c.habitatId ? (
+          {c.base ? (
+            <div className="mt-4 grid gap-2">
+              {c.again && <Button variant="rainbow" onClick={() => { close(); c.again!(); }} data-testid="buy-again">🎲 Roll another</Button>}
+              <p className="text-[11px] text-muted">A Base plot: it earns rent from now on. You can give it a type (art, farm, arcade…) any time.</p>
+            </div>
+          ) : c.habitatId ? (
             <div className="mt-4 grid gap-2">
               <Button variant="rainbow" onClick={() => { const grow = !!c.onDone; close(); if (!grow) nav(`/habitat/${c.habitatId}`); }} data-testid="enter-habitat"><TreePine className="h-4 w-4" /> Enter your sanctuary</Button>
             </div>
@@ -231,7 +238,7 @@ function Card({ c, reduce, revealed, onRevealed }: { c: Celebration; reduce: boo
               <Button variant="secondary" onClick={() => go('upload')} data-testid="choose-upload"><Upload className="h-4 w-4" /> Upload art</Button>
             </div>
           )}
-          <button className="mt-3 text-xs font-bold text-muted hover:text-fg" onClick={close} data-testid="celebration-close">Keep exploring</button>
+          <button className="mt-3 text-xs font-bold text-muted hover:text-fg" onClick={close} data-testid="celebration-close">{c.again ? 'Done' : 'Keep exploring'}</button>
         </div>
       </motion.div>
     </div>

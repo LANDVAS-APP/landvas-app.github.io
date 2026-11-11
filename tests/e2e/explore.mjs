@@ -174,19 +174,20 @@ try {
   check('no collectables on the map', (await page.locator('[data-testid=map-find]').count()) === 0);
   await shot('07-no-finds');
 
-  // ---- hide plots -----------------------------------------------------------------------------------------------
+  // ---- lite map ("Hide plots"): plots, art and their effects aren't loaded at all ----------------------------------
   await jump(here.longitude, here.latitude, 18.5); await page.waitForTimeout(2000);
-  const vis = (id) => page.evaluate((id) => window.__landvasMap.getLayoutProperty(id, 'visibility') ?? 'visible', id);
+  const has = () => page.evaluate(() => { const m = window.__landvasMap; return { layers: ['lv-plots', 'lv-art', 'lv-groups-line', 'lv-habitats'].filter((id) => !!m.getLayer(id)), sources: ['lv-plots', 'lv-art', 'lv-groups'].filter((id) => !!m.getSource(id)) }; });
   await shot('09-plots-shown');
+  check('full map: plot layers loaded', (await has()).layers.length === 4);
   await page.click('[data-testid=mode-button]'); await page.waitForTimeout(500);
-  await page.click('[data-testid=hide-plots]'); await page.waitForTimeout(500);
-  await page.click('[data-testid=mode-button]'); await page.waitForTimeout(800);
-  check('Hide plots: the plot layers are off', (await vis('lv-plots')) === 'none' && (await vis('lv-art')) === 'none' && (await vis('lv-groups-line')) === 'none');
-  await shot('10-plots-hidden');
-  await page.click('[data-testid=mode-button]'); await page.waitForTimeout(500);
-  await page.click('[data-testid=hide-plots]'); await page.waitForTimeout(500);
-  await page.click('[data-testid=mode-button]'); await page.waitForTimeout(500);
-  check('…and back on', (await vis('lv-plots')) === 'visible');
+  await page.click('[data-testid=hide-plots]'); await page.waitForTimeout(3500);
+  const lite = await has();
+  check('Lite map: plot layers and their sources are gone, not just hidden', lite.layers.length === 0 && lite.sources.length === 0, JSON.stringify(lite));
+  check('…and nothing plot-related is drawn over it', (await page.locator('.lv-bubble, .lv-plot-name, [data-testid=plot-bubble]').count()) === 0);
+  await shot('10-lite-map');
+  // (the View menu is still open)
+  await page.click('[data-testid=hide-plots]'); await page.waitForTimeout(3500);
+  check('…and back on, they load again', (await has()).layers.length === 4);
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('the run completed', false, e.message.split('\n')[0]);

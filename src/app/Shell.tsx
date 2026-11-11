@@ -1,6 +1,6 @@
 import { getBackend } from '../backend/backend';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -52,6 +52,8 @@ function sectionOf(path: string) {
 // the phone tab bar: five tabs the player picks (Settings → Phone navigation), then Me
 export const DEFAULT_TABS = ['/world', '/canvases', '/inkborn', '/play', '/social'];
 export const MAX_TABS = 5;
+/** simple mode's tab bar */
+const SIMPLE_TABS = [{ to: '/world', label: 'Home', icon: Home }, { to: '/play', label: 'Play', icon: Gamepad2 }];
 /** Everything that can sit in the phone tab bar: the sections, or a favourite page. */
 export const TAB_CHOICES = [
   ...SECTIONS.map(({ to, label, icon }) => ({ to, label, icon })),
@@ -65,7 +67,8 @@ export function Shell() {
   const me = useOnboardedMe();
   const loc = useLocation();
   const isHome = loc.pathname === '/';
-  const isMap = loc.pathname === '/world';
+  const simple = useUi((s) => !!s.settings.simpleMode);
+  const isMap = loc.pathname === '/world' && !simple;
   const admin = me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
@@ -96,7 +99,8 @@ export function Shell() {
   useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // a tab lights up for its own page, or for its section unless another tab is that page
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
-  const tabs = (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
+  // simple mode keeps just the essentials: home and play (and Me)
+  const tabs = simple ? SIMPLE_TABS : (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
   // the public homepage is full-bleed, without the game's navigation
   if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
@@ -104,7 +108,7 @@ export function Shell() {
       {busy && <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="server-busy">🐢 The server is busy — background updates are paused for a moment</div>}
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
-        {SECTIONS.map((i) => <RailItem key={i.to} {...i} active={sec?.to === i.to} badge={badge(i.to)} />)}
+        {(simple ? SIMPLE_TABS : SECTIONS).map((i) => <RailItem key={i.to} {...i} active={simple ? under(loc.pathname, i.to) : sec?.to === i.to} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} active={loc.pathname.startsWith('/admin')} /> : null}
         <div className="flex-1" />
         <NotificationBell className="mb-2 !bg-transparent !shadow-none hover:!bg-surface-2" />
@@ -116,7 +120,7 @@ export function Shell() {
       </nav>
       <main className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin')}>
         {!isMap && <Ambient />}
-        {!isMap && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
+        {!isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
         {isMap ? <Outlet /> : (
           <motion.div key={loc.pathname} className="relative" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: 'easeOut' }}>
             <Outlet />
@@ -126,7 +130,7 @@ export function Shell() {
       <AnnouncementPopup />
       <Tour />
       <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
-        {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={tabActive(i.to)} badge={badge(i.to)} />)}
+        {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={simple ? under(loc.pathname, i.to) : tabActive(i.to)} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} active={sec?.to === '/me'} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>
     </div>

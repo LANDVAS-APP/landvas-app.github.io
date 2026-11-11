@@ -53,7 +53,11 @@ export const plotBlocks = new PlotBlocks();
 let autoSaving = false;
 let lastUid: string | undefined;
 
-export function WorldMap() {
+/**
+ * The world map. `lite` ("Hide plots"): a plain map — no plot or art tiles, no plot data, no plot effects or live plot
+ * updates at all; what was loaded is dropped from memory. MapScreen remounts the map when it's switched.
+ */
+export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   const companion = useCompanion();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -88,7 +92,11 @@ export function WorldMap() {
     // keep what's already loaded (this visit or the last one) when the backend can tell us exactly what changed since;
     // otherwise start fresh, as updates may have happened unseen
     const be = getBackend();
-    if (be.mapCursor) {
+    if (lite) {
+      // let go of every plot and art tile the last map had loaded
+      artIndex.reset();
+      plotBlocks.reset();
+    } else if (be.mapCursor) {
       restoreMapCache(plotBlocks, artIndex);
       if (!autoSaving) { autoSaving = true; autoSaveMapCache(plotBlocks, artIndex); }
     } else {
@@ -145,6 +153,7 @@ export function WorldMap() {
         const pending = useUi.getState().flyTo;
         if (pending && Date.now() - pending.at < 15000) map.jumpTo({ center: [pending.lng, pending.lat], zoom: pending.zoom });
         addLayers(map, streetsRef.current);
+        if (lite) stripPlots(map);
         // street names and place labels stay readable above the plots
         if (streetsRef.current) for (const id of STREET_LABEL_LAYERS) if (map.getLayer(id)) map.moveLayer(id);
         applyProjection(map, useUi.getState().settings.globe);
@@ -208,7 +217,7 @@ export function WorldMap() {
       });
       m.getCanvas().addEventListener('mouseleave', () => setData(m, 'lv-hover', EMPTY));
     })();
-    const unsub = getBackend().subscribeMapUpdates((u) => {
+    const unsub = lite ? () => {} : getBackend().subscribeMapUpdates((u) => {
       artIndex.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
       plotBlocks.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
       const bbox = useUi.getState().bbox;
@@ -226,7 +235,7 @@ export function WorldMap() {
     return () => {
       disposed = true;
       unsub();
-      if (getBackend().mapCursor) saveMapCache(plotBlocks, artIndex);
+      if (getBackend().mapCursor && !lite) saveMapCache(plotBlocks, artIndex);
       explorerMarker.current?.remove();
       explorerMarker.current = null;
       for (const m of nameMarkers.current.values()) m.remove();
@@ -258,7 +267,9 @@ export function WorldMap() {
   // loads on its own as you pan; all that's left here are the cheap extras.
   async function loadViewport() {
     const map = mapRef.current;
-    if (!map || !map.getSource('lv-density')) return;
+    if (!map) return;
+    // the lite map only has place names to keep up to date
+    if (lite || !map.getSource('lv-density')) { void updateLabels(map, map.getBounds(), map.getZoom()); return; }
     const seq = ++seqRef.current;
     const z = map.getZoom();
     const b = map.getBounds();
@@ -589,7 +600,7 @@ export function WorldMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    map.setPaintProperty('lv-art', 'raster-resampling', settings.crispPixels ? 'nearest' : 'linear');
+    if (map.getLayer('lv-art')) map.setPaintProperty('lv-art', 'raster-resampling', settings.crispPixels ? 'nearest' : 'linear');
     applyProjection(map, settings.globe);
   }, [settings.crispPixels, settings.globe, ready]);
 
@@ -631,28 +642,25 @@ export function WorldMap() {
     };
   }, [settings.theme, settings.mapTheme, ready]);
 
-  // "Hide plots": the map without any plots on it, for a smoother, faster map (their tiles aren't even fetched)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    const hide = !!settings.hidePlots;
-    for (const id of PLOT_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', hide ? 'none' : 'visible');
-    container.current?.classList.toggle('lv-hide-plots', hide);
-  }, [settings.hidePlots, ready]);
-
   return (
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
-      <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />
-      <PlotBubbles ready={ready} />
+      {!lite && <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />}
+      {!lite && <PlotBubbles ready={ready} />}
     </div>
   );
 }
 
 // ---- layers & modes ----------------------------------------------------------------
 
-/** everything drawn for plots (hidden by "Hide plots") */
+/** everything drawn for plots (gone from the lite map) */
 const PLOT_LAYERS = ['lv-plots', 'lv-groups-glow', 'lv-groups-line', 'lv-art', 'lv-habitats', 'lv-names', 'lv-density'];
+const PLOT_SOURCES = ['lv-plots', 'lv-habitats', 'lv-art', 'lv-groups', 'lv-names', 'lv-density'];
+/** The lite map: take the plot layers and their sources right out, before a single tile is asked for. */
+function stripPlots(map: MLMap) {
+  for (const id of PLOT_LAYERS) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of PLOT_SOURCES) if (map.getSource(id)) map.removeSource(id);
+}
 
 function addLayers(map: MLMap, glyphs: boolean) {
   // Canvas mode lays a veil over the base map so the art leads

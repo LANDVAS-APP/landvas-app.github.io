@@ -3,6 +3,7 @@ import type { CanvasGroup, PlotKind } from '../backend/types';
 import { TIERS, kindFamily } from '../realms/estates/meta';
 
 export const KIND_LABEL: Record<PlotKind, { one: string; many: string; emoji: string }> = {
+  base: { one: 'base plot', many: 'base plots', emoji: '🟩' },
   canvas: { one: 'art canvas', many: 'art canvases', emoji: '🎨' },
   habitat: { one: 'habitat', many: 'habitats', emoji: '🐾' },
   farm: { one: 'farm', many: 'farms', emoji: '🌾' },

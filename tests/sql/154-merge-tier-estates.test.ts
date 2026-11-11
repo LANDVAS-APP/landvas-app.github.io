@@ -14,6 +14,8 @@ const wallet = async (uid: string, kind: string) => (await db.sql(`select wallet
 
 beforeAll(async () => {
   await db.init({ ungated: true });
+  // these plots are art canvases (new plots start as Base plots since v1.0)
+  await db.sql(`alter table public.canvas_groups alter column kind set default 'canvas'`);
   ana = await db.newPlayer('ana_estates');
   await db.sql(`update players set created_at = now() - interval '3 days' where id = $1`, [ana]);
   await db.rpc(ana, 'claim_starter_plot', { p_gx: O.gx, p_gy: O.gy });

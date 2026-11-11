@@ -59,6 +59,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const session = useSession();
   const me = useOnboardedMe();
   const view = useUi((s) => s.view);
+  const lite = useUi((s) => !!s.settings.hidePlots);
   useRaritySync();
   useExplorerSync(!!away);
   const [joystick, setJoystick] = useState(false);
@@ -80,8 +81,9 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className={cn('absolute inset-0', away && 'lv-away')}>
-      <WorldMap />
-      <DayNight />
+      {/* switching the lite map rebuilds it from scratch, so nothing plot-related is left loaded */}
+      <WorldMap key={lite ? 'lite' : 'full'} lite={lite} />
+      {!lite && <DayNight />}
       {/* the game HUD */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
         <div className="flex items-start gap-2">

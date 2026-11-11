@@ -32,6 +32,7 @@ const KIND_NAME = (k: PlotKind) => (k === 'train' ? 'Travel · Train' : k === 'p
 const KIND_A = (k: PlotKind) => (k === 'train' ? 'a Travel · Train plot' : k === 'plane' ? 'a Travel · Plane plot' : k === 'home' ? 'a Residential Home' : k === 'landlord' ? 'a Residential Landlord plot' : isRealm(k) ? `a${/^[aeiou]/i.test(REALM_META[k].name) ? 'n' : ''} ${REALM_META[k].name}` : k === 'habitat' ? 'a Habitat' : k === 'farm' ? 'a Farm' : k === 'business' ? 'a Business' : k === 'arcade' ? 'an Arcade' : 'an Art Canvas');
 
 export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
+  if (kind === 'base') return <span className="inline-flex items-center gap-1 rounded-full bg-[#5FB37A]/15 px-2 py-0.5 text-[11px] font-bold text-[#5FB37A]">🟩 Base plot</span>;
   if (kind === 'home') return <span className="inline-flex items-center gap-1 rounded-full bg-[#C8553D]/15 px-2 py-0.5 text-[11px] font-bold text-[#E0745C]">🏠 Residential · Home</span>;
   if (kind === 'train' || kind === 'plane') return <span className="inline-flex items-center gap-1 rounded-full bg-[#2FA4D9]/15 px-2 py-0.5 text-[11px] font-bold text-[#2FA4D9]">{kind === 'train' ? '🚆 Travel · Train' : '✈️ Travel · Plane'}</span>;
   if (kind === 'landlord') return <span className="inline-flex items-center gap-1 rounded-full bg-[#3E6E9C]/20 px-2 py-0.5 text-[11px] font-bold text-[#6FA3D9]">🏘️ Residential · Landlord</span>;
@@ -50,7 +51,7 @@ export function PlotKindControl({ g, className }: { g: G; className?: string }) 
   return (
     <>
       <button onClick={() => setOpen(true)} className={cn('flex items-center gap-2 text-left text-xs text-muted hover:text-fg', className)} data-testid="plot-kind">
-        <PlotKindBadge kind={g.kind} /> <span className="underline-offset-2 hover:underline">Change plot type</span>
+        <PlotKindBadge kind={g.kind} /> <span className="underline-offset-2 hover:underline">{g.kind === 'base' ? 'Give it a type' : 'Change plot type'}</span>
       </button>
       <PlotKindDialog g={g} open={open} onOpenChange={setOpen} />
     </>

@@ -29,29 +29,48 @@ export function useRent(): { rent: RentState | null; offset: number; update(r: R
   return { rent, offset, update };
 }
 
-/** "$0.0000012345" → the leading zeros dimmed, so the digits that are ticking up stand out. */
-function usdHtml(t: string) {
+/** Where the leading zeros of "$0.0000012345" end, so they can be dimmed and the ticking digits stand out. */
+function splitUsd(t: string): [string, string] {
   const i = t.slice(1).search(/[1-9]/);
-  if (i < 0) return `<span style="opacity:.42">${t}</span>`;
-  return `<span style="opacity:.42">${t.slice(0, i + 1)}</span>${t.slice(i + 1)}`;
+  return i < 0 ? [t, ''] : [t.slice(0, i + 1), t.slice(i + 1)];
 }
 
+/**
+ * A live, ticking USD balance. React renders the element once and never its text: the numbers are written straight
+ * into two text nodes (dim zeros + bright digits), so a parent re-rendering can't reset them and make them blink.
+ */
 export function LiveUsd({ rent, offset, decimals = 10, className, dim }: { rent: RentState; offset: number; decimals?: number; className?: string; dim?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const latest = useRef({ rent, offset, decimals, dim });
+  latest.current = { rent, offset, decimals, dim };
   useEffect(() => {
-    // ~12 updates a second still reads as a live, ticking counter, without re-laying-out the screen on
-    // every frame (on a phone that fought the map for every frame of a pan)
+    const el = ref.current;
+    if (!el) return;
+    el.textContent = '';
+    const zeros = document.createElement('span');
+    const digits = document.createTextNode('');
+    el.append(zeros, digits);
     let last = '';
+    // ~12 updates a second still reads as a live counter without re-laying-out the screen every frame
     const tick = () => {
-      if (document.hidden || !ref.current) return;
-      const t = formatUsd(liveRent(rent, Date.now() + offset), decimals);
-      if (t !== last) { if (dim) ref.current.innerHTML = usdHtml(t); else ref.current.textContent = t; last = t; }
+      if (document.hidden) return;
+      const L = latest.current;
+      const t = formatUsd(liveRent(L.rent, Date.now() + L.offset), L.decimals);
+      if (t === last) return;
+      last = t;
+      const [z, d] = L.dim ? splitUsd(t) : ['', t];
+      if (zeros.textContent !== z) zeros.textContent = z;
+      zeros.style.opacity = z ? '0.42' : '';
+      digits.nodeValue = d;
     };
     tick();
     const iv = setInterval(tick, 85);
-    return () => clearInterval(iv);
-  }, [rent, offset, decimals, dim]);
-  return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint' }} data-testid="usd-live">{formatUsd(liveRent(rent, Date.now() + offset), decimals)}</span>;
+    const vis = () => { last = ''; tick(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', vis); el.textContent = ''; };
+  }, []);
+  // (no children on purpose — see above)
+  return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint' }} data-testid="usd-live" aria-live="off" />;
 }
 
 export async function boost(update: (r: RentState) => void) {

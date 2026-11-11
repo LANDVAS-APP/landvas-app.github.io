@@ -465,7 +465,7 @@ export type RoomSocial = {
 };
 
 // ---- Inkborn ----
-export type PlotKind = 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | 'home' | 'landlord' | 'train' | 'plane' | RealmKind;
+export type PlotKind = 'base' | 'canvas' | 'habitat' | 'farm' | 'business' | 'arcade' | 'home' | 'landlord' | 'train' | 'plane' | RealmKind;
 /** The 2x2 merge tier: each base type's Estate (see src/realms/estates). */
 export type EstateKind = 'atelier' | 'reserve' | 'ranch' | 'exchange' | 'boardwalk' | 'gemheart' | 'skyport' | 'foundry' | 'foodhall' | 'citadel' | 'colosseum';
 /** The 3x3 merge tier: each base type's Domain. */

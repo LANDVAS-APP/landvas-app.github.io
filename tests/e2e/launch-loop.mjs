@@ -140,6 +140,8 @@ try {
   check('unclaimed plots keep their rarity secret', hidden.rarity == null && hidden.hidden === true && hidden.rent == null && hidden.acquireRarity == null && !hidden.mapRarity && hidden.panel, JSON.stringify(hidden));
   await page.click('[data-testid=plot-name-toggle]');
   await page.fill('[data-testid=plot-name-input]', "Ava's HQ");
+  // new plots start as Base plots: this one becomes an art canvas
+  await page.click('[data-testid=buy-as-canvas]');
   await page.click('[data-testid=claim-plot]');
   await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 });
   await page.waitForTimeout(900);

@@ -75,8 +75,20 @@ export function HidePlotsToggle() {
   return (
     <button role="switch" aria-checked={on} onClick={() => { update({ hidePlots: !on }); buzz('light'); }} data-testid="hide-plots"
       className="mx-1 flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left text-xs font-bold text-white/85 hover:bg-white/10">
-      <span>{on ? '🙈' : '🧩'} Hide plots<span className="block text-[10px] font-semibold text-white/50">Just the map — smoother and faster</span></span>
+      <span>{on ? '⚡' : '🧩'} Lite map<span className="block text-[10px] font-semibold text-white/50">{on ? 'On: plots, art and their effects aren’t loaded at all' : 'Stop loading plots, art and effects — much faster'}</span></span>
       <span className={cn('relative h-5 w-9 shrink-0 rounded-full transition', on ? 'bg-[#22E3FF]' : 'bg-white/20')}><span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', on ? 'left-[18px]' : 'left-0.5')} /></span>
+    </button>
+  );
+}
+
+/** Simple mode: no map at all — buy and collect plots from one simple screen */
+export function SimpleModeToggle() {
+  const update = useUi((s) => s.updateSettings);
+  return (
+    <button onClick={() => { update({ simpleMode: true }); buzz('light'); }} data-testid="simple-mode-on"
+      className="mx-1 flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left text-xs font-bold text-white/85 hover:bg-white/10">
+      <span>🎲 Simple mode<span className="block text-[10px] font-semibold text-white/50">No map — buy plots and earn from one screen</span></span>
+      <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px]">Switch</span>
     </button>
   );
 }
@@ -124,6 +136,7 @@ export function ModeButton() {
             ))}
             <MapThemePicker />
             <HidePlotsToggle />
+            <SimpleModeToggle />
             <button className="rounded-xl px-3 py-1.5 text-left text-xs font-bold text-white/70" onClick={() => setLegend((l) => !l)} aria-expanded={legend}>{legend ? 'Hide' : 'Show'} the legend</button>
             {legend && (
               <div className="grid gap-1.5 px-1 pb-1 text-[11px]">

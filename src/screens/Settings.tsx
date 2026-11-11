@@ -40,6 +40,10 @@ export default function Settings() {
     <Page>
       <PageHeader eyebrow="Preferences" title="Settings" />
       <div className="grid gap-4">
+        <Section title="How you play">
+          <Switch id="simple" label="Simple mode" hint="No map: buy plots from one screen and watch your rent grow. The map and its heavy files aren’t loaded at all." checked={!!settings.simpleMode} onCheckedChange={(v) => update({ simpleMode: v })} />
+          <Switch id="lite" label="Lite map" hint="The map without plots, art or their effects — they aren’t loaded at all. Much faster on older phones." checked={!!settings.hidePlots} onCheckedChange={(v) => update({ hidePlots: v })} />
+        </Section>
         <Section title="Appearance">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Theme">
             {(['dark', 'light', 'system'] as Theme[]).map((t) => (

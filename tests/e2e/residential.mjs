@@ -88,14 +88,14 @@ try {
     if (!dx && !dy) {
       // the purchase screen: every type as a tiny square; Residential opens its subplots; details for all
       const squares = await page.locator('[data-testid=plot-kind-choice] [role=radiogroup] >> nth=0').locator('[role=radio]').count();
-      check('every plot type shows as a square', squares === 13, `${squares}`);
+      check('every plot type shows as a square', squares === 14, `${squares}`);
       await page.click('[data-testid=buy-as-residential]'); await page.waitForTimeout(500);
       check('Residential opens its two subplots', (await page.locator('[data-testid=buy-subplots] [role=radio]').count()) === 2);
       await page.click('[data-testid=buy-as-landlord]'); await page.waitForTimeout(300);
       check('…and the claim button says which', /Residential · Landlord/i.test(await page.locator('[data-testid=claim-plot]').innerText()));
       await page.locator('[data-testid=plot-kind-choice]').scrollIntoViewIfNeeded(); await shot('00-buy-residential');
       await page.click('[data-testid=buy-details-toggle]'); await page.waitForTimeout(500);
-      check('details for every type, with the subplots', (await page.locator('[data-testid=buy-details] > div').count()) === 13 && (await page.locator('[data-testid=buy-detail-home]').count()) === 1);
+      check('details for every type, with the subplots', (await page.locator('[data-testid=buy-details] > div').count()) === 14 && (await page.locator('[data-testid=buy-detail-home]').count()) === 1);
       await page.locator('[data-testid=buy-detail-home]').scrollIntoViewIfNeeded(); await shot('00b-buy-details');
       await page.click('[data-testid=buy-details-toggle]');
       await page.click('[data-testid=buy-as-canvas]'); await page.waitForTimeout(300);

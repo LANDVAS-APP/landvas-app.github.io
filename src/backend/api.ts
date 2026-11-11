@@ -66,6 +66,9 @@ export const api = {
     rpc<ClaimResult>('claim_starter_plot', { p_gx: gx, p_gy: gy, ...(name?.trim() ? { p_name: name.trim() } : {}) }),
   acquirePlot: (gx: number, gy: number, name?: string) =>
     rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
+  /** simple mode: buy a plot from the home screen; the server picks where (and so its rarity) */
+  quickBuyPlot: () => rpc<ClaimResult & { starter: boolean; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy') }),
+  quickBuyQuote: () => rpc<{ ink: number; owned: number; free_left: number; starter: boolean; enabled: boolean }>('quick_buy_quote'),
   namePlot: (gx: number, gy: number, name: string | null) => rpc<{ gx: number; gy: number; name: string | null }>('name_plot', { p_gx: gx, p_gy: gy, p_name: name }),
   upgradePlot: (gx: number, gy: number) =>
     rpc<{ plot: PlotDetails; balances: Balances; rent: RentState; achievements: NewAchievement[] }>('upgrade_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('upgrade') }),

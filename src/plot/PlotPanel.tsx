@@ -230,7 +230,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [naming, setNaming] = useState(false);
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'canvas'); return k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || isRealm(k) ? (k as PlotKind) : 'canvas'; });
+  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'base'); return k === 'canvas' || k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || isRealm(k) ? (k as PlotKind) : 'base'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -244,7 +244,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const gpsOn = ex.gps === 'on';
   // what the new plot becomes is the player's choice; a habitat is the same plot at the same price
   const becomeHabitat = async (groupId: string) => {
-    if (kind === 'canvas') return null;
+    if (kind === 'base') return null;
     try { const g = await api.setGroupKind(groupId, kind); if (kind === 'farm' && g.farm_id) { toast.success('Your farm is ready 🌾', { action: { label: 'Enter it', onClick: () => nav(`/farm/${g.farm_id}`) } }); return null; }
       if (kind === 'business' && g.business_id) { toast.success('Your lemonade stand is open 🍋', { action: { label: 'Open it', onClick: () => nav(`/business/${g.business_id}`) } }); return null; }
       if (kind === 'arcade' && g.arcade_id) { toast.success('Your arcade is open 🕹️', { action: { label: 'Walk in', onClick: () => nav(`/arcade/${g.arcade_id}`) } }); return null; }
@@ -262,7 +262,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         const hab = await becomeHabitat(r.group_id);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base' });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
@@ -272,7 +272,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab,
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base',
           onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }
@@ -360,6 +360,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
  *  subplots (Home, Landlord): picking it opens the choice between them. */
 type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[]; tid?: string };
 const KIND_OPTS: KindOpt[] = [
+  { k: 'base', icon: '🟩', title: 'Base', body: 'Just land: earns rent, no extras — give it a type any time, free', color: '#5FB37A', perks: ['Earns USD rent like any plot', 'Nothing to look after', 'Turn it into any type later, free'] },
   { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF', perks: ['Paint with every brush and tool', 'Publish your art onto the map', 'Merge neighbours into one mural'] },
   { k: 'habitat', icon: '🌳', title: 'Habitat', body: 'A home for your Inkborn — merge plots to grow it', color: '#3DDC97', perks: ['A woodland sanctuary to walk around', 'Room for more Inkborn as it grows', 'Trees, nests and lanterns to place'] },
   { k: 'farm', icon: '🌾', title: 'Farm', body: 'Grow, harvest and sell crops — 6 soil beds to start', color: '#E0A800', perks: ['Soil beds in a 3D farmyard', 'Farm levels, buildings and orders', 'Farm games, 2D and 3D'] },

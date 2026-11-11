@@ -15,7 +15,14 @@ import { useMe } from '../lib/queries';
 import { ConfirmProvider, Spinner, TipProvider } from '../ui';
 import { MaintenanceGate } from './Maintenance';
 import { Shell } from './Shell';
-import { MapScreen } from '../screens/MapScreen';
+// the map (and everything heavy that comes with it) only downloads when it's shown: never in simple mode
+const MapScreen = lazy(() => import('../screens/MapScreen').then((m) => ({ default: m.MapScreen })));
+const SimpleHome = lazy(() => import('../simple/SimpleHome'));
+/** The World tab: the map, or in simple mode the one-screen game */
+function WorldRoute() {
+  const simple = __ui((s) => !!s.settings.simpleMode);
+  return <Suspense fallback={<div className="absolute inset-0 bg-bg" />}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
+}
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
 import { Onboarding } from '../screens/Onboarding';
@@ -199,7 +206,7 @@ const routes: RouteObject[] = [
         element: <Shell />,
         children: [
           { path: '/', element: <RootRoute /> },
-          { path: '/world', element: <MapScreen /> },
+          { path: '/world', element: <WorldRoute /> },
           { path: '/canvases', element: player(<CanvasesScreen />) },
           { path: '/play', element: player(<PlayHub />) },
           { path: '/gallery', element: p(<GalleryScreen />) },

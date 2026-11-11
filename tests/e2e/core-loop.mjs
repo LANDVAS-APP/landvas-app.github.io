@@ -136,6 +136,8 @@ try {
   // 4: claim the free starter plot
   await clickPlot(START.gx, START.gy);
   await shot('03-plot-panel');
+  // new plots start as Base plots: this one becomes an art canvas
+  await page.click('[data-testid=buy-as-canvas]');
   await page.click('[data-testid=claim-plot]');
   await page.waitForSelector('[data-testid=choose-draw]', { timeout: 15000 });
   check('starter plot claimed for free', true);
