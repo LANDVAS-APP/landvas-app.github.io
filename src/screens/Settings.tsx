@@ -230,7 +230,7 @@ function PrivacySettings() {
   if (!p) return <div className="text-sm text-muted">Loading…</div>;
   return (
     <div className="grid gap-4" data-testid="privacy-settings">
-      <p className="flex items-start gap-2 text-xs text-muted"><Shield className="mt-0.5 h-4 w-4 shrink-0" /> Everything is public unless you turn it off — the whole feed, a category, or any single activity. You always see your own activity. Your location is never shown, whatever you choose.</p>
+      <p className="flex items-start gap-2 text-xs text-muted"><Shield className="mt-0.5 h-4 w-4 shrink-0" /> Everything is public unless you turn it off — the whole feed, a category, or any single activity. Whatever you switch off disappears from the live feed for everyone, past posts included; switch it back on and they return. Your location is never shown, whatever you choose.</p>
       <Switch id="pv-feed" label="Show my activity on the live feed" checked={p.feed} onCheckedChange={(v) => void set('feed', v)} />
       {p.feed && (
         <div className="grid gap-3 border-l-2 border-line pl-4">

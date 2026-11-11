@@ -22,13 +22,13 @@ describe('privacy', () => {
     expect(await db.rpc(a, 'my_privacy')).toMatchObject({ feed: true, feed_games: true, profile_games: true });
     expect(await feedFor(b, 'pri_vacy')).toEqual(expect.arrayContaining(['join', 'claim', 'achievement', 'minigame', 'luck']));
   });
-  it('hide one kind of activity from the feed — others don’t see it, you still do', async () => {
+  it('hide one kind of activity from the feed — gone for everyone, you too', async () => {
     const p = await db.rpc(a, 'set_privacy', { p_patch: { feed_games: false, nonsense: false, feed_luck: 'no' } });
     expect(p).toMatchObject({ feed_games: false, feed_luck: true });
     expect(p.nonsense).toBeUndefined();
     const seen = await feedFor(b, 'pri_vacy');
     expect(seen).not.toContain('minigame'); expect(seen).toContain('claim');
-    expect(await feedFor(a, 'pri_vacy')).toContain('minigame');
+    expect(await feedFor(a, 'pri_vacy')).not.toContain('minigame');
   });
   it('or hide everything from the feed', async () => {
     await db.rpc(a, 'set_privacy', { p_patch: { feed: false } });
@@ -47,7 +47,11 @@ describe('privacy', () => {
     const seen = await what();
     expect(seen).not.toContain('egg'); expect(seen).not.toContain('inkborn'); expect(seen).not.toContain('prize'); expect(seen).not.toContain('join');
     expect(seen).toEqual(expect.arrayContaining(['ink', 'record', 'claim']));
-    expect((await db.rpc(a, 'feed_recent', { p_limit: 100 })).some((e: any) => e.data.what === 'egg')).toBe(true);
+    expect((await db.rpc(a, 'feed_recent', { p_limit: 100 })).some((e: any) => e.data.what === 'egg')).toBe(false);
+    // past posts are filtered, not deleted: switching back on brings them back
+    await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_egg: true } });
+    expect(await what()).toContain('egg');
+    await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_egg: false } });
   });
   it('the settings screen has a switch for every activity, and every kind of feed event has one', async () => {
     const keys = Object.keys(await db.rpc(a, 'my_privacy'));
@@ -56,6 +60,17 @@ describe('privacy', () => {
     expect(new Set(listed)).toEqual(new Set(keys.filter((k) => k.startsWith('fa_') || (k.startsWith('feed_')))));
     const kinds = (await db.sql(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'feed_events_kind_check'`))[0].d.match(/'([a-z_]+)'/g).map((x: string) => x.slice(1, -1));
     for (const k of kinds) expect(keys, k).toContain('fa_' + (k === 'luck' ? 'luck_ink' : k === 'arcade' ? 'arcade_playing' : k));
+  });
+  it('sacrificing Ink and Inkborn, hidden, really are gone — including posts made before the switch', async () => {
+    await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_ink: true, fa_luck_inkborn: true, feed_luck: true } });
+    const luck = async (v: string) => (await db.rpc(v, 'feed_recent', { p_limit: 100 })).filter((e: any) => e.kind === 'luck' && e.player.username === 'pri_vacy').map((e: any) => e.data.what);
+    expect(await luck(b)).toEqual(expect.arrayContaining(['ink', 'inkborn']));
+    await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_ink: false, fa_luck_inkborn: false } });
+    for (const v of [a, b]) { const l = await luck(v); expect(l).not.toContain('ink'); expect(l).not.toContain('inkborn'); }
+    // and a real sacrifice made afterwards stays hidden too
+    await db.sql(`update resource_balances set amount = amount + 100000 where player_id = $1 and resource = 'ink'`, [a]);
+    await db.rpc(a, 'luck_offer_ink', { p_points: 1 }).catch(() => null);
+    expect(await luck(b)).not.toContain('ink');
   });
   it('hide badges, game records and stats from the public profile', async () => {
     await db.sql(`insert into player_achievements (player_id, achievement_key) values ($1, 'first_plot')`, [a]);

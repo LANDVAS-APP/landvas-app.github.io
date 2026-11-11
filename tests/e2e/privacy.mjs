@@ -12,6 +12,7 @@ const errors = []; page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL/.test(m.text())) errors.push(m.text()); });
 const shot = (n) => page.screenshot({ path: `${OUT}/${n}.png`, timeout: 45000 }).catch(() => console.log('skip', n));
 const results = []; const check = (n, ok, x = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${x ? ' — ' + x : ''}`); };
+const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
 const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a), [f, a]);
 try {
   await page.goto('http://localhost:4311/?e2e=1', { waitUntil: 'load' });
@@ -36,6 +37,22 @@ try {
   const wide = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
   check('nothing wider than the phone', wide <= 0, `${wide}px`);
   await shot('03-games-open');
+  // the real thing: sacrifice Ink for Luck, see it on the feed, hide it, it's gone (that past post too)
+  await api('setPrivacy', { fa_luck_ink: true, fa_luck_egg: true });
+  await sql(`update resource_balances set amount = amount + 100000 where resource = 'ink'`);
+  const offered = await api('luckOfferInk', 1).then(() => true).catch((e) => String(e?.message ?? e));
+  check('sacrificed some Ink for Luck', offered === true, String(offered));
+  const inkRows = () => page.locator('[data-testid=feed-row][data-kind=luck]').filter({ hasText: /sacrificed .*Ink/ }).count();
+  await page.evaluate(() => window.__landvasNav('/social?tab=feed')); await page.waitForSelector('[data-testid=feed]', { timeout: 20000 }); await page.waitForTimeout(1500);
+  check('it shows on the live feed', (await inkRows()) > 0);
+  await shot('04-feed-before');
+  await page.evaluate(() => window.__landvasNav('/settings')); await page.waitForSelector('[data-testid=privacy-settings]', { timeout: 20000 });
+  await page.click('[data-testid=pv-more-feed_luck]'); await page.waitForTimeout(300);
+  await page.click('#pv-fa_luck_ink'); await page.waitForTimeout(1000);
+  check('switch saved', (await api('myPrivacy')).fa_luck_ink === false);
+  await page.evaluate(() => window.__landvasNav('/social?tab=feed')); await page.waitForTimeout(2500);
+  check('…and the past sacrifice is gone from the feed (for you too)', (await inkRows()) === 0, `${await inkRows()}`);
+  await shot('05-feed-after');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

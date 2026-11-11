@@ -3,6 +3,7 @@ import { rarityInfo } from '../shared/rarity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star } from 'lucide-react';
+import { dedupe, reconcile } from './feedList';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -70,13 +71,16 @@ function FeedTab() {
   const [events, setEvents] = useState<FeedEvent[] | null>(null);
   const [older, setOlder] = useState<'idle' | 'loading' | 'done'>('idle');
   const newest = useRef<number | null>(null);
+  const loaded = useRef(0);
+  useEffect(() => { loaded.current = events?.length ?? 0; }, [events]);
   const poll = useCallback(async () => {
     try {
-      const fresh = await api.feed(newest.current, null, 40);
-      if (fresh.length) {
-        newest.current = Math.max(newest.current ?? 0, fresh[0].id);
-        setEvents((e) => dedupe([...fresh, ...(e ?? [])]).slice(0, 400));
-      } else setEvents((e) => e ?? []);
+      // re-read the whole top of the feed (not just what's new), so anything a player has since hidden in their
+      // privacy settings — past posts too — drops off screens right away
+      const want = Math.min(100, Math.max(40, loaded.current));
+      const fresh = await api.feed(null, null, want);
+      if (fresh.length) newest.current = Math.max(newest.current ?? 0, fresh[0].id);
+      setEvents((e) => reconcile(e ?? [], fresh, want));
     } catch {
       setEvents((e) => e ?? []);
     }
@@ -112,10 +116,7 @@ function FeedTab() {
   );
 }
 
-const dedupe = <T extends { id: number }>(list: T[]) => {
-  const seen = new Set<number>();
-  return list.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-};
+
 
 function FeedRow({ e }: { e: FeedEvent }) {
   const p = e.player;
