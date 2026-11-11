@@ -627,6 +627,7 @@ const BASE_SLAB: Record<string, [string, string]> = {
   common: ['#5E6A78', '#3D4653'], uncommon: ['#2AA39A', '#17675F'], rare: ['#3D7FC4', '#22508A'], epic: ['#7A4FD8', '#4A2A9A'],
   legendary: ['#E8A928', '#A86A0E'], mythic: ['#FF5FB4', '#6E3BFF'], solar: ['#FFB43A', '#E0521B'], lunar: ['#1E2A6B', '#0B1033'],
   comet: ['#0E2A4A', '#05101E'], ancient: ['#D9B77A', '#8E6B37'], prismatic: ['#FF7AE0', '#5FD3FF'], genesis: ['#1A0838', '#000004'],
+  chaos: ['#FF2E63', '#3A0CA3'], phoenix: ['#FF8A1F', '#8E1B00'], crown: ['#5B2A9E', '#24104A'],
 };
 /** The ultra rarities' (and Uncommon's) emblem, drawn into a box. */
 function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: number, w: number, h: number, seed: number) {
@@ -661,6 +662,30 @@ function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: nu
     ctx.globalAlpha = 0.55;
     for (let i = 0; i < 8; i++) { const t = (i / 8) * Math.PI * 2; ctx.fillStyle = C[i]; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, m * 0.75, t, t + Math.PI / 4); ctx.closePath(); ctx.fill(); }
     ctx.globalAlpha = 0.85; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx, cy - m * 0.24); ctx.lineTo(cx + m * 0.2, cy); ctx.lineTo(cx, cy + m * 0.24); ctx.lineTo(cx - m * 0.2, cy); ctx.closePath(); ctx.fill();
+  } else if (rid === 'chaos') {
+    // a tilted die over jagged colour
+    ['#FFE14D', '#22E3FF', '#3DDC97', '#FF7AE0'].forEach((col, i) => { ctx.globalAlpha = 0.28; ctx.fillStyle = col; ctx.fillRect(x + (i % 2) * w / 2, y + Math.floor(i / 2) * h / 2, w / 2, h / 2); });
+    ctx.globalAlpha = 1; ctx.translate(cx, cy + m * 0.02); ctx.rotate(-0.25);
+    const d = m * 0.46; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.roundRect(-d / 2, -d / 2, d, d, d * 0.2); ctx.fill();
+    ctx.fillStyle = '#FF2E63'; for (const [u, v] of [[-0.25, -0.25], [0.25, -0.25], [0, 0], [-0.25, 0.25], [0.25, 0.25]]) { ctx.beginPath(); ctx.arc(u * d, v * d, d * 0.09, 0, Math.PI * 2); ctx.fill(); }
+  } else if (rid === 'phoenix') {
+    // a firebird: wings and a flame body
+    ctx.fillStyle = '#FF5A1F';
+    ctx.beginPath(); ctx.moveTo(cx - m * 0.1, cy + m * 0.02); ctx.quadraticCurveTo(cx - m * 0.3, cy - m * 0.1, cx - m * 0.42, cy + m * 0.06); ctx.quadraticCurveTo(cx - m * 0.26, cy + m * 0.06, cx - m * 0.14, cy + m * 0.12); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + m * 0.1, cy + m * 0.02); ctx.quadraticCurveTo(cx + m * 0.3, cy - m * 0.1, cx + m * 0.42, cy + m * 0.06); ctx.quadraticCurveTo(cx + m * 0.26, cy + m * 0.06, cx + m * 0.14, cy + m * 0.12); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FFD166';
+    ctx.beginPath(); ctx.moveTo(cx, cy + m * 0.38); ctx.quadraticCurveTo(cx - m * 0.22, cy + m * 0.14, cx - m * 0.06, cy - m * 0.08); ctx.quadraticCurveTo(cx - m * 0.02, cy - m * 0.24, cx, cy - m * 0.38);
+    ctx.quadraticCurveTo(cx + m * 0.14, cy - m * 0.14, cx + m * 0.08, cy - m * 0.02); ctx.quadraticCurveTo(cx + m * 0.22, cy + m * 0.16, cx, cy + m * 0.38); ctx.fill();
+    ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.ellipse(cx, cy + m * 0.14, m * 0.06, m * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (rid === 'crown') {
+    // a gold crown with gems
+    ctx.globalAlpha = 0.18; ctx.fillStyle = '#FFD23F';
+    for (let i = 0; i < 12; i++) { const t = (i / 12) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, m * 0.7, t, t + 0.12); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1; ctx.fillStyle = '#FFD23F'; ctx.strokeStyle = '#B8860B'; ctx.lineWidth = Math.max(1, m * 0.025);
+    ctx.beginPath(); ctx.moveTo(x + w * 0.22, y + h * 0.7); ctx.lineTo(x + w * 0.18, y + h * 0.34); ctx.lineTo(x + w * 0.36, y + h * 0.5); ctx.lineTo(cx, y + h * 0.26);
+    ctx.lineTo(x + w * 0.64, y + h * 0.5); ctx.lineTo(x + w * 0.82, y + h * 0.34); ctx.lineTo(x + w * 0.78, y + h * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#E8B923'; ctx.fillRect(x + w * 0.22, y + h * 0.7, w * 0.56, h * 0.09);
+    ctx.fillStyle = '#FF3D7F'; ctx.beginPath(); ctx.arc(cx, y + h * 0.56, m * 0.05, 0, Math.PI * 2); ctx.fill();
   } else if (rid === 'genesis') {
     ctx.fillStyle = '#fff'; for (let i = 0; i < 14; i++) { ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(x + w * hash(seed, i, 3), y + h * hash(seed, i, 4), m * 0.012, 0, Math.PI * 2); ctx.fill(); }
     ctx.translate(cx, cy); ctx.rotate(-0.45);
@@ -671,7 +696,7 @@ function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: nu
   }
   ctx.restore();
 }
-const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis']);
+const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown']);
 function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
   const rid = c.rid ?? 'common';
@@ -738,7 +763,7 @@ function shinyOver(ctx: CanvasRenderingContext2D, c: KCell) {
 // common: linen in a wood frame · rare: a blue paint splash · epic: a gallery frame and two strokes · legendary: an
 // ornate gold frame · mythic: a holographic frame and a rainbow swirl.
 const FRAME = ['#8A5A34', '#2B6CB0', '#5B34B5', '#D9A11E', '#FF3D9A'];
-const FRAME_BY: Record<string, string> = { uncommon: '#1E8C82', solar: '#E86A1B', lunar: '#26347E', comet: '#0E3A63', ancient: '#9C7A44', prismatic: '#FF7AE0', genesis: '#1A0838' };
+const FRAME_BY: Record<string, string> = { uncommon: '#1E8C82', solar: '#E86A1B', lunar: '#26347E', comet: '#0E3A63', ancient: '#9C7A44', prismatic: '#FF7AE0', genesis: '#1A0838', chaos: '#3A0CA3', phoenix: '#8E1B00', crown: '#D9A11E' };
 function canvasCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
   ctx.globalAlpha = 1;

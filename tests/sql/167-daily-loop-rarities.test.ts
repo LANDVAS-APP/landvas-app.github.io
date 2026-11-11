@@ -21,7 +21,7 @@ afterAll(() => db.close());
 describe('rarities', () => {
   it('Uncommon sits between Common and Rare; the ultras are on their own tiny roll', async () => {
     const r = await db.sql(`select id, weight, ppm, sort from plot_rarities order by sort`);
-    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis']);
+    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown']);
     expect(r.filter((x: any) => x.weight > 0).reduce((a: number, x: any) => a + x.weight, 0)).toBe(1000);
   });
   it('a big sample rolls every normal rarity, about the right mix, and ultras only rarely', async () => {

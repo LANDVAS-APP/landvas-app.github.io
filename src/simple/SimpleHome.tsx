@@ -28,7 +28,7 @@ import type { PlotTypeId } from '../shared/grid';
 import { PlayerAvatar, ResourcePill, Spinner } from '../ui';
 import { NotificationBell } from '../updates/Notifications';
 
-type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean };
+type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean; today_mult?: number | null };
 
 export default function SimpleHome() {
   const me = useOnboardedMe();
@@ -160,7 +160,7 @@ export default function SimpleHome() {
               {k === 'base' ? <BasePlotArt rarity={p.rarity} shiny={p.shiny} size={40} className="shrink-0" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🎨'}</span>}
               <span className="grid min-w-0 flex-1 leading-tight">
                 <span className="truncate text-sm font-bold">{p.shiny ? '✨ ' : ''}{p.name || `Plot ${list.length - i}`}</span>
-                <span className="text-[11px] font-semibold text-white/50">{k === 'base' ? 'Base plot' : KIND_LABEL[k]?.one ?? k}</span>
+                <span className="text-[11px] font-semibold text-white/50">{p.today_mult != null ? <TodayMult rarity={p.rarity} m={Number(p.today_mult)} /> : k === 'base' ? 'Base plot' : KIND_LABEL[k]?.one ?? k}</span>
               </span>
               <span className="grid justify-items-end gap-0.5">
                 <RarityBadge r={p.rarity} small />
@@ -197,4 +197,11 @@ function StreakStrip({ onOpen }: { onOpen(): void }) {
       {d.tickets.length > 0 && <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#14103a]">🎟️ {d.tickets.length}</span>}
     </button>
   );
+}
+
+/** Chaos: today's roll · Phoenix: lit, fading, ashes or reborn */
+function TodayMult({ rarity, m }: { rarity: string; m: number }) {
+  if (rarity === 'chaos') return <span className={cn('font-black', m >= 5 ? 'text-[#FFE14D]' : m >= 1 ? 'text-white/80' : 'text-[#FF6B8B]')} data-testid="chaos-today">🎲 ×{m} today</span>;
+  const label = m >= 10 ? 'Reborn!' : m >= 2 ? 'Burning bright' : m > 0 ? 'Fading — check in!' : 'Ashes — check in to revive';
+  return <span className={cn('font-black', m >= 2 ? 'text-[#FFD166]' : 'text-[#FF6B8B]')} data-testid="phoenix-today">🔥 ×{m} · {label}</span>;
 }

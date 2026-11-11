@@ -2,7 +2,7 @@
 // them) and revealed when a plot is claimed. Six on the usual table (Common … Mythic, with Uncommon), and six ultra
 // rarities on their own one-in-thousands roll, each with its own way of earning (see `ability`).
 
-export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis';
+export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis' | 'chaos' | 'phoenix' | 'crown';
 
 export type RarityInfo = {
   id: RarityId;
@@ -33,12 +33,15 @@ export const DEFAULT_RARITIES: RarityInfo[] = [
   { id: 'lunar', name: 'Lunar', weight: 0, ppm: 400, emoji: '🌙', ability: 'Earns ×3 rent while it’s night where it really is on Earth.', usd_per_second: 0.000000012, ink_reward_multiplier: 2.5, price_multiplier: 1, color: '#8FA8FF', glow: '#E1E8FF', sort: 8 },
   { id: 'comet', name: 'Comet', weight: 0, ppm: 200, emoji: '☄️', ability: 'Once a day its comet passes: ×30 rent for a whole hour.', usd_per_second: 0.000000015, ink_reward_multiplier: 2.8, price_multiplier: 1, color: '#22E3FF', glow: '#C9F8FF', sort: 9 },
   { id: 'ancient', name: 'Ancient', weight: 0, ppm: 100, emoji: '🏛️', ability: 'Grows +3% rent for every day you own it, up to ×6.', usd_per_second: 0.00000002, ink_reward_multiplier: 3, price_multiplier: 1, color: '#C9A66B', glow: '#F1E2BF', sort: 10 },
-  { id: 'prismatic', name: 'Prismatic', weight: 0, ppm: 50, emoji: '🌈', ability: 'Every plot you own earns +5% more (stacks, up to +50%).', usd_per_second: 0.00000003, ink_reward_multiplier: 3.5, price_multiplier: 1, color: '#FF7AE0', glow: '#FFFFFF', sort: 11 },
+  { id: 'prismatic', name: 'Prismatic', weight: 0, ppm: 10, emoji: '🌈', ability: 'Every plot you own earns +5% more (stacks, up to +50%).', usd_per_second: 0.00000003, ink_reward_multiplier: 3.5, price_multiplier: 1, color: '#FF7AE0', glow: '#FFFFFF', sort: 11 },
   { id: 'genesis', name: 'Genesis', weight: 0, ppm: 2, emoji: '🌌', ability: 'One in half a million. Every plot you own earns +25% more.', usd_per_second: 0.0000003, ink_reward_multiplier: 5, price_multiplier: 1, color: '#FFFFFF', glow: '#FFD6FF', sort: 12 },
+  { id: 'chaos', name: 'Chaos', weight: 0, ppm: 300, emoji: '🎲', ability: 'Its rent multiplier re-rolls every day: anywhere from ×0 to ×20.', usd_per_second: 0.00000001, ink_reward_multiplier: 2.8, price_multiplier: 1, color: '#FF2E63', glow: '#FFE14D', sort: 13 },
+  { id: 'phoenix', name: 'Phoenix', weight: 0, ppm: 300, emoji: '🔥', ability: '×2 rent on days you check in, fades 25% each day you miss — and is reborn ×10 the day you come back.', usd_per_second: 0.000000012, ink_reward_multiplier: 3, price_multiplier: 1, color: '#FF5A1F', glow: '#FFD166', sort: 14 },
+  { id: 'crown', name: 'Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'Only one per city. Its holder is that city’s Crown: 2× rent on everything they own.', usd_per_second: 0.00000005, ink_reward_multiplier: 4, price_multiplier: 1, color: '#FFD23F', glow: '#FFF4B8', sort: 15 },
 ];
 
-export const RARITY_ORDER: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis'];
-export const ULTRA: RarityId[] = ['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis'];
+export const RARITY_ORDER: RarityId[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'chaos', 'phoenix', 'ancient', 'prismatic', 'crown', 'genesis'];
+export const ULTRA: RarityId[] = ['solar', 'lunar', 'comet', 'chaos', 'phoenix', 'ancient', 'prismatic', 'crown', 'genesis'];
 export const isUltra = (r: string | null | undefined) => ULTRA.includes(r as RarityId);
 /** How "big" a rarity is for visuals (0 Common/Uncommon · 1 Rare · 2 Epic · 3 Legendary · 4 Mythic · 5 the ultras). */
 export function rarityTier(r: string | null | undefined) {
@@ -47,6 +50,7 @@ export function rarityTier(r: string | null | undefined) {
 /** "35%" / "1 in 2,500" */
 export function rarityOdds(r: RarityId | string) {
   const i = rarityInfo(r);
+  if (i.id === 'crown') return '1 per city';
   if (i.ppm) return `1 in ${Math.round(1_000_000 / i.ppm).toLocaleString()}`;
   const total = table.reduce((s, x) => s + (Number(x.weight) || 0), 0) || 1000;
   const pct = (i.weight / total) * 100;

@@ -82,10 +82,11 @@ try {
   // the collection album
   await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
   const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
-  check('the collection: every plot type and all 12 rarities', nRar === 12 && types >= 8, `${types} types, ${nRar} rarities`);
+  check('the collection: every plot type and all 15 rarities', nRar === 15 && types >= 8, `${types} types, ${nRar} rarities`);
+  check('…and the Crowns of the world', (await page.locator('[data-testid=crowns]').count()) === 1);
   await shot('08-collection');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  check('the odds show all 12 rarities, ultras as "1 in …"', (await page.locator('[data-testid=simple-odds] > div').count()) === 12 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 6);
+  check('the odds show all 15 rarities: ultras as "1 in …", the Crown "1 per city"', (await page.locator('[data-testid=simple-odds] > div').count()) === 15 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 8 && (await page.locator('[data-testid=simple-odds] >> text=1 per city').count()) === 1);
 
   // the Play tab is just the plot minigames
   await page.locator('nav.lv-game a').filter({ hasText: 'Play' }).first().click();

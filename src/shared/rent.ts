@@ -28,7 +28,9 @@ export type RentState = {
   by_rarity: Record<string, number>;
   /** Landlord plots: rent day (the 1st of each month, UTC) pays `multiplier`x their rate all day */
   /** ultra-rarity abilities: Solar/Lunar/Comet earn extra during a daily window (UTC start hour, length in hours) */
-  extras?: { windows: { rate: number | string; start: number | string; len: number | string }[]; multiplier: number | string; collection_pct: number | string; shiny: number };
+  extras?: { windows: { rate: number | string; start: number | string; len: number | string }[]; multiplier: number | string; collection_pct: number | string; shiny: number;
+    /** Chaos & Phoenix: what they added before today began, today's extra rate, and today's span (they change at the daily reset) */
+    daily?: { prior: number | string; rate: number | string; start: string; end: string } };
   landlord?: { rate: number | string; multiplier: number; plots: number; active: boolean; day_start: string; day_end: string; next: string };
   server_time: string;
 };
@@ -48,7 +50,7 @@ export function liveRent(s: RentState, nowMs: number) {
   const rate = Number(s.rate_usd_per_second) || 0;
   const mult = Number(s.boost?.multiplier) || 1;
   const from = Math.max(settled, nowMs - capS * 1000);
-  return Number(s.balance_usd) + rate * ((secs - boosted) + mult * boosted) + landlordExtra(s, from, nowMs) + windowExtra(s, from, nowMs);
+  return Number(s.balance_usd) + rate * ((secs - boosted) + mult * boosted) + landlordExtra(s, from, nowMs) + windowExtra(s, from, nowMs) + dailyExtra(s, from, nowMs);
 }
 
 /** seconds of [from, to] (ms) inside a window that opens every day at `start` (UTC hours) for `len` hours —
@@ -68,6 +70,13 @@ export function windowExtra(s: RentState, fromMs: number, toMs: number) {
   let t = 0;
   for (const w of s.extras?.windows ?? []) t += Number(w.rate) * windowSeconds(fromMs, toMs, Number(w.start), Number(w.len));
   return t;
+}
+/** Chaos & Phoenix: the server's total up to the start of today, plus today's rate since then (until the day ends) */
+export function dailyExtra(s: RentState, fromMs: number, toMs: number) {
+  const d = s.extras?.daily;
+  if (!d) return 0;
+  const start = new Date(d.start).getTime(), end = new Date(d.end).getTime();
+  return Number(d.prior) + Number(d.rate) * Math.max(0, (Math.min(toMs, end) - Math.max(fromMs, start)) / 1000);
 }
 /** is a daily window open right now? */
 const inWindow = (nowMs: number, start: number, len: number) => windowSeconds(nowMs - 1000, nowMs, start, len) > 0;
@@ -98,7 +107,8 @@ export function currentRate(s: RentState, nowMs: number) {
   const until = s.boost?.until ? new Date(s.boost.until).getTime() : 0;
   const lr = isRentDay(nowMs) ? (Number(s.landlord?.rate) || 0) * ((Number(s.landlord?.multiplier) || 50) - 1) : 0;
   const wr = (s.extras?.windows ?? []).reduce((t, w) => t + (inWindow(nowMs, Number(w.start), Number(w.len)) ? Number(w.rate) : 0), 0);
-  return (until > nowMs ? rate * (Number(s.boost.multiplier) || 1) : rate) + lr + wr;
+  const dr = s.extras?.daily && nowMs < new Date(s.extras.daily.end).getTime() ? Number(s.extras.daily.rate) : 0;
+  return (until > nowMs ? rate * (Number(s.boost.multiplier) || 1) : rate) + lr + wr + dr;
 }
 
 export function boostRemaining(s: RentState, nowMs: number) {

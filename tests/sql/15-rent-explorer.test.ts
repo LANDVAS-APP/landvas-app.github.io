@@ -8,7 +8,7 @@ let p: string;
 const HOME = { gx: 793500, gy: 1576200 }; // Salt Lake City on the zoom-22 grid (~7 m plots)
 afterAll(() => db.close());
 
-const RATES: Record<string, number> = { common: 1.1e-9, uncommon: 1.3e-9, rare: 1.6e-9, epic: 2.2e-9, legendary: 4.4e-9, mythic: 8.8e-9, solar: 1.2e-8, lunar: 1.2e-8, comet: 1.5e-8, ancient: 2e-8, prismatic: 3e-8, genesis: 3e-7 };
+const RATES: Record<string, number> = { common: 1.1e-9, uncommon: 1.3e-9, rare: 1.6e-9, epic: 2.2e-9, legendary: 4.4e-9, mythic: 8.8e-9, solar: 1.2e-8, lunar: 1.2e-8, comet: 1.5e-8, ancient: 2e-8, prismatic: 3e-8, genesis: 3e-7, chaos: 1e-8, phoenix: 1.2e-8, crown: 5e-8 };
 
 async function rate(uid: string) {
   const rows = await db.sql(`select p.rarity from world_plots p where p.owner_id = $1`, [uid]);
@@ -27,7 +27,7 @@ describe('USD rent and boost', () => {
 
   it('publishes the Atlas Earth / TerraMine rate ladder plus Mythic', async () => {
     const r = await db.sql(`select id, usd_per_second::float8 as v, weight from plot_rarities order by sort`);
-    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis']);
+    expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown']);
     for (const x of r) expect(x.v).toBeCloseTo(RATES[x.id], 20);
     expect(r.reduce((s: number, x: any) => s + x.weight, 0)).toBe(1000);
   });

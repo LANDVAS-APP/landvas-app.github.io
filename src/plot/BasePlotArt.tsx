@@ -9,6 +9,7 @@ const SLAB: Record<string, [string, string]> = {
   common: ['#5E6A78', '#3D4653'], uncommon: ['#2AA39A', '#17675F'], rare: ['#3D7FC4', '#22508A'], epic: ['#7A4FD8', '#4A2A9A'],
   legendary: ['#E8A928', '#A86A0E'], mythic: ['#FF5FB4', '#6E3BFF'], solar: ['#FFB43A', '#E0521B'], lunar: ['#1E2A6B', '#0B1033'],
   comet: ['#0E2A4A', '#05101E'], ancient: ['#D9B77A', '#8E6B37'], prismatic: ['#FF7AE0', '#5FD3FF'], genesis: ['#1A0838', '#000004'],
+  chaos: ['#FF2E63', '#3A0CA3'], phoenix: ['#FF8A1F', '#8E1B00'], crown: ['#5B2A9E', '#24104A'],
 };
 const sparkle = (x: number, y: number, s: number) => `M${x} ${y - s} L${x + s * 0.25} ${y - s * 0.25} L${x + s} ${y} L${x + s * 0.25} ${y + s * 0.25} L${x} ${y + s} L${x - s * 0.25} ${y + s * 0.25} L${x - s} ${y} L${x - s * 0.25} ${y - s * 0.25}Z`;
 
@@ -63,12 +64,30 @@ export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: R
           <g transform="rotate(-25 50 50)"><ellipse cx="50" cy="50" rx="40" ry="14" fill="#A45CFF" opacity="0.6" /><ellipse cx="50" cy="50" rx="26" ry="8" fill="#FF7AE0" opacity="0.7" /></g>
           <circle cx="50" cy="50" r="13" fill={`url(#${id}g)`} />
         </>}
+        {rarity === 'chaos' && <>
+          {[[0, 0, '#FFE14D'], [50, 0, '#22E3FF'], [0, 50, '#3DDC97'], [50, 50, '#FF7AE0']].map(([x, y, c]) => <path key={`${x}${y}`} d={`M${x} ${y} l50 0 l-12 50 l-38 0Z`} fill={c as string} opacity="0.28" />)}
+          <g transform="rotate(-14 50 52)"><rect x="27" y="29" width="46" height="46" rx="10" fill="#fff" /><rect x="27" y="29" width="46" height="46" rx="10" fill="none" stroke="#1a0b2e" strokeWidth="2.5" />
+            {[[38, 40], [62, 40], [50, 52], [38, 64], [62, 64]].map(([x, y]) => <circle key={`${x}${y}`} cx={x} cy={y} r="4.5" fill="#FF2E63" />)}</g>
+          <text x="80" y="22" fontSize="14" fontWeight="900" fill="#FFE14D" textAnchor="middle">?</text>
+        </>}
+        {rarity === 'phoenix' && <>
+          <path d="M50 88 C30 74 30 56 40 44 C38 56 46 60 48 52 C44 38 52 26 50 12 C62 26 70 40 62 54 C66 50 70 46 70 40 C80 56 72 78 50 88Z" fill="#FFD166" />
+          <path d="M50 82 C38 72 40 60 46 54 C46 62 52 64 52 58 C52 50 56 44 56 38 C64 50 64 72 50 82Z" fill="#FFF4D6" />
+          <path d="M40 52 C24 44 14 48 8 56 C20 54 28 58 36 62Z M60 52 C76 44 86 48 92 56 C80 54 72 58 64 62Z" fill="#FF5A1F" />
+        </>}
+        {rarity === 'crown' && <>
+          {Array.from({ length: 12 }, (_, i) => { const t = (i / 12) * Math.PI * 2; return <path key={i} d={`M50 52 L${50 + Math.cos(t) * 70} ${52 + Math.sin(t) * 70} L${50 + Math.cos(t + 0.12) * 70} ${52 + Math.sin(t + 0.12) * 70}Z`} fill="#FFD23F" opacity="0.18" />; })}
+          <path d="M22 70 L18 34 L36 50 L50 26 L64 50 L82 34 L78 70Z" fill="#FFD23F" stroke="#B8860B" strokeWidth="2.5" strokeLinejoin="round" />
+          <rect x="22" y="70" width="56" height="9" rx="3" fill="#E8B923" />
+          <circle cx="50" cy="56" r="5" fill="#FF3D7F" /><circle cx="34" cy="60" r="3.5" fill="#22E3FF" /><circle cx="66" cy="60" r="3.5" fill="#3DDC97" />
+          {[[18, 34], [50, 26], [82, 34]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r="3.5" fill="#FFF4B8" />)}
+        </>}
         <rect width="100" height="100" fill={`url(#${id}bv)`} />
         {stake && <>
           <path d="M50 64 V34" stroke="#2A1C10" strokeWidth="3.5" strokeLinecap="round" />
           <path d="M50 34 L68 40 L50 46Z" fill={rarity === 'common' ? '#E9EEF5' : info.color} />
         </>}
-        {['legendary', 'mythic', 'solar', 'prismatic', 'genesis'].includes(rarity) && [[22, 26, 6], [78, 72, 5], [76, 24, 4]].map(([x, y, s]) => <path key={`${x}`} d={sparkle(x, y, s)} fill={rarity === 'legendary' ? '#FFF4C2' : '#fff'} />)}
+        {['legendary', 'mythic', 'solar', 'prismatic', 'genesis', 'crown', 'phoenix'].includes(rarity) && [[22, 26, 6], [78, 72, 5], [76, 24, 4]].map(([x, y, s]) => <path key={`${x}`} d={sparkle(x, y, s)} fill={rarity === 'legendary' ? '#FFF4C2' : '#fff'} />)}
         {shiny && <>
           <rect width="100" height="100" fill={`url(#${id}sh)`}><animate attributeName="x" values="-100;100" dur="2.4s" repeatCount="indefinite" /></rect>
           {[[16, 16, 7], [84, 50, 6], [30, 86, 5], [62, 14, 4]].map(([x, y, s]) => <path key={`s${x}`} d={sparkle(x, y, s)} fill="#fff"><animate attributeName="opacity" values="1;0.2;1" dur={`${1 + (x % 3) * 0.4}s`} repeatCount="indefinite" /></path>)}

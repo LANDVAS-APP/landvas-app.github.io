@@ -855,6 +855,6 @@ export type StreakReward = { day: number; ink: number; ticket: RarityId | null }
 export type DailyStatus = { enabled: boolean; streak: number; claimed_today: boolean; best: number; next: StreakReward; calendar: StreakReward[];
   tickets: { id: string; min_rarity: RarityId; source: string }[]; resets_at: string };
 export type HotZone = { name: string; gx: number; gy: number; radius: number; day: string };
-export type HotZoneInfo = { today: HotZone | null; tomorrow: HotZone | null; ends_at: string; ultra_mult: number; shiny_mult: number };
+export type HotZoneInfo = { today: HotZone | null; tomorrow: HotZone | null; ends_at: string; ultra_mult: number; shiny_mult: number; crown_free?: boolean };
 export type Collection = { types: { id: PlotTypeId; name: string; owned: number }[]; rarities: { id: RarityId; owned: number; shiny: number }[];
   tiers: { types: number; pct: number }[]; pct: number; multiplier: number };

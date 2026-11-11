@@ -41,7 +41,10 @@ export function HotZoneCard({ onRoll, cost, free, canBuy }: { onRoll(): void; co
         </span>
         <span className={cn('shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black', canBuy ? 'bg-[#FF8A3D] text-[#2a0f00]' : 'bg-white/10 text-white/60')}>{free ? 'Roll · free' : `Roll · ${fmt(cost)}`}</span>
       </div>
-      {q.data!.tomorrow && <div className="relative mt-2 text-[10px] font-semibold text-white/45">Tomorrow: {q.data!.tomorrow.name}</div>}
+      <div className="relative mt-2 flex items-center justify-between gap-2 text-[10px] font-semibold text-white/45">
+        {q.data!.crown_free ? <span className="font-black text-[#FFD23F]" data-testid="crown-free">👑 {z.name}’s Crown is up for grabs!</span> : <span>👑 {z.name}’s Crown is taken</span>}
+        {q.data!.tomorrow && <span>Tomorrow: {q.data!.tomorrow.name}</span>}
+      </div>
     </motion.button>
   );
 }

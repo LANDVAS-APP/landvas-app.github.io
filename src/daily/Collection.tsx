@@ -37,6 +37,28 @@ export function CollectionCard({ onOpen }: { onOpen(): void }) {
   );
 }
 
+/** the Crowns of the world: one per city, and who holds each */
+function Crowns() {
+  const me = useOnboardedMe();
+  const q = useQuery({ queryKey: ['crowns'], queryFn: api.crowns, enabled: !!me, staleTime: 5 * 60_000 });
+  if (!q.data?.length) return null;
+  const held = q.data.filter((c) => c.holder).length;
+  return (
+    <section className="grid gap-2" data-testid="crowns">
+      <div className="flex items-baseline justify-between"><h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">👑 Crowns of the world</h3><span className="text-[12px] font-bold tnum">{held}/{q.data.length} claimed</span></div>
+      <p className="-mt-1 text-[11px] text-white/45">One Crown per city, rolled only by claiming there (5× likelier in a Hot Zone). Its holder earns 2× rent on everything.</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {q.data.map((c) => (
+          <div key={c.city} className={cn('flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12px]', c.holder ? 'bg-[#FFD23F]/12' : 'bg-white/[0.04]')}>
+            <span className={c.holder ? '' : 'opacity-30 grayscale'}>👑</span>
+            <span className="grid min-w-0 leading-tight"><span className="truncate font-bold">{c.city}</span><span className={cn('truncate text-[10px]', c.holder ? 'font-bold text-[#FFD23F]' : 'text-white/40')}>{c.holder ? `@${c.holder}` : 'Unclaimed'}</span></span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function CollectionDialog({ open, onOpenChange }: { open: boolean; onOpenChange(v: boolean): void }) {
   const q = useCollection();
   const c = q.data;
@@ -84,8 +106,9 @@ export function CollectionDialog({ open, onOpenChange }: { open: boolean; onOpen
                 );
               })}
             </div>
-            <p className="text-[11px] text-white/45">The six ultra rarities each earn in their own way — find one to see how.</p>
+            <p className="text-[11px] text-white/45">The ultra rarities each earn in their own way — find one to see how.</p>
           </section>
+          <Crowns />
         </div>
       )}
     </Dialog>

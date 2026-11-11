@@ -75,6 +75,8 @@ export const api = {
   hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),
   /** your plot-type album and the rarities you've found */
   myCollection: () => rpc<import('./types').Collection>('my_collection'),
+  /** every city's Crown and who holds it */
+  crowns: () => rpc<{ city: string; holder: string | null; since: string | null }[]>('crowns'),
   quickBuyQuote: () => rpc<{ ink: number; owned: number; free_left: number; starter: boolean; enabled: boolean }>('quick_buy_quote'),
   namePlot: (gx: number, gy: number, name: string | null) => rpc<{ gx: number; gy: number; name: string | null }>('name_plot', { p_gx: gx, p_gy: gy, p_name: name }),
   upgradePlot: (gx: number, gy: number) =>
