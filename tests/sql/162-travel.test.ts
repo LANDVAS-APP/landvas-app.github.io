@@ -48,7 +48,7 @@ describe('Travel', () => {
     const after = (await db.sql(`select balance from player_balances where player_id = $1 and resource = 'ink'`, [ann]).catch(() => []))[0];
     expect(after).toEqual(before);
     const st = await db.rpc(ann, 'travel_status');
-    expect(st.train).toMatchObject({ plots: 1, left: 4 });
+    expect(st.train).toMatchObject({ plots: 1, left: 2 });
     expect(st.plane.plots).toBe(0);
   });
 
@@ -95,7 +95,7 @@ describe('Travel', () => {
     expect(there.explorer.lng).toBeCloseTo(-104.99961, 4);
     expect(there.stamps).toBe(1);
     expect(there.countries).toBe(1);
-    expect(there.train.left).toBe(3);
+    expect(there.train.left).toBe(1);
     // GPS still can't pull you back while you're there
     expect((await db.rpc(ann, 'report_position', { p_lng: SLC.lng, p_lat: SLC.lat, p_accuracy_m: 10 })).away).toBe(true);
     expect((await db.rpc(ann, 'my_explorer')).lng).toBeCloseTo(-104.99961, 4);

@@ -146,6 +146,7 @@ describe('Hot Zones', () => {
   it('today’s zone is a real city; a quick buy there lands inside it', async () => {
     const z = await db.rpc(cy, 'hot_zone_today');
     expect(z.today.name).toBeTruthy(); expect(z.tomorrow.name).toBeTruthy();
+    await db.sql(`select private.ledger_apply($1, 'ink', 1000, 'admin_adjust', 'test', 'test', 'hot-roll-ink')`, [cy]);
     const r = await db.rpc(cy, 'quick_buy_plot', { p_idempotency_key: 'hot-roll-1', p_hot: true });
     expect(r.hot_zone).toBe(true);
     expect(Math.hypot(r.gx - z.today.gx, r.gy - z.today.gy)).toBeLessThanOrEqual(z.today.radius);

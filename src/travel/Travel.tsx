@@ -1,6 +1,7 @@
 // Travel plots (v0.9.7): a Train or Plane subplot lets your explorer ride to real stations and airports on the map.
 // Board at the station or airport nearest you, ride (trains stop at the real stations on the way), arrive and really
 // be there — claim plots, play, check in — and collect a souvenir stamp for every new stop. Head home when you're done.
+import { useFlyUi } from './Fly';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
@@ -193,7 +194,8 @@ function ModePane({ mode, status, onDone }: { mode: TravelMode; status: TravelSt
     <div className="space-y-3" data-testid={`travel-pane-${mode}`}>
       <div className={cn('rounded-2xl px-3.5 py-2.5 text-[13px]', own.plots ? 'bg-surface-2/70' : 'bg-[#FFB020]/12 text-fg')}>
         {own.plots ? (
-          <span data-testid="travel-trips-left">{m.emoji} <b>{own.left}</b> {own.left === 1 ? 'trip' : 'trips'} left today · {own.plots} {m.name} {own.plots === 1 ? 'plot' : 'plots'}</span>
+          <span data-testid="travel-trips-left">{m.emoji} <b>{own.left}</b> {own.left === 1 ? 'trip' : 'trips'} left today (2 a day, all trips together) · {own.plots} {m.name} {own.plots === 1 ? 'plot' : 'plots'}
+            {own.left === 0 && <button className="ml-2 rounded-full bg-accent px-2.5 py-0.5 text-[12px] font-black text-white" onClick={() => useFlyUi.getState().setRefill(true)} data-testid="travel-refill">Refill · 100 Ink</button>}</span>
         ) : (
           <span data-testid="travel-needs-plot">{m.emoji} To {m.verb.toLowerCase()}, set one of your plots to <b>Travel · {m.name}</b>. <Link to="/plots" className="font-bold text-accent underline" onClick={onDone}>Your plots</Link></span>
         )}

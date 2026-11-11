@@ -3,6 +3,7 @@
 // are about the place. Up to 10 people share a home at a time, live. Owners press Decorate to furnish it:
 // tap a piece to pick it up, drag it, turn it, recolour it; change the wallpaper, floor, view and lighting;
 // and choose who may use each door.
+import { badgeEmoji } from '../screens/BadgeIcon';
 import { pulse } from '../lib/pulse';
 import { live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
@@ -223,7 +224,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
   const host = h.host, own = h.own;
   const startLayout = useMemo(() => (isFresh(h) ? DEFAULT_LAYOUT : h.layout) as Placed[], [h]);
   const gallery = profile?.gallery ?? [];
-  const achievements = useMemo(() => (profile?.achievements ?? []).filter((a) => a.unlocked_at).map((a) => a.icon ?? '🏅'), [profile]);
+  const achievements = useMemo(() => (profile?.achievements ?? []).filter((a) => a.unlocked_at).map((a) => badgeEmoji(a.icon)), [profile]);
 
   // the two best pieces of their art, for the frames either side of the window (and the easel and TV)
   useEffect(() => {

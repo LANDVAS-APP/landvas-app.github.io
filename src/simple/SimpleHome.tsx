@@ -6,6 +6,7 @@ import { ChevronRight, Gamepad2, Map as MapIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LuckChip } from '../luck/Altar';
+import { RentCalculator } from '../rent/RentCalculator';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -144,6 +145,8 @@ export default function SimpleHome() {
       </div>
 
       {/* your plots */}
+      {list.length > 0 && <RentCalculator />}
+
       <div className="grid gap-2" data-testid="simple-plots">
         <div className="flex items-baseline justify-between px-1">
           <span className="text-[12px] font-black uppercase tracking-[0.12em] text-white/60">Your plots</span>

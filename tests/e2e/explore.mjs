@@ -197,16 +197,41 @@ try {
   const home = await syncExplorer();
   check('🏠 Home: back to your last real location, the pill goes away', home.mode === 'gps' && (await page.locator('[data-testid=joystick-spot]').count()) === 0, `${home.mode} ${home.lng},${home.lat}`);
 
-  // ---- the Hot Zone chip: a sheet with "Fly there" -------------------------------------------------------------------
+  // ---- the Hot Zone: a pin you can see from the whole globe; a sheet to look, roll (150 Ink) or really fly there ------
   const hz = await api('hotZone');
-  await page.click('[data-testid=hot-zone-chip]'); await page.waitForSelector('[data-testid=hot-zone-sheet]', { timeout: 10000 });
-  check('the Hot Zone chip opens a sheet: fly there, or roll a plot there', (await page.locator('[data-testid=hot-zone-fly]').count()) === 1 && (await page.locator('[data-testid=hot-zone-roll-map]').count()) === 1);
-  await shot('06c-hot-zone-sheet');
-  await page.click('[data-testid=hot-zone-fly]'); await page.waitForTimeout(6000);
-  const c = await page.evaluate(() => { const m = window.__landvasMap; const x = m.getCenter(); return { lng: x.lng, lat: x.lat, z: m.getZoom() }; });
   const hc = ll(hz.today.gx, hz.today.gy);
-  check('🗺️ Fly there: the map flies to today’s city (and stays)', Math.abs(c.lng - hc.longitude) < 0.05 && Math.abs(c.lat - hc.latitude) < 0.05, `${hz.today.name}: ${c.lng.toFixed(3)},${c.lat.toFixed(3)} z${c.z.toFixed(1)}`);
-  await shot('06d-hot-zone');
+  await jump(hc.longitude, hc.latitude, 3); await page.waitForTimeout(2500);
+  check('zoomed right out, the Hot Zone is still there to see (a pin)', await page.locator('[data-testid=hot-zone-pin]').isVisible());
+  await shot('06b-hot-zone-globe');
+  await page.click('[data-testid=hot-zone-chip]'); await page.waitForSelector('[data-testid=hot-zone-sheet]', { timeout: 10000 });
+  check('the Hot Zone sheet: fly there, just look, or roll there (150 Ink, said up front)', (await page.locator('[data-testid=hot-zone-fly]').count()) === 1 && (await page.locator('[data-testid=hot-zone-look]').count()) === 1 && /150 Ink/.test(await page.locator('[data-testid=hot-zone-roll-map]').innerText()));
+  await shot('06c-hot-zone-sheet');
+  await page.click('[data-testid=hot-zone-look]'); await page.waitForTimeout(6000);
+  const c = await page.evaluate(() => { const m = window.__landvasMap; const x = m.getCenter(); return { lng: x.lng, lat: x.lat, z: m.getZoom() }; });
+  check('🗺️ Just look: the map flies to today’s city (and stays)', Math.abs(c.lng - hc.longitude) < 0.05 && Math.abs(c.lat - hc.latitude) < 0.05, `${hz.today.name}: ${c.lng.toFixed(3)},${c.lat.toFixed(3)} z${c.z.toFixed(1)}`);
+  await page.click('[data-testid=hot-zone-chip]'); await page.waitForSelector('[data-testid=hot-zone-sheet]', { timeout: 10000 });
+  await page.click('[data-testid=hot-zone-fly]'); await page.waitForTimeout(2500);
+  const flying = await api('travelStatus');
+  check('✈️ Fly there: the explorer really flies to the Hot Zone (no Plane plot needed)', flying.trip?.pin === true && /Hot Zone/.test(flying.trip?.to?.name ?? ''), JSON.stringify(flying.trip?.to));
+  await sql(`update travel_trips set arrives_at = now() - interval '1 second' where player_id = (select id from profiles where username = 'lea_lead') and not arrived`);
+  await sql(`update explorers set fixed_at = fixed_at - interval '30 hours' where player_id = (select id from profiles where username = 'lea_lead')`);
+  const landed = await api('travelStatus'); await syncExplorer();
+  await page.click('[data-testid=arrival-close]').catch(() => {}); await page.waitForTimeout(800);
+  check('…and lands in the zone, ready to claim plots there', landed.away && Math.abs(landed.explorer.lng - hc.longitude) < 0.01 && Math.abs(landed.explorer.lat - hc.latitude) < 0.01, `${landed.explorer.lng},${landed.explorer.lat}`);
+  await shot('06d-in-the-hot-zone');
+  // a pin anywhere: no trips left → refill 2 for 100 Ink, then fly
+  await page.click('[data-testid=fly-chip]'); await page.waitForSelector('[data-testid=pin-catcher]');
+  await page.mouse.click(200, 520); await page.waitForSelector('[data-testid=pin-sheet]');
+  await shot('06e-pin');
+  await page.click('[data-testid=pin-fly]'); await page.waitForSelector('[data-testid=refill-dialog]', { timeout: 8000 });
+  check('out of trips (2 a day): the refill offer appears', true);
+  await page.click('[data-testid=refill-ink]'); await page.waitForTimeout(1500);
+  await page.click('[data-testid=pin-fly]'); await page.waitForTimeout(2000);
+  const pinned = await api('travelStatus');
+  check('refilled for 100 Ink, then off to the pin', pinned.trip?.pin === true && pinned.trip?.to?.name === 'Your pin', JSON.stringify(pinned.trip?.to?.name));
+  await sql(`update travel_trips set arrives_at = now() - interval '1 second' where player_id = (select id from profiles where username = 'lea_lead') and not arrived`);
+  await sql(`update explorers set fixed_at = fixed_at - interval '30 hours' where player_id = (select id from profiles where username = 'lea_lead')`);
+  await api('travelStatus'); await page.waitForTimeout(800); await page.click('[data-testid=arrival-close]').catch(() => {});
 
   // ---- no collectables on the map (finds were retired) -------------------------------------------------------------
   await jump(srv.lng, srv.lat, 15.6); await page.waitForTimeout(3000);

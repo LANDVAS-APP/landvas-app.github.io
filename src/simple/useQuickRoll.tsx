@@ -11,6 +11,7 @@ import { fmt } from '../lib/utils';
 import { buzz } from '../native/native';
 import type { RarityId } from '../shared/rarity';
 import { InkRoll, type RollResult } from './InkRoll';
+import { config } from '../env';
 
 export type RollOpts = { ticket?: string; ticketRarity?: string; hot?: boolean };
 
@@ -30,7 +31,9 @@ export function useQuickRoll() {
 
   const roll = async (opts: RollOpts = {}) => {
     if (busy.current) return;
-    if (!opts.ticket && !canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.' }); return; }
+    const HOT = 150;
+    if (opts.hot && !opts.ticket && !free && ink < HOT) { toast(`A Hot Zone roll is ${HOT} Ink`, { description: 'Win minigames to earn Ink — or fly there and pick your own plots.' }); return; }
+    if (!opts.ticket && !opts.hot && !canBuy) { toast(`You need ${fmt(cost)} Ink`, { description: 'Win minigames to earn Ink — then come back and roll.' }); return; }
     busy.current = true;
     if (useUi.getState().settings.haptics) buzz('medium');
     setState({ open: true, result: null, opts });
@@ -45,11 +48,16 @@ export function useQuickRoll() {
     } finally { busy.current = false; }
   };
 
+  // (tests and dev: show the roll for any rarity, without buying anything)
+  if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    setState({ open: true, result: null, opts: {} });
+    setTimeout(() => setState({ open: true, opts: {}, result: { rarity, usd: 0.00000001, type: 'pigment', first: false, shiny } }), 300);
+  };
   const element = (
     <InkRoll open={state.open} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
       onRevealed={() => setTimeout(settleNow, 1600)}
       onAgain={() => { const hot = state.opts.hot; settleNow(); setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
-      canAgain={canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(cost)} Ink`} />
+      canAgain={state.opts.hot ? free || ink >= 150 : canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(state.opts.hot ? 150 : cost)} Ink`} />
   );
   return { roll, element, canBuy, cost, free, quote };
 }

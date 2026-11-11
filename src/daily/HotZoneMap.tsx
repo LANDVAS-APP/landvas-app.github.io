@@ -1,10 +1,12 @@
 // The Hot Zone on the full map: a glowing circle over today's city (it stays when plots are hidden — it's light),
 // and a chip that flies you there.
+import * as maplibregl from 'maplibre-gl';
 import { useEffect, useState } from 'react';
 import { mapHandle } from '../map/mapHandle';
 import { useUi } from '../lib/store';
 import { useExplorer } from '../explorer/explorer';
 import { Button, Dialog } from '../ui';
+import { useFly } from '../travel/Fly';
 import { cn } from '../lib/utils';
 import { GRID_SIZE } from '../shared/grid';
 import { endsIn, hotCenter, useHotZone } from './HotZone';
@@ -42,7 +44,18 @@ export function HotZoneLayer() {
     const enter = () => { if (map.getZoom() < 9) map.getCanvas().style.cursor = 'pointer'; };
     const leave = () => { map.getCanvas().style.cursor = ''; };
     map.on('click', 'lv-hot-fill', click); map.on('mouseenter', 'lv-hot-fill', enter); map.on('mouseleave', 'lv-hot-fill', leave);
+    // a pin that stays readable at every zoom (the circle alone is a dot from far out)
+    const el = document.createElement('button');
+    el.className = 'lv-hot-pin'; el.setAttribute('data-testid', 'hot-zone-pin');
+    el.innerHTML = `<span class="f">🔥</span><span class="t"><b></b><i>HOT ZONE</i></span>`;
+    (el.querySelector('b') as HTMLElement).textContent = z.name;
+    el.addEventListener('click', (e) => { e.stopPropagation(); flyToHotZone(z); });
+    const [lng, lat] = hotCenter(z);
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
+    const zoom = () => { el.style.display = map.getZoom() < 11 ? '' : 'none'; };
+    zoom(); map.on('zoom', zoom);
     return () => {
+      marker.remove(); map.off('zoom', zoom);
       map.off('styledata', add);
       map.off('click', 'lv-hot-fill', click); map.off('mouseenter', 'lv-hot-fill', enter); map.off('mouseleave', 'lv-hot-fill', leave);
       try { for (const l of ['lv-hot-line', 'lv-hot-fill']) if (map.getLayer(l)) map.removeLayer(l); if (map.getSource(SRC)) map.removeSource(SRC); } catch { /* map gone */ }
@@ -62,6 +75,7 @@ export function flyToHotZone(z: { gx: number; gy: number }) {
 export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(): void }) {
   const q = useHotZone();
   const [open, setOpen] = useState(false);
+  const fly = useFly();
   const z = q.data?.today;
   if (!z) return null;
   return (
@@ -78,9 +92,13 @@ export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(
             <li>✨ Shiny {q.data!.shiny_mult}× likelier</li>
             <li>{q.data!.crown_free ? `👑 ${z.name}’s Crown is up for grabs!` : `👑 ${z.name}’s Crown is taken`}</li>
           </ul>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" onClick={() => { setOpen(false); flyToHotZone(z); }} data-testid="hot-zone-fly">🗺️ Fly there</Button>
-            <Button variant="rainbow" onClick={() => { setOpen(false); onRoll(); }} data-testid="hot-zone-roll-map">🎲 Roll a plot there</Button>
+          <div className="grid gap-2">
+            <Button variant="rainbow" onClick={() => { setOpen(false); const [lng, lat] = hotCenter(z); void fly(lng, lat, `Hot Zone · ${z.name}`); }} data-testid="hot-zone-fly">✈️ Fly there · pick your own plots (100 Ink each)</Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => { setOpen(false); flyToHotZone(z); }} data-testid="hot-zone-look">🗺️ Just look</Button>
+              <Button variant="secondary" onClick={() => { setOpen(false); onRoll(); }} data-testid="hot-zone-roll-map">🎲 Roll there · {q.data!.roll_ink ?? 150} Ink</Button>
+            </div>
+            <p className="text-[11px] text-muted">✈️ Flying uses 1 of your 2 trips today; once you land, claim any plot around you at the normal price. 🎲 A roll drops you a random plot in the zone for {q.data!.roll_ink ?? 150} Ink — no trip needed.</p>
           </div>
           {q.data!.tomorrow && <p className="text-xs text-muted">Tomorrow’s Hot Zone: {q.data!.tomorrow.name}</p>}
         </div>

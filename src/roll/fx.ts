@@ -3,9 +3,24 @@
 export type BurstOpts = {
   x: number; y: number; colors: string[]; count: number;
   speed?: number; gravity?: number; size?: number; spread?: number; up?: number;
-  kind?: 'mix' | 'drop' | 'spark' | 'glitter'; life?: number;
+  kind?: 'mix' | 'drop' | 'spark' | 'glitter' | 'emoji' | 'streak'; life?: number;
+  /** for kind 'emoji': which glyphs */ emojis?: string[];
+  /** aim every particle at this angle (radians; default: up, spread by `spread`) */ angle?: number;
+  /** spawn on a ring this far out, moving inwards (an implosion) */ ring?: number;
+  /** spawn spread over a rectangle (w × h centred on x, y) */ area?: [number, number];
+  drag?: number;
 };
-type P = { x: number; y: number; vx: number; vy: number; r: number; c: string; life: number; decay: number; g: number; k: 0 | 1 | 2; rot: number };
+type P = { x: number; y: number; vx: number; vy: number; r: number; c: string; life: number; decay: number; g: number; k: 0 | 1 | 2 | 3 | 4; rot: number; spin: number; em?: HTMLCanvasElement; drag: number };
+const EMOJI = new Map<string, HTMLCanvasElement>();
+function emojiImg(e: string) {
+  let c = EMOJI.get(e);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = c.height = 72;
+    const g = c.getContext('2d')!; g.font = '56px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 36, 40);
+    EMOJI.set(e, c);
+  }
+  return c;
+}
 
 export class Fx {
   private ctx: CanvasRenderingContext2D;
@@ -27,16 +42,25 @@ export class Fx {
   burst(o: BurstOpts) {
     const speed = o.speed ?? 10, size = o.size ?? 1, g = o.gravity ?? 0.26, spread = o.spread ?? Math.PI * 2, up = o.up ?? 0.3;
     // (phones: cap the count so a Genesis roll can't drop frames)
-    const n = Math.min(o.count, 420 - this.parts.length);
+    const n = Math.min(o.count, 480 - this.parts.length);
     for (let i = 0; i < n; i++) {
-      const a = -Math.PI / 2 + (Math.random() - 0.5) * spread;
+      let x = o.x, y = o.y, vx: number, vy: number;
       const v = speed * (0.3 + Math.random() * 0.95);
-      const k: 0 | 1 | 2 = o.kind === 'drop' ? 0 : o.kind === 'spark' ? 1 : o.kind === 'glitter' ? 2 : (Math.random() < 0.55 ? 0 : Math.random() < 0.6 ? 1 : 2);
+      if (o.ring) {
+        const a = Math.random() * Math.PI * 2; x = o.x + Math.cos(a) * o.ring; y = o.y + Math.sin(a) * o.ring;
+        vx = -Math.cos(a) * v; vy = -Math.sin(a) * v;
+      } else {
+        const a = (o.angle ?? -Math.PI / 2) + (Math.random() - 0.5) * spread;
+        vx = Math.cos(a) * v; vy = Math.sin(a) * v - (o.angle == null ? speed * up : 0);
+      }
+      if (o.area) { x += (Math.random() - 0.5) * o.area[0]; y += (Math.random() - 0.5) * o.area[1]; }
+      const k: P['k'] = o.kind === 'drop' ? 0 : o.kind === 'spark' ? 1 : o.kind === 'glitter' ? 2 : o.kind === 'emoji' ? 3 : o.kind === 'streak' ? 4 : (Math.random() < 0.55 ? 0 : Math.random() < 0.6 ? 1 : 2);
       this.parts.push({
-        x: o.x, y: o.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - speed * up,
-        r: (k === 0 ? 2.5 + Math.random() * 5 : 1.5 + Math.random() * 3.5) * size,
+        x, y, vx, vy,
+        r: (k === 0 ? 2.5 + Math.random() * 5 : k === 3 ? 14 + Math.random() * 14 : k === 4 ? 2 + Math.random() * 2 : 1.5 + Math.random() * 3.5) * size,
         c: o.colors[(Math.random() * o.colors.length) | 0], life: 1, decay: (0.010 + Math.random() * 0.008) / (o.life ?? 1),
-        g: k === 2 ? g * 0.25 : g, k, rot: Math.random() * 6,
+        g: k === 2 ? g * 0.25 : g, k, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.2, drag: o.drag ?? 0.982,
+        em: k === 3 && o.emojis?.length ? emojiImg(o.emojis[(Math.random() * o.emojis.length) | 0]) : undefined,
       });
     }
     if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(this.loop); }
@@ -50,15 +74,23 @@ export class Fx {
     let alive = 0;
     for (const p of this.parts) {
       if (p.life <= 0) continue;
-      p.vx *= 0.982 ** dt;
-      p.vy = p.vy * 0.982 ** dt + p.g * dt;
+      p.vx *= p.drag ** dt;
+      p.vy = p.vy * p.drag ** dt + p.g * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
-      p.life -= p.decay * dt; p.rot += 0.18 * dt;
-      if (p.life <= 0 || p.y > this.h + 40) { p.life = 0; continue; }
+      p.life -= p.decay * dt; p.rot += (p.k === 3 ? p.spin : 0.18) * dt;
+      if (p.life <= 0 || p.y > this.h + 60 || p.y < -200) { p.life = 0; continue; }
       alive++;
       ctx.globalAlpha = Math.min(1, p.life * 1.5);
       ctx.fillStyle = p.c;
-      if (p.k === 1) {
+      if (p.k === 3 && p.em) {
+        const r = p.r * (0.7 + 0.3 * Math.min(1, p.life * 2));
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.drawImage(p.em, -r, -r, r * 2, r * 2); ctx.restore();
+      } else if (p.k === 4) {
+        // a streak: a bright head and a fading tail along its path
+        ctx.strokeStyle = p.c; ctx.lineWidth = p.r; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 5, p.y - p.vy * 5); ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.3, 0, Math.PI * 2); ctx.fill();
+      } else if (p.k === 1) {
         // a four-point star
         const r = p.r * 1.8;
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);

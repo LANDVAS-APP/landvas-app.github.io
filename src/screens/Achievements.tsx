@@ -1,35 +1,47 @@
 import { useQuery } from '@tanstack/react-query';
-import { Award, Check, Lock } from 'lucide-react';
+import { Award } from 'lucide-react';
 import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
 import { cn } from '../lib/utils';
 import { Cost, Empty, Spinner } from '../ui';
+import { rarityTier } from '../shared/rarity';
+import { BadgeIcon } from './BadgeIcon';
+import { useState } from 'react';
 
-const CATS: Record<string, string> = { creation: 'Creation', collection: 'Collection', exploration: 'Exploration', mastery: 'Mastery', community: 'Community' };
+const CATS: Record<string, string> = { rarity: '💎 Rarities', collection: '🗺️ Collection', kinds: '🏗️ Every kind of plot', daily: '🔥 Daily & Luck', travel: '✈️ Travel', estate: '🏘️ Estates', creation: '🎨 Creation', exploration: '🧭 Exploration', mastery: '🎮 Mastery', community: '💖 Community' };
+/** a badge's tier (its medal's metal): by how big its goal is — or, for a rarity, how rare */
+function tierOf(a: { icon: string; threshold: number }) {
+  if (a.icon.startsWith('rarity:')) { const t = rarityTier(a.icon.slice(7)); return Math.min(5, t + (a.threshold > 1 ? 1 : 0)); }
+  const n = a.threshold;
+  return n <= 1 ? 0 : n <= 5 ? 1 : n <= 25 ? 2 : n <= 100 ? 3 : n <= 1000 ? 4 : 5;
+}
 
 export default function Achievements() {
   const q = useQuery({ queryKey: ['achievements'], queryFn: api.achievements });
+  const [show, setShow] = useState<'all' | 'got' | 'todo'>('all');
   if (q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   const list = q.data ?? [];
   if (!list.length) return <Page><Empty icon={<Award className="h-6 w-6" />} title="No badges yet" /></Page>;
   const done = list.filter((a) => a.unlocked_at).length;
+  const shown = (cat: string) => list.filter((a) => a.category === cat && (show === 'all' || (show === 'got' ? !!a.unlocked_at : !a.unlocked_at)));
   return (
     <Page>
-      <PageHeader eyebrow={`${done} of ${list.length} unlocked`} title="Badges">Milestones for painting, collecting, exploring and mastering your plots' games.</PageHeader>
+      <PageHeader eyebrow={`${done} of ${list.length} unlocked`} title="Badges">Every rarity, every kind of plot, streaks, trips, estates and more — each with its own medal. The metal shows how hard it is to get.</PageHeader>
+      <div className="mb-5 flex gap-1.5" data-testid="badge-filter">
+        {([['all', 'All'], ['got', 'Unlocked'], ['todo', 'To go']] as const).map(([k, l]) => <button key={k} className={cn('rounded-full px-3 py-1.5 text-xs font-bold', show === k ? 'bg-accent text-white' : 'bg-surface-2 text-muted')} onClick={() => setShow(k)}>{l}</button>)}
+      </div>
       {Object.entries(CATS).map(([cat, label]) => {
-        const items = list.filter((a) => a.category === cat);
+        const items = shown(cat);
         if (!items.length) return null;
         return (
           <section key={cat} className="mb-6">
-            <h2 className="eyebrow mb-3">{label}</h2>
+            <h2 className="eyebrow mb-3">{label} <span className="text-faint">· {items.filter((a) => a.unlocked_at).length}/{list.filter((a) => a.category === cat).length}</span></h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {items.map((a) => {
                 const pct = Math.min(100, (a.progress / Math.max(1, a.threshold)) * 100);
                 return (
                   <div key={a.key} className={cn('glass flex items-start gap-3 rounded-3xl p-4', !a.unlocked_at && 'opacity-80')}>
-                    <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', a.unlocked_at ? 'shimmer text-white' : 'bg-surface-2 text-faint')}>
-                      {a.unlocked_at ? <Check className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
-                    </div>
+                    <BadgeIcon icon={a.icon} category={a.category} tier={tierOf(a)} locked={!a.unlocked_at} size={56} />
                     <div className="min-w-0 flex-1">
                       <div className="font-bold">{a.name}</div>
                       <div className="text-sm text-muted">{a.description}</div>

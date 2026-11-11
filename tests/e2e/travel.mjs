@@ -109,7 +109,7 @@ try {
 
   // ---- search and plan ----------------------------------------------------------------------------------------------
   await page.waitForSelector('[data-testid=travel-pane-train]', { timeout: 10000 });
-  check('4 trips left today', /4 trips left/.test(await page.locator('[data-testid=travel-trips-left]').innerText()));
+  check('2 trips left today', /2 trips left/.test(await page.locator('[data-testid=travel-trips-left]').innerText()));
   await page.fill('[data-testid=travel-search]', 'denver'); await page.waitForTimeout(1500);
   await page.waitForSelector('[data-testid=travel-stop][data-stop="us:DEN"]', { timeout: 10000 });
   check('searching finds Denver Station', true);

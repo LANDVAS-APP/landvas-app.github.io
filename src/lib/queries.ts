@@ -1,4 +1,5 @@
 // TanStack Query hooks: server state with caching and invalidation.
+import { badgeEmoji } from '../screens/BadgeIcon';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, onCall, onBalances } from '../backend/api';
 import { getBackend } from '../backend/backend';
@@ -97,8 +98,11 @@ export function useInvalidate() {
 }
 
 export function celebrate(achievements: NewAchievement[] | undefined) {
-  for (const a of achievements ?? []) {
+  const list = achievements ?? [];
+  // (a big batch — say, the first visit after new badges arrive — shows two and a count, not a wall of toasts)
+  for (const a of list.slice(0, 2)) {
     const reward = Object.entries(a.reward ?? {}).map(([k, v]) => `+${v} ${k.replace('_', ' ')}`).join(' · ');
-    toast.success(`Achievement unlocked: ${a.name}`, { description: `${a.description}${reward ? ` — ${reward}` : ''}` });
+    toast.success(`${badgeEmoji(a.icon)} Badge unlocked: ${a.name}`, { description: `${a.description}${reward ? ` — ${reward}` : ''}` });
   }
+  if (list.length > 2) toast.success(`🏅 +${list.length - 2} more badges unlocked!`, { description: 'See them all in Badges.' });
 }
