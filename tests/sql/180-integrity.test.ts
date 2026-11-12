@@ -168,11 +168,14 @@ describe('penalties', () => {
     expect((await db.sql(`select count(*)::int n from world_plots where owner_id = $1 and gx between 5000 and 5002`, [alpha]))[0].n).toBe(0);
     await expect(db.rpc(alpha, 'luck_status', {})).rejects.toThrow(/account_restricted/);
   });
-  it('everyone sees the announcement in the live chat, marked as moderation', async () => {
+  it('everyone sees the notice on the live feed and the Banned list — not in the chat', async () => {
     await db.sql(`insert into player_blocks (blocker_id, blocked_id) values ($1, $2) on conflict do nothing`, [honest, alpha]).catch(() => {});
-    const c = await db.rpc(honest, 'chat_recent', {});
-    const m = c.messages.find((x: any) => x.kind === 'moderation');
-    expect(m.body).toBe('@alpha_ann was suspended for 7 days for self-referring with alt accounts.'); expect(m.data.action).toBe('suspend'); expect(m.player.username).toBe('alpha_ann');
+    const f = (await db.rpc(honest, 'feed_recent', { p_limit: 100 })).find((x: any) => x.kind === 'moderation' && x.player.username === 'alpha_ann');
+    expect(f.data.summary).toBe('@alpha_ann was suspended for 7 days for self-referring with alt accounts.'); expect(f.data.action).toBe('suspend');
+    const b = await db.rpc(null, 'banned_players', { p_q: 'alpha' });
+    expect(b.rows[0]).toMatchObject({ action: 'suspend', summary: '@alpha_ann was suspended for 7 days for self-referring with alt accounts.' });
+    expect(b.rows[0].player.username).toBe('alpha_ann'); expect(b.rows[0].until).toBeTruthy();
+    expect((await db.rpc(honest, 'chat_recent', {})).messages.some((m: any) => m.kind === 'moderation')).toBe(false);
   });
   it('the player sees why, the proof and where to appeal', async () => {
     const m = await db.rpc(alpha, 'my_restriction', {});
@@ -185,8 +188,9 @@ describe('penalties', () => {
     expect(u.ink_returned).toBe(600);
     expect((await db.sql(`select status from players where id = $1`, [alpha]))[0].status).toBe('active');
     await expect(db.rpc(admin, 'admin_integrity_undo', { p_action: action })).rejects.toThrow(/already_undone/);
-    const c = await db.rpc(honest, 'chat_recent', {});
-    expect(c.messages.some((x: any) => x.kind === 'moderation')).toBe(false); // the announcement comes down too
+    // the notice comes down too
+    expect((await db.rpc(honest, 'feed_recent', { p_limit: 100 })).some((x: any) => x.kind === 'moderation' && x.player.username === 'alpha_ann')).toBe(false);
+    expect((await db.rpc(null, 'banned_players', { p_q: 'alpha' })).rows).toEqual([]);
   });
   it('a moderator without the economy role can restrict but not take Ink', async () => {
     const mod = await db.newPlayer('mod_only');
@@ -198,13 +202,15 @@ describe('penalties', () => {
   });
 });
 
-describe('ban announcements reach the live chat and feed from every path', () => {
+describe('ban notices reach the live feed and the Banned list from every path', () => {
+  // "chat" here is the Banned list (notices no longer go to the chat)
   const notices = async (viewer: string) => {
-    const chat = (await db.rpc(viewer, 'chat_recent', {})).messages.filter((m: any) => m.kind === 'moderation');
+    const chat = (await db.rpc(viewer, 'banned_players', { p_limit: 100 })).rows.map((r: any) => ({ body: r.summary, data: { action: r.action } }));
     const feed = (await db.rpc(viewer, 'feed_recent', { p_limit: 100 })).filter((e: any) => e.kind === 'moderation');
+    expect((await db.rpc(viewer, 'chat_recent', {})).messages.some((m: any) => m.kind === 'moderation')).toBe(false);
     return { chat, feed };
   };
-  it('the Players tab Ban button posts a default notice (chat + feed), even to players who hid feed activity', async () => {
+  it('the Players tab Ban button posts a default notice (feed + Banned list), even for players who hid feed activity', async () => {
     const v = await db.newPlayer('banme_ben');
     await db.rpc(v, 'set_privacy', { p_patch: { feed: false } });
     await db.rpc(admin, 'admin_set_player_status', { p_player_id: v, p_status: 'banned', p_reason: 'Self-referring with alts' });
@@ -220,6 +226,8 @@ describe('ban announcements reach the live chat and feed from every path', () =>
     await db.rpc(admin, 'admin_set_player_status', { p_player_id: v, p_status: 'active', p_reason: '' });
     const n = await notices(honest);
     expect(n.chat.some((m: any) => /susp_sue/.test(m.body))).toBe(false);
+    // and search finds banned players
+    expect((await db.rpc(null, 'banned_players', { p_q: 'BEN' })).rows.map((r: any) => r.player.username)).toEqual(['banme_ben']);
     expect(n.feed.some((e: any) => e.player.username === 'susp_sue')).toBe(false);
   });
   it('the Integrity panel with the announcement switched off posts nothing; with it on, exactly one notice', async () => {

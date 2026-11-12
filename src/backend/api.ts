@@ -552,6 +552,7 @@ export const api = {
   myPrivacy: () => rpc<Record<string, boolean>>('my_privacy'),
   setPrivacy: (patch: Record<string, boolean>) => rpc<Record<string, boolean>>('set_privacy', { p_patch: patch }),
   royalty: () => rpc<any>('royalty'),
+  bannedPlayers: (q: string) => rpc<{ total: number; rows: any[] }>('banned_players', { p_q: q || null, p_limit: 100 }),
   integrityPing: async (signals: Record<string, unknown>) => { const b = getBackend(); if (b.integrityPing) await b.integrityPing(signals); else await rpc('integrity_ping', { p_signals: signals }); },
   myRestriction: () => rpc<any>('my_restriction'),
   rarityRankings: () => rpc<any[]>('rarity_rankings', {}),

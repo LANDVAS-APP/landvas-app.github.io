@@ -87,19 +87,26 @@ try {
   const st = (await sql(`select status from players where id = '${cara}'`))[0].status;
   check('suspended', st === 'suspended', st);
   check('invite Ink taken back', Number((await sql(`select amount from resource_balances where player_id = '${cara}' and resource = 'ink'`))[0].amount) === 0);
-  // everyone sees it in the live chat
+  // everyone sees it on the live feed — not in the chat
   await page.keyboard.press('Escape').catch(() => {});
-  await page.evaluate(() => window.__landvasNav('/social?tab=chat'));
-  await page.waitForSelector('[data-testid=chat-moderation]', { timeout: 20000 }); await page.waitForTimeout(500);
-  const cm = await page.locator('[data-testid=chat-moderation]').innerText();
-  check('the live chat shows a red ban notice with the summary', /Player suspended/i.test(cm) && /@cheat_cara was suspended for 7 days for self-referring/.test(cm), cm.slice(0, 160));
-  check('…with a red border', await page.locator('[data-testid=chat-moderation]').evaluate((e) => getComputedStyle(e).borderTopColor.replace(/\s/g, '') === 'rgb(255,61,110)'));
-  await shot('05-chat');
+  await page.evaluate(() => window.__landvasNav('/social?tab=chat')); await page.waitForTimeout(2500);
+  check('nothing about it in the chat', (await page.locator('[data-testid=chat-moderation]').count()) === 0 && !/was suspended/.test(await page.locator('main').innerText()));
   await page.evaluate(() => window.__landvasNav('/social?tab=feed'));
   await page.waitForSelector('[data-testid=feed-moderation]', { timeout: 20000 }); await page.waitForTimeout(500);
   const fm = await page.locator('[data-testid=feed-moderation]').first().innerText();
-  check('the live feed shows the red notice too', /Player suspended/i.test(fm) && /@cheat_cara was suspended for 7 days/.test(fm), fm.slice(0, 120));
-  await shot('06-feed');
+  check('the live feed shows the red notice', /Player suspended/i.test(fm) && /@cheat_cara was suspended for 7 days for self-referring/.test(fm), fm.slice(0, 120));
+  check('…with a red border', await page.locator('[data-testid=feed-moderation]').first().evaluate((e) => getComputedStyle(e).borderTopColor.replace(/\s/g, '') === 'rgb(255,61,110)'));
+  await shot('05-feed');
+  await page.click('text=See all banned players');
+  await page.waitForSelector('[data-testid=banned-list]', { timeout: 20000 }); await page.waitForTimeout(400);
+  check('Social → Banned lists her with why', /@cheat_cara/.test(await page.locator('[data-testid=banned-list]').innerText()) && /self-referring/.test(await page.locator('[data-testid=banned-list]').innerText()));
+  await page.fill('[data-testid=banned-search]', 'nobody_here'); await page.waitForTimeout(900);
+  check('search narrows it', (await page.locator('[data-testid=banned-row]').count()) === 0);
+  await page.fill('[data-testid=banned-search]', 'cara'); await page.waitForTimeout(900);
+  check('…and finds her by name', (await page.locator('[data-testid=banned-row]').count()) === 1);
+  const wide = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
+  check('nothing wider than the phone', wide <= 0, `${wide}px`);
+  await shot('06-banned');
   // she signs in
   await signIn('amyjones@gmail.com');
   await page.waitForSelector('[data-testid=restriction-notice]', { timeout: 20000 });

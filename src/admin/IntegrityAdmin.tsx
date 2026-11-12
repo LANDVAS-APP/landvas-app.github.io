@@ -159,7 +159,7 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
     const proof = proofText.split('\n').map((s) => s.trim()).filter(Boolean);
     const until = kind === 'suspend' ? new Date(Date.now() + days * 864e5).toISOString() : null;
     const ok = await confirm({ title: `${kind === 'ban' ? 'Ban' : kind === 'suspend' ? `Suspend for ${days} days` : 'Warn'} ${targets.length} player${targets.length === 1 ? '' : 's'}?`,
-      body: <>They’ll see: <b>{reason}</b>{takes ? <> — and lose the Ink and plots in the preview.</> : null}{kind !== 'warn' && announce ? <> Everyone in the live chat sees: <b>{summary.replace('{name}', `@${d.player.username}`)}</b></> : null} You can undo this later.</>, confirm: 'Do it', danger: kind !== 'warn' });
+      body: <>They’ll see: <b>{reason}</b>{takes ? <> — and lose the Ink and plots in the preview.</> : null}{kind !== 'warn' && announce ? <> Everyone on the live feed sees: <b>{summary.replace('{name}', `@${d.player.username}`)}</b></> : null} You can undo this later.</>, confirm: 'Do it', danger: kind !== 'warn' });
     if (!ok) return;
     setBusy(true);
     try {
@@ -327,7 +327,7 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
             </div>
             {kind !== 'warn' && (
               <div className="grid gap-1.5 rounded-xl border-2 border-[#FF3D6E]/60 bg-[#FF3D6E]/5 p-2.5" data-testid="announce-box">
-                <Switch id="announce" label="Announce it in the live chat" hint="A red notice everyone sees. Undoing the action takes it down." checked={announce} onCheckedChange={setAnnounce} />
+                <Switch id="announce" label="Announce it on the live feed" hint="A red notice everyone sees, also listed under Social → Banned. Undoing the action takes it down." checked={announce} onCheckedChange={setAnnounce} />
                 {announce && <>
                   <textarea className={cn(inputCls, 'h-16 py-2 text-sm')} maxLength={300} value={summary} onChange={(e) => { setSummary(e.target.value); setSummaryEdited(true); }} data-testid="announce-text" />
                   <div className="text-[11px] text-faint">Shown as: <b className="text-fg">{summary.replace('{name}', `@${d.player.username}`)}</b>{group.size ? ' (each linked account gets its own, with its name)' : ''}{summaryEdited && <button className="ml-2 font-bold text-accent-2" onClick={() => setSummaryEdited(false)}>reset</button>}</div>

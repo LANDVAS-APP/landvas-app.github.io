@@ -40,6 +40,7 @@ const TABS = [
   { value: 'feed', label: 'Live feed' },
   { value: 'chat', label: 'Chat' },
   { value: 'friends', label: 'Friends' },
+  { value: 'banned', label: 'Banned' },
 ];
 
 export default function SocialScreen() {
@@ -61,6 +62,7 @@ export default function SocialScreen() {
       {tab === 'feed' && <FeedTab />}
       {tab === 'chat' && <ChatTab />}
       {tab === 'friends' && <FriendsTab />}
+      {tab === 'banned' && <BannedTab />}
     </Page>
   );
 }
@@ -315,28 +317,46 @@ function ModerationFeedRow({ e }: { e: FeedEvent }) {
           <p className="text-[11px] text-muted">@{e.player.username} · {ban ? 'banned' : 'suspended'} by the LANDVAS team for cheating or abusing the game.</p>
         </div>
       </div>
+      <Link to="/social?tab=banned" className="mt-2 inline-block text-[11px] font-bold text-[#FF3D6E] hover:underline">See all banned players →</Link>
     </div>
   );
 }
 
-/** a ban or suspension, announced to everyone: red, unmissable */
-function ModerationNotice({ m }: { m: ChatMessage }) {
-  const ban = m.data?.action === 'ban';
-  const until = m.data?.until ? new Date(m.data.until) : null;
+/** everyone currently banned or suspended, newest first, with why — and a search */
+function BannedTab() {
+  const [q, setQ] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQuery(q.trim()), 250); return () => clearTimeout(t); }, [q]);
+  const r = useQuery({ queryKey: ['banned', query], queryFn: () => api.bannedPlayers(query), staleTime: 30_000 });
+  const rows = (r.data?.rows ?? []) as { player: FeedEvent['player']; action: 'ban' | 'suspend'; until: string | null; summary: string; at: string }[];
   return (
-    <div className={cn('my-2.5 rounded-2xl border-2 border-[#FF3D6E] bg-[#FF3D6E]/12 p-3 shadow-[0_0_24px_-6px_rgba(255,61,110,0.6)]', m.deleted && 'opacity-50')} data-testid="chat-moderation" role="status">
-      <div className="mb-1 flex items-center gap-2">
-        <ShieldAlert className="h-5 w-5 shrink-0 text-[#FF3D6E]" />
-        <span className="text-[11px] font-black uppercase tracking-widest text-[#FF3D6E]">{ban ? 'Player banned' : 'Player suspended'}</span>
-        <span className="ml-auto text-[11px] text-faint">{timeAgo(m.created_at)}</span>
+    <div className="mx-auto grid max-w-2xl gap-3" data-testid="banned-tab">
+      <div className="glass flex items-start gap-3 rounded-2xl border border-[#FF3D6E]/40 p-3.5">
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#FF3D6E]" />
+        <p className="text-sm text-muted">Players banned or suspended for cheating or abusing LANDVAS — self-referring, alt accounts, bots, farming Ink between accounts. {r.data ? <b className="text-fg">{fmt(r.data.total)} right now.</b> : null}</p>
       </div>
-      <div className="flex items-center gap-2.5">
-        <PlayerAvatar p={m.player} size={34} />
-        <div className="min-w-0 flex-1">
-          <p className="whitespace-pre-wrap break-words text-[14px] font-semibold leading-snug">{m.body}</p>
-          <p className="text-[11px] text-muted">@{m.player.username} · {ban ? 'banned' : `suspended${until ? ` until ${until.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`} by the LANDVAS team for cheating or abusing the game.</p>
+      <input className={cn(inputCls, 'h-11')} placeholder="Search a player" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search banned players" data-testid="banned-search" />
+      {r.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : !rows.length ? (
+        <Empty icon={<ShieldAlert className="h-6 w-6" />} title={query ? `No banned player matches “${query}”` : 'No one is banned right now'}>Play fair and it stays that way.</Empty>
+      ) : (
+        <div className="grid gap-2" data-testid="banned-list">
+          {rows.map((b) => (
+            <div key={b.player.id} className="glass flex items-center gap-3 rounded-2xl p-3 pl-4" style={{ boxShadow: "inset 4px 0 0 #FF3D6E, inset 0 0 0 1px rgba(255,61,110,0.35)" }} data-testid="banned-row">
+              <Link to={`/u/${b.player.username}`} className="shrink-0"><PlayerAvatar p={b.player} size={40} /></Link>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <Link to={`/u/${b.player.username}`} className="font-bold hover:underline">@{b.player.username}</Link>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-black uppercase', b.action === 'ban' ? 'bg-[#FF3D6E] text-white' : 'bg-[#FF8A3D]/20 text-[#FF8A3D]')}>
+                    {b.action === 'ban' ? 'Banned' : `Suspended${b.until ? ` until ${new Date(b.until).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`}
+                  </span>
+                  <span className="ml-auto text-[11px] text-faint">{timeAgo(b.at)}</span>
+                </div>
+                <p className="mt-0.5 break-words text-sm">{b.summary}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -433,9 +453,8 @@ function ChatTab() {
           {!msgs ? <div className="flex justify-center py-10"><Spinner /></div> : !msgs.length ? (
             <p className="px-3 py-10 text-center text-sm text-muted">No messages yet — say hello to the world 👋</p>
           ) : msgs.map((m, i) => {
-            if (m.kind === 'moderation') return <ModerationNotice key={m.id} m={m} />;
             const prev = msgs[i - 1];
-            const grouped = prev && prev.kind !== 'moderation' && prev.player.id === m.player.id && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60_000;
+            const grouped = prev && prev.player.id === m.player.id && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60_000;
             const mine = m.player.id === me.profile.id;
             return (
               <div key={m.id} className={cn('group flex gap-2.5 rounded-xl px-2 hover:bg-surface-2/50', grouped ? 'py-0.5' : 'mt-1.5 py-1', m.deleted && 'opacity-50')} data-testid="chat-message">
