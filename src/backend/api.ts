@@ -582,6 +582,12 @@ export const api = {
     grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null, plotType: string | null = null) =>
       rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot, p_plot_type: plotType }),
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
+    playerPlots: (player: string) => rpc<any[]>('admin_player_plots', { p_player: player }),
+    takePlot: (gx: number, gy: number, reason: string) => rpc<any[]>('admin_take_plot', { p_gx: gx, p_gy: gy, p_reason: reason }),
+    setPlotRarity: (gx: number, gy: number, rarity: string, shiny: boolean, reason: string, post = true) =>
+      rpc<any[]>('admin_set_plot_rarity', { p_gx: gx, p_gy: gy, p_rarity: rarity, p_shiny: shiny, p_reason: reason, p_post: post }),
+    givePlot: (player: string, rarity: string, shiny: boolean, plotType: string | null, reason: string, post: boolean, near: { gx: number; gy: number } | null) =>
+      rpc<{ gx: number; gy: number; rarity: string; plots: any[] }>('admin_give_plot', { p_player: player, p_rarity: rarity, p_shiny: shiny, p_plot_type: plotType, p_reason: reason, p_post: post, p_near_gx: near?.gx ?? null, p_near_gy: near?.gy ?? null }),
     integrityList: (level: string | null, q: string) => rpc<any>('admin_integrity_list', { p_level: level, p_q: q || null, p_limit: 200 }),
     integrityScan: (offset: number) => rpc<{ scanned: number; total: number; next: number | null }>('admin_integrity_scan', { p_offset: offset, p_limit: 50 }),
     integrityPlayer: (id: string) => rpc<any>('admin_integrity_player', { p_player: id }),

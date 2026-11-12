@@ -82,6 +82,19 @@ try {
   check('…admin note says Crowns stay one per kingdom and event rolls are posted', /still free/.test(await page.locator('[data-testid=roll-grant-form]').innerText()) && /posted on the live feed/.test(await page.locator('[data-testid=roll-grant-form]').innerText()));
   check('…audit-logged', Number((await sql(`select count(*) n from audit_logs where action = 'rolls.grant'`))[0].n) >= 1);
   await shot('05-event-rolls');
+  // owner plot tools: give her a shiny Mythic, then take a plot away
+  await page.locator('[data-testid=player-plots]').scrollIntoViewIfNeeded();
+  const n0 = await page.locator('[data-testid=player-plot]').count();
+  check('Plot tools list her plots, Crowns first', n0 >= 3 && /Country Crown|👑/.test(await page.locator('[data-testid=player-plot]').first().innerText()), String(n0));
+  await page.fill('[data-testid=plots-reason]', 'e2e make-good');
+  await page.selectOption('[data-testid=give-rarity]', 'mythic');
+  await page.click('[data-testid=give-go]'); await page.waitForTimeout(1500);
+  check('…Give adds a plot', (await page.locator('[data-testid=player-plot]').count()) === n0 + 1);
+  await page.locator('[data-testid=plot-take]').last().click(); await page.waitForTimeout(400);
+  await page.locator('[role=dialog] button', { hasText: 'Take it' }).click(); await page.waitForTimeout(1500);
+  check('…Take away removes one', (await page.locator('[data-testid=player-plot]').count()) === n0);
+  check('…both audit-logged', Number((await sql(`select count(*) n from audit_logs where action in ('plot.given', 'plot.taken')`))[0].n) === 2);
+  await shot('06-plot-tools');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

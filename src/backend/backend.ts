@@ -290,6 +290,7 @@ const MESSAGES: Record<string, string> = {
   invalid_rent_config: 'Those rent values are out of range.',
   invalid_rate: 'USD rates must be between 0 and 0.001 per second.',
   reason_required: 'Add a short reason (it goes in the audit log).',
+  no_free_plot: 'Couldn’t find a free spot there — try again.',
   cannot_moderate_self: 'You can’t do that to your own account.',
   not_owner: 'You do not own this.',
   farm_level_needed: 'Your farm level isn’t high enough for that yet — keep farming!',
