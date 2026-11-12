@@ -36,6 +36,7 @@ import { useCelebration } from './ClaimCelebration';
 import type { RarityId } from '../shared/rarity';
 import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
+import { PlotEnchant } from '../enchant/PlotEnchant';
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useArcadeAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'arcade', gx, gy], queryFn: () => api.arcadeForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -101,6 +102,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
           <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />
         </div>
       )}
+      {d && d.rarity === 'enchanted' && <PlotEnchant gx={d.gx} gy={d.gy} />}
       {d && d.owned && (
         <div className="mt-4 grid gap-4">
           <div className="grid grid-cols-2 gap-2">
@@ -263,7 +265,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         const hab = await becomeHabitat(r.group_id);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
@@ -273,7 +275,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null,
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null,
           onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }

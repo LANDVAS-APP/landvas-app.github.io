@@ -2,7 +2,7 @@
 // them) and revealed when a plot is claimed. Six on the usual table (Common … Mythic, with Uncommon), and six ultra
 // rarities on their own one-in-thousands roll, each with its own way of earning (see `ability`).
 
-export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis' | 'chaos' | 'phoenix' | 'crown' | 'kraken' | 'gemini' | 'mirror' | 'singularity' | 'crown_state' | 'crown_country';
+export type RarityId = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'solar' | 'lunar' | 'comet' | 'ancient' | 'prismatic' | 'genesis' | 'chaos' | 'phoenix' | 'crown' | 'kraken' | 'gemini' | 'mirror' | 'singularity' | 'crown_state' | 'crown_country' | 'enchanted';
 
 export type RarityInfo = {
   id: RarityId;
@@ -43,6 +43,7 @@ export const DEFAULT_RARITIES: RarityInfo[] = [
   { id: 'mirror', name: 'Mirror', weight: 0, ppm: 100, emoji: '🪞', ability: 'Copies the rent of your best other plot — pair it with an ultra and it earns like one.', usd_per_second: 0.000000015, ink_reward_multiplier: 3.2, price_multiplier: 1, color: '#7DD3FC', glow: '#F0F9FF', sort: 19 },
   { id: 'singularity', name: 'Singularity', weight: 0, ppm: 1, emoji: '🕳️', ability: 'One in a million. Bends everything around it: every plot you own earns double.', usd_per_second: 0.000001, ink_reward_multiplier: 8, price_multiplier: 1, color: '#B4FF39', glow: '#F2FFD6', sort: 20 },
   { id: 'crown_state', name: 'State Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'One per state or province. Its holder earns ×5 on all their rent — at full strength once 25 other players own land in the state.', usd_per_second: 0.0000002, ink_reward_multiplier: 6, price_multiplier: 1, color: '#C084FC', glow: '#F5D0FE', sort: 21 },
+  { id: 'enchanted', name: 'Enchanted', weight: 0, ppm: 0, emoji: '✨', ability: 'An enchantment lives here instead of a rarity — open the Grimoire to wield it.', usd_per_second: 0.0000000011, ink_reward_multiplier: 1.2, price_multiplier: 1, color: '#B26BFF', glow: '#F0DBFF', sort: 30 },
   { id: 'crown_country', name: 'Country Crown', weight: 0, ppm: 0, emoji: '👑', ability: 'One per country. Its holder earns ×10 on all their rent — at full strength once 100 other players own land in the country.', usd_per_second: 0.0000008, ink_reward_multiplier: 10, price_multiplier: 1, color: '#F43F5E', glow: '#FFE4E6', sort: 22 },
 ];
 

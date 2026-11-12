@@ -29,6 +29,7 @@ import { useCompanion } from '../inkborn/companion';
 import { drawCreature } from '../inkborn/rig';
 import { MapFx, invalidateResidents } from './MapFx';
 import { PlotBubbles } from './Hud';
+import { EnchantLayer } from '../enchant/EnchantLayer';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -647,6 +648,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
       {!lite && <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />}
       {!lite && <PlotBubbles ready={ready} />}
+      {!lite && <EnchantLayer ready={ready} />}
     </div>
   );
 }

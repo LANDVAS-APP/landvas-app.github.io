@@ -30,6 +30,7 @@ import { SPACE_GAMES } from '../space/games';
 import { GAMES as INK_GAMES } from '../inkborn/games/engines';
 import { poll, live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
+import { KINDS as ENCH } from '../enchant/kinds';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -255,8 +256,23 @@ function FeedRow({ e }: { e: FeedEvent }) {
         extra = <RarityBadge r={d.rarity} small />;
       } else {
         const what = d.what === 'ink' ? <><b className="tnum">{fmt(Number(d.ink))} Ink</b></> : d.what === 'inkborn' ? <>their Inkborn <b>{d.name}</b> 🐾</> : d.what === 'egg' ? <>a <b>{d.egg}</b> egg 🥚</> : <>a <b style={{ color: rarityInfo(d.rarity).color }}>{rarityInfo(d.rarity).name}</b>{d.shiny ? ' ✨' : ''} plot</>;
+        if (d.sub === 'enchant') { body = <>{who} bought <b className="text-[#C9A0FF]">✨ {d.gained} Enchanted Luck</b> — their next roll is {d.pct}% Enchanted</>; break; }
         body = <>{who} sacrificed {what} at the Altar of Luck <span className="text-[#3DDC97]">· +{d.gained} 🍀</span>{d.luck != null ? <span className="text-muted"> (Luck {d.luck})</span> : null}</>;
       }
+      break;
+    }
+    case 'enchant': {
+      const d = e.data as Record<string, any>;
+      const k = ENCH[d.kind as keyof typeof ENCH];
+      icon = <span className="text-[12px] leading-none">✨</span>;
+      body = d.sub === 'born' ? <>{who} rolled an <b className="text-[#C9A0FF]">Enchanted</b> plot: <b style={{ color: k?.a }}>{k?.emoji} {k?.name} #{d.serial}</b>{d.place ? <span className="text-muted"> · {d.place}</span> : null}</>
+        : d.sub === 'hybrid' ? <>{who} spliced a resonant hybrid: <b className="text-[#00F5D4]">🧬 {d.hybrid}</b></>
+        : d.sub === 'hope' ? <>{who} released all seven evils from <b style={{ color: k?.a }}>🏺 Pandora’s Box</b> — and <b>Hope</b> 🦋 came out</>
+        : d.sub === 'symbiote' ? <>{who}’s <b style={{ color: k?.a }}>🦠 Parasite</b> evolved into a <b className="text-[#3DDC97]">💚 Symbiote</b></>
+        : d.sub === 'genie_freed' ? <>{who} made the Forbidden Wish — and <b style={{ color: k?.a }}>🧞 the Genie went free</b></>
+        : d.sub === 'treasure' ? <>{who} dug up a <b className="text-gold">🧰 treasure chest</b> with a Legendary+ roll ticket</>
+        : d.sub === 'shatter' ? <>{who}’s <b style={{ color: k?.a }}>🪞 Mirror Shard</b> shattered after seven reflections</>
+        : <>{who} did something enchanted</>;
       break;
     }
     case 'crown': {

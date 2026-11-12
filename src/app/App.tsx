@@ -52,6 +52,7 @@ const LegalScreen = lazy(() => import('../screens/Legal'));
 import { useIntegrityPing } from '../integrity/signals';
 import { RestrictionNotice } from '../integrity/RestrictionNotice';
 const LegendScreen = lazy(() => import('../screens/Legend'));
+const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
@@ -236,6 +237,8 @@ const routes: RouteObject[] = [
           { path: '/me', element: player(<MeHub />) },
           { path: '/achievements', element: player(<AchievementsScreen />) },
           { path: '/legend', element: p(<LegendScreen />) },
+          { path: '/grimoire', element: player(<GrimoireScreen />) },
+          { path: '/grimoire/:id', element: player(<GrimoireScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },
           { path: '/royalty', element: p(<RoyaltyScreen />) },
           { path: '/rankings/rarities', element: p(<RarityRankingsScreen />) },

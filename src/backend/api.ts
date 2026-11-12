@@ -11,7 +11,16 @@ import type { RarityId } from '../shared/rarity';
 export type EstateTask = { done: number; need: number; today?: boolean; left_today?: number };
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
-export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; armed: number; can_reroll: number; per_roll: number; max_rerolls: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number };
+export type EnchantBrief = { id: string; kind: string; serial: number; sigil: number; nickname: string | null; level: number; gx: number; gy: number; titles: string[];
+  born_place: string | null; born_at: string; minted: number; population: number; name: string; emoji: string; gene?: string | null };
+export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
+  clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: { kind: string; id: string; gene: string; resonant: boolean; hybrid: string; ends_at: string } | null;
+  view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean };
+export type EnchantVisitor = { id: string; kind: string; mirror: boolean; owner: any; serial: number; stage: number; welcomed: boolean; gx: number; gy: number; at: number; hatch_at: number | null; what: 'parasite' | 'egg' };
+export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null }[];
+  attached: { id: string; what: 'parasite' | 'egg'; stage: number; gx: number; gy: number; mine: boolean; on_mine: boolean }[]; giants: { gx: number; gy: number; mult: number }[] };
+export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; armed: number; can_reroll: number; per_roll: number; max_rerolls: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number;
+  enchant: number; enchant_max: number; enchant_ink: number; enchant_step: number; enchant_base: number; enchant_pct: number };
 
 /** Hears every new balance a call hands back (so the app can show it without re-reading your whole state). */
 let balanceSink: ((fn: string, b: Balances) => void) | null = null;
@@ -94,6 +103,18 @@ export const api = {
   luckArm: (rerolls: number) => rpc<LuckState>('luck_arm', { p_rerolls: rerolls }),
   luckPick: (gx: number, gy: number, idx: number) => rpc<{ rarity: RarityId; usd_per_second: number; achievements: NewAchievement[] }>('luck_pick', { p_gx: gx, p_gy: gy, p_idx: idx }),
   luckSacrificePlot: (gx: number, gy: number) => rpc<LuckState & { gained: number; rarity: RarityId }>('luck_sacrifice_plot', { p_gx: gx, p_gy: gy }),
+  luckOfferInkAmount: (ink: number) => rpc<LuckState & { gained: number; cost: number }>('luck_offer_ink_amount', { p_ink: ink }),
+  luckEnchant: (charges: number) => rpc<LuckState & { bought: number; cost: number }>('luck_enchant', { p_charges: charges }),
+  // enchantments (the Grimoire)
+  myEnchantments: () => rpc<EnchantView[]>('my_enchantments'),
+  enchantGet: (id: string) => rpc<EnchantView>('enchant_get', { p_id: id }),
+  enchantAt: (gx: number, gy: number) => rpc<(EnchantBrief & { owner: any; mine: boolean; partner: any; status: string }) | null>('enchant_at', { p_gx: gx, p_gy: gy }),
+  enchantAct: (id: string, action: string, args: Record<string, unknown> = {}) => rpc<EnchantView & { result: any }>('enchant_act', { p_id: id, p_action: action, p_args: args }),
+  enchantChronicle: (id: string, before: number | null = null) => rpc<{ id: number; kind: string; data: any; at: string }[]>('enchant_chronicle', { p_id: id, p_before: before }),
+  enchantVisitors: () => rpc<EnchantVisitor[]>('enchant_visitors'),
+  enchantVisitorAct: (id: string, action: 'shake' | 'welcome' | 'eject') => rpc<{ result: any; visitors: EnchantVisitor[] }>('enchant_visitor_act', { p_id: id, p_action: action }),
+  enchantMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap>('enchant_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
+  enchantBestiary: () => rpc<{ kinds: { kind: string; name: string; emoji: string; population: number; minted: number; mine: number }[]; codex: string[]; chance: { base: number; charges: number; step: number } }>('enchant_bestiary'),
   luckOfferInk: (points: number) => rpc<LuckState & { gained: number; cost: number }>('luck_offer_ink', { p_points: points }),
   /** every city's Crown and who holds it */
   crowns: () => rpc<{ total: number; states: number; countries: number; held: { tier: RarityId; city: string; country: string; holder: string; since: string; mine: boolean; strength: number; rivals: number; need: number }[] }>('crowns'),
@@ -584,6 +605,8 @@ export const api = {
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
     inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
     setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
+    giveEnchantment: (player: string, kind: string, reason: string, near: { gx: number; gy: number } | null) =>
+      rpc<EnchantBrief>('admin_give_enchantment', { p_player: player, p_kind: kind, p_reason: reason, p_near_gx: near?.gx ?? null, p_near_gy: near?.gy ?? null }),
     playerPlots: (player: string) => rpc<any[]>('admin_player_plots', { p_player: player }),
     takePlot: (gx: number, gy: number, reason: string) => rpc<any[]>('admin_take_plot', { p_gx: gx, p_gy: gy, p_reason: reason }),
     setPlotRarity: (gx: number, gy: number, rarity: string, shiny: boolean, reason: string, post = true) =>

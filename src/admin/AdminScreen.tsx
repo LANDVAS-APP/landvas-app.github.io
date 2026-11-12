@@ -26,6 +26,7 @@ import { useNotifications } from '../updates/Notifications';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { Button, Empty, Field, Spinner, Switch, Tabs, inputCls, useConfirm, PlayerAvatar } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
+import { KIND_ORDER, kindInfo } from '../enchant/kinds';
 import type { AdminPlot } from '../backend/types';
 import { poll } from '../lib/poll';
 
@@ -487,6 +488,7 @@ function Earnings() {
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
+        {cfg.data.config.enchantments && <EnchantSettings value={cfg.data.config.enchantments.value} />}
         {cfg.data.config.earn && <EarnSettings value={cfg.data.config.earn.value} onSave={(v) => save('earn', v, 'Earning settings saved for everyone')} />}
         {cfg.data.config.creative && <CreativeSettings value={cfg.data.config.creative.value} onSave={(v) => save('creative', v, 'Creative games saved for everyone')} />}
         {cfg.data.config.pvp && <PvpSettings value={cfg.data.config.pvp.value} onSave={(v) => save('pvp', v, 'PvP settings saved for everyone')} />}
@@ -643,7 +645,7 @@ function OddsEditor({ rarities, config }: { rarities: any[]; config: Record<stri
   const qc = useQueryClient();
   const save = useSaveConfig();
   const everyday = EVERYDAY.map((id) => rarities.find((r: any) => r.id === id)).filter(Boolean);
-  const ultras = rarities.filter((r: any) => !EVERYDAY.includes(r.id) && !r.id.startsWith('crown'));
+  const ultras = rarities.filter((r: any) => !EVERYDAY.includes(r.id) && !r.id.startsWith('crown') && r.id !== 'enchanted');
   const totalW = everyday.reduce((t: number, r: any) => t + (Number(r.weight) || 0), 0) || 1;
   const startPct = () => Object.fromEntries(everyday.map((r: any) => [r.id, +((Number(r.weight) / totalW) * 100).toFixed(4)])) as Record<string, number>;
   const startOne = () => Object.fromEntries(ultras.map((r: any) => [r.id, Number(r.ppm) > 0 ? Math.round(1_000_000 / Number(r.ppm)) : 0])) as Record<string, number>;
@@ -804,6 +806,56 @@ function BoostSettings({ rent }: { rent: any }) {
         <NumberField label="Minutes per press" value={Number(b.minutes_per_boost)} min={1} onChange={(n) => setB({ ...b, minutes_per_boost: Math.round(n) })} />
         <NumberField label="Free presses per day" value={Number(b.free_per_day)} onChange={(n) => setB({ ...b, free_per_day: Math.round(n) })} />
         <NumberField label="Max stacked hours" value={Number(b.max_stack_hours)} step={0.5} onChange={(n) => setB({ ...b, max_stack_hours: n })} />
+      </div>
+    </Card>
+  );
+}
+
+/** the Enchantments roll: how often a plot roll turns Enchanted, what Enchanted Luck costs and does, and how often each kind turns up */
+function EnchantSettings({ value }: { value: any }) {
+  const save = useSaveConfig();
+  const [v, setV] = useState<any>(() => structuredClone(value));
+  useEffect(() => setV(structuredClone(value)), [value]);
+  const best = useQuery({ queryKey: ['enchant-bestiary'], queryFn: api.enchantBestiary, staleTime: 30_000 });
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const w = v.weights ?? {};
+  const tot = KIND_ORDER.reduce((a, k) => a + Math.max(0, Number(w[k] ?? 1)), 0) || 1;
+  const valid = [v.base_pct, v.luck_pct, v.luck_ink, v.luck_max].every((n) => Number.isFinite(Number(n))) && KIND_ORDER.every((k) => Number.isFinite(Number(w[k] ?? 1)));
+  const maxPct = Math.min(100, Number(v.base_pct) + Number(v.luck_max) * Number(v.luck_pct));
+  const pop = new Map((best.data?.kinds ?? []).map((k) => [k.kind, k]));
+  return (
+    <Card title="🔮 Enchantments" actions={<Button size="sm" variant="primary" disabled={!dirty || !valid} data-testid="enchant-cfg-save" onClick={() => save('enchantments', v, 'Enchantment odds saved for everyone')}>Save</Button>}>
+      <div className="grid gap-3" data-testid="enchant-cfg">
+        <Switch id="enchant-enabled" checked={v.enabled !== false} label={v.enabled !== false ? 'Plot rolls can turn Enchanted' : 'Enchanted rolls are OFF (existing enchantments keep working)'} onCheckedChange={(on) => setV({ ...v, enabled: on })} />
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="Chance per plot roll" value={Number(v.base_pct)} step={0.1} max={100} suffix="%" onChange={(n) => setV({ ...v, base_pct: n })} />
+          <NumberField label="Each Enchanted Luck adds" value={Number(v.luck_pct)} step={0.1} max={100} suffix="%" onChange={(n) => setV({ ...v, luck_pct: n })} />
+          <NumberField label="Enchanted Luck price" value={Number(v.luck_ink)} min={1} suffix="Ink" onChange={(n) => setV({ ...v, luck_ink: Math.round(n) })} />
+          <NumberField label="Most Enchanted Luck at once" value={Number(v.luck_max)} max={100} onChange={(n) => setV({ ...v, luck_max: Math.round(n) })} />
+        </div>
+        <p className="text-xs text-muted">Fully charged, a roll has a <b className="tnum">{Math.round(maxPct * 10) / 10}%</b> chance to turn Enchanted. Enchanted Luck is spent on the next plot roll, whatever it lands on. Event rolls, Crowns and plots with a sleeping enchantment never turn Enchanted.</p>
+        <div className="text-xs font-bold">How often each kind turns up</div>
+        <div className="grid gap-1.5">
+          {KIND_ORDER.map((k) => {
+            const info = kindInfo(k);
+            const n = Math.max(0, Number(w[k] ?? 1));
+            const p = pop.get(k);
+            return (
+              <div key={k} className="flex min-w-0 items-center gap-2 text-xs" data-testid="enchant-weight" data-pop={p ? `${p.population} alive · #${p.minted}` : undefined} title={p ? `${p.population} alive now · ${p.minted} ever minted` : undefined}>
+                <span className="w-5 text-center text-base">{info.emoji}</span>
+                <span className="w-24 shrink-0 truncate font-semibold sm:w-28">{info.name}</span>
+                <input type="number" aria-label={`${info.name} weight`} className={cn(inputCls, 'h-8 w-16 shrink-0 px-2 tnum')} min={0} max={1000} step={0.5} value={Number.isFinite(Number(w[k] ?? 1)) ? Number(w[k] ?? 1) : ''}
+                  onChange={(e) => setV({ ...v, weights: { ...w, [k]: e.target.value === '' ? NaN : Number(e.target.value) } })} />
+                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-2">
+                  <div className="h-full rounded-full" style={{ width: `${(n / tot) * 100}%`, background: `linear-gradient(90deg, ${info.a}, ${info.b})` }} />
+                </div>
+                <span className="w-11 shrink-0 text-right tnum text-muted">{Math.round((n / tot) * 1000) / 10}%</span>
+                <span className="hidden w-20 shrink-0 text-right tnum text-faint sm:inline">{p ? `${fmt(p.population)} · #${fmt(p.minted)}` : '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-faint">Weight 0 stops a kind from turning up. On a wide screen the right column is how many are alive now and how many have ever been minted. Give one to a player from Players → their plots.</p>
       </div>
     </Card>
   );

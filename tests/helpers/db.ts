@@ -53,7 +53,7 @@ export class TestDb {
    * @param opts.ungated turn off location-gated claims (for suites that test
    *   other systems and claim plots all over the grid)
    */
-  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number; basePlots?: boolean; inkPacing?: boolean } = {}) {
+  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number; basePlots?: boolean; inkPacing?: boolean; enchantChance?: number } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
     // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
@@ -68,6 +68,8 @@ export class TestDb {
     if (!opts.basePlots) await this.admin.query(`alter table public.canvas_groups alter column kind set default 'canvas'`);
     // suites check exact Ink amounts: hidden Ink pacing is tested on its own
     if (!opts.inkPacing) await this.admin.query(`update game_config set value = jsonb_set(value, '{enabled}', 'false') where key = 'ink_pacing'`).catch(() => {});
+    // suites check exact rolls: the 2% enchantment chance is tested on its own
+    await this.admin.query(`update game_config set value = value || jsonb_build_object('base_pct', $1::numeric) where key = 'enchantments'`, [opts.enchantChance ?? 0]).catch(() => {});
     return this;
   }
 

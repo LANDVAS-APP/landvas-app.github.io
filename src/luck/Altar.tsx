@@ -42,7 +42,7 @@ export function LuckChip({ className }: { className?: string }) {
       <button onClick={() => setOpen(true)} data-testid="luck-chip"
         className={cn('pointer-events-auto relative flex items-center gap-2 rounded-full border border-white/12 bg-[#0f1a2e]/90 py-1 pl-1 pr-3 text-[12px] font-extrabold text-white', l.luck > 0 && 'shadow-[0_0_18px_rgba(61,220,151,0.45)]', className)}>
         <span className="relative grid place-items-center"><Ring luck={l.luck} max={l.max} /><span className="absolute text-[15px]">🍀</span></span>
-        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55" data-testid="luck-chip-note">{l.rolls > 1 ? `next plot: ${l.rolls - 1} reroll${l.rolls > 2 ? 's' : ''} armed` : l.can_reroll > 0 ? 'saved · tap to use' : 'Sacrifice for free rerolls'}</span></span>
+        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55" data-testid="luck-chip-note">{l.enchant > 0 ? `✨ ${Number(l.enchant_pct)}% enchant · ` : ''}{l.rolls > 1 ? `next plot: ${l.rolls - 1} reroll${l.rolls > 2 ? 's' : ''} armed` : l.can_reroll > 0 ? 'saved · tap to use' : 'Sacrifice for free rerolls'}</span></span>
       </button>
       <AltarDialog open={open} onOpenChange={setOpen} />
     </>
@@ -97,6 +97,30 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
     try { const r = await api.luckArm(n); buzz('light'); qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old)); }
     catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  const [inkAmt, setInkAmt] = useState('');
+  const offerPts = l ? Math.min(Math.floor(Number(inkAmt || 0) / Math.max(1, l.ink_per_point)), Math.max(0, l.max - l.luck)) : 0;
+  const offerAmount = async () => {
+    setBusy('inkamt');
+    try {
+      const r = await api.luckOfferInkAmount(Number(inkAmt));
+      buzz('success'); setInkAmt('');
+      setBurn({ key: `ink${Date.now()}`, rarity: 'common', gained: r.gained });
+      setTimeout(() => setBurn(null), 1400);
+      qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old));
+      after();
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
+  const enchant = async (n: number) => {
+    setBusy(`enchant${n}`);
+    try {
+      const r = await api.luckEnchant(n);
+      buzz('success');
+      setBurn({ key: `en${Date.now()}`, rarity: 'enchanted', gained: r.bought });
+      setTimeout(() => setBurn(null), 1400);
+      qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old));
+      after(); void qc.invalidateQueries({ queryKey: ['enchant-bestiary'] });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
   const offer = async (points: number) => {
     setBusy(`ink${points}`);
     try {
@@ -110,7 +134,7 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots, Inkborn, eggs or Ink to charge your Luck. Every 20 Luck is a reroll — choose how many to use on your next plot, then keep the roll you like.">
+    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots, Inkborn, eggs or Ink to charge your Luck. Every 20 Luck is a reroll — choose how many to use on your next plot, then keep the roll you like. Ink also buys Enchanted Luck.">
       {l && (
         <div className="grid gap-4" data-testid="altar">
           {/* the meter */}
@@ -163,17 +187,45 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             </div>
           </section>
 
-          {/* Ink */}
+          {/* Enchanted Luck */}
+          <section className="relative grid gap-2 overflow-hidden rounded-3xl border border-[#B26BFF]/40 bg-[radial-gradient(120%_90%_at_50%_0%,rgba(178,107,255,0.28),rgba(20,8,40,0.6))] p-3" data-testid="luck-enchant">
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 className="text-[12px] font-black uppercase tracking-wider text-[#E5CCFF]">✨ Enchanted Luck</h3>
+              <span className="font-display text-[20px] font-black text-white" data-testid="luck-enchant-pct">{Number(l.enchant_pct)}%<span className="ml-1 text-[11px] font-bold text-white/55">next roll Enchanted</span></span>
+            </div>
+            <div className="flex gap-1">{Array.from({ length: l.enchant_max }, (_, i) => <motion.span key={i} className={cn('h-2.5 flex-1 rounded-full', i < l.enchant ? 'bg-[linear-gradient(90deg,#B26BFF,#FFE8A3)] shadow-[0_0_8px_#B26BFF]' : 'bg-white/12')} animate={i === l.enchant - 1 ? { scale: [1, 1.4, 1] } : {}} />)}</div>
+            <p className="text-[11px] text-white/60">Every roll has a {Number(l.enchant_base)}% chance to come out Enchanted — an enchantment in place of a rarity. Each charge adds {Number(l.enchant_step)} points to your <b>next</b> roll (used up by it, Enchanted or not). {fmt(l.enchant_ink)} Ink a charge.</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 3, l.enchant_max].map((n, i) => {
+                const k = Math.min(n, l.enchant_max - l.enchant);
+                return (
+                  <button key={i} disabled={!!busy || k < 1} onClick={() => void enchant(k)} data-testid={`luck-enchant-${i === 2 ? 'max' : n}`}
+                    className="grid rounded-2xl border border-[#B26BFF]/40 bg-[#B26BFF]/15 px-2 py-2 text-center disabled:opacity-40">
+                    <span className="text-[15px] font-black">{i === 2 ? 'Max' : `+${n}`} ✨</span><span className="text-[11px] font-semibold text-white/60">{fmt(Math.max(k, 0) * l.enchant_ink)} Ink</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Ink, any amount */}
           <section className="grid gap-2">
             <h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">Offer Ink · {l.ink_per_point} Ink a point</h3>
+            <div className="flex gap-2">
+              <input className="h-11 min-w-0 flex-1 rounded-xl border border-white/12 bg-white/[0.06] px-3 text-[15px] font-bold text-white placeholder:text-white/30" inputMode="numeric" placeholder="Any amount of Ink"
+                value={inkAmt} onChange={(e) => setInkAmt(e.target.value.replace(/[^0-9]/g, ''))} data-testid="luck-ink-amount" />
+              <button disabled={!!busy || l.luck >= l.max || offerPts < 1} onClick={() => void offerAmount()} data-testid="luck-ink-offer"
+                className="rounded-xl bg-[linear-gradient(135deg,#3DDC97,#1FA971)] px-4 font-black text-white disabled:opacity-40">+{offerPts} 🍀</button>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {[5, 20, 100].map((n) => (
                 <button key={n} disabled={!!busy || l.luck >= l.max} onClick={() => void offer(Math.min(n, l.max - l.luck))} data-testid={`luck-ink-${n}`}
-                  className="grid rounded-2xl border border-white/12 bg-white/[0.06] px-2 py-2 text-center disabled:opacity-40">
-                  <span className="text-[15px] font-black">{n === 100 ? 'Fill up' : `+${n}`} 🍀</span><span className="text-[11px] font-semibold text-white/60">{fmt(Math.min(n, Math.max(0, l.max - l.luck)) * l.ink_per_point)} Ink</span>
+                  className="grid rounded-2xl border border-white/12 bg-white/[0.06] px-2 py-1.5 text-center disabled:opacity-40">
+                  <span className="text-[13px] font-black">{n === 100 ? 'Fill up' : `+${n}`} 🍀</span><span className="text-[11px] font-semibold text-white/60">{fmt(Math.min(n, Math.max(0, l.max - l.luck)) * l.ink_per_point)} Ink</span>
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-white/45">Offer as much as you like — only what fits under the {l.max} Luck maximum is taken.</p>
           </section>
 
           {/* Inkborn and eggs */}

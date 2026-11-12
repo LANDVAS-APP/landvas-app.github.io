@@ -174,7 +174,7 @@ const FEED_KEYS: { k: string; label: string; hint: string; acts: Act[] }[] = [
   { k: 'feed_account', label: 'Account', hint: 'Joining LANDVAS, inviting friends', acts: [
     { k: 'fa_join', label: 'Joining LANDVAS' }, { k: 'fa_referral', label: 'Inviting a friend' }] },
   { k: 'feed_claims', label: 'Plots & Crowns', hint: 'Plots you claim (and their rarity), Crowns, planet plots', acts: [
-    { k: 'fa_claim', label: 'Claiming a plot' }, { k: 'fa_shiny', label: 'Claiming a ✨ shiny plot' }, { k: 'fa_crown', label: 'Claiming a Crown' },
+    { k: 'fa_claim', label: 'Claiming a plot' }, { k: 'fa_shiny', label: 'Claiming a ✨ shiny plot' }, { k: 'fa_crown', label: 'Claiming a Crown' }, { k: 'fa_enchant', label: 'Enchantments (discoveries, hybrids, Hope…)' },
     { k: 'fa_planet_plot', label: 'Claiming a planet plot' }, { k: 'fa_core', label: 'Reaching a planet’s core' }] },
   { k: 'feed_badges', label: 'Badges', hint: 'Badges you earn', acts: [{ k: 'fa_achievement', label: 'Earning a badge' }] },
   { k: 'feed_games', label: 'Game wins', hint: 'Minigames, PvP, arcade, challenges, levels', acts: [
@@ -185,7 +185,7 @@ const FEED_KEYS: { k: string; label: string; hint: string; acts: Act[] }[] = [
   { k: 'feed_art', label: 'Art', hint: 'Art you publish, duets, stamps', acts: [
     { k: 'fa_publish', label: 'Publishing art' }, { k: 'fa_featured', label: 'Getting Featured' }, { k: 'fa_duet', label: 'Finishing a duet' }, { k: 'fa_stamp', label: 'Collecting a stamp' }] },
   { k: 'feed_luck', label: 'Luck', hint: 'Sacrifices at the Altar and your lucky picks', acts: [
-    { k: 'fa_luck_ink', label: 'Sacrificing Ink for Luck' }, { k: 'fa_luck_inkborn', label: 'Sacrificing an Inkborn' }, { k: 'fa_luck_egg', label: 'Sacrificing an egg' },
+    { k: 'fa_luck_ink', label: 'Sacrificing Ink for Luck' }, { k: 'fa_luck_inkborn', label: 'Sacrificing an Inkborn' }, { k: 'fa_luck_egg', label: 'Sacrificing an egg' }, { k: 'fa_luck_enchant', label: 'Buying Enchanted Luck' },
     { k: 'fa_luck_plot', label: 'Sacrificing a plot' }, { k: 'fa_luck_pick', label: 'Lucky picks (rolling with Luck)' }] },
   { k: 'feed_travel', label: 'Travel', hint: 'Flights to the Hot Zone, exploring other worlds (never where you are)', acts: [
     { k: 'fa_flight', label: 'Flying somewhere' }, { k: 'fa_exploring', label: 'Exploring a world' }, { k: 'fa_settle', label: 'Settling a new world' }] },

@@ -6,6 +6,7 @@ import { ChevronRight, Gamepad2, Map as MapIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LuckChip } from '../luck/Altar';
+import { GrimoireButton } from '../enchant/GrimoireButton';
 import { RentCalculator } from '../rent/RentCalculator';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -110,8 +111,11 @@ export default function SimpleHome() {
         </div>
       </motion.button>
 
-      {/* the Altar of Luck: sacrifice for a better roll */}
-      <LuckChip className="justify-self-start" />
+      {/* the Altar of Luck: sacrifice for a better roll · the Grimoire: your enchantments */}
+      <div className="flex items-center justify-between gap-3">
+        <LuckChip />
+        <GrimoireButton />
+      </div>
 
       {/* what you can roll */}
       <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">

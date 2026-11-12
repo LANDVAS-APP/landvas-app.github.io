@@ -1,0 +1,84 @@
+/* Enchantments: the Grimoire, the sigils, the scenes and the roll's transformation. Transforms and opacity only. */
+.lv-sigil-spin { animation: lv-sigil-spin 28s linear infinite; transform-origin: 50% 50%; }
+.lv-sigil-spin-r { animation: lv-sigil-spin 40s linear infinite reverse; transform-origin: 50% 50%; }
+@keyframes lv-sigil-spin { to { transform: rotate(360deg); } }
+.lv-sigil-pulse { animation: lv-sigil-pulse 2.6s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes lv-sigil-pulse { 0%, 100% { opacity: 0.55; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.04); } }
+
+/* the Grimoire button on the map */
+.lv-grim-btn { position: relative; display: grid; place-items: center; width: 58px; height: 58px; border-radius: 18px;
+  background: radial-gradient(circle at 50% 30%, #4B1F8F 0%, #22093F 60%, #12041F 100%);
+  box-shadow: 0 0 0 2px rgba(255, 215, 120, 0.55), 0 8px 24px -6px rgba(178, 107, 255, 0.85), inset 0 -6px 12px rgba(0, 0, 0, 0.45); }
+.lv-grim-btn::before { content: ''; position: absolute; inset: -6px; border-radius: 22px; background: conic-gradient(from 0deg, #FFD23F, #B26BFF, #22E3FF, #FF3D9A, #FFD23F);
+  opacity: 0.55; filter: blur(8px); z-index: -1; animation: lv-sigil-spin 6s linear infinite; }
+.lv-grim-book { animation: lv-grim-float 3.2s ease-in-out infinite; }
+@keyframes lv-grim-float { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
+.lv-grim-mote { position: absolute; width: 4px; height: 4px; border-radius: 9px; background: #FFE8A3; box-shadow: 0 0 6px #FFD23F; animation: lv-grim-mote 2.8s ease-in infinite; }
+@keyframes lv-grim-mote { 0% { transform: translate(0, 6px) scale(0.4); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(var(--dx, 0px), -26px) scale(1); opacity: 0; } }
+.lv-grim-badge { animation: lv-grim-badge 1.4s ease-in-out infinite; }
+@keyframes lv-grim-badge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+
+/* the Grimoire page */
+.lv-grim-page { background:
+  radial-gradient(120% 70% at 50% -10%, rgba(178, 107, 255, 0.28), transparent 60%),
+  radial-gradient(90% 60% at 100% 100%, rgba(34, 227, 255, 0.12), transparent 60%); }
+.lv-ench-card { position: relative; overflow: hidden; border-radius: 26px; isolation: isolate;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--a) 22%, #120A22) 0%, #0D0819 70%);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--a) 55%, transparent), 0 18px 40px -22px var(--a); }
+.lv-ench-card::after { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0.35;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 45%, transparent 60%); background-size: 250% 100%; animation: lv-ench-sheen 5s ease-in-out infinite; }
+@keyframes lv-ench-sheen { 0% { background-position: 120% 0; } 60%, 100% { background-position: -40% 0; } }
+.lv-ench-attn { animation: lv-ench-attn 1.6s ease-in-out infinite; }
+@keyframes lv-ench-attn { 0%, 100% { box-shadow: 0 0 0 1.5px var(--a), 0 0 0 0 var(--a); } 50% { box-shadow: 0 0 0 1.5px var(--a), 0 0 22px 2px var(--a); } }
+
+/* scenes */
+.lv-scene { position: relative; overflow: hidden; border-radius: 28px; isolation: isolate; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.lv-float { animation: lv-float 3s ease-in-out infinite; }
+@keyframes lv-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.lv-sway { animation: lv-sway 4s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes lv-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.lv-waddle { animation: lv-waddle 1.1s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes lv-waddle { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-2px); } }
+.lv-shine { animation: lv-shine 2.8s ease-in-out infinite; }
+@keyframes lv-shine { 0% { transform: translateX(-120%) rotate(20deg); } 60%, 100% { transform: translateX(220%) rotate(20deg); } }
+.lv-wriggle { animation: lv-wriggle 0.9s ease-in-out infinite; transform-origin: 50% 60%; }
+@keyframes lv-wriggle { 0%, 100% { transform: scale(1, 1) rotate(-2deg); } 50% { transform: scale(1.08, 0.92) rotate(3deg); } }
+.lv-tremble { animation: lv-tremble 0.18s linear infinite; }
+@keyframes lv-tremble { 0% { transform: translate(0, 0); } 25% { transform: translate(1px, -1px); } 50% { transform: translate(-1px, 1px); } 75% { transform: translate(1px, 1px); } 100% { transform: translate(0, 0); } }
+.lv-rustle { animation: lv-rustle 0.5s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes lv-rustle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+.lv-smoke { animation: lv-smoke 2.4s ease-out infinite; }
+@keyframes lv-smoke { 0% { transform: translateY(0) scale(0.5); opacity: 0.8; } 100% { transform: translateY(-90px) scale(1.8); opacity: 0; } }
+.lv-tick { animation: lv-sigil-spin 60s steps(60) infinite; transform-origin: 50% 50%; }
+.lv-gear { animation: lv-sigil-spin 9s linear infinite; transform-box: fill-box; transform-origin: center; }
+.lv-gear-r { animation: lv-sigil-spin 6s linear infinite reverse; transform-box: fill-box; transform-origin: center; }
+.lv-frost { background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(180, 230, 255, 0.55) 100%);
+  box-shadow: inset 0 0 40px rgba(200, 240, 255, 0.8); }
+.lv-glass { background: linear-gradient(125deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.04) 40%, rgba(255, 255, 255, 0.25) 60%, rgba(255, 255, 255, 0.02)); }
+.lv-mirror-world { transform: scaleX(-1); }
+.lv-mirror-world .lv-unmirror { transform: scaleX(-1); }
+
+/* the roll's transformation: the drum cracks into runes */
+.lv-ench-crack { animation: lv-ench-crack 0.5s ease-in forwards; }
+@keyframes lv-ench-crack { 0% { transform: scale(1); filter: none; } 40% { transform: scale(1.06) skewX(-6deg); } 100% { transform: scale(0.2) rotate(18deg); opacity: 0; } }
+.lv-ench-circle { animation: lv-sigil-spin 7s linear infinite; transform-origin: 50% 50%; }
+.lv-ench-circle-r { animation: lv-sigil-spin 11s linear infinite reverse; transform-origin: 50% 50%; }
+.lv-ench-rune { animation: lv-ench-rune 1.6s ease-in-out infinite; }
+@keyframes lv-ench-rune { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.lv-ench-beam { background: linear-gradient(90deg, transparent, rgba(255, 240, 200, 0.9), transparent); animation: lv-ench-beam 1.2s ease-in-out infinite; }
+@keyframes lv-ench-beam { 0%, 100% { opacity: 0.2; transform: scaleY(0.6); } 50% { opacity: 1; transform: scaleY(1); } }
+
+/* map markers */
+.lv-em { display: block; padding: 0; background: none; border: 0; cursor: pointer; }
+.lv-em-orb { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--a) 70%, #fff), color-mix(in srgb, var(--a) 40%, #12041F) 70%);
+  box-shadow: 0 0 0 2px var(--r), 0 0 18px 2px var(--a); animation: lv-em-bob 2.8s ease-in-out infinite; }
+.lv-em-ring { position: absolute; inset: -6px; border-radius: 999px; border: 2px dashed color-mix(in srgb, var(--r) 80%, transparent); animation: lv-sigil-spin 8s linear infinite; }
+.lv-em-ico { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.lv-em-tag { position: absolute; right: -8px; top: -8px; font-size: 13px; }
+.lv-em-tag-l { left: -8px; right: auto; }
+@keyframes lv-em-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.lv-em-small { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; font-size: 16px; background: rgba(12, 6, 24, 0.75); border: 1.5px solid rgba(255, 255, 255, 0.4); }
+.lv-em-alert { animation: lv-grim-badge 1.2s ease-in-out infinite; border-color: #FFD23F; box-shadow: 0 0 12px #FFD23F; }
+.lv-em-giant { padding: 2px 8px; border-radius: 999px; font: 900 11px system-ui; color: #0A1A0F; background: linear-gradient(90deg, #39FF14, #B6FF3D); box-shadow: 0 0 14px #39FF14; }
+.lv-em-x { background: none; border: 0; animation: lv-grim-badge 1s ease-in-out infinite; }

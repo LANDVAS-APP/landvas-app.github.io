@@ -25,6 +25,7 @@ const streaks = ({ fx }: Ctx, colors: string[], n: number, angle: number, from: 
 const RAINBOW = ['#FF3D9A', '#FFB31F', '#FFE14D', '#3DDC97', '#22E3FF', '#8FA8FF', '#A45CFF'];
 
 const SHOWS: Partial<Record<RarityId, { overlay?: Overlay; run(x: Ctx): void }>> = {
+  enchanted: { overlay: 'night', run: (x) => { ring(x, ['#B26BFF', '#FFE8A3', '#F0DBFF'], 120, 300, 10); x.later(250, () => rain(x, ['✨', '🔮', '📖', '✨'], 34, 2.8, 2)); x.later(600, () => sparks(x, ['#B26BFF', '#FFD23F', '#fff'], 120, 16)); } },
   epic: { run: (x) => { pop(x, ['⚡', '💜'], 14, 14); x.later(250, () => sparks(x, ['#DABDFF', '#A45CFF', '#fff'], 90, 18)); } },
   legendary: { overlay: 'gold', run: (x) => { rain(x, ['🪙', '🪙', '⭐'], 30); pop(x, ['🏆', '⭐'], 10); x.later(400, () => rain(x, ['🪙', '💰'], 24)); } },
   mythic: { run: (x) => { pop(x, ['💎', '🌈', '✨'], 18, 15); x.later(200, () => sparks(x, RAINBOW, 140, 18)); x.later(500, () => x.fx.burst({ x: W() / 2, y: -20, area: [W(), 10], angle: Math.PI / 2, spread: 0.5, speed: 4, gravity: 0.1, colors: RAINBOW, count: 120, kind: 'glitter', life: 1.6 })); } },

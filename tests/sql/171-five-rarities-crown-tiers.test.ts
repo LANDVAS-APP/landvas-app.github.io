@@ -25,7 +25,7 @@ describe('the rarity table', () => {
     for (const id of ['phoenix', 'kraken', 'gemini', 'mirror']) expect(r[id].ppm).toBeGreaterThan(0);
     expect(r.eclipse).toBeUndefined(); expect(r.vampire).toBeUndefined(); expect(r.dragon).toBeUndefined();
     expect(r.crown.name).toBe('City Crown'); expect(r.crown_state.name).toBe('State Crown'); expect(r.crown_country.name).toBe('Country Crown');
-    expect(Object.keys(r).length).toBe(21);
+    expect(Object.keys(r).length).toBe(22); // + Enchanted (an enchantment in place of a rarity)
   });
   it('the collection is an album now: owning every type adds nothing', async () => {
     const types = ['graphite', 'pigment', 'mosaic', 'prism', 'fresco', 'bloom', 'neon', 'ember'];

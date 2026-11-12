@@ -140,6 +140,22 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
   base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },
   core: { icon: Sparkles, color: '#FF7A1A', text: (a) => <>💖 You reached <b>the core</b> of {worldName(a.data.world)}! A Core heart is yours{a.data.ink ? <span className="text-ok"> · +{Number(a.data.ink).toLocaleString()} Ink</span> : null}</>, to: () => '/world' },
+  enchant: { icon: Sparkles, color: '#B26BFF', text: (a) => {
+    const d = a.data as Record<string, any>;
+    switch (d.sub) {
+      case 'parasite_attached': return <>let a 🦠 <b>Parasite</b> loose — it latched onto your plot! Shake it off in your Grimoire (you get paid for it)</>;
+      case 'symbiote_attached': return <>’s 💚 <b>Symbiote</b> settled on your plot — it shares its meals with you</>;
+      case 'symbiote_gift': return <>’s Symbiote shared its meal with you <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'parasite_shaken': return <>shook your 🦠 Parasite off their plot</>;
+      case 'parasite_shrunk': return <>zapped your 🦠 Parasite with a Size Ray — it shrank right off</>;
+      case 'cuckoo_egg': return <>A strange 🥚 egg appeared in your nest… throw it out in your Grimoire before it hatches</>;
+      case 'cuckoo_ejected': return <>found your 🪺 Cuckoo’s egg and threw it out</>;
+      case 'treasure_piece': return <>found a 🗺️ treasure map piece on your plot <span className="text-ok">· +{d.ink} Ink finder’s tip</span></>;
+      case 'mirror_seen': return <>saw your ✨ enchantment in their 🪞 Mirror Shard and stepped through <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'spore': return <>A spore of Ink drifted onto you from a spliced 🦠 gene <span className="text-ok">· +{d.ink} Ink</span></>;
+      default: return <>did something with an enchantment</>;
+    }
+  }, to: () => '/grimoire?tab=visitors' },
   ultra_set: { icon: Sparkles, color: '#FFD23F', text: (a) => <>{ultraOfRarity(a.data.rarity)?.emoji} Your <b>{ultraOfRarity(a.data.rarity)?.name ?? 'ultra'} set</b> is unlocked — a hat, outfit, relic, aura and trail for your explorer, and wear for your Inkborn</>, to: () => '/explorer' },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };

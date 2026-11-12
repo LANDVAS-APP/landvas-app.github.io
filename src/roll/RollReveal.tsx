@@ -22,11 +22,16 @@ import { formatRate } from '../shared/rent';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { Fx } from './fx';
 import { celebrate, celebrateDelay, type Overlay } from './celebrate';
+import { EnchantTransform, type EnchantBrief } from '../enchant/EnchantTransform';
+import { Sigil } from '../enchant/Sigil';
+import { kindInfo } from '../enchant/kinds';
+import { useNavigate } from 'react-router-dom';
 
 export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null;
   /** Luck's rerolls: every roll (the first is the plot's own); the player keeps one */ choices?: RarityId[] | null;
-  /** each roll's minigame type and shine */ choiceTypes?: string[] | null; choiceShiny?: boolean[] | null };
-type Phase = 'drop' | 'spin' | 'pick' | 'reveal';
+  /** each roll's minigame type and shine */ choiceTypes?: string[] | null; choiceShiny?: boolean[] | null;
+  /** the roll came out Enchanted: the enchantment born on it */ enchant?: EnchantBrief | null };
+type Phase = 'drop' | 'spin' | 'pick' | 'enchant' | 'reveal';
 
 const INK = '#1B1240';
 const BLOB = 'M50 8 C63 8 70 18 78 22 C90 28 94 40 92 52 C90 64 96 74 86 84 C76 94 62 90 50 92 C38 94 26 96 17 86 C8 76 10 64 8 52 C6 40 10 28 22 21 C31 15 38 8 50 8Z';
@@ -96,7 +101,10 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   const finalType = (keptIdx != null ? result?.choiceTypes?.[keptIdx] : null) ?? result?.type;
   const finalShiny = keptIdx != null && result?.choiceShiny ? !!result.choiceShiny[keptIdx] : !!result?.shiny;
   const t = result ? PLOT_TYPES[finalType as keyof typeof PLOT_TYPES] : null;
-  const ultra = tier >= 5;
+  const ench = result?.enchant ?? null;
+  const ek = ench ? kindInfo(ench.kind) : null;
+  const nav = useNavigate();
+  const ultra = tier >= 5 || !!ench;
 
   // the particle canvas
   useEffect(() => {
@@ -208,7 +216,11 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
       if (!land) {
         pos += v * dt;
         fill = 0.32 + 0.5 * (1 - Math.exp(-(now - t0) / 1400));
-        if (resultRef.current && (skip.current || now - t0 > minSpin)) begin(now, skip.current);
+        if (resultRef.current && (skip.current || now - t0 > minSpin)) {
+          // an Enchanted roll: the drum breaks off mid-spin and the transformation takes over
+          if (resultRef.current.enchant) { setPhase('enchant'); return; }
+          begin(now, skip.current);
+        }
       } else {
         if (skip.current && land.D > 500) begin(now, true);
         const x = (now - land.t0) / land.D;
@@ -300,10 +312,10 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     return () => { timers.forEach(clearTimeout); cancelAnimationFrame(raf); };
   }, [revealed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const title = `${info.emoji ? `${info.emoji} ` : ''}${info.name}${tier >= 3 ? '!' : ''}`;
+  const title = ek ? `${ek.emoji} ${ek.name}!` : `${info.emoji ? `${info.emoji} ` : ''}${info.name}${tier >= 3 ? '!' : ''}`;
   // (fit the name on one line: long ones like “Country Crown!” get a smaller size, never cut off)
   const titleSize = Math.max(22, Math.min(50, Math.floor(470 / Math.max(6, [...title].length))));
-  const subtitle = !result ? '' : tier >= 3 ? `Incredible — a ${info.name} plot!` : final === 'common' ? 'A solid start' : `Nice — a ${info.name} plot`;
+  const subtitle = !result ? '' : ek ? ek.tagline : tier >= 3 ? `Incredible — a ${info.name} plot!` : final === 'common' ? 'A solid start' : `Nice — a ${info.name} plot`;
   const slots = useMemo(() => Array.from({ length: SLOTS }, (_, i) => i), []);
 
   return (
@@ -324,8 +336,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
       {revealed && !reduce && <div className="lv-rr-flash pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 50% 45%, #fff ${tier >= 3 ? 30 : 10}%, ${info.glow}aa 45%, transparent 75%)` }} />}
 
       <motion.div animate={shake} className="relative flex w-full flex-col items-center px-6" style={{ willChange: 'transform' }}>
-        {ultra && revealed && <motion.div className="mb-2 rounded-full px-4 py-1 font-display text-[13px] font-black tracking-[0.3em] text-[#1a0b2e]" style={{ background: `linear-gradient(90deg, ${RAINBOW})` }}
-          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15, type: 'spring', stiffness: 500, damping: 18 }}>ULTRA RARE</motion.div>}
+        {ultra && revealed && <motion.div className="mb-2 rounded-full px-4 py-1 font-display text-[13px] font-black tracking-[0.3em] text-[#1a0b2e]" style={{ background: ench ? 'linear-gradient(90deg,#B26BFF,#FFE8A3,#B26BFF)' : `linear-gradient(90deg, ${RAINBOW})` }}
+          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15, type: 'spring', stiffness: 500, damping: 18 }} data-testid={ench ? 'roll-enchanted' : undefined}>{ench ? `ENCHANTED · #${ench.serial}` : 'ULTRA RARE'}</motion.div>}
         {/* the drum, then the rarity */}
         <div className="relative mb-5 h-[70px] w-full max-w-[360px]">
           {phase === 'drop' && <div className="absolute inset-0 grid place-items-center font-display text-[22px] font-black text-white/70">Rolling your plot…</div>}
@@ -365,11 +377,18 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
               <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'repeating-linear-gradient(0deg,#6B4A22 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,#6B4A22 0 1px,transparent 1px 6px)' }} />
               {/* the ink */}
               {phase !== 'drop' && <InkSplash key={rollIdx} still={reduce} />}
+              {/* an Enchanted card: the ink turns to the enchantment's own night sky */}
+              {revealed && ench && (
+                <motion.div className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
+                  style={{ background: `radial-gradient(circle at 50% 45%, ${kindInfo(ench.kind).a}66, transparent 62%), radial-gradient(circle at 20% 85%, ${kindInfo(ench.kind).b}44, transparent 55%), linear-gradient(160deg, #1B0733, #07020F)` }}>
+                  {!reduce && Array.from({ length: 14 }, (_, i) => <span key={i} className="lv-twinkle absolute text-[10px] text-white/80" style={{ left: `${(i * 37) % 92 + 4}%`, top: `${(i * 53) % 88 + 6}%`, animationDelay: `${(i % 7) * 0.3}s` }}>✦</span>)}
+                </motion.div>
+              )}
               {/* the plot rises out of the ink */}
               {revealed && result && (
                 <motion.div className="absolute inset-[14%]" data-testid={testId === 'ink-roll' ? 'roll-plot' : 'claim-plot-art'}
                   initial={{ opacity: 0, scale: 0.3, rotate: -14, y: 24 }} animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }} transition={{ delay: 0.2, type: 'spring', stiffness: 330, damping: 15 }}>
-                  <BasePlotArt rarity={final} shiny={finalShiny} size="100%" />
+                  {ench ? <div className="grid h-full w-full place-items-center"><Sigil kind={ench.kind} seed={ench.sigil} size="100%" /></div> : <BasePlotArt rarity={final} shiny={finalShiny} size="100%" />}
                 </motion.div>
               )}
               {revealed && (finalShiny || tier >= 3) && !reduce && <div className="lv-rr-sheen pointer-events-none absolute inset-0" />}
@@ -399,7 +418,12 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
                   {result.hot && <span className="rounded-full bg-[#FF6A1F]/25 px-3 py-1 text-[12px] font-extrabold text-[#FFB27A]">🔥 Hot Zone roll</span>}
                 </div>
               )}
-              {info.ability && <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-3 py-2 text-[13px] font-semibold leading-snug" style={{ color: info.glow }} data-testid="roll-ability">{info.ability}</div>}
+              {ench ? (
+                <div className="grid gap-1.5 rounded-2xl border border-[#B26BFF]/40 bg-[#B26BFF]/10 px-3 py-2 text-[12px] font-semibold text-[#F0DBFF]" data-testid="roll-enchant">
+                  <span>An enchantment lives on this plot instead of a rarity — {ench.minted ? `#${ench.serial} of ${ench.minted} ever minted` : `#${ench.serial}`}{ench.born_place ? `, born in ${ench.born_place}` : ''}.</span>
+                  <button className="mx-auto rounded-xl bg-[linear-gradient(135deg,#B26BFF,#6B2BD9)] px-4 py-2 font-display text-[15px] font-black text-white shadow-[0_4px_0_#3E1580]" onClick={() => { onClose(); nav(`/grimoire/${ench.id}`); }} data-testid="roll-open-grimoire">📖 Open it in the Grimoire</button>
+                </div>
+              ) : info.ability && <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-3 py-2 text-[13px] font-semibold leading-snug" style={{ color: info.glow }} data-testid="roll-ability">{info.ability}</div>}
               {name && <div className="truncate font-display text-lg font-semibold text-white">“{name}”</div>}
               <div className="text-sm font-bold text-white/80">
                 {result.guaranteed ? `Guaranteed ${rarityInfo(result.guaranteed).name}+ · ` : result.first ? 'Your first plot · ' : ''}<span style={{ color: t?.a }}>{t?.name ?? 'A'} plot</span> · <span ref={rentRef} className="text-[#3DDC97] tnum">+{formatRate(0)}</span>
@@ -477,6 +501,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           </motion.div>
         )}
       </AnimatePresence>
+      {/* the roll turns Enchanted */}
+      {phase === 'enchant' && ench && <EnchantTransform ench={ench} fx={fx.current} center={center} onDone={() => setPhase('reveal')} />}
       {/* particles on top of everything */}
       <canvas ref={cvRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
     </motion.div>

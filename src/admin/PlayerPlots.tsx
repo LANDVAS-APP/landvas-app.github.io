@@ -8,6 +8,7 @@ import { toGameError } from '../backend/backend';
 import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { KIND_ORDER, kindInfo } from '../enchant/kinds';
 import { cn } from '../lib/utils';
 import { Button, Switch, inputCls, useConfirm } from '../ui';
 
@@ -23,6 +24,8 @@ export function PlayerPlots({ playerId, username }: { playerId: string; username
   const [give, setGive] = useState({ rarity: 'mythic', shiny: false, type: '', post: true });
   const [near, setNear] = useState<{ gx: number; gy: number } | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [kind, setKind] = useState<string>('goose');
+  const [busy, setBusy] = useState(false);
   const ok = reason.trim().length >= 4;
   const done = (rows: any[]) => { qc.setQueryData(key, rows); void qc.invalidateQueries({ queryKey: ['royalty'] }); };
   const act = async (f: () => Promise<any>, msg: string) => { try { const r = await f(); done(Array.isArray(r) ? r : r.plots); toast.success(msg); return r; } catch (e) { toast.error(toGameError(e).message); } };
@@ -57,6 +60,7 @@ export function PlayerPlots({ playerId, username }: { playerId: string; username
                     </select>
                     <Switch id={`edit-shiny-${p.gx}-${p.gy}`} label="Shiny" checked={edit.shiny} onCheckedChange={(v) => setEdit({ ...edit, shiny: v })} />
                     <Button size="sm" className="h-8" disabled={!ok} onClick={async () => { if (await act(() => api.admin.setPlotRarity(p.gx, p.gy, edit.rarity, edit.shiny, reason.trim()), 'Plot changed')) setEdit(null); }}>Save</Button>
+                    {p.rarity === 'enchanted' && <p className="w-full text-[11px] text-warn">This plot holds an enchantment. Changing its rarity ends the enchantment for good (it leaves the Grimoire). Taking the plot away only puts it to sleep for the next owner.</p>}
                   </div>
                 )}
               </div>
@@ -83,6 +87,24 @@ export function PlayerPlots({ playerId, username }: { playerId: string; username
           }}>Give</Button>
         </div>
         <p className="text-[11px] text-faint">Lands near where they play{near ? ' (here: next to the plot you just took)' : ''}. A Crown goes to the nearest kingdom whose Crown is free — one per city, state or country, so it can’t double up. Needs the reason above.</p>
+      </div>
+      <div className="grid gap-2 rounded-xl p-2" style={{ background: 'linear-gradient(135deg, rgba(178,107,255,.14), rgba(240,219,255,.06))' }} data-testid="give-enchant">
+        <div className="text-xs font-bold">🔮 Give them an enchantment</div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select className={cn(inputCls, 'h-9 w-auto')} value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Enchantment" data-testid="give-enchant-kind">
+            {KIND_ORDER.map((k) => <option key={k} value={k}>{kindInfo(k).emoji} {kindInfo(k).name}</option>)}
+          </select>
+          <Button size="sm" disabled={!ok || busy} data-testid="give-enchant-go" onClick={async () => {
+            setBusy(true);
+            try {
+              const e = await api.admin.giveEnchantment(playerId, kind, reason.trim(), near);
+              toast.success(`${kindInfo(kind).name} #${e.serial} given`);
+              setNear(null);
+              void qc.invalidateQueries({ queryKey: key });
+            } catch (err) { toast.error(toGameError(err).message); } finally { setBusy(false); }
+          }}>Give</Button>
+        </div>
+        <p className="text-[11px] text-faint">Puts a brand-new enchanted plot (next mint serial, its own sigil) near where they play{near ? ' — here, next to the plot you just took' : ''}. It wakes straight away and shows up in their Grimoire. Needs the reason above.</p>
       </div>
     </div>
   );
