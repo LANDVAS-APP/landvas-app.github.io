@@ -1,0 +1,79 @@
+# The iOS build itself (called by native.yml). It runs on whichever Mac it's given, so native.yml can
+# fall back to another runner type when GitHub has no Mac of the first kind free.
+name: iOS build
+on:
+  workflow_call:
+    inputs:
+      runner: { type: string, required: true }
+      release: { type: boolean, default: false }
+      version: { type: string, default: '1.0.0' }
+env:
+  LANDVAS_VERSION_NAME: ${{ inputs.version }}
+  # every store upload needs a bigger build number than the last
+  LANDVAS_BUILD_NUMBER: ${{ github.run_number }}
+  LANDVAS_VERSION_CODE: ${{ github.run_number }}
+  ADMOB_APP_ID_ANDROID: ${{ vars.ADMOB_APP_ID_ANDROID }}
+  ADMOB_APP_ID_IOS: ${{ vars.ADMOB_APP_ID_IOS }}
+  VITE_ADMOB_REWARDED_ANDROID: ${{ vars.ADMOB_REWARDED_ANDROID }}
+  VITE_ADMOB_REWARDED_IOS: ${{ vars.ADMOB_REWARDED_IOS }}
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -n "$X" ] || { echo "::error::No Xcode 26 on this runner"; ls /Applications; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build the game for the app
+        run: |
+          [ -z "$VITE_ADMOB_REWARDED_ANDROID" ] && unset VITE_ADMOB_REWARDED_ANDROID
+          [ -z "$VITE_ADMOB_REWARDED_IOS" ] && unset VITE_ADMOB_REWARDED_IOS
+          export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
+          npm run build:native
+          node scripts/native-config.mjs
+          npx cap sync ios
+      - name: Check it compiles (unsigned)
+        if: ${{ !inputs.release }}
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tail -60
+      - name: Archive and upload to App Store Connect
+        if: ${{ inputs.release }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$ASC_KEY_P8" ] || [ -z "$APPLE_TEAM_ID" ]; then echo "::error::Add ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 and APPLE_TEAM_ID secrets (docs/STORE-LAUNCH.md)"; exit 1; fi
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"; printf '%s' "$ASC_KEY_P8" > "$KEY"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/LANDVAS.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic $AUTH archive | tail -40
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/LANDVAS.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" $AUTH
+          echo "::notice::Uploaded build $LANDVAS_BUILD_NUMBER to App Store Connect — it shows in TestFlight after processing (~10-30 min)"
