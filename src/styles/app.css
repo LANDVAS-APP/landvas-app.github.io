@@ -1471,3 +1471,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   background: radial-gradient(closest-side, color-mix(in srgb, var(--room) 70%, transparent), transparent); box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset; }
 .lv-studio-figure { margin-bottom: -8px; }
 @media (min-width: 1024px) { .lv-studio-stage { height: 420px; } .lv-studio-stage .lv-studio-figure { transform: scale(1.8); transform-origin: 50% 100%; } }
+
+/* ---- roll clips ---- */
+.lv-clip-btn { background: linear-gradient(110deg, #FF3D9A, #FFB31F, #22E3FF, #A45CFF, #FF3D9A); background-size: 300% 100%; animation: lv-banner 4s linear infinite; box-shadow: 0 6px 22px -6px rgba(255, 61, 154, 0.7), inset 0 0 0 1px rgba(255,255,255,0.35); }
+@media (prefers-reduced-motion: reduce) { .lv-clip-btn { animation: none; } }

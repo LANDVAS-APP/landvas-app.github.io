@@ -12,6 +12,7 @@ import { buzz } from '../native/native';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { rarityInfo, type RarityId } from '../shared/rarity';
 import { Dialog } from '../ui';
+import { useRerollSpeed } from '../roll/prefs';
 
 export function useLuck() {
   const me = useOnboardedMe();
@@ -61,6 +62,7 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const q = useLuck();
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
+  const [speed, setSpeed] = useRerollSpeed();
   const [burn, setBurn] = useState<{ key: string; rarity: RarityId; gained: number } | null>(null);
   const [confirm, setConfirm] = useState<{ gx: number; gy: number; rarity: RarityId; luck: number } | null>(null);
   const [confirmThing, setConfirmThing] = useState<{ kind: 'inkborn' | 'egg'; id: string; luck: number; label: string } | null>(null);
@@ -150,6 +152,15 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                 ? <>Your next claim rolls <b className="text-[#3DDC97]">{l.rolls} times</b> ({l.rolls - 1} reroll{l.rolls > 2 ? 's' : ''}, −{(l.rolls - 1) * l.per_roll} Luck) with ultras <b className="text-[#FFE14D]">×{Number(l.ultra_x.toFixed(1))}</b> likelier — then you pick the one you keep.</>
                 : l.can_reroll > 0 ? 'Your Luck is saved. Pick how many rerolls to spend on your next claim — more rerolls make ultras likelier too.' : 'Charge 20 Luck for your first reroll.'}
             </p>
+            <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-2 text-[12px]">
+              <span className="font-bold text-white/70">Rerolls play</span>
+              <div className="flex gap-1 rounded-full bg-white/[0.07] p-0.5" role="radiogroup" aria-label="Reroll speed">
+                {(['normal', 'quick'] as const).map((v) => (
+                  <button key={v} role="radio" aria-checked={speed === v} onClick={() => setSpeed(v)} data-testid={`reroll-speed-${v}`}
+                    className={cn('rounded-full px-3 py-1 font-black', speed === v ? 'bg-white text-[#0b2a1c]' : 'text-white/60')}>{v === 'quick' ? '⏩ Quick' : '▶ Normal'}</button>
+                ))}
+              </div>
+            </div>
           </section>
 
           {/* Ink */}

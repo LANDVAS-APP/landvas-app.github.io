@@ -71,6 +71,20 @@ describe('the Altar of Luck', () => {
     expect((await db.rpc(u, 'luck_status'))).toMatchObject({ luck: 50, armed: 0 });
     await db.rpc(u, 'luck_pick', { p_gx: r.gx, p_gy: r.gy, p_idx: 0 });
   });
+  it('every roll has its own minigame type and shine; keeping one keeps both', async () => {
+    await db.sql(`update game_config set value = value || '{"one_in": 1}' where key = 'shiny'`);
+    await db.sql(`update player_luck set luck = 60 where player_id = $1`, [u]);
+    await db.rpc(u, 'luck_arm', { p_rerolls: 3 });
+    const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-types-xxxxx' });
+    await db.sql(`update game_config set value = value || '{"one_in": 1000}' where key = 'shiny'`);
+    expect(r.choices).toHaveLength(4); expect(r.choice_types).toHaveLength(4); expect(r.choice_shiny).toEqual([true, true, true, true]);
+    const types = (await db.sql(`select id from plot_types`)).map((x: any) => x.id);
+    expect(r.choice_types.every((t: string) => types.includes(t))).toBe(true);
+    const p = await db.rpc(u, 'luck_pick', { p_gx: r.gx, p_gy: r.gy, p_idx: 2 });
+    expect(p.plot_type).toBe(r.choice_types[2]); expect(p.shiny).toBe(true);
+    const row = (await db.sql(`select rarity, plot_type, shiny from world_plots where gx = $1 and gy = $2`, [r.gx, r.gy]))[0];
+    expect(row).toEqual({ rarity: r.choices[2], plot_type: r.choice_types[2], shiny: true });
+  });
   it('unarmed Luck waits', async () => {
     await db.sql(`update player_luck set luck = 60, armed = 0 where player_id = $1`, [u]);
     const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-1c-xxxxxxxx' });

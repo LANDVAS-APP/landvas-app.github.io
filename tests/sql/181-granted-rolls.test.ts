@@ -73,6 +73,18 @@ describe('granted rolls', () => {
     const l = (await db.sql(`select luck, armed from player_luck where player_id = $1`, [eve]))[0];
     expect(l).toEqual({ luck: 20, armed: 0 });
   });
+  it('a chosen minigame type, and nothing on the live feed', async () => {
+    const type = (await db.sql(`select id from plot_types where id <> private.plot_type_for($1, $2) limit 1`, [O.gx + 60, O.gy]))[0].id;
+    await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'mythic', p_after: 1, p_plot_type: type });
+    const before = (await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n;
+    const r = await claim(eve, 60);
+    expect(r.rarity).toBe('mythic'); expect(r.plot_type).toBe(type);
+    expect((await db.sql(`select plot_type from world_plots where gx = $1 and gy = $2`, [O.gx + 60, O.gy]))[0].plot_type).toBe(type);
+    expect((await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n).toBe(before);
+    // an ordinary claim is still posted
+    await claim(eve, 61);
+    expect((await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n).toBeGreaterThan(before);
+  });
   it('luck mode on every roll', async () => {
     await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'solar', p_mode: 'luck' });
     await db.sql(`update player_luck set luck = 40 where player_id = $1`, [eve]);

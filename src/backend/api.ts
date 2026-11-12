@@ -71,7 +71,7 @@ export const api = {
   acquirePlot: (gx: number, gy: number, name?: string) =>
     rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
   /** simple mode: buy a plot from the home screen; the server picks where (and so its rarity) */
-  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
+  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; choice_types?: string[] | null; choice_shiny?: boolean[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
   /** the daily streak: status, and today's check-in */
   dailyStatus: () => rpc<import('./types').DailyStatus>('daily_status'),
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
@@ -579,8 +579,8 @@ export const api = {
   // admin
   admin: {
     rollGrants: (player: string | null) => rpc<any[]>('admin_roll_grants', { p_player: player }),
-    grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null) =>
-      rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot }),
+    grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null, plotType: string | null = null) =>
+      rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot, p_plot_type: plotType }),
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
     integrityList: (level: string | null, q: string) => rpc<any>('admin_integrity_list', { p_level: level, p_q: q || null, p_limit: 200 }),
     integrityScan: (offset: number) => rpc<{ scanned: number; total: number; next: number | null }>('admin_integrity_scan', { p_offset: offset, p_limit: 50 }),

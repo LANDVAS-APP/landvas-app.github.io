@@ -26,6 +26,8 @@ export type Celebration = {
   lucky?: boolean;
   /** Luck's rerolls: every roll; the player keeps one */
   choices?: RarityId[] | null;
+  choiceTypes?: string[] | null;
+  choiceShiny?: boolean[] | null;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -66,7 +68,7 @@ function Show({ c }: { c: Celebration }) {
   );
   return (
     <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close}
-      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices }}
+      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices, choiceTypes: c.choiceTypes, choiceShiny: c.choiceShiny }}
       luck={(qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck}
       onPick={async (i) => { const p = await api.luckPick(c.gx, c.gy, i); celebrate(p.achievements); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.myPlots }); }}
       onRevealed={() => useCelebration.getState().reveal()}

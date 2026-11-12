@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { RarityBadge } from '../plot/RarityBadge';
+import { PLOT_TYPES } from '../map/plotStyle';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Switch, inputCls } from '../ui';
@@ -19,6 +20,7 @@ function GrantList({ rows, onCancel, showPlayer }: { rows: any[]; onCancel(id: n
           <RarityBadge r={g.rarity} small />{g.shiny && <span>✨</span>}
           {showPlayer && <b>@{g.player.username}</b>}
           <span className="text-muted">{g.used_at ? `landed ${timeAgo(g.used_at)}` : g.cancelled_at ? 'cancelled' : g.mode === 'luck' ? `next Luck claim · ${g.slot ? `roll ${g.slot} of the rerolls` : 'every roll'}` : g.in === 1 ? 'their next claim' : `in ${g.in} claims`}</span>
+          {g.plot_type && <span className="text-muted">· {PLOT_TYPES[g.plot_type as keyof typeof PLOT_TYPES]?.name ?? g.plot_type}</span>}
           {g.note && <span className="text-faint">· {g.note}</span>}
           {!g.used_at && !g.cancelled_at && <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => onCancel(g.id)}>Cancel</Button>}
         </div>
@@ -31,9 +33,9 @@ function GrantList({ rows, onCancel, showPlayer }: { rows: any[]; onCancel(id: n
 export function RollGrants({ playerId }: { playerId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'roll-grants', playerId], queryFn: () => api.admin.rollGrants(playerId) });
-  const [f, setF] = useState({ rarity: 'mythic', after: 1, count: 1, shiny: false, note: '', mode: 'claim' as 'claim' | 'luck', slot: 0 });
+  const [f, setF] = useState({ rarity: 'mythic', after: 1, count: 1, shiny: false, note: '', mode: 'claim' as 'claim' | 'luck', slot: 0, type: '' });
   const done = (r: any) => { qc.setQueryData(['admin', 'roll-grants', playerId], r); void qc.invalidateQueries({ queryKey: ['admin', 'roll-grants', null] }); };
-  const grant = async () => { try { done(await api.admin.grantRoll(playerId, f.rarity, f.mode === 'luck' ? 1 : f.after, f.count, f.shiny, f.note || null, f.mode, f.mode === 'luck' && f.slot ? f.slot : null)); toast.success(`${rarityInfo(f.rarity).name} lined up`); } catch (e) { toast.error(toGameError(e).message); } };
+  const grant = async () => { try { done(await api.admin.grantRoll(playerId, f.rarity, f.mode === 'luck' ? 1 : f.after, f.count, f.shiny, f.note || null, f.mode, f.mode === 'luck' && f.slot ? f.slot : null, f.type || null)); toast.success(`${rarityInfo(f.rarity).name} lined up`); } catch (e) { toast.error(toGameError(e).message); } };
   const cancel = async (id: number) => { try { done(await api.admin.cancelRollGrant(id)); } catch (e) { toast.error(toGameError(e).message); } };
   return (
     <div className="mt-2 grid gap-2 rounded-2xl border border-line p-3" data-testid="roll-grant-form">
@@ -47,6 +49,10 @@ export function RollGrants({ playerId }: { playerId: string }) {
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <select className={cn(inputCls, 'h-9 w-auto')} value={f.rarity} onChange={(e) => setF({ ...f, rarity: e.target.value })} aria-label="Rarity" data-testid="grant-rarity">
           {RARITY_ORDER.map((r) => <option key={r} value={r}>{rarityInfo(r).name}</option>)}
+        </select>
+        <select className={cn(inputCls, 'h-9 w-auto')} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} aria-label="Minigame" data-testid="grant-type">
+          <option value="">any minigame (the plot’s own)</option>
+          {Object.entries(PLOT_TYPES).map(([id, t]) => <option key={id} value={id}>{t.name} · {t.game}</option>)}
         </select>
         {f.mode === 'claim' ? (
           <>
@@ -69,7 +75,7 @@ export function RollGrants({ playerId }: { playerId: string }) {
         <Button size="sm" onClick={() => void grant()} data-testid="grant-go">Line it up</Button>
       </div>
       <GrantList rows={q.data ?? []} onCancel={(id) => void cancel(id)} />
-      <p className="text-[11px] text-faint">{f.mode === 'claim' ? 'Lands on that claim of theirs, anywhere — Crowns included. If they use Luck on it, it’s their own roll and the rerolls come on top.' : 'Waits for the next claim they spend Luck on, and appears on that roll of their rerolls (if they use fewer, on their last one). They still pick which roll to keep.'} Nobody else’s odds change. Recorded in the audit log.</p>
+      <p className="text-[11px] text-faint">{f.mode === 'claim' ? 'Lands on that claim of theirs, anywhere — Crowns included. If they use Luck on it, it’s their own roll and the rerolls come on top.' : 'Waits for the next claim they spend Luck on, and appears on that roll of their rerolls (if they use fewer, on their last one). They still pick which roll to keep.'} Nobody else’s odds change. Players never see anything marking it as an event, and it isn’t posted on the live feed. Recorded in the audit log.</p>
     </div>
   );
 }
