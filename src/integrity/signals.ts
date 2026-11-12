@@ -1,5 +1,5 @@
 // Integrity signals: a random id for this install, a fingerprint of the browser/device (hashed — none of the raw values
-// leave as an identity), and checks for emulators and browser automation. Sent once a session and every half hour, so the
+// leave as an identity; not in the iPhone app), and checks for emulators and browser automation. Sent once a session and every half hour, so the
 // cheat scanner can spot one person running many accounts, scripts or emulators. No location, no contacts, nothing else.
 import { useEffect } from 'react';
 import { api } from '../backend/api';
@@ -58,9 +58,15 @@ export function environmentChecks(ua = navigator.userAgent, renderer = gpu()) {
 }
 
 export async function collectSignals() {
+  const platform = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? 'web';
+  // The iPhone app sends only its random install id: Apple doesn't allow apps to derive an identity from device signals
+  // (fingerprinting), even for fraud checks — and an App Store build can't be an emulator or a headless browser anyway.
+  if (platform === 'ios') {
+    const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
+    return { device_id: deviceId(), fp: null, platform, tz, lang: navigator.language, ua: navigator.userAgent.slice(0, 300), gpu: '', emulator: false, automation: false, reasons: [] as string[] };
+  }
   const renderer = gpu();
   const env = environmentChecks(navigator.userAgent, renderer);
-  const platform = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? 'web';
   const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
   const nav = navigator as Navigator & { deviceMemory?: number };
   const fpParts = [navigator.userAgent, navigator.language, (navigator.languages ?? []).join(','), tz, screen.width, screen.height, screen.colorDepth, window.devicePixelRatio,

@@ -18,7 +18,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { LogoMark } from '../ui';
 import { FAQ } from './faq';
-import { PLAYSTYLES, TAGLINE } from '../brand';
+import { DISCORD, PLAYSTYLES, REDDIT, TAGLINE } from '../brand';
 import { FeaturedToday } from '../gallery/FeaturedToday';
 import { poll } from '../lib/poll';
 import { CrownCelebrations } from '../royalty/CrownCelebrations';
@@ -26,8 +26,7 @@ import { CrownCelebrations } from '../royalty/CrownCelebrations';
 const signedIn = () => !!getBackend().session();
 const playHref = () => (signedIn() ? '/world' : '/welcome');
 
-export const DISCORD = 'https://discord.gg/EsEQB9Zw3';
-export const REDDIT = 'https://www.reddit.com/r/LANDVAS/';
+export { DISCORD, REDDIT };
 const GAMES: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
 const FALLBACK = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#22C7B5'];
 

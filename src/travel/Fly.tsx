@@ -13,7 +13,7 @@ import { invalidateGame } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { mapHandle } from '../map/mapHandle';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { Dialog } from '../ui';
 import { TRAVEL_KEY, useTravel } from './Travel';
 
@@ -134,7 +134,7 @@ export function RefillDialog() {
     <Dialog open={open} onOpenChange={set} title="✈️ Out of trips for today" description="Everyone gets 2 trips a day — flights, pin flights and train rides together.">
       <div className="grid gap-2" data-testid="refill-dialog">
         <button className="h-12 rounded-2xl bg-[linear-gradient(135deg,#2F7BFF,#22E3FF)] font-black text-white disabled:opacity-60" disabled={busy} onClick={() => void refill()} data-testid="refill-ink">Refill 2 trips · 100 Ink</button>
-        <button className="h-11 rounded-2xl bg-white/10 text-[13px] font-bold text-white/50" disabled title="Rewarded ads arrive with the app">📺 Watch an ad · coming with the app</button>
+        {!isNative() && <button className="h-11 rounded-2xl bg-white/10 text-[13px] font-bold text-white/50" disabled title="Rewarded ads arrive with the app">📺 Watch an ad · coming with the app</button>}
         <p className="text-[11px] text-muted">Trips reset at the daily reset.</p>
       </div>
     </Dialog>

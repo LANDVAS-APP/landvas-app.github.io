@@ -1,5 +1,11 @@
 // How LANDVAS describes itself, in one place: the world is the game board, and every
 // playstyle has a home here — creators, keepers, explorers, competitors, builders, collectors.
+// Where players reach the team. The email is published because the App Store and Google Play require a public
+// contact (store listing, support page and privacy policy); in-game Support tickets stay the main way in.
+export const SUPPORT_EMAIL = 'dev@landvas.app';
+export const DISCORD = 'https://discord.gg/EsEQB9Zw3';
+export const REDDIT = 'https://www.reddit.com/r/LANDVAS/';
+
 export const TAGLINE = ['Own a piece.', 'Play it your way.'] as const;
 export const TAGLINE_TEXT = TAGLINE.join(' ');
 export const PITCH = 'LANDVAS turns the real world into one giant game board. Claim the plots around you, then make them anything — a mural, a creature sanctuary, a rent-earning empire, a minigame arena.';

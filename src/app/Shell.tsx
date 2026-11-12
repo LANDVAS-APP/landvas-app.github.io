@@ -11,7 +11,8 @@ import { useUi } from '../lib/store';
 import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
-import { isNative } from '../native/native';
+import { isNative, useOnline } from '../native/native';
+import { useStreakReminder } from '../native/reminders';
 import { initAds } from '../ads/ads';
 import { useEffect, useState } from 'react';
 import { guard } from '../backend/supabase/guard';
@@ -97,6 +98,9 @@ export function Shell() {
   }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // the app sets up ads (consent + Apple's tracking prompt) once you're signed in and playing
   useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the app: the daily streak reminder stays in step with the streak (only if the player turned reminders on)
+  useStreakReminder(!!me);
+  const online = useOnline();
   // a tab lights up for its own page, or for its section unless another tab is that page
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
   // simple mode keeps just the essentials: home and play (and Me)
@@ -105,7 +109,8 @@ export function Shell() {
   if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
     <div className="flex h-full bg-bg">
-      {busy && <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="server-busy">🐢 The server is busy — background updates are paused for a moment</div>}
+      {!online ? <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/80 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="offline">📡 You’re offline — LANDVAS picks up where you left off when you’re back</div>
+        : busy && <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="server-busy">🐢 The server is busy — background updates are paused for a moment</div>}
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
         {(simple ? SIMPLE_TABS : SECTIONS).map((i) => <RailItem key={i.to} {...i} active={simple ? under(loc.pathname, i.to) : sec?.to === i.to} badge={badge(i.to)} />)}

@@ -12,6 +12,7 @@ import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { buzz } from '../native/native';
+import { offerReminders } from '../native/reminders';
 import { rarityInfo } from '../shared/rarity';
 import { Dialog, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
@@ -51,6 +52,7 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
       if (useUi.getState().settings.haptics) buzz('success');
       if (r.reward.ticket) confettiCannons(); else confetti({ y: innerHeight * 0.4, count: 70 });
       toast.success(`Day ${r.reward.day}! +${fmt(r.reward.ink)} Ink`, { description: r.reward.ticket ? `And a guaranteed ${rarityInfo(r.reward.ticket).name}-or-better roll — use it below!` : 'Come back tomorrow to keep your streak.' });
+      setTimeout(offerReminders, 2500); // the app: offer a daily reminder once (after the celebration)
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
   const done = d ? d.streak - (d.claimed_today ? 0 : 0) : 0;

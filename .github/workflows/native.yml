@@ -9,7 +9,7 @@ name: Native apps
 on:
   push:
     branches: [source]
-    paths: ['src/**', 'android/**', 'ios/**', 'capacitor.config.ts', 'package*.json', '.env.native', 'scripts/native-config.mjs', '.github/workflows/native.yml']
+    paths: ['src/**', 'public/**', 'android/**', 'ios/**', 'capacitor.config.ts', 'package*.json', '.env.native', 'scripts/native-config.mjs', '.github/workflows/native.yml']
   workflow_dispatch:
     inputs:
       release:
@@ -48,6 +48,10 @@ jobs:
           # unset ad ids fall back to the test ids in .env.native
           [ -z "$VITE_ADMOB_REWARDED_ANDROID" ] && unset VITE_ADMOB_REWARDED_ANDROID
           [ -z "$VITE_ADMOB_REWARDED_IOS" ] && unset VITE_ADMOB_REWARDED_IOS
+          # rewarded ads only once AdMob has approved the live app and its real ids are set (docs/STORE-LAUNCH.md §4);
+          # otherwise the app ships without the ad SDK, the advertising ID or any ad buttons
+          if [ -n "$ADMOB_APP_ID_ANDROID" ] && [ -n "${VITE_ADMOB_REWARDED_ANDROID:-}" ]; then export LANDVAS_ADS=on VITE_ADS=on; else export LANDVAS_ADS=off VITE_ADS=off; fi
+          echo "Ads in this build: $LANDVAS_ADS"
           export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
           npm run build:native
           node scripts/native-config.mjs
@@ -69,6 +73,15 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon bundleRelease assembleDebug
+      - name: Check the build (permissions, 16 KB pages)
+        run: |
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          echo "Permissions the store will see:"; "${AAPT}aapt" dump permissions "$APK" | grep uses-permission || true
+          # Google Play needs native libraries aligned for 16 KB memory pages (Android 15+); LANDVAS normally ships none
+          if unzip -l "$APK" | grep -q '\.so$'; then
+            "${AAPT}zipalign" -c -P 16 -v 4 "$APK" | tail -3 || echo "::warning::Native libraries may not be 16 KB aligned — check before uploading"
+          else echo "No native libraries: nothing to align for 16 KB pages"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: landvas-android-${{ github.run_number }}
@@ -117,6 +130,9 @@ jobs:
         run: |
           [ -z "$VITE_ADMOB_REWARDED_ANDROID" ] && unset VITE_ADMOB_REWARDED_ANDROID
           [ -z "$VITE_ADMOB_REWARDED_IOS" ] && unset VITE_ADMOB_REWARDED_IOS
+          # no ads (and so no tracking prompt) until AdMob has approved the live app — see the Android job
+          if [ -n "$ADMOB_APP_ID_IOS" ] && [ -n "${VITE_ADMOB_REWARDED_IOS:-}" ]; then export LANDVAS_ADS=on VITE_ADS=on; else export LANDVAS_ADS=off VITE_ADS=off; fi
+          echo "Ads in this build: $LANDVAS_ADS"
           export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
           npm run build:native
           node scripts/native-config.mjs

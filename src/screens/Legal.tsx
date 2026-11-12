@@ -10,8 +10,9 @@ import { useWorld } from '../lib/queries';
 import { formatRate } from '../shared/rent';
 import { RARITY_ORDER, rarityInfo, rarityOdds } from '../shared/rarity';
 import { Button, Field, inputCls } from '../ui';
+import { SUPPORT_EMAIL } from '../brand';
 
-const DOCS: Record<string, string> = { terms: 'Terms of Service', privacy: 'Privacy Policy', content: 'Content Policy', copyright: 'Copyright & takedowns', rent: 'USD rent rules' };
+const DOCS: Record<string, string> = { terms: 'Terms of Service', privacy: 'Privacy Policy', content: 'Content Policy', copyright: 'Copyright & takedowns', rent: 'USD rent rules', 'delete-account': 'Delete your account' };
 
 function Draft() {
   return <p className="mb-6 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">Draft — this document has not yet been reviewed by a lawyer and may change.</p>;
@@ -31,7 +32,7 @@ export default function Legal() {
         {Object.entries(DOCS).map(([k, v]) => <Link key={k} to={`/legal/${k}`} className={k === doc ? 'font-bold text-fg' : 'text-accent-2 hover:underline'}>{v}</Link>)}
       </nav>
       <article className="glass max-w-3xl rounded-3xl p-6 text-[15px] leading-relaxed text-muted [&_b]:text-fg [&_li]:mb-1 [&_ul]:list-disc [&_ul]:pl-5">
-        <Draft />
+        {doc !== 'delete-account' && <Draft />}
         {doc === 'terms' && (
           <>
             <p>Welcome to LANDVAS, a game where you claim squares of a world map, win minigames and paint murals others can see. By creating an account you agree to these terms.</p>
@@ -53,7 +54,7 @@ export default function Legal() {
             <H>No warranty</H>
             <p>LANDVAS is provided as is. We may change or end features, including rent rates. To the extent the law allows, our liability is limited to the amount you paid us in the previous 12 months.</p>
             <H>Contact</H>
-            <p>Message the team from <Link to="/support" className="text-accent-2">Support</Link> in the app. We don’t publish email addresses.</p>
+            <p>Message the team from <Link to="/support" className="text-accent-2">Support</Link> in the game, or email <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent-2">{SUPPORT_EMAIL}</a>.</p>
           </>
         )}
         {doc === 'privacy' && (
@@ -63,12 +64,16 @@ export default function Legal() {
               <li>Your email address and password (stored by our authentication provider) and the profile you choose.</li>
               <li><b>Location:</b> if you turn on GPS, your device's position is sent to place your explorer. We keep only your latest position, use it to decide which plots you can claim, and to detect impossible jumps. <b>It is never shown to other players.</b> LANDVAS needs GPS to place and move your explorer; there is no teleporting.</li>
               <li>Game activity: plots, minigame results, artwork, rent ledger, reports and support requests.</li>
-              <li><b>Anti-cheat signals:</b> to stop multiple accounts, bots, self-referrals and farming, the app sends a random id for your install, a one-way fingerprint of your browser or device, your platform, timezone and language, and checks for emulators and automation. Our server sees your internet address but stores only a one-way hash of it (and of its network), plus its country, provider and whether it's a VPN, proxy, Tor or datacenter connection (looked up with ipapi.is). These are used only to find abuse, and only moderators can see what they show.</li>
+              <li><b>Anti-cheat signals:</b> to stop multiple accounts, bots, self-referrals and farming, the game sends a random id for your install, a one-way fingerprint of your browser or Android device (not in the iPhone app, which sends only the random id), your platform, timezone and language, and checks for emulators and automation. Our server sees your internet address but stores only a one-way hash of it (and of its network), plus its country, provider and whether it's a VPN, proxy, Tor or datacenter connection (looked up with ipapi.is). These are used only to find abuse, and only moderators can see what they show.</li>
             </ul>
             <H>What others can see</H>
             <p>Your username, avatar, the plots you own, your published artwork and leaderboard positions. Your plots are visible on the shared map, but your profile, artwork pages, visit room, the gallery and the feed never show where they are.</p>
             <H>How long we keep it</H>
             <p>While your account exists, plus the time needed for legal, tax or fraud-prevention reasons. You can delete your account yourself at any time in <Link to="/settings" className="text-accent-2">Settings → Account → Delete my account</Link>; it removes your profile, plots, art and creatures straight away. You can also ask through a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link>. The mobile apps show ads only when you choose to watch one for a bonus; the ad network (Google AdMob) may use your device's advertising ID, which you can limit in your phone's settings.</p>
+            <H>Notifications</H>
+            <p>If you turn on streak reminders in the app, your phone schedules them itself; nothing about them is sent to us.</p>
+            <H>Contact</H>
+            <p>Questions or requests about your data: a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link> or <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent-2">{SUPPORT_EMAIL}</a>.</p>
             <H>Artwork metadata</H>
             <p>We re-encode every uploaded image and strip metadata such as camera location before it is published.</p>
           </>
@@ -89,6 +94,24 @@ export default function Legal() {
           </>
         )}
         {doc === 'copyright' && <CopyrightPage />}
+        {doc === 'delete-account' && (
+          <div data-testid="delete-account-doc">
+            <p>You can delete your LANDVAS account and its data at any time — in the game, or by asking us, even if you no longer have the app installed.</p>
+            <H>In the game (app or website)</H>
+            <ul>
+              <li>Open <b>Settings</b> (Me → Settings) and choose <b>Account → Delete my account…</b>, then type DELETE to confirm.</li>
+              <li>On a computer or a phone without the app, sign in at <Link to="/settings" className="text-accent-2">landvas.app/settings</Link> and do the same.</li>
+            </ul>
+            <H>By request</H>
+            <p>Email <a href={`mailto:${SUPPORT_EMAIL}?subject=Delete%20my%20LANDVAS%20account`} className="text-accent-2">{SUPPORT_EMAIL}</a> from the address you signed up with (or open a <Link to="/support?new=1&category=privacy" className="text-accent-2">privacy support ticket</Link>) and ask us to delete your account. We confirm by email and delete it within 30 days.</p>
+            <H>What is deleted</H>
+            <ul>
+              <li>Straight away: your sign-in, profile, plots (they go back to the world), published art, creatures, game progress and balances.</li>
+              <li>Kept without your personal details, for fraud and tax records only: game ledger entries and a note that the account was deleted.</li>
+              <li>Accounts with cash-out or payment records are deleted by the team once those are settled — ask us as above.</li>
+            </ul>
+          </div>
+        )}
         {doc === 'rent' && (
           <>
             <p>Every plot you own earns <b>USD rent</b> for every second you own it, at its rarity's current rate:</p>

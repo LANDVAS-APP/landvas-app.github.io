@@ -16,12 +16,15 @@ const UNIT = {
 /** Google's public test units never call our server back, so rewards can't arrive with them */
 export const TEST_ADS = /^ca-app-pub-3940256099942544\//.test(platform() === 'ios' ? UNIT.ios : UNIT.android);
 
+/** This build carries the AdMob SDK (CI sets VITE_ADS=on only when real ad units are configured). */
+const ADS_BUILD = import.meta.env.VITE_ADS === 'on';
+
 let mod: AdMobMod | null = null;
 let ready: Promise<boolean> | null = null;
 
 /** Start AdMob once: privacy consent (GDPR/US states) and Apple's tracking prompt come first. */
 export function initAds() {
-  if (!isNative()) return Promise.resolve(false);
+  if (!adsSupported()) return Promise.resolve(false);
   ready ??= (async () => {
     try {
       mod = await import('@capacitor-community/admob');
@@ -46,7 +49,8 @@ export function initAds() {
   return ready;
 }
 
-export const adsSupported = () => isNative();
+/** Rewarded ads can play here: the app, built with ads (no consent form or tracking prompt otherwise). */
+export function adsSupported() { return isNative() && ADS_BUILD; }
 
 const nonce = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -58,7 +62,7 @@ export type AdOutcome = { ok: true; result: Record<string, unknown> } | { ok: fa
  * server to confirm it. Resolves when the bonus has been granted, or explains why not.
  */
 export async function watchRewarded(reward: AdReward, ref = ''): Promise<AdOutcome> {
-  if (!isNative()) return { ok: false, reason: 'unsupported' };
+  if (!adsSupported()) return { ok: false, reason: 'unsupported' };
   if (!(await initAds()) || !mod) return { ok: false, reason: 'not_ready' };
   const uid = getBackend().session()?.userId;
   if (!uid) return { ok: false, reason: 'error', message: 'Sign in first.' };

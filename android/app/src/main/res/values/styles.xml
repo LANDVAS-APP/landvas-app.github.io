@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- the game's night sky behind everything: no white flash between screens or behind the keyboard -->
+        <item name="android:windowBackground">@color/landvas_bg</item>
     </style>
 
 

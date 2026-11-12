@@ -246,7 +246,7 @@ const routes: RouteObject[] = [
           { path: '/inventory', element: player(<InventoryScreen />) },
           { path: '/events', element: p(<EventsScreen />) },
           { path: '/settings', element: p(<SettingsScreen />) },
-          { path: '/support', element: player(<SupportScreen />) },
+          { path: '/support', element: p(<SupportScreen />) }, // public: the stores' support link (signed out it shows how to reach us)
           { path: '/pvp', element: player(<PvpScreen />) },
           { path: '/challenges', element: p(<ChallengesScreen />) },
           { path: '/sketch', element: p(<SketchScreen />) },

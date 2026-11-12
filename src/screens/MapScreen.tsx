@@ -36,7 +36,7 @@ import { FlyChip, PinFlight } from '../travel/Fly';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
 import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
@@ -330,11 +330,17 @@ function PlacementPrompt() {
         {blocked && (
           <p className="rounded-xl bg-bad/10 p-3 text-xs text-fg">
             {ex.gps === 'denied'
-              ? 'Location is blocked for LANDVAS. Allow it in your browser’s site settings (on iPhone: Settings → Safari → Location), then tap “Use my location”.'
+              ? isNative()
+                ? 'Location is off for LANDVAS. Turn it on in your phone’s Settings → LANDVAS → Location, then tap “Use my location”.'
+                : 'Location is blocked for LANDVAS. Allow it in your browser’s site settings (on iPhone: Settings → Safari → Location), then tap “Use my location”.'
               : 'This browser can’t share your location. Open LANDVAS in your phone’s browser to place your explorer.'}
           </p>
         )}
-        <p className="text-xs text-muted">LANDVAS needs GPS — explorers can’t be placed by hand or teleported. Your location is never shown to other players.</p>
+        <p className="text-xs text-muted">The map needs GPS — explorers can’t be placed by hand or teleported. Your location is never shown to other players.</p>
+        {/* no location, still a game: Simple mode rolls plots from one screen and never asks where you are */}
+        <Button variant="secondary" onClick={() => { useUi.getState().updateSettings({ simpleMode: true }); setDismissed(true); }} data-testid="place-simple">
+          Play without location (Simple mode)
+        </Button>
       </div>
     </Dialog>
   );

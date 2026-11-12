@@ -22,7 +22,7 @@ import { useUi } from '../lib/store';
 import { cn, safeStorage } from '../lib/utils';
 import { qk, useWorld } from '../lib/queries';
 import { plotMetres } from '../shared/grid';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { enableGps, explorerNow, gpsSupported, pauseGps, resumeGps, stopGps, useExplorer } from './explorer';
 import { saveStorage } from '../lib/utils';
 import { AdButton } from '../ads/AdButton';
@@ -186,7 +186,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       // once you've steered somewhere, that's your spot: GPS stays off (no location prompts) until you choose it
       if (r.moved_m > 0) { back.current = false; saveStorage('landvas.joySpot', true); }
       if (r.empty && fuel) {
-        toast('Joystick tank is empty', { description: r.joystick?.ads_enabled ? 'Watch an ad to refill it.' : `It refills for free at ${new Date(r.joystick?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
+        toast('Joystick tank is empty', { description: r.joystick?.ads_enabled && adsSupported() ? 'Watch an ad to refill it.' : `It refills for free at ${new Date(r.joystick?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
       }
     } catch (e) {
       const err = toGameError(e);
@@ -316,7 +316,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       {adsSupported() ? (
         <AdButton reward="joystick_refill" label="Ad: refill" done="Tank refilled!" className="rounded-xl px-2.5 py-1.5 text-xs" testid="joystick-refill"
           onDone={() => { void api.myState().then((st) => { if (st.onboarded && st.explorer) useExplorer.getState().set(st.explorer as any); }); }} />
-      ) : (
+      ) : isNative() ? null : (
         <button className={btn} onClick={() => {
           toast('Refill with an ad in the LANDVAS app', { description: `Bonus ads play in the iOS and Android apps. Your tank also refills for free at ${new Date(joy?.next_refill_at ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` });
         }} data-testid="joystick-refill"><Clapperboard className="h-3.5 w-3.5 text-accent-2" /> Watch an ad</button>

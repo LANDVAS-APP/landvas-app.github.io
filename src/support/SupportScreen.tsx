@@ -1,9 +1,10 @@
 // /support — in-app help. Tickets replace every public email address: players write
 // to the team here, replies come back here (and ring the bell).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, LifeBuoy, MessageSquarePlus, Send } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, LifeBuoy, Mail, MessageSquarePlus, Send, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { DISCORD, REDDIT, SUPPORT_EMAIL } from '../brand';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
@@ -39,6 +40,7 @@ export default function SupportScreen() {
   const open = sp.get('t');
   const mine = useQuery({ queryKey: ['support', 'mine'], queryFn: api.supportMine, enabled: !!me, refetchInterval: poll(getBackend().onPush ? 300_000 : 30_000) });
   const [composing, setComposing] = useState(sp.get('new') === '1');
+  if (!getBackend().session()) return <PublicSupport />;
   if (!me) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (open) return <Page><Thread id={open} onBack={() => setSp({})} staff={false} /></Page>;
   const tickets = mine.data ?? [];
@@ -172,5 +174,40 @@ export function Thread({ id, onBack, staff }: { id: string; onBack(): void; staf
         </div>
       </form>
     </div>
+  );
+}
+
+/** landvas.app/support for anyone (the stores link here): how to reach the team without signing in. */
+function PublicSupport() {
+  const card = 'glass grid gap-1 rounded-3xl p-5';
+  return (
+    <Page>
+      <PageHeader eyebrow="Help" title={<span className="flex items-center gap-2"><LifeBuoy className="h-7 w-7 text-accent-2" /> Support</span>}>
+        Questions, bugs, account or privacy requests — here’s how to reach the LANDVAS team.
+      </PageHeader>
+      <div className="grid gap-3 md:grid-cols-2" data-testid="public-support">
+        <section className={card}>
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><MessageSquarePlus className="h-5 w-5 text-accent-2" /> Already playing?</h2>
+          <p className="text-sm text-muted">Sign in and open a ticket — the team replies right in the game and rings your bell.</p>
+          <Link to="/welcome?next=%2Fsupport&mode=signin" className="mt-2 justify-self-start rounded-2xl bg-accent px-4 py-2 text-sm font-bold text-white" data-testid="support-signin">Sign in to open a ticket</Link>
+        </section>
+        <section className={card}>
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Mail className="h-5 w-5 text-accent-2" /> Email</h2>
+          <p className="text-sm text-muted">Can’t sign in, or not a player? Write to us and we’ll answer by email.</p>
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=LANDVAS%20support`} className="mt-2 justify-self-start font-bold text-accent-2 underline" data-testid="support-email">{SUPPORT_EMAIL}</a>
+        </section>
+        <section className={card}>
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Trash2 className="h-5 w-5 text-bad" /> Delete your account</h2>
+          <p className="text-sm text-muted">Do it yourself in the game, or ask us to — even if you no longer have the app.</p>
+          <Link to="/legal/delete-account" className="mt-2 justify-self-start font-bold text-accent-2 underline">How to delete your account and data</Link>
+        </section>
+        <section className={card}>
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Users className="h-5 w-5 text-accent-2" /> Community</h2>
+          <p className="text-sm text-muted">Tips, news and other players.</p>
+          <div className="mt-2 flex gap-4 text-sm font-bold"><a href={DISCORD} target="_blank" rel="noopener" className="text-accent-2 underline">Discord</a><a href={REDDIT} target="_blank" rel="noopener" className="text-accent-2 underline">Reddit</a></div>
+        </section>
+      </div>
+      <p className="mt-6 text-xs text-muted">LANDVAS · <Link to="/legal/terms" className="underline">Terms</Link> · <Link to="/legal/privacy" className="underline">Privacy</Link></p>
+    </Page>
   );
 }

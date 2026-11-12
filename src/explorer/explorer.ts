@@ -99,7 +99,7 @@ export function enableGps(onFirstFix?: (lng: number, lat: number) => void) {
   saveStorage('landvas.gps', true);
   if (!gpsSupported()) {
     useExplorer.getState().setGps('unavailable');
-    toast.error('This browser can’t share your location', { description: 'LANDVAS needs GPS to place your explorer. Try your phone’s browser.' });
+    toast.error('This browser can’t share your location', { description: 'The map needs GPS to place your explorer. Try your phone’s browser — or play Simple mode, which needs no location.' });
     return;
   }
   startGps({ onFirstFix });

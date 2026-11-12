@@ -15,6 +15,8 @@ import { startGps, stopGps, useExplorer } from '../explorer/explorer';
 import { Button, Switch, useConfirm, PlayerAvatar } from '../ui';
 import { replayTour } from '../tour/Tour';
 import { NavCustomizer } from '../app/NavCustomizer';
+import { isNative } from '../native/native';
+import { remindersOn, remindersSupported, setReminders } from '../native/reminders';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -68,8 +70,10 @@ export default function Settings() {
           </div>
         </Section>
 
+        {remindersSupported() && <Section title="Notifications"><RemindersSwitch /></Section>}
+
         <Section title="Location">
-          <Switch id="gps" label="Move my explorer with GPS" hint={gps === 'denied' ? 'Location permission is blocked in your browser settings.' : 'Your position is only used to place your explorer and is never shown to other players.'}
+          <Switch id="gps" label="Move my explorer with GPS" hint={gps === 'denied' ? (isNative() ? 'Location is off for LANDVAS — turn it on in your phone’s Settings → LANDVAS → Location.' : 'Location permission is blocked in your browser settings.') : 'Your position is only used to place your explorer and is never shown to other players.'}
             checked={gps === 'on' || gps === 'asking' || (safeStorage('landvas.gps', false) && gps !== 'denied')}
             onCheckedChange={(v) => { saveStorage('landvas.gps', v); if (v) startGps(); else stopGps(); }} />
           <p className="flex items-center gap-2 text-xs text-muted"><Satellite className="h-4 w-4" /> LANDVAS needs GPS: your explorer always stands where you really are. Your location is never shown to other players.</p>
@@ -241,4 +245,11 @@ function PrivacySettings() {
       {PROFILE_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}
     </div>
   );
+}
+
+/** The app: one daily reminder when a streak reward is waiting (a local notification — nothing is sent anywhere). */
+function RemindersSwitch() {
+  const [on, setOn] = useState(remindersOn());
+  return <Switch id="reminders" label="Streak reminders" hint="One nudge a day when your next daily reward is ready — never after you’ve claimed it."
+    checked={on} onCheckedChange={async (v) => setOn(await setReminders(v))} />;
 }
