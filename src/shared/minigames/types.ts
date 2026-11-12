@@ -6,7 +6,7 @@ export const GAME_SALT: Record<GameId, number> = { tracecraft: 11, colorburst: 2
 /** Rounds per level when a session doesn't say (sessions started before rounds became configurable). */
 export const DEFAULT_ROUNDS = 5;
 /** Rounds a player must clear to pass a level. */
-/** Every round must be cleared to beat a level (each cleared round still pays its share of Ink). */
+/** Every round must be cleared to beat a level; only a beaten level pays Ink (level, round and bonus Ink). */
 export const roundsToPass = (rounds: number) => Math.max(1, rounds);
 
 /** Result of replaying a move log on the server (also used client-side for instant feedback). */

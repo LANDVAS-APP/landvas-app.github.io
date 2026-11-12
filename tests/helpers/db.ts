@@ -53,7 +53,7 @@ export class TestDb {
    * @param opts.ungated turn off location-gated claims (for suites that test
    *   other systems and claim plots all over the grid)
    */
-  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number; basePlots?: boolean } = {}) {
+  async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number; basePlots?: boolean; inkPacing?: boolean } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
     // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
@@ -66,6 +66,8 @@ export class TestDb {
     await this.admin.query(`update game_config set value = value || jsonb_build_object('free_plots', $1::int) where key = 'economy'`, [opts.freePlots ?? 1]).catch(() => {});
     // most suites paint their plots: new plots start as art canvases here; the Base-plot default is tested on its own
     if (!opts.basePlots) await this.admin.query(`alter table public.canvas_groups alter column kind set default 'canvas'`);
+    // suites check exact Ink amounts: hidden Ink pacing is tested on its own
+    if (!opts.inkPacing) await this.admin.query(`update game_config set value = jsonb_set(value, '{enabled}', 'false') where key = 'ink_pacing'`).catch(() => {});
     return this;
   }
 

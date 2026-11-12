@@ -95,6 +95,15 @@ try {
   check('…Take away removes one', (await page.locator('[data-testid=player-plot]').count()) === n0);
   check('…both audit-logged', Number((await sql(`select count(*) n from audit_logs where action in ('plot.given', 'plot.taken')`))[0].n) === 2);
   await shot('06-plot-tools');
+  // Ink pacing card on the Earnings tab
+  await page.evaluate(() => { location.hash = 'earnings'; window.__landvasNav('/admin'); }); await page.waitForTimeout(500);
+  await page.locator('button,[role=tab]', { hasText: /^Earnings$/ }).first().click().catch(() => {});
+  await page.waitForSelector('[data-testid=ink-pacing]', { timeout: 20000 });
+  await page.locator('[data-testid=ink-pacing]').scrollIntoViewIfNeeded();
+  await page.fill('[data-testid=pacing-day_soft]', '1500');
+  await page.click('[data-testid=pacing-save]'); await page.waitForTimeout(1200);
+  check('Ink pacing saves from the admin', Number((await sql(`select value ->> 'day_soft' v from game_config where key = 'ink_pacing'`))[0].v) === 1500);
+  await shot('07-ink-pacing');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

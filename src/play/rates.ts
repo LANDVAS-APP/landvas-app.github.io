@@ -1,6 +1,6 @@
 // Client mirror of the server's minigame pay rules (the server is authoritative):
 //   level Ink — paid once for completing a level (every round cleared), from the game's level table
-//   round Ink — paid for each cleared round, by its position (round 1, round 2, …)
+//   round Ink — extra Ink per round position (round 1, round 2, …), paid only when the whole level is cleared
 // Both are multiplied by rarity, plot upgrades, multipliers and any boost.
 import { rarityInfo } from '../shared/rarity';
 

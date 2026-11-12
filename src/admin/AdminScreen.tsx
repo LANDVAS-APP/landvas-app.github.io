@@ -19,6 +19,7 @@ import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
 import { IntegrityAdmin } from './IntegrityAdmin';
 import { AllRollGrants, RollGrants } from './RollGrants';
 import { PlayerPlots } from './PlayerPlots';
+import { InkPacing } from './InkPacing';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
 import { ChallengesAdmin, CreativeSettings, EarnSettings } from './EarnAdmin';
 import { useNotifications } from '../updates/Notifications';
@@ -482,6 +483,7 @@ function Earnings() {
       <div className="grid content-start gap-4">
         <OddsEditor rarities={cfg.data.rarities} config={cfg.data.config} />
         <AllRollGrants />
+        <InkPacing />
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
@@ -600,7 +602,7 @@ function GameEarningsRow({ g, v, setGame }: { g: GameId; v: any; setGame(g: stri
         </div>
         <div>
           <div className="eyebrow mb-1">Round Ink — paid for each round cleared</div>
-          <p className="mb-2 text-[11px] text-faint">The same at every level. 0 = that round pays nothing. Paid even if the player doesn’t complete the level.</p>
+          <p className="mb-2 text-[11px] text-faint">The same at every level. 0 = that round pays nothing. Paid only when the player clears every round of the level (bonuses too).</p>
           <div className="flex flex-wrap gap-2">
             {Array.from({ length: rounds }, (_, r) => (
               <label key={r} className="grid gap-0.5 text-[11px] font-semibold text-muted">Round {r + 1}

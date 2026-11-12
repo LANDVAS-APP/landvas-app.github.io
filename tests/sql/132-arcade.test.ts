@@ -103,7 +103,15 @@ describe('Arcade plots', () => {
     expect((await db.rpc(vi, 'arcade_daily', {})).streak).toBe(2);
   });
 
-  it('Ink has no daily limit, but comes a little at a time (fractions carry over)', async () => {
+  it('arcade Ink has a daily cap', async () => {
+    await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 150) on conflict (player_id, day) do update set ink = 150`, [vi]);
+    const before = await ink(vi);
+    const r = await play(vi, 'stacker', 600, 120);
+    expect(r.paid).toBe(0); expect(await ink(vi)).toBe(before);
+  });
+
+  it('with the cap switched off, Ink comes a little at a time (fractions carry over)', async () => {
+    await db.sql(`update game_config set value = value || '{"daily_ink_cap": 0}' where key = 'arcade'`);
     await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 5000) on conflict (player_id, day) do update set ink = 5000`, [vi]);
     await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
     const before = await ink(vi);
@@ -112,6 +120,15 @@ describe('Arcade plots', () => {
     expect(r1.paid).toBe(Math.floor((600 / 160) * k));
     expect(await ink(vi)).toBe(before + r1.paid);
     expect(r1.ink_progress).toBeCloseTo(((600 / 160) * k) % 1, 2);
+  });
+
+  it('one run pays at most the cabinet’s max Ink — Endless too', async () => {
+    await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
+    const s = await db.rpc(vi, 'arcade_start', { p_arcade: arcId, p_game: 'stacker', p_mode: 'endless' });
+    await age(s.session, 300);
+    const r = await db.rpc(vi, 'arcade_finish', { p_session: s.session, p_score: 1990 });
+    const max = Number((await db.sql(`select value -> 'games' -> 'stacker' ->> 'max_ink' m from game_config where key = 'arcade'`))[0].m ?? 10);
+    expect(r.paid).toBeLessThanOrEqual(max);
   });
 
   it('Endless mode has no top score and its own boards', async () => {

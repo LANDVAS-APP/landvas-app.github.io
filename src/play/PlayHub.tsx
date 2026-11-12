@@ -32,7 +32,7 @@ export function MinigameGrid() {
   const resets = records.data?.resets_at ? new Date(records.data.resets_at) : null;
   return (
     <>
-      <p className="mb-3 text-sm text-muted">{`Every round you clear pays Ink, and clearing all of a level's rounds levels the plot up. ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}</p>
+      <p className="mb-3 text-sm text-muted">{`Clear every round of a level to win its Ink (and any bonuses) and level the plot up. ${unlimitedRuns ? 'Paid runs are unlimited right now.' : `Each game pays for ${limit} runs a day${resets ? ` (resets ${resets.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}.`} Rarer plots pay more.`}</p>
       {!(plots.data ?? []).length ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="Claim a plot first" action={<Button variant="rainbow" onClick={() => nav('/world')}>Find a plot on the map</Button>}>
           Every plot type has its own minigame, and every plot climbs its own levels. Your free starter plot is waiting on the map.

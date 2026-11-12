@@ -39,7 +39,7 @@ describe('game guide', () => {
   it('grinders: a day’s Ink by percentile, the top days (no names), and each source’s rate per hour', async () => {
     // a grinding day: 8,000 Ink over 4 hours, mostly arcade
     await db.sql(`insert into resource_ledger (player_id, resource, delta, balance_after, reason, created_at)
-      select $1, 'ink', 500, 0, case when i % 4 = 0 then 'minigame' else 'arcade' end, date_trunc('hour', now()) - interval '5 hours' + (i % 4) * interval '1 hour' + interval '1 minute'
+      select $1, 'ink', 500, 0, case when i % 4 = 0 then 'minigame' else 'arcade' end, private.day_start(now()) - interval '1 day' + interval '2 hours' + (i % 4) * interval '1 hour' + interval '1 minute'
       from generate_series(1, 16) i`, [b]);
     await db.sql(`delete from private.guide_cache`);
     const s = (await db.rpc(null, 'game_guide')).stats;

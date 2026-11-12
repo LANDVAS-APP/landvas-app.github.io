@@ -212,10 +212,10 @@ describe('minigame performance bonuses', () => {
     // 80, 70, 95: round tiers 1 + 0 + 3; not all ≥ 90; one ≥ 95; average 81.7 < 85
     const r2 = await play([80, 70, 95]);
     expect(r2.rewards.bonus_ink).toBe(Math.floor(4 * mult));
-    // a failed round pays no round bonus and no level bonuses
+    // a failed level pays no bonuses at all (and no Ink)
     const r3 = await play([99, 99, 40], [true, true, false]);
     expect(r3.passed).toBe(false);
-    expect(r3.rewards.bonus_ink).toBe(Math.floor((3 + 3 + 2) * mult));
+    expect(r3.rewards.bonus_ink).toBe(0); expect(r3.rewards.ink).toBe(0);
   });
 
   it('rejects broken bonus rules', async () => {
@@ -243,7 +243,7 @@ describe('minigame performance bonuses', () => {
     expect(Number(sc.bonus_ink)).toBeGreaterThan(0);
     const last = st.sessions[0];
     expect(last.quality).toEqual([99, 99, 40]);
-    expect(last.breakdown.bonuses.length).toBe(3);
+    expect(last.breakdown.bonuses.length).toBe(0); // a failed run earns no bonuses
     expect(st.ink_sources.find((x: any) => x.reason === 'minigame').total).toBeGreaterThan(0);
     expect(st.plots[0].game).toBe('sculptor');
     const pv = await db.rpc(owner, 'admin_player_minigames', { p_player_id: a });
