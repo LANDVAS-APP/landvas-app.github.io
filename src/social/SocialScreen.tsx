@@ -295,6 +295,28 @@ function FeedRow({ e }: { e: FeedEvent }) {
 
 // ---- global chat ---------------------------------------------------------------------------
 
+/** a ban or suspension, announced to everyone: red, unmissable */
+function ModerationNotice({ m }: { m: ChatMessage }) {
+  const ban = m.data?.action === 'ban';
+  const until = m.data?.until ? new Date(m.data.until) : null;
+  return (
+    <div className={cn('my-2.5 rounded-2xl border-2 border-[#FF3D6E] bg-[#FF3D6E]/12 p-3 shadow-[0_0_24px_-6px_rgba(255,61,110,0.6)]', m.deleted && 'opacity-50')} data-testid="chat-moderation" role="status">
+      <div className="mb-1 flex items-center gap-2">
+        <ShieldAlert className="h-5 w-5 shrink-0 text-[#FF3D6E]" />
+        <span className="text-[11px] font-black uppercase tracking-widest text-[#FF3D6E]">{ban ? 'Player banned' : 'Player suspended'}</span>
+        <span className="ml-auto text-[11px] text-faint">{timeAgo(m.created_at)}</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <PlayerAvatar p={m.player} size={34} />
+        <div className="min-w-0 flex-1">
+          <p className="whitespace-pre-wrap break-words text-[14px] font-semibold leading-snug">{m.body}</p>
+          <p className="text-[11px] text-muted">@{m.player.username} · {ban ? 'banned' : `suspended${until ? ` until ${until.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`} by the LANDVAS team for cheating or abusing the game.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const REPORT_REASONS = [
   { id: 'harassment', label: 'Rude, hateful or bullying' },
   { id: 'spam', label: 'Spam or a scam' },
@@ -387,8 +409,9 @@ function ChatTab() {
           {!msgs ? <div className="flex justify-center py-10"><Spinner /></div> : !msgs.length ? (
             <p className="px-3 py-10 text-center text-sm text-muted">No messages yet — say hello to the world 👋</p>
           ) : msgs.map((m, i) => {
+            if (m.kind === 'moderation') return <ModerationNotice key={m.id} m={m} />;
             const prev = msgs[i - 1];
-            const grouped = prev && prev.player.id === m.player.id && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60_000;
+            const grouped = prev && prev.kind !== 'moderation' && prev.player.id === m.player.id && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60_000;
             const mine = m.player.id === me.profile.id;
             return (
               <div key={m.id} className={cn('group flex gap-2.5 rounded-xl px-2 hover:bg-surface-2/50', grouped ? 'py-0.5' : 'mt-1.5 py-1', m.deleted && 'opacity-50')} data-testid="chat-message">

@@ -67,6 +67,27 @@ describe('the scanner', () => {
     expect(r.devices[0].shared_with).toBe(2);
     expect(JSON.stringify(r)).not.toContain('203.0.113');
   });
+  it('profiles every invited account: email tricks, link, play, and its own suspicion', async () => {
+    const r = await scan(alpha);
+    const a1 = r.referrals.find((x: any) => x.username === 'alt_one');
+    expect(a1.linked_via).toContain('device');
+    expect(a1.email_flags.join(' ')).toMatch(/\+tag alias/);
+    expect(a1.suspicion).toBeGreaterThanOrEqual(50);
+    expect(a1.reasons.join(' ')).toMatch(/same device as the inviter/);
+    const a2 = r.referrals.find((x: any) => x.username === 'alt_two');
+    expect(a2.email_flags.join(' ')).toMatch(/throwaway/);
+    expect(keys(r)).toContain('suspicious_referral_tree');
+    expect(r.signals.find((x: any) => x.key === 'self_referral_device').points).toBeGreaterThanOrEqual(60);
+  });
+  it('alts that vote for the inviter’s Sketch of the Day win, inspire and stamp their art', async () => {
+    const sk = (await db.sql(`insert into sketches (player_id, day, word, submitted_at, votes, place, prize) values ($1, date_trunc('day', now()) - interval '2 days', 'dragon', now() - interval '2 days', 3, 1, 100) returning id`, [alpha]))[0].id;
+    await db.sql(`insert into sketch_votes (sketch_id, voter_id, day) values ($1, $2, now() - interval '2 days'), ($1, $3, now() - interval '2 days'), ($1, $4, now() - interval '2 days')`, [sk, alt1, alt2, honest]);
+    const r = await scan(alpha);
+    expect(keys(r)).toEqual(expect.arrayContaining(['propped_wins', 'referrals_boost_referrer']));
+    const w = r.signals.find((x: any) => x.key === 'propped_wins').evidence[0];
+    expect(w).toMatchObject({ kind: 'Sketch of the Day', place: 1, votes: 3, from_own: 2 });
+    expect(r.referrals.find((x: any) => x.username === 'alt_one').help['sketch votes']).toBe(1);
+  });
   it('the alts are flagged too (invited by an account on their own device)', async () => {
     expect(keys(await scan(alt1))).toEqual(expect.arrayContaining(['shared_device', 'invited_by_linked']));
   });
@@ -138,13 +159,20 @@ describe('penalties', () => {
   it('suspends with a reason and proof, takes the Ink and those plots', async () => {
     const until = new Date(Date.now() + 7 * 864e5).toISOString();
     const r = await db.rpc(admin, 'admin_integrity_act', { p_players: arr(alpha), p_kind: 'suspend', p_until: until, p_preset: 'self_referral',
-      p_reason: 'You invited accounts you control to collect invite bonuses.', p_proof: ['2 invited accounts use your phone', 'Look-alike emails'], p_scope: { referrals: true, plots: true } });
+      p_reason: 'You invited accounts you control to collect invite bonuses.', p_proof: ['2 invited accounts use your phone', 'Look-alike emails'], p_scope: { referrals: true, plots: true },
+      p_announce: '{name} was suspended for 7 days for self-referring with alt accounts.' });
     action = r.results[0].action;
     expect(r.results[0].ink_removed).toBe(300);
     const bal = (await db.sql(`select amount from resource_balances where player_id = $1 and resource = 'ink'`, [alpha]))[0].amount;
     expect(Number(bal)).toBe(0);
     expect((await db.sql(`select count(*)::int n from world_plots where owner_id = $1 and gx between 5000 and 5002`, [alpha]))[0].n).toBe(0);
     await expect(db.rpc(alpha, 'luck_status', {})).rejects.toThrow(/account_restricted/);
+  });
+  it('everyone sees the announcement in the live chat, marked as moderation', async () => {
+    await db.sql(`insert into player_blocks (blocker_id, blocked_id) values ($1, $2) on conflict do nothing`, [honest, alpha]).catch(() => {});
+    const c = await db.rpc(honest, 'chat_recent', {});
+    const m = c.messages.find((x: any) => x.kind === 'moderation');
+    expect(m.body).toBe('@alpha_ann was suspended for 7 days for self-referring with alt accounts.'); expect(m.data.action).toBe('suspend'); expect(m.player.username).toBe('alpha_ann');
   });
   it('the player sees why, the proof and where to appeal', async () => {
     const m = await db.rpc(alpha, 'my_restriction', {});
@@ -157,6 +185,8 @@ describe('penalties', () => {
     expect(u.ink_returned).toBe(600);
     expect((await db.sql(`select status from players where id = $1`, [alpha]))[0].status).toBe('active');
     await expect(db.rpc(admin, 'admin_integrity_undo', { p_action: action })).rejects.toThrow(/already_undone/);
+    const c = await db.rpc(honest, 'chat_recent', {});
+    expect(c.messages.some((x: any) => x.kind === 'moderation')).toBe(false); // the announcement comes down too
   });
   it('a moderator without the economy role can restrict but not take Ink', async () => {
     const mod = await db.newPlayer('mod_only');

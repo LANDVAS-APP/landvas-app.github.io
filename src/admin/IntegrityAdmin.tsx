@@ -134,6 +134,15 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
   const [proofText, setProofText] = useState('');
   const [scope, setScope] = useState({ referrals: false, linked_help: false, earned_since: false, all: false, plots: true, all_plots_since: false, since: '', extra: '' });
   const [preview, setPreview] = useState<any[] | null>(null);
+  const [announce, setAnnounce] = useState(true);
+  const [summary, setSummary] = useState('');
+  const [summaryEdited, setSummaryEdited] = useState(false);
+  // a ready-made chat summary from the action and reason; edit it freely ({name} becomes each player's @name)
+  useEffect(() => {
+    if (summaryEdited) return;
+    const label = presets.find((p) => p.id === preset)?.label?.toLowerCase();
+    setSummary(`{name} was ${kind === 'ban' ? 'banned' : `suspended for ${days} day${days === 1 ? '' : 's'}`}${label ? ` for ${label}` : ' for cheating'}.`);
+  }, [kind, days, preset, presets, summaryEdited]);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setPreview(null); }, [scope, group, id]);
   // proof follows the signals you tick (players see it), and you can edit it
@@ -150,11 +159,11 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
     const proof = proofText.split('\n').map((s) => s.trim()).filter(Boolean);
     const until = kind === 'suspend' ? new Date(Date.now() + days * 864e5).toISOString() : null;
     const ok = await confirm({ title: `${kind === 'ban' ? 'Ban' : kind === 'suspend' ? `Suspend for ${days} days` : 'Warn'} ${targets.length} player${targets.length === 1 ? '' : 's'}?`,
-      body: <>They’ll see: <b>{reason}</b>{takes ? <> — and lose the Ink and plots in the preview.</> : null} You can undo this later.</>, confirm: 'Do it', danger: kind !== 'warn' });
+      body: <>They’ll see: <b>{reason}</b>{takes ? <> — and lose the Ink and plots in the preview.</> : null}{kind !== 'warn' && announce ? <> Everyone in the live chat sees: <b>{summary.replace('{name}', `@${d.player.username}`)}</b></> : null} You can undo this later.</>, confirm: 'Do it', danger: kind !== 'warn' });
     if (!ok) return;
     setBusy(true);
     try {
-      const r = await api.admin.integrityAct(targets, kind, until, preset || null, reason, proof, scopeArg);
+      const r = await api.admin.integrityAct(targets, kind, until, preset || null, reason, proof, scopeArg, kind !== 'warn' && announce ? summary : null);
       toast.success(`Done: ${r.results.length} player(s)${takes ? `, ${fmt(r.results.reduce((s: number, x: any) => s + Number(x.ink_removed), 0))} Ink and ${r.results.reduce((s: number, x: any) => s + Number(x.plots_removed), 0)} plots taken` : ''}`);
       setPreview(null); refresh();
     } catch (e) { err(e); } finally { setBusy(false); }
@@ -202,15 +211,32 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
             </div>
           </Section>
 
-          <Section title="Their invites" n={(d.referrals ?? []).length}>
-            <div className="grid gap-1 text-xs">
-              {(d.referrals ?? []).map((r: any) => (
-                <div key={r.username} className="grid grid-cols-[1fr_auto] gap-2 border-b border-line/40 py-1 last:border-0">
-                  <span className="min-w-0 break-all"><b>@{r.username}</b> <span className="text-muted">{r.email}</span>
-                    <span className="block text-faint">joined {day(r.joined)} · {r.plays} plays · active {timeAgo(r.last_active)} · {r.status}{r.reward_ink ? ` · paid ${r.reward_ink} Ink` : ''}</span></span>
-                  <span className="flex flex-wrap justify-end gap-1">{r.linked && <b className="text-hot">same device/IP</b>}{r.lookalike && <b className="text-[#FF8A3D]">look-alike email</b>}{r.disposable && <b className="text-[#FFD84D]">throwaway email</b>}<Status s={r.account} /></span>
-                </div>
-              ))}
+          <Section title="Their invites — every invited account, most suspicious first" n={(d.referrals ?? []).length}>
+            <div className="grid gap-2 text-xs" data-testid="integrity-referrals">
+              {(d.referrals ?? []).map((r: any) => {
+                const c = r.suspicion >= 70 ? '#FF3D6E' : r.suspicion >= 50 ? '#FF8A3D' : r.suspicion >= 25 ? '#FFD84D' : '#3DDC97';
+                const help = Object.entries(r.help ?? {});
+                return (
+                  <div key={r.id ?? r.username} className="rounded-xl bg-surface-2/50 p-2.5" style={{ boxShadow: `inset 3px 0 0 ${c}` }} data-testid={`referee-${r.username}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className="font-bold text-accent-2 hover:underline" onClick={() => r.id && onOpen(r.id)}>@{r.username}</button>
+                      <span className="min-w-0 break-all text-muted">{r.email}</span><Status s={r.account} />
+                      <span className="ml-auto shrink-0 font-black tnum" style={{ color: c }}>{r.suspicion}% alt</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full" style={{ width: `${r.suspicion}%`, background: c }} /></div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-faint sm:grid-cols-4">
+                      <span>joined {day(r.joined)}{r.minutes_after_previous != null && r.minutes_after_previous < 120 ? ` (${r.minutes_after_previous} min after the last)` : ''}</span>
+                      <span>{r.plays} plays · {r.wins} wins</span><span>{fmt(r.ink_earned)} Ink earned · {fmt(r.ink_spent)} spent</span>
+                      <span>{r.plots} plots · {r.active_days} active days</span>
+                      <span>active {timeAgo(r.last_active)}</span><span>invite: {r.status}{r.reward_ink ? ` (${r.reward_ink} Ink)` : ''}</span>
+                      {r.linked_via && <b className="text-hot">same {r.linked_via.replace(/\+/g, ', ')}</b>}{r.dormant && <b className="text-[#FF8A3D]">stopped after the bonus</b>}
+                    </div>
+                    {r.email_flags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{r.email_flags.map((f: string) => <span key={f} className="rounded bg-[#FF8A3D]/15 px-1.5 text-[10.5px] font-bold text-[#FF8A3D]">✉️ {f}</span>)}</div>}
+                    {help.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{help.map(([k, n]) => <span key={k} className="rounded bg-hot/15 px-1.5 text-[10.5px] font-bold text-hot">→ inviter: {String(n)} {k}</span>)}</div>}
+                    {r.reasons?.length > 0 && <div className="mt-1 text-[10.5px] text-muted">{r.reasons.join(' · ')}</div>}
+                  </div>
+                );
+              })}
             </div>
           </Section>
 
@@ -299,6 +325,15 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
               <Switch id="sc-plots" label="Also take plots bought with Ink they’ve already spent" checked={scope.plots} onCheckedChange={(v) => setScope({ ...scope, plots: v })} />
               <Switch id="sc-allplots" label="Take every plot bought since the date above" checked={scope.all_plots_since} onCheckedChange={(v) => setScope({ ...scope, all_plots_since: v })} />
             </div>
+            {kind !== 'warn' && (
+              <div className="grid gap-1.5 rounded-xl border-2 border-[#FF3D6E]/60 bg-[#FF3D6E]/5 p-2.5" data-testid="announce-box">
+                <Switch id="announce" label="Announce it in the live chat" hint="A red notice everyone sees. Undoing the action takes it down." checked={announce} onCheckedChange={setAnnounce} />
+                {announce && <>
+                  <textarea className={cn(inputCls, 'h-16 py-2 text-sm')} maxLength={300} value={summary} onChange={(e) => { setSummary(e.target.value); setSummaryEdited(true); }} data-testid="announce-text" />
+                  <div className="text-[11px] text-faint">Shown as: <b className="text-fg">{summary.replace('{name}', `@${d.player.username}`)}</b>{group.size ? ' (each linked account gets its own, with its name)' : ''}{summaryEdited && <button className="ml-2 font-bold text-accent-2" onClick={() => setSummaryEdited(false)}>reset</button>}</div>
+                </>}
+              </div>
+            )}
             {takes && <Button size="sm" variant="secondary" onClick={() => void doPreview()} data-testid="preview">Preview what gets taken</Button>}
             {preview && (
               <div className="grid gap-1 rounded-xl bg-surface-2/50 p-2.5 text-xs" data-testid="preview-result">

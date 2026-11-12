@@ -185,7 +185,7 @@ export type FriendsList = {
   incoming: { player: Profile; at: string }[];
   outgoing: { player: Profile; at: string }[];
 };
-export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean };
+export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean; kind?: 'moderation'; data?: { action?: 'ban' | 'suspend'; until?: string | null } };
 /** A player's places, for their profile. */
 export type ArcadeMember = Profile & { explorer_style?: unknown; x: number; z: number; playing: string | null };
 export type ArcadeMatchPlayer = Profile & { explorer_style?: unknown; score: number | null; finished: boolean; bonus: number; session: string | null };

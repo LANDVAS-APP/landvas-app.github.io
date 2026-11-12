@@ -78,12 +78,23 @@ try {
   await page.click('[data-testid=preview]'); await page.waitForSelector('[data-testid=preview-result]');
   check('preview: 500 Ink to take', /500 Ink to take/.test(await page.locator('[data-testid=preview-result]').innerText()));
   await page.locator('[data-testid=integrity-action]').scrollIntoViewIfNeeded(); await shot('03-action');
+  check('a chat summary is ready to edit', /\{name\} was suspended for 7 days for self-referral/.test(await page.inputValue('[data-testid=announce-text]')), await page.inputValue('[data-testid=announce-text]'));
+  await page.fill('[data-testid=announce-text]', '{name} was suspended for 7 days for self-referring with an alt account and taking the invite bonus.');
+  check('…and shows it with her name', /@cheat_cara was suspended/.test(await page.locator('[data-testid=announce-box]').innerText()));
   await page.click('[data-testid=act]');
   await page.getByRole('button', { name: /^Do it$/ }).click();
   await page.waitForTimeout(1500);
   const st = (await sql(`select status from players where id = '${cara}'`))[0].status;
   check('suspended', st === 'suspended', st);
   check('invite Ink taken back', Number((await sql(`select amount from resource_balances where player_id = '${cara}' and resource = 'ink'`))[0].amount) === 0);
+  // everyone sees it in the live chat
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.evaluate(() => window.__landvasNav('/social?tab=chat'));
+  await page.waitForSelector('[data-testid=chat-moderation]', { timeout: 20000 }); await page.waitForTimeout(500);
+  const cm = await page.locator('[data-testid=chat-moderation]').innerText();
+  check('the live chat shows a red ban notice with the summary', /Player suspended/i.test(cm) && /@cheat_cara was suspended for 7 days for self-referring/.test(cm), cm.slice(0, 160));
+  check('…with a red border', await page.locator('[data-testid=chat-moderation]').evaluate((e) => getComputedStyle(e).borderTopColor.replace(/\s/g, '') === 'rgb(255,61,110)'));
+  await shot('05-chat');
   // she signs in
   await signIn('amyjones@gmail.com');
   await page.waitForSelector('[data-testid=restriction-notice]', { timeout: 20000 });
