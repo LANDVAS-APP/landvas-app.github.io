@@ -65,7 +65,7 @@ try {
   check('with Luck, the roll shows the meter', /6 rolls/.test(await page.textContent('[data-testid=roll-luck]')));
   await page.waitForTimeout(2500); await shot('03-lucky-rerolls');
   await page.waitForSelector('[data-testid=roll-pick]', { timeout: 60000 }); await page.waitForTimeout(900);
-  const n = await page.locator('[data-testid^=roll-choice-]').count();
+  const n = await page.locator('[data-testid^=roll-choice-]:not([data-testid^=roll-choice-type]):not([data-testid^=roll-choice-shiny])').count();
   check('6 rolls to choose from', n === 6, `${n}`);
   await shot('03b-pick');
   await page.click('[data-testid=roll-choice-0]'); await page.click('[data-testid=roll-keep]');
