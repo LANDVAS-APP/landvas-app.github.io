@@ -179,9 +179,21 @@ describe('penalties', () => {
   });
   it('the player sees why, the proof and where to appeal', async () => {
     const m = await db.rpc(alpha, 'my_restriction', {});
-    expect(m).toMatchObject({ status: 'suspended', title: 'Self-referral', appeal_email: 'dev@landvas.app', ink_removed: 300, plots_removed: 3 });
+    expect(m).toMatchObject({ status: 'suspended', title: 'Self-referral', ink_removed: 300, plots_removed: 3, appeal: null });
+    expect(m.appeal_email).toBeUndefined();
     expect(m.proof).toEqual(['2 invited accounts use your phone', 'Look-alike emails']);
     expect(await db.rpc(honest, 'my_restriction', {})).toBeNull();
+  });
+  it('their only way out is an appeal ticket, which support sees', async () => {
+    const t = await db.rpc(alpha, 'support_create', { p_subject: 'Appeal', p_category: 'bug', p_body: 'Those are my brothers, not alts.' });
+    expect(t.category).toBe('appeal');
+    await expect(db.rpc(alpha, 'support_create', { p_subject: 'Again', p_category: 'appeal', p_body: 'Please look again.' })).rejects.toThrow(/appeal_open/);
+    expect((await db.rpc(alpha, 'my_restriction', {})).appeal).toMatchObject({ id: t.id, status: 'open' });
+    expect((await db.rpc(alpha, 'support_my_tickets', {})).length).toBe(1);
+    await db.rpc(alpha, 'support_reply', { p_id: t.id, p_body: 'They live with me.' });
+    const staff = await db.rpc(admin, 'admin_support_tickets', { p_status: null });
+    expect(staff.tickets.some((x: any) => x.id === t.id && x.category === 'appeal')).toBe(true);
+    await expect(db.rpc(alpha, 'luck_status', {})).rejects.toThrow(/account_restricted/); // still nothing else
   });
   it('undo gives the Ink back (with what the plots cost) and lifts it', async () => {
     const u = await db.rpc(admin, 'admin_integrity_undo', { p_action: action });

@@ -25,7 +25,7 @@ export const CATEGORIES: { value: string; label: string }[] = [
   { value: 'privacy', label: 'Privacy & data (incl. deleting my account)' },
   { value: 'other', label: 'Something else' },
 ];
-const catLabel = (v: string) => CATEGORIES.find((c) => c.value === v)?.label ?? v;
+const catLabel = (v: string) => (v === 'appeal' ? '⚖️ Ban / suspension appeal' : CATEGORIES.find((c) => c.value === v)?.label ?? v);
 
 export const STATUS: Record<SupportTicket['status'], { label: string; cls: string }> = {
   open: { label: 'Waiting for support', cls: 'border-warn/40 bg-warn/10 text-warn' },

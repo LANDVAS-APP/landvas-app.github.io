@@ -55,7 +55,7 @@ export function IntegrityAdmin() {
       <div className="glass grid gap-3 rounded-3xl p-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="mr-auto font-display text-lg font-black">🛡️ Integrity scanner</h2>
-          <Button size="sm" variant="secondary" onClick={() => setSettings(true)} data-testid="integrity-settings">Reasons & appeal email</Button>
+          <Button size="sm" variant="secondary" onClick={() => setSettings(true)} data-testid="integrity-settings">Reason presets</Button>
           <Button size="sm" loading={!!scan} onClick={() => void scanAll()} data-testid="integrity-scan">{scan ? `Scanning ${fmt(scan.done)}/${fmt(scan.total)}…` : 'Scan everyone'}</Button>
         </div>
         <p className="text-xs text-muted">Players are rescanned as they play (hourly at most). Scores add up the patterns found; nothing is ever done automatically. Open a player to see the evidence and act.</p>
@@ -364,11 +364,10 @@ function IntegritySettings({ onClose }: { onClose(): void }) {
     try { await api.admin.configSet('integrity', { ...v, appeal_email: email.trim(), presets: presets.filter((p) => p.label.trim()), ip_lookup: lookup }); toast.success('Saved'); void qc.invalidateQueries({ queryKey: ['admin', 'config'] }); onClose(); } catch (e) { err(e); }
   };
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title="Reasons & appeal email" wide>
+    <Dialog open onOpenChange={(o) => !o && onClose()} title="Reason presets" wide>
       {!v ? <Spinner /> : (
         <div className="grid gap-3 text-sm" data-testid="integrity-settings-form">
-          <label className="grid gap-1"><span className="text-xs font-bold">Appeal email (shown to banned and suspended players)</span>
-            <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="appeal-email" /></label>
+          <p className="rounded-xl bg-surface-2/50 p-2.5 text-xs text-muted">Banned and suspended players can’t do anything else, but they can appeal through a support ticket. Appeals arrive in <b>Admin → Support</b>, marked “Appeal”.</p>
           <Switch id="ip-lookup" label="Look up new addresses for VPN / proxy / Tor / datacenter" hint="Uses ipapi.is (free tier; set IPAPI_KEY on the integrity function for more)" checked={lookup} onCheckedChange={setLookup} />
           <div className="grid gap-2">
             <div className="text-xs font-bold">Reason presets</div>

@@ -111,8 +111,14 @@ try {
   await signIn('amyjones@gmail.com');
   await page.waitForSelector('[data-testid=restriction-notice]', { timeout: 20000 });
   const t = await page.locator('[data-testid=restriction-notice]').innerText();
-  check('the notice says suspended, until when, why, the proof and where to appeal', /suspended/i.test(t) && /until/.test(t) && /invited accounts you control/.test(t) && /own device/.test(t) && /dev@landvas\.app/.test(t), t.slice(0, 200));
+  check('the notice says suspended, until when, why and the proof — and no email', /suspended/i.test(t) && /until/.test(t) && /invited accounts you control/.test(t) && /own device/.test(t) && !/@landvas\.app/.test(t), t.slice(0, 200));
   check('it says what was taken back', /500 Ink/.test(t));
+  await page.fill('[data-testid=appeal-text]', 'Amy is my sister, she plays on my phone sometimes.');
+  await page.click('[data-testid=appeal-send]');
+  await page.waitForSelector('[data-testid=appeal-thread]', { timeout: 20000 }); await page.waitForTimeout(800);
+  check('appeal sent as a support ticket, shown with its status and thread', /Waiting for the team/i.test(await page.locator('[data-testid=appeal-status]').innerText()) && /my sister/.test(await page.locator('[data-testid=appeal-thread]').innerText()));
+  const tk = await sql(`select category, subject from support_tickets where player_id = '${cara}'`);
+  check('…in support as an Appeal', tk.length === 1 && tk[0].category === 'appeal', JSON.stringify(tk));
   await shot('04-notice');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
