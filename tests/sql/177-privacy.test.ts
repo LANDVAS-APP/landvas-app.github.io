@@ -59,7 +59,7 @@ describe('privacy', () => {
     const listed = [...src.matchAll(/k: '((?:fa|feed)_[a-z_]+)'/g)].map((m) => m[1]);
     expect(new Set(listed)).toEqual(new Set(keys.filter((k) => k.startsWith('fa_') || (k.startsWith('feed_')))));
     const kinds = (await db.sql(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'feed_events_kind_check'`))[0].d.match(/'([a-z_]+)'/g).map((x: string) => x.slice(1, -1));
-    for (const k of kinds) expect(keys, k).toContain('fa_' + (k === 'luck' ? 'luck_ink' : k === 'arcade' ? 'arcade_playing' : k));
+    for (const k of kinds.filter((x: string) => x !== 'moderation')) expect(keys, k).toContain('fa_' + (k === 'luck' ? 'luck_ink' : k === 'arcade' ? 'arcade_playing' : k));
   });
   it('sacrificing Ink and Inkborn, hidden, really are gone — including posts made before the switch', async () => {
     await db.rpc(a, 'set_privacy', { p_patch: { fa_luck_ink: true, fa_luck_inkborn: true, feed_luck: true } });

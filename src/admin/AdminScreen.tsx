@@ -349,6 +349,7 @@ function PlayerDetail({ id }: { id: string }) {
   const confirm = useConfirm();
   const detail = useQuery({ queryKey: ['admin', 'player', id], queryFn: () => api.admin.playerDetail(id) });
   const [adj, setAdj] = useState({ resource: 'ink', delta: '', reason: '' });
+  const [announce, setAnnounce] = useState('');
   const refetch = () => { void detail.refetch(); void qc.invalidateQueries({ queryKey: ['admin', 'players'] }); };
   if (!detail.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   const d = detail.data;
@@ -376,9 +377,10 @@ function PlayerDetail({ id }: { id: string }) {
             <input className={cn(inputCls, "h-9 min-w-40 flex-1")} placeholder="Reason (audited)" value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} />
             <Button size="sm" disabled={!Number(adj.delta)} onClick={() => run(() => adj.resource === 'usd' ? api.admin.adjustRent(id, Number(adj.delta), adj.reason) : api.admin.adjustBalance(id, adj.resource, Math.trunc(Number(adj.delta)), adj.reason), 'Balance adjusted', () => { setAdj({ ...adj, delta: '' }); refetch(); })}>Apply</Button>
           </div>
+          <input className={cn(inputCls, 'mt-1 h-9 border-[#FF3D6E]/60')} maxLength={240} placeholder="Why (shown to them and in the red live chat / feed notice) — e.g. self-referring with alt accounts" value={announce} onChange={(e) => setAnnounce(e.target.value)} data-testid="player-announce" />
           <div className="mt-1 flex flex-wrap gap-2">
-            <Button size="sm" variant="danger" onClick={() => run(() => api.admin.setPlayerStatus(id, 'suspended', new Date(Date.now() + 7 * 864e5).toISOString(), 'Suspended by the operator'), 'Suspended for 7 days', refetch)}>Suspend 7 days</Button>
-            <Button size="sm" variant="danger" onClick={async () => { if (await confirm({ title: `Ban @${pr.username}?`, body: 'They can no longer play. Their art stays unless you remove it.', confirm: 'Ban' })) void run(() => api.admin.setPlayerStatus(id, 'banned', null, 'Banned by the operator'), 'Banned', refetch); }}>Ban</Button>
+            <Button size="sm" variant="danger" data-testid="player-suspend" onClick={() => run(() => api.admin.setPlayerStatus(id, 'suspended', new Date(Date.now() + 7 * 864e5).toISOString(), announce.trim() || 'Suspended by the operator', announce.trim() ? `{name} was suspended for 7 days: ${announce.trim()}` : null), 'Suspended for 7 days — announced in the chat and feed', refetch)}>Suspend 7 days</Button>
+            <Button size="sm" variant="danger" data-testid="player-ban" onClick={async () => { if (await confirm({ title: `Ban @${pr.username}?`, body: <>They can no longer play. Everyone sees it in the live chat and feed: <b>{announce.trim() ? `@${pr.username} was banned: ${announce.trim()}` : `@${pr.username} was banned for breaking the rules.`}</b></>, confirm: 'Ban' })) void run(() => api.admin.setPlayerStatus(id, 'banned', null, announce.trim() || 'Banned by the operator', announce.trim() ? `{name} was banned: ${announce.trim()}` : null), 'Banned — announced in the chat and feed', refetch); }}>Ban</Button>
             <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.setPlayerStatus(id, 'active', null, ''), 'Reactivated', refetch)}>Reactivate</Button>
             <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.hideProfile(id, !pr.is_hidden, 'Operator decision'), pr.is_hidden ? 'Profile visible again' : 'Profile hidden', refetch)}>{pr.is_hidden ? 'Unhide profile' : 'Hide profile'}</Button>
             {pr.avatar_path && <Button size="sm" variant="ghost" onClick={() => run(() => api.admin.clearAvatar(id, 'Profile picture removed by the operator'), 'Profile picture removed', refetch)}>Remove picture</Button>}

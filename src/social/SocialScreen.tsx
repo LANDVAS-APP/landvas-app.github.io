@@ -273,6 +273,8 @@ function FeedRow({ e }: { e: FeedEvent }) {
       icon = <span className="text-[12px] leading-none">🏘️</span>;
       body = <>{who} finished their estate’s checklist — <b className="text-gold">{e.data.mult}× rent</b> on the 1st for {e.data.houses} house{Number(e.data.houses) === 1 ? '' : 's'} 💵</>;
       break;
+    case 'moderation':
+      return <ModerationFeedRow e={e} />;
     case 'stamp':
       icon = <Star className="h-4 w-4 text-gold" />;
       body = <>{who} collected stamp <b>#{e.data.serial}</b> of <Link to={`/art/${e.data.publication_id}`} className="font-semibold hover:underline">“{e.data.title}”</Link></>;
@@ -294,6 +296,28 @@ function FeedRow({ e }: { e: FeedEvent }) {
 }
 
 // ---- global chat ---------------------------------------------------------------------------
+
+/** a ban or suspension on the live feed: red, unmissable */
+function ModerationFeedRow({ e }: { e: FeedEvent }) {
+  const d = e.data as { action?: string; until?: string | null; summary?: string };
+  const ban = d.action === 'ban';
+  return (
+    <div className="rounded-2xl border-2 border-[#FF3D6E] bg-[#FF3D6E]/12 p-3 shadow-[0_0_24px_-6px_rgba(255,61,110,0.6)]" data-testid="feed-moderation" data-kind="moderation" role="status">
+      <div className="mb-1 flex items-center gap-2">
+        <ShieldAlert className="h-5 w-5 shrink-0 text-[#FF3D6E]" />
+        <span className="text-[11px] font-black uppercase tracking-widest text-[#FF3D6E]">{ban ? 'Player banned' : 'Player suspended'}</span>
+        <span className="ml-auto text-[11px] text-faint">{timeAgo(e.created_at)}</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <PlayerAvatar p={e.player} size={34} />
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-sm font-semibold leading-snug">{d.summary}</p>
+          <p className="text-[11px] text-muted">@{e.player.username} · {ban ? 'banned' : 'suspended'} by the LANDVAS team for cheating or abusing the game.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** a ban or suspension, announced to everyone: red, unmissable */
 function ModerationNotice({ m }: { m: ChatMessage }) {

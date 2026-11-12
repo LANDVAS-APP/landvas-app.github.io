@@ -601,8 +601,8 @@ export const api = {
     supportTickets: (status?: string | null) => rpc<{ tickets: SupportTicket[]; counts: { open: number; answered: number; closed: number } }>('admin_support_tickets', { p_status: status ?? null }),
     searchPlayers: (q: string) => rpc<any[]>('admin_search_players', { p_query: q, p_limit: 60 }),
     playerDetail: (id: string) => rpc<any>('admin_player_detail', { p_player_id: id }),
-    setPlayerStatus: (id: string, status: string, until: string | null, reason: string) =>
-      rpc('admin_set_player_status', { p_player_id: id, p_status: status, p_until: until, p_reason: reason }),
+    setPlayerStatus: (id: string, status: string, until: string | null, reason: string, announce: string | null = null) =>
+      rpc('admin_set_player_status', { p_player_id: id, p_status: status, p_until: until, p_reason: reason, p_announce: announce }),
     adjustBalance: (id: string, resource: string, delta: number, reason: string) =>
       rpc('admin_adjust_balance', { p_player_id: id, p_resource: resource, p_delta: delta, p_reason: reason }),
     setRole: (id: string, role: string, on: boolean) => rpc('admin_set_role', { p_player_id: id, p_role: role, p_on: on }),

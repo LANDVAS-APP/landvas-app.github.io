@@ -197,3 +197,38 @@ describe('penalties', () => {
     expect((await db.rpc(alt2, 'my_restriction', {})).status).toBe('banned');
   });
 });
+
+describe('ban announcements reach the live chat and feed from every path', () => {
+  const notices = async (viewer: string) => {
+    const chat = (await db.rpc(viewer, 'chat_recent', {})).messages.filter((m: any) => m.kind === 'moderation');
+    const feed = (await db.rpc(viewer, 'feed_recent', { p_limit: 100 })).filter((e: any) => e.kind === 'moderation');
+    return { chat, feed };
+  };
+  it('the Players tab Ban button posts a default notice (chat + feed), even to players who hid feed activity', async () => {
+    const v = await db.newPlayer('banme_ben');
+    await db.rpc(v, 'set_privacy', { p_patch: { feed: false } });
+    await db.rpc(admin, 'admin_set_player_status', { p_player_id: v, p_status: 'banned', p_reason: 'Self-referring with alts' });
+    const n = await notices(honest);
+    expect(n.chat.some((m: any) => m.body === '@banme_ben was banned for: Self-referring with alts.' && m.data.action === 'ban')).toBe(true);
+    expect(n.feed.some((e: any) => e.player.username === 'banme_ben' && /was banned/.test(e.data.summary))).toBe(true);
+  });
+  it('a custom summary is used as written', async () => {
+    const v = await db.newPlayer('susp_sue');
+    await db.rpc(admin, 'admin_set_player_status', { p_player_id: v, p_status: 'suspended', p_until: new Date(Date.now() + 864e5).toISOString(), p_reason: 'x', p_announce: '{name} was suspended for vote farming.' });
+    expect((await notices(honest)).chat.some((m: any) => m.body === '@susp_sue was suspended for vote farming.')).toBe(true);
+    // reactivating takes the notices down
+    await db.rpc(admin, 'admin_set_player_status', { p_player_id: v, p_status: 'active', p_reason: '' });
+    const n = await notices(honest);
+    expect(n.chat.some((m: any) => /susp_sue/.test(m.body))).toBe(false);
+    expect(n.feed.some((e: any) => e.player.username === 'susp_sue')).toBe(false);
+  });
+  it('the Integrity panel with the announcement switched off posts nothing; with it on, exactly one notice', async () => {
+    const q = await db.newPlayer('quiet_quin'), l = await db.newPlayer('loud_lou');
+    await db.rpc(admin, 'admin_integrity_act', { p_players: `{${q}}`, p_kind: 'ban', p_until: null, p_preset: 'other', p_reason: 'Quiet ban', p_proof: [], p_scope: {}, p_announce: null });
+    await db.rpc(admin, 'admin_integrity_act', { p_players: `{${l}}`, p_kind: 'ban', p_until: null, p_preset: 'other', p_reason: 'Loud ban', p_proof: [], p_scope: {}, p_announce: '{name} was banned for cheating.' });
+    const n = await notices(honest);
+    expect(n.chat.some((m: any) => /quiet_quin/.test(m.body))).toBe(false);
+    expect(n.chat.filter((m: any) => /loud_lou/.test(m.body)).length).toBe(1);
+    expect(n.feed.filter((e: any) => e.player.username === 'loud_lou').length).toBe(1);
+  });
+});

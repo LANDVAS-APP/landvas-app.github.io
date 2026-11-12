@@ -237,7 +237,7 @@ export type PlayerPlaces = {
 export type FeedEvent = {
   id: number;
   kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
-    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core' | 'harvest' | 'ipo' | 'arcade' | 'luck' | 'crown' | 'flight' | 'estate';
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core' | 'harvest' | 'ipo' | 'arcade' | 'luck' | 'crown' | 'flight' | 'estate' | 'moderation';
   data: Record<string, any>;
   created_at: string;
   player: Profile;

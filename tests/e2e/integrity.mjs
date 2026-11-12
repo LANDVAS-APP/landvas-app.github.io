@@ -95,6 +95,11 @@ try {
   check('the live chat shows a red ban notice with the summary', /Player suspended/i.test(cm) && /@cheat_cara was suspended for 7 days for self-referring/.test(cm), cm.slice(0, 160));
   check('…with a red border', await page.locator('[data-testid=chat-moderation]').evaluate((e) => getComputedStyle(e).borderTopColor.replace(/\s/g, '') === 'rgb(255,61,110)'));
   await shot('05-chat');
+  await page.evaluate(() => window.__landvasNav('/social?tab=feed'));
+  await page.waitForSelector('[data-testid=feed-moderation]', { timeout: 20000 }); await page.waitForTimeout(500);
+  const fm = await page.locator('[data-testid=feed-moderation]').first().innerText();
+  check('the live feed shows the red notice too', /Player suspended/i.test(fm) && /@cheat_cara was suspended for 7 days/.test(fm), fm.slice(0, 120));
+  await shot('06-feed');
   // she signs in
   await signIn('amyjones@gmail.com');
   await page.waitForSelector('[data-testid=restriction-notice]', { timeout: 20000 });
