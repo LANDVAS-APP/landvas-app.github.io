@@ -8,7 +8,7 @@ export function ExplorerFigure({ style, accent, size = 92, walking, className, l
   style?: ExplorerStyle | null; accent: string; size?: number; walking?: boolean; className?: string; label?: string;
 }) {
   const s = styleOf(style);
-  const key = `${s.hat}|${s.hold}|${s.outfit}|${s.trail}|${s.aura}|${s.hair}|${s.hairc}|${s.skin}|${s.body}|${s.sex}`;
+  const key = `${s.hat}|${s.hold}|${s.outfit}|${s.trail}|${s.aura}|${s.hair}|${s.hairc}|${s.skin}|${s.body}|${s.sex}|${s.face}`;
   const fx = ultraFx(s);
   const svg = useMemo(() => explorerSvg(s, accent, size), [key, accent, size]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

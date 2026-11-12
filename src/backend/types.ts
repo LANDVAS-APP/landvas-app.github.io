@@ -21,7 +21,7 @@ export type Profile = {
   created_at: string;
 };
 
-export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body' | 'sex';
+export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body' | 'sex' | 'face';
 export type ExplorerStyle = Partial<Record<ExplorerPart, string>>;
 
 export type PlotTypeInfo = {

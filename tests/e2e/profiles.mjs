@@ -50,13 +50,13 @@ try {
   // explorer: the Kraken set is owned and wearable; others show what unlocks them
   await page.evaluate(() => window.__landvasNav('/explorer'));
   await page.waitForSelector('[data-testid=explorer-items]', { timeout: 20000 });
-  await page.getByRole('tab', { name: 'Hat' }).click(); await page.waitForTimeout(500);
+  await page.click('[data-testid=explorer-group-style]'); await page.waitForTimeout(500);
   const kHat = page.locator('[data-testid=explorer-item][data-key="explorer.hat.xkraken"]');
   check('Kraken Hat is owned', /Owned/.test(await kHat.innerText()));
   check('Solar hat says what unlocks it', /Solar plot/.test(await page.locator('[data-testid=explorer-item][data-key="explorer.hat.xsolar"]').innerText()));
   await kHat.click();
-  for (const [tab, part] of [['Outfit', 'outfit'], ['Holding', 'hold'], ['Aura', 'aura'], ['Trail', 'trail']]) {
-    await page.getByRole('tab', { name: tab }).click(); await page.waitForTimeout(250);
+  for (const [tab, part] of [['style', 'outfit'], ['style', 'hold'], ['fx', 'aura'], ['fx', 'trail']]) {
+    await page.click(`[data-testid=explorer-group-${tab}]`); await page.waitForTimeout(250);
     await page.locator(`[data-testid=explorer-item][data-key="explorer.${part}.xkraken"]`).click();
   }
   await page.click('[data-testid=explorer-save]'); await page.waitForTimeout(1500);

@@ -4,10 +4,16 @@
 import type { ExplorerStyle } from '../backend/types';
 import { ultraHat, ultraHold, ultraOutfit, ultraTheme } from './ultra';
 
-export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic', sex: '' };
+export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic', sex: '', face: 'none' };
 
-export const SKIN: Record<string, string> = { peach: '#FFE2C4', light: '#FFEEDD', tan: '#E9B98C', brown: '#B97F55', deep: '#7A4E31' };
-export const HAIR_COLOR: Record<string, string> = { brown: '#6B3E26', black: '#23201F', blonde: '#F2CF6B', red: '#C8452B', pink: '#FF7AB8', blue: '#3E7BFF', silver: '#D9DCE6' };
+export const SKIN: Record<string, string> = {
+  porcelain: '#FFF3EA', light: '#FFEEDD', fair: '#F9DCC4', peach: '#FFE2C4', olive: '#D9B28A', golden: '#E8B378', tan: '#E9B98C',
+  caramel: '#C98E5C', brown: '#B97F55', chestnut: '#9A6440', deep: '#7A4E31', espresso: '#5E3A24', ebony: '#43291A',
+};
+export const HAIR_COLOR: Record<string, string> = {
+  black: '#23201F', brown: '#6B3E26', auburn: '#8A3B1E', ginger: '#D2691E', red: '#C8452B', blonde: '#F2CF6B', platinum: '#F4ECD2', silver: '#D9DCE6',
+  white: '#FAFAFA', pink: '#FF7AB8', purple: '#9B5CFF', blue: '#3E7BFF', teal: '#1FB5A8', green: '#3DBF5A',
+};
 
 /** Hair: a back layer (behind the head) and a front layer (fringe, over the forehead). */
 function hair(id: string, c: string): { back: string; front: string } {
@@ -27,6 +33,22 @@ function hair(id: string, c: string): { back: string; front: string } {
       return { back: `<g fill="${c}"><circle cx="12" cy="13" r="3.6"/><circle cx="15.5" cy="8" r="3.8"/><circle cx="21" cy="5.6" r="3.9"/><circle cx="26.5" cy="5.8" r="3.9"/><circle cx="31.4" cy="8.6" r="3.7"/><circle cx="34.4" cy="13.4" r="3.4"/><circle cx="11" cy="18.6" r="3"/><circle cx="35" cy="18.6" r="3"/></g>`, front: `<g fill="${c}"><circle cx="16" cy="10.6" r="2.6"/><circle cx="20.5" cy="9" r="2.6"/><circle cx="25.5" cy="9" r="2.6"/><circle cx="30" cy="10.8" r="2.6"/></g>` };
     case 'braid':
       return { back: `<g fill="${c}"><circle cx="33" cy="22" r="2.6"/><circle cx="34" cy="26.6" r="2.4"/><circle cx="34.6" cy="31" r="2.2"/><circle cx="35" cy="35" r="2"/></g><circle cx="35.2" cy="37.6" r="1.3" fill="#FF3D9A"/>`, front: `<path d="M12 14.5 Q13 5 23 5 Q33 5 34 14.5 Q30 9.8 23 9.8 Q16 9.8 12 14.5Z" fill="${c}"/>` };
+    case 'buzz':
+      return { back: '', front: `<path d="M12.2 14.5 Q12.3 5.8 23 5.6 Q33.7 5.8 33.8 14.5 Q30 10.6 23 10.6 Q16 10.6 12.2 14.5Z" fill="${c}" opacity="0.8"/>` };
+    case 'quiff':
+      return { back: '', front: `<path d="M12.3 14 Q12 6.5 18 5.2 Q20 0.2 28 0.8 Q35 2.5 33.8 14 Q31 9.5 25 9.4 Q17 9.6 12.3 14Z" fill="${c}"/><path d="M20 4.5 Q25 1.5 30 3" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="none"/>` };
+    case 'sidepart':
+      return { back: '', front: `<path d="M12 15.5 Q11.6 5 23 4.8 Q34.4 5 34 14.5 Q31.5 9.5 27 9.2 L26 7.4 Q19 10.5 12 15.5Z" fill="${c}"/><path d="M26 7.4 L25 4.9" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>` };
+    case 'slick':
+      return { back: `<path d="M12 16 Q11.5 10 13 8 L33 8 Q34.5 10 34 16Z" fill="${c}"/>`, front: `<path d="M12.3 13.5 Q12 4.8 23 4.6 Q34 4.8 33.7 13.5 Q31 8.2 23 7.8 Q15 8.2 12.3 13.5Z" fill="${c}"/><path d="M16 7 Q23 4.8 30 7 M17 9 Q23 7 29 9" stroke="rgba(255,255,255,0.35)" stroke-width="0.6" fill="none"/>` };
+    case 'mohawk':
+      return { back: '', front: `<path d="M12.3 14.5 Q12.4 6 23 5.8 Q33.6 6 33.7 14.5 Q30 10.8 23 10.8 Q16 10.8 12.3 14.5Z" fill="${c}" opacity="0.3"/><path d="M19.5 10.5 L18.5 2 L21 4.5 L23 -2.5 L25 4.5 L27.5 2 L26.5 10.5Z" fill="${c}"/>` };
+    case 'pixie':
+      return { back: `<path d="M11.5 15 Q11 20 13 22 L15.5 20 Q14 17 14.5 15Z M34.5 15 Q35 20 33 22 L30.5 20 Q32 17 31.5 15Z" fill="${c}"/>`, front: `<path d="M11.6 15.5 Q11.3 4.6 23 4.4 Q34.7 4.6 34.3 14 Q31 10.6 26 11.8 L24.5 9.8 Q20 12.8 15 12.6 Q12.8 13.4 11.6 15.5Z" fill="${c}"/>` };
+    case 'waves':
+      return { back: `<path d="M11.5 15 Q8.5 21 11.5 26 Q8.5 31 12 36.5 Q10.5 39 13 40 L17.5 36 Q14.2 32 16.4 27 Q14 22 16 17Z M34.5 15 Q37.5 21 34.5 26 Q37.5 31 34 36.5 Q35.5 39 33 40 L28.5 36 Q31.8 32 29.6 27 Q32 22 30 17Z" fill="${c}"/>`, front: `<path d="M12 14.5 Q13 5 23 5 Q33 5 34 14.5 Q31 9.8 26 10 Q24 12 20 10.2 Q15 10 12 14.5Z" fill="${c}"/>` };
+    case 'spacebuns':
+      return { back: `<circle cx="14" cy="6.2" r="4" fill="${c}"/><circle cx="32" cy="6.2" r="4" fill="${c}"/><path d="M12 7 Q14 4.5 16 7 M30 7 Q32 4.5 34 7" stroke="rgba(0,0,0,0.18)" stroke-width="0.6" fill="none"/>`, front: fringe };
     case 'spiky':
       return { back: '', front: `<path d="M12.5 13 L14 6 L17.5 9.5 L20 3.8 L23 8.6 L26 3.8 L28.5 9.5 L32 6 L33.5 13 Q28 9.5 23 9.6 Q17 9.6 12.5 13Z" fill="${c}"/>` };
     default:
@@ -131,6 +153,20 @@ function hat(id: string, k: string): { defs: string; svg: string } {
   }
 }
 
+/** glasses, freckles, beards… drawn over the face (hair colour for facial hair) */
+function face(id: string, hc: string): { under: string; over: string } {
+  switch (id) {
+    case 'glasses': return { under: '', over: `<g fill="rgba(200,230,255,0.18)" stroke="#1b1f3d" stroke-width="0.9"><circle cx="19.3" cy="18" r="3"/><circle cx="27" cy="18" r="3"/></g><path d="M22.3 17.8 Q23.15 17 24 17.8 M16.3 17.6 L12.8 16.6 M30 17.6 L33.2 16.6" stroke="#1b1f3d" stroke-width="0.9" fill="none"/>` };
+    case 'freckles': return { under: `<g fill="#B7663D" opacity="0.55">${[[15.6, 20.2], [17.2, 21.3], [16.4, 22.4], [18.4, 20.6], [30.4, 20.2], [28.8, 21.3], [29.6, 22.4], [27.6, 20.6]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.42"/>`).join('')}</g>`, over: '' };
+    case 'beautymark': return { under: '', over: `<circle cx="28.6" cy="22.6" r="0.55" fill="#3A2016"/>` };
+    case 'stubble': return { under: `<path d="M13.6 19.5 Q14.4 27.6 23 28.2 Q31.6 27.6 32.4 19.5 Q30.5 25 23 25.4 Q15.5 25 13.6 19.5Z" fill="${hc}" opacity="0.28"/><path d="M19.4 21.2 Q23 20.2 26.6 21.2 L26.6 22 Q23 21.2 19.4 22Z" fill="${hc}" opacity="0.28"/>`, over: '' };
+    case 'mustache': return { under: '', over: `<path d="M18.8 21.9 Q20.6 20.2 23 21.3 Q25.4 20.2 27.2 21.9 Q25.6 23 23 22.2 Q20.4 23 18.8 21.9Z" fill="${hc}"/>` };
+    case 'goatee': return { under: '', over: `<path d="M19.4 21.8 Q21 20.6 23 21.4 Q25 20.6 26.6 21.8 Q25 22.6 23 22.1 Q21 22.6 19.4 21.8Z" fill="${hc}"/><path d="M20.6 24.6 Q23 25.6 25.4 24.6 Q25 28 23 28.4 Q21 28 20.6 24.6Z" fill="${hc}"/>` };
+    case 'beard': return { under: `<path d="M12.8 17.5 Q13 28.6 23 29.6 Q33 28.6 33.2 17.5 Q31.5 22 29 23 Q26 25.5 23 25.4 Q20 25.5 17 23 Q14.5 22 12.8 17.5Z" fill="${hc}"/>`, over: `<path d="M18.8 21.9 Q20.6 20.2 23 21.3 Q25.4 20.2 27.2 21.9 Q25.6 23 23 22.2 Q20.4 23 18.8 21.9Z" fill="${hc}"/>` };
+    default: return { under: '', over: '' };
+  }
+}
+
 function hold(id: string): string {
   if (ultraTheme(id)) return ultraHold(id);
   switch (id) {
@@ -162,10 +198,12 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
   const o = outfit(s.outfit, accent, k);
   const h = hat(s.hat, k);
   const skin = SKIN[s.skin] ?? SKIN.peach;
-  const hr = hair(s.hair, HAIR_COLOR[s.hairc] ?? HAIR_COLOR.brown);
+  const hc = HAIR_COLOR[s.hairc] ?? HAIR_COLOR.brown;
+  const hr = hair(s.hair, hc);
+  const fc = face(s.face, hc);
   const dress = s.body === 'dress' || s.body === 'skirt';
   // male or female (older looks that never chose: lashes follow the hair, as before)
-  const female = s.sex === 'f' || (s.sex !== 'm' && (dress || ['long', 'ponytail', 'pigtails', 'bun', 'braid', 'bob'].includes(s.hair)));
+  const female = s.sex === 'f' || (s.sex !== 'm' && (dress || ['long', 'ponytail', 'pigtails', 'bun', 'braid', 'bob', 'pixie', 'waves', 'spacebuns'].includes(s.hair)));
   const lashes = female;
   const torso = s.body === 'dress'
     ? `<path d="M14 27.5 Q23 23.5 32 27.5 L36 46 Q23 49.5 10 46Z" fill="${o.fill}"/>`
@@ -173,6 +211,10 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
       ? `<rect x="13" y="25.5" width="20" height="12" rx="7" fill="${o.fill}"/><path d="M13 35 L33 35 L36 45 Q23 48 10 45Z" fill="${o.fill}"/><rect x="13" y="34.2" width="20" height="2" fill="rgba(0,0,0,0.18)"/>`
       : s.sex === 'f'
         ? `<path d="M13.5 30 Q13.5 25.5 18 25.5 L28 25.5 Q32.5 25.5 32.5 30 Q31 35 32.5 40 Q33 44.5 28 44.5 L18 44.5 Q13 44.5 13.5 40 Q15 35 13.5 30Z" fill="${o.fill}"/>`
+        : s.sex === 'm' && s.body === 'broad'
+          ? `<path d="M9.4 31 Q9.4 25 16 25 L30 25 Q36.6 25 36.6 31 L35 40 Q34.5 44.5 29.5 44.5 L16.5 44.5 Q11.5 44.5 11 40Z" fill="${o.fill}"/>`
+        : s.sex === 'm' && s.body === 'slim'
+          ? `<path d="M13 30.5 Q13 25.5 17.5 25.5 L28.5 25.5 Q33 25.5 33 30.5 L32.5 40 Q32 44.5 28 44.5 L18 44.5 Q14 44.5 13.5 40Z" fill="${o.fill}"/>`
         : s.sex === 'm'
           ? `<path d="M11 31 Q11 25.5 16.5 25.5 L29.5 25.5 Q35 25.5 35 31 L34 40 Q33.5 44.5 29 44.5 L17 44.5 Q12.5 44.5 12 40Z" fill="${o.fill}"/>`
           : `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="${o.fill}"/>`;
@@ -188,6 +230,7 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
       <rect x="14" y="27.5" width="18" height="6" rx="3" fill="rgba(255,255,255,0.2)"/>
       ${hr.back}
       <circle cx="23" cy="17" r="11" fill="${skin}"/>
+      ${fc.under}
       ${hr.front}
       ${h.svg}
       <circle cx="19.3" cy="18" r="1.9" fill="#1b1f3d"/><circle cx="27" cy="18" r="1.9" fill="#1b1f3d"/>
@@ -195,7 +238,8 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
       ${lashes ? '<path d="M17.2 16.4 L16.2 15.4 M17.8 15.9 L17.3 14.7 M28.8 16.4 L29.8 15.4 M28.2 15.9 L28.7 14.7" stroke="#1b1f3d" stroke-width="0.8" stroke-linecap="round"/>' : ''}
       ${s.sex === 'm' ? '<path d="M17.3 14.6 L21.2 14.1 M25.1 14.1 L29 14.6" stroke="#1b1f3d" stroke-width="1.1" stroke-linecap="round" opacity="0.75"/>' : ''}
       <path d="M19.6 22.2 Q23 25.2 26.6 22.2" stroke="${s.sex === 'f' ? '#D9456B' : '#1b1f3d'}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-      <circle cx="16.8" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/><circle cx="29.4" cy="21.4" r="1.6" fill="#FF9DB8" opacity="0.7"/>
+      <circle cx="16.8" cy="21.4" r="1.6" fill="#FF9DB8" opacity="${s.face === 'beard' ? 0 : 0.7}"/><circle cx="29.4" cy="21.4" r="1.6" fill="#FF9DB8" opacity="${s.face === 'beard' ? 0 : 0.7}"/>
+      ${fc.over}
       ${hold(s.hold)}
     </g></g>
   </svg>`;

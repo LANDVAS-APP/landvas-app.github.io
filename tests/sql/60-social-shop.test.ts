@@ -134,7 +134,7 @@ describe('shop, explorer outfits and profile pictures', () => {
 
   it('you can only wear what you own', async () => {
     const pr = await db.rpc(s, 'equip_explorer', { p_style: { hat: 'crown', trail: 'none' } });
-    expect(pr.explorer_style).toEqual({ hat: 'crown', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic' });
+    expect(pr.explorer_style).toEqual({ hat: 'crown', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic', face: 'none' });
     await expectError(db.rpc(s, 'equip_explorer', { p_style: { hat: 'halo' } }), 'not_owned');
     await expectError(db.rpc(s, 'equip_explorer', { p_style: { hat: 'sombrero' } }), 'unknown_item');
     const pub = await db.rpc(null, 'profile_by_username', { p_username: 'shopper1' });

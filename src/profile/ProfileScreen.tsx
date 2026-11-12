@@ -193,7 +193,7 @@ export default function ProfileScreen() {
       </section>
 
       {/* ---- tabs ---- */}
-      <div className="sticky top-2 z-20 mt-5 flex gap-1 rounded-full border border-line bg-surface/85 p-1 backdrop-blur" role="tablist" data-testid="profile-tabs">
+      <div className="sticky top-[calc(58px+env(safe-area-inset-top,0px))] z-20 mt-5 flex gap-1 rounded-full border border-line bg-surface/85 p-1 backdrop-blur" role="tablist" data-testid="profile-tabs">
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} data-testid={`profile-tab-${t.id}`}
             className={cn('relative flex-1 rounded-full px-2 py-2 text-[13px] font-bold transition', tab === t.id ? 'text-white' : 'text-muted hover:text-fg')}>

@@ -1456,3 +1456,18 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .lv-profile-banner, .lv-profile-banner i, .lv-royal, .lv-royal .lv-profile-avatar, .lv-royal .lv-profile-avatar > *, .lv-royal-ribbon, .lv-royal-name, .lv-crown-card::after, .lv-ultra-lit { animation: none; }
 }
+
+/* ---- explorer studio stage ---- */
+.lv-studio-stage {
+  display: flex; align-items: flex-end; justify-content: center; height: 210px; padding-bottom: 22px; color: #fff;
+  background:
+    radial-gradient(60% 55% at 50% 30%, color-mix(in srgb, var(--room) 55%, transparent), transparent 70%),
+    radial-gradient(120% 60% at 50% 115%, color-mix(in srgb, var(--room) 35%, #1a1040), transparent 70%),
+    linear-gradient(180deg, #1d1345, #0f0a26);
+  box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.lv-studio-stage::before { content: ''; position: absolute; inset: 0; background: conic-gradient(from 200deg at 50% -10%, transparent 0 40deg, rgba(255,255,255,0.08) 50deg 70deg, transparent 80deg); pointer-events: none; }
+.lv-studio-pedestal { position: absolute; left: 50%; bottom: 14px; width: 190px; height: 40px; transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--room) 70%, transparent), transparent); box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset; }
+.lv-studio-figure { margin-bottom: -8px; }
+@media (min-width: 1024px) { .lv-studio-stage { height: 420px; } .lv-studio-stage .lv-studio-figure { transform: scale(1.8); transform-origin: 50% 100%; } }
