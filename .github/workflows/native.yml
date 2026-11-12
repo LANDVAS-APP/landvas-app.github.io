@@ -91,19 +91,12 @@ jobs:
           track: internal
           status: draft
 
-  # macos-26 ships Xcode 26 / the iOS 26 SDK, which App Store Connect requires for uploads (Xcode 16 builds
-  # are refused). GitHub's Apple-silicon Macs are often short ("The job was not acquired by Runner" after
-  # ~15 min), so every check builds on two pools at once: macos-26 and the Intel macOS 15 pool (which also
-  # has Xcode 26). Either one passing is enough; "ios ok" fails only if neither built. A store release
-  # builds once, on the Intel pool, so it never uploads twice.
+  # App Store Connect needs Xcode 26 / the iOS 26 SDK. GitHub's Apple-silicon Macs (macos-26) are so short
+  # that jobs are often dropped unstarted ("The job was not acquired by Runner"), so iOS builds on the Intel
+  # macOS 15 pool, which has Xcode 26 too and starts right away. GitHub retires Intel Macs in Aug 2027:
+  # switch back to macos-26 before then.
   ios:
-    name: ios (${{ matrix.runner }})
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: ${{ fromJSON(inputs.release && '["macos-15-intel"]' || '["macos-26","macos-15-intel"]') }}
-    runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ !inputs.release }}
+    runs-on: macos-15-intel
     timeout-minutes: 60
     defaults:
       run:
@@ -162,20 +155,3 @@ jobs:
             -exportPath "$RUNNER_TEMP/export" $AUTH
           echo "::notice::Uploaded build $LANDVAS_BUILD_NUMBER to App Store Connect — it shows in TestFlight after processing (~10-30 min)"
 
-  ios-ok:
-    name: ios ok
-    needs: ios
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    timeout-minutes: 5
-    steps:
-      - name: At least one Mac built the app
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          ok=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
-            -q '[.jobs[] | select(.name | startswith("ios (")) | select(.conclusion == "success")] | length')
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" -q '.jobs[] | select(.name | startswith("ios (")) | "\(.name): \(.conclusion // .status)"'
-          [ "$ok" -gt 0 ] || { echo "::error::No Mac built the iOS app (see the ios jobs above)"; exit 1; }
