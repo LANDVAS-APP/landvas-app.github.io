@@ -17,7 +17,10 @@ const ACCENTS = ['#7B5CFF', '#FF3D9A', '#3DDC97', '#2FB8FF', '#FFB31F', '#FF5A3D
 const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
 
 import { NavCustomizer } from '../app/NavCustomizer';
+import { isNative } from '../native/native';
 import { preparePicture } from '../lib/picture';
+
+const TILE_COLORS = ['#7B5CFF', '#FF4D6D', '#22C7B5', '#FF9F1C', '#34C3FF', '#3DDC97', '#FF4FD8'];
 
 export default function MeHub() {
   const me = useOnboardedMe();
@@ -63,7 +66,7 @@ export default function MeHub() {
               <p className="text-sm text-muted">@{p.username} · Artist level {me.artist_level}</p>
               {p.bio && <p className="mt-1 text-sm">{p.bio}</p>}
             </div>
-            <Link to="/explorer" className="hidden shrink-0 rounded-2xl p-1 hover:bg-surface-2 sm:block" aria-label="Customise your explorer" title="Customise your explorer">
+            <Link to="/explorer" className={cn('shrink-0 rounded-2xl p-1 hover:bg-surface-2', isNative() ? 'block' : 'hidden sm:block')} aria-label="Customise your explorer" title="Customise your explorer">
               <ExplorerFigure style={p.explorer_style} accent={p.accent_color} size={44} />
             </Link>
           </div>
@@ -87,6 +90,20 @@ export default function MeHub() {
             {rent && <LiveUsd rent={rent} offset={offset} decimals={11} className="mt-1 block font-display text-2xl font-semibold text-[#3DDC97]" />}
             <span className="text-xs text-muted">Tap for rates, boost and history</span>
           </button>
+          {isNative() ? (
+            // the app: every place as a tile, like a game's profile screen
+            <div className="mt-4 grid grid-cols-3 gap-2.5" data-testid="me-tiles">
+              {links.map((l, i) => (
+                <Link key={l.to} to={l.to} data-sound="tab" className="lv-mtile" style={{ ['--tile' as string]: TILE_COLORS[i % TILE_COLORS.length] }}>
+                  <span className="bub"><l.icon className="h-5 w-5" /></span>
+                  <span className="lbl">{l.label}</span>
+                </Link>
+              ))}
+              <button className="lv-mtile" style={{ ['--tile' as string]: '#FF5A6E' }} onClick={async () => { await getBackend().signOut(); qc.clear(); nav('/welcome'); }}>
+                <span className="bub"><LogOut className="h-5 w-5" /></span><span className="lbl">Sign out</span>
+              </button>
+            </div>
+          ) : (
           <div className="mt-4 grid gap-1">
             {links.map((l) => (
               <Link key={l.to} to={l.to} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 hover:bg-surface-2">
@@ -100,6 +117,7 @@ export default function MeHub() {
               <LogOut className="h-5 w-5" /><span className="font-semibold">Sign out</span>
             </button>
           </div>
+          )}
         </section>
       </div>
       <WalletDialog open={wallet} onOpenChange={setWallet} />

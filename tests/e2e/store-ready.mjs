@@ -54,6 +54,13 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   check(/Delete my account/.test(doc) && /@landvas\.app/.test(doc), 'signed out: /legal/delete-account explains in-game and by-request deletion');
   await shot(page, 'delete-account');
 
+  for (const d of ['terms', 'privacy']) {
+    await go(page, `/legal/${d}`);
+    await page.waitForSelector('[data-testid=legal-updated]', { timeout: 30000 }).catch(() => {});
+    const t = await page.locator('[data-testid=legal-doc]').innerText().catch(() => '');
+    check(/LANDVAS LLC/.test(t) && /contact@landvas\.app/.test(t) && !/draft/i.test(t), `/legal/${d}: final (LANDVAS LLC, contact@landvas.app, no draft banner)`);
+  }
+
   await signUp(page, 'store_ready_web');
   await page.waitForSelector('[data-testid=place-simple]', { timeout: 30000 }).catch(() => {});
   check(await page.locator('[data-testid=place-simple]').count() > 0, 'new player: "Play without location" is offered');
@@ -92,9 +99,57 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await page.waitForTimeout(1500);
   const body = await page.locator('body').innerText();
   check(!/coming with the app|Refill with an ad/i.test(body), 'app: no ad placeholders on the home screen');
+  // the game skin: HUD, menu, game titles
+  await go(page, '/me');
+  await page.waitForSelector('[data-testid=game-hud]', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('[data-testid=game-hud]').count() > 0, 'app: game HUD on screens');
+  await page.click('[data-testid=hud-menu]').catch(() => {});
+  await page.waitForSelector('[data-testid=game-menu]', { timeout: 10000 }).catch(() => {});
+  check(await page.locator('[data-testid="menu-/play"]').count() > 0, 'app: the menu lists every place');
+  await shot(page, 'app-menu');
+  await page.click('[data-testid="menu-/achievements"]').catch(() => {});
+  await page.waitForTimeout(800);
+  check(await page.locator('[data-testid=game-menu]').count() === 0, 'app: picking a place closes the menu');
+  // a player who accepted older terms is asked once to accept the new ones
+  await page.evaluate(async () => { await window.__landvasBackend.db.query("update public.players set terms_version = 'old'"); await window.__landvasQc.invalidateQueries({ queryKey: ['me'] }); });
+  await page.waitForSelector('[data-testid=terms-update]', { timeout: 15000 }).catch(() => {});
+  check(await page.locator('[data-testid=terms-update]').count() > 0, 'updated terms: existing players are asked to accept');
+  await page.click('[data-testid=terms-accept]').catch(() => {});
+  await page.waitForTimeout(1500);
+  check(await page.locator('[data-testid=terms-update]').count() === 0, 'updated terms: accepting closes the prompt');
+  // phone navigation: the floating tab bar, back from a deeper screen (button and edge swipe), pull to refresh
+  await go(page, '/play');
+  await page.waitForSelector('[data-testid=game-tabbar]', { timeout: 30000 }).catch(() => {});
+  // (this player chose Simple mode above, so the bar is Play · Home · Me)
+  await page.click('[data-testid="tab-/me"]', { timeout: 10000 }).catch((e) => console.log('  (tab tap:', String(e).split('\n')[0].slice(0, 160), ')'));
+  await page.waitForTimeout(1200);
+  await shot(page, 'app-tabs');
+  check(await page.locator('[data-testid="tab-/me"][aria-current=page]').count() > 0, 'app: tab bar switches tabs');
+  await go(page, '/guide');
+  await page.waitForSelector('[data-testid=hud-back]', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('[data-testid=hud-back]').count() > 0, 'app: deeper screens get a back button');
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 6, y: 420 }] });
+  for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 6 + i * 22, y: 422 }] }); await page.waitForTimeout(16); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(2000);
+  check(await page.locator('[data-testid=hud-back]').count() === 0, 'app: swiping in from the left edge goes back');
+  await go(page, '/me');
+  await page.waitForSelector('[data-testid=me-tiles]', { timeout: 30000 }).catch(() => {});
+  const touch = (type, y) => page.evaluate(([type, y]) => {
+    const el = document.elementFromPoint(200, 300);
+    const t = new Touch({ identifier: 1, target: el, clientX: 200, clientY: y });
+    el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] }));
+  }, [type, y]);
+  await touch('touchstart', 300);
+  for (let i = 1; i <= 10; i++) { await touch('touchmove', 300 + i * 20); await page.waitForTimeout(16); }
+  await touch('touchend', 500);
+  await page.waitForTimeout(150);
+  check(await page.locator('main [role=status]').count() > 0, 'app: pulling down refreshes the screen');
+  await page.waitForTimeout(1500);
   await go(page, '/settings');
   await page.waitForSelector('#reminders', { timeout: 30000 }).catch(() => {});
-  check(await page.locator('#reminders').count() > 0, 'app: Settings has streak reminders');
+  check(await page.locator('#reminders').count() > 0 && await page.locator('#sfx').count() > 0, 'app: Settings has sound effects and streak reminders');
   await shot(page, 'app-settings');
   // (the simulated shell has no native plugins, so their calls fail — but a plugin must never be awaited as a promise)
   check(!errors.some((e) => /\.then\(\)/.test(e) || !/not implemented/i.test(e)), `app: no page errors${errors.length ? ` (${errors.join(' | ').slice(0, 300)})` : ''}`);

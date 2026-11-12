@@ -1,9 +1,9 @@
 import { getBackend } from '../backend/backend';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home } from 'lucide-react';
+import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
@@ -14,7 +14,11 @@ import { Tour } from '../tour/Tour';
 import { isNative, useOnline } from '../native/native';
 import { useStreakReminder } from '../native/reminders';
 import { initAds } from '../ads/ads';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useScreenGestures } from './gestures';
+import { useClaimables } from './claimables';
+// the app's game HUD (top bar + menu) — only the app downloads it
+const GameHud = lazy(() => import('./GameHud'));
 import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
 
@@ -38,12 +42,21 @@ export const SECTIONS = [
     { to: '/social', label: 'Feed & chat' }, { to: '/clans', label: 'Clans' }, { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
   ] },
 ];
-const ME_PAGES = [
+export const ME_PAGES = [
   { to: '/me', label: 'Me' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
 ];
 // the app gets chunkier, game-style tabs
 const NATIVE = isNative();
 const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
+/** A top-level place (a tab, a section page or a menu page): no back button there, just tabs. */
+export function isRootPage(path: string) {
+  return path === '/' || ME_PAGES.some((p) => p.to === path) || SECTIONS.some((s) => s.to === path || s.pages.some((p) => p.to === path));
+}
+/** Go back like an app: the previous screen, or (opened from a link) the section this screen belongs to. */
+export function goBack(nav: (to: string | number) => void, path: string) {
+  const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+  if (idx > 0) nav(-1); else nav(sectionOf(path)?.to ?? '/world');
+}
 /** Which section (and its pages) a path belongs to. */
 function sectionOf(path: string) {
   if (ME_PAGES.some((p) => under(path, p.to))) return { to: '/me', label: 'Me', pages: ME_PAGES };
@@ -72,7 +85,8 @@ export function Shell() {
   const isMap = loc.pathname === '/world' && !simple;
   const admin = me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
-  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : 0);
+  const claim = useClaimables();
+  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === '/world' ? claim.count : 0);
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
   const sec = sectionOf(loc.pathname);
@@ -105,6 +119,16 @@ export function Shell() {
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
   // simple mode keeps just the essentials: home and play (and Me)
   const tabs = simple ? SIMPLE_TABS : (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
+  // the app: swipe from the left edge to go back, pull down to refresh, and screens that move like an app's
+  const nav = useNavigate();
+  const navType = useNavigationType();
+  const mainRef = useRef<HTMLElement>(null);
+  const deep = !isRootPage(loc.pathname);
+  const gest = useScreenGestures(mainRef, { enabled: NATIVE && !isMap, canGoBack: deep, onBack: () => goBack(nav as (to: string | number) => void, loc.pathname) });
+  const enter = !NATIVE ? { initial: { opacity: 0, y: 10 }, transition: { duration: 0.24, ease: 'easeOut' as const } }
+    : navType === 'POP' ? { initial: { opacity: 0, x: -36 }, transition: { type: 'spring' as const, stiffness: 520, damping: 42 } }
+    : deep ? { initial: { opacity: 0, x: 44 }, transition: { type: 'spring' as const, stiffness: 520, damping: 42 } }
+    : { initial: { opacity: 0, scale: 0.985 }, transition: { duration: 0.16, ease: 'easeOut' as const } };
   // the public homepage is full-bleed, without the game's navigation
   if (isHome) return <main className="h-full overflow-y-auto scroll-thin"><Outlet /><AnnouncementPopup /></main>;
   return (
@@ -123,22 +147,61 @@ export function Shell() {
           </NavLink>
         ) : null}
       </nav>
-      <main className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin', simple && 'overflow-x-hidden')}>
+      <main ref={mainRef} className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin', simple && 'overflow-x-hidden')} {...(NATIVE && !isMap ? gest.handlers : {})}>
+        {NATIVE && !isMap && gest.overlay}
         {!isMap && <Ambient />}
-        {!isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
+        {NATIVE && !isMap && !(simple && loc.pathname === '/world') ? (
+          <Suspense fallback={<div className="h-[calc(60px+env(safe-area-inset-top,0px))]" />}>
+            <GameHud>{!simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} inHud />}</GameHud>
+          </Suspense>
+        ) : !isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
         {isMap ? <Outlet /> : (
-          <motion.div key={loc.pathname} className="relative" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: 'easeOut' }}>
-            <Outlet />
-          </motion.div>
+          <div style={gest.offset ? { transform: `translateY(${gest.offset}px)`, transition: 'transform 0.2s ease-out' } : undefined}>
+            <motion.div key={loc.pathname} className="relative" initial={enter.initial} animate={{ opacity: 1, y: 0, x: 0, scale: 1 }} transition={enter.transition}>
+              <Outlet />
+            </motion.div>
+          </div>
         )}
       </main>
       <AnnouncementPopup />
       <Tour />
-      <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
+      {NATIVE ? <GameTabBar tabs={tabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : tabActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
         {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={simple ? under(loc.pathname, i.to) : tabActive(i.to)} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} active={sec?.to === '/me'} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
-      </nav>
+      </nav>}
     </div>
+  );
+}
+
+/** The app's tab bar: a floating capsule with the world as a big raised button in the middle (you and your
+ *  profile live in the top bar). Tabs are the five the player picked (Settings → Phone navigation). */
+function GameTabBar({ tabs, simple, active, badge, meActive }: { tabs: typeof TAB_CHOICES; simple: boolean; active(to: string): boolean; badge(to: string): number; meActive: boolean }) {
+  const centerTo = tabs.some((t) => t.to === '/world') ? '/world' : tabs[Math.floor(tabs.length / 2)]?.to;
+  const center = tabs.find((t) => t.to === centerTo);
+  const rest: { to: string; label: string; icon: any }[] = tabs.filter((t) => t.to !== centerTo);
+  if (simple) rest.push({ to: '/me', label: 'Me', icon: Smile });
+  const half = Math.ceil(rest.length / 2);
+  const item = (t: { to: string; label: string; icon: any }) => {
+    const on = t.to === '/me' ? meActive : active(t.to);
+    const Icon = t.icon;
+    return (
+      <Link key={t.to} to={t.to} data-sound="tab" className={cn('lv-tb-item', on && 'on')} aria-current={on ? 'page' : undefined} data-testid={`tab-${t.to}`}>
+        <span className="ic"><Icon className="h-[22px] w-[22px]" /><Dot n={badge(t.to)} /></span>
+        <span className="lb">{t.to === '/play' ? 'Play' : t.label}</span>
+      </Link>
+    );
+  };
+  return (
+    <nav className="lv-tabbar lv-game" aria-label="Main" data-testid="game-tabbar">
+      <div className="flex flex-1 justify-around">{rest.slice(0, half).map(item)}</div>
+      {center && (
+        <Link to={center.to} data-sound="tab" className={cn('lv-tb-center', active(center.to) && 'on')} aria-current={active(center.to) ? 'page' : undefined} aria-label={simple ? 'Home' : center.label} data-testid={`tab-${center.to}`}>
+          <span className="orb">{simple ? <Home className="h-7 w-7" /> : <center.icon className="h-7 w-7" />}{badge(center.to) > 0 && <span className="lv-bang">{badge(center.to)}</span>}</span>
+          <span className="lb">{simple ? 'Home' : center.label}</span>
+        </Link>
+      )}
+      <div className="flex flex-1 justify-around">{rest.slice(half).map(item)}</div>
+    </nav>
   );
 }
 
@@ -159,7 +222,7 @@ function RailItem({ to, label, icon: Icon, badge, active }: { to: string; label:
 
 function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string; label: string; icon: any; avatar?: ReactNode; badge?: number; active?: boolean }) {
   return (
-    <Link to={to} className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10.5px] font-extrabold transition-colors', active ? 'text-white' : 'text-white/55')} aria-current={active ? 'page' : undefined}>
+    <Link to={to} data-sound="tab" className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[10.5px] font-extrabold transition-colors', active ? 'text-white' : 'text-white/55')} aria-current={active ? 'page' : undefined}>
       <motion.span className={cn('relative flex h-10 w-12 items-center justify-center rounded-2xl transition-colors', active && 'bg-[linear-gradient(180deg,#9a7bff,#5b3df5)] text-white shadow-[0_3px_0_#2c1a8a,0_10px_22px_-8px_rgba(123,92,255,0.9),inset_0_1px_0_rgba(255,255,255,0.35)]')} animate={active ? { y: [0, -6, -2], scale: [1, 1.15, 1.05] } : { y: 0, scale: 1 }} transition={{ duration: 0.4 }} whileTap={{ scale: 0.88 }}>
         {avatar ?? (Icon ? <Icon className="h-[22px] w-[22px]" /> : <span className="block h-[22px] w-[22px] rounded-full bg-surface-2" />)}<Dot n={badge} />
       </motion.span>
@@ -169,8 +232,16 @@ function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string;
 }
 
 /** The pages of the current section, as pills under the top of the screen. */
-function SubNav({ pages, path }: { pages: { to: string; label: string }[]; path: string }) {
+function SubNav({ pages, path, inHud }: { pages: { to: string; label: string }[]; path: string; inHud?: boolean }) {
   const cur = [...pages].sort((a, b) => b.to.length - a.to.length).find((p) => under(path, p.to))?.to;
+  if (inHud) return (
+    // the app: chunky game tabs under the HUD
+    <div className="no-scrollbar flex gap-2 overflow-x-auto px-3 pb-2.5" data-testid="subnav">
+      {pages.map((p) => (
+        <Link key={p.to} to={p.to} data-sound="tab" className={cn('lv-gtab', cur === p.to && 'on')} aria-current={cur === p.to ? 'page' : undefined}>{p.label}</Link>
+      ))}
+    </div>
+  );
   return (
     <div className="sticky top-0 z-30 border-b border-white/5 bg-bg/75 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl" data-testid="subnav">
       <div className="gutter no-scrollbar mx-auto flex max-w-7xl gap-1 overflow-x-auto py-2">
@@ -200,11 +271,31 @@ function Ambient() {
 
 /** Scrollable page wrapper used by every non-map screen. */
 export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={cn('lv-page gutter relative mx-auto w-full pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))] md:pb-12', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
+  return <div className={cn('lv-page gutter relative mx-auto w-full md:pb-12', NATIVE ? 'pb-[calc(112px+env(safe-area-inset-bottom,0px))] pt-3' : 'pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
 }
 
 export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: string; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
   const me = useOnboardedMe();
+  const [info, setInfo] = useState(false);
+  // the app: a game-style title (the HUD above already shows you, your Ink and the bell); the explanation hides
+  // behind an (i) so screens open on the game, not on a paragraph
+  if (NATIVE) return (
+    <header className="mb-5 grid gap-3" data-testid="page-header">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {eyebrow && <div className="lv-ribbon mb-1.5">{eyebrow}</div>}
+          <h1 className="lv-title-banner text-[26px] leading-tight">{title}</h1>
+        </div>
+        {children && (
+          <button className={cn('lv-gbtn round !h-9 !w-9 shrink-0 text-[15px] font-black', info && 'on')} onClick={() => setInfo(!info)} aria-label="What is this?" aria-expanded={info} data-testid="page-info">i</button>
+        )}
+      </div>
+      {actions && <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0">{actions}</div>}
+      {children && info && (
+        <motion.div className="lv-speech text-[13.5px] leading-snug" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 32 }}>{children}</motion.div>
+      )}
+    </header>
+  );
   return (
     <header className="mb-6 grid gap-4">
       <div className="flex items-center justify-between gap-3 md:hidden">

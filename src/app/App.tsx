@@ -12,7 +12,7 @@ import { getBackend } from '../backend/backend';
 import { api } from '../backend/api';
 import { config } from '../env';
 import { useMe } from '../lib/queries';
-import { ConfirmProvider, Spinner, TipProvider } from '../ui';
+import { ConfirmProvider, ScreenSkeleton, Spinner, TipProvider } from '../ui';
 import { MaintenanceGate } from './Maintenance';
 import { Shell } from './Shell';
 // the map (and everything heavy that comes with it) only downloads when it's shown: never in simple mode
@@ -51,6 +51,7 @@ const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
 import { useIntegrityPing } from '../integrity/signals';
 import { RestrictionNotice } from '../integrity/RestrictionNotice';
+import { TermsUpdate } from './TermsUpdate';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
@@ -100,6 +101,14 @@ const SpaceSurface = lazy(() => import('../space/Surface'));
 const SpaceGame = lazy(() => import('../space/SpaceGame'));
 const PlanetGame = lazy(() => import('../space/PlanetGame'));
 
+// the app: once the first screen is up, quietly load the main tabs' code so switching tabs is instant
+if (isNative()) {
+  setTimeout(() => {
+    for (const load of [() => import('../play/PlayEarn'), () => import('../canvases/CanvasesScreen'), () => import('../inkborn/Hub'), () => import('../social/SocialScreen'),
+      () => import('../profile/MeHub'), () => import('../screens/Settings'), () => import('./GameHud')]) void load().catch(() => {});
+  }, 3000);
+}
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, staleTime: fresh } }, // back in the app: stale screens refresh once
 });
@@ -113,6 +122,7 @@ export function useSession() {
 }
 
 function Loading() {
+  if (isNative()) return <ScreenSkeleton />;
   return (
     <div className="flex h-full min-h-[40vh] items-center justify-center">
       <Spinner />
@@ -190,7 +200,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /><TermsUpdate /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

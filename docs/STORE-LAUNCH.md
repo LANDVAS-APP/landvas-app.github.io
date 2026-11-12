@@ -65,8 +65,8 @@ Every push to `source` also builds both apps unsigned, so breakages show up stra
 
 ## 4. Before you press Submit (both stores)
 
-- [ ] **Terms and Privacy Policy: drop the "Draft" banner** once they're final (a lawyer's read is strongly
-      recommended before cash-out). Reviewers open these links.
+- [x] Terms and Privacy Policy are final (LANDVAS LLC, Utah; contact@landvas.app) — get a lawyer's read before cash-out.
+- [ ] **contact@landvas.app receives mail** (Cloudflare → Email → Email Routing → forward it to your inbox).
 - [ ] **Demo account** for reviewers: create one on the live server, finish onboarding, give it a few plots and Ink.
 - [ ] Try these on a real phone: sign up, onboarding, deny location → *Play without location (Simple mode)*,
       allow location → claim a plot, play a minigame, chat report/block, Settings → Delete my account (on a test account).
@@ -99,7 +99,7 @@ Every push to `source` also builds both apps unsigned, so breakages show up stra
 
 **URLs:** Privacy `https://landvas.app/legal/privacy` · Terms `https://landvas.app/legal/terms` ·
 Support `https://landvas.app/support` (works signed out) · Marketing `https://landvas.app` ·
-Account deletion (Play) `https://landvas.app/legal/delete-account` · Contact email: dev@landvas.app
+Account deletion (Play) `https://landvas.app/legal/delete-account` · Contact email: contact@landvas.app
 
 **Screenshots** — iPhone 6.9" (1320×2868) and Play phone (1080×1920 or larger), taken in the app:
 1. The world map with your explorer and painted plots · 2. A plot rarity roll · 3. The paint editor ·
@@ -115,6 +115,7 @@ Play also needs a **feature graphic** 1024×500 and a 512×512 icon (resize `doc
 > daily streak) works without it.
 > USD rent is a virtual in-game balance: cash-out is not available in this version and there are no purchases.
 > Players can report messages, block players (profile → Block) and delete their account (Settings → Account).
+> Developer: LANDVAS LLC (Utah) · contact@landvas.app
 > Demo account: <email> / <password>
 
 **Apple — App Privacy** (all "linked to the user", none used for tracking, none sold) — matches the privacy manifest:

@@ -7,10 +7,12 @@ import * as RTooltip from '@radix-ui/react-tooltip';
 import { Loader2, X } from 'lucide-react';
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../lib/utils';
+import { isNative } from '../native/native';
 import type { Resource } from '../backend/types';
 
 // ---- Button -----------------------------------------------------------------
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'rainbow';
+const GAME = isNative();
 type Size = 'sm' | 'md' | 'lg' | 'icon';
 export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }>(
   ({ className, variant = 'secondary', size = 'md', loading, disabled, children, ...rest }, ref) => (
@@ -23,11 +25,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
         size === 'md' && 'h-10 px-4 text-sm',
         size === 'lg' && 'h-12 px-6 text-[15px]',
         size === 'icon' && 'h-10 w-10',
-        variant === 'primary' && 'bg-accent text-white shadow-[0_8px_24px_-10px_var(--accent)] hover:brightness-110',
-        variant === 'rainbow' && 'rainbow-edge bg-surface-2 text-fg hover:bg-surface',
-        variant === 'secondary' && 'border border-line bg-surface-2/70 text-fg hover:border-line-strong hover:bg-surface-2',
+        // the app: chunky game buttons with a pressable edge (see .lv-btn in app.css)
+        GAME && variant !== 'ghost' ? cn('lv-btn', variant === 'primary' && 'on', variant === 'rainbow' && 'hot', variant === 'danger' && 'bad') : [
+          variant === 'primary' && 'bg-accent text-white shadow-[0_8px_24px_-10px_var(--accent)] hover:brightness-110',
+          variant === 'rainbow' && 'rainbow-edge bg-surface-2 text-fg hover:bg-surface',
+          variant === 'secondary' && 'border border-line bg-surface-2/70 text-fg hover:border-line-strong hover:bg-surface-2',
+          variant === 'danger' && 'bg-bad/90 text-white hover:bg-bad',
+        ],
         variant === 'ghost' && 'text-muted hover:bg-surface-2/60 hover:text-fg',
-        variant === 'danger' && 'bg-bad/90 text-white hover:bg-bad',
         className,
       )}
       {...rest}
@@ -39,16 +44,33 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
 );
 Button.displayName = 'Button';
 
-export const Spinner = ({ className }: { className?: string }) => <Loader2 className={cn('h-5 w-5 animate-spin text-muted', className)} />;
+export const Spinner = ({ className }: { className?: string }) => GAME
+  // the app: three LANDVAS tiles hopping in turn
+  ? <span className={cn('lv-loader', className?.includes('h-4') && 'sm')} role="status" aria-label="Loading"><i /><i /><i /></span>
+  : <Loader2 className={cn('h-5 w-5 animate-spin text-muted', className)} />;
+
+/** A screen still loading, in the app: its outline (title, cards) shimmering in place instead of a spinner. */
+export function ScreenSkeleton() {
+  return (
+    <div className="lv-skel gutter mx-auto grid max-w-5xl gap-4 pt-4" role="status" aria-label="Loading" data-testid="screen-skeleton">
+      <div className="h-4 w-24 rounded-full" />
+      <div className="h-8 w-48 rounded-xl" />
+      <div className="h-40 rounded-3xl" />
+      <div className="grid grid-cols-2 gap-3"><div className="h-28 rounded-3xl" /><div className="h-28 rounded-3xl" /></div>
+      <div className="h-24 rounded-3xl" />
+    </div>
+  );
+}
 
 // ---- Dialog / Sheet ----------------------------------------------------------
-export function Dialog({ open, onOpenChange, title, description, children, wide, footer }: {
+export function Dialog({ open, onOpenChange, title, description, children, wide, footer, locked }: {
   open: boolean; onOpenChange(o: boolean): void; title: ReactNode; description?: ReactNode; children?: ReactNode; wide?: boolean; footer?: ReactNode;
+  /** a decision that has to be made (no close button, no drag-to-close) */ locked?: boolean;
 }) {
   // on phones it's a bottom sheet: drag the handle (or the top of it) down to close
   const drag = useRef<{ y0: number; dy: number } | null>(null);
   const [dy, setDy] = useState(0);
-  const down = (e: React.PointerEvent) => { if (window.innerWidth >= 640) return; drag.current = { y0: e.clientY, dy: 0 }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
+  const down = (e: React.PointerEvent) => { if (locked || window.innerWidth >= 640) return; drag.current = { y0: e.clientY, dy: 0 }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
   const move = (e: React.PointerEvent) => { if (!drag.current) return; drag.current.dy = Math.max(0, e.clientY - drag.current.y0); setDy(drag.current.dy); };
   const up = () => { if (!drag.current) return; const far = drag.current.dy > 90; drag.current = null; setDy(0); if (far) onOpenChange(false); };
   return (
@@ -66,17 +88,21 @@ export function Dialog({ open, onOpenChange, title, description, children, wide,
           )}
           style={dy ? { transform: `translateY(${dy}px)`, transition: 'none' } : undefined}
         >
-          <div className="-mx-5 mb-1 flex touch-none justify-center pb-1 pt-1 sm:hidden" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} aria-hidden>
-            <span className="h-1.5 w-10 rounded-full bg-[var(--line-strong)]" />
-          </div>
+          {!locked && (
+            <div className="-mx-5 mb-1 flex touch-none justify-center pb-1 pt-1 sm:hidden" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} aria-hidden>
+              <span className="h-1.5 w-10 rounded-full bg-[var(--line-strong)]" />
+            </div>
+          )}
           <div className="mb-3 flex items-start justify-between gap-4" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
             <div className="min-w-0">
               <RDialog.Title className="font-display text-lg font-semibold">{title}</RDialog.Title>
               {description ? <RDialog.Description className="mt-1 text-sm text-muted">{description}</RDialog.Description> : <RDialog.Description className="sr-only">{String(title)}</RDialog.Description>}
             </div>
-            <RDialog.Close className="-mr-1 rounded-full bg-surface-2/70 p-1.5 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" onPointerDown={(e) => e.stopPropagation()}>
-              <X className="h-5 w-5" />
-            </RDialog.Close>
+            {!locked && (
+              <RDialog.Close className="-mr-1 rounded-full bg-surface-2/70 p-1.5 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" onPointerDown={(e) => e.stopPropagation()}>
+                <X className="h-5 w-5" />
+              </RDialog.Close>
+            )}
           </div>
           {children}
           {footer && <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div>}
@@ -112,10 +138,10 @@ export const useConfirm = () => useContext(ConfirmCtx);
 export function Tabs({ value, onValueChange, items, className }: { value: string; onValueChange(v: string): void; items: { value: string; label: ReactNode }[]; className?: string }) {
   return (
     <RTabs.Root value={value} onValueChange={onValueChange}>
-      <RTabs.List className={cn('flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface/70 p-1 scroll-thin', className)}>
+      <RTabs.List className={cn(GAME ? 'lv-segs flex gap-1.5 overflow-x-auto no-scrollbar' : 'flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface/70 p-1 scroll-thin', className)}>
         {items.map((i) => (
           <RTabs.Trigger key={i.value} value={i.value}
-            className="shrink-0 rounded-xl px-3 py-1.5 text-[13px] font-semibold text-muted transition data-[state=active]:bg-surface-2 data-[state=active]:text-fg data-[state=active]:shadow">
+            className={GAME ? 'lv-seg' : 'shrink-0 rounded-xl px-3 py-1.5 text-[13px] font-semibold text-muted transition data-[state=active]:bg-surface-2 data-[state=active]:text-fg data-[state=active]:shadow'}>
             {i.label}
           </RTabs.Trigger>
         ))}
@@ -227,6 +253,14 @@ export function Cost({ cost }: { cost: Partial<Record<Resource, number>> | null 
 
 // ---- Empty state -----------------------------------------------------------------------
 export function Empty({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
+  if (GAME) return (
+    <div className="lv-empty flex flex-col items-center gap-3 px-6 py-10 text-center">
+      {icon && <div className="lv-empty-icon">{icon}</div>}
+      <h3 className="font-display text-lg font-black">{title}</h3>
+      {children && <p className="max-w-sm text-sm text-muted">{children}</p>}
+      {action}
+    </div>
+  );
   return (
     <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-line px-6 py-12 text-center">
       {icon && <div className="text-faint">{icon}</div>}

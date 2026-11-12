@@ -1475,3 +1475,185 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* ---- roll clips ---- */
 .lv-clip-btn { background: linear-gradient(110deg, #FF3D9A, #FFB31F, #22E3FF, #A45CFF, #FF3D9A); background-size: 300% 100%; animation: lv-banner 4s linear infinite; box-shadow: 0 6px 22px -6px rgba(255, 61, 154, 0.7), inset 0 0 0 1px rgba(255,255,255,0.35); }
 @media (prefers-reduced-motion: reduce) { .lv-clip-btn { animation: none; } }
+
+/* ===== the app's game skin: every screen dressed like a mobile game (html.native only) ===================== */
+/* Buttons (the <Button> component in the app). In the components layer, so a screen's own classes still win. */
+@layer components {
+  .lv-btn {
+    position: relative; border-radius: 16px; color: #f3f5ff; font-weight: 800; letter-spacing: 0.01em;
+    background: linear-gradient(180deg, #34428e, #1a2160);
+    border: 1.5px solid rgba(170, 190, 255, 0.32);
+    box-shadow: 0 4px 0 #0a0d2b, 0 10px 22px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s;
+  }
+  .lv-btn:active:not(:disabled) { transform: translateY(3px) !important; box-shadow: 0 1px 0 #0a0d2b, inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+  .lv-btn.on { background: linear-gradient(180deg, #a48bff, #5b3df5); border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 4px 0 #2c1a8a, 0 12px 26px -12px rgba(123, 92, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  .lv-btn.on:active:not(:disabled) { box-shadow: 0 1px 0 #2c1a8a, inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  .lv-btn.hot { background: linear-gradient(180deg, #ffb347, #ff4d6d 55%, #e8287a); border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 4px 0 #8a1247, 0 12px 26px -12px rgba(255, 77, 109, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+  .lv-btn.hot:active:not(:disabled) { box-shadow: 0 1px 0 #8a1247, inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+  .lv-btn.bad { background: linear-gradient(180deg, #ff7a8a, #d92d46); border-color: rgba(255, 255, 255, 0.45); box-shadow: 0 4px 0 #7a1222, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .lv-btn.bad:active:not(:disabled) { box-shadow: 0 1px 0 #7a1222, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .lv-btn:disabled { filter: grayscale(0.5); }
+}
+
+/* Panels: thick-edged, lit from above, sitting on a shadow — game cards instead of web cards */
+html.native .glass {
+  background: linear-gradient(180deg, rgba(38, 48, 112, 0.94), rgba(16, 22, 62, 0.94));
+  border: 1.5px solid rgba(170, 190, 255, 0.24);
+  box-shadow: 0 4px 0 rgba(4, 6, 22, 0.7), 0 18px 40px -24px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+html.native[data-theme="light"] .glass { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.14); box-shadow: 0 4px 0 rgba(24, 34, 96, 0.14), inset 0 1px 0 #fff; }
+@media (prefers-color-scheme: light) { html.native:not([data-theme="dark"]) .glass { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.14); box-shadow: 0 4px 0 rgba(24, 34, 96, 0.14), inset 0 1px 0 #fff; } }
+html.native .lv-dialog { border-top: 2px solid rgba(190, 205, 255, 0.35); }
+
+/* the top bar: a dark glossy strip the whole width, the screen scrolling under it */
+.lv-hudbar {
+  background: linear-gradient(180deg, rgba(10, 13, 40, 0.98) 0%, rgba(10, 13, 40, 0.94) 75%, rgba(10, 13, 40, 0.86) 100%);
+  border-bottom: 1.5px solid rgba(170, 190, 255, 0.16);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+}
+.lv-hud-avatar { border-radius: 14px; padding: 2px; background: linear-gradient(180deg, #ffe14d, #ff9f1c); box-shadow: 0 3px 0 #8a4b00, inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.lv-hud-avatar > * { border-radius: 12px !important; }
+.lv-hud-level {
+  position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font: 900 11px/1 var(--font-display); color: #fff;
+  background: linear-gradient(180deg, #a48bff, #5b3df5); border: 2px solid #0a0d28; box-shadow: 0 2px 0 #2c1a8a;
+}
+.lv-bang {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center; font: 900 11px/1 var(--font-display); color: #fff;
+  background: linear-gradient(180deg, #ff6f8a, #e5304f); border: 2px solid #0a0d28; box-shadow: 0 2px 0 #7a1222;
+  animation: lv-bang 1.4s ease-in-out infinite;
+}
+@keyframes lv-bang { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+
+/* game tabs under the HUD */
+.lv-gtab {
+  flex-shrink: 0; height: 34px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 12px;
+  font-weight: 800; font-size: 13px; color: rgba(225, 230, 255, 0.72);
+  background: linear-gradient(180deg, rgba(40, 50, 112, 0.9), rgba(22, 28, 74, 0.9));
+  border: 1.5px solid rgba(170, 190, 255, 0.18); box-shadow: 0 3px 0 rgba(4, 6, 22, 0.8);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.lv-gtab:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 6, 22, 0.8); }
+.lv-gtab.on { color: #fff; background: linear-gradient(180deg, #ffd34d, #ff9f1c); color: #3a1d00; border-color: rgba(255, 255, 255, 0.6); box-shadow: 0 3px 0 #9a5200, inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+
+/* screen titles: a bold, outlined game title; the eyebrow becomes a little ribbon */
+.lv-title-banner {
+  font-family: var(--font-display); font-weight: 900; color: #fff; letter-spacing: 0.01em;
+  text-shadow: 0 2px 0 #2c1a8a, 0 3px 0 #1a0f5c, 0 8px 18px rgba(91, 61, 245, 0.55);
+  -webkit-text-stroke: 0.6px rgba(20, 10, 70, 0.6);
+}
+html.native[data-theme="light"] .lv-title-banner { color: #2c1a8a; text-shadow: 0 2px 0 rgba(91, 61, 245, 0.25); -webkit-text-stroke: 0; }
+.lv-ribbon {
+  display: inline-block; padding: 3px 10px 3px 8px; border-radius: 8px 999px 999px 8px;
+  font: 900 10px/1.2 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: #3a1d00;
+  background: linear-gradient(180deg, #ffe680, #ffb31f); box-shadow: 0 2px 0 #9a5200;
+}
+.lv-speech {
+  position: relative; padding: 12px 14px; border-radius: 18px; color: #1b1f3d; font-weight: 600;
+  background: linear-gradient(180deg, #ffffff, #e9ecff); box-shadow: 0 4px 0 rgba(20, 24, 60, 0.45);
+}
+.lv-speech::before { content: ""; position: absolute; right: 16px; top: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: #ffffff; }
+.lv-speech a { color: #5b3df5; font-weight: 800; }
+
+/* empty states: a glowing bubble instead of a dashed web box */
+.lv-empty-icon {
+  display: grid; place-items: center; width: 76px; height: 76px; border-radius: 999px; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #b9a6ff, #5b3df5 70%); box-shadow: 0 6px 0 #2c1a8a, 0 18px 40px -10px rgba(123, 92, 255, 0.8);
+  animation: lv-float 3.2s ease-in-out infinite;
+}
+.lv-empty-icon svg { width: 32px; height: 32px; }
+
+/* the menu: every place as a big tile */
+.lv-menu { background: radial-gradient(120% 60% at 50% 0%, #2a1f6e 0%, #0b0f2e 55%, #05060f 100%); }
+.lv-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  aspect-ratio: 1; border-radius: 20px; padding: 6px 4px; text-align: center;
+  background: var(--tile); box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4); /* (iOS 15: no color-mix) */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 55%, #ffffff 10%), color-mix(in srgb, var(--tile) 70%, #000000 30%));
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--tile) 40%, #000000 60%), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.lv-tile:active { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--tile) 40%, #000000 60%), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-tile.on { outline: 3px solid #ffe14d; outline-offset: 2px; }
+.lv-tile .em { font-size: 28px; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3)); }
+.lv-tile .lbl { font-size: 10.5px; font-weight: 800; line-height: 1.1; color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
+.lv-tile .lv-bang { top: -4px; right: -4px; }
+
+/* the app's bell sits in the HUD as a round game button */
+html.native .lv-hudbar .lv-gbtn > svg { width: 20px; height: 20px; }
+
+/* segmented tabs inside screens (the <Tabs> component in the app) */
+.lv-segs { padding: 4px; border-radius: 16px; background: rgba(5, 7, 24, 0.55); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45); }
+.lv-seg {
+  flex-shrink: 0; height: 32px; padding: 0 13px; border-radius: 12px; font-weight: 800; font-size: 13px; color: rgba(215, 222, 255, 0.65);
+  transition: transform 0.08s, background 0.15s;
+}
+.lv-seg[data-state="active"] {
+  color: #fff; background: linear-gradient(180deg, #a48bff, #5b3df5); box-shadow: 0 3px 0 #2c1a8a, inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+html.native[data-theme="light"] .lv-segs { background: rgba(24, 34, 96, 0.08); box-shadow: inset 0 2px 4px rgba(24, 34, 96, 0.12); }
+html.native[data-theme="light"] .lv-seg { color: #4a5480; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---- the app's tab bar: a floating capsule with a raised world button ---------------------------------- */
+.lv-tabbar {
+  position: fixed; z-index: 40; left: 10px; right: 10px; bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px));
+  height: 62px; display: flex; align-items: center; padding: 0 6px; border-radius: 26px; color: #fff;
+  background: linear-gradient(180deg, rgba(34, 42, 104, 0.97), rgba(12, 15, 44, 0.98));
+  border: 1.5px solid rgba(190, 205, 255, 0.22);
+  box-shadow: 0 4px 0 rgba(4, 6, 22, 0.85), 0 16px 34px -10px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.lv-tb-item { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 4px; color: rgba(225, 230, 255, 0.55); transition: color 0.15s; }
+.lv-tb-item .ic { position: relative; display: grid; place-items: center; width: 44px; height: 30px; border-radius: 12px; transition: transform 0.25s cubic-bezier(0.2, 1.4, 0.4, 1), background 0.2s; }
+.lv-tb-item .lb { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; letter-spacing: 0.01em; }
+.lv-tb-item.on { color: #fff; }
+.lv-tb-item.on .ic { transform: translateY(-3px); background: linear-gradient(180deg, #a48bff, #5b3df5); box-shadow: 0 3px 0 #2c1a8a, 0 8px 18px -6px rgba(123, 92, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-tb-item:active .ic { transform: scale(0.9); }
+.lv-tb-center { position: relative; display: flex; flex-direction: column; align-items: center; width: 74px; margin-top: -26px; gap: 1px; }
+.lv-tb-center .orb {
+  position: relative; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 999px; color: #fff;
+  background: radial-gradient(circle at 50% 38%, #a48bff 0, #5b3df5 56%, transparent 57.5%),
+    conic-gradient(from 200deg, #ff4d6d, #ff9f1c, #ffe14d, #3ddc97, #34c3ff, #7b5cff, #ff4fd8, #ff4d6d);
+  border: 3px solid #0d1134;
+  box-shadow: 0 5px 0 #05061a, 0 14px 30px -8px rgba(123, 92, 255, 0.95), inset 0 2px 0 rgba(255, 255, 255, 0.55), inset 0 -6px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s;
+}
+.lv-tb-center .orb > svg { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35)); }
+.lv-tb-center:active .orb { transform: translateY(3px) scale(0.96); box-shadow: 0 2px 0 #05061a, inset 0 2px 0 rgba(255, 255, 255, 0.55); }
+.lv-tb-center.on .orb { animation: lv-orb 2.6s ease-in-out infinite; }
+@keyframes lv-orb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.lv-tb-center .lb { font-size: 10px; font-weight: 900; color: #fff; }
+.lv-tb-center .lv-bang { top: -2px; right: -2px; }
+html.reduce-motion .lv-tb-center.on .orb, html.reduce-motion .lv-bang { animation: none; }
+
+/* ---- loading: hopping tiles and screen outlines ---------------------------------------------------------- */
+.lv-loader { display: inline-flex; align-items: flex-end; gap: 5px; height: 22px; }
+.lv-loader i { display: block; width: 10px; height: 10px; border-radius: 3px; animation: lv-hop 0.9s ease-in-out infinite; }
+.lv-loader i:nth-child(1) { background: #ff4d6d; }
+.lv-loader i:nth-child(2) { background: #ffe14d; animation-delay: 0.15s; }
+.lv-loader i:nth-child(3) { background: #34c3ff; animation-delay: 0.3s; }
+.lv-loader.sm { height: 16px; gap: 3px; }
+.lv-loader.sm i { width: 7px; height: 7px; border-radius: 2px; }
+@keyframes lv-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px) rotate(12deg); } }
+.lv-skel > div, .lv-skel > div > div { background: linear-gradient(180deg, rgba(60, 72, 150, 0.45), rgba(30, 38, 96, 0.45)); animation: lv-pulse 1.2s ease-in-out infinite; }
+.lv-skel > .grid { background: none; animation: none; }
+@keyframes lv-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* ---- Me: places as tiles -------------------------------------------------------------------------------- */
+.lv-mtile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 86px; padding: 10px 4px; border-radius: 18px; text-align: center;
+  background: linear-gradient(180deg, rgba(44, 54, 120, 0.85), rgba(20, 26, 70, 0.85));
+  border: 1.5px solid rgba(170, 190, 255, 0.18); box-shadow: 0 3px 0 rgba(4, 6, 22, 0.75);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.lv-mtile:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 6, 22, 0.75); }
+.lv-mtile .bub { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; color: #fff; background: var(--tile); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-mtile .lbl { font-size: 11.5px; font-weight: 800; line-height: 1.15; color: #eef1ff; }
+html.native[data-theme="light"] .lv-mtile { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.12); box-shadow: 0 3px 0 rgba(24, 34, 96, 0.12); }
+html.native[data-theme="light"] .lv-mtile .lbl { color: #1b1f3d; }

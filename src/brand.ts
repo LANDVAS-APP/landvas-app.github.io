@@ -2,7 +2,7 @@
 // playstyle has a home here — creators, keepers, explorers, competitors, builders, collectors.
 // Where players reach the team. The email is published because the App Store and Google Play require a public
 // contact (store listing, support page and privacy policy); in-game Support tickets stay the main way in.
-export const SUPPORT_EMAIL = 'dev@landvas.app';
+export const SUPPORT_EMAIL = 'contact@landvas.app';
 export const DISCORD = 'https://discord.gg/EsEQB9Zw3';
 export const REDDIT = 'https://www.reddit.com/r/LANDVAS/';
 

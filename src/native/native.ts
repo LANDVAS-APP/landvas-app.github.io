@@ -5,6 +5,8 @@
 // streak reminders, and links to other sites opening in the system browser.
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { useSyncExternalStore } from 'react';
+import { setCelebrateHook } from '../ui/confetti';
+import { uiSound } from './uiSound';
 
 export const isNative = () => Capacitor.isNativePlatform();
 export const platform = () => Capacitor.getPlatform() as 'ios' | 'android' | 'web';
@@ -112,11 +114,15 @@ export async function initNative(nav?: (to: number) => void) {
     console.warn('native init', e);
   }
   setTimeout(hideSplash, 8000); // never leave the splash up, whatever happens
-  // a little tap on every button press, like a game controller
+  // a little tap you can feel (and hear) on every button press, like a game controller
   document.addEventListener('pointerdown', (e) => {
     const el = (e.target as HTMLElement | null)?.closest('button, a, [role=tab], [role=radio], [role=button]');
-    if (el && !(el as HTMLButtonElement).disabled) buzz('light');
+    if (!el || (el as HTMLButtonElement).disabled) return;
+    buzz('light');
+    if (el.closest('[data-sound=tab], [role=tab]')) uiSound.tab(); else uiSound.tap();
   }, { passive: true, capture: true });
+  // every celebration (claims, wins, level-ups) gets a chime
+  setCelebrateHook(() => uiSound.reward());
   // links to other websites open in the system browser, not inside the game
   document.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement | null)?.closest('a[href]') as HTMLAnchorElement | null;

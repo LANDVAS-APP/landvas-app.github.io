@@ -31,8 +31,8 @@ export function NavCustomizer() {
         {tabs.map((to, i) => {
           const c = TAB_CHOICES.find((x) => x.to === to)!;
           return (
-            <motion.div layout key={to} className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2">
-              <c.icon className="h-4 w-4 text-accent-2" /><span className="flex-1 text-sm font-semibold">{c.label}</span>
+            <motion.div layout key={to} className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-2.5 py-2">
+              <c.icon className="h-4 w-4 shrink-0 text-accent-2" /><span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.label}</span>
               <button className="rounded-lg p-1 text-muted hover:text-fg disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${c.label} left`}><ArrowUp className="h-4 w-4" /></button>
               <button className="rounded-lg p-1 text-muted hover:text-fg disabled:opacity-30" disabled={i === tabs.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${c.label} right`}><ArrowDown className="h-4 w-4" /></button>
               <button className="rounded-lg px-2 py-1 text-xs font-bold text-bad hover:bg-bad/10" onClick={() => toggle(to)}>Remove</button>

@@ -4,8 +4,13 @@ const COLORS = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF'
 
 type Opts = { x?: number; y?: number; count?: number; spread?: number; power?: number; colors?: string[]; angle?: number };
 
+/** Called with every celebration (the app plays its reward chime here). */
+let onCelebrate: (() => void) | null = null;
+export function setCelebrateHook(fn: (() => void) | null) { onCelebrate = fn; }
+
 export function confetti(opts: Opts = {}) {
   if (typeof window === 'undefined') return;
+  try { onCelebrate?.(); } catch { /* sound is optional */ }
   try {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.reduceMotion === 'true') return;
   } catch { /* ignore */ }

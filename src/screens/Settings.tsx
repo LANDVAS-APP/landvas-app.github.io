@@ -70,7 +70,13 @@ export default function Settings() {
           </div>
         </Section>
 
-        {remindersSupported() && <Section title="Notifications"><RemindersSwitch /></Section>}
+        {isNative() && (
+          <Section title="Sound & notifications">
+            <Switch id="sfx" label="Sound effects" hint="Little pops, clicks and chimes as you play. They follow your phone’s silent switch."
+              checked={settings.sfx !== false} onCheckedChange={(v) => update({ sfx: v })} />
+            {remindersSupported() && <RemindersSwitch />}
+          </Section>
+        )}
 
         <Section title="Location">
           <Switch id="gps" label="Move my explorer with GPS" hint={gps === 'denied' ? (isNative() ? 'Location is off for LANDVAS — turn it on in your phone’s Settings → LANDVAS → Location.' : 'Location permission is blocked in your browser settings.') : 'Your position is only used to place your explorer and is never shown to other players.'}
