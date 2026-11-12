@@ -67,6 +67,20 @@ try {
   await page.fill('[data-testid=odds-shiny]', '500'); await page.click('[data-testid=odds-shiny-save]'); await page.waitForTimeout(1200);
   check('Shiny odds saved', Number((await sql(`select value ->> 'one_in' v from game_config where key = 'shiny'`))[0].v) === 500);
   await shot('04-admin-odds');
+  // event rolls: line up a Mythic on Rosa's 10th roll from now
+  await page.getByRole('tab', { name: /^Players/ }).click();
+  await page.locator('button').filter({ hasText: '@royal_rosa' }).first().click();
+  await page.waitForSelector('[data-testid=roll-grant-form]', { timeout: 20000 });
+  await page.locator('[data-testid=roll-grant-form]').scrollIntoViewIfNeeded();
+  await page.selectOption('[data-testid=grant-rarity]', 'kraken').catch(() => page.selectOption('[data-testid=grant-rarity]', 'mythic'));
+  await page.locator('[data-testid=roll-grant-form] button', { hasText: '10th' }).click();
+  await page.click('[data-testid=grant-go]'); await page.waitForTimeout(1200);
+  const gr = await sql(`select rarity, at_roll, created_by from private.granted_rolls where player_id = '${me}'`);
+  const rolls = Number((await sql(`select private.roll_count('${me}') n`))[0].n);
+  check('Event roll lined up for her 10th roll from now', gr.length === 1 && gr[0].at_roll === rolls + 10, JSON.stringify(gr));
+  check('…listed on her admin page', /in 10 rolls/.test(await page.locator('[data-testid=roll-grants]').innerText()));
+  check('…audit-logged', Number((await sql(`select count(*) n from audit_logs where action = 'rolls.grant'`))[0].n) >= 1);
+  await shot('05-event-rolls');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

@@ -576,6 +576,10 @@ export const api = {
 
   // admin
   admin: {
+    rollGrants: (player: string | null) => rpc<any[]>('admin_roll_grants', { p_player: player }),
+    grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null) =>
+      rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note }),
+    cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
     integrityList: (level: string | null, q: string) => rpc<any>('admin_integrity_list', { p_level: level, p_q: q || null, p_limit: 200 }),
     integrityScan: (offset: number) => rpc<{ scanned: number; total: number; next: number | null }>('admin_integrity_scan', { p_offset: offset, p_limit: 50 }),
     integrityPlayer: (id: string) => rpc<any>('admin_integrity_player', { p_player: id }),

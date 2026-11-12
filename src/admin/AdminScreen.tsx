@@ -17,6 +17,7 @@ import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
 import { IntegrityAdmin } from './IntegrityAdmin';
+import { AllRollGrants, RollGrants } from './RollGrants';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
 import { ChallengesAdmin, CreativeSettings, EarnSettings } from './EarnAdmin';
 import { useNotifications } from '../updates/Notifications';
@@ -377,6 +378,7 @@ function PlayerDetail({ id }: { id: string }) {
             <input className={cn(inputCls, "h-9 min-w-40 flex-1")} placeholder="Reason (audited)" value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} />
             <Button size="sm" disabled={!Number(adj.delta)} onClick={() => run(() => adj.resource === 'usd' ? api.admin.adjustRent(id, Number(adj.delta), adj.reason) : api.admin.adjustBalance(id, adj.resource, Math.trunc(Number(adj.delta)), adj.reason), 'Balance adjusted', () => { setAdj({ ...adj, delta: '' }); refetch(); })}>Apply</Button>
           </div>
+          <RollGrants playerId={id} />
           <input className={cn(inputCls, 'mt-1 h-9 border-[#FF3D6E]/60')} maxLength={240} placeholder="Why (shown to them, on the live feed and under Social → Banned) — e.g. self-referring with alt accounts" value={announce} onChange={(e) => setAnnounce(e.target.value)} data-testid="player-announce" />
           <div className="mt-1 flex flex-wrap gap-2">
             <Button size="sm" variant="danger" data-testid="player-suspend" onClick={() => run(() => api.admin.setPlayerStatus(id, 'suspended', new Date(Date.now() + 7 * 864e5).toISOString(), announce.trim() || 'Suspended by the operator', announce.trim() ? `{name} was suspended for 7 days: ${announce.trim()}` : null), 'Suspended for 7 days — announced on the live feed', refetch)}>Suspend 7 days</Button>
@@ -477,6 +479,7 @@ function Earnings() {
       <MinigameEarnings value={cfg.data.config.minigames.value} rarities={cfg.data.rarities} />
       <div className="grid content-start gap-4">
         <OddsEditor rarities={cfg.data.rarities} config={cfg.data.config} />
+        <AllRollGrants />
         <RarityRates rarities={cfg.data.rarities} />
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />

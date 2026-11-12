@@ -96,6 +96,7 @@ export default function Legal() {
               {RARITY_ORDER.map((r) => <li key={r}><b>{rarityInfo(r).name}</b> — {formatRate(rarityInfo(r).usd_per_second)} ({rarityOdds(r)} of plots)</li>)}
             </ul>
             <ul>
+              <li>The percentages above are the odds for a normal roll. Events, contests and promotions may award a specific rarity to the winners on one of their rolls; this never changes anyone else's odds.</li>
               <li>Each plot level adds 1% to that plot's rent.</li>
               <li>The <b>{world.data?.rent?.boost?.multiplier ?? 20}× boost</b> multiplies all your rent while active. Each press adds {world.data?.rent?.boost?.minutes_per_boost ?? 30} minutes (up to {world.data?.rent?.boost?.max_stack_hours ?? 8} hours stacked); you get {world.data?.rent?.boost?.free_per_day ?? 6} free presses per day.</li>
               <li>Rent keeps accruing while you open LANDVAS at least once every {world.data?.rent?.max_offline_days ?? 30} days.</li>
