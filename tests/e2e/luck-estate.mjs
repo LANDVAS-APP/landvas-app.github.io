@@ -53,6 +53,12 @@ try {
   await shot('02-altar-charged');
   // fill it up and roll
   await sql(`update player_luck set luck = 100 where player_id = '${me}'`);
+  await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['luck'] })); await page.waitForTimeout(1000);
+  check('Luck is saved until you choose to use it', (await page.getAttribute('[data-testid=luck-arm-0]', 'aria-pressed')) === 'true');
+  check('…a reroll can’t be armed beyond what you have', !(await page.isDisabled('[data-testid=luck-arm-5]')));
+  await page.click('[data-testid=luck-arm-5]'); await page.waitForTimeout(1000);
+  check('arming all 5 rerolls', (await sql(`select armed from player_luck where player_id = '${me}'`))[0].armed === 5);
+  await page.locator('[data-testid=luck-arm]').scrollIntoViewIfNeeded(); await shot('02b-armed');
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
   await page.click('[data-testid=simple-buy]');
   await page.waitForSelector('[data-testid=roll-luck]', { timeout: 20000 });

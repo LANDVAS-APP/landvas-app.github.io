@@ -47,13 +47,38 @@ describe('granted rolls', () => {
     expect((await claim(eve, 20)).rarity).toBe(natural);
     expect((await db.rpc(owner, 'admin_roll_grants', { p_player: eve })).find((x: any) => x.id === pending.id).cancelled_at).toBeTruthy();
   });
-  it('a City Crown grant waits for a claim inside a city whose Crown is free', async () => {
-    const c = (await db.sql(`select id, gx, gy from world_cities order by pop desc limit 1`))[0];
+  it('a City Crown grant lands on the very next claim, anywhere', async () => {
     await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'crown', p_after: 1 });
-    // a claim far from any city: the grant waits
     const far = await db.rpc(eve, 'acquire_plot', { p_gx: 10, p_gy: 10, p_idempotency_key: `gr-far-00000000` });
-    expect(far.rarity).not.toBe('crown');
-    const inCity = await db.rpc(eve, 'acquire_plot', { p_gx: c.gx, p_gy: c.gy, p_idempotency_key: `gr-city-0000000` });
-    expect(inCity.rarity).toBe('crown');
+    expect(far.rarity).toBe('crown');
+  });
+  it('a Country Crown lands even where that Crown is already held', async () => {
+    const c = (await db.sql(`select id, gx, gy from world_cities order by pop desc limit 1`))[0];
+    await db.sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at) values ($1, $2, $3, (select id from plot_types limit 1), 'crown_country', now())`, [c.gx + 3, c.gy, other]);
+    await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'crown_country', p_after: 1 });
+    expect((await db.rpc(eve, 'acquire_plot', { p_gx: c.gx, p_gy: c.gy, p_idempotency_key: `gr-cc-000000000` })).rarity).toBe('crown_country');
+  });
+  it('luck mode: lands on the chosen reroll of her next Luck claim — not before', async () => {
+    await db.sql(`update game_config set value = jsonb_set(value, '{enabled}', 'true') where key = 'luck'`);
+    await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'kraken', p_mode: 'luck', p_slot: 3, p_note: 'Altar night' });
+    // a claim without Luck armed: nothing happens yet
+    await db.sql(`insert into player_luck (player_id, luck, armed) values ($1, 100, 0) on conflict (player_id) do update set luck = 100, armed = 0`, [eve]);
+    const plain = await claim(eve, 40);
+    expect(plain.choices ?? null).toBeNull();
+    expect((await db.sql(`select count(*)::int n from private.granted_rolls where player_id = $1 and mode = 'luck' and used_at is null`, [eve]))[0].n).toBe(1);
+    // she arms 4 rerolls: 5 rolls, the 3rd is the Kraken; 80 Luck spent, 20 left, disarmed
+    await db.rpc(eve, 'luck_arm', { p_rerolls: 4 });
+    const lucky = await claim(eve, 41);
+    expect(lucky.choices).toHaveLength(5); expect(lucky.choices[2]).toBe('kraken');
+    const l = (await db.sql(`select luck, armed from player_luck where player_id = $1`, [eve]))[0];
+    expect(l).toEqual({ luck: 20, armed: 0 });
+  });
+  it('luck mode on every roll', async () => {
+    await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'solar', p_mode: 'luck' });
+    await db.sql(`update player_luck set luck = 40 where player_id = $1`, [eve]);
+    await db.rpc(eve, 'luck_arm', { p_rerolls: 2 });
+    const r = await claim(eve, 42);
+    expect(r.choices).toEqual(['solar', 'solar', 'solar']); expect(r.rarity).toBe('solar');
+    await db.sql(`update game_config set value = jsonb_set(value, '{enabled}', 'false') where key = 'luck'`);
   });
 });

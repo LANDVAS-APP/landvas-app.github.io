@@ -1,5 +1,5 @@
-// The Altar of Luck: sacrifice Base plots or offer Ink to charge your Luck (0–100). Your next claim spends it all —
-// extra rolls (keep the best) and likelier ultras. The chip shows how charged you are; the altar is where you feed it.
+// The Altar of Luck: sacrifice Base plots or offer Ink to charge your Luck (0–100), and choose how many rerolls your
+// next claim spends (20 Luck each) — extra rolls you pick from, and likelier ultras. The chip shows how charged you are; the altar is where you feed it.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
@@ -41,10 +41,19 @@ export function LuckChip({ className }: { className?: string }) {
       <button onClick={() => setOpen(true)} data-testid="luck-chip"
         className={cn('pointer-events-auto relative flex items-center gap-2 rounded-full border border-white/12 bg-[#0f1a2e]/90 py-1 pl-1 pr-3 text-[12px] font-extrabold text-white', l.luck > 0 && 'shadow-[0_0_18px_rgba(61,220,151,0.45)]', className)}>
         <span className="relative grid place-items-center"><Ring luck={l.luck} max={l.max} /><span className="absolute text-[15px]">🍀</span></span>
-        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55">{l.rolls > 1 ? `next plot: ${l.rolls} rolls, you pick` : 'Sacrifice for free rerolls'}</span></span>
+        <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55" data-testid="luck-chip-note">{l.rolls > 1 ? `next plot: ${l.rolls - 1} reroll${l.rolls > 2 ? 's' : ''} armed` : l.can_reroll > 0 ? 'saved · tap to use' : 'Sacrifice for free rerolls'}</span></span>
       </button>
       <AltarDialog open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+function ArmButton({ on, disabled, onClick, testid, top, sub }: { on: boolean; disabled: boolean; onClick(): void; testid: string; top: string; sub: string }) {
+  return (
+    <button onClick={onClick} disabled={disabled} aria-pressed={on} data-testid={testid}
+      className={cn('grid rounded-2xl px-1 py-1.5 text-center transition active:scale-95 disabled:opacity-35', on ? 'bg-[linear-gradient(135deg,#3DDC97,#FFE14D)] text-[#0b2a1c] shadow-[0_0_16px_rgba(61,220,151,0.5)]' : 'bg-white/[0.07] text-white')}>
+      <span className="text-[14px] font-black leading-tight">{top}</span><span className={cn('text-[10px] font-bold', on ? 'text-[#0b2a1c]/70' : 'text-white/50')}>{sub}</span>
+    </button>
   );
 }
 
@@ -81,6 +90,11 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
       after();
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  const arm = async (n: number) => {
+    setBusy(`arm${n}`);
+    try { const r = await api.luckArm(n); buzz('light'); qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old)); }
+    catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
   const offer = async (points: number) => {
     setBusy(`ink${points}`);
     try {
@@ -94,7 +108,7 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots, Inkborn, eggs or Ink to charge your Luck. Every 20 Luck is a free reroll on your next plot — then you choose which one to keep.">
+    <Dialog open={open} onOpenChange={onOpenChange} title="🍀 The Altar of Luck" description="Sacrifice plots, Inkborn, eggs or Ink to charge your Luck. Every 20 Luck is a reroll — choose how many to use on your next plot, then keep the roll you like.">
       {l && (
         <div className="grid gap-4" data-testid="altar">
           {/* the meter */}
@@ -112,11 +126,31 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               </AnimatePresence>
             </div>
             <div className="text-center text-sm font-bold">
-              {l.rolls > 1 ? <>Next plot: <span className="text-[#3DDC97]">{l.rolls} rolls — you pick one</span></> : l.luck > 0 ? `${20 - (l.luck % 20)} more Luck for a free reroll` : 'No Luck yet — your next roll is a normal one.'}
+              {l.rolls > 1 ? <>Next plot: <span className="text-[#3DDC97]">{l.rolls} rolls — you pick one</span></> : l.can_reroll > 0 ? <>Saved: <span className="text-[#3DDC97]">{l.can_reroll} reroll{l.can_reroll > 1 ? 's' : ''}</span> ready</> : l.luck > 0 ? `${l.per_roll - (l.luck % l.per_roll)} more Luck for a free reroll` : 'No Luck yet — your next roll is a normal one.'}
             </div>
-            <div className="text-[11px] text-white/50">Every 20 Luck = a free reroll on your next plot (up to 6 rolls) — you see them all and keep the one you like · rerolls roll ultras likelier</div>
+            <div className="text-[11px] text-white/50">Every {l.per_roll} Luck = a reroll (up to {l.max_rerolls}) · you choose when to use them · you see every roll and keep one</div>
             <div className="mt-1 flex gap-1">{Array.from({ length: 5 }, (_, i) => <span key={i} className={cn('h-2 w-7 rounded-full transition-colors', l.luck >= (i + 1) * 20 ? 'bg-[linear-gradient(90deg,#3DDC97,#FFE14D)]' : 'bg-white/12')} />)}</div>
           </div>
+
+          {/* when to use it */}
+          <section className="grid gap-2 rounded-3xl border border-[#3DDC97]/30 bg-[#3DDC97]/[0.06] p-3" data-testid="luck-arm">
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 className="text-[12px] font-black uppercase tracking-wider text-white/70">Use on your next plot</h3>
+              <span className="text-[11px] text-white/55">{l.per_roll} Luck a reroll</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+              <ArmButton on={l.armed === 0} disabled={!!busy} onClick={() => void arm(0)} testid="luck-arm-0" top="Save" sub="keep it" />
+              {Array.from({ length: l.max_rerolls }, (_, i) => i + 1).map((n) => (
+                <ArmButton key={n} on={l.armed === n} disabled={!!busy || n > l.can_reroll} onClick={() => void arm(n)} testid={`luck-arm-${n}`}
+                  top={n === l.max_rerolls ? `All ${n}` : `${n}`} sub={`−${n * l.per_roll}`} />
+              ))}
+            </div>
+            <p className="text-[11px] text-white/55">
+              {l.armed > 0 && l.rolls > 1
+                ? <>Your next claim rolls <b className="text-[#3DDC97]">{l.rolls} times</b> ({l.rolls - 1} reroll{l.rolls > 2 ? 's' : ''}, −{(l.rolls - 1) * l.per_roll} Luck) with ultras <b className="text-[#FFE14D]">×{Number(l.ultra_x.toFixed(1))}</b> likelier — then you pick the one you keep.</>
+                : l.can_reroll > 0 ? 'Your Luck is saved. Pick how many rerolls to spend on your next claim — more rerolls make ultras likelier too.' : 'Charge 20 Luck for your first reroll.'}
+            </p>
+          </section>
 
           {/* Ink */}
           <section className="grid gap-2">

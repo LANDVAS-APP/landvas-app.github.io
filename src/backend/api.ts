@@ -11,7 +11,7 @@ import type { RarityId } from '../shared/rarity';
 export type EstateTask = { done: number; need: number; today?: boolean; left_today?: number };
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
-export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number };
+export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; armed: number; can_reroll: number; per_roll: number; max_rerolls: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number };
 
 /** Hears every new balance a call hands back (so the app can show it without re-reading your whole state). */
 let balanceSink: ((fn: string, b: Balances) => void) | null = null;
@@ -91,6 +91,7 @@ export const api = {
   luckSacrificeInkborn: (id: string) => rpc<LuckState & { gained: number }>('luck_sacrifice_inkborn', { p_id: id }),
   luckSacrificeEgg: (id: string) => rpc<LuckState & { gained: number }>('luck_sacrifice_egg', { p_id: id }),
   /** keep one of the rolls Luck gave you */
+  luckArm: (rerolls: number) => rpc<LuckState>('luck_arm', { p_rerolls: rerolls }),
   luckPick: (gx: number, gy: number, idx: number) => rpc<{ rarity: RarityId; usd_per_second: number; achievements: NewAchievement[] }>('luck_pick', { p_gx: gx, p_gy: gy, p_idx: idx }),
   luckSacrificePlot: (gx: number, gy: number) => rpc<LuckState & { gained: number; rarity: RarityId }>('luck_sacrifice_plot', { p_gx: gx, p_gy: gy }),
   luckOfferInk: (points: number) => rpc<LuckState & { gained: number; cost: number }>('luck_offer_ink', { p_points: points }),
@@ -578,8 +579,8 @@ export const api = {
   // admin
   admin: {
     rollGrants: (player: string | null) => rpc<any[]>('admin_roll_grants', { p_player: player }),
-    grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null) =>
-      rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note }),
+    grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null) =>
+      rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot }),
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
     integrityList: (level: string | null, q: string) => rpc<any>('admin_integrity_list', { p_level: level, p_q: q || null, p_limit: 200 }),
     integrityScan: (offset: number) => rpc<{ scanned: number; total: number; next: number | null }>('admin_integrity_scan', { p_offset: offset, p_limit: 50 }),

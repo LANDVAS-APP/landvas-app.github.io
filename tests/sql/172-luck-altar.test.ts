@@ -46,10 +46,14 @@ describe('the Altar of Luck', () => {
     await expectError(db.rpc(u, 'luck_offer_ink', { p_points: 1 }), 'luck_full');
   });
   it('the next claim spends it on rerolls: 6 rolls at 100 Luck, and you pick the one you keep', async () => {
-    await db.sql(`update player_luck set luck = 100 where player_id = $1`, [u]);
-    expect((await db.rpc(u, 'luck_status'))).toMatchObject({ rolls: 6, ultra_x: 11 });
+    await db.sql(`update player_luck set luck = 100, armed = 0 where player_id = $1`, [u]);
+    // saved, not spent, until you arm it
+    expect((await db.rpc(u, 'luck_status'))).toMatchObject({ rolls: 1, armed: 0, can_reroll: 5 });
+    await expectError(db.rpc(u, 'luck_arm', { p_rerolls: 6 }), 'invalid_amount');
+    await db.rpc(u, 'luck_arm', { p_rerolls: 5 });
+    expect((await db.rpc(u, 'luck_status'))).toMatchObject({ rolls: 6, ultra_x: 11, armed: 5 });
     const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-1-xxxxxxxxx' });
-    expect((await db.rpc(u, 'luck_status')).luck).toBe(0);
+    expect((await db.rpc(u, 'luck_status'))).toMatchObject({ luck: 0, armed: 0 });
     expect(r.choices.length).toBe(6);
     // the plot holds the best until you choose; choose the first (the cell's own roll)
     const p = await db.rpc(u, 'luck_pick', { p_gx: r.gx, p_gy: r.gy, p_idx: 0 });
@@ -59,8 +63,22 @@ describe('the Altar of Luck', () => {
     const feed = await db.sql(`select data from feed_events where kind = 'luck' and player_id = $1 order by id desc limit 1`, [u]);
     expect(feed[0].data).toMatchObject({ sub: 'pick', of: 6 });
   });
+  it('one reroll costs 20; the rest is saved', async () => {
+    await db.sql(`update player_luck set luck = 70 where player_id = $1`, [u]);
+    await db.rpc(u, 'luck_arm', { p_rerolls: 1 });
+    const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-1b-xxxxxxxx' });
+    expect(r.choices.length).toBe(2);
+    expect((await db.rpc(u, 'luck_status'))).toMatchObject({ luck: 50, armed: 0 });
+    await db.rpc(u, 'luck_pick', { p_gx: r.gx, p_gy: r.gy, p_idx: 0 });
+  });
+  it('unarmed Luck waits', async () => {
+    await db.sql(`update player_luck set luck = 60, armed = 0 where player_id = $1`, [u]);
+    const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-1c-xxxxxxxx' });
+    expect(r.choices ?? null).toBeNull();
+    expect((await db.rpc(u, 'luck_status')).luck).toBe(60);
+  });
   it('under 20 Luck waits for the next claim', async () => {
-    await db.sql(`update player_luck set luck = 15 where player_id = $1`, [u]);
+    await db.sql(`update player_luck set luck = 15, armed = 3 where player_id = $1`, [u]);
     const r = await db.rpc(u, 'quick_buy_plot', { p_idempotency_key: 'luck-roll-2-xxxxxxxxx' });
     expect(r.choices ?? null).toBeNull();
     expect((await db.rpc(u, 'luck_status')).luck).toBe(15);
