@@ -16,6 +16,7 @@ import { formatRate } from '../shared/rent';
 import { Z_HOUSE, Z_PLOT, cellCenter } from '../shared/grid';
 import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
+import { IntegrityAdmin } from './IntegrityAdmin';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
 import { ChallengesAdmin, CreativeSettings, EarnSettings } from './EarnAdmin';
 import { useNotifications } from '../updates/Notifications';
@@ -85,6 +86,7 @@ const TABS = [
   { value: 'review', label: 'Review' },
   { value: 'overview', label: 'Dashboard' },
   { value: 'players', label: 'Players' },
+  { value: 'integrity', label: 'Integrity' },
   { value: 'earnings', label: 'Earnings' },
   { value: 'world', label: 'World' },
   { value: 'plots', label: 'Plots' },
@@ -120,6 +122,7 @@ function Hub() {
       {tab === 'review' && <ReviewTab />}
       {tab === 'overview' && <Overview onTab={setTab} />}
       {tab === 'players' && <Players />}
+      {tab === 'integrity' && <IntegrityAdmin />}
       {tab === 'earnings' && <Earnings />}
       {tab === 'world' && <World />}
       {tab === 'plots' && <Plots />}

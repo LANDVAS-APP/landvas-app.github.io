@@ -552,6 +552,8 @@ export const api = {
   myPrivacy: () => rpc<Record<string, boolean>>('my_privacy'),
   setPrivacy: (patch: Record<string, boolean>) => rpc<Record<string, boolean>>('set_privacy', { p_patch: patch }),
   royalty: () => rpc<any>('royalty'),
+  integrityPing: async (signals: Record<string, unknown>) => { const b = getBackend(); if (b.integrityPing) await b.integrityPing(signals); else await rpc('integrity_ping', { p_signals: signals }); },
+  myRestriction: () => rpc<any>('my_restriction'),
   rarityRankings: () => rpc<any[]>('rarity_rankings', {}),
   rarityRanking: (rarity: string) => rpc<{ rarity: string; owned: number; rows: any[]; me: number | null }>('rarity_rankings', { p_rarity: rarity }),
   leaderboard: (kind: string, game?: string) => rpc<{ kind: string; rows: any[] }>('leaderboard', { p_kind: kind, p_game: game ?? null }),
@@ -573,6 +575,13 @@ export const api = {
 
   // admin
   admin: {
+    integrityList: (level: string | null, q: string) => rpc<any>('admin_integrity_list', { p_level: level, p_q: q || null, p_limit: 200 }),
+    integrityScan: (offset: number) => rpc<{ scanned: number; total: number; next: number | null }>('admin_integrity_scan', { p_offset: offset, p_limit: 50 }),
+    integrityPlayer: (id: string) => rpc<any>('admin_integrity_player', { p_player: id }),
+    integrityPreview: (ids: string[], scope: Record<string, unknown>) => rpc<any[]>('admin_integrity_preview', { p_players: ids, p_scope: scope }),
+    integrityAct: (ids: string[], kind: string, until: string | null, preset: string | null, reason: string, proof: string[], scope: Record<string, unknown>) =>
+      rpc<any>('admin_integrity_act', { p_players: ids, p_kind: kind, p_until: until, p_preset: preset, p_reason: reason, p_proof: proof, p_scope: scope }),
+    integrityUndo: (id: number) => rpc<any>('admin_integrity_undo', { p_action: id }),
     overview: () => rpc<any>('admin_overview'),
     announcements: () => rpc<import('./types').AdminAnnouncement[]>('admin_announcements'),
     draftAnnouncement: (a: { title: string; body: string; kind: Announcement['kind']; link: string | null; popup: boolean }) =>

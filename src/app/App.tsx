@@ -49,6 +49,8 @@ const InventoryScreen = lazy(() => import('../screens/Inventory'));
 const EventsScreen = lazy(() => import('../screens/Events'));
 const SettingsScreen = lazy(() => import('../screens/Settings'));
 const LegalScreen = lazy(() => import('../screens/Legal'));
+import { useIntegrityPing } from '../integrity/signals';
+import { RestrictionNotice } from '../integrity/RestrictionNotice';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
@@ -159,6 +161,7 @@ function RouteMeta() {
 function ActivitySync() {
   const me = useOnboardedMe();
   useActivityReporter(!!me);
+  useIntegrityPing(me?.profile?.id ?? null);
   return null;
 }
 
@@ -186,7 +189,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

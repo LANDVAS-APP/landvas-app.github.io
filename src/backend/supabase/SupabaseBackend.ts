@@ -180,6 +180,11 @@ export class SupabaseBackend implements Backend {
     return data as MinigameFinish;
   }
 
+  async integrityPing(signals: Record<string, unknown>) {
+    const { error } = await this.sb.functions.invoke('integrity', { body: signals });
+    if (error) await this.rpc('integrity_ping', { p_signals: signals }); // the function is unreachable: the database still sees the address
+  }
+
   async brawl(body: import('../../shared/brawl/server').BrawlBody) {
     const { data, error } = await this.sb.functions.invoke('brawl', { body });
     if (error) { const e = await functionError(error); throw e.code === 'minigame_error' ? new GameError('brawl_error', e.message) : e; }

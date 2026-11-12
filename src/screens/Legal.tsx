@@ -8,7 +8,7 @@ import { toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { useWorld } from '../lib/queries';
 import { formatRate } from '../shared/rent';
-import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { RARITY_ORDER, rarityInfo, rarityOdds } from '../shared/rarity';
 import { Button, Field, inputCls } from '../ui';
 
 const DOCS: Record<string, string> = { terms: 'Terms of Service', privacy: 'Privacy Policy', content: 'Content Policy', copyright: 'Copyright & takedowns', rent: 'USD rent rules' };
@@ -63,6 +63,7 @@ export default function Legal() {
               <li>Your email address and password (stored by our authentication provider) and the profile you choose.</li>
               <li><b>Location:</b> if you turn on GPS, your device's position is sent to place your explorer. We keep only your latest position, use it to decide which plots you can claim, and to detect impossible jumps. <b>It is never shown to other players.</b> LANDVAS needs GPS to place and move your explorer; there is no teleporting.</li>
               <li>Game activity: plots, minigame results, artwork, rent ledger, reports and support requests.</li>
+              <li><b>Anti-cheat signals:</b> to stop multiple accounts, bots, self-referrals and farming, the app sends a random id for your install, a one-way fingerprint of your browser or device, your platform, timezone and language, and checks for emulators and automation. Our server sees your internet address but stores only a one-way hash of it (and of its network), plus its country, provider and whether it's a VPN, proxy, Tor or datacenter connection (looked up with ipapi.is). These are used only to find abuse, and only moderators can see what they show.</li>
             </ul>
             <H>What others can see</H>
             <p>Your username, avatar, the plots you own, your published artwork and leaderboard positions. Your plots are visible on the shared map, but your profile, artwork pages, visit room, the gallery and the feed never show where they are.</p>
@@ -92,7 +93,7 @@ export default function Legal() {
           <>
             <p>Every plot you own earns <b>USD rent</b> for every second you own it, at its rarity's current rate:</p>
             <ul>
-              {RARITY_ORDER.map((r) => <li key={r}><b>{rarityInfo(r).name}</b> — {formatRate(rarityInfo(r).usd_per_second)} ({(rarityInfo(r).weight / 10).toFixed(0)}% of plots)</li>)}
+              {RARITY_ORDER.map((r) => <li key={r}><b>{rarityInfo(r).name}</b> — {formatRate(rarityInfo(r).usd_per_second)} ({rarityOdds(r)} of plots)</li>)}
             </ul>
             <ul>
               <li>Each plot level adds 1% to that plot's rent.</li>

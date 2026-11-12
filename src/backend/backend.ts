@@ -43,6 +43,8 @@ export interface Backend {
   /** Encoded PNG bytes of a published map art tile. */
   artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal): Promise<ArrayBuffer | null>;
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
+  /** report this session's device/network signals (the integrity Edge Function adds the real address) */
+  integrityPing?(signals: Record<string, unknown>): Promise<void>;
   /** Submit a PvP run's move log (every round); the server replays it against the match's boards. */
   finishPvp(matchId: string, log: unknown): Promise<PvpFinish>;
   /** Paintbrawl: matchmaking, bots and moves (run by the `brawl` Edge Function). */
