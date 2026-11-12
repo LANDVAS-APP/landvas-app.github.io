@@ -7,6 +7,7 @@ import { api } from '../backend/api';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { Empty, PlayerAvatar, Spinner } from '../ui';
 import { cn, fmt } from '../lib/utils';
+import { CrownCelebrations } from '../royalty/CrownCelebrations';
 
 type Crown = {
   tier: 'crown' | 'crown_state' | 'crown_country'; city: string | null; state: string | null; country: string; country_name: string; kingdom: string;
@@ -85,6 +86,8 @@ export default function Royalty() {
           <Link to="/rankings/rarities?r=crown" className="rounded-full bg-white/10 px-3 py-1.5 font-bold hover:bg-white/15">Rarity rankings</Link>
         </div>
       </section>
+
+      <div className="mb-8"><CrownCelebrations variant="royalty" /></div>
 
       {court.length > 0 && (
         <section className="mb-8 grid gap-3" data-testid="royal-court">

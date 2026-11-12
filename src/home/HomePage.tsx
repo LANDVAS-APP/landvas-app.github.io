@@ -21,6 +21,7 @@ import { FAQ } from './faq';
 import { PLAYSTYLES, TAGLINE } from '../brand';
 import { FeaturedToday } from '../gallery/FeaturedToday';
 import { poll } from '../lib/poll';
+import { CrownCelebrations } from '../royalty/CrownCelebrations';
 
 const signedIn = () => !!getBackend().session();
 const playHref = () => (signedIn() ? '/world' : '/welcome');
@@ -41,6 +42,7 @@ export default function HomePage() {
     <div className="lv-home min-h-full overflow-x-hidden bg-bg text-fg" data-testid="homepage">
       <TopBar />
       <Hero stats={stats.data} cards={cards} />
+      <div className="gutter mx-auto max-w-7xl pt-10" id="crowns"><CrownCelebrations /></div>
       <Playstyles />
       <div className="gutter mx-auto max-w-7xl pt-12"><FeaturedToday /></div>
       <ArtMarquee cards={cards} loading={art.isLoading} />
