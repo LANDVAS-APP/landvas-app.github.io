@@ -12,6 +12,7 @@ import { cn, fmt } from '../lib/utils';
 import { Button, Cost, Spinner, Tabs } from '../ui';
 import { ExplorerFigure } from './ExplorerFigure';
 import { styleOf } from './character';
+import { ultraOfRarity } from './ultra';
 
 const PARTS: { id: ExplorerPart; label: string }[] = [
   { id: 'sex', label: 'Male / Female' },
@@ -67,7 +68,7 @@ export default function ExplorerScreen() {
   return (
     <Page wide>
       <PageHeader eyebrow="Studio" title="Your explorer" actions={<ResourceBar />}>
-        Your explorer walks the map for you and greets visitors in your room. Try anything on, buy what you love with Ink, then save your look.
+        Your explorer walks the map for you and greets visitors in your room. Try anything on, buy what you love with Ink, then save your look. Every ultra rarity has its own set — get the plot and it’s yours.
       </PageHeader>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <section className="lv-room-stage lg:sticky lg:top-5 lg:self-start" style={{ ['--room' as string]: accent, gridTemplateRows: 'minmax(230px,1fr) 92px' }} data-testid="explorer-preview">
@@ -107,6 +108,7 @@ export default function ExplorerScreen() {
                   <div className="min-h-[2.5em] text-[13px] font-bold leading-tight">{it.name}</div>
                   <div className="text-xs">
                     {saved[part] === it.id ? <span className="font-bold text-ok">Wearing</span> : own ? <span className="flex items-center gap-1 text-muted"><Check className="h-3.5 w-3.5" /> Owned</span>
+                      : ultraOfRarity((it as ShopItem & { ultra?: string }).ultra) ? <span className="flex items-center gap-1 font-bold" style={{ color: ultraOfRarity((it as ShopItem & { ultra?: string }).ultra)!.a }} data-testid="ultra-lock"><Lock className="h-3 w-3" />{ultraOfRarity((it as ShopItem & { ultra?: string }).ultra)!.emoji} {ultraOfRarity((it as ShopItem & { ultra?: string }).ultra)!.name} plot</span>
                       : (it as ShopItem & { arcade?: boolean }).arcade ? <span className="flex items-center gap-1 font-bold text-[#FF3D9A]"><Lock className="h-3 w-3" />🎟️ {Number((it.cost as Record<string, number>).tickets ?? 0).toLocaleString()} · Arcade</span>
                       : <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-gold" /><Cost cost={it.cost} /></span>}
                   </div>
@@ -120,6 +122,8 @@ export default function ExplorerScreen() {
                 <div className="text-sm"><b>Buy to wear this look:</b> <span className="text-muted">{missing.map((m) => m.name).join(', ')}</span></div>
                 <div className="flex flex-wrap gap-2">
                   {missing.map((m) => {
+                    const ut = ultraOfRarity((m as ShopItem & { ultra?: string }).ultra);
+                    if (ut) return <span key={m.key} className="rounded-xl px-3 py-2 text-xs font-bold" style={{ background: `${ut.a}22`, color: ut.a }}>{ut.emoji} {m.name}: unlocked for good when you get a {ut.name} plot</span>;
                     if ((m as ShopItem & { arcade?: boolean }).arcade) return <span key={m.key} className="rounded-xl bg-[#FF3D9A]/15 px-3 py-2 text-xs font-bold text-[#FF3D9A]">🕹️ {m.name}: win it with {Number((m.cost as Record<string, number>).tickets ?? 0).toLocaleString()} tickets at any arcade’s prize counter</span>;
                     const ink = Number(m.cost.ink ?? 0);
                     const can = Number(me.balances.ink) >= ink;

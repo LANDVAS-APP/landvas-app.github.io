@@ -4,18 +4,10 @@ import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
 import { cn } from '../lib/utils';
 import { Cost, Empty, Spinner } from '../ui';
-import { rarityTier } from '../shared/rarity';
-import { BadgeIcon } from './BadgeIcon';
+import { BadgeIcon, tierOf } from './BadgeIcon';
 import { useState } from 'react';
 
 const CATS: Record<string, string> = { rarity: '💎 Rarities', collection: '🗺️ Collection', kinds: '🏗️ Every kind of plot', daily: '🔥 Daily & Luck', travel: '✈️ Travel', estate: '🏘️ Estates', creation: '🎨 Creation', exploration: '🧭 Exploration', mastery: '🎮 Mastery', community: '💖 Community' };
-/** a badge's tier (its medal's metal): by how big its goal is — or, for a rarity, how rare */
-function tierOf(a: { icon: string; threshold: number }) {
-  if (a.icon.startsWith('rarity:')) { const t = rarityTier(a.icon.slice(7)); return Math.min(5, t + (a.threshold > 1 ? 1 : 0)); }
-  const n = a.threshold;
-  return n <= 1 ? 0 : n <= 5 ? 1 : n <= 25 ? 2 : n <= 100 ? 3 : n <= 1000 ? 4 : 5;
-}
-
 export default function Achievements() {
   const q = useQuery({ queryKey: ['achievements'], queryFn: api.achievements });
   const [show, setShow] = useState<'all' | 'got' | 'todo'>('all');

@@ -1,4 +1,5 @@
 // The bell (site-wide updates + support replies) and the "what's new" popup.
+import { ultraOfRarity } from '../explorer/ultra';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -139,6 +140,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
   base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },
   core: { icon: Sparkles, color: '#FF7A1A', text: (a) => <>💖 You reached <b>the core</b> of {worldName(a.data.world)}! A Core heart is yours{a.data.ink ? <span className="text-ok"> · +{Number(a.data.ink).toLocaleString()} Ink</span> : null}</>, to: () => '/world' },
+  ultra_set: { icon: Sparkles, color: '#FFD23F', text: (a) => <>{ultraOfRarity(a.data.rarity)?.emoji} Your <b>{ultraOfRarity(a.data.rarity)?.name ?? 'ultra'} set</b> is unlocked — a hat, outfit, relic, aura and trail for your explorer, and wear for your Inkborn</>, to: () => '/explorer' },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
 

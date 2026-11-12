@@ -549,6 +549,7 @@ export const api = {
   artworkDetail: (id: string) => rpc<ArtworkDetail>('artwork_detail', { p_publication_id: id }),
   appreciate: (id: string, on: boolean) => rpc<{ appreciated: boolean; appreciation_count: number; artist_ink?: number; earned?: number; first?: boolean; achievements: NewAchievement[] }>('appreciate', { p_publication_id: id, p_on: on }),
   profileByUsername: (u: string) => rpc<any>('profile_by_username', { p_username: u }),
+  setShowcaseBadge: (key: string | null) => rpc<{ showcase_badge: string | null }>('set_showcase_badge', { p_key: key }),
   myPrivacy: () => rpc<Record<string, boolean>>('my_privacy'),
   setPrivacy: (patch: Record<string, boolean>) => rpc<Record<string, boolean>>('set_privacy', { p_patch: patch }),
   royalty: () => rpc<any>('royalty'),

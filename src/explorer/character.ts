@@ -2,6 +2,7 @@
 // tool, outfit, trail, aura). Used by the map marker, the customiser and the
 // visit room, so a cosmetic looks the same everywhere.
 import type { ExplorerStyle } from '../backend/types';
+import { ultraHat, ultraHold, ultraOutfit, ultraTheme } from './ultra';
 
 export const DEFAULT_STYLE: Required<ExplorerStyle> = { hat: 'beret', hold: 'brush', outfit: 'accent', trail: 'none', aura: 'accent', hair: 'short', hairc: 'brown', skin: 'peach', body: 'classic', sex: '' };
 
@@ -42,6 +43,7 @@ export const AURA_COLORS: Record<string, string> = { ice: '#7FE8FF', fire: '#FF6
 let uid = 0;
 
 function outfit(id: string, accent: string, k: string): { defs: string; fill: string; extra: string } {
+  const u = ultraOutfit(id, k); if (u) return u;
   switch (id) {
     case 'midnight':
       return { defs: '', fill: '#1B2A5E', extra: `<rect x="12" y="25.5" width="22" height="19" rx="9.5" fill="none" stroke="#C9D3F0" stroke-width="1"/><line x1="23" y1="26" x2="23" y2="44" stroke="#C9D3F0" stroke-width="0.8"/>` };
@@ -93,6 +95,7 @@ function outfit(id: string, accent: string, k: string): { defs: string; fill: st
 }
 
 function hat(id: string, k: string): { defs: string; svg: string } {
+  if (ultraTheme(id)) return ultraHat(id, k);
   switch (id) {
     case 'none':
       return { defs: '', svg: '' };
@@ -129,6 +132,7 @@ function hat(id: string, k: string): { defs: string; svg: string } {
 }
 
 function hold(id: string): string {
+  if (ultraTheme(id)) return ultraHold(id);
   switch (id) {
     case 'pencil':
       return `<g transform="rotate(28 36 30)"><rect x="34.6" y="19" width="3.2" height="17" rx="0.6" fill="#FFC93D"/><rect x="34.6" y="34" width="3.2" height="2.6" fill="#FF8FA3"/><path d="M34.6 19 L36.2 14.5 L37.8 19Z" fill="#F3D9B1"/><path d="M35.7 15.8 L36.2 14.5 L36.7 15.8Z" fill="#2A2F45"/></g>`;
@@ -200,14 +204,26 @@ export function explorerSvg(style: ExplorerStyle | null | undefined, accent: str
 /** Ring colour for the explorer's aura. */
 export function auraColor(style: ExplorerStyle | null | undefined, accent: string) {
   const a = styleOf(style).aura;
-  return a === 'accent' ? accent : AURA_COLORS[a] ?? accent;
+  return a === 'accent' ? accent : ultraTheme(a)?.a ?? AURA_COLORS[a] ?? accent;
+}
+
+/** extra classes and CSS variables for ultra auras and trails */
+export function ultraFx(style: ExplorerStyle | null | undefined): { cls: string; vars: Record<string, string> } {
+  const s = styleOf(style);
+  const a = ultraTheme(s.aura), t = ultraTheme(s.trail);
+  const vars: Record<string, string> = {};
+  if (a) { vars['--c2'] = a.c; vars['--c3'] = a.b; }
+  if (t) { vars['--te'] = `"${t.emoji}"`; vars['--tc'] = t.a; }
+  return { cls: [a && 'aura-ultra', t && 'trail-ultra'].filter(Boolean).join(' '), vars };
 }
 
 /** Full marker element for the map: aura ring + trail emitter + character. */
 export function explorerElement(style: ExplorerStyle | null | undefined, accent: string) {
   const s = styleOf(style);
   const el = document.createElement('div');
-  el.className = `lv-explorer aura-${s.aura} trail-${s.trail}`;
+  const fx = ultraFx(s);
+  el.className = `lv-explorer aura-${s.aura} trail-${s.trail} ${fx.cls}`;
+  for (const [k, v] of Object.entries(fx.vars)) el.style.setProperty(k, v);
   el.innerHTML = `<div class="lv-explorer-ring" style="--c:${auraColor(s, accent)}"></div>
     <div class="lv-trail" aria-hidden="true">${'<i></i>'.repeat(6)}</div>
     ${explorerSvg(s, accent)}`;

@@ -70,7 +70,7 @@ export function CreatureProfile({ c, open, onOpenChange, sanct, onChanged }: {
         </dl>
         {c.mine && (
           <div className="grid gap-2 rounded-2xl border border-[#FF3D9A]/30 bg-[#FF3D9A]/5 p-3" data-testid="creature-wear">
-            <div className="flex items-center justify-between text-xs font-bold"><span>🕹️ Arcade wear</span><span className="font-normal text-muted">Win more with tickets at any arcade</span></div>
+            <div className="flex items-center justify-between text-xs font-bold"><span>✨ Wear</span><span className="font-normal text-muted">Win more at arcades · ultra plots unlock their sets</span></div>
             {WEAR_SLOTS.map(({ slot, label }) => {
               const owned = WEAR[slot].filter((w) => me?.unlocks.includes(`inkborn.${slot}.${w.id}`));
               const on = (c.genome as Record<string, unknown>)[slot] as string | undefined;

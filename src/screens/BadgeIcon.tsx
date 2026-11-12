@@ -5,7 +5,7 @@ import { useId } from 'react';
 import { KIND_LABEL } from '../plot/mergeKind';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import type { PlotKind } from '../backend/types';
-import type { RarityId } from '../shared/rarity';
+import { rarityTier, type RarityId } from '../shared/rarity';
 
 // the first badges were named after icons
 const OLD: Record<string, string> = {
@@ -63,4 +63,11 @@ export function badgeEmoji(icon: string | null | undefined) {
   if (icon.startsWith('rarity:')) return '💎';
   if (icon.startsWith('kind:')) return KIND_LABEL[icon.slice(5) as PlotKind]?.emoji ?? '🏅';
   return OLD[icon] ?? icon;
+}
+
+/** a badge's tier (its medal's metal): by how big its goal is — or, for a rarity, how rare */
+export function tierOf(a: { icon: string; threshold: number }) {
+  if (a.icon.startsWith('rarity:')) { const t = rarityTier(a.icon.slice(7)); return Math.min(5, t + (a.threshold > 1 ? 1 : 0)); }
+  const n = a.threshold;
+  return n <= 1 ? 0 : n <= 5 ? 1 : n <= 25 ? 2 : n <= 100 ? 3 : n <= 1000 ? 4 : 5;
 }

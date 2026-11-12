@@ -2,6 +2,7 @@
 // wings, ears, horns, face) and animates each part procedurally — breathing, walking,
 // looking, sleeping, eating, happy hops — so every creature moves the same, cute way.
 import { shade, type Genome } from './genome';
+import { ultraTheme, type UltraTheme } from '../explorer/ultra';
 
 export type CreatureState = 'idle' | 'walk' | 'look' | 'sleep' | 'eat' | 'happy';
 export type Pose = { t: number; state: CreatureState; dir: 1 | -1; look?: number; seed?: number };
@@ -335,9 +336,84 @@ export function heart(g: CanvasRenderingContext2D, x: number, y: number, r: numb
   g.fill();
 }
 
+// ---- ultra-set wear: each ultra has its own head piece, eyewear, neck piece and glow ----------------------------
+function emoji(g: CanvasRenderingContext2D, e: string, x: number, y: number, size: number) {
+  g.save(); g.font = `${Math.max(6, size)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(e, x, y); g.restore();
+}
+function ultraAura(g: CanvasRenderingContext2D, u: UltraTheme, rx: number, ry: number, S: number, t: number) {
+  const p = 1 + Math.sin(t * 2.5) * 0.05;
+  g.shadowColor = u.a; g.shadowBlur = S * 0.3; g.lineWidth = S * 0.045;
+  const gr = g.createLinearGradient(-rx, 0, rx, 0); gr.addColorStop(0, u.a); gr.addColorStop(0.5, u.c); gr.addColorStop(1, u.a);
+  g.strokeStyle = gr; g.globalAlpha = 0.85;
+  g.beginPath(); g.ellipse(0, 0, rx * 1.28 * p, ry * 1.22 * p, 0, 0, Math.PI * 2); g.stroke();
+  g.shadowBlur = 0; g.globalAlpha = 1;
+  for (let i = 0; i < 4; i++) { const a = t * 0.9 + (i / 4) * Math.PI * 2; emoji(g, i % 2 ? '✦' : u.emoji, Math.cos(a) * rx * 1.42, Math.sin(a) * ry * 1.36, S * (i % 2 ? 0.09 : 0.13)); }
+}
+function ultraHead(g: CanvasRenderingContext2D, u: UltraTheme, w: number, S: number, t: number) {
+  g.lineWidth = Math.max(1, S * 0.022); g.strokeStyle = u.b;
+  const gr = g.createLinearGradient(0, -S * 0.3, 0, 0); gr.addColorStop(0, u.c); gr.addColorStop(1, u.a);
+  if (u.rarity === 'crown' || u.rarity === 'crown_state' || u.rarity === 'crown_country') {
+    const n = u.rarity === 'crown_state' ? 3 : 5, h = u.rarity === 'crown_country' ? 0.3 : 0.24;
+    g.fillStyle = gr; g.shadowColor = u.a; g.shadowBlur = S * 0.12;
+    g.beginPath(); g.moveTo(-w * 0.55, 0); g.lineTo(-w * 0.55, -S * 0.1);
+    for (let i = 0; i < n; i++) { const xa = -w * 0.55 + (w * 1.1 * (i + 0.5)) / n, xb = -w * 0.55 + (w * 1.1 * (i + 1)) / n; g.lineTo(xa, -S * h); g.lineTo(xb, -S * 0.1); }
+    g.lineTo(w * 0.55, 0); g.closePath(); g.fill(); g.shadowBlur = 0; g.stroke();
+    for (let i = 0; i < n; i++) { g.fillStyle = ['#FF3D6E', '#22E3FF', '#3DDC97'][i % 3]; g.beginPath(); g.arc(-w * 0.55 + (w * 1.1 * (i + 0.5)) / n, -S * 0.05, S * 0.022, 0, Math.PI * 2); g.fill(); }
+    return;
+  }
+  if (u.rarity === 'kraken') {
+    g.fillStyle = gr; g.beginPath(); g.ellipse(0, -S * 0.08, w * 0.55, S * 0.2, 0, Math.PI, 0); g.closePath(); g.fill(); g.stroke();
+    g.strokeStyle = u.a; g.lineWidth = S * 0.04; g.lineCap = 'round';
+    for (const s of [-1, 1]) for (let i = 0; i < 2; i++) { const x = s * w * (0.35 + i * 0.18); g.beginPath(); g.moveTo(x, -S * 0.04); g.quadraticCurveTo(x + s * S * 0.12, S * 0.05 + Math.sin(t * 3 + i) * S * 0.03, x + s * S * 0.04, S * 0.14); g.stroke(); }
+    g.fillStyle = '#fff'; for (const s of [-1, 1]) { g.beginPath(); g.arc(s * w * 0.2, -S * 0.15, S * 0.045, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#14162B'; for (const s of [-1, 1]) { g.beginPath(); g.arc(s * w * 0.2, -S * 0.14, S * 0.022, 0, Math.PI * 2); g.fill(); }
+    return;
+  }
+  if (u.rarity === 'phoenix' || u.rarity === 'solar') {
+    const n = u.rarity === 'solar' ? 9 : 5;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + ((i - (n - 1) / 2) / n) * (u.rarity === 'solar' ? Math.PI * 1.4 : Math.PI * 0.8), L = S * (0.22 + (u.rarity === 'phoenix' ? Math.sin(t * 8 + i) * 0.03 : 0));
+      g.fillStyle = i % 2 ? u.c : u.a; g.beginPath(); g.moveTo(Math.cos(a - 0.15) * S * 0.08, -S * 0.05 + Math.sin(a - 0.15) * S * 0.08);
+      g.lineTo(Math.cos(a) * L, -S * 0.05 + Math.sin(a) * L); g.lineTo(Math.cos(a + 0.15) * S * 0.08, -S * 0.05 + Math.sin(a + 0.15) * S * 0.08); g.fill();
+    }
+    g.fillStyle = gr; g.beginPath(); g.arc(0, -S * 0.05, S * 0.08, 0, Math.PI * 2); g.fill(); g.stroke();
+    return;
+  }
+  if (u.rarity === 'genesis' || u.rarity === 'singularity') {
+    g.strokeStyle = u.a; g.lineWidth = S * 0.035; g.shadowColor = u.a; g.shadowBlur = S * 0.15;
+    g.beginPath(); g.ellipse(0, -S * 0.14, w * 0.6, S * 0.07, 0, 0, Math.PI * 2); g.stroke(); g.shadowBlur = 0;
+    if (u.rarity === 'singularity') { g.fillStyle = '#000'; g.beginPath(); g.arc(0, -S * 0.14, S * 0.06, 0, Math.PI * 2); g.fill(); }
+    else for (let i = 0; i < 3; i++) { const a = t * 1.5 + (i / 3) * Math.PI * 2; g.fillStyle = '#fff'; star(g, Math.cos(a) * w * 0.6, -S * 0.14 + Math.sin(a) * S * 0.07, S * 0.035); }
+    return;
+  }
+  if (u.rarity === 'lunar') {
+    g.fillStyle = gr; g.beginPath(); g.arc(0, -S * 0.16, S * 0.12, Math.PI * 0.35, Math.PI * 1.65); g.arc(S * 0.05, -S * 0.16, S * 0.09, Math.PI * 1.5, Math.PI * 0.5, true); g.fill();
+    return;
+  }
+  // everyone else: a circlet with the ultra's emblem rising over it
+  g.fillStyle = gr; g.beginPath(); g.roundRect(-w * 0.5, -S * 0.06, w, S * 0.06, S * 0.03); g.fill(); g.stroke();
+  g.fillStyle = u.a; g.globalAlpha = 0.35; g.beginPath(); g.arc(0, -S * 0.2, S * 0.11, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+  emoji(g, u.emoji, 0, -S * 0.2 + Math.sin(t * 2) * S * 0.015, S * 0.17);
+}
+function ultraFace(g: CanvasRenderingContext2D, u: UltraTheme, x: number, y: number, gap: number, er: number, n: number) {
+  const half = n === 1 ? er * 1.4 : gap + er * 1.3;
+  const gr = g.createLinearGradient(x - half, 0, x + half, 0); gr.addColorStop(0, u.a); gr.addColorStop(0.5, u.c); gr.addColorStop(1, u.a);
+  g.fillStyle = gr; g.globalAlpha = 0.88; g.beginPath(); g.roundRect(x - half, y - er * 0.95, half * 2, er * 1.9, er * 0.95); g.fill();
+  g.globalAlpha = 1; g.strokeStyle = u.b; g.lineWidth = Math.max(1, er * 0.18); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.65)'; g.fillRect(x - half + er * 0.5, y - er * 0.6, er * 0.9, er * 0.25);
+}
+function ultraNeck(g: CanvasRenderingContext2D, u: UltraTheme, S: number) {
+  g.strokeStyle = u.c; g.lineWidth = S * 0.02; g.beginPath(); g.moveTo(-S * 0.14, -S * 0.08); g.quadraticCurveTo(0, S * 0.06, S * 0.14, -S * 0.08); g.stroke();
+  g.fillStyle = u.a; g.shadowColor = u.a; g.shadowBlur = S * 0.12; g.beginPath(); g.arc(0, S * 0.08, S * 0.075, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+  g.strokeStyle = u.b; g.lineWidth = Math.max(1, S * 0.012); g.stroke();
+  emoji(g, u.emoji, 0, S * 0.085, S * 0.09);
+}
+
 // ---- arcade wear -----------------------------------------------------------------------------------------------
 function drawAura(g: CanvasRenderingContext2D, k: string, rx: number, ry: number, S: number, t: number) {
   g.save();
+  const u = ultraTheme(k); if (u) { ultraAura(g, u, rx, ry, S, t); g.restore(); return; }
   if (k === 'neon') {
     const p = 1 + Math.sin(t * 3) * 0.06;
     g.shadowColor = '#FF3D9A'; g.shadowBlur = S * 0.25; g.strokeStyle = 'rgba(255,61,154,0.75)'; g.lineWidth = S * 0.04;
@@ -357,6 +433,7 @@ function drawAura(g: CanvasRenderingContext2D, k: string, rx: number, ry: number
 function drawHead(g: CanvasRenderingContext2D, k: string, x: number, y: number, rx: number, S: number, t: number) {
   g.save(); g.translate(x, y);
   const w = Math.min(rx * 0.9, S * 0.36);
+  const u = ultraTheme(k); if (u) { ultraHead(g, u, w, S, t); g.restore(); return; }
   g.lineWidth = Math.max(1, S * 0.025); g.strokeStyle = '#1B1F3D';
   if (k === 'party') {
     g.fillStyle = '#FF3D9A'; g.beginPath(); g.moveTo(-w * 0.5, S * 0.02); g.lineTo(0, -S * 0.42); g.lineTo(w * 0.5, S * 0.02); g.closePath(); g.fill(); g.stroke();
@@ -381,6 +458,7 @@ function drawHead(g: CanvasRenderingContext2D, k: string, x: number, y: number, 
 }
 function drawFace(g: CanvasRenderingContext2D, k: string, x: number, y: number, gap: number, er: number, n: number, S: number) {
   g.save();
+  const u = ultraTheme(k); if (u) { ultraFace(g, u, x, y, gap, er, n); g.restore(); return; }
   const half = n === 1 ? er * 1.4 : gap + er * 1.3;
   g.lineWidth = Math.max(1, S * 0.025);
   if (k === 'shades') {
@@ -399,6 +477,7 @@ function drawFace(g: CanvasRenderingContext2D, k: string, x: number, y: number, 
 }
 function drawNeck(g: CanvasRenderingContext2D, k: string, x: number, y: number, S: number) {
   g.save(); g.translate(x, y);
+  const u = ultraTheme(k); if (u) { ultraNeck(g, u, S); g.restore(); return; }
   g.lineWidth = Math.max(1, S * 0.02); g.strokeStyle = '#1B1F3D';
   if (k === 'bowtie') {
     g.fillStyle = '#FF3D9A'; g.beginPath(); g.moveTo(0, 0); g.lineTo(-S * 0.12, -S * 0.06); g.lineTo(-S * 0.12, S * 0.06); g.closePath(); g.moveTo(0, 0); g.lineTo(S * 0.12, -S * 0.06); g.lineTo(S * 0.12, S * 0.06); g.closePath(); g.fill(); g.stroke();

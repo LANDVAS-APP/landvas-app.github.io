@@ -1393,3 +1393,66 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-ink-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: lv-ink-draw .28s var(--dl, 0s) ease-out both; }
 @keyframes lv-ink-draw { to { stroke-dashoffset: 0; } }
 .lv-ink-still .lv-ink-grow, .lv-ink-still .lv-ink-draw { animation-duration: 1ms; animation-delay: 0s; }
+
+/* ---- ultra sets: auras, trails and moving parts ---- */
+.aura-ultra .lv-figure-aura, .lv-explorer.aura-ultra .lv-explorer-ring {
+  border: none;
+  background: conic-gradient(from 0deg, var(--c), var(--c2, #fff), var(--c3, var(--c)), var(--c));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px));
+  box-shadow: none;
+  animation: lv-aura 1.8s ease-out infinite;
+}
+.aura-ultra .lv-figure-svg, .lv-explorer.aura-ultra svg {
+  filter: drop-shadow(0 0 5px var(--c)) drop-shadow(0 0 10px var(--c2, var(--c)));
+  animation: lv-ultra-pulse 2.4s ease-in-out infinite;
+}
+@keyframes lv-ultra-pulse { 50% { filter: drop-shadow(0 0 9px var(--c)) drop-shadow(0 0 16px var(--c2, var(--c))); } }
+.trail-ultra .lv-trail i { width: auto; height: auto; background: none; }
+.trail-ultra .lv-trail i::before {
+  content: var(--te, "\2726");
+  font-size: 11px;
+  filter: drop-shadow(0 0 4px var(--tc, #fff));
+}
+.trail-ultra .lv-trail i:nth-child(2n)::before { content: "\2726"; color: var(--tc, #fff); font-size: 9px; }
+.lv-explorer .spin-slow, .lv-figure .spin-slow { animation: lv-spin-slow 9s linear infinite; transform-box: view-box; }
+@keyframes lv-spin-slow { to { transform: rotate(360deg); } }
+.lv-explorer .sway, .lv-figure .sway { animation: lv-ultra-sway 2.2s ease-in-out infinite; transform-box: view-box; transform-origin: 23px 12px; }
+@keyframes lv-ultra-sway { 50% { transform: rotate(4deg); } }
+.lv-explorer .flicker, .lv-figure .flicker { animation: lv-flicker 0.3s ease-in-out infinite alternate; }
+.lv-explorer .shine, .lv-figure .shine { animation: lv-ultra-shine 2.6s ease-in-out infinite; }
+@keyframes lv-ultra-shine { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) {
+  .aura-ultra .lv-figure-svg, .lv-explorer.aura-ultra svg, .lv-figure .spin-slow, .lv-explorer .spin-slow, .lv-figure .sway, .lv-explorer .sway, .lv-figure .shine { animation: none; }
+}
+
+/* ---- public profiles ---- */
+.lv-profile-hero { padding: 1.5px; background: linear-gradient(140deg, color-mix(in srgb, var(--pa) 70%, transparent), color-mix(in srgb, var(--pb) 55%, transparent) 55%, var(--line)); box-shadow: 0 18px 50px -20px color-mix(in srgb, var(--pb) 60%, transparent); }
+.lv-profile-inner { background: var(--surface, #14183a); }
+.lv-profile-banner { position: relative; height: 112px; background: linear-gradient(115deg, var(--pa), var(--pb), var(--pa)); background-size: 220% 100%; animation: lv-banner 12s ease-in-out infinite; }
+.lv-profile-banner::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 90% at 20% 0%, rgba(255,255,255,0.28), transparent 55%), linear-gradient(to bottom, transparent 40%, var(--surface, #14183a)); }
+.lv-profile-banner i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 8px var(--pc); opacity: 0; animation: lv-twinkle 3s ease-in-out infinite; z-index: 1; }
+@keyframes lv-banner { 50% { background-position: 100% 0; } }
+@keyframes lv-twinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 0.9; transform: scale(1); } }
+.lv-profile-avatar { background: conic-gradient(from 0deg, var(--pa), var(--pb), var(--pc), var(--pa)); box-shadow: 0 0 0 4px var(--surface, #14183a), 0 0 24px color-mix(in srgb, var(--pb) 70%, transparent); }
+.lv-royal .lv-profile-avatar { animation: lv-royal-spin 6s linear infinite; }
+.lv-royal .lv-profile-avatar > * { animation: lv-royal-spin 6s linear infinite reverse; }
+@keyframes lv-royal-spin { to { transform: rotate(360deg); } }
+.lv-profile-explorer::before { content: ''; position: absolute; left: 50%; bottom: 0; width: 70px; height: 14px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--pb) 70%, transparent), transparent); }
+/* Crown holders: a living gold-and-jewel frame, a ribbon and a shining name */
+.lv-royal { padding: 3px; background: conic-gradient(from var(--lv-royal-a, 0deg), var(--pb), var(--pc), #fff, var(--pb), var(--pc), var(--pb)); animation: lv-royal-frame 5s linear infinite; box-shadow: 0 0 0 1px color-mix(in srgb, var(--pb) 50%, transparent), 0 24px 70px -18px var(--pb), 0 0 40px -6px color-mix(in srgb, var(--pb) 55%, transparent); }
+@property --lv-royal-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes lv-royal-frame { to { --lv-royal-a: 360deg; } }
+.lv-royal .lv-profile-banner { height: 130px; background: linear-gradient(115deg, var(--pb), var(--pc), var(--pa), var(--pb)); background-size: 260% 100%; }
+.lv-royal-ribbon { background: linear-gradient(90deg, var(--pb), var(--pc), var(--pb)); background-size: 200% 100%; color: #1a1205; animation: lv-banner 4s linear infinite; box-shadow: 0 8px 22px -8px var(--pb); z-index: 2; }
+.lv-royal-name { background: linear-gradient(90deg, #fff, var(--pc), var(--pb), #fff); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: lv-banner 5s linear infinite; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--pb) 60%, transparent)); }
+.lv-crown-card { background: linear-gradient(120deg, var(--cb), color-mix(in srgb, var(--ca) 70%, #000) 60%, var(--cb)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cc) 40%, transparent), 0 10px 30px -14px var(--ca); }
+.lv-crown-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.22) 45%, transparent 60%); background-size: 250% 100%; animation: lv-sheen 3.6s ease-in-out infinite; pointer-events: none; }
+@keyframes lv-sheen { 0% { background-position: 130% 0; } 60%, 100% { background-position: -60% 0; } }
+.lv-showpiece { background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--sa) 22%, transparent), transparent 70%), var(--surface, #14183a); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sa) 45%, transparent), 0 14px 34px -18px var(--sa); }
+.lv-showpiece-art { box-shadow: 0 0 0 2px color-mix(in srgb, var(--sa) 70%, transparent), 0 0 26px var(--sg); }
+.lv-ultra-lit { background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--uc) 45%, transparent), color-mix(in srgb, var(--ua) 30%, #0b0e24)); box-shadow: inset 0 0 0 1.5px var(--ua), 0 0 16px -2px var(--ua); animation: lv-ultra-glow 3s ease-in-out infinite; }
+@keyframes lv-ultra-glow { 50% { box-shadow: inset 0 0 0 1.5px var(--ua), 0 0 22px 1px var(--ua); } }
+@media (prefers-reduced-motion: reduce) {
+  .lv-profile-banner, .lv-profile-banner i, .lv-royal, .lv-royal .lv-profile-avatar, .lv-royal .lv-profile-avatar > *, .lv-royal-ribbon, .lv-royal-name, .lv-crown-card::after, .lv-ultra-lit { animation: none; }
+}
