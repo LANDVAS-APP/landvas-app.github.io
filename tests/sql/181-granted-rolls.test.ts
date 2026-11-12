@@ -47,16 +47,26 @@ describe('granted rolls', () => {
     expect((await claim(eve, 20)).rarity).toBe(natural);
     expect((await db.rpc(owner, 'admin_roll_grants', { p_player: eve })).find((x: any) => x.id === pending.id).cancelled_at).toBeTruthy();
   });
-  it('a City Crown grant lands on the very next claim, anywhere', async () => {
+  it('a City Crown grant waits for a claim inside a city whose Crown is free', async () => {
     await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'crown', p_after: 1 });
     const far = await db.rpc(eve, 'acquire_plot', { p_gx: 10, p_gy: 10, p_idempotency_key: `gr-far-00000000` });
-    expect(far.rarity).toBe('crown');
+    expect(far.rarity).not.toBe('crown');
+    const c = (await db.sql(`select id, gx, gy from world_cities where not exists (select 1 from world_plots p where p.city_id = world_cities.id and p.rarity = 'crown') order by pop desc offset 5 limit 1`))[0];
+    const r = await db.rpc(eve, 'acquire_plot', { p_gx: c.gx, p_gy: c.gy, p_idempotency_key: `gr-city-0000000` });
+    expect(r.rarity).toBe('crown');
+    expect((await db.sql(`select city_id from world_plots where gx = $1 and gy = $2`, [c.gx, c.gy]))[0].city_id).toBe(c.id);
   });
-  it('a Country Crown lands even where that Crown is already held', async () => {
-    const c = (await db.sql(`select id, gx, gy from world_cities order by pop desc limit 1`))[0];
+  it('a Country Crown never lands where that Crown is already held', async () => {
+    const c = (await db.sql(`select id, gx, gy, country from world_cities order by pop desc limit 1`))[0];
     await db.sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at) values ($1, $2, $3, (select id from plot_types limit 1), 'crown_country', now())`, [c.gx + 3, c.gy, other]);
     await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'crown_country', p_after: 1 });
-    expect((await db.rpc(eve, 'acquire_plot', { p_gx: c.gx, p_gy: c.gy, p_idempotency_key: `gr-cc-000000000` })).rarity).toBe('crown_country');
+    expect((await db.rpc(eve, 'acquire_plot', { p_gx: c.gx, p_gy: c.gy, p_idempotency_key: `gr-cc-000000000` })).rarity).not.toBe('crown_country');
+    const held = await db.sql(`select count(*)::int n from world_plots p join world_cities k on k.id = p.city_id where p.rarity = 'crown_country' and k.country = $1`, [c.country]);
+    expect(held[0].n).toBe(1);
+    // still waiting for a free country; cancel it so later tests aren't affected
+    const pending = (await db.rpc(owner, 'admin_roll_grants', { p_player: eve })).find((x: any) => !x.used_at && !x.cancelled_at && x.rarity === 'crown_country');
+    expect(pending).toBeTruthy();
+    await db.rpc(owner, 'admin_cancel_roll_grant', { p_id: pending.id });
   });
   it('luck mode: lands on the chosen reroll of her next Luck claim — not before', async () => {
     await db.sql(`update game_config set value = jsonb_set(value, '{enabled}', 'true') where key = 'luck'`);
@@ -73,16 +83,15 @@ describe('granted rolls', () => {
     const l = (await db.sql(`select luck, armed from player_luck where player_id = $1`, [eve]))[0];
     expect(l).toEqual({ luck: 20, armed: 0 });
   });
-  it('a chosen minigame type, and nothing on the live feed', async () => {
+  it('a chosen minigame type, posted on the live feed like any claim', async () => {
     const type = (await db.sql(`select id from plot_types where id <> private.plot_type_for($1, $2) limit 1`, [O.gx + 60, O.gy]))[0].id;
     await db.rpc(owner, 'admin_grant_roll', { p_player: eve, p_rarity: 'mythic', p_after: 1, p_plot_type: type });
     const before = (await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n;
     const r = await claim(eve, 60);
     expect(r.rarity).toBe('mythic'); expect(r.plot_type).toBe(type);
     expect((await db.sql(`select plot_type from world_plots where gx = $1 and gy = $2`, [O.gx + 60, O.gy]))[0].plot_type).toBe(type);
-    expect((await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n).toBe(before);
-    // an ordinary claim is still posted
-    await claim(eve, 61);
+    const posted = await db.sql(`select data from feed_events where player_id = $1 and kind = 'claim' order by id desc limit 1`, [eve]);
+    expect(posted[0].data.rarity).toBe('mythic');
     expect((await db.sql(`select count(*)::int n from feed_events where player_id = $1`, [eve]))[0].n).toBeGreaterThan(before);
   });
   it('luck mode on every roll', async () => {

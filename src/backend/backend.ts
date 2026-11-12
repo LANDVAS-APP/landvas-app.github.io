@@ -186,6 +186,7 @@ const MESSAGES: Record<string, string> = {
   already_watered: 'The garden’s already watered today.',
   last_inkborn: 'You can’t sacrifice your last Inkborn.',
   nothing_to_pick: 'That roll’s already been decided.',
+  crown_taken: 'Someone already holds that Crown — pick another roll.',
   invalid_odds: 'Odds must be between 0 and 1,000,000.',
   needs_car_first: 'Get a Car first — then you can strap on the Jetpack.',
   vehicle_not_owned: 'You don’t have that vehicle yet.',

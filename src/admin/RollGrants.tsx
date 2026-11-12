@@ -75,7 +75,7 @@ export function RollGrants({ playerId }: { playerId: string }) {
         <Button size="sm" onClick={() => void grant()} data-testid="grant-go">Line it up</Button>
       </div>
       <GrantList rows={q.data ?? []} onCancel={(id) => void cancel(id)} />
-      <p className="text-[11px] text-faint">{f.mode === 'claim' ? 'Lands on that claim of theirs, anywhere — Crowns included. If they use Luck on it, it’s their own roll and the rerolls come on top.' : 'Waits for the next claim they spend Luck on, and appears on that roll of their rerolls (if they use fewer, on their last one). They still pick which roll to keep.'} Nobody else’s odds change. Players never see anything marking it as an event, and it isn’t posted on the live feed. Recorded in the audit log.</p>
+      <p className="text-[11px] text-faint">{f.mode === 'claim' ? 'Lands on that claim of theirs. A Crown only lands inside a kingdom whose Crown is still free (one per city, state or country), so it waits for their first claim in one; quick rolls pick the nearest free kingdom for them. If they use Luck on it, it’s their own roll and the rerolls come on top.' : 'Waits for the next claim they spend Luck on, and appears on that roll of their rerolls (if they use fewer, on their last one). They still pick which roll to keep.'} Nobody else’s odds change. It’s a real roll: posted on the live feed and counted on Royalty and the rarity rankings, with nothing marking it as an event. Recorded in the audit log.</p>
     </div>
   );
 }

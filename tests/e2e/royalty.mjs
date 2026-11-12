@@ -79,6 +79,7 @@ try {
   const rolls = Number((await sql(`select private.roll_count('${me}') n`))[0].n);
   check('Event roll lined up for her 10th roll from now', gr.length === 1 && gr[0].at_roll === rolls + 10, JSON.stringify(gr));
   check('…listed on her admin page', /in 10 claims/.test(await page.locator('[data-testid=roll-grants]').innerText()));
+  check('…admin note says Crowns stay one per kingdom and event rolls are posted', /still free/.test(await page.locator('[data-testid=roll-grant-form]').innerText()) && /posted on the live feed/.test(await page.locator('[data-testid=roll-grant-form]').innerText()));
   check('…audit-logged', Number((await sql(`select count(*) n from audit_logs where action = 'rolls.grant'`))[0].n) >= 1);
   await shot('05-event-rolls');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
