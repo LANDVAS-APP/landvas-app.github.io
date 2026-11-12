@@ -21,6 +21,8 @@ export const qk = {
 };
 
 export const useWorld = () => useQuery({ queryKey: qk.world, queryFn: api.worldConfig, staleTime: 30 * 60_000 }); // the world's settings barely change
+/** Ink is uncapped for everyone (the owner's switch): per-system "n/cap today" lines are hidden */
+export const useInkUncapped = () => useWorld().data?.ink_uncapped === true;
 export const useMe = () =>
   // your balances and rent: the USD counter ticks on the phone from the rate, so this is only re-read when something you
 // do changes it (those actions refresh it), as a slow safety net, and when you come back to the app after a while

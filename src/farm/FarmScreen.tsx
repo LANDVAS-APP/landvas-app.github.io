@@ -12,7 +12,7 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { Farm, FarmBed } from '../backend/types';
 import { explorerSvg } from '../explorer/character';
-import { invalidateGame, useOnboardedMe } from '../lib/queries';
+import { invalidateGame, useInkUncapped, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
 import { buzz } from '../native/native';
@@ -285,11 +285,12 @@ function Market({ open, onOpenChange, f }: { open: boolean; onOpenChange(o: bool
       if (r.level_up) { confettiCannons(); toast.success(`🌾 Farm level ${r.progress.level}!`); }
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
-  const capLeft = Math.max(0, f.config.daily_cap - today);
+  const uncapped = useInkUncapped();
+  const capLeft = uncapped ? Infinity : Math.max(0, f.config.daily_cap - today);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="🧺 Farmers’ market" description={`Sell for Farm Coins 🪙 (always) and Ink (${today}/${f.config.daily_cap} farm Ink today).`}>
+    <Dialog open={open} onOpenChange={onOpenChange} title="🧺 Farmers’ market" description={uncapped ? 'Sell for Farm Coins 🪙 and Ink.' : `Sell for Farm Coins 🪙 (always) and Ink (${today}/${f.config.daily_cap} farm Ink today).`}>
       <div className="grid gap-2" data-testid="market">
-        <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ok" style={{ width: `${Math.min(100, (today / f.config.daily_cap) * 100)}%` }} /></div>
+        {!uncapped && <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ok" style={{ width: `${Math.min(100, (today / f.config.daily_cap) * 100)}%` }} /></div>}
         {!items.length && <p className="py-4 text-center text-sm text-muted">Nothing to sell yet — harvest some crops (or win a farm game).</p>}
         {items.map(([k, n]) => (
           <div key={k} className={cn('flex items-center gap-3 rounded-2xl p-2.5', k.startsWith('golden_') ? 'bg-[#FFC93D]/15' : 'bg-surface-2')}>

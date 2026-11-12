@@ -1,4 +1,5 @@
 // A farm game: the intro, a 3-2-1, the game, then your score, Ink and basket of produce.
+import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
@@ -64,7 +65,7 @@ export default function FarmGame() {
               <h1 className="font-display text-3xl font-bold">{info.name}</h1>
               <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-xs font-bold uppercase">{info.dim} · {info.seconds} seconds</span>
               <p className="rounded-2xl bg-black/25 p-3 text-sm text-white/90">{FARM_HOW[game!]}</p>
-              <p className="text-[11px] text-white/75">Pays up to {info.max_ink} Ink a round (farm Ink is capped at {f.data!.config.daily_cap} a day), plus Farm Coins, XP and a basket of produce for a good score.</p>
+              <p className="text-[11px] text-white/75">Pays up to {info.max_ink} Ink a round<IfCapped> (farm Ink is capped at {f.data!.config.daily_cap} a day)</IfCapped>, plus Farm Coins, XP and a basket of produce for a good score.</p>
               <Button variant="rainbow" size="lg" loading={busy} onClick={start} data-testid="farm-game-start"><Play className="h-5 w-5" /> Play</Button>
             </motion.div>
           )}

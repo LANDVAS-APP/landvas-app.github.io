@@ -1,6 +1,7 @@
 // Your business: Main Street in 3D up top, the lemonade stand to tap, and the tycoon below — ventures to buy,
 // upgrades, the company (going public, dividends, your rank) and the business games. Cash ticks up live
 // between syncs; taps are banked every couple of seconds.
+import { IfCapped } from '../ui/IfCapped';
 import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -346,7 +347,7 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
                 <div className="rounded-2xl bg-white p-2.5 shadow-sm"><div className="text-[#6B7080]">Upgrades</div><b>{s.upgrades_owned}</b></div>
                 <div className="rounded-2xl bg-white p-2.5 shadow-sm"><div className="text-[#6B7080]">Business plots</div><b>{s.plots}{s.plots > 1 ? ` (+${(s.plots - 1) * 10}%)` : ''}</b></div>
               </div>
-              <p className="text-center text-[11px] text-[#6B7080]">Business Ink today: {s.ink_today}/{s.daily_cap}. Every extra business plot you own adds 10% to all income.</p>
+              <p className="text-center text-[11px] text-[#6B7080]"><IfCapped>Business Ink today: {s.ink_today}/{s.daily_cap}. </IfCapped>Every extra business plot you own adds 10% to all income.</p>
             </div>
           )}
 

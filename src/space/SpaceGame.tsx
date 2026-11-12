@@ -1,5 +1,6 @@
 // /space/play/:game — a space minigame round. The server sets the seed, checks the round ran its
 // full time, and pays Ink for the score under the space daily cap.
+import { IfCapped } from '../ui/IfCapped';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
@@ -85,7 +86,7 @@ function SpaceGame() {
                   <span className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1"><ResourceIcon r="ink" className="h-3 w-3" /> up to {cfg.max_ink} Ink</span>
                 </div>
               )}
-              {s.data && <p className="text-[11px] text-white/60">Space Ink today: {s.data.ink_today}/{s.data.config.daily_cap}</p>}
+              {s.data && <IfCapped><p className="text-[11px] text-white/60">Space Ink today: {s.data.ink_today}/{s.data.config.daily_cap}</p></IfCapped>}
               <Button variant="rainbow" size="lg" disabled={!built} loading={busy} onClick={start} data-testid="space-game-start"><Play className="h-5 w-5" /> {built ? 'Play' : 'Build your rocket first'}</Button>
             </motion.div>
           )}

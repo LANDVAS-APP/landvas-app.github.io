@@ -582,8 +582,8 @@ export const api = {
     grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null, plotType: string | null = null) =>
       rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot, p_plot_type: plotType }),
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
-    inkPacing: () => rpc<{ config: Record<string, any>; today: any[] }>('admin_ink_pacing'),
-    setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[] }>('admin_set_ink_pacing', { p_config: config }),
+    inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
+    setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
     playerPlots: (player: string) => rpc<any[]>('admin_player_plots', { p_player: player }),
     takePlot: (gx: number, gy: number, reason: string) => rpc<any[]>('admin_take_plot', { p_gx: gx, p_gy: gy, p_reason: reason }),
     setPlotRarity: (gx: number, gy: number, rarity: string, shiny: boolean, reason: string, post = true) =>

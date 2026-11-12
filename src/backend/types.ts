@@ -40,6 +40,7 @@ export type PlotTypeInfo = {
 export type ShopItem = { key: string; name: string; kind: string; group?: string; part?: string; id?: string; description: string; cost: Partial<Balances>; requires?: string; enabled?: boolean };
 
 export type WorldConfig = {
+  ink_uncapped?: boolean;
   grid: { level: number; size: number; plot_px: number; art_min_zoom: number; art_max_zoom: number };
   plot_types: PlotTypeInfo[];
   rarities: RarityInfo[];

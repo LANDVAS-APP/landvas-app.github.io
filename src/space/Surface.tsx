@@ -2,6 +2,7 @@
 // is parked there (it opens up high, with the whole planet in view). One zoom takes you from walking
 // to flying low over the plots to orbit; your live group of up to 10 walks with you; plots are bought
 // on the shared map, each with its world's two games; and a far-off world can be settled as home.
+import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, ChevronUp, Crosshair, Flag, Footprints, Home, MapPin, Minus, Pencil, Pickaxe, Plus, Rocket as RocketIcon, Users } from 'lucide-react';
@@ -470,7 +471,7 @@ function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk
       )}
       {!high && <Button size="sm" variant="secondary" className="mt-2 w-full" onClick={onBuild} data-testid="base-open">🏗️ Build your base{plot.base?.layout.length ? ` · ${plot.base.layout.length} modules` : ''}</Button>}
       {high && <div className="mt-2 flex justify-center">{go}</div>}
-      <div className="mt-1.5 text-center text-[10px] text-white/55">Planet Ink today {map.ink_today}/{map.daily_cap}</div>
+      <IfCapped><div className="mt-1.5 text-center text-[10px] text-white/55">Planet Ink today {map.ink_today}/{map.daily_cap}</div></IfCapped>
     </div>
   );
   if (plot) return (

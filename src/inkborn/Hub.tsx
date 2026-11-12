@@ -1,5 +1,6 @@
 // /inkborn — your creatures and your sanctuaries. Everyone has a free starter sanctuary;
 // plots turned into Inkborn Habitats add bigger ones that others can find on the map.
+import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { toGameError } from '../backend/backend';
@@ -129,7 +130,7 @@ function EarnPanel({ creatures }: { creatures: Inkborn[] }) {
     <section className="mb-8 grid gap-3" data-testid="inkborn-earn">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <h2 className="font-display text-lg font-semibold">Earn Ink with your Inkborn</h2>
-        {eco.data && <span className="flex items-center gap-1 text-xs text-muted"><ResourceIcon r="ink" className="h-3.5 w-3.5" /> {eco.data.ink_today}/{eco.data.daily_cap} today</span>}
+        {eco.data && <IfCapped><span className="flex items-center gap-1 text-xs text-muted"><ResourceIcon r="ink" className="h-3.5 w-3.5" /> {eco.data.ink_today}/{eco.data.daily_cap} today</span></IfCapped>}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {(Object.keys(GAMES) as GameId[]).map((g) => (

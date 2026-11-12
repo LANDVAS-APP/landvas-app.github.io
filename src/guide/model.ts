@@ -65,7 +65,7 @@ export function rarityChoices(g: Guide): RarityChoice[] {
 /** is the classic minigames' daily paid-win cap on? (an admin can switch it off) */
 export function minigameCap(g: Guide) {
   const m = g.config.minigames ?? {};
-  return m.limit_paid_runs === false ? Infinity : n(m.daily_rewarded_wins_per_game, 6);
+  return m.limit_paid_runs === false || (g as any).config?.ink_uncapped ? Infinity : n(m.daily_rewarded_wins_per_game, 6);
 }
 /** Ink for clearing a level: that level's Ink (averaged over the games) × the plot's rarity bonus × its plot-level bonus */
 export function minigameInkAt(g: Guide, level: number, rarityMult = 1, plotLevel = 1) {
@@ -97,7 +97,7 @@ export function scoreGames(g: Guide): PlayGame[] {
 /** each group's daily Ink cap (Infinity when there is none) */
 export function groupCaps(g: Guide): Record<string, number> {
   const c = g.config;
-  const cap = (v: unknown) => (v == null || n(v) <= 0 ? Infinity : n(v));
+  const cap = (v: unknown) => (c.ink_uncapped || v == null || n(v) <= 0 ? Infinity : n(v));
   return { 'Arcade cabinets': cap(c.arcade?.daily_cap), Carnival: cap(c.arcade?.daily_cap), Business: cap(c.business?.daily_cap), Realms: cap(c.realms?.daily_cap),
            Inkborn: cap(c.inkborn?.daily_cap), Planets: cap(c.planets?.daily_cap_total ?? c.planets?.daily_cap) };
 }

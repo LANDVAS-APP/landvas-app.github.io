@@ -1,6 +1,7 @@
 // /inkborn/play/:game/:id — play a round as your Inkborn. Starting a round uses some of the
 // creature's energy; the server sets the layout (seed), checks the round ran its full time and
 // pays Ink for the score, under the shared Inkborn daily cap.
+import { IfCapped } from '../../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw, Zap } from 'lucide-react';
@@ -97,7 +98,7 @@ function InkbornGame() {
                   <span className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1"><ResourceIcon r="ink" className="h-3 w-3" /> up to {cfg.max_ink} Ink</span>
                 </div>
               )}
-              {eco.data && <p className="text-[11px] text-white/60">Inkborn Ink today: {eco.data.ink_today}/{eco.data.daily_cap}</p>}
+              {eco.data && <IfCapped><p className="text-[11px] text-white/60">Inkborn Ink today: {eco.data.ink_today}/{eco.data.daily_cap}</p></IfCapped>}
               {!enough && <AdButton reward="inkborn_energy" refId={c.id} label={`Watch an ad to wake ${c.name} up`} done={`${c.name} is full of beans!`} />}
               <Button variant="rainbow" size="lg" disabled={!enough} loading={busy} onClick={start} data-testid="game-start"><Play className="h-5 w-5" /> {enough ? 'Play' : `${c.name} is too sleepy — let them rest`}</Button>
             </motion.div>

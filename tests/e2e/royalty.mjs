@@ -100,10 +100,16 @@ try {
   await page.locator('button,[role=tab]', { hasText: /^Earnings$/ }).first().click().catch(() => {});
   await page.waitForSelector('[data-testid=ink-pacing]', { timeout: 20000 });
   await page.locator('[data-testid=ink-pacing]').scrollIntoViewIfNeeded();
-  await page.fill('[data-testid=pacing-day_soft]', '1500');
+  await page.fill('[data-testid=flow-target]', '2000'); await page.waitForTimeout(300);
+  check('Ink Flow simulates a day for each kind of player', (await page.locator('[data-testid=flow-sim] b').count()) >= 10);
   await page.click('[data-testid=pacing-save]'); await page.waitForTimeout(1200);
-  check('Ink pacing saves from the admin', Number((await sql(`select value ->> 'day_soft' v from game_config where key = 'ink_pacing'`))[0].v) === 1500);
-  await shot('07-ink-pacing');
+  check('…the daily target saves', Number((await sql(`select value ->> 'daily_target' v from game_config where key = 'ink_pacing'`))[0].v) === 2000);
+  await page.click('[data-testid=ink-uncap]'); await page.waitForTimeout(400);
+  await page.locator('[role=dialog] button', { hasText: 'Uncap Ink' }).click(); await page.waitForTimeout(1500);
+  check('…Uncap Ink for everyone switches it on', (await sql(`select value ->> 'uncapped' v from game_config where key = 'ink_pacing'`))[0].v === 'true'
+    && /uncapped for everyone/.test(await page.locator('[data-testid=ink-uncap]').innerText()));
+  await page.locator('[data-testid=ink-pacing]').scrollIntoViewIfNeeded();
+  await shot('07-ink-flow');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

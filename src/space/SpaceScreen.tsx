@@ -2,6 +2,7 @@
 // the living solar-system map and launch. Trips take real time; land, explore the surface, collect
 // the day's samples, and play space minigames for Ink. A bigger engine reaches the outer planets
 // and beyond — jump to a random far-off world and make it your home.
+import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Check, Globe2, Home, Lock, Orbit, Rocket as RocketIcon, Sparkles, Telescope, Users, Wrench } from 'lucide-react';
@@ -88,7 +89,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
           <h1 className="font-display text-2xl font-bold md:text-3xl">Space</h1>
         </div>
         <div className="glass flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-bold"><ResourceIcon r="ink" className="h-4 w-4" /><span className="tnum">{ink.toLocaleString()}</span></div>
-        <div className="glass rounded-2xl px-3 py-2 text-xs text-muted" title="Ink from samples and space games today">Space Ink today <b className="tnum text-fg">{s.ink_today}/{cfg.daily_cap}</b></div>
+        <IfCapped><div className="glass rounded-2xl px-3 py-2 text-xs text-muted" title="Ink from samples and space games today">Space Ink today <b className="tnum text-fg">{s.ink_today}/{cfg.daily_cap}</b></div></IfCapped>
       </div>
 
       {!s.built ? <Hangar s={s} accent={accent} busy={busy} onBuild={(p) => run(`part:${p}`, () => api.spaceBuild(p), (r) => {
