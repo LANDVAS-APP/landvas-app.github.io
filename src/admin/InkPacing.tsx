@@ -1,5 +1,6 @@
-// Ink Flow (owner): uncap Ink for everyone and set the daily Ink target the hidden rate is built around. Players only
-// ever see what they're paid — no caps, no messages. A live simulation shows what kinds of players would earn.
+// Ink Flow (owner): an option. Off = classic Ink (everything paid in full, each game's own daily caps, the arcade and
+// group games uncapped). On = the hidden rate around a daily Ink target, plus an optional "uncap Ink for everyone".
+// Players only ever see what they're paid — no caps, no messages. A live simulation shows what kinds of players earn.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -37,10 +38,14 @@ export function InkPacing() {
   const done = (r: any, msg: string) => { qc.setQueryData(['admin', 'ink-pacing'], r); void qc.invalidateQueries({ queryKey: ['world'] }); toast.success(msg); };
   const save = async () => {
     try {
-      const body: Record<string, unknown> = { enabled: !!f.enabled, daily_target: Number(f.daily_target) };
+      const body: Record<string, unknown> = { daily_target: Number(f.daily_target) };
       for (const [k] of ADVANCED) if (f[k] !== undefined && f[k] !== '') body[k] = Number(f[k]);
       done(await api.admin.setInkPacing(body), 'Ink Flow saved');
     } catch (e) { toast.error(toGameError(e).message); }
+  };
+  const toggleFlow = async (on: boolean) => {
+    if (on && !(await confirm({ title: 'Switch Ink Flow on?', body: <>Grindable Ink starts following the hidden rate built around <b>{fmt(Number(f.daily_target) || 1500)} Ink a day</b>: bursts slow, breaks restore, long grinds settle, and the arcade (150 a day, Endless capped per run) and group games (60 a day) get daily caps.</>, confirm: 'Switch on' }))) return;
+    try { done(await api.admin.setInkPacing({ enabled: on }), on ? 'Ink Flow is on' : 'Ink Flow is off — classic Ink for everyone'); } catch (e) { toast.error(toGameError(e).message); }
   };
   const toggleCap = async () => {
     const on = !q.data?.config?.uncapped;
@@ -48,26 +53,34 @@ export function InkPacing() {
     try { done(await api.admin.setInkPacing({ uncapped: on }), on ? 'Ink is uncapped for everyone' : 'Daily caps are back'); } catch (e) { toast.error(toGameError(e).message); }
   };
   const uncapped = !!q.data?.config?.uncapped;
+  const flowOn = q.data?.config ? q.data.config.enabled !== false : false;
   const rows: any[] = q.data?.today ?? [];
   const tot = q.data?.totals;
   return (
     <div className="glass grid gap-3 rounded-3xl p-4" data-testid="ink-pacing">
       <div className="flex items-center justify-between gap-2">
         <div className="font-display text-lg font-black">🌊 Ink Flow</div>
-        <Switch id="ink-flow-on" label="On" checked={!!f.enabled} onCheckedChange={(v) => setF({ ...f, enabled: uncapped ? true : v })} />
+        <span data-testid="ink-flow-switch"><Switch id="ink-flow-on" label={flowOn ? 'On' : 'Off'} checked={flowOn} onCheckedChange={(v) => void toggleFlow(v)} /></span>
       </div>
-      <button onClick={() => void toggleCap()} data-testid="ink-uncap"
-        className={cn('rounded-2xl p-3 text-left transition', uncapped ? 'bg-ok/15 ring-2 ring-ok/60' : 'bg-surface-2 hover:bg-surface-2/80')}>
-        <div className="font-display text-base font-black">{uncapped ? '🔓 Ink is uncapped for everyone' : '🔒 Uncap Ink for everyone'}</div>
-        <div className="text-xs text-muted">{uncapped ? 'No game has a daily Ink cap; Ink Flow alone keeps the economy sustainable. Tap to bring the caps back.' : 'Lift every game’s daily Ink cap and let Ink Flow balance it — players grind however they like.'}</div>
-      </button>
+      {!flowOn ? (
+        <div className="rounded-2xl bg-surface-2 p-3 text-xs" data-testid="ink-classic">
+          <div className="font-display text-base font-black">✨ Classic Ink</div>
+          <p className="text-muted">Ink Flow is off, so Ink works the way it did before it: every payout is paid in full (no hidden rate), each game keeps its own daily cap, and the arcade (Endless included) and group games are truly uncapped. Minigames still pay only for a full clear. Switch Ink Flow on to try the dynamic rate — the settings below are what it will use.</p>
+        </div>
+      ) : (
+        <button onClick={() => void toggleCap()} data-testid="ink-uncap"
+          className={cn('rounded-2xl p-3 text-left transition', uncapped ? 'bg-ok/15 ring-2 ring-ok/60' : 'bg-surface-2 hover:bg-surface-2/80')}>
+          <div className="font-display text-base font-black">{uncapped ? '🔓 Ink is uncapped for everyone' : '🔒 Uncap Ink for everyone'}</div>
+          <div className="text-xs text-muted">{uncapped ? 'No game has a daily Ink cap; Ink Flow alone keeps the economy sustainable. Tap to bring the caps back.' : 'Lift every game’s daily Ink cap and let Ink Flow balance it — players grind however they like.'}</div>
+        </button>
+      )}
       <label className="grid gap-1 text-xs">
         <span className="font-bold">Daily Ink target</span>
         <input className={cn(inputCls, 'h-10 text-base font-bold')} inputMode="numeric" value={f.daily_target ?? ''} onChange={(e) => setF({ ...f, daily_target: e.target.value })} data-testid="flow-target" />
         <span className="text-[11px] text-faint">What a dedicated player should earn in a day. Everything scales from it: bursts, breaks, long grinds and the day’s ceiling.</span>
       </label>
       <div className="grid gap-1 rounded-2xl bg-surface-2/50 p-3 text-xs" data-testid="flow-sim">
-        <div className="font-bold">What a day earns (simulated, 10-Ink activities)</div>
+        <div className="font-bold">What a day earns{flowOn ? '' : ' with Ink Flow on'} (simulated, 10-Ink activities)</div>
         {sim.map(({ p, r }) => (
           <div key={p.id} className="grid grid-cols-[7rem_1fr_auto] items-center gap-2">
             <span><b>{p.name}</b><br /><span className="text-[10px] text-faint">{p.note}</span></span>
@@ -89,10 +102,10 @@ export function InkPacing() {
           ))}
         </div>
       )}
-      <Button size="sm" onClick={() => void save()} data-testid="pacing-save">Save</Button>
+      <Button size="sm" onClick={() => void save()} data-testid="pacing-save">Save settings</Button>
       <div className="grid gap-1 text-xs" data-testid="pacing-today">
-        <div className="font-bold">Today{tot ? ` · ${fmt(tot.players)} players earned ${fmt(tot.paid)} Ink (${fmt(tot.earned)} before Flow) · ${fmt(tot.over_target)} past the target` : ''}</div>
-        {!rows.length ? <p className="text-muted">Nobody has earned paced Ink yet today.</p> : rows.slice(0, 15).map((r) => (
+        <div className="font-bold">Today{flowOn && tot ? ` · ${fmt(tot.players)} players earned ${fmt(tot.paid)} Ink (${fmt(tot.earned)} before Flow) · ${fmt(tot.over_target)} past the target` : ''}</div>
+        {!flowOn ? <p className="text-muted">Ink Flow is off — everyone is paid in full.</p> : !rows.length ? <p className="text-muted">Nobody has earned paced Ink yet today.</p> : rows.slice(0, 15).map((r) => (
           <div key={r.player.id} className="flex flex-wrap items-center gap-2">
             <b>@{r.player.username}</b>
             <span className="tnum text-muted">paid {fmt(r.paid)} of {fmt(r.earned)} · rate now ×{Number(r.rate).toFixed(2)} · {r.hours} h active</span>

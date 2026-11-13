@@ -1,4 +1,4 @@
-// Ink Flow: uncapped Ink with a hidden, self-balancing rate built around the owner's daily target.
+// Ink Flow: uncapped Ink with a hidden, self-balancing rate built around the owner's daily target — an option; off is classic Ink.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb } from '../helpers/db';
 
@@ -99,5 +99,30 @@ describe('Ink Flow', () => {
     expect(await bal(p)).toBe(b + res.rewards.ink);
     await db.rpc(owner, 'admin_set_ink_pacing', { p_config: { uncapped: false } });
     expect((await db.rpc(null, 'world_config')).ink_uncapped).toBe(false);
+  });
+  it('switching Ink Flow off is classic Ink: it also brings the daily caps back, and every payout is paid in full', async () => {
+    await db.rpc(owner, 'admin_set_ink_pacing', { p_config: { uncapped: true } });
+    const v = await db.rpc(owner, 'admin_set_ink_pacing', { p_config: { enabled: false } });
+    expect(v.config.enabled).toBe(false); expect(v.config.uncapped).toBe(false);
+    expect((await db.rpc(null, 'world_config')).ink_uncapped).toBe(false);
+    // even a player the hidden rate would slow to a trickle gets the whole amount
+    await reset(q, { heat: 20000, load: 20000, paid: 6000, mom: 0, hours: (1 << 20) - 1 });
+    const b = await bal(q);
+    for (let i = 0; i < 10; i++) expect(await paced(q, 25)).toBe(25);
+    expect(await bal(q)).toBe(b + 250);
+  });
+  it('classic Ink: group games have no daily cap (with Ink Flow on they do)', async () => {
+    await db.sql(`insert into group_game_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 500) on conflict (player_id, day) do update set ink = 500`, [r]);
+    expect(Number((await db.sql(`select private.gg_pay($1, 12, 'g1', null) v`, [r]))[0].v)).toBe(12);
+    await db.rpc(owner, 'admin_set_ink_pacing', { p_config: { enabled: true } });
+    expect(Number((await db.sql(`select private.gg_pay($1, 12, 'g2', null) v`, [r]))[0].v)).toBe(0);
+    await db.rpc(owner, 'admin_set_ink_pacing', { p_config: { enabled: false } });
+  });
+  it('classic Ink: a Pandora’s Greed curse still slows the cursed player’s Ink', async () => {
+    await db.sql(`insert into enchant_buffs (player_id, kind, mult, expires_at) values ($1, 'curse_greed', 0.75, now() + interval '1 hour')`, [p]);
+    const got = await sum(p, 20, 20);
+    expect(got).toBeGreaterThan(250); expect(got).toBeLessThan(350);  // ≈ 300 of 400
+    await db.sql(`delete from enchant_buffs where player_id = $1 and kind = 'curse_greed'`, [p]);
+    expect(await paced(p, 20)).toBe(20);
   });
 });

@@ -103,15 +103,7 @@ describe('Arcade plots', () => {
     expect((await db.rpc(vi, 'arcade_daily', {})).streak).toBe(2);
   });
 
-  it('arcade Ink has a daily cap', async () => {
-    await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 150) on conflict (player_id, day) do update set ink = 150`, [vi]);
-    const before = await ink(vi);
-    const r = await play(vi, 'stacker', 600, 120);
-    expect(r.paid).toBe(0); expect(await ink(vi)).toBe(before);
-  });
-
-  it('with the cap switched off, Ink comes a little at a time (fractions carry over)', async () => {
-    await db.sql(`update game_config set value = value || '{"daily_ink_cap": 0}' where key = 'arcade'`);
+  it('classic Ink (Ink Flow off): arcade Ink has no daily cap and comes a little at a time (fractions carry over)', async () => {
     await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 5000) on conflict (player_id, day) do update set ink = 5000`, [vi]);
     await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
     const before = await ink(vi);
@@ -122,13 +114,32 @@ describe('Arcade plots', () => {
     expect(r1.ink_progress).toBeCloseTo(((600 / 160) * k) % 1, 2);
   });
 
-  it('one run pays at most the cabinet’s max Ink — Endless too', async () => {
+  it('classic Ink (Ink Flow off): an Endless run pays for its whole score', async () => {
     await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
+    const g = (await db.sql(`select value -> 'games' -> 'stacker' g, value -> 'hot' ->> 'ink' hot from game_config where key = 'arcade'`))[0];
     const s = await db.rpc(vi, 'arcade_start', { p_arcade: arcId, p_game: 'stacker', p_mode: 'endless' });
     await age(s.session, 300);
     const r = await db.rpc(vi, 'arcade_finish', { p_session: s.session, p_score: 1990 });
+    const k = r.hot ? Number(g.hot ?? 1.5) : 1;
+    expect(r.paid).toBe(Math.floor((1990 / Number(g.g.points_per_ink ?? 200)) * k));
+    expect(r.paid).toBeGreaterThan(Number(g.g.max_ink ?? 10));
+  });
+
+  it('with Ink Flow on: arcade Ink has a daily cap, and one run pays at most the cabinet’s max — Endless too', async () => {
+    // (Flow on, with its hidden rate off for these sources, so the amounts are exact)
+    await db.sql(`update game_config set value = value || '{"enabled": true, "paced": []}' where key = 'ink_pacing'`);
+    await db.sql(`insert into arcade_ink_days (player_id, day, ink) values ($1, private.day_start(now()), 150) on conflict (player_id, day) do update set ink = 150`, [vi]);
+    const before = await ink(vi);
+    const r = await play(vi, 'stacker', 600, 120);
+    expect(r.paid).toBe(0); expect(await ink(vi)).toBe(before);
+    await db.sql(`update game_config set value = value || '{"daily_ink_cap": 0}' where key = 'arcade'`);
+    await db.sql(`update arcade_players set ink_frac = 0 where player_id = $1`, [vi]);
+    const s = await db.rpc(vi, 'arcade_start', { p_arcade: arcId, p_game: 'stacker', p_mode: 'endless' });
+    await age(s.session, 300);
+    const e = await db.rpc(vi, 'arcade_finish', { p_session: s.session, p_score: 1990 });
     const max = Number((await db.sql(`select value -> 'games' -> 'stacker' ->> 'max_ink' m from game_config where key = 'arcade'`))[0].m ?? 10);
-    expect(r.paid).toBeLessThanOrEqual(max);
+    expect(e.paid).toBeLessThanOrEqual(max);
+    await db.sql(`update game_config set value = value || '{"enabled": false}' where key = 'ink_pacing'`);
   });
 
   it('Endless mode has no top score and its own boards', async () => {

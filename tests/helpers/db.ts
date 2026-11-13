@@ -66,8 +66,8 @@ export class TestDb {
     await this.admin.query(`update game_config set value = value || jsonb_build_object('free_plots', $1::int) where key = 'economy'`, [opts.freePlots ?? 1]).catch(() => {});
     // most suites paint their plots: new plots start as art canvases here; the Base-plot default is tested on its own
     if (!opts.basePlots) await this.admin.query(`alter table public.canvas_groups alter column kind set default 'canvas'`);
-    // suites check exact Ink amounts: hidden Ink pacing is tested on its own
-    if (!opts.inkPacing) await this.admin.query(`update game_config set value = jsonb_set(value, '{enabled}', 'false') where key = 'ink_pacing'`).catch(() => {});
+    // suites check exact Ink amounts: Ink Flow (the hidden rate) ships off and is tested on its own
+    await this.admin.query(`update game_config set value = jsonb_set(value, '{enabled}', $1::jsonb) where key = 'ink_pacing'`, [opts.inkPacing ? 'true' : 'false']).catch(() => {});
     // suites check exact rolls: the 2% enchantment chance is tested on its own
     await this.admin.query(`update game_config set value = value || jsonb_build_object('base_pct', $1::numeric) where key = 'enchantments'`, [opts.enchantChance ?? 0]).catch(() => {});
     return this;
