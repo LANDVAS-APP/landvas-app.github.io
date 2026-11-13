@@ -9,10 +9,14 @@ import { buzz } from '../../native/native';
 import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { EVILS, EVIL_ORDER, dur } from '../kinds';
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 const NOTCH = 30;
 
-export function PandoraScene({ view, act, busy, at }: SceneProps) {
+export function PandoraScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const y = useMotionValue(0);
   const glow = useTransform(y, [0, -NOTCH * 3], [0, 1]);
@@ -35,7 +39,7 @@ export function PandoraScene({ view, act, busy, at }: SceneProps) {
       efx.burst({ ...centerOf(box.current), colors: o.type === 'evil' ? ['#2A0A3D', '#5A1A6E', '#FF4D6D'] : ['#FFD23F', '#FFE8A3', '#fff'], count: 50, speed: 10, kind: o.type === 'evil' ? 'drop' : 'spark', up: 1 });
       if (o.type === 'ink' && o.pay) efx.pay(o.pay, 'pandora', centerOf(box.current));
     }, 450 + i * 650));
-    if (r.result.hope) setTimeout(() => { setHope(true); efx.burst({ ...centerOf(box.current), colors: ['#fff', '#FFE8A3', '#A6FFD6', '#C9B8FF'], count: 260, speed: 16, kind: 'spark' }); }, 450 + r.result.out.length * 650);
+    if (r.result.hope) setTimeout(() => { setHope(true); setMoment(keep({ type: 'hope', e: enchantRef(v) })); efx.burst({ ...centerOf(box.current), colors: ['#fff', '#FFE8A3', '#A6FFD6', '#C9B8FF'], count: 260, speed: 16, kind: 'spark' }); }, 450 + r.result.out.length * 650);
   };
   return (
     <div className="grid gap-3">
@@ -93,12 +97,13 @@ export function PandoraScene({ view, act, busy, at }: SceneProps) {
         </AnimatePresence>
         <AnimatePresence>
           {hope && (
-            <motion.button key="h" onClick={() => setHope(false)} className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle,rgba(255,255,255,0.35),rgba(0,0,0,0.85))] text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="pandora-hope">
+            <motion.div key="h" role="button" onClick={() => setHope(false)} className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle,rgba(255,255,255,0.35),rgba(0,0,0,0.85))] text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="pandora-hope">
               <motion.div initial={{ y: 80, scale: 0.4 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 10 }} className="grid gap-1">
                 <span className="lv-ench-float text-8xl">🦋</span><span className="font-display text-4xl font-black text-white drop-shadow-[0_0_20px_#fff]">Hope</span>
                 <span className="text-sm font-bold text-white/85">A Legendary+ roll ticket and a fortune. The box closes again — richer.</span>
+                {moment && <div className="mt-2"><ClipMomentButton moment={moment} /></div>}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

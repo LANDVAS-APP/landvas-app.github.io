@@ -27,6 +27,8 @@ function WrapPreview({ stage, feeds }: { stage: number; feeds: number }) {
     </svg>
   );
 }
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 const STAGES = [
   { name: 'Larva', c: '#E6FFB3', g: '#9BE15D', text: 'A hungry little thing. 3 feeds to grow.' },
@@ -54,6 +56,8 @@ function Creature({ stage, fat }: { stage: number; fat: number }) {
 }
 
 export function ParasiteScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const tank = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
   const showHost = () => {
@@ -79,6 +83,8 @@ export function ParasiteScene({ v, view, act, busy, at }: SceneProps) {
     if (r) useWrapFx.getState().pulseAt(v.id);
     if (r?.result?.evolved) {
       setEvolved(r.result.stage);
+      const st = STAGES[Number(r.result.stage)] ?? STAGES[STAGES.length - 1];
+      setMoment(keep({ type: 'evolve', e: enchantRef(v), stageName: st.name, color: st.c, text: st.text }));
       efx.burst({ ...centerOf(tank.current), colors: ['#7CFF6B', '#FFD23F', '#B026FF', '#fff'], count: 220, speed: 15, kind: 'spark' });
     }
   };
@@ -115,13 +121,14 @@ export function ParasiteScene({ v, view, act, busy, at }: SceneProps) {
         <div className="absolute left-3 top-3 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black backdrop-blur" style={{ color: STAGES[stage].c }} data-testid="parasite-stage">{STAGES[stage].name} · {view.feeds} feed{view.feeds === 1 ? '' : 's'}</div>
         <AnimatePresence>
           {evolved != null && (
-            <motion.button key="e" onClick={() => setEvolved(null)} className="absolute inset-0 grid place-items-center bg-black/75 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="parasite-evolved">
+            <motion.div key="e" role="button" onClick={() => setEvolved(null)} className="absolute inset-0 grid place-items-center bg-black/75 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="parasite-evolved">
               <motion.div initial={{ scale: 0.2, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 10 }} className="grid w-[60%] justify-items-center gap-2">
                 <Creature stage={evolved} fat={0.6} />
                 <span className="font-display text-3xl font-black" style={{ color: STAGES[evolved].c }}>It evolved: {STAGES[evolved].name}!</span>
                 <span className="text-sm font-semibold text-white/80">{STAGES[evolved].text}</span>
+                {moment && <ClipMomentButton moment={moment} />}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

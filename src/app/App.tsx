@@ -59,6 +59,7 @@ import { LiveControl } from './LiveControl';
 import { NATIVE_APP } from './buildFlags';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
+const ClipsScreen = lazy(() => import('../clips/ClipsScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
@@ -261,6 +262,7 @@ const routes: RouteObject[] = [
           { path: '/legend', element: p(<LegendScreen />) },
           { path: '/grimoire', element: player(<GrimoireScreen />) },
           { path: '/grimoire/:id', element: player(<GrimoireScreen />) },
+          { path: '/clips', element: player(<ClipsScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },
           { path: '/royalty', element: p(<RoyaltyScreen />) },
           { path: '/rankings/rarities', element: p(<RarityRankingsScreen />) },

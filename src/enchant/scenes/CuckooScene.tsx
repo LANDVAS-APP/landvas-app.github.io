@@ -8,6 +8,8 @@ import { rarityInfo } from '../../shared/rarity';
 import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 function Bird({ className }: { className?: string }) {
   return (
@@ -28,7 +30,9 @@ function Egg({ wobble, cracked, c = '#C9F2FF' }: { wobble: number; cracked: bool
   );
 }
 
-export function CuckooScene({ view, act, busy, at }: SceneProps) {
+export function CuckooScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const nestRef = useRef<HTMLDivElement>(null);
   const [flying, setFlying] = useState<number | null>(null);
   const [chick, setChick] = useState<any>(null);
@@ -46,7 +50,7 @@ export function CuckooScene({ view, act, busy, at }: SceneProps) {
   };
   const raise = async () => {
     const r = await act('raise', {}, { at: centerOf(nestRef.current) });
-    if (r) { setChick(r.result); efx.burst({ ...centerOf(nestRef.current), colors: ['#fff'], count: 20, speed: 8, kind: 'emoji', emojis: ['🐣', '🪶', '✨'] }); }
+    if (r) { setChick(r.result); setMoment(r.result.feather ? keep({ type: 'chick', e: enchantRef(v), feather: true, ink: Number(r.result.pay?.paid ?? 0) || null }) : null); efx.burst({ ...centerOf(nestRef.current), colors: ['#fff'], count: 20, speed: 8, kind: 'emoji', emojis: ['🐣', '🪶', '✨'] }); }
   };
   return (
     <div className="grid gap-3">
@@ -80,12 +84,13 @@ export function CuckooScene({ view, act, busy, at }: SceneProps) {
         </div>
         <AnimatePresence>
           {chick && (
-            <motion.button key="ch" onClick={() => setChick(null)} className="absolute inset-0 grid place-items-center bg-black/70 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="ch" role="button" onClick={() => setChick(null)} className="absolute inset-0 grid place-items-center bg-black/70 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <motion.div initial={{ scale: 0.3, y: 30 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 12 }} className="grid gap-1">
                 <span className="text-7xl">🐣</span><span className="font-display text-2xl font-black text-[#4CC9F0]">A cuckoo chick!</span>
                 <span className="text-sm font-bold text-white/85">+{fmt(chick.pay?.paid ?? 0)} Ink{chick.feather ? ' · and a lucky feather: +20 Luck 🪶' : ''}</span>
+                {moment && <div className="mt-2"><ClipMomentButton moment={moment} /></div>}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, BookOpen, Brush, Crown, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
+import { Award, BookOpen, Brush, Clapperboard, Crown, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -43,6 +43,7 @@ export default function MeHub() {
     { to: `/u/${p.username}/home`, label: 'My home', icon: DoorOpen, hint: 'Your 3D home — decorate it' },
     { to: '/social', label: 'Social', icon: MessagesSquare, hint: 'Feed, chat, friends' },
     { to: '/clans', label: 'My clan', icon: Users, hint: 'Clan hall, goals, battles' },
+    { to: '/clips', label: 'My clips', icon: Clapperboard, hint: 'Replay, clip & snip your rolls' },
     { to: '/achievements', label: 'Badges', icon: Award, hint: `${me.achievement_count} unlocked` },
     { to: '/leaderboards', label: 'Rankings', icon: Trophy, hint: 'Top players' },
     { to: '/rankings/rarities', label: 'Rarity rankings', icon: Trophy, hint: 'Who owns the most of each rarity' },

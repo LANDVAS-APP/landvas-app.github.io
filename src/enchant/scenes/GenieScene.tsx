@@ -8,6 +8,8 @@ import { buzz } from '../../native/native';
 import { useUi } from '../../lib/store';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 const WISHES = [
   { id: 'ink', emoji: '💰', name: 'Riches', text: '40–90 Ink, here and now', c: '#FFD23F' },
@@ -16,7 +18,9 @@ const WISHES = [
   { id: 'golden', emoji: '⏳', name: 'Golden Hour', text: 'Your next 3 minigame wins pay ×2', c: '#FF9F1C' },
 ];
 
-export function GenieScene({ view, act, busy, at }: SceneProps) {
+export function GenieScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const lamp = useRef<HTMLDivElement>(null);
   const confirm = useConfirm();
   const [rub, setRub] = useState(0);
@@ -62,6 +66,7 @@ export function GenieScene({ view, act, busy, at }: SceneProps) {
     const r = await act('forbidden', {}, { at: centerOf(lamp.current) });
     if (r) {
       setOutcome(r.result.forbidden); setAwake(false); setRub(0);
+      setMoment(keep({ type: 'forbidden', e: enchantRef(v), outcome: String(r.result.forbidden) }));
       efx.burst({ ...centerOf(lamp.current), colors: r.result.forbidden === 'granted' ? ['#FFD23F', '#fff', '#8B5CFF'] : r.result.forbidden === 'freed' ? ['#22E3FF', '#fff'] : ['#FF2E63', '#2A0A3D', '#fff'], count: 200, speed: 15, kind: 'spark' });
       if (useUi.getState().settings.haptics) buzz('heavy');
     }
@@ -118,14 +123,15 @@ export function GenieScene({ view, act, busy, at }: SceneProps) {
         {/* the Forbidden Wish's answer */}
         <AnimatePresence>
           {outcome && (
-            <motion.button key="o" onClick={() => setOutcome(null)} className="absolute inset-0 grid place-items-center bg-black/70 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="genie-outcome">
+            <motion.div key="o" role="button" onClick={() => setOutcome(null)} className="absolute inset-0 grid place-items-center bg-black/70 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="genie-outcome">
               <motion.div initial={{ scale: 0.4, rotate: -8 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}>
                 <div className="text-6xl">{outcome === 'granted' ? '🌟' : outcome === 'freed' ? '🕊️' : '⛓️'}</div>
                 <div className="mt-2 font-display text-3xl font-black" style={{ color: outcome === 'granted' ? '#FFD23F' : outcome === 'freed' ? '#9FEAFF' : '#FF4D6D' }}>
                   {outcome === 'granted' ? 'GRANTED — seven wishes!' : outcome === 'freed' ? 'The Genie is free!' : 'Twisted…'}</div>
                 <div className="mt-1 text-sm font-semibold text-white/80">{outcome === 'granted' ? 'Use them well.' : outcome === 'freed' ? 'It leaves you a Mythic+ roll ticket, and an empty lamp for a week.' : 'A fortune falls from the lamp — and it goes cold for three days.'}</div>
+                {moment && <div className="mt-3"><ClipMomentButton moment={moment} /></div>}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

@@ -45,7 +45,7 @@ export const SECTIONS = [
   ] },
 ];
 export const ME_PAGES = [
-  { to: '/me', label: 'Me' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
+  { to: '/me', label: 'Me' }, { to: '/achievements', label: 'Badges' }, { to: '/clips', label: 'Clips' }, { to: '/explorer', label: 'Explorer' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
 ];
 // the app gets chunkier, game-style tabs
 const NATIVE = isNative();

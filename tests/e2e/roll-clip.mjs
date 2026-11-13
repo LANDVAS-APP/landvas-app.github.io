@@ -1,11 +1,15 @@
-// Roll clips (better than Rare) and the reroll speed setting.
+// Roll clips (better than Rare): the clip replays the roll itself; snips; the Clips page (past rolls, moments, any plot);
+// the minigame reel before the rarity; and the reroll speed setting.
 // Run: npm run build:artifact && node tests/e2e/roll-clip.mjs
-import { serve, launch } from './browser.mjs';
+import { serve } from './browser.mjs';
+import chromium from '@sparticuz/chromium';
+import { chromium as pw } from 'playwright-core';
 import path from 'node:path';
 import fs from 'node:fs';
 const OUT = process.env.E2E_OUT || path.resolve('test-results/e2e-roll-clip'); fs.mkdirSync(OUT, { recursive: true });
 const server = await serve(process.env.E2E_DIST || 'dist-artifact', 4319);
-const browser = await launch();
+// (the roll is one big canvas: software rendering — headless Chromium's emulated GPU starves a full-screen canvas)
+const browser = await pw.launch({ executablePath: await chromium.executablePath(), headless: true, args: [...chromium.args.filter((a) => !/gl|gpu|angle/i.test(a)), '--disable-gpu'] });
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', acceptDownloads: true });
 const page = await ctx.newPage();
 const errors = []; page.on('pageerror', (e) => errors.push(e.message));
@@ -26,6 +30,10 @@ try {
   await page.evaluate(() => localStorage.setItem('landvas.rerollSpeed', 'quick'));
   const t0 = Date.now();
   await page.evaluate(() => window.__landvasRollDemo('kraken', true, ['rare', 'epic', 'kraken', 'legendary'], ['pigment', 'mosaic', 'lumina', 'clay'], [false, true, true, false]));
+  await page.waitForSelector('[data-testid=ink-roll][data-stage=type]', { timeout: 15000 });
+  check('the minigame reel spins first', true);
+  await page.waitForSelector('[data-testid=ink-roll][data-stage=rarity]', { timeout: 15000 });
+  check('…then the rarity', true);
   await page.waitForSelector('[data-testid=roll-speed]', { timeout: 15000 });
   check('the speed switch shows during rerolls', /Quick/.test(await page.textContent('[data-testid=roll-speed]')));
   await page.waitForSelector('[data-testid=roll-pick]', { timeout: 30000 });
@@ -57,11 +65,20 @@ try {
   const d = await dl;
   check('…and can be saved', !!d && /landvas-kraken-shiny\.(webm|mp4)/.test(d.suggestedFilename()), d?.suggestedFilename());
   if (d) await d.saveAs(`${OUT}/clip.${d.suggestedFilename().split('.').pop()}`);
+  // snip a frame
+  await page.click('[data-testid=clip-snip]');
+  await page.waitForSelector('[data-testid=clip-snip-canvas]', { timeout: 10000 }); await page.waitForTimeout(800);
+  const dl2 = page.waitForEvent('download', { timeout: 10000 }).catch(() => null);
+  await page.click('[data-testid=snip-save]');
+  const d2 = await dl2;
+  check('a frame can be snipped as a picture', !!d2 && /landvas-kraken-shiny-snip\.png/.test(d2.suggestedFilename()), d2?.suggestedFilename());
+  if (d2) await d2.saveAs(`${OUT}/snip.png`);
+  await page.locator('[data-testid=clip-snip-editor] button', { hasText: /Back to the clip/ }).click();
   await page.locator('[data-testid=clip-sheet] button', { hasText: 'Close' }).click();
   // a Rare: no clip
   await page.keyboard.press('Escape'); await page.waitForTimeout(800);
   await page.evaluate(() => window.__landvasRollDemo('rare', false, null));
-  await page.waitForTimeout(6000);
+  await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 20000 }); await page.waitForTimeout(1500);
   check('no clip for a Rare', (await page.locator('[data-testid=roll-clip]').count()) === 0);
   // normal speed takes longer
   await page.keyboard.press('Escape'); await page.waitForTimeout(800);
@@ -71,6 +88,16 @@ try {
   await page.waitForSelector('[data-testid=roll-pick]', { timeout: 40000 });
   const normalMs = Date.now() - t1;
   check('normal-speed rerolls take longer', normalMs > quickMs + 1500, `${quickMs} vs ${normalMs}ms`);
+  // every roll is kept: the Clips page can cut them again
+  await page.keyboard.press('Escape'); await page.waitForTimeout(800);
+  await page.evaluate(() => window.__landvasNav('/clips'));
+  await page.waitForSelector('[data-testid=clips-rolls]', { timeout: 15000 });
+  const kept = await page.locator('[data-testid=clip-card]').count();
+  check('past rolls are kept on the Clips page', kept >= 2, `${kept}`);
+  await page.waitForTimeout(1500); await shot('06-clips-page');
+  await page.locator('[data-testid=clip-card-video]').last().click();
+  await page.waitForSelector('[data-testid=clip-video], [data-testid=clip-image]', { timeout: 90000 });
+  check('…and an old roll can be clipped again', true);
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) { check('run', false, e.message); await shot('99-error'); }
 await browser.close(); server.close();

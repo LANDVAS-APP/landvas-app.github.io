@@ -8,10 +8,12 @@ import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
 import { useHeartbeat, usePoke, useRub } from '../living';
+import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
 
 const eNow = (v: SceneProps['v']) => Date.parse(v.clock?.now ?? v.server_time) / 1000;
 
 export function GooseScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
   const egg = useRef<HTMLButtonElement>(null);
   const fox = useRef<HTMLButtonElement>(null);
   const frozen = !!v.clock?.frozen_until;
@@ -37,7 +39,8 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
   };
   const collect = async () => {
     efx.burst({ ...centerOf(egg.current), colors: plat ? ['#fff', '#C9D6E8'] : ['#FFD23F', '#FFB31F', '#fff'], count: 90, speed: 13, kind: 'spark' });
-    await act('collect', {}, { at: centerOf(egg.current) });
+    const r = await act('collect', {}, { at: centerOf(egg.current) });
+    if (r && plat) offerClip(keep({ type: 'egg', e: enchantRef(v), platinum: true, ink: Number(r.result?.pay?.paid ?? 0) || null }), '💎 A Platinum egg!');
   };
   return (
     <div className="grid gap-3">

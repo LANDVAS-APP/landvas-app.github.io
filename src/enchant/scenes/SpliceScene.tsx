@@ -15,6 +15,8 @@ import { HybridCard, PlotHybridCard } from '../HybridCard';
 import { ABERRATIONS, HYBRID_COUNT, SPLICE_MODES, dur, enchantName, kindInfo, plotHybridName, traitText, trinityName, type EnchantKind, type SpliceMode } from '../kinds';
 import { HybridSigil, feel } from '../living';
 import { Radar, plotLabel } from '../sizeray';
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 function Vial({ e, label, onClear, draining, tone }: { e: any | null; label: string; onClear(): void; draining?: boolean; tone?: string }) {
   const k = e ? kindInfo(e.kind) : null;
@@ -39,6 +41,8 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
   const [c, setC] = useState<any>(null);
   const [spin, setSpin] = useState(false);
   const [made, setMade] = useState<any>(null);
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const nextIn = useLeft(view.next_in, at);
   const endsIn = useLeft(view.active ? (Date.parse(view.active.ends_at) - Date.parse(v.server_time)) / 1000 : null, at);
   const roarIn = useLeft(view.active?.roar_in ?? null, at);
@@ -68,6 +72,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
       setMade({ ...r.result, seedA: a.sigil, seedB: b.sigil ?? 7, seedC: c?.sigil });
       efx.burst({ ...centerOf(chamber.current), colors: [kindInfo(r.result.a).a, kindInfo(r.result.b ?? r.result.a).a, '#fff', '#00F5D4'], count: r.result.resonant || r.result.aberration ? 300 : 170, speed: 15, kind: 'spark' });
       feel('success');
+      setMoment(!r.result.invited && mode !== 'plot' && b?.kind ? keep({ type: 'splice', a: enchantRef(a), b: enchantRef(b), hybrid: String(r.result.hybrid), resonant: !!(r.result.resonant || r.result.aberration), fresh: !!r.result.new }) : null);
       setA(null); setB(null); setC(null);
     }
   };
@@ -131,7 +136,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
         )}
         <AnimatePresence>
           {made && (
-            <motion.button key="m" onClick={() => setMade(null)} className="absolute inset-0 grid place-items-center bg-black/85 p-3 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="splice-made">
+            <motion.div key="m" role="button" onClick={() => setMade(null)} className="absolute inset-0 grid place-items-center bg-black/85 p-3 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="splice-made">
               <motion.div className="grid justify-items-center gap-2 rounded-3xl border-2 border-[#00F5D4] bg-[#04211D] px-6 py-5 shadow-[0_0_40px_#00F5D4]" initial={{ rotateY: 180, scale: 0.4 }} animate={{ rotateY: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 140, damping: 12 }}>
                 {made.invited ? <span className="text-5xl">🤝</span> : made.mode === 'plot' ? <span className="text-5xl">{kindInfo(made.a).emoji}🏞️</span>
                   : <HybridSigil a={made.a} b={made.b ?? made.a} c={made.c} seedA={made.seedA ?? 1} seedB={made.seedB ?? 2} size={96} />}
@@ -141,8 +146,9 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
                 {made.invited ? <span className="text-[12px] text-white/75">Invitation sent — when your friend says yes, you’re both spliced.</span>
                   : <span className="text-[12px] text-white/70">{made.unstable ? `⚠️ Unstable — it will reject in ${made.hours} h` : `Fused for ${made.hours} hours`}{made.resonant && !made.aberration ? ' · ✦ Perfect Match' : ''}</span>}
                 {made.aberration && <span className="max-w-[260px] text-[11px] font-bold text-[#FFB3C7]">{ABERRATIONS[made.aberration]?.secret}</span>}
+                {moment && <ClipMomentButton moment={moment} />}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

@@ -16,11 +16,13 @@ import { centerOf, efx, useLeft, useMyEnchantments, useVisitors, type SceneProps
 import { dur, enchantName } from '../kinds';
 import { feel } from '../living';
 import { ModeDial, NeedleMeter, RAY, Radar, gradeLine, plotLabel, usePickOnMap, useRayShot, type RayMode } from '../sizeray';
+import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
 
 type Quick = { type: 'enchant' | 'fox' | 'parasite'; id: string; label: string; e?: any };
 const GRADE_C: Record<string, string> = { PERFECT: '#B6FF3D', GREAT: '#39FF14', GOOD: '#FFD23F', WIDE: '#FF9F1C', MISS: '#FF4D6D' };
 
 export function SizeRayScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
   const [tab, setTab] = useState<'plot' | 'quick'>('plot');
   const [mode, setMode] = useState<RayMode>('grow');
   const [picked, setPicked] = useState<{ gx: number; gy: number } | null>(null);
@@ -48,6 +50,7 @@ export function SizeRayScene({ v, view, act, busy, at }: SceneProps) {
     efx.burst({ ...centerOf(gun.current), colors: [c.c, c.c2, '#fff'], count: r.grade === 'PERFECT' ? 220 : 110, speed: 14, kind: 'spark' });
     if (r.pay) efx.pay(r.pay, 'sizeray', centerOf(gun.current));
     setTimeout(() => setBeam(null), 3200);
+    if (r.grade === 'PERFECT') offerClip(keep({ type: 'zap', e: enchantRef(v), grade: 'PERFECT', target: gradeLine(r) }), '🎯 A PERFECT zap!');
   };
   const quicks = {
     enchant: (mine.data ?? []).filter((x) => x.id !== v.id).map((x) => ({ type: 'enchant' as const, id: x.id, label: `Grow ${enchantName(x)}’s next reward`, e: x })),

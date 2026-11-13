@@ -2649,6 +2649,8 @@ html.reduce-motion .lv-grim-aurora::before, html.reduce-motion .lv-grim-aurora i
      the ring that turns while you hold World stay. */
   .lv-maprow .lv-disc.on .face, .lv-maprow [data-testid=luck-chip].on .face, .lv-belldisc.on .face, .lv-boostchip.live, .lv-boostorb.live,
   .lv-liquid.full { animation: none !important; }
+  /* Clip buttons (one on every card of the Clips page): the rainbow holds still instead of flowing */
+  .lv-clip-btn { animation: none !important; }
   html.reduce-motion .lv-railbtn.glow .disc::after, html.reduce-motion .lv-hot-pin::before, html.reduce-motion .lv-live i::after, html.reduce-motion .lv-dot::after,
   html.reduce-motion .lv-disc.glow .face::before, html.reduce-motion .lv-mstat .live::after { animation: none; opacity: 0; }
 }

@@ -20,6 +20,8 @@ import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIN
 import { HybridCard } from './HybridCard';
 import { EvolveAura, MoodVeil, useMood } from './living';
 import { PeelOff } from './PeelOff';
+import { ClipMomentButton, enchantRef } from '../clips/ClipMoment';
+import { newMoment } from '../clips/moments';
 import { SceneFor } from './scenes';
 import { WarpTunnel } from './scenes/WormholeScene';
 import { Sigil } from './Sigil';
@@ -294,7 +296,10 @@ function Detail({ id }: { id: string }) {
   return (
     <Page>
       <div className="mb-3 flex items-center justify-between"><Link to="/grimoire" className="text-sm font-bold text-white/70">← Grimoire</Link>
-        <button className="text-sm font-bold text-[#9BE7FF]" onClick={() => toMap(nav, { lng, lat, zoom: 19 })}>📍 On the map</button></div>
+        <div className="flex items-center gap-3">
+          <ClipMomentButton className="h-8 px-3 text-[12px]" testId="ench-clip" moment={newMoment({ type: 'showcase', e: enchantRef(v), titles: v.titles ?? [], user: v.owner?.username ?? null })} />
+          <button className="text-sm font-bold text-[#9BE7FF]" onClick={() => toMap(nav, { lng, lat, zoom: 19 })}>📍 On the map</button>
+        </div></div>
       {/* the header: one of a kind */}
       <motion.section className="lv-ench-card mb-4 grid gap-3 p-4" style={{ ['--a' as string]: k.a }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} data-testid="ench-header">
         <div className="flex items-center gap-4">

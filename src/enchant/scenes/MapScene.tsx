@@ -11,12 +11,16 @@ import { rarityInfo } from '../../shared/rarity';
 import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
+import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
+import type { Moment } from '../../clips/moments';
 
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const dir = (b: number) => DIRS[Math.round(((b % 360) + 360) % 360 / 45) % 8];
 const km = (m: number | null | undefined) => (m == null ? '?' : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
-export function MapScene({ view, act, busy, at }: SceneProps) {
+export function MapScene({ v, view, act, busy, at }: SceneProps) {
+  const keep = useKeepMoment();
+  const [moment, setMoment] = useState<Moment | null>(null);
   const nav = useNavigate();
   const chest = useRef<HTMLDivElement>(null);
   const [opened, setOpened] = useState<any>(null);
@@ -31,7 +35,7 @@ export function MapScene({ view, act, busy, at }: SceneProps) {
   const dig = async () => {
     efx.burst({ ...centerOf(chest.current), colors: ['#6B4423', '#8B5E34', '#3D2614'], count: 26, speed: 8, kind: 'drop', gravity: 0.4 });
     const r = await act('dig', {}, { at: centerOf(chest.current) });
-    if (r?.result?.chest) { setOpened(r.result); efx.burst({ ...centerOf(chest.current), colors: ['#FFD23F', '#fff'], count: 30, speed: 11, kind: 'emoji', emojis: ['💰', '💎', '🪙'] }); }
+    if (r?.result?.chest) { setOpened(r.result); setMoment(keep({ type: 'chest', e: enchantRef(v), ink: Number(r.result.pay?.paid ?? 0) || null, ticket: r.result.ticket ? rarityInfo(r.result.ticket).name : null })); efx.burst({ ...centerOf(chest.current), colors: ['#FFD23F', '#fff'], count: 30, speed: 11, kind: 'emoji', emojis: ['💰', '💎', '🪙'] }); }
   };
   return (
     <div className="grid gap-3">
@@ -68,13 +72,14 @@ export function MapScene({ view, act, busy, at }: SceneProps) {
         </div>
         <AnimatePresence>
           {opened && (
-            <motion.button key="c" onClick={() => setOpened(null)} className="absolute inset-0 grid place-items-center bg-black/70" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="map-chest">
+            <motion.div key="c" role="button" onClick={() => setOpened(null)} className="absolute inset-0 grid place-items-center bg-black/70" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="map-chest">
               <motion.div className="grid justify-items-center gap-2" initial={{ y: 60, scale: 0.4 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 12 }}>
                 <span className="text-7xl">🧰</span>
                 <span className="font-display text-2xl font-black text-[#FFD23F]">Treasure!</span>
                 <span className="text-sm font-bold text-white/85">+{fmt(opened.pay?.paid ?? 0)} Ink{opened.ticket ? ` · a ${rarityInfo(opened.ticket).name}+ roll ticket!` : ''}</span>
+                {moment && <ClipMomentButton moment={moment} />}
               </motion.div>
-            </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

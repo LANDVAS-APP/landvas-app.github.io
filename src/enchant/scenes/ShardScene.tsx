@@ -8,6 +8,7 @@ import { buzz } from '../../native/native';
 import { Button } from '../../ui';
 import { Sigil } from '../Sigil';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
+import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
 import { dur, kindInfo } from '../kinds';
 import { SceneFor } from './index';
 
@@ -16,6 +17,7 @@ const CRACKS = ['M50 50 L22 18', 'M50 50 L84 30', 'M50 50 L70 86', 'M50 50 L18 7
 export function ShardScene(p: SceneProps) {
   const { v, view, act, busy, at } = p;
   const glass = useRef<HTMLDivElement>(null);
+  const keep = useKeepMoment();
   const [shatter, setShatter] = useState(false);
   const gazeIn = useLeft(view.gaze_in, at);
   const reflect = view.reflect;
@@ -28,6 +30,7 @@ export function ShardScene(p: SceneProps) {
     await new Promise((r) => setTimeout(r, 600));
     const r = await act('step', { i }, { silent: true });
     setShatter(false);
+    if (r?.result?.shattered) offerClip(keep({ type: 'shatter', e: enchantRef(v) }), '💥 The glass shattered: +20 Luck!');
     if (r?.result?.shattered) efx.burst({ ...centerOf(glass.current), colors: ['#fff'], count: 30, speed: 12, kind: 'emoji', emojis: ['💥', '🍀', '✨'] });
   };
   if (reflect && v.reflected) {
