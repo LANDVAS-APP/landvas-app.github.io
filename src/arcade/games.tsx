@@ -12,7 +12,7 @@
 //                      right over a prize to grab it. Five goes
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buzz } from '../native/native';
 import { sfx } from './sfx';
 import { config } from '../env';
@@ -186,8 +186,10 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
     const kd = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); drop(); } };
     window.addEventListener('keydown', kd);
     let raf = 0, last = performance.now();
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       if (cur) {
         // like the real machines: leave it too long and it drops by itself
@@ -249,8 +251,10 @@ export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const kd = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); stop(); } };
     window.addEventListener('keydown', kd);
     let lastLit = -1;
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const b = c.getBoundingClientRect(); const dpr = Math.min(2, devicePixelRatio || 1);
       if (c.width !== Math.round(b.width * dpr)) { c.width = Math.round(b.width * dpr); c.height = Math.round(b.height * dpr); }
@@ -363,8 +367,10 @@ export function SkeeBall({ onEnd, haptics, reduce, mode }: ArenaProps) {
       setHud({ score, balls: left, lives, gold: isGold() });
     };
     let raf = 0, last = performance.now();
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const b of balls) {
         if (b.done) continue;
@@ -464,8 +470,10 @@ export function HoopShot({ onEnd, haptics, reduce, mode }: ArenaProps) {
       sfx.blip(-12); tap(haptics);
     };
     let raf = 0, last = performance.now();
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.033, (now - last) / 1000); last = now; t += dt;
       const played = (now - T0) / 1000, left = Math.max(0, DUR + extra - played);
       if (left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
@@ -609,8 +617,10 @@ export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     };
     el.addEventListener('pointerdown', pd);
     let raf = 0, last = performance.now(), t = 0;
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const played = (now - T0) / 1000, left = endless ? 0 : Math.max(0, DUR - played);
       if (!endless && left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
@@ -719,8 +729,10 @@ export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     };
     ctl.current.release = release;
     let raf = 0, last = performance.now(), t = 0;
+    const fps = framePacer();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       if (phase === 'x' || phase === 'z') {
         tryT -= dt;

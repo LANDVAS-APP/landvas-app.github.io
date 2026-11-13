@@ -2,7 +2,7 @@
 // Your explorer stands at the dig face with a pickaxe; walls are textured per layer, lamps every 10 m,
 // depth signs on the wall, and a lift you can ride up and down to look at the whole thing.
 // Only the stretch of shaft near the camera is built, so a 20 km shaft costs the same as a 20 m one.
-import { sceneDpr } from '../lib/gfx';
+import { framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 
 export type ShaftLayer = { id: string; name: string; to: number; color: string; finds: Record<string, number> };
@@ -181,10 +181,13 @@ export function createShaft(o: ShaftOpts): ShaftScene {
   };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
 
+  const fps = framePacer({ ambient: true });
+
   let raf = 0, last = performance.now(), lastView = -1;
   let ride: { from: number; to: number; t: number; dur: number; done?: () => void } | null = null;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (ride) {
       ride.t += dt;

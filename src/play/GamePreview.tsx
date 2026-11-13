@@ -4,12 +4,14 @@ import { useId } from 'react';
 import type { GameId } from '../shared/minigames';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
+import { animateWhenVisible } from '../lib/inView';
 
 export function GamePreview({ game, size, className }: { game: GameId; size?: number; className?: string }) {
   const still = useUi((s) => s.settings.reduceMotion);
   const id = useId().replace(/:/g, '');
   const style = size ? { width: size, height: size } : undefined;
-  const common = { viewBox: '0 0 120 120', className: cn('block rounded-2xl', !size && 'aspect-square w-full', className), style, role: 'img' as const };
+  // (the loop plays only while the preview is on screen)
+  const common = { viewBox: '0 0 120 120', className: cn('block rounded-2xl', !size && 'aspect-square w-full', className), style, role: 'img' as const, ref: animateWhenVisible };
   if (game === 'tracecraft') return <TraceCraftPreview {...common} id={id} still={still} />;
   if (game === 'colorburst') return <ColorBurstPreview {...common} id={id} still={still} />;
   if (game === 'paintpop') return <PaintPopPreview {...common} id={id} still={still} />;
@@ -20,7 +22,7 @@ export function GamePreview({ game, size, className }: { game: GameId; size?: nu
   return <LightLinesPreview {...common} id={id} still={still} />;
 }
 
-type P = { viewBox: string; className: string; style?: React.CSSProperties; role: 'img'; id: string; still: boolean };
+type P = { viewBox: string; className: string; style?: React.CSSProperties; role: 'img'; id: string; still: boolean; ref?: typeof animateWhenVisible };
 
 function TraceCraftPreview({ id, still, ...svg }: P) {
   const path = 'M60 18 L71 45 L100 46 L77 64 L86 93 L60 76 L34 93 L43 64 L20 46 L49 45 Z';

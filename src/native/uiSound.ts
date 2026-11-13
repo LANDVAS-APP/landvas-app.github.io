@@ -2,8 +2,10 @@
 // click on tabs, a bright chime when something good happens. Quiet by design, and they follow the phone's
 // silent switch. Settings → Sound effects turns them off.
 import { useUi } from '../lib/store';
+import { audioNap } from '../lib/audioNap';
 
 let ctx: AudioContext | null = null;
+const nap = audioNap(() => ctx);
 let last = 0, lastReward = 0;
 
 const enabled = () => useUi.getState().settings.sfx !== false;
@@ -13,6 +15,7 @@ function ac() {
   try {
     ctx ??= new AudioContext();
     if (ctx.state === 'suspended') void ctx.resume();
+    nap.poke(1);
     return ctx;
   } catch { return null; }
 }

@@ -32,7 +32,8 @@ export default function Achievements() {
               {items.map((a) => {
                 const pct = Math.min(100, (a.progress / Math.max(1, a.threshold)) * 100);
                 return (
-                  <div key={a.key} className={cn('glass flex items-start gap-3 rounded-3xl p-4', !a.unlocked_at && 'opacity-80')}>
+                  // (220 badge cards: the ones scrolled out of view aren't laid out or painted until they come near)
+                  <div key={a.key} className={cn('glass lv-offscreen-skip flex items-start gap-3 rounded-3xl p-4', !a.unlocked_at && 'opacity-80')}>
                     <BadgeIcon icon={a.icon} category={a.category} tier={tierOf(a)} locked={!a.unlocked_at} size={56} />
                     <div className="min-w-0 flex-1">
                       <div className="font-bold">{a.name}</div>

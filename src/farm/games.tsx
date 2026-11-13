@@ -6,7 +6,7 @@
 //      Sheep Round-up (you're the sheepdog: herd the flock into the pen)
 //      Pollinator (fly a bee through the flowers and bank the pollen at the hive)
 import { useEffect, useRef, useState } from 'react';
-import { sceneDpr } from '../lib/gfx';
+import { framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
 import { config } from '../env';
@@ -75,8 +75,10 @@ export function VeggieCatch({ seed, seconds, onEnd, haptics, reduce }: ArenaProp
     const kd = (e: KeyboardEvent) => { if (e.key === 'ArrowLeft' || e.key === 'a') S.current.keys = -1; if (e.key === 'ArrowRight' || e.key === 'd') S.current.keys = 1; };
     const ku = () => { S.current.keys = 0; };
     c.addEventListener('pointermove', move); c.addEventListener('pointerdown', move); window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+    const fps = framePacer();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const b = c.getBoundingClientRect(), W = b.width, H = b.height;
       if (c.width !== Math.round(W * dpr())) { c.width = Math.round(W * dpr()); c.height = Math.round(H * dpr()); }
@@ -152,8 +154,10 @@ export function PestPop({ seed, seconds, onEnd, haptics, reduce }: ArenaProps) {
       setScore(S.current.score);
     };
     c.addEventListener('pointerdown', down);
+    const fps = framePacer();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const { W, H, size, x0, y0 } = layout();
       if (c.width !== Math.round(W * dpr())) { c.width = Math.round(W * dpr()); c.height = Math.round(H * dpr()); }
@@ -281,8 +285,10 @@ export function TractorRush({ seed, seconds, onEnd, haptics, reduce }: ArenaProp
       else { const b = c.getBoundingClientRect(); go(e.clientX - b.left < b.width / 2 ? -1 : 1); }
     };
     window.addEventListener('keydown', kd); c.addEventListener('pointerdown', pd); c.addEventListener('pointerup', pu);
+    const fps = framePacer();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const level = Math.min(1, t / seconds);
       slow = Math.max(0, slow - dt);
@@ -390,8 +396,10 @@ export function SheepRoundup({ seed, seconds, onEnd, haptics }: ArenaProps) {
     const pops: { s: THREE.Sprite; life: number }[] = [];
     let raf = 0, last = performance.now(), t = 0, run = 0;
     const tmp = new THREE.Vector3();
+    const fps = framePacer();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       // the dog runs where you point
       const want = new THREE.Vector3();
@@ -596,8 +604,10 @@ export function Pollinator({ seed, seconds, onEnd, haptics, reduce }: ArenaProps
     c.addEventListener('pointermove', pm); c.addEventListener('pointerdown', pm); window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     let raf = 0, last = performance.now(), t = 0, dist = 0, bx = 0, by = 2.5, slow = 0;
     const popAt = (text: string, x: number, y: number, z: number) => { const s = k.sprite(text, 1.4); s.position.set(x, y + 1, z); scene.add(s); pops.push({ s, life: 0.8 }); };
+    const fps = framePacer();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (!fps.ready(now)) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
       const level = Math.min(1, t / seconds);
       slow = Math.max(0, slow - dt);

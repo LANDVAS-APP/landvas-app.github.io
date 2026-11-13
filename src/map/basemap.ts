@@ -272,7 +272,9 @@ function reliefLayers(streets: boolean): LayerSpecification[] {
   const out = (from: number, to: number, v: number) => (streets ? ['interpolate', ['linear'], ['zoom'], from, v, to, 0] as any : v);
   return [
     // land coloured by height: green lowlands, yellow-green hills, tan and brown mountains, snow on the peaks
-    { id: 'lv-relief', type: 'color-relief', source: 'dem', layout: vis(t === 'terrain'),
+    // (with streets it has faded to nothing by STREETS_MIN + 2.5; past that it's switched off, as the map still drew the
+    // invisible layer over the whole screen on every frame at the zooms people play at)
+    { id: 'lv-relief', type: 'color-relief', source: 'dem', ...(streets ? { maxzoom: STREETS_MIN + 2.5 } : {}), layout: vis(t === 'terrain'),
       paint: {
         'color-relief-color': ['interpolate', ['linear'], ['elevation'],
           -12000, 'rgba(0,0,0,0)', -1, 'rgba(0,0,0,0)', 0, 'rgba(198,228,170,0.9)', 150, 'rgba(184,220,150,0.9)', 500, 'rgba(214,226,158,0.9)',

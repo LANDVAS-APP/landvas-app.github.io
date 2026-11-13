@@ -163,7 +163,7 @@ export default function SimpleHome() {
           const r = rarityInfo(p.rarity);
           return (
             <motion.div key={`${p.gx}_${p.gy}`} initial={i < 8 ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 8) * 0.03 }}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5" data-testid="simple-plot">
+              className="lv-offscreen-skip flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5" style={{ containIntrinsicSize: 'auto 62px' }} data-testid="simple-plot">
               {k === 'base' ? <BasePlotArt rarity={p.rarity} shiny={p.shiny} size={40} className="shrink-0" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ background: `linear-gradient(135deg, ${r.color}55, ${r.color}18)`, boxShadow: `inset 0 0 0 1.5px ${r.color}88` }}>{KIND_LABEL[k]?.emoji ?? '🎨'}</span>}
               <span className="grid min-w-0 flex-1 leading-tight">
                 <span className="truncate text-sm font-bold">{p.shiny ? '✨ ' : ''}{p.name || `Plot ${list.length - i}`}</span>

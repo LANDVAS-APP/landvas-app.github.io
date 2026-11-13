@@ -22,6 +22,9 @@ export function useScreenGestures(main: RefObject<HTMLElement | null>, opts: { e
   const [back, setBack] = useState(0);
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // (the finger's latest distance, read when it lifts: on a busy phone React may not have re-rendered since the last
+  // move, and the rendered value would drop a quick swipe that went far enough)
+  const backAt = useRef(0), pullAt = useRef(0);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (!opts.enabled || e.touches.length !== 1 || refreshing) return;
@@ -29,6 +32,7 @@ export function useScreenGestures(main: RefObject<HTMLElement | null>, opts: { e
     if (!el) return;
     const mode = opts.canGoBack && t.clientX < EDGE ? 'back' : el.scrollTop <= 0 && !innerScrolled(e.target, el) ? 'pull' : null;
     start.current = mode ? { x: t.clientX, y: t.clientY, mode, decided: false } : null;
+    backAt.current = 0; pullAt.current = 0;
   };
   const onTouchMove = (e: React.TouchEvent) => {
     const s = start.current; if (!s) return;
@@ -40,14 +44,16 @@ export function useScreenGestures(main: RefObject<HTMLElement | null>, opts: { e
       if (s.mode === 'back' && !(dx > 0 && Math.abs(dx) > Math.abs(dy))) { start.current = null; return; }
       if (s.mode === 'pull' && !(dy > 0 && Math.abs(dy) > Math.abs(dx) && (main.current?.scrollTop ?? 1) <= 0)) { start.current = null; return; }
     }
-    if (s.mode === 'back') { const v = Math.min(dx, 160); if ((v >= BACK_AT) !== (back >= BACK_AT)) buzz('light'); setBack(v); }
-    else { const v = Math.min(PULL_MAX, dy * 0.5); if ((v >= PULL_AT) !== (pull >= PULL_AT)) buzz('light'); setPull(v); }
+    if (s.mode === 'back') { const v = Math.min(dx, 160); if ((v >= BACK_AT) !== (backAt.current >= BACK_AT)) buzz('light'); backAt.current = v; setBack(v); }
+    else { const v = Math.min(PULL_MAX, dy * 0.5); if ((v >= PULL_AT) !== (pullAt.current >= PULL_AT)) buzz('light'); pullAt.current = v; setPull(v); }
   };
   const onTouchEnd = () => {
     const s = start.current; start.current = null;
     if (!s) return;
-    if (s.mode === 'back') { if (back >= BACK_AT) { buzz('medium'); opts.onBack(); } setBack(0); return; }
-    if (pull >= PULL_AT) {
+    const b = backAt.current, p = pullAt.current;
+    backAt.current = 0; pullAt.current = 0;
+    if (s.mode === 'back') { if (b >= BACK_AT) { buzz('medium'); opts.onBack(); } setBack(0); return; }
+    if (p >= PULL_AT) {
       setRefreshing(true); setPull(PULL_AT); buzz('medium');
       const min = new Promise((r) => setTimeout(r, 650));
       void Promise.all([qc.refetchQueries({ type: 'active' }).catch(() => {}), min]).finally(() => { setRefreshing(false); setPull(0); });

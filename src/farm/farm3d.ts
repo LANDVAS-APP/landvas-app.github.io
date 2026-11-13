@@ -2,7 +2,7 @@
 // ripe crop with a sparkle), a red barn and silo, fences, trees, a pond, a scarecrow, clouds, and
 // chickens and sheep pottering about. Drag to look around, pinch or scroll to zoom, tap a bed.
 // The sky follows the time of day where you are.
-import { adaptiveDpr, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import type { FarmBed, FarmCrop } from '../backend/types';
 
@@ -389,10 +389,13 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
   const pops: Pop[] = [];
   const dropGeo = T(new THREE.SphereGeometry(0.07, 6, 4)), dropMat = T(new THREE.MeshStandardMaterial({ color: '#6EC6FF', transparent: true, opacity: 0.85 }));
 
-  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); });
+  const fps = framePacer({ ambient: true });
+
+  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); }, undefined, fps);
   let raf = 0, last = performance.now(), t = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     const rawDt = (now - last) / 1000; const dt = Math.min(0.05, rawDt); last = now; t += dt;
     tune(rawDt);
     dist += (distTo - dist) * Math.min(1, dt * 6);

@@ -384,7 +384,7 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = phone ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 260);

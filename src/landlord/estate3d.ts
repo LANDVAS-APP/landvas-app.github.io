@@ -3,7 +3,7 @@
 // tenants leave requests, and the community garden. Drag to look along the street, pinch or scroll to zoom, tap a
 // broken thing, the mailbox or the garden.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 
 export type EstateSpot = { idx: number; house: number; what: string; fixed: boolean };
 export type EstateAction = { kind: 'repair'; idx: number } | { kind: 'mailbox' } | { kind: 'garden' };
@@ -17,8 +17,9 @@ export function createEstate3D(canvas: HTMLCanvasElement, view: EstateView, onAc
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = phone ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
   const bag: { dispose(): void }[] = [];
@@ -184,6 +185,7 @@ export function createEstate3D(canvas: HTMLCanvasElement, view: EstateView, onAc
   const tick = () => {
     if (stop) return;
     raf = requestAnimationFrame(tick);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), raw = (now - last) / 1000, dt = Math.min(0.05, raw), t = now / 1000; last = now; tune(raw);
     for (const p of pins) { p.s.position.y = p.base + (reduceMotion ? 0 : Math.sin(t * 2.4 + p.phase) * 0.15); }
     for (const tn of tenants) {

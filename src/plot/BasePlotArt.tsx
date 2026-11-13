@@ -4,6 +4,7 @@
 // spiral galaxy. A shiny plot shimmers.
 import { useId } from 'react';
 import { rarityInfo, type RarityId } from '../shared/rarity';
+import { animateWhenVisible } from '../lib/inView';
 
 const SLAB: Record<string, [string, string]> = {
   common: ['#5E6A78', '#3D4653'], uncommon: ['#2AA39A', '#17675F'], rare: ['#3D7FC4', '#22508A'], epic: ['#7A4FD8', '#4A2A9A'],
@@ -21,7 +22,7 @@ export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: R
   const [a, b] = SLAB[rarity] ?? SLAB.common;
   const stake = ['common', 'uncommon', 'rare', 'epic', 'legendary'].includes(rarity);
   return (
-    <svg viewBox="0 0 100 100" width={size} height={size} className={className} aria-label={`${shiny ? 'Shiny ' : ''}${info.name} Base plot`} role="img">
+    <svg ref={shiny ? animateWhenVisible : undefined} viewBox="0 0 100 100" width={size} height={size} className={className} aria-label={`${shiny ? 'Shiny ' : ''}${info.name} Base plot`} role="img">
       <defs>
         <linearGradient id={`${id}s`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={a} />{rarity === 'mythic' && <stop offset="0.5" stopColor="#3FE0FF" />}{rarity === 'prismatic' && <><stop offset="0.33" stopColor="#FFE14D" /><stop offset="0.66" stopColor="#3DDC97" /></>}<stop offset="1" stopColor={b} />

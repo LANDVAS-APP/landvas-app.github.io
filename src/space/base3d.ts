@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { BaseModule } from '../backend/types';
-import { sceneAntialias, sceneDpr } from '../lib/gfx';
+import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { animateModels, placedModel } from './baseModels';
 
 export type BaseSceneOpts = {
@@ -148,9 +148,11 @@ export function createBaseScene(o: BaseSceneOpts) {
     renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
   };
   const ro = new ResizeObserver(resize); ro.observe(o.canvas); resize();
+  const fps = framePacer({ ambient: true });
   let raf = 0, t = 0, last = performance.now(), ghostAt: THREE.Vector3 | null = null;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     controls.update();
     if (!o.reduceMotion) animateModels(pieces, t);

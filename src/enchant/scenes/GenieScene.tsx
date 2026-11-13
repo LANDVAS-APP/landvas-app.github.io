@@ -78,7 +78,7 @@ export function GenieScene({ view, act, busy, at }: SceneProps) {
         <AnimatePresence>
           {awake && (
             <motion.div key="g" className="absolute bottom-[34%] left-1/2 w-[46%] -translate-x-1/2" initial={{ opacity: 0, y: 60, scale: 0.3 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -40, scale: 0.6 }} transition={{ type: 'spring', stiffness: 120, damping: 14 }}>
-              <svg viewBox="0 0 160 200" className="lv-float w-full drop-shadow-[0_0_30px_rgba(34,227,255,0.6)]" aria-hidden>
+              <svg viewBox="0 0 160 200" className="lv-ench-float w-full drop-shadow-[0_0_30px_rgba(34,227,255,0.6)]" aria-hidden>
                 <path d="M80 200 Q40 170 70 150 Q100 130 60 110 Q30 90 80 80 Q130 90 100 110 Q60 130 90 150 Q120 170 80 200Z" fill="#22C3E6" opacity="0.75" />
                 <ellipse cx="80" cy="70" rx="34" ry="30" fill="#3DB6E8" /><circle cx="80" cy="40" r="24" fill="#4CC3EE" />
                 <path d="M56 30 Q80 6 104 30 Q80 20 56 30Z" fill="#8B5CFF" /><circle cx="80" cy="12" r="5" fill="#FFD23F" />

@@ -47,7 +47,11 @@ export function AppWelcome() {
   useEffect(() => { if (cooldown <= 0) return; const t = setTimeout(() => setCooldown((c) => c - 1), 1000); return () => clearTimeout(t); }, [cooldown]);
   useEffect(() => { if (b.session() && !joined) nav(next, { replace: true }); }, [b, nav, next, joined]);
   const go = () => nav(next === '/welcome' || next === '/' ? '/world' : next, { replace: true });
-  const welcome = () => { saveStorage('landvas.welcomed', true); setJoined(true); buzz('success'); confettiCannons(); setTimeout(go, 1700); };
+  // the "joined" moment hands over after a beat — unless the game has already moved on (to onboarding): a late
+  // hand-over there bounced that screen and wiped the username the player had started typing
+  const leave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (leave.current) clearTimeout(leave.current); }, []);
+  const welcome = () => { saveStorage('landvas.welcomed', true); setJoined(true); buzz('success'); confettiCannons(); leave.current = setTimeout(go, 1700); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

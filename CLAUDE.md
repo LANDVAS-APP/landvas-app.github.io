@@ -30,3 +30,23 @@ version until they get the new one from the store. The apps never contain admin 
 `src/app/buildFlags.ts`); staff use admin.landvas.app, where Live control sets app versions, maintenance, pages
 switched off and live versions (`game_config` 'app').
 
+## Keeping phones cool and smooth
+
+Most players are on phones (the website and the iOS/Android app, which is this same code in a WebView).
+What made phones stutter and run hot, and the rules that keep it fixed:
+- **No blur behind things on phones.** `backdrop-filter` re-renders whatever moves underneath (the map, a
+  3D scene) every frame. Panels, the HUD and the tab bar use solid glass under `@media (pointer: coarse)`.
+  A phone override must come *after* the rule it overrides in the stylesheet.
+- **Endless animations: transform and opacity only.** An infinite animation of a background, shadow,
+  filter, gradient or CSS variable repaints on the main thread every frame. On phones such effects hold
+  still (see the "phones" section at the end of `src/styles/app.css`). No `var()` inside `@keyframes`.
+- **Every `@keyframes` name is unique** across `app.css` and `enchant.css` — a duplicate silently
+  replaces the other one everywhere.
+- **3D scenes are paced** with `framePacer()` from `src/lib/gfx.ts` (60 fps max; places to look around
+  in pass `{ ambient: true }` and rest at 30 fps on phones while untouched). New scenes do the same.
+- **Looping SVG previews** take `ref={animateWhenVisible}` so they only play on screen.
+- **Map plot tiles take turns** (`tileTurn`/`tileDone` in `src/map/plotTiles.ts`): never draw a burst
+  of tiles in one go on the main thread.
+- **Sound engines sleep** (`audioNap` in `src/lib/audioNap.ts`): an AudioContext left running keeps the
+  phone's audio hardware awake.
+- Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) after `npm run build:artifact`.

@@ -19,8 +19,10 @@ export type RollOpts = { ticket?: string; ticketRarity?: string; hot?: boolean }
 export function useQuickRoll() {
   const me = useOnboardedMe();
   const qc = useQueryClient();
-  const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts; at?: { gx: number; gy: number }; luck?: number }>({ open: false, result: null, opts: {} });
+  const [state, setState] = useState<{ open: boolean; result: RollResult | null; opts: RollOpts; at?: { gx: number; gy: number }; luck?: number; n?: number }>({ open: false, result: null, opts: {} });
   const busy = useRef(false);
+  // (each roll gets its own number: "Roll again" opens a fresh roll even while the last one is still fading out)
+  const rollNo = useRef(0);
   const settle = useRef<(() => void) | null>(null);
   const refresh = () => { invalidateGame(qc); for (const k of [qk.myPlots, qk.groups, ['quick-buy-quote'], ['daily'], ['collection'], ['luck']]) void qc.invalidateQueries({ queryKey: k }); };
   const settleNow = () => { const f = settle.current; settle.current = null; f?.(); };
@@ -38,10 +40,11 @@ export function useQuickRoll() {
     busy.current = true;
     if (useUi.getState().settings.haptics) buzz('medium');
     const luckBefore = (qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck ?? 0;
-    setState({ open: true, result: null, opts, luck: luckBefore });
+    const n = ++rollNo.current;
+    setState({ open: true, result: null, opts, luck: luckBefore, n });
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
-      setState({ open: true, opts, luck: luckBefore, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null } });
+      setState({ open: true, opts, luck: luckBefore, n, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null } });
       // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
       settle.current = () => { celebrate(r.achievements); refresh(); };
     } catch (e) {
@@ -52,13 +55,14 @@ export function useQuickRoll() {
 
   // (tests and dev: show the roll for any rarity, without buying anything)
   if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false, choices: RarityId[] | null = null, choiceTypes: string[] | null = null, choiceShiny: boolean[] | null = null, enchant: string | null = null) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    setState({ open: true, result: null, opts: {} });
+    const n = ++rollNo.current;
+    setState({ open: true, result: null, opts: {}, n });
     // (an enchant kind turns the demo into an Enchanted roll: the drum changes mid-spin)
     const e = enchant ? { id: 'demo', kind: enchant, serial: 7, sigil: 424242, nickname: null, level: 1, gx: 0, gy: 0, titles: [], born_place: 'Salt Lake City', born_at: new Date().toISOString(), minted: 7, population: 7, name: kindInfo(enchant).name, emoji: kindInfo(enchant).emoji } : undefined;
-    setTimeout(() => setState({ open: true, opts: {}, result: { rarity: e ? 'enchanted' : rarity, usd: 0.00000001, type: 'pigment', first: false, shiny: e ? false : shiny, choices, choiceTypes, choiceShiny, enchant: e } }), 300);
+    setTimeout(() => setState({ open: true, opts: {}, n, result: { rarity: e ? 'enchanted' : rarity, usd: 0.00000001, type: 'pigment', first: false, shiny: e ? false : shiny, choices, choiceTypes, choiceShiny, enchant: e } }), 300);
   };
   const element = (
-    <InkRoll open={state.open} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
+    <InkRoll open={state.open} rollKey={state.n ?? 0} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
       onRevealed={() => setTimeout(settleNow, 1600)}
       luck={state.luck}
       onPick={state.at ? async (i) => { const p = await api.luckPick(state.at!.gx, state.at!.gy, i); celebrate(p.achievements); } : undefined}

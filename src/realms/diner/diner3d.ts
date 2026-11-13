@@ -5,7 +5,7 @@
 // tip — or storm off. The chef dashes between the counter and the tables. Decor levels add paint, plants, a neon
 // sign, a jukebox and a chandelier.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 
 export type DinerOpts = { canvas: HTMLCanvasElement; reduceMotion?: boolean; onTapStation?(slot: number): void; onTapTable?(table: number): void };
 export type StationView = { kind: string; cooking?: { emoji: string; p: number }; ready?: string; burnt?: boolean };
@@ -19,8 +19,9 @@ export function createDiner3D(o: DinerOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#2B1E2A');
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
   const bag: { dispose(): void }[] = [];
@@ -203,6 +204,7 @@ export function createDiner3D(o: DinerOpts) {
   const tmp = new THREE.Vector3();
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;

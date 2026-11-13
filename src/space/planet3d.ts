@@ -16,7 +16,7 @@ import { LAT_MAX, PLOT_M, cellAt, cellBounds, cellCenterDir, cellFloat, cellKey,
 import type { World } from './worlds';
 import { animateModels, moduleModel, roverModel } from './baseModels';
 import { alienModel, animateFinds, poiModel, shardModel, WEATHER, weatherParticles } from './finds3d';
-import { isPhone } from '../lib/gfx';
+import { framePacer, isPhone } from '../lib/gfx';
 import { config } from '../env';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
@@ -955,6 +955,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   resize();
   const ro = new ResizeObserver(resize); ro.observe(o.canvas);
   buildPatch(P.d);
+  const fps = framePacer();
   let raf = 0, last = performance.now(), t = 0, labelT = 0, lastZoomReport = '';
   let lastArea: { gx: number; gy: number } | null = null;
   // adaptive resolution: if frames run slow, render fewer pixels (and more again when there's room)
@@ -962,6 +963,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   let paused = false;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     if (paused) { last = now; return; }
     const raw = (now - last) / 1000; last = now;
     const dt = Math.min(0.05, raw); t += dt;

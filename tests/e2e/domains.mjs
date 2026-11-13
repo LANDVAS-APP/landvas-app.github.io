@@ -73,6 +73,9 @@ try {
   }
   let groups = await api('myGroups');
   check('nine plots claimed', groups.reduce((n, g) => n + g.plot_count, 0) === 9, `${groups.length} groups ${fails.join(' | ')}`);
+  // new plots start as Base plots (no tiers): these are art canvases, whose Estate is the Atelier
+  for (const g of groups) await api('setGroupKind', g.id, 'canvas');
+  groups = await api('myGroups');
   await page.evaluate(() => window.__landvasQc.invalidateQueries());
 
   // merge four first: the panel offers the Estate and shows the way to the Domain
@@ -127,6 +130,7 @@ try {
 
   const gid = (await api('myGroups'))[0].id;
   for (const [base, dom] of DOMAINS) {
+    if (dom === 'galaxypark') continue; // the Arcade's Domain is the arcade itself, grown a carnival (see carnival.mjs)
     const g0 = (await api('myGroups'))[0];
     if (g0.kind !== base && dom !== 'museum') await api('setGroupKind', gid, base);
     const r = await api('setGroupKind', gid, dom);

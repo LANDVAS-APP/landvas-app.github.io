@@ -74,6 +74,9 @@ try {
   }
   let groups = await api('myGroups');
   check('four plots claimed', groups.reduce((n, g) => n + g.plot_count, 0) === 4, `${groups.length} groups`);
+  // new plots start as Base plots (no tiers): make them art canvases, whose Estate is the Atelier
+  for (const g of groups) if ((g.kind ?? 'canvas') !== 'canvas') await api('setGroupKind', g.id, 'canvas');
+  groups = await api('myGroups');
   // Ink for the merge and the switches (test only: the local database, as its owner)
   const me = (await sql(`select id from players order by created_at desc limit 1`))[0].id;
   await sql(`insert into resource_balances (player_id, resource, amount) values ('${me}', 'ink', 50000) on conflict (player_id, resource) do update set amount = 50000`);

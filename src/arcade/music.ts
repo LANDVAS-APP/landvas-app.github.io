@@ -1,6 +1,7 @@
 // Arcade music, made on the fly: a little step sequencer (drums, bass, chords and a lead) playing one of a
 // handful of tracks. The jukebox picks the track; it keeps playing (a touch quieter) while you're on a cabinet.
 // No audio files, nothing to download.
+import { audioNap } from '../lib/audioNap';
 type Track = { id: string; name: string; emoji: string; bpm: number; swing?: number;
   // 16 steps a bar, 4 bars: notes are semitones from the root (null = rest)
   root: number; chords: number[][]; bass: (number | null)[]; lead: (number | null)[]; arp?: boolean;
@@ -130,6 +131,8 @@ export const TRACKS: Track[] = [
 ];
 
 let ctx: AudioContext | null = null, master: GainNode | null = null, timer: number | null = null;
+// awake while a track plays; asleep a few seconds after it stops (see audioNap)
+const nap = audioNap(() => ctx);
 let track: Track | null = null, step = 0, nextAt = 0, volume = 0.5, duck = 1, tempo = 1, heat = 0;
 const saved = (() => { try { return JSON.parse(localStorage.getItem('landvas.arcade.music') ?? 'null') as { id: string | null; vol: number } | null; } catch { return null; } })();
 let chosen: string | null = saved ? saved.id : 'neon';
@@ -191,6 +194,7 @@ export const music = {
     try {
       ctx ??= new AudioContext();
       if (ctx.state === 'suspended') void ctx.resume();
+      nap.hold();
       if (!master) { master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); }
       const tr = TRACKS.find((x) => x.id === id) ?? TRACKS[0];
       if (track?.id !== tr.id) { track = tr; step = 0; nextAt = ctx.currentTime + 0.1; }
@@ -201,6 +205,7 @@ export const music = {
   stop(forget = false) {
     if (timer) { clearInterval(timer); timer = null; }
     if (master && ctx) master.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    nap.poke(0.5);
     track = null; playing = null; tempo = 1; heat = 0; emit();
     if (forget) { chosen = null; save(); emit(); }
   },

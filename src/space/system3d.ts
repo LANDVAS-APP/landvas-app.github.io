@@ -1,7 +1,7 @@
 // Mission control's solar system in 3D: the Sun, every world on its orbit (rings, the Moon going round
 // the Earth), your rocket parked or on its way between two worlds. Drag to swing round, pinch or
 // scroll to zoom, tap a world to plan a trip — the camera glides over to it.
-import { sceneAntialias, sceneDpr } from '../lib/gfx';
+import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { rng } from '../inkborn/world';
 import { WORLDS, type World, type WorldId } from './worlds';
@@ -161,9 +161,11 @@ export function createSystemScene(canvas: HTMLCanvasElement, live: { current: Sy
   resize(); const ro = new ResizeObserver(resize); ro.observe(canvas);
   const posOf = (id: string | null) => (id?.startsWith('exo:') || id === 'exo' || id === 'home' ? deep : id === 'moon' ? moon.position : bodies.get(id ?? 'earth')?.mesh.position ?? bodies.get('earth')!.mesh.position);
   const tmp = new THREE.Vector3();
+  const fps = framePacer({ ambient: true });
   let raf = 0; const t0 = performance.now(); let lastPicked: string | null = null; let last = t0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     const L = live.current;
     const t = reduce ? 0 : (now - t0) / 1000; const dt = Math.min(0.05, (now - last) / 1000); last = now;
     for (const b of bodies.values()) {

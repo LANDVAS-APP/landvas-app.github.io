@@ -6,7 +6,7 @@
 // stays dark. Your miner walks the tunnels and climbs the ladders to whatever you tap, swinging the pickaxe until
 // it breaks. Drag up and down to look round.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { TILE_INFO, layerAt, mineHash, mineTile, type MineCfg } from './tiles';
 
 export type MineBuilding = 'trader' | 'smelter' | 'outfitter' | 'crew' | 'bench' | 'museum' | 'games';
@@ -27,8 +27,9 @@ export function createMine3D(o: MineOpts) {
   const c = o.cfg, W = c.width, phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
-  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
   const bag: { dispose(): void }[] = [];
@@ -334,6 +335,7 @@ export function createMine3D(o: MineOpts) {
   const tmp = new THREE.Vector3(), look = new THREE.Vector3();
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;

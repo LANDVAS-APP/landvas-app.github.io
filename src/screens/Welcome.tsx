@@ -155,6 +155,10 @@ function WebWelcome() {
     catch (err) { setError(toGameError(err).message); } finally { setBusy(false); }
   };
   const [joined, setJoined] = useState(false);
+  // the "Welcome to LANDVAS!" moment hands over after a beat; if the game has already moved on (to onboarding),
+  // the late hand-over must not fire, or it bounces that screen and wipes what the player started typing
+  const leave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (leave.current) clearTimeout(leave.current); }, []);
   const app = isNative();
   // the app opens on a game title screen; the account card slides up when you tap Play
   const [started, setStarted] = useState(!app || !!params.get('mode') || !!invite);
@@ -187,7 +191,7 @@ function WebWelcome() {
         saveStorage('landvas.welcomed', true);
         setJoined(true);
         confettiCannons();
-        setTimeout(go, 1700);
+        leave.current = setTimeout(go, 1700);
         return;
       }
       await b.signIn(email, password);

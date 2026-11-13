@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { cleanGenome, type Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { ITEM, buildItem, makeKit, type Built } from './furniture';
 
 export type Placed = { i: string; x: number; z: number; r: number; c?: number; /** which floor: 0 the ground floor, up to the roof terrace */ f?: number };
@@ -169,8 +169,12 @@ export function createHome(o: HomeOpts) {
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', preserveDrawingBuffer: false });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  // phones: only the furniture casts shadows (people and Inkborn are flat sprites with their own soft shadow), and it
+  // rarely moves, so the shadow map — a whole extra pass over the room — is redrawn a few times a second, not every frame
+  if (phone) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; }
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#2A1F1A');
   const camera = new THREE.PerspectiveCamera(46, 1, 0.05, 120);
   const kit = makeKit();
@@ -752,6 +756,7 @@ export function createHome(o: HomeOpts) {
   };
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     if (paused) { last = now; return; }
     const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now; t += dt; frame++;
     tune(raw);
@@ -853,6 +858,7 @@ export function createHome(o: HomeOpts) {
       camLook.lerp(tmp2.set(P.x * kl + side * 1.4, 0.9, Math.min(P.z, 3.5) - 2.4), Math.min(1, dt * 3.5));
     }
     camera.position.copy(camPos); camera.lookAt(camLook);
+    if (phone && frame % 4 === 0) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);

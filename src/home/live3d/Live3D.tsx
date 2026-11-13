@@ -16,6 +16,7 @@ import { Button } from '../../ui';
 import { PartyResults, seatsOf } from '../party/PartyGame';
 import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type In3, type LavaW, type P3, type PaintW, type RLW, type SnowW, type SumoW, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
+import { framePacer } from '../../lib/gfx';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 const STEP = 1 / 30, SNAP_MS = 100, DELAY = 0.14;
@@ -159,9 +160,11 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       api.homeGamePing(game.id).then((r) => { if (r.host && r.host !== myId && amHost) { amHost = false; inCh?.close(); inCh = null; mine = null; lastSnap = performance.now(); } }).catch(() => {});
     }, PING_MS);
 
+    const fps = framePacer();
     const tick = () => {
       if (stop) return;
       raf = requestAnimationFrame(tick);
+      if (!fps.ready(performance.now())) return;
       const now = performance.now(), since = Date.now() - startAt, dtF = Math.min(0.25, (now - last) / 1000);
       last = now;
       if (since < 0) setCount(Math.ceil(-since / 1000));

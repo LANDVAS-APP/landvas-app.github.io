@@ -175,10 +175,34 @@ function ctx2d() {
 
 export type PlotTileOpts = { mode: MapMode; hidden: { gx: number; gy: number } | null };
 
+// ---- tiles take turns ------------------------------------------------------------------
+// Tiles are drawn on the main thread — the one that also moves the map. After a pan or a zoom, a burst of fresh tiles
+// drawn back to back held the map still for a moment: the stutter you could feel. Now tiles draw for a few milliseconds
+// at most per frame (always at least one); the rest wait for the next frame, and the map keeps moving in between.
+const TILE_BUDGET_MS = 6;
+const tileQueue: (() => void)[] = [];
+let tileBusy = false, sliceStart = 0;
+/** Wait for this tile's turn to draw on the shared canvas; call tileDone() once it's drawn (in a finally). */
+function tileTurn(): Promise<void> {
+  return new Promise((resolve) => {
+    tileQueue.push(resolve);
+    if (!tileBusy) { tileBusy = true; sliceStart = performance.now(); tileQueue.shift()!(); }
+  });
+}
+function tileDone() {
+  if (!tileQueue.length) { tileBusy = false; return; }
+  if (performance.now() - sliceStart < TILE_BUDGET_MS) { tileQueue.shift()!(); return; }
+  // over this frame's budget: the rest after the map has drawn its next frame (or soon, if frames have stopped)
+  let go = false;
+  const resume = () => { if (go) return; go = true; sliceStart = performance.now(); const next = tileQueue.shift(); if (next) next(); else tileBusy = false; };
+  requestAnimationFrame(() => setTimeout(resume, 0));
+  setTimeout(resume, 100);
+}
+
 const stats = { tiles: 0, ms: 0, worst: 0 };
 if (config.e2e) (window as any).__lvPlotTiles = stats; // benchmark readout (tests only)
 
-async function drawPlotTile(blocks: PlotBlocks, z: number, x: number, y: number, opts: PlotTileOpts, _t0 = 0): Promise<ImageBitmap | ArrayBuffer | null> {
+async function drawPlotTile(blocks: PlotBlocks, z: number, x: number, y: number, opts: PlotTileOpts, _t0 = 0, aborted?: () => boolean): Promise<ImageBitmap | ArrayBuffer | null> {
   const shift = GRID_LEVEL - z; // plots per tile edge = 2^shift
   if (shift < 0) return null;
   const gx0 = x << shift, gy0 = y << shift, n = 1 << shift;
@@ -189,56 +213,62 @@ async function drawPlotTile(blocks: PlotBlocks, z: number, x: number, y: number,
   // the plot grid is drawn into these same tiles (one image layer for the phone to fill, not two)
   const grid = opts.mode !== 'canvas' && z >= Math.floor(GRIDLINES_MIN_ZOOM) && shift <= 6;
   if (!rows.length && !grid) return null;
-  const started = performance.now();
-  const cs = PX / n; // canvas pixels per plot
-  const look = LOOKS[opts.mode] ?? LOOKS.atlas;
-  const ctx = ctx2d();
-  if (grid) { drawGrid(ctx, z); ctx.globalAlpha = 1; }
-  const pat = cs >= 12 * SCALE;
-  for (const r of rows) {
-    if (r[6]) continue; // plots with art show only their art
-    const px = (r[0] - gx0) * cs, py = (r[1] - gy0) * cs, mine = r[4] ? 0 : 1;
-    ctx.globalAlpha = look.fill[mine];
-    ctx.fillStyle = r[8] || '#7B5CFF';
-    ctx.fillRect(px, py, cs, cs);
-    if (pat) {
-      const p = patternFor(ctx, r[2]);
-      if (p) {
-        ctx.globalAlpha = look.pattern[mine];
-        ctx.fillStyle = p;
-        ctx.fillRect(px, py, cs, cs);
+  await tileTurn();
+  try {
+    if (aborted?.()) return null; // (scrolled past while it waited: the map no longer wants it)
+    const started = performance.now();
+    const cs = PX / n; // canvas pixels per plot
+    const look = LOOKS[opts.mode] ?? LOOKS.atlas;
+    const ctx = ctx2d();
+    if (grid) { drawGrid(ctx, z); ctx.globalAlpha = 1; }
+    const pat = cs >= 12 * SCALE;
+    for (const r of rows) {
+      if (r[6]) continue; // plots with art show only their art
+      const px = (r[0] - gx0) * cs, py = (r[1] - gy0) * cs, mine = r[4] ? 0 : 1;
+      ctx.globalAlpha = look.fill[mine];
+      ctx.fillStyle = r[8] || '#7B5CFF';
+      ctx.fillRect(px, py, cs, cs);
+      if (pat) {
+        const p = patternFor(ctx, r[2]);
+        if (p) {
+          ctx.globalAlpha = look.pattern[mine];
+          ctx.fillStyle = p;
+          ctx.fillRect(px, py, cs, cs);
+        }
       }
     }
-  }
-  // a rarity rim round every plot that isn't common (thicker and glowing as it gets rarer), and the owner's
-  // outline; plots merged into one canvas share one outline round the outside, with no seams between them
-  const look2 = makeLookup(blocks, lists);
-  const lw = (m: boolean) => lerp(z, PLOTS_MIN_ZOOM, 0.5, GRID_LEVEL - 1, m ? 2.4 : 1.6) * SCALE;
-  for (const r of rows) {
-    const mine = r[4] ? 0 : 1;
-    const join = cs >= 4 ? joinOf(r, look2) : NO_JOIN;
-    const px = (r[0] - gx0) * cs, py = (r[1] - gy0) * cs;
-    const hidden = opts.hidden && opts.hidden.gx === r[0] && opts.hidden.gy === r[1]; // still rolling
-    const tier = hidden || r[6] ? 0 : tierOf(r[9]);
-    const c: KCell = { gx: r[0], gy: r[1], px, py, cs, rc: '', glow: '', tier, join };
-    if (tier && look.glow > 0 && cs >= 4) {
-      const info = rarityInfo(r[9]);
-      const w = Math.max(1, lerp(z, GRID_LEVEL - 3, 2, GRID_LEVEL, 6) * SCALE * (0.35 + tier * 0.12));
-      if (tier >= 2) { ctx.globalAlpha = look.glow * (0.25 + tier * 0.08); ctx.strokeStyle = info.glow; ctx.lineWidth = w * 2.2; outerEdges(ctx, c, w * 1.1); }
-      ctx.globalAlpha = look.glow * (0.55 + tier * 0.1); ctx.strokeStyle = info.color; ctx.lineWidth = w; outerEdges(ctx, c, w / 2);
+    // a rarity rim round every plot that isn't common (thicker and glowing as it gets rarer), and the owner's
+    // outline; plots merged into one canvas share one outline round the outside, with no seams between them
+    const look2 = makeLookup(blocks, lists);
+    const lw = (m: boolean) => lerp(z, PLOTS_MIN_ZOOM, 0.5, GRID_LEVEL - 1, m ? 2.4 : 1.6) * SCALE;
+    for (const r of rows) {
+      const mine = r[4] ? 0 : 1;
+      const join = cs >= 4 ? joinOf(r, look2) : NO_JOIN;
+      const px = (r[0] - gx0) * cs, py = (r[1] - gy0) * cs;
+      const hidden = opts.hidden && opts.hidden.gx === r[0] && opts.hidden.gy === r[1]; // still rolling
+      const tier = hidden || r[6] ? 0 : tierOf(r[9]);
+      const c: KCell = { gx: r[0], gy: r[1], px, py, cs, rc: '', glow: '', tier, join };
+      if (tier && look.glow > 0 && cs >= 4) {
+        const info = rarityInfo(r[9]);
+        const w = Math.max(1, lerp(z, GRID_LEVEL - 3, 2, GRID_LEVEL, 6) * SCALE * (0.35 + tier * 0.12));
+        if (tier >= 2) { ctx.globalAlpha = look.glow * (0.25 + tier * 0.08); ctx.strokeStyle = info.glow; ctx.lineWidth = w * 2.2; outerEdges(ctx, c, w * 1.1); }
+        ctx.globalAlpha = look.glow * (0.55 + tier * 0.1); ctx.strokeStyle = info.color; ctx.lineWidth = w; outerEdges(ctx, c, w / 2);
+      }
+      const a = look.line[mine];
+      if (!a) continue;
+      const w = Math.min(lw(!!r[4]), cs / 3);
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = r[4] ? '#FFFFFF' : r[8] || '#7B5CFF';
+      ctx.lineWidth = w;
+      outerEdges(ctx, c, w / 2);
     }
-    const a = look.line[mine];
-    if (!a) continue;
-    const w = Math.min(lw(!!r[4]), cs / 3);
-    ctx.globalAlpha = a;
-    ctx.strokeStyle = r[4] ? '#FFFFFF' : r[8] || '#7B5CFF';
-    ctx.lineWidth = w;
-    outerEdges(ctx, c, w / 2);
+    const bmp = snapshot(canvas!);
+    const took = performance.now() - started;
+    stats.tiles++; stats.ms += took; stats.worst = Math.max(stats.worst, took);
+    return bmp;
+  } finally {
+    tileDone();
   }
-  const bmp = snapshot(canvas!);
-  const took = performance.now() - started;
-  stats.tiles++; stats.ms += took; stats.worst = Math.max(stats.worst, took);
-  return bmp;
 }
 
 // ---- habitat plots: a little woodland drawn over the plot (above any old artwork) ----------
@@ -916,7 +946,7 @@ export function drawHabitatPlot(ctx: CanvasRenderingContext2D, gx: number, gy: n
   habitatCell(ctx, c); rarityRim(ctx, c, 'rgba(255,255,255,0.35)');
 }
 
-async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number, opts?: PlotTileOpts): Promise<ImageBitmap | ArrayBuffer | null> {
+async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: number, opts?: PlotTileOpts, aborted?: () => boolean): Promise<ImageBitmap | ArrayBuffer | null> {
   const shift = GRID_LEVEL - z;
   if (shift < 0) return null;
   const gx0 = x << shift, gy0 = y << shift, n = 1 << shift;
@@ -925,69 +955,75 @@ async function drawHabitatTile(blocks: PlotBlocks, z: number, x: number, y: numb
   for (let by = by0; by < by0 + bn; by++) for (let bx = bx0; bx < bx0 + bn; bx++) lists.push(await blocks.get(bx, by));
   const rows = lists.flat().filter((r) => r[11] && CELL_DRAW[r[11]] && !(r[11] === 'canvas' && r[6]) && r[0] >= gx0 && r[0] < gx0 + n && r[1] >= gy0 && r[1] < gy0 + n);
   if (!rows.length) return null;
-  const cs = PX / n;
-  const ctx = ctx2d();
-  const look = makeLookup(blocks, lists);
-  const cells: { r: PlotRow; c: KCell }[] = [];
-  for (const r of rows) {
-    const hidden = opts?.hidden && opts.hidden.gx === r[0] && opts.hidden.gy === r[1]; // still rolling: no rarity yet
-    const info = hidden ? NEUTRAL : rarityInfo(r[9]);
-    const c: KCell = { gx: r[0], gy: r[1], px: (r[0] - gx0) * cs, py: (r[1] - gy0) * cs, cs, rc: info.color, glow: info.glow, tier: hidden ? 0 : tierOf(r[9]), join: cs >= 6 ? joinOf(r, look) : NO_JOIN, rid: hidden ? 'common' : r[9] ?? 'common', shiny: !hidden && !!r[12] };
-    CELL_DRAW[r[11]!]!(ctx, c);
-    if (c.shiny) shinyOver(ctx, c);
-    cells.push({ r, c });
-  }
-  // one centrepiece per plot or merged group, centred on the whole group (it may reach over several tiles)
-  if (cs >= 6) {
-    const done = new Set<string>();
-    for (const { r } of cells) {
-      const id = r[5] ?? `${r[0]},${r[1]}`;
-      if (done.has(id)) continue;
-      done.add(id);
-      // the group's extent and its rarest plot, from what's loaded around here
-      let x0 = r[0], y0 = r[1], x1 = r[0], y1 = r[1], best = r;
-      if (r[5]) {
-        const seen = new Set<string>([`${r[0]},${r[1]}`]), queue: [number, number][] = [[r[0], r[1]]];
-        while (queue.length && seen.size < 400) {
-          const [qx, qy] = queue.pop()!;
-          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const nx = qx + dx, ny = qy + dy, k = `${nx},${ny}`;
-            if (seen.has(k)) continue;
-            const nr = look(nx, ny);
-            if (nr?.[5] !== r[5]) continue;
-            seen.add(k); queue.push([nx, ny]);
-            x0 = Math.min(x0, nx); y0 = Math.min(y0, ny); x1 = Math.max(x1, nx); y1 = Math.max(y1, ny);
-            if (tierOf(nr[9]) > tierOf(best[9])) best = nr;
+  await tileTurn();
+  try {
+    if (aborted?.()) return null; // (scrolled past while it waited: the map no longer wants it)
+    const cs = PX / n;
+    const ctx = ctx2d();
+    const look = makeLookup(blocks, lists);
+    const cells: { r: PlotRow; c: KCell }[] = [];
+    for (const r of rows) {
+      const hidden = opts?.hidden && opts.hidden.gx === r[0] && opts.hidden.gy === r[1]; // still rolling: no rarity yet
+      const info = hidden ? NEUTRAL : rarityInfo(r[9]);
+      const c: KCell = { gx: r[0], gy: r[1], px: (r[0] - gx0) * cs, py: (r[1] - gy0) * cs, cs, rc: info.color, glow: info.glow, tier: hidden ? 0 : tierOf(r[9]), join: cs >= 6 ? joinOf(r, look) : NO_JOIN, rid: hidden ? 'common' : r[9] ?? 'common', shiny: !hidden && !!r[12] };
+      CELL_DRAW[r[11]!]!(ctx, c);
+      if (c.shiny) shinyOver(ctx, c);
+      cells.push({ r, c });
+    }
+    // one centrepiece per plot or merged group, centred on the whole group (it may reach over several tiles)
+    if (cs >= 6) {
+      const done = new Set<string>();
+      for (const { r } of cells) {
+        const id = r[5] ?? `${r[0]},${r[1]}`;
+        if (done.has(id)) continue;
+        done.add(id);
+        // the group's extent and its rarest plot, from what's loaded around here
+        let x0 = r[0], y0 = r[1], x1 = r[0], y1 = r[1], best = r;
+        if (r[5]) {
+          const seen = new Set<string>([`${r[0]},${r[1]}`]), queue: [number, number][] = [[r[0], r[1]]];
+          while (queue.length && seen.size < 400) {
+            const [qx, qy] = queue.pop()!;
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              const nx = qx + dx, ny = qy + dy, k = `${nx},${ny}`;
+              if (seen.has(k)) continue;
+              const nr = look(nx, ny);
+              if (nr?.[5] !== r[5]) continue;
+              seen.add(k); queue.push([nx, ny]);
+              x0 = Math.min(x0, nx); y0 = Math.min(y0, ny); x1 = Math.max(x1, nx); y1 = Math.max(y1, ny);
+              if (tierOf(nr[9]) > tierOf(best[9])) best = nr;
+            }
           }
         }
-      }
-      if (r[11] === 'base' || r[11] === 'canvas') continue; // their look is all in the cells
-      const hidden = opts?.hidden && seenHidden(opts.hidden, x0, y0, x1, y1);
-      const info = hidden ? NEUTRAL : rarityInfo(best[9]);
-      if (hasTierScene(r[11])) {
-        // an Estate or Domain: one picture of the whole place across its land, with a small crest in the corner
-        const clip = cells.filter((o) => (r[5] ? o.r[5] === r[5] : o.r === r)).map((o) => [o.c.px, o.c.py, cs] as [number, number, number]);
-        const L = ESTATE_LOOK[r[11]!]!, X0 = (x0 - gx0) * cs, Y0 = (y0 - gy0) * cs, X1 = (x1 + 1 - gx0) * cs, Y1 = (y1 + 1 - gy0) * cs;
-        tierScene(ctx, r[11]!, X0, Y0, X1, Y1, clip, hash(x0, y0, 17) * 1e9, !!L.big, L.trim);
-        const sz = Math.min(X1 - X0, Y1 - Y0);
-        if (sz >= 40) {
-          const bx = X0 + sz * 0.1, by = Y0 + sz * 0.1, br = sz * 0.07;
-          ctx.save(); ctx.beginPath(); for (const [px, py] of clip) ctx.rect(px, py, cs, cs); ctx.clip();
-          ctx.fillStyle = 'rgba(10,8,24,0.75)'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
-          ctx.strokeStyle = L.big ? '#FFD65A' : L.trim; ctx.lineWidth = Math.max(1, br * 0.14); ctx.stroke();
-          ctx.font = `${Math.round(br * 1.1)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText(REALM_SIGN[r[11]!] ?? '👑', bx, by + br * 0.05);
-          ctx.font = `${Math.round(br * 0.75)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.fillText(L.big ? '👑👑' : '👑', bx, by - br * 1.25);
-          ctx.restore();
+        if (r[11] === 'base' || r[11] === 'canvas') continue; // their look is all in the cells
+        const hidden = opts?.hidden && seenHidden(opts.hidden, x0, y0, x1, y1);
+        const info = hidden ? NEUTRAL : rarityInfo(best[9]);
+        if (hasTierScene(r[11])) {
+          // an Estate or Domain: one picture of the whole place across its land, with a small crest in the corner
+          const clip = cells.filter((o) => (r[5] ? o.r[5] === r[5] : o.r === r)).map((o) => [o.c.px, o.c.py, cs] as [number, number, number]);
+          const L = ESTATE_LOOK[r[11]!]!, X0 = (x0 - gx0) * cs, Y0 = (y0 - gy0) * cs, X1 = (x1 + 1 - gx0) * cs, Y1 = (y1 + 1 - gy0) * cs;
+          tierScene(ctx, r[11]!, X0, Y0, X1, Y1, clip, hash(x0, y0, 17) * 1e9, !!L.big, L.trim);
+          const sz = Math.min(X1 - X0, Y1 - Y0);
+          if (sz >= 40) {
+            const bx = X0 + sz * 0.1, by = Y0 + sz * 0.1, br = sz * 0.07;
+            ctx.save(); ctx.beginPath(); for (const [px, py] of clip) ctx.rect(px, py, cs, cs); ctx.clip();
+            ctx.fillStyle = 'rgba(10,8,24,0.75)'; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = L.big ? '#FFD65A' : L.trim; ctx.lineWidth = Math.max(1, br * 0.14); ctx.stroke();
+            ctx.font = `${Math.round(br * 1.1)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(REALM_SIGN[r[11]!] ?? '👑', bx, by + br * 0.05);
+            ctx.font = `${Math.round(br * 0.75)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`; ctx.fillText(L.big ? '👑👑' : '👑', bx, by - br * 1.25);
+            ctx.restore();
+          }
+          continue;
         }
-        continue;
+        centrepiece(ctx, r[11]!, (x0 - gx0) * cs, (y0 - gy0) * cs, (x1 + 1 - gx0) * cs, (y1 + 1 - gy0) * cs, info.color, info.glow, hidden ? 0 : tierOf(best[9]), hash(x0, y0, 9));
       }
-      centrepiece(ctx, r[11]!, (x0 - gx0) * cs, (y0 - gy0) * cs, (x1 + 1 - gx0) * cs, (y1 + 1 - gy0) * cs, info.color, info.glow, hidden ? 0 : tierOf(best[9]), hash(x0, y0, 9));
     }
+    // the rarity rim round the outside of every plot / merged group
+    for (const { r, c } of cells) rarityRim(ctx, c, RIM_BASE[r[11]!] ?? '#fff');
+    return snapshot(canvas!);
+  } finally {
+    tileDone();
   }
-  // the rarity rim round the outside of every plot / merged group
-  for (const { r, c } of cells) rarityRim(ctx, c, RIM_BASE[r[11]!] ?? '#fff');
-  return snapshot(canvas!);
 }
 const seenHidden = (h: { gx: number; gy: number }, x0: number, y0: number, x1: number, y1: number) => h.gx >= x0 && h.gx <= x1 && h.gy >= y0 && h.gy <= y1;
 
@@ -1026,22 +1062,22 @@ let registered = false;
 export function registerPlotProtocols(blocks: PlotBlocks, opts: () => PlotTileOpts) {
   if (registered) return;
   registered = true;
-  addProtocol('lvplots', async (params) => {
+  addProtocol('lvplots', async (params, abort) => {
     const m = /^lvplots:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
     if (!m) return { data: new ArrayBuffer(0) };
     try {
       const t0 = performance.now();
-      const img = await drawPlotTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]), opts(), t0);
+      const img = await drawPlotTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]), opts(), t0, () => !!abort?.signal.aborted);
       return { data: (img ?? new ArrayBuffer(0)) as any };
     } catch {
       return { data: new ArrayBuffer(0) };
     }
   });
-  addProtocol('lvhab', async (params) => {
+  addProtocol('lvhab', async (params, abort) => {
     const m = /^lvhab:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
     if (!m) return { data: new ArrayBuffer(0) };
     try {
-      const img = await drawHabitatTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]), opts());
+      const img = await drawHabitatTile(blocks, Number(m[1]), Number(m[2]), Number(m[3]), opts(), () => !!abort?.signal.aborted);
       return { data: (img ?? new ArrayBuffer(0)) as any };
     } catch {
       return { data: new ArrayBuffer(0) };

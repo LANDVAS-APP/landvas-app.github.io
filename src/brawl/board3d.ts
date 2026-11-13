@@ -5,7 +5,7 @@
 // (frozen, poisoned, shielded, flourished). Every event plays out: summons splash down in paint, attacks lunge across,
 // damage numbers fly, freezes encase, poison bubbles, spells streak across the table and the fallen burst into paint.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { CARD, LANES, TERRAIN_INFO, type Terrain } from '../shared/brawl/cards';
 import { buildWonder, makeScenes, Particles, type Ctx, type WonderModel } from './fx3d';
 import { otherSide, type Ev, type Side, type Unit, type View } from '../shared/brawl/engine';
@@ -32,8 +32,9 @@ export function createBoard3D(o: BoardOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.28;
-  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer();
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#120A22'); scene.fog = new THREE.Fog('#120A22', 34, 90);
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 150);
   const bag: { dispose(): void }[] = [];
@@ -496,6 +497,7 @@ export function createBoard3D(o: BoardOpts) {
   const perf = { frames: 0, cpu: 0, worst: 0, world: 0, worldWorst: 0, render: 0, calls: 0, tris: 0, programs: 0, worstNew: 0, textures: 0, worstTex: 0 };
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     const f0 = performance.now();

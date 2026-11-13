@@ -3,7 +3,7 @@
 // the build board, the maker (smelter, loom, bench, kitchen, forge), the market and the collection — and six zones
 // round the edge that open up one by one as the place levels up. The producers you've built show up in their zones.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { rng } from '../home/party/kit';
 import { bake, type Ctx } from '../home/live3d/kit3d';
 import type { RealmKind } from '../backend/types';
@@ -42,8 +42,9 @@ export function createRealm3D(o: RealmSceneOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = phone ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
   const bag: { dispose(): void }[] = [];
@@ -170,6 +171,7 @@ export function createRealm3D(o: RealmSceneOpts) {
   const tick = () => {
     if (stop) return;
     raf = requestAnimationFrame(tick);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), raw = (now - last) / 1000, dt = Math.min(0.05, raw), t = now / 1000; last = now; tune(raw);
     // move
     let ix = (keys.has('arrowright') || keys.has('d') ? 1 : 0) - (keys.has('arrowleft') || keys.has('a') ? 1 : 0), iz = (keys.has('arrowdown') || keys.has('s') ? 1 : 0) - (keys.has('arrowup') || keys.has('w') ? 1 : 0);

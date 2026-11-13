@@ -5,7 +5,7 @@
 // room together, carrying a lantern. In a fight they line up facing the monsters and every blow plays out: lunges,
 // flashes, damage numbers, heals, stuns, and monsters crumbling to dust.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { nb, parse, type Enemy, type LogEntry, type PartyHero, type Run } from './dungeonCore';
 
 export type DungeonOpts = { canvas: HTMLCanvasElement; heroes: Record<string, { color: string; emoji: string }>; reduceMotion?: boolean; onTapRoom?(k: string): void };
@@ -16,8 +16,9 @@ export function createDungeon3D(o: DungeonOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
-  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: () => !fighting });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#0B0910');
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 120);
   const bag: { dispose(): void }[] = [];
@@ -203,6 +204,7 @@ export function createDungeon3D(o: DungeonOpts) {
   const camAt = new THREE.Vector3(0, 0, 1), camGoal = new THREE.Vector3();
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;

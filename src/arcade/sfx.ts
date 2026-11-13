@@ -1,13 +1,16 @@
 // Arcade sounds, made on the fly (no audio files): blips, chimes, jackpot fanfares, ticket clicks.
 // Off when the player mutes the arcade (remembered on this device).
+import { audioNap } from '../lib/audioNap';
+
 let ctx: AudioContext | null = null;
+const nap = audioNap(() => ctx);
 let muted = (() => { try { return localStorage.getItem('landvas.arcade.mute') === '1'; } catch { return false; } })();
 export const isMuted = () => muted;
 export function setMuted(m: boolean) { muted = m; try { localStorage.setItem('landvas.arcade.mute', m ? '1' : '0'); } catch { /* private mode */ } }
 
 function ac() {
   if (muted) return null;
-  try { ctx ??= new AudioContext(); if (ctx.state === 'suspended') void ctx.resume(); return ctx; } catch { return null; }
+  try { ctx ??= new AudioContext(); if (ctx.state === 'suspended') void ctx.resume(); nap.poke(1.5); return ctx; } catch { return null; }
 }
 function tone(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.06, at = 0, slide?: number) {
   const c = ac(); if (!c) return;

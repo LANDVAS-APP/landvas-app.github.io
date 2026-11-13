@@ -4,13 +4,13 @@ import { RollReveal, type RollResult } from '../roll/RollReveal';
 
 export type { RollResult };
 
-export function InkRoll({ open, result, onClose, onAgain, onRevealed, onPick, luck, canAgain, againLabel }: {
-  open: boolean; result: RollResult | null; onClose(): void; onAgain(): void; onRevealed?(): void; onPick?(idx: number): Promise<unknown>; luck?: number; canAgain: boolean; againLabel: string;
+export function InkRoll({ open, rollKey = 0, result, onClose, onAgain, onRevealed, onPick, luck, canAgain, againLabel }: {
+  open: boolean; rollKey?: number; result: RollResult | null; onClose(): void; onAgain(): void; onRevealed?(): void; onPick?(idx: number): Promise<unknown>; luck?: number; canAgain: boolean; againLabel: string;
 }) {
   return (
     <AnimatePresence>
       {open && (
-        <RollReveal key="roll" result={result} testId="ink-roll" rarityTestId="roll-rarity" onClose={onClose} onRevealed={onRevealed} onPick={onPick} luck={luck}
+        <RollReveal key={`roll-${rollKey}`} result={result} testId="ink-roll" rarityTestId="roll-rarity" onClose={onClose} onRevealed={onRevealed} onPick={onPick} luck={luck}
           actions={
             <div className="grid grid-cols-2 gap-2.5">
               <button onClick={onClose} className="h-[52px] rounded-2xl border-[1.5px] border-white/20 bg-white/10 font-display text-[16px] font-black text-white active:scale-[0.97]" data-testid="roll-done">Collect</button>

@@ -76,7 +76,7 @@ async function checkVersion() {
 
 export function startUpdates() {
   if (config.serviceWorker && 'serviceWorker' in navigator && import.meta.env.PROD) {
-    void import('virtual:pwa-register')
+    const register = () => void import('virtual:pwa-register')
       .then(({ registerSW }) =>
         (updateSW = registerSW({
           immediate: true,
@@ -90,6 +90,10 @@ export function startUpdates() {
         })),
       )
       .catch(() => {});
+    // the offline copy of the game is several MB: it downloads once the first screen is up, not while the map and
+    // its tiles are still loading over a phone connection
+    const later = () => setTimeout(register, 5000);
+    if (document.readyState === 'complete') later(); else window.addEventListener('load', later, { once: true });
   }
   // a lazily loaded screen from a build that no longer exists: fetch the new build
   window.addEventListener('vite:preloadError', (e) => {

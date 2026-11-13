@@ -4,7 +4,7 @@
 // crates that fill up. Parts ride the belts from machine to machine as the layout makes them. Tap the floor to
 // build. Status lights: green working, red waiting for parts, orange spilling off the end.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { DX, DY, next, parse, type FactoryCfg, type Grid, type Solve } from './factoryCore';
 
 export type FactoryOpts = { canvas: HTMLCanvasElement; cfg: FactoryCfg; emojis: Record<string, string>; reduceMotion?: boolean; onTapCell?(k: string): void };
@@ -14,8 +14,9 @@ export function createFactory3D(o: FactoryOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#2A2230');
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
   const bag: { dispose(): void }[] = [];
@@ -195,6 +196,7 @@ export function createFactory3D(o: FactoryOpts) {
   let raf = 0, last = performance.now(), t = 0, paused = false, zapT = 2;
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;

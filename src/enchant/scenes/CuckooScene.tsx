@@ -59,7 +59,7 @@ export function CuckooScene({ view, act, busy, at }: SceneProps) {
         {/* the cuckoo on its branch */}
         <AnimatePresence>
           {flying == null && (
-            <motion.div key="b" className="absolute bottom-[29%] left-[8%] w-[24%] lv-float" exit={{ x: 300, y: -60, rotate: 15, transition: { duration: 0.6 } }}>
+            <motion.div key="b" className="absolute bottom-[29%] left-[8%] w-[24%] lv-ench-float" exit={{ x: 300, y: -60, rotate: 15, transition: { duration: 0.6 } }}>
               <Bird className="w-full drop-shadow-[0_6px_6px_rgba(0,0,0,0.4)]" />
               <span className="absolute -top-5 right-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-[#06222C]">cuckoo!</span>
             </motion.div>

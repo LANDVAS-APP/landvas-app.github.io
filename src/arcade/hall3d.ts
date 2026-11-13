@@ -7,7 +7,7 @@
 // the rows, through the gaps). Step up to a machine and the page offers "Play"; then the camera glides in until
 // its play area fills the view.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buildCarnival, CARNIVAL_BOUNDS, CARNIVAL_Z, type Carnival } from './carnival3d';
 
 export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string };
@@ -141,7 +141,8 @@ export function createHall(o: HallOpts) {
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#05040F'); scene.fog = new THREE.Fog('#05040F', 22, 52);
   const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 120);
@@ -650,6 +651,7 @@ export function createHall(o: HallOpts) {
   };
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     if (paused) { last = now; return; }
     const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now; t += dt; frame++;
     tune(raw);

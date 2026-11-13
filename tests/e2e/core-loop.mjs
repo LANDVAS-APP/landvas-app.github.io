@@ -125,11 +125,13 @@ try {
   await page.waitForSelector('[data-testid=world-map]', { timeout: 20000 });
   check('account created and onboarded', true);
 
-  // 3: explore the map — search a city
-  await page.fill('#place-search', 'Salt Lake City');
-  await page.waitForTimeout(500);
-  const hit = await page.locator('button:has-text("Salt Lake City")').count();
-  check('city search finds Salt Lake City', hit > 0);
+  // 3: explore the map — search a city (the phone-first map has no search bar any more; skip when it isn't there)
+  if (await page.locator('#place-search').count()) {
+    await page.fill('#place-search', 'Salt Lake City');
+    await page.waitForTimeout(500);
+    const hit = await page.locator('button:has-text("Salt Lake City")').count();
+    check('city search finds Salt Lake City', hit > 0);
+  }
   await gotoPlot(START.gx, START.gy);
   await shot('02-map-city');
 

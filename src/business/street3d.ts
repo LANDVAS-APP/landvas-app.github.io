@@ -2,7 +2,7 @@
 // street behind it (cookie cart, food truck, coffee shop … bank, a rocket on its pad). Buildings grow as you own
 // more, customers stroll the pavement (more of them as you earn more), and cash pops out of every business.
 // Drag to look along the street.
-import { adaptiveDpr, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 
 export type StreetOpts = { canvas: HTMLCanvasElement; seed: number; reduceMotion?: boolean };
@@ -242,10 +242,13 @@ export function createStreet(o: StreetOpts): StreetScene {
   place('lemonade', 0);
   let standBounce = 0, frenzy = false;
 
-  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); });
+  const fps = framePacer({ ambient: true });
+
+  const tune = adaptiveDpr((d) => { renderer.setPixelRatio(d); resize(); }, undefined, fps);
   let raf = 0, last = performance.now(), t = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    if (!fps.ready(performance.now())) return;
     const rawDt = (now - last) / 1000; const dt = Math.min(0.05, rawDt); last = now; t += dt;
     tune(rawDt);
     if (follow) camXTo = Math.min(maxX, Math.max(0, maxX - SPACING * 0.5));

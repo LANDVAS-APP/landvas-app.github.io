@@ -3,6 +3,7 @@
 import { useId } from 'react';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
+import { animateWhenVisible } from '../lib/inView';
 import type { PvpGame } from '../shared/pvp';
 
 const C = ['#F5F4EF', '#FF4D6D', '#FFB23F', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#23232A'];
@@ -10,7 +11,8 @@ const C = ['#F5F4EF', '#FF4D6D', '#FFB23F', '#FFE14D', '#3DDC97', '#34C3FF', '#7
 export function PvpPreview({ game, className }: { game: PvpGame; className?: string }) {
   const still = useUi((s) => s.settings.reduceMotion);
   const id = useId().replace(/:/g, '');
-  const svg = { viewBox: '0 0 120 120', className: cn('block aspect-square w-full rounded-2xl', className), role: 'img' as const };
+  // (the loop plays only while the preview is on screen)
+  const svg = { viewBox: '0 0 120 120', className: cn('block aspect-square w-full rounded-2xl', className), role: 'img' as const, ref: animateWhenVisible };
   const p = { id, still, svg };
   if (game === 'copycat') return <CopyCatPreview {...p} />;
   if (game === 'turfwars') return <TurfPreview {...p} />;
@@ -19,7 +21,7 @@ export function PvpPreview({ game, className }: { game: PvpGame; className?: str
   return <RecallPreview {...p} />;
 }
 
-type P = { id: string; still: boolean; svg: { viewBox: string; className: string; role: 'img' } };
+type P = { id: string; still: boolean; svg: { viewBox: string; className: string; role: 'img'; ref: typeof animateWhenVisible } };
 
 /** Two little rival badges in the corners. */
 function Versus() {

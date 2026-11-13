@@ -95,7 +95,7 @@ export function PandoraScene({ view, act, busy, at }: SceneProps) {
           {hope && (
             <motion.button key="h" onClick={() => setHope(false)} className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle,rgba(255,255,255,0.35),rgba(0,0,0,0.85))] text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="pandora-hope">
               <motion.div initial={{ y: 80, scale: 0.4 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 10 }} className="grid gap-1">
-                <span className="lv-float text-8xl">🦋</span><span className="font-display text-4xl font-black text-white drop-shadow-[0_0_20px_#fff]">Hope</span>
+                <span className="lv-ench-float text-8xl">🦋</span><span className="font-display text-4xl font-black text-white drop-shadow-[0_0_20px_#fff]">Hope</span>
                 <span className="text-sm font-bold text-white/85">A Legendary+ roll ticket and a fortune. The box closes again — richer.</span>
               </motion.div>
             </motion.button>

@@ -18,6 +18,7 @@ import { DuetView } from '../creative/DuetScreen';
 import { shareDrawing } from '../creative/share';
 import { MinigameGrid } from './PlayHub';
 import { poll } from '../lib/poll';
+import { animateWhenVisible } from '../lib/inView';
 
 type Tab = 'today' | 'games' | 'create' | 'friends' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
@@ -226,7 +227,7 @@ function PaintCard({ tiers, plotPct, streakPct, onPaint }: { tiers: { min: numbe
 
 function PaintAnim() {
   return (
-    <svg viewBox="0 0 150 150" className="mx-auto h-[130px] w-[130px] sm:h-[150px] sm:w-[150px]" aria-hidden>
+    <svg ref={animateWhenVisible} viewBox="0 0 150 150" className="mx-auto h-[130px] w-[130px] sm:h-[150px] sm:w-[150px]" aria-hidden>
       <defs><linearGradient id="pa-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FF4D6D" /><stop offset="0.5" stopColor="#7B5CFF" /><stop offset="1" stopColor="#22E3FF" /></linearGradient></defs>
       <rect x="20" y="40" width="90" height="90" rx="10" fill="#F5F4EF" />
       <rect x="20" y="40" width="90" height="90" rx="10" fill="url(#pa-g)">

@@ -28,6 +28,7 @@ import { CreatureWork, SpringPill } from './Earn';
 import { KeeperNews } from './Keeper';
 import { drawCreature, heart, type CreatureState } from './rig';
 import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, inside, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
+import { framePacer } from '../lib/gfx';
 
 export default function Sanctuary() {
   const { id } = useParams();
@@ -245,11 +246,16 @@ function Game({ h }: { h: Habitat }) {
 
     const toScreen = (x: number, y: number): [number, number] => [(x - e.cam.x) * e.cam.z + e.W / 2, (y - e.cam.y) * e.cam.z * TILT + e.H / 2];
 
+    // creatures pottering about don't need every refresh of a 120 Hz screen (and on a phone, 30 fps while you watch)
+    const fps = framePacer({ ambient: true });
     const frame = (now: number) => {
+      if (!fps.ready(now)) { raf = requestAnimationFrame(frame); return; }
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       // adaptive resolution: drop the pixel ratio on slow devices, restore it when there's headroom
-      if (dt > 0.026) { slow += dt; fast = 0; } else if (dt < 0.015) { fast += dt; slow = Math.max(0, slow - dt); }
+      // ("slow" for the pace it's aiming at: a resting 30 fps isn't struggling)
+      const k = fps.target() * 60;
+      if (dt > 0.026 * k) { slow += dt; fast = 0; } else if (dt < 0.015 * k) { fast += dt; slow = Math.max(0, slow - dt); }
       // on a struggling device, draw fewer pixels (down to 60% resolution) and drop the extras
       if (slow > 1.5 && e.dpr > 0.6) { e.dpr = Math.max(0.6, e.dpr - (e.dpr > 1 ? 0.5 : 0.2)); slow = 0; resize(); }
       if (fast > 6 && e.dpr < e.maxDpr) { e.dpr = Math.min(e.maxDpr, e.dpr + 0.25); fast = 0; resize(); }

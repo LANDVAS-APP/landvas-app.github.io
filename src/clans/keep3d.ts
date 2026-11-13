@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { bake } from '../home/live3d/kit3d';
 import { randomGenome } from '../inkborn/genome';
 import { drawCreature } from '../inkborn/rig';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 
 export type KeepStation = 'spirit' | 'chest' | 'war' | 'trophies' | 'campfire' | 'quarry' | 'training' | 'games' | `build:${string}`;
 export type KeepBuildState = { key: string; name: string; emoji: string; progress: number; cost: number; done: boolean; locked: boolean; level: number };
@@ -40,8 +40,9 @@ export function createKeep(o: KeepOpts) {
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog('#F2B98A', 38, 95);
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
@@ -596,6 +597,7 @@ export function createKeep(o: KeepOpts) {
   const sctx = spiritCv.getContext('2d')!;
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), raw = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(raw); const dt = raw; t += dt; frame++;

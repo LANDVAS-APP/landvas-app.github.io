@@ -6,6 +6,12 @@ import path from 'node:path';
 
 let pg: EmbeddedPostgres | null = null;
 
+// embedded-postgres registers an exit hook (async-exit-hook) that ends the process with process.exit(0) on
+// 'beforeExit' — which threw away vitest's failure code: a run with failing tests still exited 0, so CI's test step
+// could never fail. An explicit exit 0 now keeps a failure code that's already been set.
+const exit = process.exit.bind(process);
+process.exit = ((code?: number | string | null) => exit(code || process.exitCode || 0)) as typeof process.exit;
+
 export async function setup() {
   const root = path.resolve('.pgtmp');
   fs.mkdirSync(root, { recursive: true });

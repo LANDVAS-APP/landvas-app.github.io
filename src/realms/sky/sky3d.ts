@@ -5,7 +5,7 @@
 // drifting grey clouds, flocks of birds, wind streaks, rainbow showers, clear sunshine, a starry night.
 // Hot-air balloons with orders drift round the island. Drag to turn, pinch or scroll to zoom, tap to pick.
 import * as THREE from 'three';
-import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { hexXZ, parse, type SkyCore, type SkyOrder } from './skyCore';
 
 export type SkyOpts = {
@@ -25,8 +25,9 @@ export function createSky3D(o: SkyOpts) {
   const phone = isPhone();
   const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  const fps = framePacer({ ambient: true });
+  const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene(); scene.fog = new THREE.Fog('#CDEBFF', 70, 190);
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
   const bag: { dispose(): void }[] = [];
@@ -277,6 +278,7 @@ export function createSky3D(o: SkyOpts) {
   let raf = 0, last = performance.now(), t = 0, paused = false;
   const loop = () => {
     raf = requestAnimationFrame(loop);
+    if (!fps.ready(performance.now())) return;
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (paused || document.hidden) return;
     tune(dt); t += dt;
