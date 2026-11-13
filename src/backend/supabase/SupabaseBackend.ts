@@ -13,6 +13,7 @@ import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { NATIVE_APP } from '../../app/buildFlags';
+import type { EmailLinkType } from '../../lib/emailLink';
 
 const PIPELINE_RPCS = new Set([
   'submit_publication', 'publication_status',
@@ -105,6 +106,14 @@ export class SupabaseBackend implements Backend {
   async resendConfirmation(email: string) {
     const { error } = await this.sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectTo() } });
     if (error) throw new GameError(/rate/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
+  }
+  async verifyEmailLink(tokenHash: string, type: EmailLinkType) {
+    const { data, error } = await this.sb.auth.verifyOtp({ token_hash: tokenHash, type });
+    if (error) {
+      const expired = (error as { code?: string }).code === 'otp_expired' || /expired|invalid|not found/i.test(error.message);
+      throw expired ? new GameError('link_expired', undefined, error.message) : new GameError(/rate/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
+    }
+    return { signedIn: !!data.session };
   }
   onPasswordRecovery(cb: () => void) {
     const { data } = this.sb.auth.onAuthStateChange((e) => { if (e === 'PASSWORD_RECOVERY') cb(); });

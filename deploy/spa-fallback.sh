@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "${1:-dist}"
 cp index.html 404.html
-STATIC="world welcome onboarding play canvases gallery players me achievements leaderboards inventory events settings admin social invite explorer support duels pvp challenges sketch doodle duet reset-password inkborn habitat"
+STATIC="world welcome onboarding play canvases gallery players me achievements leaderboards inventory events settings admin social invite explorer support duels pvp challenges sketch doodle duet reset-password auth/confirm inkborn habitat"
 DYNAMIC="create play u art legal duet sketch inkborn habitat"
 : > _redirects
 for r in $STATIC; do

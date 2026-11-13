@@ -5,6 +5,7 @@
 //    with IndexedDB storage and the shared pipeline. Zero setup, single device.
 import { config } from '../env';
 import type { MapUpdate, MinigameFinish, PvpFinish } from './types';
+import type { EmailLinkType } from '../lib/emailLink';
 
 export type Session = { userId: string; email: string | null };
 
@@ -26,6 +27,9 @@ export interface Backend {
   resendConfirmation?(email: string): Promise<void>;
   /** fires when a password-reset link was opened */
   onPasswordRecovery?(cb: () => void): () => void;
+  /** check a landvas.app email link's one-time code (landvas.app/auth/confirm). signedIn is false when
+   *  the link worked but there is no session yet (the first half of a two-address email change). */
+  verifyEmailLink?(tokenHash: string, type: EmailLinkType): Promise<{ signedIn: boolean }>;
   signOut(): Promise<void>;
   localAccounts?(): Promise<{ email: string }[]>;
   rpc<T = any>(fn: string, args?: Record<string, unknown>): Promise<T>;
@@ -255,6 +259,7 @@ const MESSAGES: Record<string, string> = {
   room_not_found: 'That room isn’t open.',
   email_not_confirmed: 'Please confirm your email first — tap the link we sent you (check spam too).',
   email_rate_limited: 'Too many emails just now — wait a minute and try again.',
+  link_expired: 'This link has expired or was already used.',
   feature_disabled: 'That’s taking a break right now.',
   invalid_drawing: 'Draw a little more first.',
   sketch_time_up: 'Time’s up for today’s sketch.',

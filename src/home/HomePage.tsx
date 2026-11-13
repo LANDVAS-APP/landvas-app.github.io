@@ -1,7 +1,7 @@
 // The public homepage (landvas.app for anyone not signed in): newest art from the
 // live map, live counters, how the game and its earnings work, and the community.
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Brush, ChevronDown, DoorOpen, Gamepad2, Gift, Globe2, MapPinned, MessagesSquare, Shirt, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Brush, ChevronDown, DoorOpen, Gamepad2, Gift, Globe2, MapPinned, MessagesSquare, Shirt, Sparkles, Zap } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -88,11 +88,25 @@ function TopBar() {
           <a href={DISCORD} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Discord"><DiscordIcon className="h-5 w-5" /></a>
           <a href={REDDIT} target="_blank" rel="noopener" className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg sm:flex" aria-label="LANDVAS on Reddit"><RedditIcon className="h-5 w-5" /></a>
           <NotificationBell size="sm" className="!bg-transparent !shadow-none hover:!bg-surface-2" />
+          <PortalButton />
           {!signedIn() && <Link to="/welcome?mode=signin" className="hidden rounded-xl px-3 py-2 text-sm font-bold text-muted hover:text-fg sm:block">Sign in</Link>}
           <Link to={playHref()} className="lv-cta rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">{signedIn() ? 'Play' : 'Play free'}</Link>
         </div>
       </div>
     </header>
+  );
+}
+
+/** the player portal (my.landvas.app): every plot, earning and ledger line for your account */
+export const PLAYER_PORTAL = 'https://my.landvas.app';
+function PortalButton() {
+  return (
+    <a href={PLAYER_PORTAL} target="_blank" rel="noopener" className="lv-pbtn" title="Your LANDVAS portal — every plot, earning and ledger line (my.landvas.app)" aria-label="Open your LANDVAS portal at my.landvas.app" data-testid="home-portal">
+      <span className="lv-pbtn-clip" aria-hidden />
+      <img src="/brand/landvas-mark.svg" alt="" width={30} height={30} className="lv-pbtn-mark" />
+      <span className="lv-pbtn-text"><small>My LANDVAS</small>Portal</span>
+      <ArrowUpRight className="lv-pbtn-arrow" aria-hidden />
+    </a>
   );
 }
 
@@ -501,6 +515,7 @@ export function Footer() {
           <Link to="/world" className="hover:text-fg">Live map</Link>
           <Link to="/gallery" className="hover:text-fg">Gallery</Link>
           <Link to="/players" className="hover:text-fg">Players</Link>
+          <a href={PLAYER_PORTAL} target="_blank" rel="noopener" className="hover:text-fg">Player portal</a>
           <a href={DISCORD} target="_blank" rel="noopener" className="hover:text-fg">Discord</a>
           <a href={REDDIT} target="_blank" rel="noopener" className="hover:text-fg">Reddit</a>
           <Link to="/legal/terms" className="hover:text-fg">Terms</Link>

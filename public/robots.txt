@@ -4,5 +4,6 @@ Disallow: /admin
 Disallow: /create/
 Disallow: /onboarding
 Disallow: /reset-password
+Disallow: /auth/
 
 Sitemap: https://landvas.app/sitemap.xml

@@ -31,6 +31,7 @@ function WorldRoute() {
 }
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
+import { AuthConfirm } from '../screens/AuthConfirm';
 import { Onboarding } from '../screens/Onboarding';
 import { useReferralRedeemer } from '../social/referral';
 
@@ -150,13 +151,13 @@ function OnboardingGate() {
   const session = useSession();
   const me = useMe();
   const loc = useLocation();
-  if (session && me.data && !me.data.onboarded && loc.pathname !== '/onboarding' && loc.pathname !== '/brawl-demo' && !loc.pathname.startsWith('/legal')) return <Navigate to="/onboarding" replace />;
+  if (session && me.data && !me.data.onboarded && loc.pathname !== '/onboarding' && loc.pathname !== '/auth/confirm' && loc.pathname !== '/brawl-demo' && !loc.pathname.startsWith('/legal')) return <Navigate to="/onboarding" replace />;
   return <Outlet />;
 }
 
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/clan\/hall/, 'Clan hall'],
-  [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
+  [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
@@ -209,6 +210,7 @@ const routes: RouteObject[] = [
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
+      { path: '/auth/confirm', element: <AuthConfirm /> },
       { path: '/onboarding', element: <Onboarding /> },
       { path: '/create/:groupId', element: player(<EditorScreen />) },
       { path: '/play/:game', element: player(<GameScreen />) },

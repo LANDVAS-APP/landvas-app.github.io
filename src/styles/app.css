@@ -817,6 +817,37 @@ html.native .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-s
 }
 
 /* ---- Public homepage ---------------------------------------------------------------- */
+/* the portal button (my.landvas.app): a dark glass tile with the logo's crisp spectrum rim. No glow
+   (the brand is crisp); on hover a single light sheen crosses it and the arrow nudges out. */
+.lv-pbtn {
+  position: relative; isolation: isolate; display: inline-flex; align-items: center; gap: 9px;
+  height: 42px; flex-shrink: 0; padding: 0 13px 0 5px; border-radius: 15px; border: 1.5px solid transparent;
+  color: #eef1ff; font: 700 13.5px/1 var(--font-body); letter-spacing: 0.01em; white-space: nowrap;
+  background: linear-gradient(180deg, #1c2660 0%, #10183a 55%, #0b1230 100%) padding-box,
+    linear-gradient(135deg, #ff4d6d 0%, #ff9f1c 22%, #ffe14d 42%, #3ddc97 62%, #34c3ff 80%, #8b6bff 100%) border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition: transform 0.2s ease;
+}
+.lv-pbtn-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: -1; }
+.lv-pbtn-clip::after {
+  content: ""; position: absolute; top: -10%; bottom: -10%; left: -60%; width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.16) 50%, transparent);
+  transform: skewX(-18deg); transition: left 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.lv-pbtn:hover { transform: translateY(-1px); }
+.lv-pbtn:hover .lv-pbtn-clip::after { left: 120%; }
+.lv-pbtn:active { transform: scale(0.97); }
+.lv-pbtn:focus-visible { outline: 2px solid #8b6bff; outline-offset: 3px; }
+.lv-pbtn-mark { display: block; height: 30px; width: 30px; flex-shrink: 0; }
+.lv-pbtn-text { display: none; gap: 3px; text-align: left; }
+.lv-pbtn-text small { font: 700 9.5px/1 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: #a1abd6; }
+.lv-pbtn-arrow { display: none; height: 14px; width: 14px; color: #a1abd6; transition: transform 0.2s ease, color 0.2s ease; }
+/* phones: just the mark in its rimmed chip; the words join from 640px up */
+@media (max-width: 639.98px) { .lv-pbtn { width: 42px; padding: 0; justify-content: center; } }
+@media (min-width: 640px) { .lv-pbtn-text { display: grid; } .lv-pbtn-arrow { display: block; } }
+.lv-pbtn:hover .lv-pbtn-arrow { transform: translate(2px, -2px); color: #eef1ff; }
+html.reduce-motion .lv-pbtn, html.reduce-motion .lv-pbtn-clip::after, html.reduce-motion .lv-pbtn-arrow { transition: none; }
+@media (prefers-reduced-motion: reduce) { .lv-pbtn, .lv-pbtn-clip::after, .lv-pbtn-arrow { transition: none; } }
 .lv-cta {
   background: linear-gradient(120deg, #ff3d9a, #7b5cff 45%, #22b8ff);
   background-size: 200% 100%;
