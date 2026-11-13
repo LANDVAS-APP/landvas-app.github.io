@@ -1,4 +1,6 @@
 // Number, money, time and label formatting shared by both portals.
+import { GAME_INFO, type GameId } from '../../src/shared/minigames';
+import { PVP_INFO } from '../../src/shared/pvp';
 
 const nf = new Intl.NumberFormat('en-US');
 export const int = (n: unknown) => nf.format(Math.round(Number(n ?? 0)));
@@ -61,6 +63,8 @@ export const words = (s: string | null | undefined) => {
   const t = String(s ?? '').replace(/[_.-]+/g, ' ').trim();
   return t ? t[0].toUpperCase() + t.slice(1) : '—';
 };
+/** a minigame's name as the game shows it (memorymural → Memory Mural) */
+export const gameName = (g: string | null | undefined) => (g && (GAME_INFO[g as GameId]?.name ?? (PVP_INFO as Record<string, { name: string } | undefined>)[g]?.name)) || words(g);
 export const reasonName = (r: string | null | undefined) => (r && REASONS[r]) || words(r);
 
 /** plot coordinates as players see them in the game */

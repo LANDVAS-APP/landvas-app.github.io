@@ -66,7 +66,7 @@ function loadGeo() {
         for (let k = 0; k < DARK_PALETTE.length && used.has(c); k++) c = (c + 1) % DARK_PALETTE.length;
         colors[i] = c;
       }
-      const land = feature(topo, topo.objects.countries) as unknown as GeoJSON.FeatureCollection;
+      const land = unwrapDateLine(feature(topo, topo.objects.countries) as unknown as GeoJSON.FeatureCollection);
       land.features.forEach((f, i) => (f.properties = { ...(f.properties ?? {}), mc: colors[i] }));
       return {
         land,
@@ -74,6 +74,35 @@ function loadGeo() {
       };
     });
   return geo;
+}
+
+// Russia and Fiji cross the date line, so their outlines jump from +180° to -180° and back. A flat map draws each
+// jump as a line straight across the world. Keep those rings continuous (running past 180°): the map wraps the
+// far part onto the next world copy. Rings around a pole (Antarctica) never come back, so they stay as they are.
+export function unwrapDateLine(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  const fix = (ring: GeoJSON.Position[]) => {
+    let net = 0;
+    for (let i = 1; i < ring.length; i++) {
+      const d = ring[i][0] - ring[i - 1][0];
+      if (Math.abs(d) > 180) net += Math.sign(d);
+    }
+    if (net !== 0) return;
+    let shift = 0;
+    let prev = ring[0][0];
+    for (let i = 1; i < ring.length; i++) {
+      const raw = ring[i][0];
+      if (raw - prev > 180) shift -= 360;
+      else if (raw - prev < -180) shift += 360;
+      prev = raw;
+      if (shift) ring[i] = [raw + shift, ...ring[i].slice(1)];
+    }
+  };
+  for (const f of fc.features) {
+    const g = f.geometry;
+    if (g?.type === 'Polygon') g.coordinates.forEach(fix);
+    else if (g?.type === 'MultiPolygon') g.coordinates.forEach((poly) => poly.forEach(fix));
+  }
+  return fc;
 }
 
 function graticule(): GeoJSON.FeatureCollection {

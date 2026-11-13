@@ -10,7 +10,7 @@ import { portal, type MyPlot } from '../../shared/api';
 import { HBars, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { DataTable, type Col } from '../../shared/table';
-import { compact, date, dateTime, downloadFile, duration, int, perDay, perMonth, plotLabel, toCsv, usd, words } from '../../shared/format';
+import { compact, date, dateTime, downloadFile, duration, int, perDay, perMonth, plotLabel, toCsv, usd, words, gameName } from '../../shared/format';
 import { Badge, Empty, Json, KV, PageHeader, Panel, Q, Rarity, Stat, statusTone } from '../../shared/ui';
 
 export function Plots() {
@@ -44,7 +44,7 @@ export function Plots() {
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat label="Plots" value={int(d.plots.length)} sub={`${int(d.plots.filter((p) => p.shiny).length)} shiny`} />
-              <Stat label="They earn" value={`${usd(perDay(total))}/day`} tone="gold" sub={`${usd(perMonth(total))} a month`} />
+              <Stat label="They earn per day" value={usd(perDay(total))} tone="gold" sub={`${usd(perMonth(total))} a month`} />
               <Stat label="Rarities owned" value={int(owned.size)} sub={`of ${rarities().filter((r) => r.id !== 'enchanted').length}`} />
               <Stat label="Best earner" value={d.plots.length ? usd(perDay(Math.max(...d.plots.map((p) => p.rate)))) : '—'} sub="per day, one plot" />
             </div>
@@ -130,12 +130,12 @@ export function Plot() {
                 ))}</ul> : <p className="text-sm text-muted">—</p>}
               </Panel>
               <Panel title="Its minigame">
-                {d.progress ? <KV cols={2} items={[['Game', words(d.progress.game)], ['Highest level beaten', d.progress.highest_level], ['Best score', int(d.progress.best_score)], ['Played', int(d.progress.plays)], ['Won', int(d.progress.wins)], ['Last played', dateTime(d.progress.updated_at)]]} /> : <p className="text-sm text-muted">You haven’t played this plot’s minigame yet.</p>}
+                {d.progress ? <KV cols={2} items={[['Game', gameName(d.progress.game)], ['Highest level beaten', d.progress.highest_level], ['Best score', int(d.progress.best_score)], ['Played', int(d.progress.plays)], ['Won', int(d.progress.wins)], ['Last played', dateTime(d.progress.updated_at)]]} /> : <p className="text-sm text-muted">You haven’t played this plot’s minigame yet.</p>}
               </Panel>
             </div>
             <Panel title={`Every game you played here (${d.sessions.length})`} pad={false}>
               <DataTable rows={d.sessions} rowKey={(s: any) => s.id} maxHeight={420} empty={<Empty title="No games here yet" />} cols={[
-                { key: 'started_at', label: 'When', render: (s: any) => dateTime(s.started_at) }, { key: 'game', label: 'Game', render: (s: any) => words(s.game) },
+                { key: 'started_at', label: 'When', render: (s: any) => dateTime(s.started_at) }, { key: 'game', label: 'Game', render: (s: any) => gameName(s.game) },
                 { key: 'level', label: 'Level', num: true }, { key: 'passed', label: 'Result', render: (s: any) => (s.passed ? <span className="text-ok">won</span> : s.finished_at ? 'lost' : words(s.status)) },
                 { key: 'score', label: 'Score', num: true, render: (s: any) => int(s.score) }, { key: 'stars', label: 'Stars', num: true }, { key: 'play_ms', label: 'Time', num: true, render: (s: any) => (s.play_ms ? duration(s.play_ms) : '—') },
               ]} />

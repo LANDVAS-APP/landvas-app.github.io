@@ -13,29 +13,9 @@ const font = (f) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(ROOT, 
 const UNBOUNDED = font('unbounded/files/unbounded-latin-wght-normal.woff2');
 const MANROPE = font('manrope/files/manrope-latin-wght-normal.woff2');
 
-// The mark: a 3x3 plot grid with an L of lit plots — claim, connect, paint.
-const LIT = [[0, 0, '#FF4D6D', '#FF8FA3'], [0, 1, '#FF9F1C', '#FFC46B'], [0, 2, '#FFE14D', '#FFF09A'], [1, 2, '#3DDC97', '#8BF0C4'], [2, 2, '#34C3FF', '#8FDDFF']];
-export function markSvg({ bg = true } = {}) {
-  const tiles = [];
-  for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) {
-    const lit = LIT.find((l) => l[0] === x && l[1] === y);
-    const X = 22 + x * 62, Y = 22 + y * 62;
-    if (lit) {
-      tiles.push(`<g filter="url(#glow)"><rect x="${X}" y="${Y}" width="52" height="52" rx="13" fill="url(#t${x}${y})"/></g>
-        <rect x="${X + 6}" y="${Y + 5}" width="40" height="12" rx="6" fill="#fff" opacity="0.32"/>`);
-    } else tiles.push(`<rect x="${X}" y="${Y}" width="52" height="52" rx="13" fill="#1F2B66" stroke="#2E3D85" stroke-width="1.5"/>`);
-  }
-  const grads = LIT.map(([x, y, a, b]) => `<linearGradient id="t${x}${y}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${b}"/><stop offset="0.55" stop-color="${a}"/><stop offset="1" stop-color="${a}"/></linearGradient>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 230">
-  <defs>${grads}
-    <radialGradient id="bgg" cx="28%" cy="18%" r="95%"><stop offset="0" stop-color="#2C1F6E"/><stop offset="0.6" stop-color="#0E1438"/><stop offset="1" stop-color="#070B1C"/></radialGradient>
-    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4D6D"/><stop offset="0.35" stop-color="#FFE14D"/><stop offset="0.65" stop-color="#3DDC97"/><stop offset="1" stop-color="#34C3FF"/></linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  ${bg ? `<rect x="2" y="2" width="226" height="226" rx="58" fill="url(#bgg)"/><rect x="3" y="3" width="224" height="224" rx="57" fill="none" stroke="url(#edge)" stroke-width="2.5" opacity="0.85"/>` : ''}
-  ${tiles.join('')}
-</svg>`;
-}
+// The mark: the official crisp L (scripts/landvas-mark.mjs), the same one as the app icons and favicons.
+import { markSvg as crispMark } from './landvas-mark.mjs';
+export const markSvg = ({ bg = true, size = 230 } = {}) => crispMark(size, { bg: bg ? 'squircle' : 'none' });
 
 const css = `
 @font-face { font-family: Unbounded; src: url(${UNBOUNDED}) format('woff2'); font-weight: 200 900; }
@@ -49,7 +29,7 @@ html, body { background: transparent; }
 .grid { position:absolute; inset:0; background-image: linear-gradient(rgba(140,160,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(140,160,255,.07) 1px, transparent 1px); background-size: 64px 64px; }
 `;
 
-const browser = await pw.launch({ executablePath: await chromium.executablePath(), headless: true, args: chromium.args.filter((a) => !/single-process|no-zygote/.test(a)) });
+const browser = await pw.launch({ executablePath: process.env.CHROME_PATH || await chromium.executablePath(), headless: true, args: process.env.CHROME_PATH ? ['--no-sandbox'] : chromium.args.filter((a) => !/single-process|no-zygote/.test(a)) });
 async function render(name, w, h, scale, body, transparent = false) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: scale });
   const page = await ctx.newPage();
@@ -75,11 +55,9 @@ function mosaic(cols, rows, size, seed = 7) {
   return out;
 }
 
-const mark = (px, bg = true) => `<div style="width:${px}px;height:${px}px">${markSvg({ bg }).replace('<svg ', `<svg width="${px}" height="${px}" `)}</div>`;
-fs.writeFileSync(path.join(OUT, 'landvas-mark.svg'), markSvg());
+const mark = (px, bg = true) => `<div style="width:${px}px;height:${px}px">${markSvg({ bg, size: px })}</div>`;
 
-// 1. app-icon mark, transparent corners
-for (const s of [4096, 2048, 1024, 512]) await render(path.join(OUT, `landvas-mark-${s}.png`), 512, 512, s / 512, mark(512), true);
+// 1. the mark itself (landvas-mark.svg and its PNGs) comes from scripts/make-native-assets.mjs
 // 2. horizontal logo (transparent) and on dark
 const horiz = (dark) => `<div class="${dark ? 'space' : ''}" style="position:relative;width:1600px;height:480px;display:flex;align-items:center;justify-content:center;gap:56px">
   ${dark ? '<div class="grid"></div>' : ''}${mark(300)}

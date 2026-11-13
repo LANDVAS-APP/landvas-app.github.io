@@ -7,11 +7,12 @@ import { portal } from '../../shared/api';
 import { HBars, Split, TimeChart, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { compact, date, int, perDay, perMonth, plotLabel, reasonName, tzName, usd, words } from '../../shared/format';
-import { Badge, Panel, Q, Seg, Stat, useTicker } from '../../shared/ui';
+import { Badge, Panel, Q, Seg, Stat, useIsPhone, useTicker } from '../../shared/ui';
 
 export default function Overview() {
   const me = useOutletContext<any>();
   const nav = useNavigate();
+  const phone = useIsPhone();
   const plots = useQuery({ queryKey: ['me', 'plots'], queryFn: portal.mePlots });
   const mapPlots: MapPlot[] = useMemo(() => (plots.data?.plots ?? []).map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, shiny: p.shiny, title: p.name || `Plot ${plotLabel(p.gx, p.gy)}`, sub: `${rarityInfo(p.rarity).name} · ${usd(perDay(p.rate))}/day${p.city ? ` · ${p.city}` : ''}` })), [plots.data]);
   const rent = me.rent ?? {};
@@ -37,7 +38,7 @@ export default function Overview() {
             {' '}<Link to="/earnings" className="text-accent-2 hover:underline">See every earning</Link>
           </div>
         </div>
-        <PlotMap plots={mapPlots} height={360} onPick={(p) => nav(`/plots/${p.gx}/${p.gy}`)} />
+        <PlotMap plots={mapPlots} height={phone ? 280 : 360} onPick={(p) => nav(`/plots/${p.gx}/${p.gy}`)} />
       </section>
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-8">
         <Stat label="Ink" value={compact(b.ink)} sub={`${compact(me.lifetime?.ink?.in ?? 0)} earned ever`} />

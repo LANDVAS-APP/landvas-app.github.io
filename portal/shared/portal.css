@@ -46,14 +46,43 @@ body.portal {
 .p-nav a .p-count { margin-left: auto; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 99px; background: var(--hot); color: #fff; }
 .p-nav-group { padding: 14px 10px 4px; font-size: 12px; font-weight: 600; color: var(--faint); }
 
+/* phones: a tab bar at the bottom, like an app */
+.p-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line); background: rgba(7, 11, 28, 0.94);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.p-tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px;
+  border-radius: 12px; color: var(--muted); font-size: 11px; font-weight: 700; text-decoration: none; background: none; border: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.p-tab.on { color: var(--fg); background: rgba(139, 107, 255, 0.16); }
+@media (min-width: 961px) { .p-tabbar { display: none; } }
+.p-tab-dot { position: absolute; top: -2px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--hot); box-shadow: 0 0 0 2px #070b1c; }
+
 @media (max-width: 960px) {
   .p-shell { grid-template-columns: minmax(0, 1fr); }
+  .p-content.has-tabs { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .p-top { padding-top: max(10px, env(safe-area-inset-top, 0px)); }
   .p-side { position: fixed; inset: 0 auto 0 0; width: min(86vw, 300px); z-index: 60; transform: translateX(-102%); transition: transform 0.2s ease; }
   .p-side.open { transform: none; box-shadow: 30px 0 80px rgba(0, 0, 0, 0.6); }
   .p-top { padding: 10px 16px; }
   .p-content { padding: 16px 14px 48px; }
 }
 @media (prefers-reduced-motion: reduce) { .p-side { transition: none; } }
+@media (max-width: 640px) {
+  .p-h1 { font-size: 24px; }
+  .p-sub { font-size: 13.5px; }
+  .p-panel { border-radius: 14px; }
+  .p-panel-head { padding: 12px 12px 0; }
+  .p-panel-body { padding: 12px; }
+  .p-chip { height: 34px; padding: 0 12px; font-size: 13px; }
+  .p-input { height: 42px; font-size: 16px; } /* 16px stops iOS from zooming into the field */
+  .p-nav a { padding: 10px 10px; font-size: 15px; }
+}
 
 @layer components {
 /* ---- surfaces ------------------------------------------------------------- */

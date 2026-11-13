@@ -187,6 +187,19 @@ export function Cell({ v }: { v: unknown }) {
   return <span title={s.length > 60 ? s : undefined}>{s.length > 80 ? `${s.slice(0, 80)}…` : s}</span>;
 }
 
+/** true on phone-width screens (the portal switches tables to cards and shows the bottom tab bar) */
+export function useIsPhone(max = 640) {
+  const q = `(max-width: ${max}px)`;
+  const [on, setOn] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches);
+  useEffect(() => {
+    const m = matchMedia(q);
+    const f = () => setOn(m.matches);
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, [q]);
+  return on;
+}
+
 export function useDebounced<T>(v: T, ms = 300) {
   const [d, setD] = useState(v);
   useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);

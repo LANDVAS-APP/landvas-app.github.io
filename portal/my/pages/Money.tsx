@@ -95,7 +95,7 @@ export function Ledger() {
   const loadedIn = rows.reduce((a, r) => a + Math.max(0, r.delta), 0), loadedOut = rows.reduce((a, r) => a + Math.max(0, -r.delta), 0);
   const cols: Col<any>[] = [
     { key: 'created_at', label: 'When', render: (r) => dateTime(r.created_at) },
-    { key: 'resource', label: 'Resource', render: (r) => resourceName(r.resource) },
+    { key: 'resource', label: 'Resource', render: (r) => resourceName(r.resource), hideOnPhone: resource !== 'all' },
     { key: 'reason', label: 'What for', render: (r) => <span>{reasonName(r.reason)}{r.staff && <span className="text-faint"> (by LANDVAS)</span>}</span> },
     { key: 'delta', label: 'Change', num: true, render: (r) => <b className={r.delta > 0 ? 'text-ok' : 'text-muted'}>{signed(r.delta)}</b> },
     { key: 'balance_after', label: 'Balance after', num: true, render: (r) => int(r.balance_after) },

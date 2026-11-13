@@ -1,6 +1,7 @@
 // Signing in to the portals (the same LANDVAS account as the game), password reset, and two-step sign-in.
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { KeyRound, Mail, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { getBackend, toGameError } from '../../src/backend/backend';
@@ -9,6 +10,7 @@ import { cn } from '../../src/lib/utils';
 import { isDev, openedFromRecovery } from './boot';
 import { portal, type WhoAmI } from './api';
 import { Badge, ErrorBox, Loading, Panel } from './ui';
+import markUrl from '../../public/brand/landvas-mark.svg?url';
 
 const GAME = 'https://landvas.app';
 
@@ -28,17 +30,9 @@ function Frame({ children, title, sub }: { children: ReactNode; title: string; s
   );
 }
 
-/** the brand mark here: a 3×3 block of plots, one of them claimed */
-export function PlotMark({ size = 26 }: { size?: number }) {
-  const c = size / 3;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-      {[0, 1, 2].flatMap((x) => [0, 1, 2].map((y) => (
-        <rect key={`${x}${y}`} x={x * c + 1} y={y * c + 1} width={c - 2} height={c - 2} rx={2}
-          fill={x === 1 && y === 1 ? 'var(--accent)' : x === 2 && y === 0 ? 'var(--accent-2)' : 'rgba(160,180,255,0.18)'} />
-      )))}
-    </svg>
-  );
+/** the LANDVAS mark: five claimed plots forming the L in a 3×3 grid (public/brand/landvas-mark.svg) */
+export function PlotMark({ size = 28 }: { size?: number }) {
+  return <img src={markUrl} width={size} height={size} alt="" aria-hidden className="shrink-0" />;
 }
 
 export function SignIn({ app }: { app: 'admin' | 'my' }) {
@@ -88,7 +82,12 @@ export function SignIn({ app }: { app: 'admin' | 'my' }) {
         {mode !== 'link' && <button className="text-accent-2 hover:underline" onClick={() => { setMode('link'); setSent(null); }}>Email me a sign-in link</button>}
         {mode !== 'reset' && <button className="text-accent-2 hover:underline" onClick={() => { setMode('reset'); setSent(null); }}>Forgot your password?</button>}
       </div>
-      {app === 'my' && <p className="mt-6 text-sm text-muted">New to LANDVAS? <a className="text-accent-2 hover:underline" href={`${GAME}/welcome`}>Start playing</a> — this page fills up as you play.</p>}
+      {app === 'my' && (
+        <>
+          <p className="mt-6 text-sm text-muted">New to LANDVAS? <a className="text-accent-2 hover:underline" href={`${GAME}/welcome`}>Start playing</a>. This page fills up as you play.</p>
+          <Link to="/" className="mt-2 inline-block text-sm text-muted underline-offset-4 hover:text-fg hover:underline">What’s on My LANDVAS</Link>
+        </>
+      )}
       {isDev() && devUsers.data && (
         <div className="mt-8 rounded-xl border border-dashed border-line p-3 text-xs text-muted">
           <div className="mb-2 font-semibold">Local accounts (dev)</div>

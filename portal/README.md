@@ -14,6 +14,15 @@ Two small websites that are **not** part of the game or the mobile apps, on the 
 - Hosting: the deploy workflow builds both into `dist/portal/…`; `deploy/portal-worker.js` (a Cloudflare Worker with the
   custom domains admin.landvas.app and my.landvas.app) serves the right one by hostname.
 - The game's admin screens (`src/admin`) are reused here. The native app build leaves them out (`src/admin/AdminElsewhere.tsx`).
+- my.landvas.app has a public landing page for search engines and signed-out visitors. It's plain HTML in
+  `portal/my/index.html` (with its SEO head, structured data and FAQ) styled by `portal/my/landing.css`, so it shows
+  without scripts. A small inline script there, and `useLanding` in `portal/my/App.tsx`, switch to the app (class
+  `app-mode` on `<html>`) when someone is signed in, back from an email link, or on any other address. Its buttons go to
+  `/sign-in`. Keep the FAQ text in the page and in the FAQPage JSON-LD the same.
+- Public files per site (favicons, `manifest.json`, `robots.txt`, `sitemap.xml`, `og-portal.png`, landing screenshots in
+  `screens/`) live in `portal/<app>/public`. Favicons come from `scripts/make-icons.mjs`. Admin's robots.txt blocks everything.
+- The Worker treats an address ending in a 1–8 character extension as a file, so keep public file names to that
+  (`manifest.json`, not `.webmanifest`).
 
 ## Running it locally
 

@@ -1,7 +1,7 @@
 // my.landvas.app — a player's own portal: every number, plot and record of their LANDVAS account.
 // Read-only: everything is changed in the game. Every call returns only the signed-in player's own rows.
-import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, BookOpen, Coins, Database, Gem, Home, Map as MapIcon, Sparkles, User, Users, Wallet, Egg, DollarSign } from 'lucide-react';
 import { getBackend, toGameError } from '../../src/backend/backend';
@@ -26,13 +26,43 @@ const Social = lazy(() => import('./pages/Play').then((m) => ({ default: m.Socia
 const MyData = lazy(() => import('./pages/Account').then((m) => ({ default: m.MyData })));
 const Account = lazy(() => import('./pages/Account').then((m) => ({ default: m.Account })));
 
-export const useMe = () => useQuery({ queryKey: ['me', getBackend().session()?.userId], queryFn: portal.me, refetchInterval: 60_000 });
+export const useMe = () => useQuery({ queryKey: ['me', getBackend().session()?.userId], queryFn: portal.me, refetchInterval: 60_000, enabled: !!getBackend().session() });
+
+const LANDING_TITLE = document.title;
+
+/** Signed-out visitors at the root address see the landing page that is written into index.html (so search engines
+ *  read it without running scripts). Everyone else sees the app. */
+function useLanding(show: boolean) {
+  const navigate = useNavigate();
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle('app-mode', !show);
+    document.title = show ? LANDING_TITLE : 'My LANDVAS';
+  }, [show]);
+  // the landing's sign-in buttons open the sign-in page without reloading
+  useEffect(() => {
+    const el = document.getElementById('landing');
+    if (!show || !el) return;
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element).closest?.('a[data-app-link]') as HTMLAnchorElement | null;
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      window.scrollTo(0, 0);
+      navigate(new URL(a.href).pathname);
+    };
+    el.addEventListener('click', onClick);
+    return () => el.removeEventListener('click', onClick);
+  }, [show, navigate]);
+}
 
 function Gate() {
   const session = useSession();
   const [recovery, doneRecovery] = useRecovery();
+  const { pathname } = useLocation();
+  const landing = !session && pathname === '/';
+  useLanding(landing);
   const me = useMe();
   if (recovery && session) return <ResetPassword onDone={doneRecovery} />;
+  if (landing) return null;
   if (!session) return <SignIn app="my" />;
   if (me.error) {
     if (toGameError(me.error).code === 'onboarding_required') return <NotOnboarded />;
@@ -40,12 +70,12 @@ function Gate() {
   }
   if (!me.data) return <Loading label="Loading your LANDVAS…" className="min-h-screen" />;
   const nav: NavItem[] = [
-    { to: '/', label: 'Overview', icon: <Home />, end: true },
+    { to: '/', label: 'Overview', icon: <Home />, end: true, short: 'Home' },
     { to: '/earnings', label: 'Earnings', icon: <Coins />, group: 'Money' },
     { to: '/ledger', label: 'Ink & resources', icon: <BookOpen />, group: 'Money' },
     { to: '/usd', label: 'USD rent', icon: <DollarSign />, group: 'Money' },
     { to: '/cashouts', label: 'Cash-outs', icon: <Wallet />, group: 'Money' },
-    { to: '/plots', label: 'My plots', icon: <MapIcon />, group: 'Land', count: undefined },
+    { to: '/plots', label: 'My plots', icon: <MapIcon />, group: 'Land', short: 'Plots' },
     { to: '/collection', label: 'Collection', icon: <Gem />, group: 'Land' },
     { to: '/enchantments', label: 'Enchantments', icon: <Sparkles />, group: 'Land' },
     { to: '/activity', label: 'Activity', icon: <Activity />, group: 'Play' },
@@ -55,7 +85,7 @@ function Gate() {
     { to: '/account', label: 'Account', icon: <User />, group: 'Account' },
   ];
   return (
-    <Shell title="My LANDVAS" nav={nav} user={{ username: me.data.profile?.username, profile: me.data.profile, sub: `${me.data.counts.plots} plots` }}
+    <Shell title="My LANDVAS" nav={nav} tabs={['/', '/earnings', '/plots', '/activity']} user={{ username: me.data.profile?.username, profile: me.data.profile, sub: `${me.data.counts.plots} plots` }}
       top={<span className="hidden text-sm text-muted md:inline">Everything here is read-only. Play, buy and change things in the game.</span>}>
       <Suspense fallback={<Loading />}><Outlet context={me.data} /></Suspense>
     </Shell>

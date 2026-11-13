@@ -69,7 +69,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
   const cash = useQuery({ queryKey: ['admin', 'cashouts', 'requested'], queryFn: () => api.admin.cashoutQueue('requested'), enabled: has('payouts'), refetchInterval: 120_000 });
   const me = useQuery({ queryKey: ['admin-me'], queryFn: api.myState, staleTime: 300_000 });
   const nav: NavItem[] = [
-    { to: '/', label: 'Dashboard', icon: <LayoutDashboard />, end: true },
+    { to: '/', label: 'Dashboard', icon: <LayoutDashboard />, end: true, short: 'Home' },
     { to: '/players', label: 'Players', icon: <Users />, group: 'People' },
     has('moderator') && { to: '/tools/review', label: 'Art review', icon: <ImageIcon />, group: 'People', count: review.data?.pending },
     has('moderator') && { to: '/tools/integrity', label: 'Fair play', icon: <ShieldAlert />, group: 'People' },
@@ -80,7 +80,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     has('economy') && { to: '/tools/earnings', label: 'Rates & rarities', icon: <Coins />, group: 'Economy' },
     has('economy') && { to: '/tools/shop', label: 'Shop', icon: <ShoppingBag />, group: 'Economy' },
     has('payouts') && { to: '/tools/cashouts', label: 'Cash-outs', icon: <Wallet />, group: 'Economy', count: cash.data?.length },
-    { to: '/map', label: 'World map', icon: <MapIcon />, group: 'World' },
+    { to: '/map', label: 'World map', icon: <MapIcon />, group: 'World', short: 'Map' },
     has('moderator') && { to: '/tools/plots', label: 'Plot tools', icon: <Wrench />, group: 'World' },
     has('economy') && { to: '/tools/world', label: 'World & events', icon: <Globe2 />, group: 'World' },
     has() && { to: '/tools/challenges', label: 'Challenges', icon: <Trophy />, group: 'World' },
@@ -94,7 +94,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     has() && { to: '/tools/system', label: 'System health', icon: <HeartPulse />, group: 'Account' },
   ].filter(Boolean) as NavItem[];
   return (
-    <Shell title="Admin" nav={nav} top={<TopSearch />}
+    <Shell title="Admin" nav={nav} tabs={['/', '/players', '/map', who.roles.some((r) => ['owner', 'admin', 'economy', 'payouts'].includes(r)) ? '/economy' : '/ledger']} top={<TopSearch />}
       user={{ username: who.username, profile: me.data && me.data.onboarded ? me.data.profile : undefined, sub: who.roles.join(', ') + (who.aal === 'aal2' ? ' · verified' : '') }}>
       <Suspense fallback={<Loading />}><Outlet context={who} /></Suspense>
     </Shell>

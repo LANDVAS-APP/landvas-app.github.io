@@ -6,7 +6,7 @@ import { MapPin, Search } from 'lucide-react';
 import { PlayerAvatar } from '../../src/ui';
 import { cn } from '../../src/lib/utils';
 import { portal } from '../shared/api';
-import { Badge, statusTone, useDebounced } from '../shared/ui';
+import { Badge, statusTone, useDebounced, useIsPhone } from '../shared/ui';
 import { ago } from '../shared/format';
 
 export function TopSearch() {
@@ -14,6 +14,7 @@ export function TopSearch() {
   const [open, setOpen] = useState(false);
   const [i, setI] = useState(0);
   const nav = useNavigate();
+  const phone = useIsPhone(960);
   const box = useRef<HTMLDivElement>(null);
   const d = useDebounced(q.trim(), 220);
   const plot = /^\s*(\d{3,8})[\s,·]+(\d{3,8})\s*$/.exec(q.replace(/(\d)\s(?=\d{3}\b)/g, '$1'));
@@ -33,7 +34,7 @@ export function TopSearch() {
   return (
     <div ref={box} className="relative max-w-xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-      <input className="p-input h-10 w-full pl-9" placeholder="Find a player by name, email or id — or a plot by its numbers" value={q}
+      <input className="p-input h-10 w-full pl-9" placeholder={phone ? 'Find a player or plot' : 'Find a player by name, email or id — or a plot by its numbers'} value={q}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} aria-label="Search players and plots" data-testid="top-search"
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') { e.preventDefault(); setI((x) => Math.min(items.length - 1, x + 1)); }

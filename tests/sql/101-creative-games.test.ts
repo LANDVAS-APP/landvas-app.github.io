@@ -70,7 +70,9 @@ describe('Draw & Guess', () => {
     const wrong = await db.rpc(ben, 'doodle_guess', { p_doodle_id: d.doodle_id, p_guess: 'zzz' });
     expect(wrong.correct).toBe(false);
     const a0 = await ink(ann), b0 = await ink(ben);
-    const right = await db.rpc(ben, 'doodle_guess', { p_doodle_id: d.doodle_id, p_guess: sub.word.toUpperCase() + 's' });
+    // any case, and a plural is fine (a word that already ends in s, like glass, is guessed as it is)
+    const guess = sub.word.toUpperCase() + (/s$/i.test(sub.word) ? '' : 's');
+    const right = await db.rpc(ben, 'doodle_guess', { p_doodle_id: d.doodle_id, p_guess: guess });
     expect(right.correct).toBe(true);
     expect(await ink(ben)).toBeGreaterThan(b0);
     expect(await ink(ann)).toBe(a0 + 4);

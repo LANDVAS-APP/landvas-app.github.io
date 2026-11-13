@@ -13,7 +13,7 @@ import { portal, type WhoAmI } from '../../shared/api';
 import { HBars, Split, TimeChart, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { DataTable, type Col } from '../../shared/table';
-import { ago, compact, date, dateTime, duration, int, perDay, perMonth, plotLabel, reasonName, resourceName, signed, tzName, usd, words } from '../../shared/format';
+import { ago, compact, date, dateTime, duration, int, perDay, perMonth, plotLabel, reasonName, resourceName, signed, tzName, usd, words, gameName } from '../../shared/format';
 import { Badge, Cell, CopyText, Empty, ErrorBox, Json, KV, Loading, Panel, Q, Rarity, Seg, Stat, statusTone, useTicker } from '../../shared/ui';
 
 const TABS = [
@@ -261,7 +261,7 @@ function Games({ id }: { id: string }) {
           <>
             <DataTable rows={d.rows} rowKey={(r: any) => r.id} maxHeight={560} cols={[
               { key: 'started_at', label: 'Started', render: (r: any) => dateTime(r.started_at) },
-              { key: 'game', label: 'Game', render: (r: any) => words(r.game) },
+              { key: 'game', label: 'Game', render: (r: any) => gameName(r.game) },
               { key: 'level', label: 'Level', num: true },
               { key: 'plot', label: 'Plot', render: (r: any) => (r.gx != null ? <Link className="tnum text-accent-2" to={`/map?gx=${r.gx}&gy=${r.gy}`}>{plotLabel(r.gx, r.gy)}</Link> : '—') },
               { key: 'status', label: 'Status', render: (r: any) => <Badge tone={statusTone(r.status)}>{r.status}</Badge> },

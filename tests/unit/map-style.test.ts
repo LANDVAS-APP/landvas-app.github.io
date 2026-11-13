@@ -20,3 +20,25 @@ describe('street map style', () => {
     });
   }
 });
+
+describe('country outlines across the date line', () => {
+  it('keeps Russia and Fiji continuous and leaves Antarctica alone', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { feature } = await import('topojson-client');
+    const { unwrapDateLine } = await import('../../src/map/basemap');
+    const topo = JSON.parse(readFileSync('src/data/countries-50m.json', 'utf8'));
+    const fc = unwrapDateLine(feature(topo, topo.objects.countries) as any);
+    const rings = (name: string) => {
+      const g: any = fc.features.find((f: any) => f.properties?.name === name)!.geometry;
+      return (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).flat() as number[][][];
+    };
+    const jumps = (r: number[][]) => r.slice(1).filter((p, i) => Math.abs(p[0] - r[i][0]) > 180).length;
+    for (const name of ['Russia', 'Fiji']) {
+      for (const r of rings(name)) {
+        expect(jumps(r)).toBe(0);
+        expect(r[0]).toEqual(r[r.length - 1]);
+      }
+    }
+    expect(rings('Antarctica').some((r) => jumps(r) > 0)).toBe(true);
+  });
+});

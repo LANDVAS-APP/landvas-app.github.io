@@ -1,12 +1,12 @@
 // How a player plays: a year of activity, every minigame, records, their Inkborn, friends, clan and invites.
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../../../src/backend/api';
 import { Button, PlayerAvatar } from '../../../src/ui';
 import { portal, type Day } from '../../shared/api';
 import { DataTable } from '../../shared/table';
-import { ago, date, dateShort, dateTime, duration, int, plotLabel, tzName, words } from '../../shared/format';
+import { ago, date, dateShort, dateTime, duration, int, plotLabel, tzName, words, gameName } from '../../shared/format';
 import { Badge, Empty, KV, PageHeader, Panel, Q, Stat, statusTone } from '../../shared/ui';
 
 export function ActivityPage() {
@@ -35,11 +35,11 @@ export function ActivityPage() {
             return (
               <>
                 <DataTable rows={rows} rowKey={(x) => `${x.game}:${x.level}`} empty={<Empty title="No scores yet">Win a plot minigame to set your first best score.</Empty>} cols={[
-                  { key: 'game', label: 'Game', sort: true, render: (x) => words(x.game) },
+                  { key: 'game', label: 'Game', sort: true, render: (x) => gameName(x.game) },
                   { key: 'level', label: 'Level', num: true, sort: true },
                   { key: 'best', label: 'Best score', num: true, sort: true, render: (x) => int(x.best) },
                 ]} />
-                <p className="px-4 py-3 text-xs text-muted">Rewarded wins today: {today.length ? today.map(([g, n]) => `${words(g)} ${n}`).join(', ') : 'none yet'} (up to {int(r?.daily_rewarded_wins_per_game ?? 0)} per game a day, resets {dateTime(r?.resets_at)}).</p>
+                <p className="px-4 py-3 text-xs text-muted">Rewarded wins today: {today.length ? today.map(([g, n]) => `${gameName(g)} ${n}`).join(', ') : 'none yet'} (up to {int(r?.daily_rewarded_wins_per_game ?? 0)} per game a day, resets {dateTime(r?.resets_at)}).</p>
               </>
             );
           }}</Q>
@@ -48,7 +48,7 @@ export function ActivityPage() {
           <Q q={sessions}>{(d) => (
             <>
               <DataTable rows={d.rows} rowKey={(s: any) => s.id} maxHeight={560} empty={<Empty title="No minigames yet" />} cols={[
-                { key: 'started_at', label: 'When', render: (s: any) => dateTime(s.started_at) }, { key: 'game', label: 'Game', render: (s: any) => words(s.game) }, { key: 'level', label: 'Level', num: true },
+                { key: 'started_at', label: 'When', render: (s: any) => dateTime(s.started_at) }, { key: 'game', label: 'Game', render: (s: any) => gameName(s.game) }, { key: 'level', label: 'Level', num: true },
                 { key: 'plot', label: 'Plot', render: (s: any) => (s.gx != null ? <a className="tnum text-accent-2" href={`/plots/${s.gx}/${s.gy}`}>{plotLabel(s.gx, s.gy)}</a> : '—') },
                 { key: 'passed', label: 'Result', render: (s: any) => (s.passed ? <span className="text-ok">won</span> : s.finished_at ? 'lost' : words(s.status)) },
                 { key: 'score', label: 'Score', num: true, render: (s: any) => int(s.score) }, { key: 'stars', label: 'Stars', num: true, render: (s: any) => s.stars ?? '—' },
@@ -80,9 +80,12 @@ function Calendar({ days }: { days: Day[] }) {
   const active = days.filter((d) => score(d) > 0).length;
   const [hover, setHover] = useState<Day | null>(null);
   const months = useMemo(() => weeks.map((w, i) => { const d = w.find(Boolean); if (!d) return ''; const m = new Date(`${d.day}T12:00:00`); return m.getDate() <= 7 || i === 0 ? m.toLocaleDateString('en-US', { month: 'short' }) : ''; }), [weeks]);
+  // on a narrow screen, open on the latest weeks (the right end) rather than a year ago
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { if (box.current) box.current.scrollLeft = box.current.scrollWidth; }, [weeks.length]);
   return (
     <div>
-      <div className="p-scroll pb-2">
+      <div ref={box} className="p-scroll pb-2">
         <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${weeks.length}, 13px)` }}>
           {months.map((m, i) => <div key={`m${i}`} className="h-4 text-[10px] text-faint">{m}</div>)}
           {weeks.map((w, i) => (
