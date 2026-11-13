@@ -12,10 +12,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../env';
 import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
+import { NATIVE_APP } from '../../app/buildFlags';
 
 const PIPELINE_RPCS = new Set([
-  'submit_publication', 'admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot',
-  'publication_status', 'admin_set_review_mode', 'admin_approve_all_pending', 'admin_retry_job',
+  'submit_publication', 'publication_status',
+  // staff calls: never in the iOS / Android apps
+  ...(NATIVE_APP ? [] : ['admin_review_publication', 'admin_remove_publication', 'admin_restore_publication', 'admin_release_plot', 'admin_set_review_mode', 'admin_approve_all_pending', 'admin_retry_job']),
 ]);
 
 async function functionError(error: any): Promise<GameError> {

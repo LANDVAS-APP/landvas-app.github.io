@@ -17,6 +17,7 @@ import { replayTour } from '../tour/Tour';
 import { NavCustomizer } from '../app/NavCustomizer';
 import { isNative } from '../native/native';
 import { remindersOn, remindersSupported, setReminders } from '../native/reminders';
+import { NATIVE_APP } from '../app/buildFlags';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -103,7 +104,7 @@ export default function Settings() {
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => nav('/me')}>Edit profile</Button>
               <Button variant="ghost" onClick={async () => { await backend.signOut(); qc.clear(); nav('/welcome'); }} data-testid="sign-out"><LogOut className="h-4 w-4" /> Sign out</Button>
-              {me.roles.length > 0 && <Button variant="ghost" onClick={() => nav('/admin')}><Shield className="h-4 w-4" /> Admin console</Button>}
+              {!NATIVE_APP && me.roles.length > 0 && <Button variant="ghost" onClick={() => nav('/admin')}><Shield className="h-4 w-4" /> Admin console</Button>}
             </div>
             <DeleteAccount onDone={async () => { await backend.signOut().catch(() => {}); qc.clear(); nav('/welcome'); }} />
           </Section>
@@ -143,7 +144,7 @@ export default function Settings() {
               await backend.resetLocalData!();
             }}><Trash2 className="h-4 w-4" /> Erase local data</Button>
           )}
-          {backend.mode === 'local' && me && !me.roles.length && (
+          {!NATIVE_APP && backend.mode === 'local' && me && !me.roles.length && (
             <Button variant="ghost" size="sm" className="justify-self-start" onClick={async () => {
               try { await api.devGrantSelfAdmin(); toast.success('You are now an admin on this device'); void qc.invalidateQueries(); } catch (e) { toast.error(toGameError(e).message); }
             }}>Make me admin (this device only)</Button>

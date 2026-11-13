@@ -22,6 +22,7 @@ import { useQuickRoll } from '../simple/useQuickRoll';
 import { Emblem, type DiscTone } from '../ui';
 import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
+import { NATIVE_APP } from './buildFlags';
 
 type Card = { to: string; title: string; sub: string; icon: LucideIcon; tone: DiscTone };
 const CARDS: Card[] = [
@@ -176,7 +177,7 @@ export default function GameHub() {
               </motion.section>
             );
           })}
-          {me?.roles?.includes('owner') && <Link to="/admin" className="lv-btn h-11 w-full text-sm"><Shield className="h-4 w-4" /> Admin</Link>}
+          {!NATIVE_APP && me?.roles?.includes('owner') && <Link to="/admin" className="lv-btn h-11 w-full text-sm"><Shield className="h-4 w-4" /> Admin</Link>}
         </div>
       </div>
       {me && <StreakDialog open={streakOpen} onOpenChange={setStreakOpen} onRoll={(o) => { setStreakOpen(false); void quick.roll(o); }} />}

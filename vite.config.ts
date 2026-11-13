@@ -44,6 +44,18 @@ export default defineConfig(({ mode }) => {
           }
         },
       },
+      // the iOS / Android apps never contain the admin screens: in the native build anything under src/admin is an
+      // empty module (App.tsx has no /admin page there either; see src/app/buildFlags.ts)
+      mode === 'native' && {
+        name: 'landvas-no-admin-in-apps',
+        enforce: 'pre' as const,
+        async resolveId(id: string, importer?: string) {
+          if (!importer || !/(^|\/)admin\//.test(id)) return null;
+          const r = await (this as any).resolve(id, importer, { skipSelf: true });
+          return r && r.id.includes(`${path.sep}src${path.sep}admin${path.sep}`) ? '\0landvas-empty' : null;
+        },
+        load: (id: string) => (id === '\0landvas-empty' ? 'export default function Nothing() { return null; }' : null),
+      },
       react(),
       tailwindcss(),
       // without the PWA plugin, provide an inert service-worker registration module

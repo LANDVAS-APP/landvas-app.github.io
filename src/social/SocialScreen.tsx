@@ -31,6 +31,7 @@ import { GAMES as INK_GAMES } from '../inkborn/games/engines';
 import { poll, live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
 import { KINDS as ENCH } from '../enchant/kinds';
+import { NATIVE_APP } from '../app/buildFlags';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -398,7 +399,8 @@ function ChatTab() {
   const lastId = useRef<number | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
-  const mod = !!me?.roles?.some((r) => ['owner', 'admin', 'moderator'].includes(r));
+  // moderating the chat is for the website and the admin portal, never the apps
+  const mod = !NATIVE_APP && !!me?.roles?.some((r) => ['owner', 'admin', 'moderator'].includes(r));
 
   const load = useCallback(async (reset: boolean) => {
     try {
@@ -452,9 +454,11 @@ function ChatTab() {
     try { await api.blockPlayer(m.player.id, true); toast.success(`@${m.player.username} is blocked`); void load(true); void qc.invalidateQueries({ queryKey: ['profile'] }); } catch (e) { toast.error(toGameError(e).message); }
   };
   const remove = async (m: ChatMessage) => {
+    if (NATIVE_APP) return;
     try { await api.admin.deleteChat(m.id, 'Removed by a moderator'); setMsgs((x) => (x ?? []).filter((y) => y.id !== m.id)); toast.success('Message removed'); } catch (e) { toast.error(toGameError(e).message); }
   };
   const mute = async (m: ChatMessage) => {
+    if (NATIVE_APP) return;
     try { await api.admin.mutePlayer(m.player.id, 60, 'Muted from the chat'); toast.success(`@${m.player.username} is muted for an hour`); } catch (e) { toast.error(toGameError(e).message); }
   };
   return (

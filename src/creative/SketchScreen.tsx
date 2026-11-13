@@ -17,6 +17,7 @@ import { Button, Empty, PlayerAvatar, Spinner, inputCls, useConfirm } from '../u
 import { confetti, confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from './SketchPad';
 import { poll } from '../lib/poll';
+import { NATIVE_APP } from '../app/buildFlags';
 
 export const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -106,7 +107,7 @@ function SketchToday() {
       )}
 
       <ArtistsToday />
-      {me?.roles?.includes('owner') && <WordAdmin word={d.word} onSet={() => void q.refetch()} />}
+      {!NATIVE_APP && me?.roles?.includes('owner') && <WordAdmin word={d.word} onSet={() => void q.refetch()} />}
       <section className="mb-8">
         <div className="mb-3 flex items-end justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Vote for today’s best <span className="text-xs font-normal text-muted">· votes are final</span></h2>

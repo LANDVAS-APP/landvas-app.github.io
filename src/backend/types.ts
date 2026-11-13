@@ -39,6 +39,18 @@ export type PlotTypeInfo = {
 
 export type ShopItem = { key: string; name: string; kind: string; group?: string; part?: string; id?: string; description: string; cost: Partial<Balances>; requires?: string; enabled?: boolean };
 
+/** game_config 'app': live control of the apps and the game's pages (admin portal → Live control) */
+export type AppConfig = {
+  min_version?: string;
+  latest_version?: string;
+  update?: { title?: string; message?: string; soft_title?: string; soft_message?: string };
+  store?: { ios?: string; android?: string };
+  maintenance?: { on?: boolean; title?: string; message?: string; until?: string | null };
+  hidden_pages?: string[];
+  hidden_pages_apps?: string[];
+  links?: { discord?: string; reddit?: string; support_email?: string; website?: string };
+};
+
 export type WorldConfig = {
   ink_uncapped?: boolean;
   grid: { level: number; size: number; plot_px: number; art_min_zoom: number; art_max_zoom: number };

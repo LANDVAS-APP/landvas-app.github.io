@@ -21,6 +21,7 @@ import { useClaimables } from './claimables';
 // the app's game HUD (top bar + menu) — only the app downloads it
 import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
+import { NATIVE_APP } from './buildFlags';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
@@ -104,7 +105,7 @@ export function Shell() {
   const isHome = loc.pathname === '/';
   const simple = useUi((s) => !!s.settings.simpleMode);
   const isMap = loc.pathname === '/world' && !simple;
-  const admin = me?.roles?.includes('owner');
+  const admin = !NATIVE_APP && me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
   const claim = useClaimables();
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === (NATIVE && !simple ? '/hub' : '/world') ? claim.count : 0);

@@ -19,6 +19,7 @@ const STYLES = ['prism', 'orbit', 'mosaic', 'bloom'] as const;
 import { NavCustomizer } from '../app/NavCustomizer';
 import { isNative } from '../native/native';
 import { preparePicture } from '../lib/picture';
+import { NATIVE_APP } from '../app/buildFlags';
 
 const TILE_TONES: DiscTone[] = ['violet', 'rose', 'teal', 'ember', 'azure', 'emerald', 'gold'];
 
@@ -51,7 +52,7 @@ export default function MeHub() {
     { to: '/pvp', label: 'PvP minigames', icon: Gamepad2, hint: 'Free head-to-head games' },
     { to: '/challenges', label: 'Challenges', icon: Trophy, hint: 'Weekly painting themes' },
     { to: '/players', label: 'Players', icon: Users, hint: 'Everyone’s land and art' },
-    ...(me.roles.includes('owner') ? [{ to: '/admin', label: 'Admin hub', icon: Shield, hint: 'Owner' }] : []),
+    ...(!NATIVE_APP && me.roles.includes('owner') ? [{ to: '/admin', label: 'Admin hub', icon: Shield, hint: 'Owner' }] : []),
   ];
   return (
     <Page>

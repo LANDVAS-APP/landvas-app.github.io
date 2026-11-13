@@ -16,6 +16,7 @@ import { Features, Hero, richOf } from './Rich';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar } from '../ui';
 import { poll } from '../lib/poll';
+import { NATIVE_APP } from '../app/buildFlags';
 
 export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sparkles; color: string }> = {
   update: { label: 'Update', icon: Sparkles, color: '#22E3FF' },
@@ -122,13 +123,13 @@ function UpdatesBody({ open, onClose }: { open: boolean; onClose(): void }) {
             <span><b>Support replied</b> to {n.data.support_replies === 1 ? 'your ticket' : `${n.data.support_replies} of your tickets`}. Tap to read.</span>
           </button>
         )}
-        {!!n.data?.drafts_staff && (
+        {!NATIVE_APP && !!n.data?.drafts_staff && (
           <button onClick={() => go('/admin#updates')} className="flex items-center gap-3 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3 text-left text-sm" data-testid="drafts-waiting">
             <Sparkles className="h-5 w-5 shrink-0 text-accent-2" />
             <span><b>{n.data.drafts_staff} update draft{n.data.drafts_staff === 1 ? '' : 's'}</b> from the latest build waiting for your approval.</span>
           </button>
         )}
-        {!!n.data?.open_tickets_staff && (
+        {!NATIVE_APP && !!n.data?.open_tickets_staff && (
           <button onClick={() => go('/admin#support')} className="flex items-center gap-3 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-left text-sm">
             <LifeBuoy className="h-5 w-5 shrink-0 text-warn" />
             <span><b>{n.data.open_tickets_staff} open support ticket{n.data.open_tickets_staff === 1 ? '' : 's'}</b> waiting for a reply.</span>

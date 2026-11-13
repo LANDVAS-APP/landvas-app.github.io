@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, LifeBuoy, Mail, MessageSquarePlus, Send, Trash
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { DISCORD, REDDIT, SUPPORT_EMAIL } from '../brand';
+import { useAppConfig } from '../app/LiveControl';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
@@ -180,6 +181,9 @@ export function Thread({ id, onBack, staff }: { id: string; onBack(): void; staf
 /** landvas.app/support for anyone (the stores link here): how to reach the team without signing in. */
 function PublicSupport() {
   const card = 'glass grid gap-1 rounded-3xl p-5';
+  // the links can be changed live (admin portal → Live control); the built-in ones are the fallback
+  const links = useAppConfig().data?.links;
+  const email = links?.support_email || SUPPORT_EMAIL;
   return (
     <Page>
       <PageHeader eyebrow="Help" title={<span className="flex items-center gap-2"><LifeBuoy className="h-7 w-7 text-accent-2" /> Support</span>}>
@@ -194,7 +198,7 @@ function PublicSupport() {
         <section className={card}>
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Mail className="h-5 w-5 text-accent-2" /> Email</h2>
           <p className="text-sm text-muted">Can’t sign in, or not a player? Write to us and we’ll answer by email.</p>
-          <a href={`mailto:${SUPPORT_EMAIL}?subject=LANDVAS%20support`} className="mt-2 justify-self-start font-bold text-accent-2 underline" data-testid="support-email">{SUPPORT_EMAIL}</a>
+          <a href={`mailto:${email}?subject=LANDVAS%20support`} className="mt-2 justify-self-start font-bold text-accent-2 underline" data-testid="support-email">{email}</a>
         </section>
         <section className={card}>
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Trash2 className="h-5 w-5 text-bad" /> Delete your account</h2>
@@ -204,7 +208,7 @@ function PublicSupport() {
         <section className={card}>
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Users className="h-5 w-5 text-accent-2" /> Community</h2>
           <p className="text-sm text-muted">Tips, news and other players.</p>
-          <div className="mt-2 flex gap-4 text-sm font-bold"><a href={DISCORD} target="_blank" rel="noopener" className="text-accent-2 underline">Discord</a><a href={REDDIT} target="_blank" rel="noopener" className="text-accent-2 underline">Reddit</a></div>
+          <div className="mt-2 flex gap-4 text-sm font-bold"><a href={links?.discord || DISCORD} target="_blank" rel="noopener" className="text-accent-2 underline">Discord</a><a href={links?.reddit || REDDIT} target="_blank" rel="noopener" className="text-accent-2 underline">Reddit</a></div>
         </section>
       </div>
       <p className="mt-6 text-xs text-muted">LANDVAS · <Link to="/legal/terms" className="underline">Terms</Link> · <Link to="/legal/privacy" className="underline">Privacy</Link></p>

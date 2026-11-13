@@ -95,7 +95,8 @@ describe('🪿 Golden Goose', () => {
     expect(r.result.pay.paid).toBeGreaterThan(0);
     expect(await ink(ann)).toBe(b + r.result.pay.paid);
     expect(r.view.eggs).toBe(1); expect(r.view.streak).toBe(0); // bitten: no streak
-    expect(r.view.value).toBeLessThan(10);
+    // a fresh egg is small (one in ~33 eggs is platinum: worth 3x)
+    expect(r.view.value).toBeLessThan(r.view.platinum ? 30 : 10);
   });
 });
 

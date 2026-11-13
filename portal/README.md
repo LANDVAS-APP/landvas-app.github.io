@@ -13,7 +13,7 @@ Two small websites that are **not** part of the game or the mobile apps, on the 
   `private.require_admin` needs an `aal2` session, so the game's own admin screen needs it too.
 - Hosting: the deploy workflow builds both into `dist/portal/…`; `deploy/portal-worker.js` (a Cloudflare Worker with the
   custom domains admin.landvas.app and my.landvas.app) serves the right one by hostname.
-- The game's admin screens (`src/admin`) are reused here. The native app build leaves them out (`src/admin/AdminElsewhere.tsx`).
+- The game's admin screens (`src/admin`) are reused here. The iOS/Android build (`--mode native`) leaves out everything admin: no /admin page, no staff or moderator buttons, no admin API calls (`NATIVE_APP` in `src/app/buildFlags.ts`).
 - my.landvas.app has a public landing page for search engines and signed-out visitors. It's plain HTML in
   `portal/my/index.html` (with its SEO head, structured data and FAQ) styled by `portal/my/landing.css`, so it shows
   without scripts. A small inline script there, and `useLanding` in `portal/my/App.tsx`, switch to the app (class

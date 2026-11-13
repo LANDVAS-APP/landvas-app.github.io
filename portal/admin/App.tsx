@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Coins, Database, FileClock, Flag, Globe2, HeartPulse, LayoutDashboard, LifeBuoy, Map as MapIcon, Megaphone,
-  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon,
+  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower,
 } from 'lucide-react';
 import { api } from '../../src/backend/api';
 import { getBackend } from '../../src/backend/backend';
@@ -28,6 +28,7 @@ const Data = lazy(() => import('./pages/Data'));
 const Sql = lazy(() => import('./pages/Sql'));
 const Audit = lazy(() => import('./pages/Audit'));
 const Config = lazy(() => import('./pages/Config'));
+const Live = lazy(() => import('./pages/Live'));
 const Security = lazy(() => import('./pages/Security'));
 const Tool = lazy(() => import('./pages/Tools'));
 
@@ -88,6 +89,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     who.owner && { to: '/data', label: 'Data explorer', icon: <Database />, group: 'Data' },
     who.owner && { to: '/sql', label: 'SQL console', icon: <Terminal />, group: 'Data' },
     has() && { to: '/audit', label: 'Audit log', icon: <FileClock />, group: 'Data' },
+    has('economy') && { to: '/live', label: 'Live control', icon: <RadioTower />, group: 'Data' },
     has() && { to: '/config', label: 'Game settings', icon: <SlidersHorizontal />, group: 'Data' },
     has() && { to: '/tools/switches', label: 'Switches', icon: <Flag />, group: 'Data' },
     { to: '/security', label: 'Security & staff', icon: <ShieldCheck />, group: 'Account' },
@@ -142,6 +144,7 @@ const router = createBrowserRouter([
       { path: 'sql', element: page(<Sql />) },
       { path: 'audit', element: page(<Audit />) },
       { path: 'config', element: page(<Config />) },
+      { path: 'live', element: page(<Live />) },
       { path: 'security', element: page(<Security />) },
       { path: 'tools/:tool', element: page(<Tool />) },
       { path: 'world', element: <GameWorldLink /> },

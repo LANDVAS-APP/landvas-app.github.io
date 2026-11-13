@@ -14,6 +14,7 @@ import { Button, Dialog, Empty, Spinner, inputCls, PlayerAvatar } from '../ui';
 import { ArtGrid, useAssetUrl } from './GalleryScreen';
 import { MadeBadge } from './MadeBadge';
 import { CrispArt } from './CrispArt';
+import { NATIVE_APP } from '../app/buildFlags';
 
 export default function ArtworkScreen() {
   const { id = '' } = useParams();
@@ -72,7 +73,7 @@ export default function ArtworkScreen() {
               try { if (navigator.share) await navigator.share({ title: a.title, text: `“${a.title}” on LANDVAS`, url }); else { await navigator.clipboard.writeText(url); toast.success('Link copied'); } } catch { /* cancelled */ }
             }}><Share2 className="h-4 w-4" /> Share</Button>
             {me && !a.is_owner && <Button variant="ghost" onClick={() => setReport(true)}><Flag className="h-4 w-4" /> Report</Button>}
-            {me?.roles?.some((r: string) => ['owner', 'admin', 'moderator'].includes(r)) && (
+            {!NATIVE_APP && me?.roles?.some((r: string) => ['owner', 'admin', 'moderator'].includes(r)) && (
               <Button variant="ghost" data-testid="feature-art" onClick={async () => {
                 try {
                   const r: any = await api.admin.feature(a.id, 'featured', !inFeatured);
@@ -81,7 +82,7 @@ export default function ArtworkScreen() {
                 } catch (e) { toast.error(toGameError(e).message); }
               }}><Star className="h-4 w-4" /> {inFeatured ? 'Unfeature' : 'Feature'}</Button>
             )}
-            {me?.roles?.includes('owner') && (
+            {!NATIVE_APP && me?.roles?.includes('owner') && (
               <Button variant="ghost" data-testid="set-potd" onClick={async () => {
                 try { await api.adminSetPotd(a.id); toast.success('Painting of the Day set — it leads Featured today until the daily reset'); void qc.invalidateQueries({ queryKey: ['featured-today'] }); }
                 catch (e) { toast.error(toGameError(e).message); }

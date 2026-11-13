@@ -3,11 +3,11 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo,
-} from './types';
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
+import { NATIVE_APP } from '../app/buildFlags';
 export type EstateTask = { done: number; need: number; today?: boolean; left_today?: number };
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
@@ -52,6 +52,8 @@ export type MinigameRecords = {
 
 export const api = {
   worldConfig: () => rpc<WorldConfig>('world_config'),
+  /** the live settings for the apps and the game's pages (versions, maintenance, pages switched off, links) */
+  appConfig: () => rpc<AppConfig>('app_config'),
   myState: () => rpc<MyState>('my_state'),
   completeOnboarding: (a: { username: string; displayName?: string; avatarSeed: string; avatarStyle: string; accentColor: string; termsVersion: string }) =>
     rpc<MyState>('complete_onboarding', {
@@ -511,8 +513,8 @@ export const api = {
   roomNote: (username: string, body: string, drawing: import('./types').BookDrawing | null = null) => rpc<import('./types').RoomSocial>('room_note', { p_username: username, p_body: body, p_drawing: drawing }),
   roomNoteDelete: (id: number) => rpc('room_note_delete', { p_id: id }),
   sketchArtistsToday: () => rpc<{ count: number; artists: Profile[] }>('sketch_artists_today'),
-  adminSetSketchWord: (word: string) => rpc<{ word: string; custom: boolean }>('admin_set_sketch_word', { p_word: word }),
-  adminSetPotd: (id: string | null, note?: string) => rpc<{ ok: boolean; title?: string }>('admin_set_potd', { p_publication_id: id, p_note: note ?? null }),
+  adminSetSketchWord: NATIVE_APP ? (undefined as never) : (word: string) => rpc<{ word: string; custom: boolean }>('admin_set_sketch_word', { p_word: word }),
+  adminSetPotd: NATIVE_APP ? (undefined as never) : (id: string | null, note?: string) => rpc<{ ok: boolean; title?: string }>('admin_set_potd', { p_publication_id: id, p_note: note ?? null }),
   myEarningsToday: () => rpc<{ total: number; resets_at: string; by_reason: Record<string, number> }>('my_earnings_today'),
   mySketches: (limit = 60) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; votes: number; place: number | null; prize: number; day: string; live: boolean }[]>('my_sketches', { p_limit: limit }),
   sketchPublic: (id: string) => rpc<{ id: string; word: string; strokes: import('../shared/strokes').Stroke[]; place: number | null; day: string; voting: boolean; artist: import('./types').Profile | null } | null>('sketch_public', { p_id: id }),
@@ -597,10 +599,10 @@ export const api = {
     }),
 
   reportClientError: (message: string, context: Record<string, unknown>) => rpc('report_client_error', { p_message: message, p_context: context }),
-  devGrantSelfAdmin: () => rpc<MyState>('dev_grant_self_admin'),
+  devGrantSelfAdmin: NATIVE_APP ? (undefined as never) : () => rpc<MyState>('dev_grant_self_admin'),
 
-  // admin
-  admin: {
+  // admin (left out of the iOS / Android apps: staff use the admin portal)
+  admin: NATIVE_APP ? (undefined as never) : {
     rollGrants: (player: string | null) => rpc<any[]>('admin_roll_grants', { p_player: player }),
     grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null, plotType: string | null = null) =>
       rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot, p_plot_type: plotType }),

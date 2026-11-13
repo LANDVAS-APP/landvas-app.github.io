@@ -53,15 +53,17 @@ const LegalScreen = lazy(() => import('../screens/Legal'));
 import { useIntegrityPing } from '../integrity/signals';
 import { RestrictionNotice } from '../integrity/RestrictionNotice';
 import { TermsUpdate } from './TermsUpdate';
+import { LiveControl } from './LiveControl';
+import { NATIVE_APP } from './buildFlags';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
 const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
-// the mobile apps never contain the admin tools (staff use the admin portal, admin.landvas.app): the native build
-// folds this to the small notice and the admin screens' code is left out of the app entirely
-const AdminScreen = import.meta.env.MODE === 'native' ? lazy(() => import('../admin/AdminElsewhere')) : lazy(() => import('../admin/AdminScreen'));
+// the mobile apps never contain the admin tools (staff use the admin portal, admin.landvas.app): the native build has
+// no /admin page at all and the admin screens' code is left out of the app entirely
+const AdminScreen = NATIVE_APP ? null : lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));
@@ -203,7 +205,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /><TermsUpdate /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
@@ -277,7 +279,7 @@ const routes: RouteObject[] = [
           { path: '/duet/:id', element: p(<DuetScreen />) },
           { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
-          { path: '/admin', element: player(<AdminScreen />) },
+          ...(AdminScreen ? [{ path: '/admin', element: player(<AdminScreen />) }] : []),
           { path: '*', element: <Navigate to="/world" replace /> },
         ],
       },
