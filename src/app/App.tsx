@@ -59,7 +59,9 @@ const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
 const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
-const AdminScreen = lazy(() => import('../admin/AdminScreen'));
+// the mobile apps never contain the admin tools (staff use the admin portal, admin.landvas.app): the native build
+// folds this to the small notice and the admin screens' code is left out of the app entirely
+const AdminScreen = import.meta.env.MODE === 'native' ? lazy(() => import('../admin/AdminElsewhere')) : lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
 const HomePage = lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));

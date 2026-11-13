@@ -69,6 +69,8 @@ export interface Backend {
   /** send to a live channel without listening to it (so you don't get everyone else's messages too) */
   liveSend?(name: string, m: unknown): Promise<boolean>;
   resetLocalData?(): Promise<void>;
+  /** Supabase Auth itself (two-step sign-in for the admin portal). Hosted backend only. */
+  authClient?(): import('@supabase/supabase-js').SupabaseClient['auth'];
 }
 
 /** A game rule violation or failure with a stable machine code from the server. */
@@ -419,6 +421,12 @@ let initPromise: Promise<Backend> | null = null;
 export function getBackend(): Backend {
   if (!instance) throw new Error('backend not initialised');
   return instance;
+}
+
+/** Use a backend made elsewhere (the portal's dev bridge). */
+export function setBackend(b: Backend) {
+  instance = b;
+  initPromise = Promise.resolve(b);
 }
 
 export function initBackend(): Promise<Backend> {

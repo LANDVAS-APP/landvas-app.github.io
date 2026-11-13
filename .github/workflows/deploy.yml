@@ -94,7 +94,7 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — skipping auth settings"; exit 0; fi
           if [ -f deploy/CNAME ]; then export SITE_URL="https://$(tr -d ' \r\n' < deploy/CNAME)"; else export SITE_URL="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"; fi
-          export EXTRA_ORIGINS="https://${GITHUB_REPOSITORY_OWNER,,}.github.io,https://landvas.app,https://www.landvas.app"
+          export EXTRA_ORIGINS="https://${GITHUB_REPOSITORY_OWNER,,}.github.io,https://landvas.app,https://www.landvas.app,https://admin.landvas.app,https://my.landvas.app"
           node scripts/configure-auth.mjs || echo "::warning::could not update auth settings"
       - name: Edge Functions
         env:
@@ -119,6 +119,14 @@ jobs:
           export LANDVAS_BUILD_ID="${GITHUB_SHA::7}"
           npx vite build --mode production
           printf '{"build":"%s","at":"%s"}\n' "$LANDVAS_BUILD_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
+      # the portal: two separate small sites, never part of the game or the mobile apps.
+      # Published with the site under /portal/; deploy/portal-worker.js serves them on admin.landvas.app and my.landvas.app.
+      - name: Build the portals (admin.landvas.app, my.landvas.app)
+        run: |
+          export LANDVAS_BUILD_ID="${GITHUB_SHA::7}"
+          PORTAL_APP=admin npx vite build --config portal/vite.config.ts --mode production
+          PORTAL_APP=my npx vite build --config portal/vite.config.ts --mode production
+          ls dist/portal/admin/index.html dist/portal/my/index.html
       - name: Link previews for shared art
         continue-on-error: true
         timeout-minutes: 3

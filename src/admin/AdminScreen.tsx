@@ -117,6 +117,10 @@ function Hub() {
       <PageHeader eyebrow="Owner" title={<span className="flex items-center gap-2"><ShieldCheck className="h-7 w-7 text-accent-2" /> Admin hub</span>}>
         Complete control of LANDVAS. Every change is applied to all players immediately and recorded in the audit log.
       </PageHeader>
+      <a href="https://admin.landvas.app" target="_blank" rel="noopener" className="glass mb-4 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm hover:border-line-strong" data-testid="admin-portal-link">
+        <ShieldCheck className="h-5 w-5 shrink-0 text-accent-2" />
+        <span className="min-w-0 flex-1"><b>Use the admin portal at admin.landvas.app.</b> <span className="text-muted">Everything here plus every player’s full history, charts, the world map of every plot, a data explorer for every table and a read-only SQL console.</span></span>
+      </a>
       <Tabs value={tab} onValueChange={setTab} className="mb-5" items={TABS.map((t) => ({
         value: t.value,
         label: t.value === 'review' && pending > 0 ? <span className="flex items-center gap-1.5">Review <span className="rounded-full bg-hot px-1.5 text-[11px] font-bold text-white tnum">{pending}</span></span>
@@ -162,7 +166,7 @@ function PubPreview({ path, className }: { path: string | null; className?: stri
 
 const REJECT_REASONS = ['Not appropriate for an all-ages map', 'Copyrighted or someone else’s work', 'Personal information or a real person', 'Spam, ads or links'];
 
-function ReviewTab() {
+export function ReviewTab() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const mode = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, refetchInterval: poll(20_000) });
@@ -285,7 +289,7 @@ function Reports() {
 
 // ---- dashboard ------------------------------------------------------------------------
 
-function Overview({ onTab }: { onTab(t: string): void }) {
+export function Overview({ onTab }: { onTab(t: string): void }) {
   const q = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.admin.overview, refetchInterval: poll(30_000) });
   if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
   const d = q.data;
@@ -325,7 +329,7 @@ function Overview({ onTab }: { onTab(t: string): void }) {
 
 // ---- players --------------------------------------------------------------------------
 
-function Players() {
+export function Players() {
   const [query, setQuery] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['admin', 'players', query], queryFn: () => api.admin.searchPlayers(query) });
@@ -347,7 +351,7 @@ function Players() {
   );
 }
 
-function PlayerDetail({ id }: { id: string }) {
+export function PlayerDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const confirm = useConfirm();
@@ -474,7 +478,7 @@ function useSaveConfig() {
 
 const GAMES: GameId[] = [...GAME_IDS];
 
-function Earnings() {
+export function Earnings() {
   const cfg = useConfig();
   const save = useSaveConfig();
   if (!cfg.data) return <div className="flex justify-center py-10"><Spinner /></div>;
@@ -863,7 +867,7 @@ function EnchantSettings({ value }: { value: any }) {
 
 // ---- world ------------------------------------------------------------------------------
 
-function World() {
+export function World() {
   const cfg = useConfig();
   const save = useSaveConfig();
   const qc = useQueryClient();
@@ -903,7 +907,7 @@ function World() {
 
 // ---- plots ------------------------------------------------------------------------------
 
-function Plots() {
+export function Plots() {
   const [q, setQ] = useState('');
   const [cell, setCell] = useState<{ gx: number; gy: number } | null>(null);
   const nav = useNavigate();
@@ -942,7 +946,7 @@ function Plots() {
 
 // ---- switches, cash-outs, system ----------------------------------------------------------
 
-function Flags() {
+export function Flags() {
   const qc = useQueryClient();
   const q = useConfig();
   if (!q.data) return <div className="flex justify-center py-10"><Spinner /></div>;
@@ -961,7 +965,7 @@ function Flags() {
   );
 }
 
-function Cashouts() {
+export function Cashouts() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'cashouts'], queryFn: () => api.admin.cashoutQueue('requested') });
   const [refs, setRefs] = useState<Record<string, string>>({});
@@ -998,7 +1002,7 @@ function JsonConfig({ k, value, description }: { k: string; value: unknown; desc
   );
 }
 
-function System() {
+export function System() {
   const qc = useQueryClient();
   const cfg = useConfig();
   const jobs = useQuery({ queryKey: ['admin', 'jobs'], queryFn: () => api.admin.jobs() });
@@ -1040,7 +1044,7 @@ function System() {
 
 // ---- social: invites, Ink conversion, chat ---------------------------------------------------
 
-function SocialAdmin() {
+export function SocialAdmin() {
   const cfg = useConfig();
   const save = useSaveConfig();
   const qc = useQueryClient();
@@ -1115,7 +1119,7 @@ function SocialAdmin() {
 
 const COST_KEYS = ['ink', 'pigments', 'gallery_tokens'] as const;
 
-function ShopAdmin() {
+export function ShopAdmin() {
   const cfg = useConfig();
   const save = useSaveConfig();
   const [items, setItems] = useState<any[] | null>(null);

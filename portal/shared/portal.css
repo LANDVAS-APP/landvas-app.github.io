@@ -1,0 +1,124 @@
+/* LANDVAS portal: the game's tokens and components, laid out for reading and working at a desk.
+   The one signature: the plot grid. The world in LANDVAS is a grid of plots, so the sidebar and
+   page backdrop carry a faint cartographic grid, and plots everywhere are drawn as squares. */
+@import "../../src/styles/app.css";
+@source "../../src";
+@source "../";
+
+html, body, #root { height: auto; min-height: 100%; }
+body.portal {
+  overscroll-behavior: auto;
+  -webkit-user-select: text;
+  user-select: text;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 48px 48px,
+    radial-gradient(1200px 600px at 85% -10%, rgba(139, 107, 255, 0.12), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+:root { --grid-line: rgba(160, 180, 255, 0.035); --side-w: 252px; }
+
+/* ---- shell ---------------------------------------------------------------- */
+.p-shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
+.p-side {
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(rgba(160, 180, 255, 0.05) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, rgba(160, 180, 255, 0.05) 1px, transparent 1px) 0 0 / 16px 16px,
+    rgba(7, 11, 28, 0.92);
+}
+.p-main { min-width: 0; }
+.p-top {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 28px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 11, 28, 0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.p-content { padding: 24px 28px 64px; max-width: 1680px; }
+.p-nav a {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px;
+  color: var(--muted); font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.p-nav a:hover { color: var(--fg); background: rgba(160, 180, 255, 0.07); }
+.p-nav a.active { color: var(--fg); background: rgba(139, 107, 255, 0.16); box-shadow: inset 2px 0 0 var(--accent); }
+.p-nav a .p-count { margin-left: auto; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 99px; background: var(--hot); color: #fff; }
+.p-nav-group { padding: 14px 10px 4px; font-size: 12px; font-weight: 600; color: var(--faint); }
+
+@media (max-width: 960px) {
+  .p-shell { grid-template-columns: minmax(0, 1fr); }
+  .p-side { position: fixed; inset: 0 auto 0 0; width: min(86vw, 300px); z-index: 60; transform: translateX(-102%); transition: transform 0.2s ease; }
+  .p-side.open { transform: none; box-shadow: 30px 0 80px rgba(0, 0, 0, 0.6); }
+  .p-top { padding: 10px 16px; }
+  .p-content { padding: 16px 14px 48px; }
+}
+@media (prefers-reduced-motion: reduce) { .p-side { transition: none; } }
+
+@layer components {
+/* ---- surfaces ------------------------------------------------------------- */
+.p-panel { background: rgba(16, 24, 58, 0.72); border: 1px solid var(--line); border-radius: 16px; }
+.p-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px 0; }
+.p-panel-body { padding: 14px 16px 16px; }
+.p-h1 { font-family: var(--font-display); font-size: clamp(22px, 2.2vw, 30px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
+.p-sub { color: var(--muted); font-size: 14px; max-width: 72ch; }
+.p-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.p-figure { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* ---- tables --------------------------------------------------------------- */
+.p-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.p-table th {
+  position: sticky; top: 0; z-index: 1; text-align: left; white-space: nowrap; font-weight: 600; font-size: 12px; color: var(--muted);
+  padding: 8px 10px; background: rgba(13, 20, 48, 0.97); border-bottom: 1px solid var(--line);
+}
+.p-table th button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.p-table th button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+.p-table td { padding: 7px 10px; border-bottom: 1px solid rgba(160, 180, 255, 0.07); vertical-align: top; }
+.p-table.nowrap td { white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+.p-table tr.click { cursor: pointer; }
+.p-table tr.click:hover td, .p-table tr.sel td { background: rgba(139, 107, 255, 0.08); }
+.p-table td.num, .p-table th.num { text-align: right; }
+.p-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+/* ---- form bits ------------------------------------------------------------ */
+.p-input {
+  height: 36px; border-radius: 10px; border: 1px solid var(--line); background: rgba(16, 24, 58, 0.9); color: var(--fg);
+  padding: 0 10px; font-size: 14px; min-width: 0;
+}
+.p-input:focus { outline: none; border-color: var(--accent); }
+textarea.p-input { height: auto; padding: 8px 10px; line-height: 1.45; }
+select.p-input { padding-right: 26px; }
+.p-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.p-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 600; color: var(--muted); background: transparent; cursor: pointer;
+}
+.p-chip:hover { color: var(--fg); border-color: var(--line-strong); }
+.p-chip.on { color: var(--fg); background: rgba(139, 107, 255, 0.18); border-color: rgba(139, 107, 255, 0.5); }
+
+/* the plot square: plots are drawn as small squares in their rarity colour */
+.p-plot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; box-shadow: 0 0 0 2px var(--surface); }
+
+}
+
+/* section headings read as labels, not posters: the display face is for page titles and figures only */
+.p-main h2:not(.p-h1), .p-main h3, .lv-dialog h3 { font-family: var(--font-body); letter-spacing: 0; }
+.p-panel-head h2, .p-panel-head h3 { font-size: 15px; font-weight: 700; margin: 0; }
+
+/* ---- charts (dataviz: categorical order validated against the portal surface #10183a) ---- */
+.viz {
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+  --viz-grid: rgba(160, 180, 255, 0.1); --viz-axis: var(--faint); --viz-surface: #10183a;
+}
+.viz-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 150px; max-width: 280px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: rgba(10, 15, 38, 0.97);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); font-size: 12px; font-variant-numeric: tabular-nums;
+}
+
+/* the map */
+.p-map .maplibregl-ctrl-attrib { font-size: 10px; background: rgba(7, 11, 28, 0.7); color: var(--faint); }
+.p-map .maplibregl-ctrl-attrib a { color: var(--muted); }
+.p-map .maplibregl-popup-content { background: rgba(10, 15, 38, 0.97); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+.p-map .maplibregl-popup-tip { border-top-color: rgba(10, 15, 38, 0.97) !important; border-bottom-color: rgba(10, 15, 38, 0.97) !important; }

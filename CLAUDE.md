@@ -15,3 +15,8 @@ Push only when all of these pass:
 Afterwards, tell the owner what went out (commit hash and a short summary). If the deploy workflow
 fails, say so and fix it. Never put secrets (e.g. the Supabase access token) in code, commits or chat.
 They live in GitHub secrets only.
+
+## Portal (admin.landvas.app, my.landvas.app)
+
+A separate app in `portal/` (see `portal/README.md`). It is built and published by the same deploy workflow and is
+checked the same way (typecheck, tests, both portal builds, a browser check of changed pages).

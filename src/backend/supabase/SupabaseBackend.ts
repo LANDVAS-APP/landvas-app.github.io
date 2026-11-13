@@ -47,6 +47,10 @@ export class SupabaseBackend implements Backend {
     });
   }
 
+  authClient() {
+    return this.sb.auth;
+  }
+
   async init() {
     const { data } = await this.sb.auth.getSession();
     this.current = data.session ? { userId: data.session.user.id, email: data.session.user.email ?? null } : null;
