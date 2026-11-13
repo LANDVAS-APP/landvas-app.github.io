@@ -10,7 +10,7 @@ import fs from 'node:fs';
 // so the binaries contain no ad SDK, no advertising ID and no App Tracking Transparency.
 const ADS = process.env.LANDVAS_ADS === 'on';
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { dependencies: Record<string, string> };
-const plugins = Object.keys(pkg.dependencies).filter((d) => /^@capacitor(-community)?\//.test(d) && !['@capacitor/core', '@capacitor/android', '@capacitor/ios'].includes(d));
+const plugins = Object.keys(pkg.dependencies).filter((d) => /^@capacitor(-community)?\/|^@capgo\//.test(d) && !['@capacitor/core', '@capacitor/android', '@capacitor/ios'].includes(d));
 
 const config: CapacitorConfig = {
   appId: 'com.landvas.app',
@@ -29,6 +29,27 @@ const config: CapacitorConfig = {
     // the page shrinks above the keyboard like a native screen (no web "‹ › Done" bar — see native.ts)
     Keyboard: { resize: 'native', resizeOnFullScreen: false },
     LocalNotifications: { smallIcon: 'ic_stat_landvas', iconColor: '#7B5CFF' },
+    // new versions of the game's web code without a store release (src/native/liveBundle.ts). Nothing automatic and
+    // no third-party service: the game decides what to fetch (from landvas.app), checks every file against the list
+    // kept in the database, applies it only after the app has been away for a while or on the next launch, and
+    // rolls back by itself if a build doesn't start. No stats leave the device.
+    CapacitorUpdater: {
+      autoUpdate: false,
+      statsUrl: '',
+      updateUrl: '',
+      channelUrl: '',
+      httpsOnly: true,
+      appReadyTimeout: 15000,
+      responseTimeout: 30,
+      autoDeleteFailed: true,
+      autoDeletePrevious: true,
+      // a new app version from the store starts clean on the build inside it
+      resetWhenUpdate: true,
+      shakeMenu: false,
+      allowPreview: false,
+      allowModifyUrl: false,
+      allowSetDefaultChannel: false,
+    },
   },
 };
 export default config;

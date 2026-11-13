@@ -20,3 +20,13 @@ They live in GitHub secrets only.
 
 A separate app in `portal/` (see `portal/README.md`). It is built and published by the same deploy workflow and is
 checked the same way (typecheck, tests, both portal builds, a browser check of changed pages).
+
+## Apps: live versions and Live control
+
+Every deploy also builds the game for the iOS/Android apps and publishes it as a live version
+(`scripts/publish-ota.mjs`, `src/native/liveBundle.ts`): installed apps take it without a store release. Adding or
+upgrading a native plugin (`@capacitor/*`, `@capgo/*`) changes the apps' compatibility key, so older apps keep their
+version until they get the new one from the store. The apps never contain admin code (`NATIVE_APP` in
+`src/app/buildFlags.ts`); staff use admin.landvas.app, where Live control sets app versions, maintenance, pages
+switched off and live versions (`game_config` 'app').
+

@@ -9,6 +9,7 @@ import { setAvatarResolver } from './ui';
 import { startUpdates } from './app/updates';
 import { captureReferral } from './social/referralStore';
 import { initNative } from './native/native';
+import { markBundleReady, recoverFromBrokenBundle } from './native/liveBundle';
 import { TempServerBanner } from './app/TempServerBanner';
 
 if (config.fonts === 'self') {
@@ -25,6 +26,8 @@ applyMotion(useUi.getState().settings.reduceMotion);
 if (config.e2e) document.documentElement.classList.add('e2e');
 
 void initNative();
+// the apps: this build of the game started, so the app shell keeps it (a build that never gets here rolls back)
+markBundleReady();
 startUpdates();
 // keep an invite code from a ?ref= link before the router tidies the address
 captureReferral();
@@ -38,7 +41,11 @@ function Root() {
         const backend = await initBackend();
         setAvatarResolver((path) => backend.avatarUrl(path));
         // the Paintbrawl instant demo is its own small app (no world map, no database)
-        const { App } = import.meta.env.VITE_DEMO === 'brawl' ? await import('./brawl/DemoApp') : await import('./app/App');
+        const { App } = await (import.meta.env.VITE_DEMO === 'brawl' ? import('./brawl/DemoApp') : import('./app/App')).catch(async (e) => {
+          // in the apps, a live build whose own code won't load goes back to the last build that worked
+          await recoverFromBrokenBundle();
+          throw e;
+        });
         if (!cancelled) setState({ status: 'ready', App });
       } catch (error) {
         console.error(error);

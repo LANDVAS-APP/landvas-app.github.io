@@ -64,7 +64,8 @@ try {
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   failed++;
-  console.log('FAIL  ', e.message);
+  console.log('FAIL  ', e.message.split('\n')[0]);
+  await page.screenshot({ path: '/tmp/live-control-fail.png' }).catch(() => {});
 } finally {
   await browser.close();
   server.close();

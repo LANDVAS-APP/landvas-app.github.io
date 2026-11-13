@@ -71,6 +71,9 @@ Every push to `source` also builds both apps unsigned, so breakages show up stra
 - [ ] Try these on a real phone: sign up, onboarding, deny location → *Play without location (Simple mode)*,
       allow location → claim a plot, play a minigame, chat report/block, Settings → Delete my account (on a test account).
 - [ ] Screenshots from the app itself (no website frames, no mention of other platforms).
+- [ ] **Hold live versions for the version you submit**: admin.landvas.app → Live control → *Hold these app versions
+      on their store version* lists it (1.0.0 is held from the start). Reviewers then see exactly the build they were
+      sent. Take the version off the list once it's approved, so players get new versions straight away.
 
 ## 5. Store listings
 
@@ -165,5 +168,12 @@ when AdMob's signed callback reaches the server.
 - **Fingerprinting.** The iPhone app sends only a random install id to the cheat scanner (Apple forbids deriving an
   identity from device signals). Keep it that way.
 - **Account deletion** works in the app and at landvas.app/legal/delete-account (required by both stores).
+- **Live versions.** The apps take new versions of the game's own web code (HTML, JavaScript, CSS) without a store
+  release (Capacitor Updater, self-hosted: files from landvas.app, checked against sha-256 hashes kept in the database;
+  see src/native/liveBundle.ts). Both stores allow this for interpreted code that keeps the app's purpose (Apple
+  developer agreement 3.3.1(B); Google Play's Device and Network Abuse policy exempts JavaScript in a WebView). Keep it
+  that way: no new native code or permissions through live versions, nothing in the app that mentions "updating",
+  and the review hold above. If a reviewer cites guideline 2.5.2, answer that the app only downloads interpreted
+  JavaScript, HTML and CSS for its existing WebView, which 3.3.1(B) permits, and no native executable code.
 - **Sign in with Apple** isn't required: LANDVAS uses its own email accounts and no third-party logins. If you ever
   add Google/Discord sign-in, add Sign in with Apple too.

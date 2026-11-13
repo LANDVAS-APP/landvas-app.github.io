@@ -3,7 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig, EmailStatus } from './types';
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig, EmailStatus, OtaManifest } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
@@ -54,6 +54,8 @@ export const api = {
   worldConfig: () => rpc<WorldConfig>('world_config'),
   /** the live settings for the apps and the game's pages (versions, maintenance, pages switched off, links) */
   appConfig: () => rpc<AppConfig>('app_config'),
+  /** the file list of the current live build for one kind of app binary */
+  otaManifest: (compat: string) => rpc<OtaManifest | null>('ota_manifest', { p_compat: compat }),
   myState: () => rpc<MyState>('my_state'),
   completeOnboarding: (a: { username: string; displayName?: string; avatarSeed: string; avatarStyle: string; accentColor: string; termsVersion: string }) =>
     rpc<MyState>('complete_onboarding', {

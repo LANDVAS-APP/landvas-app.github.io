@@ -17,7 +17,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -128,6 +128,31 @@ jobs:
           PORTAL_APP=admin npx vite build --config portal/vite.config.ts --mode production
           PORTAL_APP=my npx vite build --config portal/vite.config.ts --mode production
           ls dist/portal/admin/index.html dist/portal/my/index.html
+      # live builds for the iOS / Android apps (no store release): the game built for the apps, published with the
+      # site under ota/<compat>/<build>/; made current for the apps once the site serves it (step after publishing).
+      # See scripts/publish-ota.mjs and src/native/liveBundle.ts. One build per ads setting the apps use (same rule
+      # as .github/workflows/native.yml).
+      - name: Build the game for the apps (live builds)
+        env:
+          ADMOB_APP_ID_ANDROID: ${{ vars.ADMOB_APP_ID_ANDROID }}
+          ADMOB_APP_ID_IOS: ${{ vars.ADMOB_APP_ID_IOS }}
+          ADMOB_REWARDED_ANDROID: ${{ vars.ADMOB_REWARDED_ANDROID }}
+          ADMOB_REWARDED_IOS: ${{ vars.ADMOB_REWARDED_IOS }}
+        run: |
+          export LANDVAS_BUILD_ID="app-${GITHUB_SHA::7}"
+          a=off; [ -n "$ADMOB_APP_ID_ANDROID" ] && [ -n "$ADMOB_REWARDED_ANDROID" ] && a=on
+          i=off; [ -n "$ADMOB_APP_ID_IOS" ] && [ -n "$ADMOB_REWARDED_IOS" ] && i=on
+          for ads in $(printf '%s\n' "$a" "$i" | sort -u); do
+            if [ "$ads" = on ]; then
+              export LANDVAS_ADS=on VITE_ADS=on
+              [ -n "$ADMOB_REWARDED_ANDROID" ] && export VITE_ADMOB_REWARDED_ANDROID="$ADMOB_REWARDED_ANDROID"
+              [ -n "$ADMOB_REWARDED_IOS" ] && export VITE_ADMOB_REWARDED_IOS="$ADMOB_REWARDED_IOS"
+            else
+              export LANDVAS_ADS=off VITE_ADS=off; unset VITE_ADMOB_REWARDED_ANDROID VITE_ADMOB_REWARDED_IOS
+            fi
+            npm run build:native
+            node scripts/publish-ota.mjs prepare dist-native dist ota-pending
+          done
       - name: Link previews for shared art
         continue-on-error: true
         timeout-minutes: 3
@@ -148,6 +173,14 @@ jobs:
           git add -A
           git commit -q -m "Deploy ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" main
+      - name: Make the new live build current for the apps
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::warning::SUPABASE_ACCESS_TOKEN secret is missing — the apps keep their current build"; exit 0; fi
+          node scripts/publish-ota.mjs publish ota-pending
       - name: Draft the "What's new" update (waits for approval in Admin → Updates)
         continue-on-error: true
         env:

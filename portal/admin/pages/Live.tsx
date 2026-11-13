@@ -55,7 +55,7 @@ export default function Live() {
             </Link>
           ))}
         </div>
-        <p className="mt-4 text-sm text-muted">What still needs an app update: changes to the game’s own code and screens (new features, new layouts), the app’s icon and name, and native permissions.</p>
+        <p className="mt-4 text-sm text-muted">New versions of the game’s own code and screens reach the apps as live versions (below). What still needs a store release: a new native plugin or permission, and the app’s icon and name.</p>
       </Section>
     </>
   );
@@ -66,6 +66,8 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
   const [v, setV] = useState<AppConfig>(() => structuredClone(value));
   const [busy, setBusy] = useState(false);
   const [extra, setExtra] = useState('');
+  const [held, setHeld] = useState(() => (value.ota?.paused_for ?? []).join(', '));
+  useEffect(() => setHeld((value.ota?.paused_for ?? []).join(', ')), [value]);
   useEffect(() => setV(structuredClone(value)), [value]);
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
   const set = (patch: Partial<AppConfig>) => setV((x) => ({ ...x, ...patch }));
@@ -88,10 +90,12 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
       void qc.invalidateQueries({ queryKey: ['admin', 'config'] });
     } catch (e) {
       const g = toGameError(e);
-      toast.error(g.code === 'invalid_app_config' ? 'Versions look like 1.2.0, and page addresses start with / (the map, settings and help can’t be switched off).' : g.message);
+      toast.error(g.code === 'invalid_app_config' ? 'Versions look like 1.2.0 (held versions too), and page addresses start with / (the map, settings and help can’t be switched off).' : g.message);
     } finally { setBusy(false); }
   };
   const m = v.maintenance ?? {};
+  const ota = v.ota ?? {};
+  const heldOk = (ota.paused_for ?? []).every((x) => VERSION.test(x));
   const untilLocal = m.until ? toLocalInput(m.until) : '';
 
   return (
@@ -107,7 +111,7 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
         <span className="text-sm text-muted">{dirty ? 'You have changes that aren’t live yet.' : 'Everything here is live.'}</span>
         <span className="ml-auto flex gap-2">
           <Button size="sm" variant="ghost" disabled={!dirty || busy} onClick={() => setV(structuredClone(value))}>Undo changes</Button>
-          <Button size="sm" variant="primary" loading={busy} disabled={!dirty || badVersion} onClick={() => void save()} data-testid="live-save">Save and go live</Button>
+          <Button size="sm" variant="primary" loading={busy} disabled={!dirty || badVersion || !(v.ota?.paused_for ?? []).every((x) => VERSION.test(x))} onClick={() => void save()} data-testid="live-save">Save and go live</Button>
         </span>
       </div>
 
@@ -152,6 +156,23 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
           </div>
         </Section>
       </div>
+
+      <Section title="Live versions of the game" sub="Every deploy makes a new version of the game for the apps. Apps fetch only the files that changed, check each one, and switch to it after they’ve been away for 5 minutes or on their next launch, never mid-game. A version that doesn’t start rolls back by itself.">
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+            <span><span className="font-semibold">Send new versions to the apps</span><span className="block text-sm text-muted">{ota.on === false ? 'Off: apps stay on the version they have.' : 'On: every deploy reaches the apps.'}</span></span>
+            <Switch tone="ok" checked={ota.on !== false} onCheckedChange={(on: boolean) => set({ ota: { ...ota, on } })} aria-label="Send new versions to the apps" />
+          </label>
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+            <span><span className="font-semibold">Send every app back to its store version</span><span className="block text-sm text-muted">Only if a live version breaks something. New versions stop until you turn this off.</span></span>
+            <Switch checked={!!ota.back_to_store_build} onCheckedChange={(on: boolean) => set({ ota: { ...ota, back_to_store_build: on } })} aria-label="Send every app back to its store version" />
+          </label>
+          <Field label="Hold these app versions on their store version" hint="Apple and Google review exactly the build they were sent. Add the version before you submit it (for example 1.0.0) and take it off once it’s approved." bad={!heldOk}>
+            <input className="p-input w-full" value={held} onChange={(e) => { setHeld(e.target.value); const list = e.target.value.split(/[\s,]+/).filter(Boolean); set({ ota: { ...ota, paused_for: list } }); }} placeholder="1.0.0, 1.1.0" />
+          </Field>
+          <Published />
+        </div>
+      </Section>
 
       <Section title="Pages" sub="Switch any part of the game off. Every button, card, tab and link to it disappears, and opening its address goes back to the main screen. “In the apps only” leaves the website as it is." pad={false}>
         <div className="p-scroll">
@@ -233,11 +254,33 @@ function Section({ title, sub, children, className, pad = true }: { title: strin
 }
 
 /** a compact on/off switch for table cells */
-function Switch({ checked, onCheckedChange, disabled, ...rest }: { checked: boolean; onCheckedChange(on: boolean): void; disabled?: boolean; 'aria-label': string }) {
+function Switch({ checked, onCheckedChange, disabled, tone = 'danger', ...rest }: { checked: boolean; onCheckedChange(on: boolean): void; disabled?: boolean; tone?: 'danger' | 'ok'; 'aria-label': string }) {
   return (
     <button type="button" role="switch" aria-checked={checked} disabled={disabled} aria-label={rest['aria-label']} onClick={() => onCheckedChange(!checked)}
-      className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-40', checked ? 'border-bad/60 bg-bad/70' : 'border-line-strong bg-surface-2')}>
+      className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-40', checked ? (tone === 'ok' ? 'border-ok/60 bg-ok/70' : 'border-bad/60 bg-bad/70') : 'border-line-strong bg-surface-2')}>
       <span className={cn('inline-block h-4.5 w-4.5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-[3px]')} style={{ width: 18, height: 18 }} />
     </button>
+  );
+}
+
+/** the version each kind of app is offered right now (published by every deploy) */
+function Published() {
+  const q = useQuery({ queryKey: ['app-config'], queryFn: api.appConfig, refetchInterval: 60_000 });
+  const builds = Object.entries(q.data?.ota_builds ?? {});
+  return (
+    <div className="rounded-xl border border-line p-3">
+      <div className="font-semibold">Version the apps are offered</div>
+      {!builds.length ? <p className="mt-1 text-sm text-muted">{q.isLoading ? 'Loading…' : 'None yet. The next deploy publishes one.'}</p> : (
+        <ul className="mt-1 grid gap-1 text-sm">
+          {builds.map(([key, b]) => (
+            <li key={key} className="flex flex-wrap items-baseline gap-x-2">
+              <span className="p-mono text-xs">{b.build}</span>
+              <span className="text-muted">published {ago(b.published_at)}, {b.files} files, {(b.bytes / 1048576).toFixed(1)} MB</span>
+              <span className="p-mono text-[11px] text-faint" title="Which app builds can take it (same native plugins and ads setting)">apps {key.slice(0, 8)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

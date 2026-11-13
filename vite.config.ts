@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
 import { transform } from 'esbuild';
 import { FAQ } from './src/home/faq';
+import { nativeCompat } from './scripts/native-compat.mjs';
 
 /** Browsers we support: iOS/Safari 15+, Chrome/Edge 90+, Firefox 90+. */
 const LEGACY_TARGET = ['es2020', 'safari15', 'chrome90', 'firefox90', 'edge90'];
@@ -20,7 +21,12 @@ export default defineConfig(({ mode }) => {
   const buildId = process.env.LANDVAS_BUILD_ID || `dev-${Date.now().toString(36)}`;
   return {
     base: artifact ? './' : '/',
-    define: { __LANDVAS_BUILD__: JSON.stringify(buildId), __LANDVAS_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
+    define: {
+      __LANDVAS_BUILD__: JSON.stringify(buildId),
+      __LANDVAS_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+      // the app binaries this web build can run in (see scripts/native-compat.mjs); only the native build uses it
+      __LANDVAS_NATIVE_COMPAT__: JSON.stringify(mode === 'native' ? nativeCompat() : ''),
+    },
     resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
     plugins: [
       // the FAQ rich result is generated from the same answers the homepage shows

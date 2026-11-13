@@ -14,6 +14,8 @@ import { api } from '../backend/api';
 import type { AppConfig } from '../backend/types';
 import { useMe } from '../lib/queries';
 import { isNative, platform } from '../native/native';
+import { syncBundle } from '../native/liveBundle';
+import { NATIVE_APP } from './buildFlags';
 
 const CORE = ['/', '/world', '/hub', '/welcome', '/settings', '/support', '/legal', '/onboarding', '/reset-password'];
 
@@ -67,6 +69,8 @@ export function LiveControl() {
   const [version, setVersion] = useState<string | null>(null);
   const [softClosed, setSoftClosed] = useState(false);
   useEffect(() => { void installedVersion().then(setVersion); }, []);
+  // the apps: a newer live build of the game, fetched quietly and applied on a later launch
+  useEffect(() => { if (NATIVE_APP && isNative()) void syncBundle(cfg); }, [cfg]);
 
   // pages switched off: hide every link to them, wherever it is (cards, tabs, tiles, lists)
   const off = useMemo(() => offPages(cfg), [cfg]);

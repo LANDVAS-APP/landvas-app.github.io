@@ -49,7 +49,12 @@ export type AppConfig = {
   hidden_pages?: string[];
   hidden_pages_apps?: string[];
   links?: { discord?: string; reddit?: string; support_email?: string; website?: string };
+  /** live builds of the game for the apps (no store release): staff settings */
+  ota?: { on?: boolean; paused_for?: string[]; back_to_store_build?: boolean };
+  /** the current published build per kind of app binary (added by app_config(), never stored) */
+  ota_builds?: Record<string, { build: string; built_at: string | null; published_at: string; files: number; bytes: number }>;
 };
+export type OtaManifest = { build: string; built_at: string | null; base_url: string; manifest: { file_name: string; file_hash: string; download_url: string; size?: number }[] };
 
 export type WorldConfig = {
   ink_uncapped?: boolean;

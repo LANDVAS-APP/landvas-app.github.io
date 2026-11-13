@@ -287,7 +287,9 @@ describe('🪞 Mirror Shard', () => {
     const b = await ink(opt.owner);
     const s = await act(bob, e, 'step', { i: real });
     expect(s.reflect_kind).toBe(opt.kind); expect(s.reflected).toBeTruthy();
-    expect(await ink(opt.owner)).toBe(b + 3);
+    // the finder's tip is paced Ink (src: private.grant_ink_paced): up to 3, never nothing
+    const tip = (await ink(opt.owner)) - b;
+    expect(tip).toBeGreaterThan(0); expect(tip).toBeLessThanOrEqual(3);
     // the reflected rules run on the shard
     const first = Object.keys(s.reflected).length;
     expect(first).toBeGreaterThan(0);
