@@ -129,7 +129,7 @@ export function LuckCard({ onClose }: { onClose(): void }) {
         </div>
         {l.enchant > 0 && <div className="mt-2.5 text-[12px] font-semibold text-[#E5CCFF]">✨ {Number(l.enchant_pct)}% chance your next roll comes out Enchanted</div>}
         <div className="mt-3 grid gap-2">
-          <button className="lv-cta gold" onClick={() => setAltar(true)} data-testid="luck-open-altar">🔥 Feed the altar<span>plots, Inkborn, eggs or Ink</span></button>
+          <button className="lv-mcta gold" onClick={() => setAltar(true)} data-testid="luck-open-altar">🔥 Feed the altar<span>plots, Inkborn, eggs or Ink</span></button>
         </div>
         <div className="mt-2 text-center text-[11px] font-semibold text-white/45">Tip: hold 🍀 on the map to arm or disarm</div>
       </motion.div>

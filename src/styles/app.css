@@ -1865,11 +1865,11 @@ html.reduce-motion .lv-hero .pin::after, html.reduce-motion .lv-disc.glow .face,
 /* ---- the app's map ----------------------------------------------------------------------------------------- */
 .lv-hud-boost { box-shadow: 0 6px 16px -8px rgba(255, 61, 154, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important; font-size: 12px !important; }
 .lv-x { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 20px; line-height: 1; color: rgba(255, 255, 255, 0.8); }
-.lv-cta { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px; border-radius: 14px; color: #fff; font: 800 13.5px/1.1 var(--font-display);
+.lv-mcta { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px; border-radius: 14px; color: #fff; font: 800 13.5px/1.1 var(--font-display);
   background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); transition: transform 0.1s; }
-.lv-cta:active { transform: scale(0.96); }
-.lv-cta span { font: 600 11px/1 var(--font-body); opacity: 0.75; }
-.lv-cta.gold { min-height: 48px; color: #3a2200; border-color: rgba(255, 255, 255, 0.5); background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a);
+.lv-mcta:active { transform: scale(0.96); }
+.lv-mcta span { font: 600 11px/1 var(--font-body); opacity: 0.75; }
+.lv-mcta.gold { min-height: 48px; color: #3a2200; border-color: rgba(255, 255, 255, 0.5); background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a);
   box-shadow: 0 10px 22px -12px rgba(233, 178, 63, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 0 rgba(120, 70, 0, 0.35); }
 /* the map view panel */
 .lv-panel { background: linear-gradient(180deg, rgba(27, 33, 86, 0.98), rgba(11, 15, 45, 0.98)) !important; border-color: rgba(255, 255, 255, 0.14) !important; }

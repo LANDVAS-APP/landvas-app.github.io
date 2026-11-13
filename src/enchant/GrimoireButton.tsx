@@ -93,7 +93,7 @@ export function GrimoireCard({ onClose }: { onClose(): void }) {
       ) : (
         <p className="mt-2.5 text-[12.5px] font-semibold text-white/65">Every plot roll has a small chance to come out Enchanted — a living enchantment in place of a rarity.</p>
       )}
-      <button className="lv-cta gold mt-3 w-full" onClick={() => { onClose(); openSheet(true); }} data-testid="grimoire-open">📖 Open the Grimoire<span>bestiary, codex & more</span></button>
+      <button className="lv-mcta gold mt-3 w-full" onClick={() => { onClose(); openSheet(true); }} data-testid="grimoire-open">📖 Open the Grimoire<span>bestiary, codex & more</span></button>
     </motion.div>
   );
 }

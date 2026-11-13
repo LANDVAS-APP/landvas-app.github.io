@@ -162,12 +162,12 @@ export function HotZonePanel({ onClose, onRoll }: { onClose(): void; onRoll(): v
             <span>{q.data!.crown_free ? '👑 Crown free!' : '👑 Crown taken'}</span>
           </div>
           <div className="mt-3 grid gap-2">
-            <button className="lv-cta gold" data-testid="hot-zone-fly" onClick={() => { onClose(); const [lng, lat] = hotCenter(z); void fly(lng, lat, `Hot Zone · ${z.name}`); }}>
+            <button className="lv-mcta gold" data-testid="hot-zone-fly" onClick={() => { onClose(); const [lng, lat] = hotCenter(z); void fly(lng, lat, `Hot Zone · ${z.name}`); }}>
               ✈️ Fly there<span>pick your own plots</span>
             </button>
             <div className="grid grid-cols-2 gap-2">
-              <button className="lv-cta" onClick={() => { onClose(); onRoll(); }} data-testid="hot-zone-roll-map">🎲 Roll · {q.data!.roll_ink ?? 150} Ink</button>
-              <button className="lv-cta" onClick={() => { onClose(); flyToHotZone(z); }} data-testid="hot-zone-look">👀 Look</button>
+              <button className="lv-mcta" onClick={() => { onClose(); onRoll(); }} data-testid="hot-zone-roll-map">🎲 Roll · {q.data!.roll_ink ?? 150} Ink</button>
+              <button className="lv-mcta" onClick={() => { onClose(); flyToHotZone(z); }} data-testid="hot-zone-look">👀 Look</button>
             </div>
           </div>
           {q.data!.tomorrow && <div className="mt-2.5 text-[11px] font-semibold text-white/50">Tomorrow: {q.data!.tomorrow.name}</div>}
