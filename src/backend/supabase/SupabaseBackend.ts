@@ -31,6 +31,13 @@ async function functionError(error: any): Promise<GameError> {
 /** Calls that only make sense for a signed-in player (sent while signed out they just fail on the server). */
 const PLAYER_ONLY = /^(my_|report_position$|set_activity$|arcade_live$|arena_live$|planet_live$|home_live$|brawl_|planet_meteor|planet_find$|biz_sync$|space_state$|rover_tick$|dig$)/;
 
+/** where email links land: this site — or, from the phone app (whose own address isn't a website), landvas.app,
+ *  which says you're confirmed; the app signs you in by itself when you come back to it */
+function redirectTo() {
+  return /^https?:\/\/localhost(:\d+)?$|^capacitor:/.test(location.origin) && (window as { Capacitor?: { isNativePlatform?(): boolean } }).Capacitor?.isNativePlatform?.()
+    ? 'https://landvas.app/welcome?confirmed=1' : `${location.origin}/welcome?confirmed=1`;
+}
+
 export class SupabaseBackend implements Backend {
   private lastKick = 0;
   readonly mode = 'supabase' as const;
@@ -70,7 +77,7 @@ export class SupabaseBackend implements Backend {
     return () => void this.listeners.delete(cb);
   }
   async signUp(email: string, password: string) {
-    const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin } });
+    const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo() } });
     if (error) throw new GameError(error.message.includes('registered') ? 'email_taken' : 'auth_error', error.message);
     return { needsConfirmation: !data.session };
   }
@@ -79,7 +86,7 @@ export class SupabaseBackend implements Backend {
     if (error) throw /not confirmed/i.test(error.message) ? new GameError('email_not_confirmed') : new GameError('invalid_credentials', error.message);
   }
   async sendMagicLink(email: string) {
-    const { error } = await this.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    const { error } = await this.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
     if (error) throw new GameError('auth_error', error.message);
   }
   async signOut() {
@@ -94,7 +101,7 @@ export class SupabaseBackend implements Backend {
     if (error) throw new GameError('auth_error', error.message);
   }
   async resendConfirmation(email: string) {
-    const { error } = await this.sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: location.origin } });
+    const { error } = await this.sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectTo() } });
     if (error) throw new GameError(/rate/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
   }
   onPasswordRecovery(cb: () => void) {

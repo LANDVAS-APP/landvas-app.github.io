@@ -15,7 +15,8 @@ import type { TravelArrival, TravelMode, TravelPlan, TravelStatus, TravelStop, T
 import { explorerNow, useExplorer } from '../explorer/explorer';
 import { searchPlaces, type Place } from '../map/places';
 import { mapHandle } from '../map/mapHandle';
-import { useOnboardedMe, useInvalidate } from '../lib/queries';
+import { invalidateGame, useOnboardedMe, useInvalidate } from '../lib/queries';
+import { buzz } from '../native/native';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { config } from '../env';
@@ -128,6 +129,19 @@ export function TravelBar() {
       toast('Heading home 🚕', { description: 'Your GPS takes over again when you’re back.' });
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
   };
+  // fast travel: pay Ink to arrive right now (stamps on the way still count)
+  const fast = async () => {
+    setBusy(true);
+    try {
+      const st = await api.travelFast();
+      qc.setQueryData(TRAVEL_KEY, st);
+      if (st.explorer) useExplorer.getState().set(st.explorer);
+      useExplorer.getState().setFollowing(true);
+      invalidateGame(qc);
+      buzz('success');
+      toast.success(`⚡ ${trip.mode === 'home' ? 'Home' : `In ${trip.to?.name ?? 'your stop'}`}!`, { description: `Fast travel · ${st.fast_cost} Ink` });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
   const emoji = trip.mode === 'home' ? '🚕' : MODE_META[trip.mode].emoji;
   return (
     <div className="pointer-events-auto flex w-full max-w-[440px] items-center gap-3 rounded-2xl bg-[#0B0E24]/92 px-4 py-2.5 text-white shadow-xl backdrop-blur" data-testid="travel-bar">
@@ -148,6 +162,7 @@ export function TravelBar() {
           </>
         )}
       </div>
+      {riding && d.fast_ink != null && <Button size="sm" variant="rainbow" loading={busy} onClick={fast} data-testid="travel-fast" className="shrink-0">⚡ Now · {d.fast_ink}</Button>}
       {!riding && <Button size="sm" variant="rainbow" loading={busy} onClick={home} data-testid="travel-home">🏠 Home</Button>}
     </div>
   );

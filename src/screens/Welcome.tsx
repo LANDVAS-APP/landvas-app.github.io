@@ -17,11 +17,12 @@ import type { PlotTypeId } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
 import { pendingReferral } from '../social/referralStore';
 import { isNative } from '../native/native';
+import { AppWelcome } from './AppWelcome';
 import { PITCH, PLAYSTYLES, TAGLINE, TAGLINE_TEXT } from '../brand';
 import { poll } from '../lib/poll';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
-function LivingCanvas() {
+export function LivingCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current!;
@@ -108,7 +109,7 @@ const FEATURES = [
   { icon: Users, color: '#FF4FD8', title: 'Friends pay off', text: 'Invite friends for an Ink bonus — and a share of what they earn while they play.' },
 ];
 
-function strength(pw: string) {
+export function strength(pw: string) {
   let s = 0;
   if (pw.length >= 8) s++;
   if (pw.length >= 12) s++;
@@ -116,9 +117,16 @@ function strength(pw: string) {
   if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s++;
   return s;
 }
-const STRENGTH = [['Too short', '#FF4D6D'], ['Sketch', '#FF9F1C'], ['Outline', '#FFE14D'], ['Shaded', '#3DDC97'], ['Masterpiece', '#7B5CFF']] as const;
+export const STRENGTH = [['Too short', '#FF4D6D'], ['Sketch', '#FF9F1C'], ['Outline', '#FFE14D'], ['Shaded', '#3DDC97'], ['Masterpiece', '#7B5CFF']] as const;
 
+// the app has its own opening: a game title screen, then your account in a sheet (see AppWelcome)
+const APP_OPENING = isNative();
 export function Welcome() {
+  if (APP_OPENING) return <AppWelcome />;
+  return <WebWelcome />;
+}
+
+function WebWelcome() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const next = params.get('next') || '/world';

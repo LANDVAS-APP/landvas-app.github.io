@@ -47,12 +47,12 @@ export default function Settings() {
           <Switch id="lite" label="Lite map" hint="The map without plots, art or their effects — they aren’t loaded at all. Much faster on older phones." checked={!!settings.hidePlots} onCheckedChange={(v) => update({ hidePlots: v })} />
         </Section>
         <Section title="Appearance">
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Theme">
+          {!isNative() && <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Theme">
             {(['dark', 'light', 'system'] as Theme[]).map((t) => (
               <button key={t} role="radio" aria-checked={settings.theme === t} onClick={() => update({ theme: t })}
                 className={cn('rounded-xl border px-4 py-2 text-sm font-bold capitalize', settings.theme === t ? 'border-accent-2 bg-accent-2/10' : 'border-line text-muted')}>{t}</button>
             ))}
-          </div>
+          </div>}
           <Switch id="globe" label="Globe view when zoomed out" checked={settings.globe} onCheckedChange={(v) => update({ globe: v })} />
           <Switch id="crisp" label="Crisp pixel art on the map" hint="Nearest-neighbour scaling for pixel murals" checked={settings.crispPixels} onCheckedChange={(v) => update({ crispPixels: v })} />
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />

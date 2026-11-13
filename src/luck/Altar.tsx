@@ -2,7 +2,7 @@
 // next claim spends (20 Luck each) — extra rolls you pick from, and likelier ultras. The chip shows how charged you are; the altar is where you feed it.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -12,6 +12,7 @@ import { buzz } from '../native/native';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { rarityInfo, type RarityId } from '../shared/rarity';
 import { Dialog, GameDisc } from '../ui';
+import { useHudCard } from '../app/radial';
 import { useRerollSpeed } from '../roll/prefs';
 
 export function useLuck() {
@@ -32,22 +33,11 @@ function Ring({ luck, max, size = 34 }: { luck: number; max: number; size?: numb
 }
 
 /** a compact chip: 🍀 and the meter — tap for the altar */
-export function LuckChip({ className, disc }: { className?: string; disc?: boolean }) {
+export function LuckChip({ className }: { className?: string }) {
   const q = useLuck();
   const [open, setOpen] = useState(false);
   if (!q.data?.enabled) return null;
   const l = q.data;
-  // the app: a clean disc with the meter as its ring
-  if (disc) return (
-    <>
-      <GameDisc tone="emerald" size={44} glow={l.luck > 0} onClick={() => setOpen(true)} className={className} aria-label={`Altar of Luck — Luck ${l.luck}`} data-testid="luck-chip">
-        <span className="pointer-events-none absolute inset-[-3px] grid place-items-center"><Ring luck={l.luck} max={l.max} size={50} /></span>
-        <span className="text-[19px] leading-none">🍀</span>
-        {l.luck > 0 && <span className="lv-disc-count tnum">{l.luck}</span>}
-      </GameDisc>
-      <AltarDialog open={open} onOpenChange={setOpen} />
-    </>
-  );
   return (
     <>
       <button onClick={() => setOpen(true)} data-testid="luck-chip"
@@ -56,6 +46,92 @@ export function LuckChip({ className, disc }: { className?: string; disc?: boole
         <span className="grid text-left leading-tight"><span>Luck {l.luck}</span><span className="text-[10px] font-semibold text-white/55" data-testid="luck-chip-note">{l.enchant > 0 ? `✨ ${Number(l.enchant_pct)}% enchant · ` : ''}{l.rolls > 1 ? `next plot: ${l.rolls - 1} reroll${l.rolls > 2 ? 's' : ''} armed` : l.can_reroll > 0 ? 'saved · tap to use' : 'Sacrifice for free rerolls'}</span></span>
       </button>
       <AltarDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
+// ---- the app: a clean 🍀 on the map — tap for the Altar card, hold to arm or disarm your next roll ------------------
+export function LuckDisc() {
+  const q = useLuck();
+  const qc = useQueryClient();
+  const card = useHudCard((s) => s.card);
+  const toggle = useHudCard((s) => s.toggle);
+  const [holding, setHolding] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const held = useRef(false);
+  if (!q.data?.enabled) return null;
+  const l = q.data;
+  const armed = l.armed > 0 && l.rolls > 1;
+  const arm = async () => {
+    const n = armed ? 0 : Math.min(l.can_reroll, l.max_rerolls);
+    if (!armed && n <= 0) { buzz('warning'); toast(`🍀 Charge ${l.per_roll} Luck for a reroll`, { description: 'Tap 🍀 and feed the Altar of Luck.' }); return; }
+    try {
+      const r = await api.luckArm(n);
+      qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old));
+      buzz(n ? 'success' : 'light');
+      toast(n ? `🍀 Armed — your next claim rolls ${r.rolls}×` : '🍀 Disarmed — your Luck is saved');
+    } catch (e) { toast.error(toGameError(e).message); }
+  };
+  const stop = () => { clearTimeout(timer.current); setHolding(false); };
+  return (
+    <GameDisc tone="emerald" size={44} on={card === 'luck'} className={cn(armed && 'armed', holding && 'holding')}
+      aria-label={`Altar of Luck — Luck ${l.luck}${armed ? `, armed: ${l.rolls} rolls` : ''}. Hold to ${armed ? 'disarm' : 'arm'}.`} aria-expanded={card === 'luck'} data-testid="luck-chip" data-armed={armed ? '1' : undefined}
+      onPointerDown={() => { held.current = false; setHolding(true); clearTimeout(timer.current); timer.current = setTimeout(() => { held.current = true; setHolding(false); void arm(); }, 480); }}
+      onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
+      onClick={() => { if (held.current) { held.current = false; return; } buzz('light'); toggle('luck'); }}>
+      <span className="pointer-events-none absolute inset-[-4px] grid place-items-center"><Ring luck={l.luck} max={l.max} size={50} /></span>
+      <span className="text-[19px] leading-none">🍀</span>
+      {armed ? <span className="lv-disc-count armed tnum">×{l.rolls}</span> : l.luck > 0 && <span className="lv-disc-count tnum">{l.luck}</span>}
+    </GameDisc>
+  );
+}
+
+/** the Altar of Luck, opened from the map: your Luck, what's armed, and the way to feed it */
+export function LuckCard({ onClose }: { onClose(): void }) {
+  const q = useLuck();
+  const qc = useQueryClient();
+  const [altar, setAltar] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const l = q.data;
+  if (!l?.enabled) return null;
+  const arm = async (n: number) => {
+    setBusy(true);
+    try { const r = await api.luckArm(n); buzz('light'); qc.setQueryData(['luck'], (old: typeof l) => (old ? { ...old, ...r } : old)); }
+    catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  const armed = l.armed > 0 && l.rolls > 1;
+  const pct = Math.min(100, (l.luck / Math.max(1, l.max)) * 100);
+  return (
+    <>
+      <motion.div className={cn('lv-mcard t-emerald pointer-events-auto w-[min(360px,100%)]', armed && 'armed')} data-testid="luck-card"
+        initial={{ opacity: 0, scale: 0.7, y: -14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -10, transition: { duration: 0.14 } }}
+        transition={{ type: 'spring', stiffness: 520, damping: 34 }} style={{ transformOrigin: '76px 0' }}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="kicker">🍀 Altar of Luck</div>
+            <div className="font-display text-[22px] font-black leading-tight">Luck <span className="tnum">{l.luck}</span><span className="text-[14px] text-white/45"> / {l.max}</span></div>
+          </div>
+          <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="lv-meter mt-2"><span style={{ width: `${pct}%` }} /></div>
+        <div className="mt-2.5 text-[12.5px] font-semibold text-white/75" data-testid="luck-card-status">
+          {armed ? <>✨ <b className="text-[#7CF5B6]">Armed</b> — your next claim rolls <b>{l.rolls}×</b> and you keep the best (ultras ×{Number(l.ultra_x.toFixed(1))})</>
+            : l.can_reroll > 0 ? <>{l.can_reroll} reroll{l.can_reroll > 1 ? 's' : ''} saved — arm them for your next claim</>
+            : <>{l.per_roll - (l.luck % l.per_roll)} more Luck for a free reroll</>}
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-1.5">
+          <button className={cn('lv-armchip', l.armed === 0 && 'on')} disabled={busy} onClick={() => void arm(0)} data-testid="luck-arm-0"><b>Save</b><i>keep it</i></button>
+          {Array.from({ length: Math.min(3, l.max_rerolls) }, (_, i) => i + 1).map((n) => (
+            <button key={n} className={cn('lv-armchip', l.armed === n && 'on')} disabled={busy || n > l.can_reroll} onClick={() => void arm(n)} data-testid={`luck-arm-${n}`}><b>×{n + 1}</b><i>−{n * l.per_roll}</i></button>
+          ))}
+        </div>
+        {l.enchant > 0 && <div className="mt-2.5 text-[12px] font-semibold text-[#E5CCFF]">✨ {Number(l.enchant_pct)}% chance your next roll comes out Enchanted</div>}
+        <div className="mt-3 grid gap-2">
+          <button className="lv-cta gold" onClick={() => setAltar(true)} data-testid="luck-open-altar">🔥 Feed the altar<span>plots, Inkborn, eggs or Ink</span></button>
+        </div>
+        <div className="mt-2 text-center text-[11px] font-semibold text-white/45">Tip: hold 🍀 on the map to arm or disarm</div>
+      </motion.div>
+      <AltarDialog open={altar} onOpenChange={setAltar} />
     </>
   );
 }

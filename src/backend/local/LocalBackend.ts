@@ -54,6 +54,11 @@ function writeSession(s: Session | null) {
 /** iOS / iPadOS (iPads report themselves as Macs, but have touch). */
 const isAppleMobile = () => typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
+// e2e: emails waiting to be confirmed (window.__landvasConfirm(email) "clicks the link")
+const pendingConfirm = new Set<string>();
+const needsConfirm = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('confirm') === '1';
+if (typeof window !== 'undefined') (window as unknown as { __landvasConfirm(e: string): void }).__landvasConfirm = (e: string) => void pendingConfirm.delete(e.trim().toLowerCase());
+
 export class LocalBackend implements Backend {
   readonly mode = 'local' as const;
   ephemeral = false;
@@ -154,6 +159,8 @@ export class LocalBackend implements Backend {
     if (exists.rows.length) throw new GameError('email_taken');
     const hash = await hashPassword(password);
     const r = await this.db.query<{ id: string }>('insert into auth.users (email, encrypted_password) values ($1, $2) returning id', [email, hash]);
+    // (tests: ?confirm=1 makes new accounts confirm their email first, like the live game)
+    if (needsConfirm()) { pendingConfirm.add(email); return { needsConfirmation: true }; }
     this.setSession({ userId: r.rows[0].id, email });
     return { needsConfirmation: false };
   }
@@ -162,11 +169,15 @@ export class LocalBackend implements Backend {
     const r = await this.db.query<{ id: string; encrypted_password: string }>('select id, encrypted_password from auth.users where email = $1', [email]);
     const row = r.rows[0];
     if (!row || !(await verifyPassword(password, row.encrypted_password))) throw new GameError('invalid_credentials');
+    if (pendingConfirm.has(email)) throw new GameError('email_not_confirmed');
     await this.db.query('update auth.users set last_sign_in_at = now() where id = $1', [row.id]);
     this.setSession({ userId: row.id, email });
   }
   async signOut() {
     this.setSession(null);
+  }
+  async resendConfirmation(email: string) {
+    if (!pendingConfirm.has(email.trim().toLowerCase())) throw new GameError('auth_error', 'This email is already confirmed.');
   }
   async localAccounts() {
     return (await this.db.query<{ email: string }>('select email from auth.users order by last_sign_in_at desc nulls last, created_at desc')).rows;

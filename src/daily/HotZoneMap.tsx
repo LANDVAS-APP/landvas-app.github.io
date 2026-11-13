@@ -2,10 +2,11 @@
 // and a chip that flies you there.
 import * as maplibregl from 'maplibre-gl';
 import { useQuery } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { api } from '../backend/api';
-import { buzz } from '../native/native';
+import { useHudCard } from '../app/radial';
+import { buzz, isNative } from '../native/native';
 import { mapHandle } from '../map/mapHandle';
 import { useUi } from '../lib/store';
 import { useExplorer } from '../explorer/explorer';
@@ -48,7 +49,13 @@ export function HotZoneLayer() {
     const enter = () => { if (map.getZoom() < 9) map.getCanvas().style.cursor = 'pointer'; };
     const leave = () => { map.getCanvas().style.cursor = ''; };
     map.on('click', 'lv-hot-fill', click); map.on('mouseenter', 'lv-hot-fill', enter); map.on('mouseleave', 'lv-hot-fill', leave);
-    // a pin that stays readable at every zoom (the circle alone is a dot from far out)
+    // a pin that stays readable at every zoom (the circle alone is a dot from far out) — the website only; the app
+    // has its 🔥 button under your avatar
+    if (isNative()) return () => {
+      map.off('styledata', add);
+      map.off('click', 'lv-hot-fill', click); map.off('mouseenter', 'lv-hot-fill', enter); map.off('mouseleave', 'lv-hot-fill', leave);
+      try { for (const l of ['lv-hot-line', 'lv-hot-fill']) if (map.getLayer(l)) map.removeLayer(l); if (map.getSource(SRC)) map.removeSource(SRC); } catch { /* map gone */ }
+    };
     const el = document.createElement('button');
     el.className = 'lv-hot-pin'; el.setAttribute('data-testid', 'hot-zone-pin');
     el.innerHTML = `<span class="f">🔥</span><span class="t"><b></b><i>HOT ZONE</i></span>`;
@@ -112,8 +119,11 @@ export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(
 }
 
 // ---- the app: a clean 🔥 button under your avatar that opens into the Hot Zone card --------------------------
-export function HotZoneDisc({ open, onToggle }: { open: boolean; onToggle(): void }) {
+export function HotZoneDisc() {
   const q = useHotZone();
+  const open = useHudCard((s) => s.card === 'hot');
+  const toggle = useHudCard((s) => s.toggle);
+  const onToggle = () => toggle('hot');
   if (!q.data?.today) return null;
   return (
     <GameDisc tone="ember" size={44} glow={!open} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
@@ -124,16 +134,17 @@ export function HotZoneDisc({ open, onToggle }: { open: boolean; onToggle(): voi
 }
 
 /** the Hot Zone, opened: today's city, who's there, and the way in (fly, roll, or just look) */
-export function HotZonePanel({ open, onClose, onRoll }: { open: boolean; onClose(): void; onRoll(): void }) {
+export function HotZonePanel({ onClose, onRoll }: { onClose(): void; onRoll(): void }) {
+  const open = true;
   const q = useHotZone();
   const fly = useFly();
   const crowd = useQuery({ queryKey: ['hot-zone-crowd'], queryFn: api.hotZoneCrowd, enabled: open && !!q.data?.today, refetchInterval: open ? 60_000 : false, staleTime: 30_000 });
   const z = q.data?.today;
   return (
-    <AnimatePresence>
+    <>
       {open && z && (
-        <motion.div key="hz" className="lv-hzcard pointer-events-auto" data-testid="hot-zone-sheet"
-          initial={{ opacity: 0, scale: 0.6, y: -16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.7, y: -12 }}
+        <motion.div key="hz" className="lv-mcard t-ember pointer-events-auto w-[min(360px,100%)]" data-testid="hot-zone-sheet"
+          initial={{ opacity: 0, scale: 0.6, y: -16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -10, transition: { duration: 0.14 } }}
           transition={{ type: 'spring', stiffness: 520, damping: 34 }} style={{ transformOrigin: '22px 0' }}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -143,8 +154,8 @@ export function HotZonePanel({ open, onClose, onRoll }: { open: boolean; onClose
             <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
           </div>
           <div className="mt-2.5 grid grid-cols-2 gap-2" data-testid="hot-zone-crowd">
-            <div className="stat"><span className="live" /><b className="tnum">{crowd.data ? crowd.data.now : '–'}</b><i>here now</i></div>
-            <div className="stat"><b className="tnum">{crowd.data ? crowd.data.today : '–'}</b><i>today</i></div>
+            <div className="lv-mstat"><span className="live" /><b className="tnum">{crowd.data ? crowd.data.now : '–'}</b><i>here now</i></div>
+            <div className="lv-mstat"><b className="tnum">{crowd.data ? crowd.data.today : '–'}</b><i>today</i></div>
           </div>
           <div className="perks">
             <span>🎲 Best of 2 rolls</span><span>🌌 Ultras {q.data!.ultra_mult}×</span><span>✨ Shiny {q.data!.shiny_mult}×</span>
@@ -162,6 +173,6 @@ export function HotZonePanel({ open, onClose, onRoll }: { open: boolean; onClose
           {q.data!.tomorrow && <div className="mt-2.5 text-[11px] font-semibold text-white/50">Tomorrow: {q.data!.tomorrow.name}</div>}
         </motion.div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

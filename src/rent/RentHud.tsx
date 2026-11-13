@@ -85,6 +85,12 @@ export async function boost(update: (r: RentState) => void) {
   }
 }
 
+/** every second of a boost: "1h 04m 09s" */
+function fullLeft(sec: number) {
+  const s = Math.max(0, Math.floor(sec)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h}h ${String(m).padStart(2, '0')}m ${String(x).padStart(2, '0')}s` : `${m}m ${String(x).padStart(2, '0')}s`;
+}
+
 export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean }) {
   const { rent, offset, update } = useRent();
   const [busy, setBusy] = useState(false);
@@ -109,11 +115,11 @@ export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean
     >
       {busy ? <Spinner className="h-4 w-4 text-white" /> : <Zap className={cn('h-4 w-4', active && 'fill-white')} />}
       {active ? (
-        <span className="tnum">{rent.boost.multiplier}× · {hud ? `${Math.max(1, Math.ceil(remaining / 60))}m` : formatDuration(remaining)}</span>
+        <span className="tnum">{rent.boost.multiplier}× · {hud ? fullLeft(remaining) : formatDuration(remaining)}</span>
       ) : (
-        <span>{compact || hud ? `${rent.boost.multiplier}×` : `${rent.boost.multiplier}× Boost`}</span>
+        <span>{compact ? `${rent.boost.multiplier}×` : `${rent.boost.multiplier}× Boost`}</span>
       )}
-      {!compact && !hud && !active && <span className="rounded-md bg-black/25 px-1 text-[10px] tnum">{rent.boost.left_today}</span>}
+      {!compact && !active && <span className="rounded-md bg-black/25 px-1 text-[10px] tnum">{rent.boost.left_today}</span>}
     </button>
   );
 }

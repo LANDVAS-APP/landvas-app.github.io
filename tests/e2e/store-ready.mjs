@@ -126,8 +126,8 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   // the map: the HUD (boost next to Ink), one row under the avatar: Hot Zone, Luck, View, Grimoire
   await go(page, '/world');
   await page.waitForSelector('[data-testid=map-row]', { timeout: 60000 }).catch(() => {});
-  check(await page.locator('[data-testid=game-hud] [data-testid=boost]').count() > 0, 'app map: the boost sits in the HUD next to Ink');
-  check(await page.locator('[data-testid=map-row] [data-testid=mode-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count() > 0, 'app map: View and the Grimoire are in the row under the avatar');
+  check(await page.locator('[data-testid=game-hud] [data-testid=hud-rent]').count() > 0 && await page.locator('[data-testid=game-hud] [data-testid=hud-ink]').count() > 0 && await page.locator('[data-testid=game-hud] [data-testid=notification-bell]').count() > 0, 'app map: earnings, Ink and the bell up top');
+  check(await page.locator('[data-testid=map-row] [data-testid=mode-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=boost]').count() > 0, 'app map: Grimoire, View and the boost are in the row under the avatar');
   check(await page.locator('[data-testid=streak-chip]').count() === 0, 'app map: the daily check-in stays in the Play hub');
   check(await page.locator('[data-testid=hud-pigments]').count() === 0, 'app map: one HUD, not two');
   // (a new player is first asked where to drop their explorer: close that)
@@ -138,6 +138,18 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
     await page.waitForTimeout(1200);
     check(/here now/.test(await page.locator('[data-testid=hot-zone-sheet]').innerText().catch(() => '')) && await page.locator('[data-testid=hot-zone-fly]').count() > 0, 'app map: the Hot Zone opens with who’s there and Fly there');
     await page.click('[data-testid=hot-zone-chip]').catch(() => {});
+  }
+  // the HUD's buttons open as cards, one at a time; the Grimoire pops up over the map
+  for (const [sel, cardSel, what] of [['[data-testid=game-hud] [data-testid=notification-bell]', 'bell-card', 'the bell'], ['[data-testid=map-row] [data-testid=grimoire-button]', 'grimoire-card', 'the Grimoire'], ['[data-testid=hud-avatar]', 'profile-menu', 'your profile menu']]) {
+    await page.click(sel, { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector(`[data-testid=${cardSel}]`, { timeout: 8000 }).catch(() => {});
+    check(await page.locator(`[data-testid=${cardSel}]`).count() === 1, `app map: ${what} opens as a card`);
+    if (cardSel === 'grimoire-card') {
+      await page.click('[data-testid=grimoire-open]').catch(() => {});
+      await page.waitForSelector('[data-testid=grimoire-sheet]', { timeout: 15000 }).catch(() => {});
+      check(await page.locator('[data-testid=grimoire-sheet]').count() === 1 && await page.locator('[data-testid=map-row]').count() === 1, 'app map: the Grimoire pops up without leaving the map');
+      await page.click('[data-testid=grimoire-close]').catch(() => {}); await page.waitForTimeout(700);
+    } else { await page.click(sel).catch(() => {}); await page.waitForTimeout(500); }
   }
   // hold the World button: the map's actions fan out around it
   const wb = await page.locator('[data-testid="tab-/world"]').boundingBox();
@@ -194,6 +206,29 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await shot(page, 'app-settings');
   // (the simulated shell has no native plugins, so their calls fail — but a plugin must never be awaited as a promise)
   check(!errors.some((e) => /\.then\(\)/.test(e) || !/not implemented/i.test(e)), `app: no page errors${errors.length ? ` (${errors.join(' | ').slice(0, 300)})` : ''}`);
+  await browser.close();
+}
+
+// new players confirm their email: the app waits on a "check your inbox" screen and lets them in once confirmed
+{
+  const browser = await launch();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await ctx.addInitScript(() => { window.CapacitorCustomPlatform = { name: 'android', plugins: {} }; });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/?e2e=1&confirm=1`, { waitUntil: 'load' });
+  await page.waitForSelector('[data-testid=title-play]', { timeout: 60000 });
+  await page.click('[data-testid=title-play]', { force: true });
+  await page.waitForSelector('#email', { timeout: 30000 });
+  await page.fill('#email', 'confirm_me@example.test'); await page.fill('#password', 'paint-the-world');
+  await page.click('button[type=submit]');
+  await page.waitForSelector('[data-testid=welcome-inbox]', { timeout: 20000 }).catch(() => {});
+  check(await page.locator('[data-testid=welcome-inbox]').count() === 1, 'sign-up: new players are asked to confirm their email');
+  await page.click('[data-testid=inbox-continue]'); await page.waitForTimeout(1500);
+  check(await page.locator('#username').count() === 0, 'sign-up: not in before the email is confirmed');
+  await page.evaluate(() => window.__landvasConfirm('confirm_me@example.test'));
+  await page.click('[data-testid=inbox-continue]');
+  await page.waitForSelector('#username', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('#username').count() === 1, 'sign-up: once confirmed, they are let straight in');
   await browser.close();
 }
 

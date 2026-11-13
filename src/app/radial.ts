@@ -8,3 +8,11 @@ export const useWorldButton = create<{ open: boolean; recenter: number; setOpen(
   setOpen: (open) => set({ open }),
   center: () => set((s) => ({ recenter: s.recenter + 1 })),
 }));
+
+/** The app's HUD cards (the Hot Zone, Luck, the Grimoire, the bell, your profile menu): one open at a time. */
+export type HudCard = 'hot' | 'luck' | 'grim' | 'bell' | 'me' | 'view';
+export const useHudCard = create<{ card: HudCard | null; toggle(c: HudCard): void; close(): void }>((set) => ({
+  card: null,
+  toggle: (c) => set((s) => ({ card: s.card === c ? null : c })),
+  close: () => set({ card: null }),
+}));

@@ -2,6 +2,7 @@
 import { ultraOfRarity } from '../explorer/ultra';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { buzz } from '../native/native';
@@ -34,11 +35,16 @@ export function useAlerts() {
   return useQuery({ queryKey: ['alerts'], queryFn: () => api.myAlerts(60), enabled: !!me, refetchInterval: poll(getBackend().onPush ? 180_000 : 60_000), refetchIntervalInBackground: false, staleTime: 10_000 }); // pushed when they change
 }
 
-export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {
+/** How many things are new in the bell. */
+export function useUpdatesCount() {
   const n = useNotifications();
   const alerts = useAlerts();
+  return (n.data?.unread_announcements ?? 0) + (n.data?.support_replies ?? 0) + (alerts.data?.unread ?? 0);
+}
+
+export function NotificationBell({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' }) {
   const [open, setOpen] = useState(false);
-  const count = (n.data?.unread_announcements ?? 0) + (n.data?.support_replies ?? 0) + (alerts.data?.unread ?? 0);
+  const count = useUpdatesCount();
   return (
     <>
       <button onClick={() => setOpen(true)} aria-label={count ? `Updates, ${count} new` : 'Updates'} data-testid="notification-bell"
@@ -52,6 +58,29 @@ export function NotificationBell({ className, size = 'md' }: { className?: strin
 }
 
 function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title={<span className="flex items-center gap-2"><Bell className="h-5 w-5 text-accent-2" /> Notifications</span>}>
+      <UpdatesBody open={open} onClose={() => onOpenChange(false)} />
+    </Dialog>
+  );
+}
+
+/** The app: the bell opens as a card (like the Hot Zone), not a dialog. */
+export function BellCard({ onClose }: { onClose(): void }) {
+  return (
+    <motion.div className="lv-mcard t-azure pointer-events-auto mt-1 w-[min(380px,100%)]" data-testid="bell-card"
+      initial={{ opacity: 0, scale: 0.7, y: -14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -10, transition: { duration: 0.14 } }}
+      transition={{ type: 'spring', stiffness: 520, damping: 34 }} style={{ transformOrigin: 'calc(100% - 22px) 0' }}>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div><div className="kicker">🔔 Notifications</div><div className="font-display text-[20px] font-black leading-tight">What’s new</div></div>
+        <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <div className="lv-mcard-scroll"><UpdatesBody open onClose={onClose} /></div>
+    </motion.div>
+  );
+}
+
+function UpdatesBody({ open, onClose }: { open: boolean; onClose(): void }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const me = useOnboardedMe();
@@ -62,7 +91,7 @@ function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: b
     const t = setTimeout(() => { void api.markAnnouncementsSeen().then(() => qc.invalidateQueries({ queryKey: ['notifications'] })).catch(() => {}); }, 1200);
     return () => clearTimeout(t);
   }, [open, me, n.data?.unread_announcements, qc]);
-  const go = (to: string) => { onOpenChange(false); nav(to); };
+  const go = (to: string) => { onClose(); nav(to); };
   const items = n.data?.announcements ?? [];
   const alerts = useAlerts();
   const [tab, setTab] = useState<'activity' | 'updates'>('activity');
@@ -73,7 +102,7 @@ function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: b
     return () => clearTimeout(t);
   }, [open, tab, alerts.data?.unread, qc]);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={<span className="flex items-center gap-2"><Bell className="h-5 w-5 text-accent-2" /> Notifications</span>}>
+    <>
       {me && (
         <div className="mb-3 inline-flex gap-1 rounded-2xl bg-surface-2 p-1" role="tablist">
           {(['activity', 'updates'] as const).map((t) => (
@@ -114,7 +143,7 @@ function UpdatesPanel({ open, onOpenChange }: { open: boolean; onOpenChange(o: b
         )}
       </div>
       )}
-    </Dialog>
+    </>
   );
 }
 

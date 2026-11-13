@@ -30,15 +30,17 @@ import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
-import { LuckChip } from '../luck/Altar';
+import { LuckCard, LuckChip, LuckDisc } from '../luck/Altar';
 import { GrimoireButton } from '../enchant/GrimoireButton';
 import { FlyChip, PinFlight, useFlyUi } from '../travel/Fly';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { buzz, isNative } from '../native/native';
-import GameHud from '../app/GameHud';
-import { useWorldButton } from '../app/radial';
+import GameHud, { ProfileMenu } from '../app/GameHud';
+import { BellCard } from '../updates/Notifications';
+import { GrimoireCard, GrimoireSheet } from '../enchant/GrimoireButton';
+import { useHudCard, useWorldButton } from '../app/radial';
 import { createPortal } from 'react-dom';
 import { DailyWheel } from '../earn/DailyWheel';
 import { confetti } from '../ui/confetti';
@@ -76,7 +78,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const [joystick, setJoystick] = useState(false);
   // the daily loop: streak (opens once a day), guaranteed rolls, the Hot Zone
   const [streak, setStreak] = useState(false);
-  const [hotOpen, setHotOpen] = useState(false);
+  const card = useHudCard((s) => s.card);
+  const closeCard = useHudCard((s) => s.close);
   const quick = useQuickRoll();
   // (the app keeps the daily check-in in the Play hub; the map stays for the map)
   useStreakPrompt(() => setStreak(true), !APP);
@@ -110,20 +113,32 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         // Hot Zone (opens into its card), the Altar of Luck, the map view and the Grimoire. Everything else fans
         // out around the World button when you hold it.
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col">
-          {me ? <div className="lv-map-top"><GameHud overlay after={<BoostButton hud />} /></div> : (
+          {me ? <div className="lv-map-top"><GameHud overlay /></div> : (
             <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
               {!session && <div className="pointer-events-auto"><SignInChip /></div>}
-              <NotificationBell className="pointer-events-auto lv-gbtn round ml-auto !h-10 !w-10" />
             </div>
           )}
-          <div className="flex items-center gap-2.5 pl-[max(12px,env(safe-area-inset-left,0px))] pt-1" data-testid="map-row">
-            {me && <HotZoneDisc open={hotOpen} onToggle={() => setHotOpen((o) => !o)} />}
-            {me && <LuckChip disc />}
-            <ModeButton rail />
+          {/* one row: Hot Zone, Luck, Grimoire, View — then the boost */}
+          <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-0.5 [&>*]:pointer-events-auto" data-testid="map-row">
+            {me && <HotZoneDisc />}
+            {me && <LuckDisc />}
             {me && <GrimoireButton rail />}
+            <ModeButton rail />
+            {me && <BoostButton hud />}
           </div>
-          {me && <div className="mt-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-3"><HotZonePanel open={hotOpen} onClose={() => setHotOpen(false)} onRoll={() => void quick.roll({ hot: true })} /></div>}
-          {me && !away && !joystick && !hotOpen && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
+          {/* whichever of them is open, as a card right under the row */}
+          {me && (
+            <div className="mt-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))]">
+              <AnimatePresence mode="wait">
+                {card === 'hot' && <HotZonePanel key="hot" onClose={closeCard} onRoll={() => void quick.roll({ hot: true })} />}
+                {card === 'luck' && <LuckCard key="luck" onClose={closeCard} />}
+                {card === 'grim' && <GrimoireCard key="grim" onClose={closeCard} />}
+                {card === 'bell' && <BellCard key="bell" onClose={closeCard} />}
+                {card === 'me' && <ProfileMenu key="me" />}
+              </AnimatePresence>
+            </div>
+          )}
+          {me && !away && !joystick && !card && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
         </div>
       ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
@@ -177,6 +192,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       {me && !away && <PlacementPrompt />}
       <ClaimCelebration />
       <PinFlight />
+      {APP && me && <GrimoireSheet />}
     </div>
   );
 }
@@ -385,23 +401,28 @@ function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
     ...(locate ? [{ key: 'me', label: 'Find me', node: <button className={cn('lv-gbtn round', following && 'on')} onClick={() => { close(); locate(); }} aria-label="Center on my explorer" data-testid="locate-me"><Crosshair className="h-5 w-5" /></button> }] : []),
     ...tray.map((t) => ({ key: t.key, label: t.label, node: t.node })),
   ];
-  // one arc over the World button, or two (evenly split) when there are more than five
+  // arcs over the World button, each holding only as many as fit without touching (and staying on screen and clear of
+  // the tab bar); the next arc out takes the rest
   const vw = typeof innerWidth === 'number' ? innerWidth : 390;
-  const k = items.length <= 5 ? items.length : Math.min(5, Math.floor(items.length / 2));
-  const inner = items.slice(0, k), outer = items.slice(k);
-  const place = (n: number, i: number, rx: number, ry: number, spread: number) => {
-    const a = ((n === 1 ? 270 : 270 - spread / 2 + (spread * i) / (n - 1)) * Math.PI) / 180;
-    return { x: Math.cos(a) * rx, y: Math.sin(a) * ry };
-  };
-  const spots = [
-    ...inner.map((it, i) => ({ it, ...place(inner.length, i, Math.min(112, vw / 2 - 46), 122, Math.min(120, inner.length * 34)) })),
-    ...outer.map((it, i) => ({ it, ...place(outer.length, i, Math.min(160, vw / 2 - 38), 214, Math.min(120, outer.length * 30)) })),
-  ];
+  const half = vw / 2 - 40, FOOT = 38, deg = Math.PI / 180;
+  const spots: { it: (typeof items)[number]; x: number; y: number }[] = [];
+  let left = [...items];
+  for (const [r, maxSpan] of [[124, 110], [206, 120], [288, 120]] as const) {
+    if (!left.length) break;
+    const step = (2 * Math.asin(FOOT / r)) / deg * 1.12;
+    const span = Math.min(maxSpan, (2 * Math.asin(Math.min(1, half / r))) / deg);
+    const cap = Math.max(1, Math.floor(span / step) + 1);
+    const row = left.slice(0, cap); left = left.slice(cap);
+    row.forEach((it, i) => {
+      const a = (270 + (i - (row.length - 1) / 2) * step) * deg;
+      spots.push({ it, x: Math.cos(a) * r, y: Math.sin(a) * r });
+    });
+  }
   return (
     <>
       {live && <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 [&_.lv-gbtn.round]:!h-[50px] [&_.lv-gbtn.round]:!w-[50px]" data-testid="hud-rail">{live}</div>}
       {nudge && !open && <span className="lv-world-nudge" aria-hidden />}
-      <AnimatePresence>{hint && !open && <motion.div className="lv-world-hint" initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} data-testid="world-hint">Hold 🌍 for map actions</motion.div>}</AnimatePresence>
+      <div className="lv-world-hint-wrap"><AnimatePresence>{hint && !open && <motion.div className="lv-world-hint" initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} data-testid="world-hint">Hold 🌍 for map actions</motion.div>}</AnimatePresence></div>
       <DailyWheel open={wheel} onOpenChange={setWheel} />
       {createPortal(
         <>

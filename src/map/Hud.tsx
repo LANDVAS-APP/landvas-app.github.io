@@ -22,6 +22,7 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { CurrencyIcon, GameDisc, PlayerAvatar, ResourceIcon } from '../ui';
 import { mapHandle } from './mapHandle';
+import { useHudCard } from '../app/radial';
 import { PLOT_TYPES } from './plotStyle';
 import { poll } from '../lib/poll';
 
@@ -116,7 +117,14 @@ export function MapThemePicker() {
 export function ModeButton({ rail }: { rail?: boolean } = {}) {
   const mode = useUi((s) => s.mode);
   const setMode = useUi((s) => s.setMode);
-  const [open, setOpen] = useState(false);
+  const [openLocal, setOpenLocal] = useState(false);
+  // (the app: the map's cards open one at a time)
+  const hud = useHudCard();
+  const open = rail ? hud.card === 'view' : openLocal;
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? v(open) : v;
+    if (rail) { if (next !== open) hud.toggle('view'); } else setOpenLocal(next);
+  };
   const [legend, setLegend] = useState(false);
   const Cur = MODES.find((m) => m.id === mode)?.icon ?? Layers;
   // the panel never runs under the tab bar: it scrolls inside whatever room is left on the screen
@@ -130,8 +138,8 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
   return (
     <div className="pointer-events-auto relative">
       {rail ? (
-        <GameDisc tone="steel" size={36} on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
-          <Cur className="h-[18px] w-[18px]" />
+        <GameDisc tone="steel" size={44} on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
+          <Cur className="h-[20px] w-[20px]" />
         </GameDisc>
       ) : (
         <button className={cn('lv-gbtn round', open && 'on')} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
@@ -141,7 +149,7 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
       <AnimatePresence>
         {open && (
           <motion.div ref={panel} initial={{ opacity: 0, x: -10, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -10, scale: 0.95 }}
-            style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 112px)' } : {}) }}
+            style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 118px)' } : {}) }}
             className={cn('z-30 grid content-start gap-1.5 overflow-y-auto overscroll-contain rounded-[22px] border-[1.5px] border-white/15 bg-[#0e1336]/95 p-2 text-white shadow-2xl',
               rail ? 'lv-panel fixed left-3 w-[min(300px,calc(100vw-24px))]' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
             {MODES.map((m) => (

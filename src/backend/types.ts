@@ -806,6 +806,8 @@ export type TravelArrival = { home?: true; stop?: TravelStop; new_stamp?: boolea
 export type TravelStatus = {
   train: { plots: number; left: number }; plane: { plots: number; left: number };
   trip: TravelTrip | null; arrival: TravelArrival | null; away: boolean; stamps: number; countries: number; share?: boolean; explorer: ExplorerState | null;
+  /** Ink to arrive right now (null when not under way) */
+  fast_ink?: number | null;
   /** after boarding as a group's leader: who rode along */
   group?: { with: string[]; left_behind: string[] } | null;
 };

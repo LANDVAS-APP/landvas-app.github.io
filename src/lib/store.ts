@@ -93,13 +93,18 @@ export function applyMotion(reduce: boolean) {
   document.documentElement.dataset.reduceMotion = reduce ? 'true' : 'false';
 }
 
+const inApp = () => !!(window as { Capacitor?: { isNativePlatform?(): boolean } }).Capacitor?.isNativePlatform?.();
+
 export function applyTheme(theme: Theme) {
   const root = document.documentElement;
+  // the app is a night-time game: always dark (its look is built for it)
+  if (inApp()) { root.setAttribute('data-theme', 'dark'); return; }
   if (theme === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', theme);
 }
 
 export function effectiveDark(theme: Theme) {
+  if (inApp()) return true;
   if (theme === 'dark') return true;
   if (theme === 'light') return false;
   const attr = document.documentElement.getAttribute('data-theme');

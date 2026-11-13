@@ -149,6 +149,7 @@ export const api = {
   travelPlan: (mode: import('./types').TravelMode, to: string) => rpc<import('./types').TravelPlan>('travel_plan', { p_mode: mode, p_to: to }),
   travelDepart: (mode: import('./types').TravelMode, to: string) => rpc<import('./types').TravelStatus>('travel_depart', { p_mode: mode, p_to: to }),
   travelHome: () => rpc<import('./types').TravelStatus>('travel_home'),
+  travelFast: () => rpc<import('./types').TravelStatus & { fast_cost: number }>('travel_fast'),
   /** fly anywhere: a pin (or the Hot Zone) — uses one of today's trips */
   travelFlyTo: (lng: number, lat: number, name?: string) => rpc<import('./types').TravelStatus>('travel_fly_to', { p_lng: lng, p_lat: lat, p_name: name ?? null }),
   /** 2 more trips today for 100 Ink */
