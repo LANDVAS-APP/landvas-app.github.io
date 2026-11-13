@@ -143,8 +143,25 @@ describe('a Leviathan, start to finish', () => {
     await db.rpc(ann, 'leviathan_seen', { p_lev: l.id });
     expect((await state(ann)).last.loot.seen).toBe(true);
   });
-  it('one that escapes comes back stronger', async () => {
+  it('at the end of its road it turns back inland and keeps roaming (nothing reset)', async () => {
     await db.rpc(owner, 'admin_leviathan', { p_action: 'summon', p_args: { warn_min: 0 } });
+    await tick();
+    await db.sql(`update leviathans set hp = hp - 500 where status in ('walking', 'enraged', 'fleeing')`);
+    const before = (await db.sql(`select id, hp, path from leviathans where status in ('walking', 'enraged', 'fleeing')`))[0];
+    await db.sql(`update leviathans set walk_s = 10000000, pause_until = null where id = $1`, [before.id]);
+    const t = await tick();
+    expect(t.roamed).toBe(before.id);
+    const after = (await db.sql(`select status, hp, path, walk_s, data from leviathans where id = $1`, [before.id]))[0];
+    expect(['walking', 'enraged']).toContain(after.status);
+    expect(Number(after.hp)).toBe(Number(before.hp));
+    expect(Number(after.walk_s)).toBe(0);
+    expect(after.path.length).toBeGreaterThanOrEqual(2);
+    expect(after.data.roams).toBe(1);
+    // and it's on its way again
+    expect((await tick()).tick).toBe(before.id);
+  });
+  it('one that escapes comes back stronger (with roaming off)', async () => {
+    await db.sql(`update game_config set value = value || '{"roam": false}' where key = 'leviathan'`);
     await tick();
     await db.rpc(bob, 'leviathan_hit', { p_move: 'bomb', p_n: 2 }).catch(() => db.sql(`update leviathan_players set bombs = 60`).then(() => db.rpc(bob, 'leviathan_hit', { p_move: 'bomb', p_n: 2 })));
     await db.sql(`update leviathans set walk_s = 10000000, pause_until = null where status in ('walking', 'enraged', 'fleeing')`);
@@ -156,6 +173,7 @@ describe('a Leviathan, start to finish', () => {
     expect(Number(n.lev.strength)).toBe(1.5);
     const d = await db.rpc(owner, 'admin_leviathan', { p_action: 'dismiss', p_args: {} });
     expect(d.lev).toBeNull(); expect(d.history.length).toBe(3);
+    await db.sql(`update game_config set value = value - 'roam' where key = 'leviathan'`);
   });
   it('the owner’s settings are checked', async () => {
     await expectError(db.rpc(owner, 'admin_config_set', { p_key: 'leviathan', p_value: { weekday: 9 } }), 'invalid_leviathan_config');
