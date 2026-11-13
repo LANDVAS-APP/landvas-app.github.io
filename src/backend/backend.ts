@@ -30,6 +30,10 @@ export interface Backend {
   /** check a landvas.app email link's one-time code (landvas.app/auth/confirm). signedIn is false when
    *  the link worked but there is no session yet (the first half of a two-address email change). */
   verifyEmailLink?(tokenHash: string, type: EmailLinkType): Promise<{ signedIn: boolean }>;
+  /** email a LANDVAS link that confirms this address (for signed-in players who never confirmed it) */
+  sendEmailConfirmation?(email: string): Promise<void>;
+  /** the invite code this account signed up with (kept with the account, so it survives confirming on another device) */
+  signupReferral?(): Promise<string | null>;
   signOut(): Promise<void>;
   localAccounts?(): Promise<{ email: string }[]>;
   rpc<T = any>(fn: string, args?: Record<string, unknown>): Promise<T>;
@@ -260,6 +264,7 @@ const MESSAGES: Record<string, string> = {
   email_not_confirmed: 'Please confirm your email first — tap the link we sent you (check spam too).',
   email_rate_limited: 'Too many emails just now — wait a minute and try again.',
   link_expired: 'This link has expired or was already used.',
+  email_not_verified: 'Confirm your email to keep playing — tap the link we sent you.',
   feature_disabled: 'That’s taking a break right now.',
   invalid_drawing: 'Draw a little more first.',
   sketch_time_up: 'Time’s up for today’s sketch.',

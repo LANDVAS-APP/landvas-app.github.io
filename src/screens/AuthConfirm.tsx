@@ -6,7 +6,10 @@ import { motion } from 'motion/react';
 import { ArrowRight, Check, Mail, Smartphone, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
+import { EMAIL_STATUS_KEY } from '../app/EmailGate';
 import { config } from '../env';
 import { linkKind, nextPath, parseEmailLink, type EmailLink } from '../lib/emailLink';
 import { saveStorage } from '../lib/utils';
@@ -17,13 +20,14 @@ type State = { s: 'checking' } | { s: 'done' } | { s: 'half' } | { s: 'error'; m
 
 const COPY = {
   confirm: { title: 'You’re confirmed!', text: 'Your LANDVAS account is ready. Claim your first free plots, paint them, and start earning.', button: 'Start playing' },
-  signin: { title: 'You’re signed in', text: 'Taking you back to the map…', button: 'Go to the map' },
+  signin: { title: 'You’re in!', text: 'Your email is confirmed. Taking you to the map…', button: 'Go to the map' },
   reset: { title: 'Link checked', text: 'Taking you to choose a new password…', button: 'Choose a new password' },
   email_change: { title: 'Email updated', text: 'Your LANDVAS account now uses your new address.', button: 'Back to settings' },
 } as const;
 
 export function AuthConfirm() {
   const nav = useNavigate();
+  const qc = useQueryClient();
   // read once: the code is removed from the address bar straight away
   const [link] = useState<EmailLink | null>(() => parseEmailLink(location.search));
   const [st, setSt] = useState<State>(() => link ? { s: 'checking' } : { s: 'error', msg: 'This link is incomplete. Open the newest email from LANDVAS and tap its button again.', signedIn: !!getBackend().session() });
@@ -36,17 +40,19 @@ export function AuthConfirm() {
     if (config.router === 'browser') history.replaceState(history.state, '', '/auth/confirm');
     const b = getBackend();
     if (!b.verifyEmailLink) { setSt({ s: 'error', msg: 'Email links only work on landvas.app.', signedIn: !!b.session() }); return; }
-    b.verifyEmailLink(link.tokenHash, link.type).then(({ signedIn }) => {
+    b.verifyEmailLink(link.tokenHash, link.type).then(async ({ signedIn }) => {
+      // this sign-in came from an email link: LANDVAS counts the email as confirmed (and any invite they came from)
+      if (signedIn) await api.myEmailStatus().then((s) => qc.setQueryData(EMAIL_STATUS_KEY, s)).catch(() => {});
       if (kind === 'reset') return nav(nextPath(link.type), { replace: true });
       if (kind === 'email_change' && !signedIn) return setSt({ s: 'half' });
       saveStorage('landvas.welcomed', true);
       setSt({ s: 'done' });
       confettiCannons();
-      if (kind === 'signin') setTimeout(() => nav(nextPath(link.type), { replace: true }), 1300);
+      if (kind === 'signin') setTimeout(() => nav(nextPath(link.type), { replace: true }), 2400);
     }).catch((err) => {
       setSt({ s: 'error', msg: toGameError(err).message, signedIn: !!b.session() });
     });
-  }, [link, kind, nav]);
+  }, [link, kind, nav, qc]);
 
   const go = (path: string) => nav(path, { replace: true });
   const copy = COPY[kind];
@@ -78,10 +84,10 @@ export function AuthConfirm() {
               <p className="text-sm leading-relaxed text-muted">{copy.text}</p>
             </div>
             <Button variant="primary" size="lg" className="w-full" onClick={() => go(nextPath(link!.type))} data-testid="auth-confirm-continue">{copy.button} <ArrowRight className="h-4 w-4" /></Button>
-            {kind === 'confirm' && (
+            {(kind === 'confirm' || kind === 'signin') && (
               <p className="flex items-start gap-2 rounded-2xl border border-line bg-surface-2/50 px-3.5 py-3 text-left text-[13px] leading-snug text-muted">
                 <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-accent-2" />
-                <span>Signed up in the LANDVAS app? Just head back to it — it signs you in by itself.</span>
+                <span>Using the LANDVAS app? Just head back to it — you’re all set there too.</span>
               </p>
             )}
           </div>

@@ -29,6 +29,9 @@ create table if not exists auth.users (
   created_at timestamptz not null default now(),
   last_sign_in_at timestamptz
 );
+-- like a hosted account that tapped its sign-up confirmation link (tests make "never confirmed" accounts explicitly)
+alter table auth.users add column if not exists confirmation_sent_at timestamptz default now();
+alter table auth.users add column if not exists email_confirmed_at timestamptz default now();
 
 -- Mirrors Supabase's definition: the subject claim of the request JWT.
 create or replace function auth.uid() returns uuid

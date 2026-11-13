@@ -14,6 +14,7 @@ import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { NATIVE_APP } from '../../app/buildFlags';
 import type { EmailLinkType } from '../../lib/emailLink';
+import { normalizeCode, pendingReferral } from '../../social/referralStore';
 
 const PIPELINE_RPCS = new Set([
   'submit_publication', 'publication_status',
@@ -80,7 +81,9 @@ export class SupabaseBackend implements Backend {
     return () => void this.listeners.delete(cb);
   }
   async signUp(email: string, password: string) {
-    const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo() } });
+    // the invite code goes with the account, so it still counts if they confirm (and first play) on another device
+    const ref = pendingReferral();
+    const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), ...(ref ? { data: { ref } } : {}) } });
     if (error) throw new GameError(error.message.includes('registered') ? 'email_taken' : 'auth_error', error.message);
     return { needsConfirmation: !data.session };
   }
@@ -115,6 +118,17 @@ export class SupabaseBackend implements Backend {
     }
     return { signedIn: !!data.session };
   }
+  async sendEmailConfirmation(email: string) {
+    // a one-time LANDVAS link (landvas.app/auth/confirm): opening it proves the inbox, on any device
+    const { error } = await this.sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: redirectTo() } });
+    if (error) throw new GameError(/rate|seconds/i.test(error.message) ? 'email_rate_limited' : 'auth_error', error.message);
+  }
+  async signupReferral() {
+    const { data } = await this.sb.auth.getSession();
+    const raw = data.session?.user.user_metadata?.ref;
+    const code = typeof raw === 'string' ? normalizeCode(raw) : '';
+    return code.length >= 3 ? code : null;
+  }
   onPasswordRecovery(cb: () => void) {
     const { data } = this.sb.auth.onAuthStateChange((e) => { if (e === 'PASSWORD_RECOVERY') cb(); });
     return () => data.subscription.unsubscribe();
@@ -139,6 +153,8 @@ export class SupabaseBackend implements Backend {
         setTimeout(() => { this.refreshing = false; }, 30_000);
         if (!e2) return this.rpc<T>(fn, args);
       }
+      // the server wants a confirmed email first: the app shows its "Confirm your email" screen
+      if (/email_not_verified/.test(error.message)) window.dispatchEvent(new Event('landvas:email-unverified'));
       throw toGameError({ message: error.message, detail: error.details });
     }
     if (PIPELINE_RPCS.has(fn)) void this.kickPipeline();

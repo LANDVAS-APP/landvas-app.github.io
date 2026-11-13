@@ -21,9 +21,9 @@ import { clearPendingReferral } from './referralStore';
 import { poll } from '../lib/poll';
 
 const QUALIFY: Record<Referrals['qualify'], string> = {
-  signup: 'as soon as they finish signing up',
-  starter_plot: 'when they claim their first plot',
-  first_win: 'when they win their first minigame',
+  signup: 'as soon as they sign up and confirm their email',
+  starter_plot: 'when they confirm their email and claim their first plot',
+  first_win: 'when they confirm their email and win their first minigame',
 };
 
 /** Milestones to chase (badges on this page — the Ink comes from the invites themselves). */
@@ -93,6 +93,11 @@ export default function InviteScreen() {
           <h2 className="font-display text-lg font-semibold">Your crew</h2>
           {share && (r.stats.share_today ?? 0) > 0 && <span className="text-xs font-bold text-ok tnum">+{fmt(r.stats.share_today ?? 0)} Ink from friends today</span>}
         </div>
+        {(r.stats.awaiting_email ?? 0) > 0 && (
+          <p className="mb-3 text-[13px] text-muted" data-testid="referral-awaiting-note">
+            <b className="text-fg">{r.stats.awaiting_email}</b> {r.stats.awaiting_email === 1 ? 'friend still needs' : 'friends still need'} to confirm their email — your reward unlocks the moment they do.
+          </p>
+        )}
         {!r.recent.length ? (
           <Empty icon={<Ticket className="h-6 w-6" />} title="Your crew starts with one friend">Send your link to one person who loves drawing, games or maps — each friend can be worth up to {fmt(perFriend)} Ink.</Empty>
         ) : (
@@ -254,7 +259,7 @@ function FriendCard({ x, r, share, i }: { x: Referrals['recent'][number]; r: Ref
           <Link to={`/u/${x.player.username}`} className="block truncate font-semibold hover:underline">@{x.player.username}</Link>
           <div className="text-xs text-muted">joined {timeAgo(x.created_at)}</div>
         </div>
-        <StatusChip status={x.status} ink={x.reward_ink} qualify={r.qualify} />
+        <StatusChip status={x.status} ink={x.reward_ink} qualify={r.qualify} awaitingEmail={x.status === 'pending' && x.email_confirmed === false} />
       </div>
       {share && x.status !== 'void' && (
         <div className="grid gap-1">
@@ -347,7 +352,9 @@ function Redeem({ r }: { r: Referrals }) {
   );
 }
 
-function StatusChip({ status, ink, qualify }: { status: string; ink: number; qualify: Referrals['qualify'] }) {
+function StatusChip({ status, ink, qualify, awaitingEmail }: { status: string; ink: number; qualify: Referrals['qualify']; awaitingEmail?: boolean }) {
+  // the reward waits until the friend confirms their email
+  if (awaitingEmail) return <span className="shrink-0 rounded-full border border-[#FF9F1C]/40 px-2.5 py-1 text-[11px] font-bold text-[#FF9F1C]" data-testid="referral-awaiting-email">Waiting for their email</span>;
   const map: Record<string, [string, string]> = {
     pending: [qualify === 'first_win' ? 'Waiting for their first win' : qualify === 'starter_plot' ? 'Waiting for their first plot' : 'Waiting', 'text-muted border-line'],
     rewarded: [`+${fmt(ink)} Ink`, 'text-ok border-ok/40 bg-ok/10'],

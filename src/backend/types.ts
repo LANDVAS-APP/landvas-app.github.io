@@ -255,6 +255,9 @@ export type FeedEvent = {
   created_at: string;
   player: Profile;
 };
+/** has this account proven its email (opened a LANDVAS email link)? */
+export type EmailStatus = { verified: boolean; required: boolean; email: string | null };
+
 export type Referrals = {
   enabled: boolean;
   reward_ink: number;
@@ -264,8 +267,8 @@ export type Referrals = {
   default_code: string;
   custom_code: string | null;
   share?: { enabled: boolean; pct: number; cap_ink: number };
-  stats: { total: number; pending: number; rewarded: number; earned_ink: number; share_ink?: number; share_today?: number };
-  recent: { player: Profile; status: string; reward_ink: number; share_ink?: number; created_at: string; qualified_at: string | null }[];
+  stats: { total: number; pending: number; awaiting_email?: number; rewarded: number; earned_ink: number; share_ink?: number; share_today?: number };
+  recent: { player: Profile; status: string; reward_ink: number; share_ink?: number; email_confirmed?: boolean; created_at: string; qualified_at: string | null }[];
   resets_at?: string;
   referred_by: { player: Profile; status: string; code: string } | null;
   can_redeem: boolean;

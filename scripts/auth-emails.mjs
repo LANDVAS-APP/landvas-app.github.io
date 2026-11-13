@@ -41,11 +41,12 @@ export function authEmails(base = LINK_BASE) {
       text: 'Someone (hopefully you) asked to reset the password for this LANDVAS account. The link works once and expires soon.',
       button: 'Reset my password', url: confirmLink('recovery', base), base,
     }),
-    mailer_subjects_magic_link: 'Your LANDVAS sign-in link',
+    // sent for a sign-in link and for players confirming an email they never confirmed: one tap does both
+    mailer_subjects_magic_link: 'Confirm it’s you on LANDVAS',
     mailer_templates_magic_link_content: email({
-      title: 'Here’s your sign-in link',
-      text: 'Tap below to jump straight back into LANDVAS. The link works once and expires soon.',
-      button: 'Sign me in', url: confirmLink('magiclink', base), base,
+      title: 'Confirm it’s you',
+      text: 'Tap below to confirm your email and jump straight back into LANDVAS. The link works once and expires soon.',
+      button: 'Confirm my email', url: confirmLink('magiclink', base), base,
     }),
     mailer_subjects_email_change: 'Confirm your new LANDVAS email',
     mailer_templates_email_change_content: email({

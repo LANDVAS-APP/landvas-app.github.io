@@ -32,6 +32,7 @@ function WorldRoute() {
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
 import { AuthConfirm } from '../screens/AuthConfirm';
+import { EMAIL_EXEMPT, EmailGate, useEmailGate } from './EmailGate';
 import { Onboarding } from '../screens/Onboarding';
 import { useReferralRedeemer } from '../social/referral';
 
@@ -151,6 +152,9 @@ function OnboardingGate() {
   const session = useSession();
   const me = useMe();
   const loc = useLocation();
+  // every player confirms their email before playing (the server enforces it too)
+  const email = useEmailGate(!!session);
+  if (session && email.gated && !EMAIL_EXEMPT.test(loc.pathname)) return <EmailGate status={email.status} />;
   if (session && me.data && !me.data.onboarded && loc.pathname !== '/onboarding' && loc.pathname !== '/auth/confirm' && loc.pathname !== '/brawl-demo' && !loc.pathname.startsWith('/legal')) return <Navigate to="/onboarding" replace />;
   return <Outlet />;
 }

@@ -64,3 +64,14 @@ if (resend) {
   console.log(`emails: confirmation link ${saved.includes('landvas.app/auth/confirm?token_hash=') ? 'is a landvas.app link' : 'NOT confirmed as a landvas.app link — check Authentication → Emails'}`);
 }
 
+// read-only: how many players have confirmed their email (counts only — no emails or names in the log)
+try {
+  const q = 'select count(*)::int as players, count(*) filter (where private.email_verified(id))::int as confirmed from public.players';
+  const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: q }),
+  });
+  const [row] = await r.json();
+  if (row && typeof row.players === 'number') console.log(`players: ${row.players} total, ${row.confirmed} with a confirmed email, ${row.players - row.confirmed} still to confirm`);
+} catch (e) {
+  console.log(`players: could not count confirmed emails (${e.message})`);
+}

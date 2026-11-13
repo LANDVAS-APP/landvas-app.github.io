@@ -3,7 +3,7 @@ import { getBackend } from './backend';
 import type {
   Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
-  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig } from './types';
+  DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig, EmailStatus } from './types';
 import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
@@ -219,6 +219,8 @@ export const api = {
   myReferrals: () => rpc<Referrals>('my_referrals'),
   createReferralCode: (code: string) => rpc<Referrals>('create_referral_code', { p_code: code }),
   redeemReferral: (code: string) => rpc<Referrals>('redeem_referral', { p_code: code }),
+  // email confirmation (every player confirms their email before playing)
+  myEmailStatus: () => rpc<EmailStatus>('my_email_status'),
 
   // friends
   friendStatus: (id: string) => rpc<{ status: FriendStatus }>('friend_status', { p_player_id: id }),
