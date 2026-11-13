@@ -7,7 +7,7 @@ Two small websites that are **not** part of the game or the mobile apps, on the 
 | admin.landvas.app | `PORTAL_APP=admin` → `dist/portal/admin` | Staff (any `admin_roles` row). Owner-only: data explorer, SQL console, portal settings. |
 | my.landvas.app | `PORTAL_APP=my` → `dist/portal/my` | Every player, their own data only (read-only). |
 
-- Database side: `supabase/migrations/20261119000171_portal.sql` (`portal_*` functions; every one checks the caller in SQL).
+- Database side: `supabase/migrations/20261119000173_portal.sql` (`portal_*` functions; every one checks the caller in SQL).
   Tests: `tests/sql/188-portal.test.ts`.
 - Optional two-step sign-in for staff: `game_config.portal.require_mfa` (turned on from Security & staff). When on,
   `private.require_admin` needs an `aal2` session, so the game's own admin screen needs it too.
