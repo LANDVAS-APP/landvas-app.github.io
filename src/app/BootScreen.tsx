@@ -14,7 +14,7 @@ function GameBoot() {
       <div className="lv-orb-a" /><div className="lv-orb-b" />
       <div className="relative animate-[lv-float_3s_ease-in-out_infinite]">
         <div className="absolute -inset-8 rounded-full bg-accent/30 blur-3xl" />
-        <img src="/brand/landvas-multiverse-512.png" alt="" className="relative h-32 w-32 drop-shadow-[0_10px_40px_rgba(123,92,255,0.6)]" />
+        <img src="/brand/landvas-mark-512.png" alt="" className="relative h-32 w-32 drop-shadow-[0_10px_40px_rgba(123,92,255,0.6)]" />
       </div>
       <h1 className="relative font-display text-4xl font-black tracking-[0.18em]">LANDVAS</h1>
       <div className="relative h-3 w-56 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/15">

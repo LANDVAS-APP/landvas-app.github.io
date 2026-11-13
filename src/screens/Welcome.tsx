@@ -205,7 +205,7 @@ export function Welcome() {
             <motion.section className="grid justify-items-center pt-[env(safe-area-inset-top,0px)] text-center" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} data-testid="title-screen">
               <div className="relative animate-[lv-float_3.2s_ease-in-out_infinite]">
                 <div className="absolute -inset-10 rounded-full bg-accent/35 blur-3xl" />
-                <img src="/brand/landvas-multiverse-512.png" alt="" className={started ? 'relative h-20 w-20' : 'relative h-36 w-36 drop-shadow-[0_12px_50px_rgba(123,92,255,0.7)]'} />
+                <img src="/brand/landvas-mark-512.png" alt="" className={started ? 'relative h-20 w-20' : 'relative h-36 w-36 drop-shadow-[0_12px_50px_rgba(123,92,255,0.7)]'} />
               </div>
               <h1 className={`relative mt-4 font-display font-black tracking-[0.16em] ${started ? 'text-3xl' : 'text-5xl'}`}>LANDVAS</h1>
               <p className="relative mt-2 font-display text-lg"><span className="lv-rainbow-anim font-bold">{TAGLINE_TEXT}</span></p>

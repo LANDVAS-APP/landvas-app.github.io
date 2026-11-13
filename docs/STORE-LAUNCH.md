@@ -104,7 +104,7 @@ Account deletion (Play) `https://landvas.app/legal/delete-account` · Contact em
 **Screenshots** — iPhone 6.9" (1320×2868) and Play phone (1080×1920 or larger), taken in the app:
 1. The world map with your explorer and painted plots · 2. A plot rarity roll · 3. The paint editor ·
 4. Drawing an Inkborn → "Bring to Life" · 5. A minigame · 6. Simple mode home.
-Play also needs a **feature graphic** 1024×500 and a 512×512 icon (resize `docs/store/app-icon-1024.png`).
+Play icon and feature graphic are ready: `docs/store/play-icon-512.png` and `docs/store/feature-graphic-1024x500.png` (all icons come from `scripts/make-native-assets.mjs`).
 
 ## 6. Review answers
 
