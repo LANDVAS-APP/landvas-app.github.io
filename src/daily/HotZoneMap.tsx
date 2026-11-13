@@ -1,11 +1,15 @@
 // The Hot Zone on the full map: a glowing circle over today's city (it stays when plots are hidden — it's light),
 // and a chip that flies you there.
 import * as maplibregl from 'maplibre-gl';
+import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
+import { api } from '../backend/api';
+import { buzz } from '../native/native';
 import { mapHandle } from '../map/mapHandle';
 import { useUi } from '../lib/store';
 import { useExplorer } from '../explorer/explorer';
-import { Button, Dialog } from '../ui';
+import { Button, Dialog, GameDisc } from '../ui';
 import { useFly } from '../travel/Fly';
 import { cn } from '../lib/utils';
 import { GRID_SIZE } from '../shared/grid';
@@ -104,5 +108,60 @@ export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(
         </div>
       </Dialog>
     </>
+  );
+}
+
+// ---- the app: a clean 🔥 button under your avatar that opens into the Hot Zone card --------------------------
+export function HotZoneDisc({ open, onToggle }: { open: boolean; onToggle(): void }) {
+  const q = useHotZone();
+  if (!q.data?.today) return null;
+  return (
+    <GameDisc tone="ember" size={44} glow={!open} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
+      aria-label={`Hot Zone: ${q.data.today.name}`} data-testid="hot-zone-chip">
+      <span className="text-[21px] leading-none">🔥</span>
+    </GameDisc>
+  );
+}
+
+/** the Hot Zone, opened: today's city, who's there, and the way in (fly, roll, or just look) */
+export function HotZonePanel({ open, onClose, onRoll }: { open: boolean; onClose(): void; onRoll(): void }) {
+  const q = useHotZone();
+  const fly = useFly();
+  const crowd = useQuery({ queryKey: ['hot-zone-crowd'], queryFn: api.hotZoneCrowd, enabled: open && !!q.data?.today, refetchInterval: open ? 60_000 : false, staleTime: 30_000 });
+  const z = q.data?.today;
+  return (
+    <AnimatePresence>
+      {open && z && (
+        <motion.div key="hz" className="lv-hzcard pointer-events-auto" data-testid="hot-zone-sheet"
+          initial={{ opacity: 0, scale: 0.6, y: -16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.7, y: -12 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 34 }} style={{ transformOrigin: '22px 0' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="kicker">🔥 Hot Zone · {endsIn(q.data!.ends_at)} left</div>
+              <div className="truncate font-display text-[22px] font-black leading-tight">{z.name}</div>
+            </div>
+            <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2" data-testid="hot-zone-crowd">
+            <div className="stat"><span className="live" /><b className="tnum">{crowd.data ? crowd.data.now : '–'}</b><i>here now</i></div>
+            <div className="stat"><b className="tnum">{crowd.data ? crowd.data.today : '–'}</b><i>today</i></div>
+          </div>
+          <div className="perks">
+            <span>🎲 Best of 2 rolls</span><span>🌌 Ultras {q.data!.ultra_mult}×</span><span>✨ Shiny {q.data!.shiny_mult}×</span>
+            <span>{q.data!.crown_free ? '👑 Crown free!' : '👑 Crown taken'}</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <button className="lv-cta gold" data-testid="hot-zone-fly" onClick={() => { onClose(); const [lng, lat] = hotCenter(z); void fly(lng, lat, `Hot Zone · ${z.name}`); }}>
+              ✈️ Fly there<span>pick your own plots</span>
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button className="lv-cta" onClick={() => { onClose(); onRoll(); }} data-testid="hot-zone-roll-map">🎲 Roll · {q.data!.roll_ink ?? 150} Ink</button>
+              <button className="lv-cta" onClick={() => { onClose(); flyToHotZone(z); }} data-testid="hot-zone-look">👀 Look</button>
+            </div>
+          </div>
+          {q.data!.tomorrow && <div className="mt-2.5 text-[11px] font-semibold text-white/50">Tomorrow: {q.data!.tomorrow.name}</div>}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -9,7 +9,7 @@ import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, sha256Hex } from '../lib/utils';
 import { LiveUsd, WalletDialog, useRent } from '../rent/RentHud';
-import { Avatar, Button, Dialog, Field, Spinner, inputCls, PlayerAvatar } from '../ui';
+import { Avatar, Button, Dialog, Emblem, Field, Spinner, inputCls, PlayerAvatar, type DiscTone } from '../ui';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 
 
@@ -20,7 +20,7 @@ import { NavCustomizer } from '../app/NavCustomizer';
 import { isNative } from '../native/native';
 import { preparePicture } from '../lib/picture';
 
-const TILE_COLORS = ['#7B5CFF', '#FF4D6D', '#22C7B5', '#FF9F1C', '#34C3FF', '#3DDC97', '#FF4FD8'];
+const TILE_TONES: DiscTone[] = ['violet', 'rose', 'teal', 'ember', 'azure', 'emerald', 'gold'];
 
 export default function MeHub() {
   const me = useOnboardedMe();
@@ -94,13 +94,13 @@ export default function MeHub() {
             // the app: every place as a tile, like a game's profile screen
             <div className="mt-4 grid grid-cols-3 gap-2.5" data-testid="me-tiles">
               {links.map((l, i) => (
-                <Link key={l.to} to={l.to} data-sound="tab" className="lv-mtile" style={{ ['--tile' as string]: TILE_COLORS[i % TILE_COLORS.length] }}>
-                  <span className="bub"><l.icon className="h-5 w-5" /></span>
+                <Link key={l.to} to={l.to} data-sound="tab" className={`lv-mtile t-${TILE_TONES[i % TILE_TONES.length]}`}>
+                  <Emblem tone={TILE_TONES[i % TILE_TONES.length]} size={42}><l.icon className="h-5 w-5" /></Emblem>
                   <span className="lbl">{l.label}</span>
                 </Link>
               ))}
-              <button className="lv-mtile" style={{ ['--tile' as string]: '#FF5A6E' }} onClick={async () => { await getBackend().signOut(); qc.clear(); nav('/welcome'); }}>
-                <span className="bub"><LogOut className="h-5 w-5" /></span><span className="lbl">Sign out</span>
+              <button className="lv-mtile t-crimson" onClick={async () => { await getBackend().signOut(); qc.clear(); nav('/welcome'); }}>
+                <Emblem tone="crimson" size={42}><LogOut className="h-5 w-5" /></Emblem><span className="lbl">Sign out</span>
               </button>
             </div>
           ) : (

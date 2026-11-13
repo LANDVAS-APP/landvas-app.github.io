@@ -85,7 +85,7 @@ export async function boost(update: (r: RentState) => void) {
   }
 }
 
-export function BoostButton({ compact }: { compact?: boolean }) {
+export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean }) {
   const { rent, offset, update } = useRent();
   const [busy, setBusy] = useState(false);
   useTicker(500);
@@ -101,18 +101,19 @@ export function BoostButton({ compact }: { compact?: boolean }) {
       onClick={async () => { setBusy(true); await boost(update); setBusy(false); }}
       data-testid="boost"
       title={none ? `No free boosts left — they reset ${new Date(rent.boost.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : `+${rent.boost.minutes_per_boost} min of ${rent.boost.multiplier}× rent`}
-      className={cn('relative flex h-10 shrink-0 items-center gap-1.5 overflow-hidden rounded-2xl px-3 text-[12.5px] font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:cursor-not-allowed',
+      className={cn('relative flex shrink-0 items-center gap-1.5 overflow-hidden text-[12.5px] font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:cursor-not-allowed',
+        hud ? 'lv-hud-boost h-9 rounded-full pl-2.5 pr-3' : 'h-10 rounded-2xl px-3',
         active ? 'shadow-[0_0_24px_-2px_#FFB31F]' : 'shadow-[0_10px_30px_-12px_#FF3D9A]', (none || capped) && !active && 'opacity-60')}
       style={{ background: active ? 'linear-gradient(90deg,#FF6A00,#FFB31F,#FF3D9A,#FF6A00)' : 'linear-gradient(135deg,#FF3D9A,#A45CFF)', backgroundSize: active ? '300% 100%' : undefined, animation: active ? 'lv-shimmer 2.5s linear infinite' : undefined }}
       data-shimmer={active ? '1' : undefined}
     >
       {busy ? <Spinner className="h-4 w-4 text-white" /> : <Zap className={cn('h-4 w-4', active && 'fill-white')} />}
       {active ? (
-        <span className="tnum">{rent.boost.multiplier}× · {formatDuration(remaining)}</span>
+        <span className="tnum">{rent.boost.multiplier}× · {hud ? `${Math.max(1, Math.ceil(remaining / 60))}m` : formatDuration(remaining)}</span>
       ) : (
-        <span>{compact ? `${rent.boost.multiplier}×` : `${rent.boost.multiplier}× Boost`}</span>
+        <span>{compact || hud ? `${rent.boost.multiplier}×` : `${rent.boost.multiplier}× Boost`}</span>
       )}
-      {!compact && !active && <span className="rounded-md bg-black/25 px-1 text-[10px] tnum">{rent.boost.left_today}</span>}
+      {!compact && !hud && !active && <span className="rounded-md bg-black/25 px-1 text-[10px] tnum">{rent.boost.left_today}</span>}
     </button>
   );
 }

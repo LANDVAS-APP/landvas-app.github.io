@@ -86,6 +86,7 @@ export const api = {
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
   /** today's Hot Zone (a real city with boosted rarities) and tomorrow's */
   hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),
+  hotZoneCrowd: () => rpc<{ now: number; today: number }>('hot_zone_crowd'),
   /** your plot-type album and the rarities you've found */
   myCollection: () => rpc<import('./types').Collection>('my_collection'),
   // Landlord estates: the monthly checklist that earns rent day

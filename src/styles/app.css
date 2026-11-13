@@ -1483,21 +1483,27 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* ===== the app's game skin: every screen dressed like a mobile game (html.native only) ===================== */
 /* Buttons (the <Button> component in the app). In the components layer, so a screen's own classes still win. */
 @layer components {
+  /* premium: dark glass in a thin metallic rim; the main call to action is gold */
   .lv-btn {
     position: relative; border-radius: 16px; color: #f3f5ff; font-weight: 800; letter-spacing: 0.01em;
-    background: linear-gradient(180deg, #34428e, #1a2160);
-    border: 1.5px solid rgba(170, 190, 255, 0.32);
-    box-shadow: 0 4px 0 #0a0d2b, 0 10px 22px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s;
+    border: 1.5px solid transparent;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%) padding-box,
+      linear-gradient(180deg, #2a3270, #141a4a) padding-box,
+      linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(154, 166, 214, 0.45) 35%, rgba(57, 64, 110, 0.9)) border-box;
+    box-shadow: 0 2px 0 rgba(5, 7, 26, 0.9), 0 12px 24px -14px rgba(0, 0, 0, 0.9);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s;
   }
-  .lv-btn:active:not(:disabled) { transform: translateY(3px) !important; box-shadow: 0 1px 0 #0a0d2b, inset 0 1px 0 rgba(255, 255, 255, 0.22); }
-  .lv-btn.on { background: linear-gradient(180deg, #a48bff, #5b3df5); border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 4px 0 #2c1a8a, 0 12px 26px -12px rgba(123, 92, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-  .lv-btn.on:active:not(:disabled) { box-shadow: 0 1px 0 #2c1a8a, inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-  .lv-btn.hot { background: linear-gradient(180deg, #ffb347, #ff4d6d 55%, #e8287a); border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 4px 0 #8a1247, 0 12px 26px -12px rgba(255, 77, 109, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
-  .lv-btn.hot:active:not(:disabled) { box-shadow: 0 1px 0 #8a1247, inset 0 1px 0 rgba(255, 255, 255, 0.45); }
-  .lv-btn.bad { background: linear-gradient(180deg, #ff7a8a, #d92d46); border-color: rgba(255, 255, 255, 0.45); box-shadow: 0 4px 0 #7a1222, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-  .lv-btn.bad:active:not(:disabled) { box-shadow: 0 1px 0 #7a1222, inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .lv-btn:active:not(:disabled) { transform: scale(0.96) !important; }
+  .lv-btn.on { background: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 55%) padding-box, linear-gradient(180deg, #8f72ff, #4a2fd6) padding-box,
+      linear-gradient(160deg, #efe8ff, #8a6bff 40%, #2c1a8a) border-box;
+    box-shadow: 0 2px 0 #24137a, 0 12px 26px -12px rgba(123, 92, 255, 0.9); }
+  .lv-btn.hot { color: #3a2200; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+    background: linear-gradient(180deg, #fff3c4, #f2c048 52%, #d9962a) padding-box, linear-gradient(160deg, #fffbe6, #e9b23f 45%, #8a5a0e) border-box;
+    box-shadow: 0 2px 0 #7a4c08, 0 12px 26px -12px rgba(233, 178, 63, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+  .lv-btn.hot svg { color: #3a2200; }
+  .lv-btn.bad { background: linear-gradient(180deg, #ff6b7f, #c8243d) padding-box, linear-gradient(160deg, #ffc7cf, #f0435a 45%, #6e0a1d) border-box;
+    box-shadow: 0 2px 0 #6e0a1d, 0 12px 24px -14px rgba(240, 67, 90, 0.8); }
   .lv-btn:disabled { filter: grayscale(0.5); }
 }
 
@@ -1684,13 +1690,12 @@ html.reduce-motion .lv-tb-center.on .orb, html.reduce-motion .lv-bang { animatio
 
 /* ---- Me: places as tiles -------------------------------------------------------------------------------- */
 .lv-mtile {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 86px; padding: 10px 4px; border-radius: 18px; text-align: center;
-  background: linear-gradient(180deg, rgba(44, 54, 120, 0.85), rgba(20, 26, 70, 0.85));
-  border: 1.5px solid rgba(170, 190, 255, 0.18); box-shadow: 0 3px 0 rgba(4, 6, 22, 0.75);
-  transition: transform 0.08s, box-shadow 0.08s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 92px; padding: 10px 4px; border-radius: 18px; text-align: center;
+  border: 1px solid transparent; transition: transform 0.1s;
+  background: radial-gradient(100% 80% at 50% 0%, var(--tint, rgba(154, 166, 214, 0.2)), rgba(0, 0, 0, 0) 65%) padding-box, linear-gradient(180deg, #1b2156, #0b0f2d) padding-box,
+    linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)) border-box;
 }
-.lv-mtile:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 6, 22, 0.75); }
-.lv-mtile .bub { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; color: #fff; background: var(--tile); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-mtile:active { transform: scale(0.94); }
 .lv-mtile .lbl { font-size: 11.5px; font-weight: 800; line-height: 1.15; color: #eef1ff; }
 html.native[data-theme="light"] .lv-mtile { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.12); box-shadow: 0 3px 0 rgba(24, 34, 96, 0.12); }
 html.native[data-theme="light"] .lv-mtile .lbl { color: #1b1f3d; }
@@ -1701,28 +1706,15 @@ html.native[data-theme="light"] .lv-mtile .lbl { color: #1b1f3d; }
 .lv-stat b { font: 900 16px/1 var(--font-display); color: var(--fg); }
 .lv-stat i { margin-top: 3px; font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
-/* today's rewards */
-.lv-daily {
-  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 62px; padding: 10px 12px; border-radius: 18px;
-  color: var(--fg); background: var(--surface); border: 1px solid var(--line); overflow: visible; transition: transform 0.1s;
-}
-.lv-daily:active { transform: scale(0.97); }
-.lv-daily .em { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; font-size: 20px; line-height: 1;
-  background: linear-gradient(150deg, var(--c1), var(--c2)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px -6px var(--c2); }
-.lv-daily .t { display: block; font: 800 14px/1.15 var(--font-display); }
-.lv-daily .s { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 600; color: var(--muted); }
-.lv-daily.ready { color: #fff; border-color: rgba(255, 255, 255, 0.25); background: linear-gradient(150deg, var(--c1), var(--c2)); box-shadow: 0 14px 30px -14px var(--c2), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-.lv-daily.ready .em { background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-.lv-daily.ready .s { color: rgba(255, 255, 255, 0.85); }
-.lv-daily.ready::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: lv-sheen 3.2s ease-in-out infinite; }
-@keyframes lv-sheen { 0%, 55% { background-position: -150% 0; } 100% { background-position: 150% 0; } }
-
 /* the world hero */
 .lv-hero {
   position: relative; display: block; height: 172px; padding: 16px; border-radius: 24px; overflow: hidden; color: #fff; isolation: isolate;
-  background: radial-gradient(90% 80% at 100% 0%, #48d6ff 0%, rgba(72, 214, 255, 0) 60%), radial-gradient(80% 90% at 0% 100%, #3b1fd6 0%, rgba(59, 31, 214, 0) 65%), linear-gradient(160deg, #2266ff, #121c66);
-  border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 20px 40px -20px rgba(34, 102, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border: 1px solid transparent;
+  background: radial-gradient(90% 80% at 100% 0%, rgba(72, 214, 255, 0.75) 0%, rgba(72, 214, 255, 0) 60%) padding-box,
+    radial-gradient(80% 90% at 0% 100%, rgba(59, 31, 214, 0.9) 0%, rgba(59, 31, 214, 0) 65%) padding-box,
+    linear-gradient(160deg, #1a4fd8, #0b1450) padding-box,
+    linear-gradient(160deg, #d4f2ff, rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.04) 70%, #3aa8ff) border-box;
+  box-shadow: 0 22px 44px -22px rgba(34, 102, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: transform 0.12s;
 }
 .lv-hero:active { transform: scale(0.98); }
@@ -1741,54 +1733,151 @@ html.native[data-theme="light"] .lv-mtile .lbl { color: #1b1f3d; }
 .lv-hero .p3 { --p: #4fffb0; right: 42%; top: 33%; }
 .lv-hero .p3::after { animation-delay: 1.6s; }
 @keyframes lv-ping { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
-.lv-hero .disc { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: rgba(255, 255, 255, 0.2); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45); }
 .lv-hero .kicker { font: 800 11px/1 var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); }
-.lv-hero .go { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 10px 0 14px; border-radius: 999px;
-  background: #ffffff; color: #1238b8; font: 800 13px/1 var(--font-display); box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.6); }
+.lv-hero .go { position: absolute; top: 20px; right: 16px; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 10px 0 15px; border-radius: 999px;
+  background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a); color: #3a2200; font: 900 13px/1 var(--font-display);
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 0 rgba(120, 70, 0, 0.35); }
 .lv-hero span { text-shadow: 0 1px 2px rgba(0, 10, 60, 0.25); }
 .lv-hero .go { text-shadow: none; }
 
-/* the section cards */
-.lv-card2 {
-  position: relative; display: flex; flex-direction: column; height: 126px; padding: 12px; border-radius: 22px; overflow: hidden; color: #fff; isolation: isolate;
-  background: linear-gradient(155deg, var(--c1), var(--c2)); border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 14px 28px -18px var(--c2), inset 0 1px 0 rgba(255, 255, 255, 0.35); transition: transform 0.12s;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+
+
+
+/* ---- premium game pieces (the app) ----------------------------------------------------------------------- */
+/* tones: a metallic rim (light → main → dark), a tint for the face and a glow */
+.t-steel { --r1: #ffffff; --r2: #9aa6d6; --r3: #39406e; --tint: rgba(154, 166, 214, 0.26); --g: rgba(154, 166, 214, 0.45); }
+.t-gold { --r1: #fff4c8; --r2: #e9b23f; --r3: #6b4508; --tint: rgba(233, 178, 63, 0.36); --g: rgba(233, 178, 63, 0.6); }
+.t-ember { --r1: #ffd9b0; --r2: #ff7a2f; --r3: #7a2400; --tint: rgba(255, 122, 47, 0.38); --g: rgba(255, 122, 47, 0.6); }
+.t-crimson { --r1: #ffc7cf; --r2: #f0435a; --r3: #6e0a1d; --tint: rgba(240, 67, 90, 0.36); --g: rgba(240, 67, 90, 0.55); }
+.t-emerald { --r1: #c8ffe7; --r2: #2fd493; --r3: #0a5a3c; --tint: rgba(47, 212, 147, 0.32); --g: rgba(47, 212, 147, 0.55); }
+.t-azure { --r1: #d4f2ff; --r2: #3aa8ff; --r3: #0b3f8a; --tint: rgba(58, 168, 255, 0.36); --g: rgba(58, 168, 255, 0.6); }
+.t-violet { --r1: #e6dcff; --r2: #8a6bff; --r3: #2c1a8a; --tint: rgba(138, 107, 255, 0.4); --g: rgba(138, 107, 255, 0.6); }
+.t-rose { --r1: #ffd3ea; --r2: #ff5cae; --r3: #7a1247; --tint: rgba(255, 92, 174, 0.36); --g: rgba(255, 92, 174, 0.55); }
+.t-teal { --r1: #c9fff7; --r2: #22c7b5; --r3: #0a5a55; --tint: rgba(34, 199, 181, 0.34); --g: rgba(34, 199, 181, 0.55); }
+
+/* the medallion: a dark glass face in a metallic rim */
+.lv-disc { position: relative; display: inline-flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 4px; color: #fff; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
+button.lv-disc:active { transform: scale(0.9); }
+.lv-disc .face { position: relative; display: grid; place-items: center; width: var(--d); height: var(--d); border-radius: 999px; border: 2px solid transparent;
+  background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 46%) padding-box,
+    radial-gradient(circle at 50% 78%, var(--tint), rgba(0, 0, 0, 0) 72%) padding-box,
+    linear-gradient(180deg, #262d63, #0b0f2c) padding-box,
+    linear-gradient(160deg, var(--r1) 0%, var(--r2) 38%, var(--r3) 100%) border-box;
+  box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.85), inset 0 -3px 6px rgba(0, 0, 0, 0.35); }
+.lv-disc .face > svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)); }
+.lv-disc .face > span:first-child:not(.lv-bang):not(.dot) { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45)); }
+.lv-disc.glow .face { animation: lv-discglow 2.4s ease-in-out infinite; }
+@keyframes lv-discglow { 0%, 100% { box-shadow: 0 0 0 0 var(--g), 0 8px 16px -8px rgba(0, 0, 0, 0.85), inset 0 -3px 6px rgba(0, 0, 0, 0.35); }
+  50% { box-shadow: 0 0 18px 2px var(--g), 0 8px 16px -8px rgba(0, 0, 0, 0.85), inset 0 -3px 6px rgba(0, 0, 0, 0.35); } }
+.lv-disc.on .face { background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 52%) padding-box,
+    linear-gradient(180deg, var(--r2), var(--r3)) padding-box, linear-gradient(160deg, var(--r1), var(--r2) 40%, var(--r3)) border-box; }
+.lv-disc .lb { padding: 2px 7px; border-radius: 999px; background: rgba(6, 8, 26, 0.78); font: 800 10px/1.2 var(--font-display); white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.lv-disc .dot { position: absolute; top: -2px; right: -2px; width: 12px; height: 12px; border-radius: 999px; background: #ffe14d; border: 2px solid #0a0d28; }
+.lv-disc .lv-bang { top: -6px; right: -6px; }
+.lv-disc-count { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%); min-width: 20px; height: 16px; padding: 0 4px; border-radius: 999px; text-align: center;
+  background: #0a0d28; border: 1px solid var(--r2); font: 800 9.5px/14px var(--font-display); color: #fff; }
+
+/* the hub's cards: dark glass, a glow of the section's colour, a metallic edge, a medallion */
+.lv-pcard {
+  position: relative; display: flex; flex-direction: column; height: 140px; padding: 13px; border-radius: 22px; overflow: hidden; isolation: isolate; color: #fff;
+  border: 1px solid transparent;
+  background: radial-gradient(120% 90% at 100% 0%, var(--tint), rgba(0, 0, 0, 0) 62%) padding-box,
+    radial-gradient(90% 60% at 0% 100%, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0) 70%) padding-box,
+    linear-gradient(180deg, #1b2156, #0b0f2d) padding-box,
+    linear-gradient(160deg, var(--r1), rgba(255, 255, 255, 0.07) 34%, rgba(255, 255, 255, 0.03) 70%, var(--r2)) border-box;
+  box-shadow: 0 18px 34px -22px var(--g), inset 0 1px 0 rgba(255, 255, 255, 0.06); transition: transform 0.12s;
 }
-.lv-card2::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(120% 70% at 0% 0%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 55%); }
-.lv-card2:active { transform: scale(0.96); }
-.lv-card2 .art { position: absolute; z-index: -1; right: -16px; bottom: -18px; width: 98px; height: 98px; opacity: 0.2; transform: rotate(-12deg); stroke-width: 1.6; }
-.lv-card2 .disc { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+.lv-pcard::after { content: ""; position: absolute; z-index: -1; inset: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.022) 0 2px, rgba(255, 255, 255, 0) 2px 10px); }
+.lv-pcard:active { transform: scale(0.965); }
+.lv-pcard .chev { position: absolute; right: 12px; bottom: 13px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; color: var(--r1);
+  border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04); }
+.lv-pcard .mt-auto { padding-right: 26px; }
+
+/* today's rewards */
+.lv-pdaily {
+  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 66px; padding: 10px 12px 10px 10px; border-radius: 20px; color: #fff;
+  border: 1px solid transparent;
+  background: radial-gradient(120% 120% at 0% 50%, var(--tint), rgba(0, 0, 0, 0) 60%) padding-box, linear-gradient(180deg, #1b2156, #0b0f2d) padding-box,
+    linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)) border-box;
+  transition: transform 0.1s;
+}
+.lv-pdaily:active { transform: scale(0.97); }
+.lv-pdaily .t { display: block; font: 800 14px/1.15 var(--font-display); }
+.lv-pdaily .s { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, 0.55); }
+.lv-pdaily .s b { display: inline-block; padding: 2px 8px; border-radius: 999px; font: 900 10px/1.3 var(--font-display); letter-spacing: 0.08em; color: #3a2200;
+  background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+.lv-pdaily.ready { background: radial-gradient(120% 120% at 0% 50%, var(--tint), rgba(0, 0, 0, 0) 60%) padding-box, linear-gradient(180deg, #1d2358, #0b0f2d) padding-box,
+    linear-gradient(160deg, #fff3c4, #e9b23f 45%, #6b4508) border-box;
+  animation: lv-readyglow 2.2s ease-in-out infinite; }
+@keyframes lv-readyglow { 0%, 100% { box-shadow: 0 0 0 0 rgba(233, 178, 63, 0); } 50% { box-shadow: 0 0 22px -2px rgba(233, 178, 63, 0.6); } }
 
 /* everything, grouped */
-.lv-allgroup { padding: 12px 8px 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
-.lv-allgroup h3 { margin: 0 6px 10px; font: 900 11px/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--g); }
-.lv-alltile { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
-.lv-alltile .ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; color: #fff; transition: transform 0.1s;
-  background: var(--g); background: linear-gradient(150deg, var(--g), color-mix(in srgb, var(--g) 55%, #000000 45%));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px -8px var(--g); }
-.lv-alltile:active .ic { transform: scale(0.9); }
-.lv-alltile .lb { max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11px; font-weight: 700; line-height: 1.15; color: var(--muted); }
+.lv-allgroup { padding: 12px 8px 14px; border-radius: 20px; border: 1px solid transparent;
+  background: radial-gradient(80% 60% at 0% 0%, var(--tint), rgba(0, 0, 0, 0) 60%) padding-box, linear-gradient(180deg, rgba(27, 33, 86, 0.9), rgba(11, 15, 45, 0.9)) padding-box,
+    linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03)) border-box; }
+.lv-allgroup h3 { margin: 0 6px 12px; font: 900 11px/1 var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--r1); }
+.lv-alltile { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 6px; text-align: center; transition: transform 0.1s; }
+.lv-alltile:active { transform: scale(0.9); }
+.lv-alltile .lb { max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11px; font-weight: 700; line-height: 1.15; color: rgba(255, 255, 255, 0.75); }
+html.reduce-motion .lv-hero .pin::after, html.reduce-motion .lv-disc.glow .face, html.reduce-motion .lv-pdaily.ready { animation: none; }
 
-/* ---- the app's map: one chip row and a rail of same-size buttons ---------------------------------------- */
-.lv-chiprow { display: flex; gap: 8px; overflow-x: auto; padding-top: 2px; padding-bottom: 4px; }
-.lv-chiprow > * { flex-shrink: 0; height: 36px !important; border-radius: 999px !important; }
-.lv-chiprow > button { padding-top: 0 !important; padding-bottom: 0 !important; }
-.lv-chiprow [data-testid="luck-chip-note"] { display: none; }
-.lv-railbtn { position: relative; display: flex; width: 58px; flex-direction: column; align-items: center; gap: 4px; color: #fff; transition: transform 0.1s; }
-.lv-railbtn:active { transform: scale(0.92); }
-.lv-railbtn .disc { position: relative; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px;
-  background: linear-gradient(160deg, rgba(46, 56, 122, 0.96), rgba(18, 23, 62, 0.96)); border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
-.lv-railbtn.t-gold .disc { background: linear-gradient(160deg, #ffd65a, #df7f0a); }
-.lv-railbtn.t-fire .disc { background: linear-gradient(160deg, #ffad4d, #ec3b3b); }
-.lv-railbtn.t-pink .disc { background: linear-gradient(160deg, #ff7cc2, #b9238a); }
-.lv-railbtn.t-blue .disc { background: linear-gradient(160deg, #5fd0ff, #1f6bff); }
-.lv-railbtn.on .disc { background: linear-gradient(160deg, #a48bff, #5b3df5); border-color: rgba(255, 255, 255, 0.5); }
-.lv-railbtn.glow .disc { animation: lv-railglow 2.2s ease-in-out infinite; }
-@keyframes lv-railglow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 8px 18px -8px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-  50% { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.16), 0 8px 22px -6px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); } }
-.lv-railbtn .lb { padding: 3px 7px; border-radius: 999px; background: rgba(6, 8, 26, 0.74); font: 800 10px/1 var(--font-display); letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
-.lv-railbtn .dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 999px; background: #ffe14d; border: 2px solid #0a0d28; }
-.lv-railbtn .lv-bang { top: -6px; right: -6px; }
-html.reduce-motion .lv-railbtn.glow .disc, html.reduce-motion .lv-daily.ready::after, html.reduce-motion .lv-hero .pin::after { animation: none; }
+/* ---- screens without a top bar --------------------------------------------------------------------------- */
+.lv-back { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; color: #fff; border: 1.5px solid transparent;
+  background: linear-gradient(180deg, #262d63, #0b0f2c) padding-box, linear-gradient(160deg, #ffffff, #9aa6d6 40%, #39406e) border-box;
+  box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.85); transition: transform 0.1s; }
+.lv-back:active { transform: scale(0.9); }
+.lv-tabbar { transition: transform 0.28s cubic-bezier(0.3, 0.9, 0.3, 1), opacity 0.2s; }
+.lv-tabbar.away { transform: translateY(calc(100% + 40px)); opacity: 0; pointer-events: none; }
+.lv-tb-center.holding .orb { transform: scale(0.92); transition: transform 0.38s; }
+
+/* ---- the app's map ----------------------------------------------------------------------------------------- */
+.lv-hud-boost { box-shadow: 0 6px 16px -8px rgba(255, 61, 154, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important; font-size: 12px !important; }
+/* the Hot Zone card */
+.lv-hzcard { width: min(340px, 100%); padding: 14px; border-radius: 22px; color: #fff; border: 1px solid transparent;
+  background: radial-gradient(100% 70% at 0% 0%, rgba(255, 122, 47, 0.42), rgba(0, 0, 0, 0) 60%) padding-box, linear-gradient(180deg, rgba(31, 23, 58, 0.97), rgba(11, 12, 36, 0.97)) padding-box,
+    linear-gradient(160deg, #ffd9b0, #ff7a2f 30%, rgba(255, 255, 255, 0.06) 60%, #7a2400) border-box;
+  box-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.9), 0 0 30px -10px rgba(255, 122, 47, 0.6); }
+.lv-hzcard .kicker { font: 800 10.5px/1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: #ffb27a; }
+.lv-hzcard .stat { position: relative; display: flex; align-items: baseline; gap: 6px; padding: 9px 11px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); }
+.lv-hzcard .stat b { font: 900 20px/1 var(--font-display); }
+.lv-hzcard .stat i { font-style: normal; font-size: 11.5px; font-weight: 700; color: rgba(255, 255, 255, 0.6); }
+.lv-hzcard .live { align-self: center; width: 8px; height: 8px; border-radius: 999px; background: #3ddc97; box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.7); animation: lv-live 1.8s ease-out infinite; }
+@keyframes lv-live { 0% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.7); } 100% { box-shadow: 0 0 0 8px rgba(61, 220, 151, 0); } }
+.lv-hzcard .perks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lv-hzcard .perks span { padding: 4px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, 0.85); }
+.lv-x { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 20px; line-height: 1; color: rgba(255, 255, 255, 0.8); }
+.lv-cta { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px; border-radius: 14px; color: #fff; font: 800 13.5px/1.1 var(--font-display);
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); transition: transform 0.1s; }
+.lv-cta:active { transform: scale(0.96); }
+.lv-cta span { font: 600 11px/1 var(--font-body); opacity: 0.75; }
+.lv-cta.gold { min-height: 48px; color: #3a2200; border-color: rgba(255, 255, 255, 0.5); background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a);
+  box-shadow: 0 10px 22px -12px rgba(233, 178, 63, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 0 rgba(120, 70, 0, 0.35); }
+/* the map view panel */
+.lv-panel { background: linear-gradient(180deg, rgba(27, 33, 86, 0.98), rgba(11, 15, 45, 0.98)) !important; border-color: rgba(255, 255, 255, 0.14) !important; }
+/* hold the World button: the actions fan out around it */
+.lv-radial-scrim { position: fixed; inset: 0; z-index: 39; background: radial-gradient(90% 60% at 50% 100%, rgba(4, 6, 20, 0.55), rgba(4, 6, 20, 0.82)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.lv-radial { position: fixed; z-index: 45; left: 50%; bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px)) + 54px); width: 0; height: 0; }
+.lv-radial-item { position: absolute; left: -36px; top: -29px; display: flex; width: 72px; flex-direction: column; align-items: center; gap: 5px; }
+.lv-radial-item .lb { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 999px; background: rgba(6, 8, 26, 0.8);
+  font: 800 10.5px/1.25 var(--font-display); color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.lv-radial-item .lv-gbtn.round { width: 54px; height: 54px; color: #fff; border: 2px solid transparent;
+  background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 46%) padding-box, linear-gradient(180deg, #262d63, #0b0f2c) padding-box,
+    linear-gradient(160deg, #ffffff 0%, #9aa6d6 38%, #39406e 100%) border-box;
+  box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.9), inset 0 -3px 6px rgba(0, 0, 0, 0.35); }
+.lv-radial-item .lv-gbtn.round:active { transform: scale(0.9); }
+.lv-radial-item .lv-gbtn.round .lbl { display: none; }
+.lv-radial-item .lv-gbtn.round.on { background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 50%) padding-box, linear-gradient(180deg, #8a6bff, #2c1a8a) padding-box, linear-gradient(160deg, #e6dcff, #8a6bff 40%, #2c1a8a) border-box; }
+.lv-radial-item .lv-gbtn.round.go { background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 50%) padding-box, linear-gradient(180deg, #2fd493, #0a5a3c) padding-box, linear-gradient(160deg, #c8ffe7, #2fd493 40%, #0a5a3c) border-box; }
+.lv-radial-item .lv-gbtn.round.hot { background: radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 50%) padding-box, linear-gradient(180deg, #ff5cae, #7a1247) padding-box, linear-gradient(160deg, #ffd3ea, #ff5cae 40%, #7a1247) border-box; }
+.lv-world-hint { position: fixed; z-index: 41; left: 50%; transform: translateX(-50%); bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px)) + 104px);
+  padding: 7px 12px; border-radius: 999px; white-space: nowrap; font: 800 12px/1 var(--font-display); color: #fff; pointer-events: none;
+  background: linear-gradient(180deg, #2a3172, #121640); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.9); }
+.lv-world-hint::after { content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); border: 6px solid transparent; border-bottom: 0; border-top-color: #121640; }
+.lv-world-nudge { position: fixed; z-index: 41; left: calc(50% + 22px); bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px)) + 76px); width: 12px; height: 12px; border-radius: 999px;
+  background: #ff4d6d; border: 2px solid #0a0d28; pointer-events: none; animation: lv-bang 1.4s ease-in-out infinite; }
+
+.lv-sec-glow { position: absolute; z-index: 0; inset: 0 0 auto 0; height: 360px; pointer-events: none;
+  background: radial-gradient(90% 70% at 50% -10%, var(--sec), rgba(0, 0, 0, 0) 70%); }
+.lv-info { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; color: #fff; font: 900 15px/1 var(--font-display); border: 1.5px solid transparent;
+  background: linear-gradient(180deg, #262d63, #0b0f2c) padding-box, linear-gradient(160deg, #ffffff, #9aa6d6 40%, #39406e) border-box; }
+.lv-info.on { background: linear-gradient(180deg, #8a6bff, #2c1a8a) padding-box, linear-gradient(160deg, #e6dcff, #8a6bff 40%, #2c1a8a) border-box; }

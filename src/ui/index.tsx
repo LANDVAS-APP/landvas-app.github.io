@@ -251,16 +251,21 @@ export function ResourceIcon({ r, className }: { r: Resource; className?: string
   );
 }
 
-/** A button in the app map's left rail: a glossy disc with its label underneath, all the same size. */
-export const RailBtn = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { icon: ReactNode; label: string; tone?: 'dark' | 'gold' | 'fire' | 'pink' | 'blue'; badge?: number | string; dot?: boolean; glow?: boolean; on?: boolean }>(
-  function RailBtn({ icon, label, tone = 'dark', badge, dot, glow, on, className, ...rest }, ref) {
+/** The app's premium round button: a dark glass face in a metallic rim, tinted by tone. */
+export type DiscTone = 'steel' | 'gold' | 'ember' | 'crimson' | 'emerald' | 'azure' | 'violet' | 'rose' | 'teal';
+export const GameDisc = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { tone?: DiscTone; size?: number; label?: string; badge?: number | string; dot?: boolean; glow?: boolean; on?: boolean }>(
+  function GameDisc({ tone = 'steel', size = 44, label, badge, dot, glow, on, className, children, style, ...rest }, ref) {
     return (
-      <button ref={ref} type="button" className={cn('lv-railbtn pointer-events-auto', `t-${tone}`, glow && 'glow', on && 'on', className)} {...rest}>
-        <span className="disc">{icon}{badge ? <span className="lv-bang">{badge}</span> : dot ? <span className="dot" /> : null}</span>
-        <span className="lb">{label}</span>
+      <button ref={ref} type="button" className={cn('lv-disc pointer-events-auto', `t-${tone}`, glow && 'glow', on && 'on', className)} style={{ ['--d' as string]: `${size}px`, ...style }} {...rest}>
+        <span className="face">{children}{badge ? <span className="lv-bang">{badge}</span> : dot ? <span className="dot" /> : null}</span>
+        {label && <span className="lb">{label}</span>}
       </button>
     );
   });
+/** The same medallion, not a button: for cards and tiles. */
+export function Emblem({ tone = 'steel', size = 48, children, className }: { tone?: DiscTone; size?: number; children: ReactNode; className?: string }) {
+  return <span className={cn('lv-disc is-static', `t-${tone}`, className)} style={{ ['--d' as string]: `${size}px` }} aria-hidden><span className="face">{children}</span></span>;
+}
 
 /** The app's currency icons: a glossy green coin for USD rent and a glossy ink drop, no backgrounds. */
 export function CurrencyIcon({ kind, size = 24 }: { kind: 'usd' | 'ink'; size?: number }) {

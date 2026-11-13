@@ -14,7 +14,7 @@ import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { buzz } from '../native/native';
 import { offerReminders } from '../native/reminders';
 import { rarityInfo } from '../shared/rarity';
-import { Dialog, RailBtn, ResourceIcon } from '../ui';
+import { Dialog, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import type { RollOpts } from '../simple/useQuickRoll';
 
@@ -101,15 +101,11 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
 }
 
 /** a compact streak button: 🔥 N, pulsing while today's check-in is waiting */
-export function StreakChip({ onOpen, className, rail }: { onOpen(): void; className?: string; rail?: boolean }) {
+export function StreakChip({ onOpen, className }: { onOpen(): void; className?: string }) {
   const q = useDaily();
   const d = q.data as DailyStatus | undefined;
   if (!d?.enabled) return null;
   const waiting = !d.claimed_today || d.tickets.length > 0;
-  if (rail) return (
-    <RailBtn icon={<span className="text-[22px] leading-none">🔥</span>} label={waiting ? 'Claim' : `Day ${d.streak}`} tone={waiting ? 'fire' : 'dark'} glow={waiting} dot={waiting}
-      onClick={onOpen} className={className} data-testid="streak-chip" aria-label={`Daily streak: ${d.streak} days`} />
-  );
   return (
     <button onClick={onOpen} className={cn('pointer-events-auto lv-gbtn round relative', waiting && 'hot', className)} data-testid="streak-chip" aria-label={`Daily streak: ${d.streak} days`}>
       <span className="text-[20px] leading-none">🔥</span><span className="lbl tnum">{d.streak}</span>
@@ -119,15 +115,15 @@ export function StreakChip({ onOpen, className, rail }: { onOpen(): void; classN
 }
 
 /** opens the streak once a day, the first time the game is opened, while today's check-in is waiting */
-export function useStreakPrompt(open: () => void) {
+export function useStreakPrompt(open: () => void, enabled = true) {
   const q = useDaily();
   useEffect(() => {
     const d = q.data;
-    if (!d?.enabled || d.claimed_today || config.e2e) return; // (the test build opens it itself)
+    if (!enabled || !d?.enabled || d.claimed_today || config.e2e) return; // (the test build opens it itself)
     const today = new Date().toISOString().slice(0, 10);
     if (safeStorage('landvas.streakPrompt', '') === today) return;
     saveStorage('landvas.streakPrompt', today);
     const t = setTimeout(open, 900);
     return () => clearTimeout(t);
-  }, [q.data?.claimed_today, q.data?.enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q.data?.claimed_today, q.data?.enabled, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 }

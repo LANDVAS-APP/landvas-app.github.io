@@ -1,6 +1,6 @@
 import { getBackend } from '../backend/backend';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
+import { ChevronLeft, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -8,17 +8,17 @@ import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { useUi } from '../lib/store';
-import { LogoMark, ResourcePill, PlayerAvatar, useEdgeFade } from '../ui';
+import { Emblem, LogoMark, ResourcePill, PlayerAvatar, useEdgeFade, type DiscTone } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
-import { isNative, useOnline } from '../native/native';
+import { buzz, isNative, useOnline } from '../native/native';
+import { useWorldButton } from './radial';
 import { useStreakReminder } from '../native/reminders';
 import { initAds } from '../ads/ads';
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useScreenGestures } from './gestures';
 import { useClaimables } from './claimables';
 // the app's game HUD (top bar + menu) — only the app downloads it
-const GameHud = lazy(() => import('./GameHud'));
 import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
 
@@ -57,6 +57,16 @@ export function goBack(nav: (to: string | number) => void, path: string) {
   const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
   if (idx > 0) nav(-1); else nav(sectionOf(path)?.to ?? (NATIVE ? '/hub' : '/world'));
 }
+/** The app: each section's medallion and colour (the screen's title and its glow). */
+const SECTION_LOOK: Record<string, { tone: DiscTone; icon: typeof Globe2; glow: string }> = {
+  '/world': { tone: 'azure', icon: Globe2, glow: 'rgba(58, 168, 255, 0.34)' },
+  '/canvases': { tone: 'rose', icon: Brush, glow: 'rgba(255, 92, 174, 0.3)' },
+  '/inkborn': { tone: 'emerald', icon: PawPrint, glow: 'rgba(47, 212, 147, 0.28)' },
+  '/space': { tone: 'violet', icon: Rocket, glow: 'rgba(138, 107, 255, 0.36)' },
+  '/play': { tone: 'ember', icon: Gamepad2, glow: 'rgba(255, 122, 47, 0.3)' },
+  '/social': { tone: 'teal', icon: MessagesSquare, glow: 'rgba(34, 199, 181, 0.28)' },
+  '/me': { tone: 'gold', icon: Smile, glow: 'rgba(233, 178, 63, 0.26)' },
+};
 /** Which section (and its pages) a path belongs to. */
 function sectionOf(path: string) {
   if (ME_PAGES.some((p) => under(path, p.to))) return { to: '/me', label: 'Me', pages: ME_PAGES };
@@ -64,7 +74,8 @@ function sectionOf(path: string) {
 }
 
 // the phone tab bar: five tabs the player picks (Settings → Phone navigation), then Me
-export const DEFAULT_TABS = ['/world', '/canvases', '/inkborn', '/play', '/social'];
+// (the app: Play first, then Community — the World in the middle — then Inkborn and Create)
+export const DEFAULT_TABS = NATIVE ? ['/play', '/social', '/world', '/inkborn', '/canvases'] : ['/world', '/canvases', '/inkborn', '/play', '/social'];
 export const MAX_TABS = 5;
 /** simple mode's tab bar */
 const SIMPLE_TABS = [{ to: '/world', label: 'Home', icon: Home }, { to: '/play', label: 'Play', icon: Gamepad2 }];
@@ -137,6 +148,7 @@ export function Shell() {
   const navType = useNavigationType();
   const mainRef = useRef<HTMLElement>(null);
   const deep = !isRootPage(loc.pathname);
+  useEffect(() => { if (NATIVE) document.documentElement.style.setProperty('--hud-h', 'max(10px, env(safe-area-inset-top, 0px))'); }, []);
   const gest = useScreenGestures(mainRef, { enabled: NATIVE && !isMap, canGoBack: deep, onBack: () => goBack(nav as (to: string | number) => void, loc.pathname) });
   const enter = !NATIVE ? { initial: { opacity: 0, y: 10 }, transition: { duration: 0.24, ease: 'easeOut' as const } }
     : navType === 'POP' ? { initial: { opacity: 0, x: -36 }, transition: { type: 'spring' as const, stiffness: 520, damping: 42 } }
@@ -163,10 +175,12 @@ export function Shell() {
       <main ref={mainRef} className={cn('relative min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto scroll-thin', simple && 'overflow-x-hidden')} {...(NATIVE && !isMap ? gest.handlers : {})}>
         {NATIVE && !isMap && gest.overlay}
         {!isMap && <Ambient />}
-        {NATIVE && !isMap && !(simple && loc.pathname === '/world') ? (
-          <Suspense fallback={<div className="h-[calc(60px+env(safe-area-inset-top,0px))]" />}>
-            <GameHud>{!simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} inHud />}</GameHud>
-          </Suspense>
+        {NATIVE && !isMap && sec && SECTION_LOOK[sec.to] && <div className="lv-sec-glow" style={{ ['--sec' as string]: SECTION_LOOK[sec.to].glow }} aria-hidden />}
+        {NATIVE && !isMap ? (
+          // the app: no top bar on screens — just a back button (deeper screens) and the section's tabs, which
+          // scroll away with the screen; the HUD lives on the map and in the Play hub
+          loc.pathname === '/hub' || (simple && loc.pathname === '/world') ? null
+            : <ScreenBar deep={deep} pages={!simple && sec && sec.pages.length > 1 ? sec.pages : null} path={loc.pathname} onBack={() => goBack(nav as (to: string | number) => void, loc.pathname)} />
         ) : !isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
         {isMap ? <Outlet /> : (
           <div style={gest.offset ? { transform: `translateY(${gest.offset}px)`, transition: 'transform 0.2s ease-out' } : undefined}>
@@ -178,7 +192,7 @@ export function Shell() {
       </main>
       <AnnouncementPopup />
       <Tour />
-      {NATIVE ? <GameTabBar tabs={gameTabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : hubActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
+      {NATIVE ? <GameTabBar away={deep && !isMap} tabs={gameTabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : hubActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
         {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={simple ? under(loc.pathname, i.to) : tabActive(i.to)} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} active={sec?.to === '/me'} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>}
@@ -188,7 +202,32 @@ export function Shell() {
 
 /** The app's tab bar: a floating capsule with the world as a big raised button in the middle (you and your
  *  profile live in the top bar). Tabs are the five the player picked (Settings → Phone navigation). */
-function GameTabBar({ tabs, simple, active, badge, meActive }: { tabs: typeof TAB_CHOICES; simple: boolean; active(to: string): boolean; badge(to: string): number; meActive: boolean }) {
+function GameTabBar({ tabs, simple, active, badge, meActive, away }: { tabs: typeof TAB_CHOICES; simple: boolean; active(to: string): boolean; badge(to: string): number; meActive: boolean; away?: boolean }) {
+  // the World button: hold it for the map's actions (they fan out around it); on the map, a tap centres on you
+  const nav = useNavigate();
+  const loc = useLocation();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const held = useRef(false);
+  const [worldHold, setWorldHold] = useState(false);
+  const stop = () => { clearTimeout(timer.current); setWorldHold(false); };
+  const hold = {
+    onPointerDown: () => {
+      held.current = false; setWorldHold(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        held.current = true; setWorldHold(false);
+        buzz('medium');
+        if (loc.pathname !== '/world') nav('/world');
+        useWorldButton.getState().setOpen(true);
+      }, 380);
+    },
+    onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop,
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    onClick: (e: React.MouseEvent) => {
+      if (held.current) { e.preventDefault(); held.current = false; return; }
+      if (loc.pathname === '/world') { e.preventDefault(); const w = useWorldButton.getState(); if (w.open) w.setOpen(false); else w.center(); }
+    },
+  };
   const centerTo = tabs.some((t) => t.to === '/world') ? '/world' : tabs[Math.floor(tabs.length / 2)]?.to;
   const center = tabs.find((t) => t.to === centerTo);
   const rest: { to: string; label: string; icon: any }[] = tabs.filter((t) => t.to !== centerTo);
@@ -205,10 +244,11 @@ function GameTabBar({ tabs, simple, active, badge, meActive }: { tabs: typeof TA
     );
   };
   return (
-    <nav className="lv-tabbar lv-game" aria-label="Main" data-testid="game-tabbar">
+    <nav className={cn('lv-tabbar lv-game', away && 'away')} aria-label="Main" aria-hidden={away || undefined} data-testid="game-tabbar">
       <div className="flex flex-1 justify-around">{rest.slice(0, half).map(item)}</div>
       {center && (
-        <Link to={center.to} data-sound="tab" className={cn('lv-tb-center', active(center.to) && 'on')} aria-current={active(center.to) ? 'page' : undefined} aria-label={simple ? 'Home' : center.label} data-testid={`tab-${center.to}`}>
+        <Link to={center.to} data-sound="tab" className={cn('lv-tb-center', active(center.to) && 'on', worldHold && 'holding')} aria-current={active(center.to) ? 'page' : undefined} aria-label={simple ? 'Home' : `${center.label} — hold for map actions`} data-testid={`tab-${center.to}`}
+          {...(center.to === '/world' && !simple ? hold : {})}>
           <span className="orb">{simple ? <Home className="h-7 w-7" /> : <center.icon className="h-7 w-7" />}{badge(center.to) > 0 && <span className="lv-bang">{badge(center.to)}</span>}</span>
           <span className="lb">{simple ? 'Home' : center.label}</span>
         </Link>
@@ -244,6 +284,19 @@ function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string;
   );
 }
 
+/** The app's screens have no top bar: a round back button on deeper screens, and the section's tabs. */
+function ScreenBar({ deep, pages, path, onBack }: { deep: boolean; pages: { to: string; label: string }[] | null; path: string; onBack(): void }) {
+  const cur = pages ? [...pages].sort((a, b) => b.to.length - a.to.length).find((p) => under(path, p.to))?.to : undefined;
+  return (
+    <div className="lv-screenbar relative z-20 flex items-center gap-1 pt-[max(10px,env(safe-area-inset-top,0px))]" data-testid="screen-bar">
+      {deep && (
+        <button className="lv-back ml-3 shrink-0" onClick={onBack} aria-label="Back" data-testid="hud-back"><ChevronLeft className="h-6 w-6" strokeWidth={2.6} /></button>
+      )}
+      {pages ? <HudTabs pages={pages} cur={cur} /> : <div className="h-10" />}
+    </div>
+  );
+}
+
 /** The app: the section's pages as pills under the HUD; the current one slides into view, the row fades at the edge. */
 function HudTabs({ pages, cur }: { pages: { to: string; label: string }[]; cur?: string }) {
   const ref = useEdgeFade<HTMLDivElement>();
@@ -254,7 +307,7 @@ function HudTabs({ pages, cur }: { pages: { to: string; label: string }[]; cur?:
     row.scrollTo({ left: Math.max(0, left), behavior: row.scrollLeft ? 'smooth' : 'auto' });
   }, [cur]);
   return (
-    <div ref={ref} className="lv-fade no-scrollbar flex gap-2 overflow-x-auto px-3 pb-2.5" data-testid="subnav">
+    <div ref={ref} className="lv-fade no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto px-3 py-1" data-testid="subnav">
       {pages.map((p) => (
         <Link key={p.to} to={p.to} data-sound="tab" className={cn('lv-gtab', cur === p.to && 'on')} aria-current={cur === p.to ? 'page' : undefined}>{p.label}</Link>
       ))}
@@ -295,7 +348,8 @@ function Ambient() {
 
 /** Scrollable page wrapper used by every non-map screen. */
 export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={cn('lv-page gutter relative mx-auto w-full md:pb-12', NATIVE ? 'pb-[calc(112px+env(safe-area-inset-bottom,0px))] pt-3' : 'pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
+  const deep = !isRootPage(useLocation().pathname);
+  return <div className={cn('lv-page gutter relative mx-auto w-full md:pb-12', NATIVE ? (deep ? 'pb-[calc(28px+env(safe-area-inset-bottom,0px))] pt-2' : 'pb-[calc(112px+env(safe-area-inset-bottom,0px))] pt-2') : 'pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
 }
 
 function HeaderActions({ children }: { children: ReactNode }) {
@@ -308,15 +362,23 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
   const [info, setInfo] = useState(false);
   // the app: a game-style title (the HUD above already shows you, your Ink and the bell); the explanation hides
   // behind an (i) so screens open on the game, not on a paragraph
-  if (NATIVE) return (
+  const loc = useLocation();
+  if (NATIVE) {
+    // a medallion of the screen's section next to its title
+    const sec = sectionOf(loc.pathname);
+    const look = sec ? SECTION_LOOK[sec.to] : null;
+    return (
     <header className="mb-5 grid gap-3" data-testid="page-header">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          {eyebrow && <div className="lv-ribbon mb-1.5">{eyebrow}</div>}
-          <h1 className="lv-title-banner text-[26px] leading-tight">{title}</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          {look && <Emblem tone={look.tone} size={46}><look.icon className="h-[22px] w-[22px]" /></Emblem>}
+          <div className="min-w-0">
+            {eyebrow && <div className="lv-ribbon mb-1">{eyebrow}</div>}
+            <h1 className="lv-title-banner text-[25px] leading-tight">{title}</h1>
+          </div>
         </div>
         {children && (
-          <button className={cn('lv-gbtn round !h-9 !w-9 shrink-0 text-[15px] font-black', info && 'on')} onClick={() => setInfo(!info)} aria-label="What is this?" aria-expanded={info} data-testid="page-info">i</button>
+          <button className={cn('lv-info shrink-0', info && 'on')} onClick={() => setInfo(!info)} aria-label="What is this?" aria-expanded={info} data-testid="page-info">i</button>
         )}
       </div>
       {actions && <HeaderActions>{actions}</HeaderActions>}
@@ -324,7 +386,8 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
         <motion.div className="lv-speech text-[13.5px] leading-snug" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 32 }}>{children}</motion.div>
       )}
     </header>
-  );
+    );
+  }
   return (
     <header className="mb-6 grid gap-4">
       <div className="flex items-center justify-between gap-3 md:hidden">

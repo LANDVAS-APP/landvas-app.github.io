@@ -11,7 +11,7 @@ import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { rarityInfo, type RarityId } from '../shared/rarity';
-import { Dialog } from '../ui';
+import { Dialog, GameDisc } from '../ui';
 import { useRerollSpeed } from '../roll/prefs';
 
 export function useLuck() {
@@ -32,11 +32,22 @@ function Ring({ luck, max, size = 34 }: { luck: number; max: number; size?: numb
 }
 
 /** a compact chip: 🍀 and the meter — tap for the altar */
-export function LuckChip({ className }: { className?: string }) {
+export function LuckChip({ className, disc }: { className?: string; disc?: boolean }) {
   const q = useLuck();
   const [open, setOpen] = useState(false);
   if (!q.data?.enabled) return null;
   const l = q.data;
+  // the app: a clean disc with the meter as its ring
+  if (disc) return (
+    <>
+      <GameDisc tone="emerald" size={44} glow={l.luck > 0} onClick={() => setOpen(true)} className={className} aria-label={`Altar of Luck — Luck ${l.luck}`} data-testid="luck-chip">
+        <span className="pointer-events-none absolute inset-[-3px] grid place-items-center"><Ring luck={l.luck} max={l.max} size={50} /></span>
+        <span className="text-[19px] leading-none">🍀</span>
+        {l.luck > 0 && <span className="lv-disc-count tnum">{l.luck}</span>}
+      </GameDisc>
+      <AltarDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
   return (
     <>
       <button onClick={() => setOpen(true)} data-testid="luck-chip"

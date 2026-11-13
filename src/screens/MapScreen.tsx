@@ -17,7 +17,7 @@ import { PlotPanel } from '../plot/PlotPanel';
 import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { Button, Dialog, LogoMark, PlayerAvatar, useEdgeFade } from '../ui';
+import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
 import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotTypeId } from '../shared/grid';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
@@ -32,16 +32,19 @@ import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscap
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { LuckChip } from '../luck/Altar';
 import { GrimoireButton } from '../enchant/GrimoireButton';
-import { FlyChip, PinFlight } from '../travel/Fly';
+import { FlyChip, PinFlight, useFlyUi } from '../travel/Fly';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { buzz, isNative } from '../native/native';
 import GameHud from '../app/GameHud';
+import { useWorldButton } from '../app/radial';
+import { createPortal } from 'react-dom';
+import { DailyWheel } from '../earn/DailyWheel';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
 import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
-import { HotZoneChip, HotZoneLayer } from '../daily/HotZoneMap';
+import { HotZoneChip, HotZoneDisc, HotZoneLayer, HotZonePanel } from '../daily/HotZoneMap';
 import { useQuickRoll } from '../simple/useQuickRoll';
 
 
@@ -73,8 +76,10 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const [joystick, setJoystick] = useState(false);
   // the daily loop: streak (opens once a day), guaranteed rolls, the Hot Zone
   const [streak, setStreak] = useState(false);
+  const [hotOpen, setHotOpen] = useState(false);
   const quick = useQuickRoll();
-  useStreakPrompt(() => setStreak(true));
+  // (the app keeps the daily check-in in the Play hub; the map stays for the map)
+  useStreakPrompt(() => setStreak(true), !APP);
   const exState = useExplorer((s) => s.state);
   const canDrive = !!me && !!exState && exState.joystick?.enabled !== false && !away;
   // WASD / arrow keys walk the explorer (and open the joystick if it's closed)
@@ -101,25 +106,24 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       {me && quick.element}
       {/* the game HUD */}
       {APP ? (
-        // the app: the same top bar as every other screen (see-through here), one row of chips, and a tidy left
-        // rail of same-size buttons with their names under them
+        // the app: the HUD on top (boost next to your Ink), then one row of clean buttons under your avatar — the
+        // Hot Zone (opens into its card), the Altar of Luck, the map view and the Grimoire. Everything else fans
+        // out around the World button when you hold it.
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col">
-          {me ? <div className="lv-map-top"><GameHud overlay /></div> : (
+          {me ? <div className="lv-map-top"><GameHud overlay after={<BoostButton hud />} /></div> : (
             <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
               {!session && <div className="pointer-events-auto"><SignInChip /></div>}
               <NotificationBell className="pointer-events-auto lv-gbtn round ml-auto !h-10 !w-10" />
             </div>
           )}
-          {me && <MapChips>
-              <BoostButton compact /><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip />
-            </MapChips>}
-          {me && !away && !joystick && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
-          <div className="lv-rail mt-3 flex flex-col items-start gap-3 pl-[max(12px,env(safe-area-inset-left,0px))]" data-testid="map-rail">
-            {me && <StreakChip rail onOpen={() => setStreak(true)} />}
-            {me && <DailyChip rail />}
-            {me && <GrimoireButton rail />}
+          <div className="flex items-center gap-2.5 pl-[max(12px,env(safe-area-inset-left,0px))] pt-1" data-testid="map-row">
+            {me && <HotZoneDisc open={hotOpen} onToggle={() => setHotOpen((o) => !o)} />}
+            {me && <LuckChip disc />}
             <ModeButton rail />
+            {me && <GrimoireButton rail />}
           </div>
+          {me && <div className="mt-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-3"><HotZonePanel open={hotOpen} onClose={() => setHotOpen(false)} onRoll={() => void quick.roll({ hot: true })} /></div>}
+          {me && !away && !joystick && !hotOpen && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
         </div>
       ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
@@ -284,6 +288,15 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   ];
   // something worth a look in the tray: a merge you can make
   const nudge = canMerge && !merging;
+  const locate = () => {
+    tap();
+    const p = explorerNow(ex.state, ex.offset);
+    if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
+    ex.setFollowing(true);
+  };
+  if (APP) return <WorldRadial tray={tray} live={<>{has && tripLive && <TravelButton />}{has && groupLive && <GroupButton />}{flying && spaceBtn}</>}
+    joystick={has && joy?.enabled !== false ? { on: joystick, toggle: () => { tap(); onJoystick(); }, label: ex.state?.vehicle?.fuel && joy ? `⛽ ${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move` } : null}
+    locate={has ? locate : null} following={ex.following} nudge={nudge} />;
   return (
     <>
       <AnimatePresence>
@@ -336,6 +349,87 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   );
 }
 
+/** The app: hold the World button and the map's actions fan out around it in two arcs. Live things (a trip, a
+ *  group, a rocket in flight) stay on the right while they're happening. A tap on World centres on you. */
+function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
+  tray: { key: string; node: ReactNode; label: string }[]; live: ReactNode;
+  joystick: { on: boolean; toggle(): void; label: string } | null; locate: (() => void) | null; following: boolean; nudge: boolean;
+}) {
+  const open = useWorldButton((s) => s.open);
+  const setOpen = useWorldButton((s) => s.setOpen);
+  const recenter = useWorldButton((s) => s.recenter);
+  const me = useOnboardedMe();
+  const wheelQ = useQuery({ queryKey: ['wheel'], queryFn: api.wheelStatus, enabled: !!me, staleTime: 5 * 60_000 });
+  const spins = wheelQ.data?.enabled ? Number(wheelQ.data.spins_left ?? 0) : 0;
+  const [wheel, setWheel] = useState(false);
+  const pin = useFlyUi((s) => s.pinMode);
+  const setPin = useFlyUi((s) => s.setPinMode);
+  // a tap on World (already on the map) centres on your explorer
+  const first = useRef(recenter);
+  useEffect(() => { if (recenter !== first.current) locate?.(); }, [recenter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => setOpen(false), [setOpen]); // leaving the map closes it
+  // the first few visits: a little "hold me" bubble over the World button
+  const [hint, setHint] = useState(false);
+  useEffect(() => {
+    const n = safeStorage('landvas.worldHint', 0);
+    if (n >= 3) return;
+    saveStorage('landvas.worldHint', n + 1);
+    const a = setTimeout(() => setHint(true), 1800), b = setTimeout(() => setHint(false), 7000);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, []);
+  const close = () => setOpen(false);
+  const items: { key: string; label: string; node: ReactNode }[] = [
+    ...(spins > 0 ? [{ key: 'spin', label: 'Spin', node: <button className="lv-gbtn round hot" onClick={() => { close(); setWheel(true); }} data-testid="hud-daily"><span className="text-[22px] leading-none">🎡</span>{spins > 1 && <span className="lv-bang">{spins}</span>}</button> }] : []),
+    { key: 'fly', label: pin ? 'Cancel fly' : 'Fly', node: <button className={cn('lv-gbtn round', pin && 'on')} onClick={() => { close(); setPin(!pin); buzz('light'); }} data-testid="fly-chip"><span className="text-[21px] leading-none">✈️</span></button> },
+    ...(joystick ? [{ key: 'joy', label: joystick.label, node: <button className={cn('lv-gbtn round', joystick.on && 'on')} onClick={() => { close(); joystick.toggle(); }} aria-pressed={joystick.on} data-testid="joystick-toggle"><Gamepad className="h-5 w-5" /></button> }] : []),
+    ...(locate ? [{ key: 'me', label: 'Find me', node: <button className={cn('lv-gbtn round', following && 'on')} onClick={() => { close(); locate(); }} aria-label="Center on my explorer" data-testid="locate-me"><Crosshair className="h-5 w-5" /></button> }] : []),
+    ...tray.map((t) => ({ key: t.key, label: t.label, node: t.node })),
+  ];
+  // one arc over the World button, or two (evenly split) when there are more than five
+  const vw = typeof innerWidth === 'number' ? innerWidth : 390;
+  const k = items.length <= 5 ? items.length : Math.min(5, Math.floor(items.length / 2));
+  const inner = items.slice(0, k), outer = items.slice(k);
+  const place = (n: number, i: number, rx: number, ry: number, spread: number) => {
+    const a = ((n === 1 ? 270 : 270 - spread / 2 + (spread * i) / (n - 1)) * Math.PI) / 180;
+    return { x: Math.cos(a) * rx, y: Math.sin(a) * ry };
+  };
+  const spots = [
+    ...inner.map((it, i) => ({ it, ...place(inner.length, i, Math.min(112, vw / 2 - 46), 122, Math.min(120, inner.length * 34)) })),
+    ...outer.map((it, i) => ({ it, ...place(outer.length, i, Math.min(160, vw / 2 - 38), 214, Math.min(120, outer.length * 30)) })),
+  ];
+  return (
+    <>
+      {live && <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 [&_.lv-gbtn.round]:!h-[50px] [&_.lv-gbtn.round]:!w-[50px]" data-testid="hud-rail">{live}</div>}
+      {nudge && !open && <span className="lv-world-nudge" aria-hidden />}
+      <AnimatePresence>{hint && !open && <motion.div className="lv-world-hint" initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} data-testid="world-hint">Hold 🌍 for map actions</motion.div>}</AnimatePresence>
+      <DailyWheel open={wheel} onOpenChange={setWheel} />
+      {createPortal(
+        <>
+          <AnimatePresence>
+            {open && <motion.button key="scrim" className="lv-radial-scrim" aria-label="Close" onClick={close} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} data-testid="world-radial-close" />}
+          </AnimatePresence>
+          <AnimatePresence>
+            {open && (
+              <motion.div key="radial" className="lv-radial" role="menu" data-testid="world-radial" exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                {spots.map(({ it, x, y }, i) => (
+                  <motion.div key={it.key} className="lv-radial-item" role="menuitem"
+                    initial={{ opacity: 0, x: 0, y: 0, scale: 0.3 }} animate={{ opacity: 1, x, y, scale: 1 }} exit={{ opacity: 0, x: 0, y: 0, scale: 0.3, transition: { duration: 0.16, ease: 'easeIn' } }}
+                    transition={{ type: 'spring', stiffness: 520, damping: 30, delay: i * 0.018 }}
+                    onClickCapture={() => { if (it.key !== 'spin' && it.key !== 'fly' && it.key !== 'joy' && it.key !== 'me') close(); }}>
+                    {it.node}
+                    <span className="lb">{it.label}</span>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 /** First visit: the explorer starts where the player really is — GPS only. */
 function PlacementPrompt() {
   const me = useOnboardedMe();
@@ -372,16 +466,6 @@ function PlacementPrompt() {
 }
 
 /** You steered the explorer somewhere: it stays there (through refreshes) until you go back to GPS or Home. */
-/** The app's map: Boost, the Hot Zone, Fly and Luck in one row that scrolls sideways. */
-function MapChips({ children }: { children: ReactNode }) {
-  const ref = useEdgeFade<HTMLDivElement>();
-  return (
-    <div ref={ref} className="lv-chiprow lv-fade no-scrollbar pointer-events-auto max-w-full self-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))]" data-testid="map-chips">
-      {children}
-    </div>
-  );
-}
-
 function JoystickSpot() {
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);

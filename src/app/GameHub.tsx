@@ -1,35 +1,38 @@
-// The app's Play tab: the game's main menu. Today's rewards up top, the world as the big hero, every part of the
-// game as a big card, and an "everything" grid below so nothing is ever more than two taps away.
+// The app's Play tab: the game's main menu. You and your money up top, today's rewards (the daily check-in lives
+// here, not on the map), the World as the hero, every part of the game as a card, and an "Everything" grid so
+// nothing is more than two taps away.
 import { useQuery } from '@tanstack/react-query';
 import {
   Award, BookOpen, Brush, CalendarDays, ChevronRight, Compass, Crown, DoorOpen, Gamepad2, Gift, Globe2, Images, LayoutGrid, LifeBuoy,
-  MessagesSquare, Moon, Package, PawPrint, PenLine, Rocket, Settings, Shield, Smile, Sparkles, Swords, Trees, Trophy, Users, Zap, Theater, Palette,
+  MessagesSquare, Moon, Package, Palette, PawPrint, PenLine, Rocket, Settings, Shield, Smile, Sparkles, Swords, Theater, Trees, Trophy, Users, Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
 import type { DailyStatus } from '../backend/types';
-import { StreakDialog } from '../daily/Streak';
+import { StreakDialog, useStreakPrompt } from '../daily/Streak';
 import { DailyWheel } from '../earn/DailyWheel';
 import { useOnboardedMe } from '../lib/queries';
-import { fmt } from '../lib/utils';
+import { cn, fmt } from '../lib/utils';
 import { poll } from '../lib/poll';
 import { buzz } from '../native/native';
 import { useQuickRoll } from '../simple/useQuickRoll';
+import { Emblem, type DiscTone } from '../ui';
+import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
 
-type Card = { to: string; title: string; sub: string; icon: LucideIcon; c1: string; c2: string };
+type Card = { to: string; title: string; sub: string; icon: LucideIcon; tone: DiscTone };
 const CARDS: Card[] = [
-  { to: '/canvases', title: 'Create', sub: 'Paint your plots', icon: Brush, c1: '#FF6A95', c2: '#B0178F' },
-  { to: '/inkborn', title: 'Inkborn', sub: 'Hatch & raise creatures', icon: PawPrint, c1: '#3BE3A6', c2: '#0B8C69' },
-  { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, c1: '#FFBE4D', c2: '#EE5F10' },
-  { to: '/pvp', title: 'PvP', sub: 'Duel other players', icon: Swords, c1: '#FF7272', c2: '#C2173F' },
-  { to: '/space', title: 'Space', sub: 'Fly missions', icon: Rocket, c1: '#9886FF', c2: '#4527D6' },
-  { to: '/events', title: 'Events', sub: 'Limited-time fun', icon: CalendarDays, c1: '#58C8FF', c2: '#1A5FDB' },
-  { to: '/social', title: 'Community', sub: 'Friends, chat & clans', icon: MessagesSquare, c1: '#35D9CB', c2: '#0C7489' },
-  { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, c1: '#FFDA55', c2: '#DB8E00' },
+  { to: '/canvases', title: 'Create', sub: 'Paint your plots', icon: Brush, tone: 'rose' },
+  { to: '/inkborn', title: 'Inkborn', sub: 'Hatch & raise creatures', icon: PawPrint, tone: 'emerald' },
+  { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, tone: 'ember' },
+  { to: '/pvp', title: 'PvP', sub: 'Duel other players', icon: Swords, tone: 'crimson' },
+  { to: '/space', title: 'Space', sub: 'Fly missions', icon: Rocket, tone: 'violet' },
+  { to: '/events', title: 'Events', sub: 'Limited-time fun', icon: CalendarDays, tone: 'azure' },
+  { to: '/social', title: 'Community', sub: 'Friends, chat & clans', icon: MessagesSquare, tone: 'teal' },
+  { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, tone: 'gold' },
 ];
 
 const PAGE_ICON: Record<string, LucideIcon> = {
@@ -39,9 +42,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/me': Smile, '/achievements': Award, '/explorer': Compass,
   '/grimoire': BookOpen, '/royalty': Crown, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
 };
-const GROUP_COLOR: Record<string, string> = {
-  '/world': '#3D8BFF', '/canvases': '#FF4D7E', '/inkborn': '#2FD493', '/space': '#8A6BFF', '/play': '#FF9A1F', '/social': '#22C7B5', '/me': '#F25CD0',
-};
+const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold' };
 const YOU = { to: '/me', label: 'You', pages: [
   { to: '/me', label: 'Profile' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/grimoire', label: 'Grimoire' },
   { to: '/royalty', label: 'Royalty' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
@@ -62,6 +63,8 @@ export default function GameHub() {
   const today = useQuery({ queryKey: ['earned-today'], queryFn: api.myEarningsToday, enabled: on, refetchInterval: poll(60_000) });
   const [streakOpen, setStreakOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
+  // the daily check-in opens here once a day (the map leaves it to the Play tab)
+  useStreakPrompt(() => setStreakOpen(true));
   const quick = useQuickRoll();
   const d = daily.data as DailyStatus | undefined;
   const streakReady = !!d?.enabled && (!d.claimed_today || (d.tickets?.length ?? 0) > 0);
@@ -73,7 +76,9 @@ export default function GameHub() {
   return (
     <Page>
       <div className="lv-hub mx-auto max-w-lg" data-testid="game-hub">
-        <motion.div {...rise(n++)} className="mb-3 flex items-end justify-between gap-3 px-0.5">
+        {/* you: the same HUD as the map, here at the top of the menu */}
+        {me && <GameHud />}
+        <motion.div {...rise(n++)} className="mb-3.5 mt-1 flex items-end justify-between gap-3 px-0.5">
           <div className="min-w-0">
             <div className="text-[13px] font-semibold text-muted">{greeting()}{name ? ',' : ''}</div>
             <h1 className="lv-hub-title truncate">{name || 'Welcome to LANDVAS'}</h1>
@@ -86,27 +91,25 @@ export default function GameHub() {
           )}
         </motion.div>
 
-        {/* today's rewards: always here, glowing when there's something to grab */}
+        {/* today's rewards: always here, lit up when there's something to grab */}
         {me && (d?.enabled || wheel.data?.enabled) && (
           <motion.div {...rise(n++)} className="mb-3 grid grid-cols-2 gap-2.5" data-testid="hub-daily">
             {d?.enabled && (
-              <button className={`lv-daily ${streakReady ? 'ready' : ''}`} style={{ '--c1': '#FF9F43', '--c2': '#F0413C' } as CSSProperties} onClick={() => { buzz('light'); setStreakOpen(true); }} data-testid="hub-streak">
-                <span className="em" aria-hidden>🔥</span>
+              <button className={cn('lv-pdaily t-ember', streakReady && 'ready')} onClick={() => { buzz('light'); setStreakOpen(true); }} data-testid="hub-streak">
+                <Emblem tone="ember" size={42}><span className="text-[20px] leading-none">🔥</span></Emblem>
                 <span className="min-w-0 text-left">
                   <span className="t">{streakReady ? 'Daily reward' : `Day ${d.streak} streak`}</span>
-                  <span className="s">{streakReady ? 'Ready to claim' : 'Come back tomorrow'}</span>
+                  <span className="s">{streakReady ? <b>CLAIM</b> : 'Back tomorrow'}</span>
                 </span>
-                {streakReady && <span className="lv-bang">!</span>}
               </button>
             )}
             {wheel.data?.enabled && (
-              <button className={`lv-daily ${spins > 0 ? 'ready' : ''}`} style={{ '--c1': '#5BD3FF', '--c2': '#6A3DF5' } as CSSProperties} onClick={() => { buzz('light'); setWheelOpen(true); }} data-testid="hub-spin">
-                <span className="em" aria-hidden>🎡</span>
+              <button className={cn('lv-pdaily t-violet', spins > 0 && 'ready')} onClick={() => { buzz('light'); setWheelOpen(true); }} data-testid="hub-spin">
+                <Emblem tone="violet" size={42}><span className="text-[20px] leading-none">🎡</span></Emblem>
                 <span className="min-w-0 text-left">
                   <span className="t">{spins > 0 ? 'Free spin' : 'Daily wheel'}</span>
-                  <span className="s">{spins > 0 ? `${spins} waiting` : 'Spins reset daily'}</span>
+                  <span className="s">{spins > 0 ? <b>{spins > 1 ? `${spins} SPINS` : 'SPIN'}</b> : 'Resets daily'}</span>
                 </span>
-                {spins > 0 && <span className="lv-bang">{spins}</span>}
               </button>
             )}
           </motion.div>
@@ -118,33 +121,33 @@ export default function GameHub() {
             <span className="grid-art" aria-hidden />
             <span className="pin p1" aria-hidden /><span className="pin p2" aria-hidden /><span className="pin p3" aria-hidden />
             <span className="relative flex h-full flex-col justify-between">
-              <span className="flex items-center gap-2">
-                <span className="disc"><Globe2 className="h-6 w-6" /></span>
+              <span className="flex items-center gap-2.5">
+                <Emblem tone="azure" size={44}><Globe2 className="h-[22px] w-[22px]" /></Emblem>
                 <span className="kicker">The World</span>
               </span>
               <span>
                 <span className="block font-display text-[26px] font-black leading-none tracking-tight">Explore & claim land</span>
-                <span className="mt-1.5 block text-[13px] font-semibold text-white/75">{me ? `${fmt(me.plot_count)} plot${me.plot_count === 1 ? '' : 's'} earning rent · roll for more` : 'Real places, real rent'}</span>
+                <span className="mt-1.5 block text-[13px] font-semibold text-white/70">{me ? `${fmt(me.plot_count)} plot${me.plot_count === 1 ? '' : 's'} earning rent · roll for more` : 'Real places, real rent'}</span>
               </span>
             </span>
             <span className="go">Enter <ChevronRight className="h-4 w-4" /></span>
           </Link>
         </motion.div>
 
-        {/* every part of the game, big and bright */}
+        {/* every part of the game */}
         <div className="mb-6 grid grid-cols-2 gap-2.5" data-testid="hub-cards">
           {CARDS.map((c) => {
             const Icon = c.icon;
             const sub = c.to === '/play' && earned > 0 ? `+${fmt(earned)} Ink today` : c.sub;
             return (
               <motion.div key={c.to} {...rise(n++)}>
-                <Link to={c.to} data-sound="tab" className="lv-card2" style={{ '--c1': c.c1, '--c2': c.c2 } as CSSProperties} data-testid={`hub-${c.to}`}>
-                  <Icon className="art" aria-hidden />
-                  <span className="disc"><Icon className="h-[22px] w-[22px]" /></span>
-                  <span className="mt-auto block">
+                <Link to={c.to} data-sound="tab" className={cn('lv-pcard', `t-${c.tone}`)} data-testid={`hub-${c.to}`}>
+                  <Emblem tone={c.tone} size={50}><Icon className="h-6 w-6" /></Emblem>
+                  <span className="mt-auto block min-w-0">
                     <span className="block font-display text-[17px] font-black leading-tight">{c.title}</span>
-                    <span className="mt-0.5 block truncate text-[12px] font-semibold text-white/80">{sub}</span>
+                    <span className="mt-0.5 block truncate text-[12px] font-semibold text-white/60">{sub}</span>
                   </span>
+                  <span className="chev" aria-hidden><ChevronRight className="h-3.5 w-3.5" /></span>
                 </Link>
               </motion.div>
             );
@@ -154,22 +157,25 @@ export default function GameHub() {
         {/* everything, at a glance */}
         <motion.h2 {...rise(n++)} className="mb-2.5 px-0.5 font-display text-[17px] font-black">Everything</motion.h2>
         <div className="grid gap-3" data-testid="hub-all">
-          {[...SECTIONS.map((s) => ({ to: s.to, label: s.label, pages: s.pages })), YOU].map((g) => (
-            <motion.section key={g.label} {...rise(n++)} className="lv-allgroup" style={{ '--g': GROUP_COLOR[g.to] ?? '#7B5CFF' } as CSSProperties}>
-              <h3>{g.label}</h3>
-              <div className="grid grid-cols-4 gap-x-1 gap-y-3">
-                {g.pages.map((p) => {
-                  const Icon = PAGE_ICON[p.to] ?? Sparkles;
-                  return (
-                    <Link key={p.to} to={p.to} data-sound="tab" className="lv-alltile" data-testid={`hub-all-${p.to}`}>
-                      <span className="ic"><Icon className="h-[22px] w-[22px]" /></span>
-                      <span className="lb">{p.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </motion.section>
-          ))}
+          {[...SECTIONS.map((s) => ({ to: s.to, label: s.label, pages: s.pages })), YOU].map((g) => {
+            const tone = GROUP_TONE[g.to] ?? 'steel';
+            return (
+              <motion.section key={g.label} {...rise(n++)} className={cn('lv-allgroup', `t-${tone}`)}>
+                <h3>{g.label}</h3>
+                <div className="grid grid-cols-4 gap-x-1 gap-y-3">
+                  {g.pages.map((p) => {
+                    const Icon = PAGE_ICON[p.to] ?? Sparkles;
+                    return (
+                      <Link key={p.to} to={p.to} data-sound="tab" className="lv-alltile" data-testid={`hub-all-${p.to}`}>
+                        <Emblem tone={tone} size={46}><Icon className="h-5 w-5" /></Emblem>
+                        <span className="lb">{p.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </motion.section>
+            );
+          })}
           {me?.roles?.includes('owner') && <Link to="/admin" className="lv-btn h-11 w-full text-sm"><Shield className="h-4 w-4" /> Admin</Link>}
         </div>
       </div>

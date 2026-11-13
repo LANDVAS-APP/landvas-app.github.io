@@ -15,12 +15,12 @@ import { useExplorer } from '../explorer/explorer';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
 import { DEFAULT_MAP_THEME, useUi, type MapMode } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { RarityBadge } from '../plot/RarityBadge';
 import { cellCenter } from '../shared/grid';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
-import { CurrencyIcon, PlayerAvatar, RailBtn, ResourceIcon } from '../ui';
+import { CurrencyIcon, GameDisc, PlayerAvatar, ResourceIcon } from '../ui';
 import { mapHandle } from './mapHandle';
 import { PLOT_TYPES } from './plotStyle';
 import { poll } from '../lib/poll';
@@ -49,7 +49,7 @@ export function CurrencyPills() {
   const b = me.balances;
   const pill = (r: 'ink' | 'pigments', bg: string, to: string) => (
     <motion.button whileTap={{ scale: 0.92 }} onClick={() => nav(to)} className="pointer-events-auto lv-hud" data-testid={`hud-${r}`}>
-      {r === 'ink' ? <CurrencyIcon kind="ink" /> : <span className="ico" style={{ background: bg }}><ResourceIcon r={r} className="h-4 w-4" /></span>}
+      {r === 'ink' && isNative() ? <CurrencyIcon kind="ink" /> : <span className="ico" style={{ background: bg }}><ResourceIcon r={r} className="h-4 w-4" /></span>}
       <span className="tnum">{fmt(Number(b[r] ?? 0))}</span>
     </motion.button>
   );
@@ -130,7 +130,9 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
   return (
     <div className="pointer-events-auto relative">
       {rail ? (
-        <RailBtn icon={<Cur className="h-[22px] w-[22px]" />} label="View" on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button" />
+        <GameDisc tone="steel" size={36} on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
+          <Cur className="h-[18px] w-[18px]" />
+        </GameDisc>
       ) : (
         <button className={cn('lv-gbtn round', open && 'on')} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
           <Cur className="h-5 w-5" /><span className="lbl">View</span>
@@ -139,9 +141,9 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
       <AnimatePresence>
         {open && (
           <motion.div ref={panel} initial={{ opacity: 0, x: -10, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -10, scale: 0.95 }}
-            style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 104px)' } : {}) }}
+            style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 112px)' } : {}) }}
             className={cn('z-30 grid content-start gap-1.5 overflow-y-auto overscroll-contain rounded-[22px] border-[1.5px] border-white/15 bg-[#0e1336]/95 p-2 text-white shadow-2xl',
-              rail ? 'fixed left-[80px] w-[min(264px,calc(100vw-92px))] bg-[#0e1336]/[0.97] backdrop-blur' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
+              rail ? 'lv-panel fixed left-3 w-[min(300px,calc(100vw-24px))]' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
             {MODES.map((m) => (
               <button key={m.id} role="radio" aria-checked={mode === m.id} onClick={() => { setMode(m.id); buzz('light'); }}
                 className={cn('lv-gbtn justify-start px-3 py-2 text-left text-[13px]', mode === m.id && 'on')}>

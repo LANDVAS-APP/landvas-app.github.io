@@ -6,7 +6,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { useMyEnchantments, useVisitors } from './core';
 import { kindInfo } from './kinds';
 import './enchant.css';
-import { RailBtn } from '../ui';
+import { GameDisc } from '../ui';
 
 export function GrimoireButton({ rail }: { rail?: boolean } = {}) {
   const me = useOnboardedMe();
@@ -18,8 +18,10 @@ export function GrimoireButton({ rail }: { rail?: boolean } = {}) {
   const attn = list.filter((e) => e.attention).length + (visitors.data?.length ?? 0);
   const first = list.find((e) => e.attention) ?? list[0];
   if (rail) return (
-    <RailBtn icon={<span className="text-[22px] leading-none">📖</span>} label="Grimoire" tone="gold" glow={attn > 0} badge={attn || undefined}
-      onClick={() => nav('/grimoire')} aria-label={`Grimoire${attn ? ` — ${attn} need${attn === 1 ? 's' : ''} you` : ''}`} data-testid="grimoire-button" />
+    <GameDisc tone="gold" size={44} glow={attn > 0} badge={attn || undefined}
+      onClick={() => nav('/grimoire')} aria-label={`Grimoire${attn ? ` — ${attn} need${attn === 1 ? 's' : ''} you` : ''}`} data-testid="grimoire-button">
+      <span className="text-[20px] leading-none">📖</span>
+    </GameDisc>
   );
   return (
     <motion.button onClick={() => nav('/grimoire')} className="pointer-events-auto relative grid justify-items-center gap-0.5" whileTap={{ scale: 0.9 }} initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}

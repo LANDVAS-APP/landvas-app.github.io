@@ -99,10 +99,10 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await page.waitForTimeout(1500);
   const body = await page.locator('body').innerText();
   check(!/coming with the app|Refill with an ad/i.test(body), 'app: no ad placeholders on the home screen');
-  // the game skin: HUD, menu, game titles
+  // screens are full screen: no top bar on them (the HUD lives on the map and in the Play hub)
   await go(page, '/me');
-  await page.waitForSelector('[data-testid=game-hud]', { timeout: 30000 }).catch(() => {});
-  check(await page.locator('[data-testid=game-hud]').count() > 0, 'app: game HUD on screens');
+  await page.waitForSelector('[data-testid=page-header], [data-testid=me-tiles]', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('[data-testid=game-hud]').count() === 0 && await page.locator('[data-testid=screen-bar]').count() > 0, 'app: screens have no top bar');
   check(await page.locator('[data-testid=hud-menu]').count() === 0, 'app: no menu button (the Play tab is the menu)');
   // the Play hub: the game's main menu — rewards, the world, every part of the game
   await go(page, '/hub');
@@ -110,6 +110,7 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   check(await page.locator('[data-testid="hub-/play"]').count() > 0 && await page.locator('[data-testid=hub-world]').count() > 0, 'app: the Play hub shows the world and every section');
   check(await page.locator('[data-testid="hub-all-/achievements"]').count() > 0 && await page.locator('[data-testid="hub-all-/settings"]').count() > 0, 'app: the hub lists every place');
   check(await page.locator('[data-testid=hub-daily]').count() > 0, "app: the hub shows today's rewards");
+  check(await page.locator('[data-testid=game-hub] [data-testid=game-hud]').count() > 0, 'app: the hub has the HUD (you, rent, Ink, the bell)');
   await shot(page, 'app-hub');
   await page.click('[data-testid="hub-all-/achievements"]').catch(() => {});
   await page.waitForTimeout(1200);
@@ -120,11 +121,33 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await page.waitForSelector('[data-testid="tab-/hub"]', { timeout: 30000 }).catch(() => {});
   check(await page.locator('[data-testid="tab-/hub"][aria-current=page]').count() > 0, 'app: the Play tab is the hub and lights up for its places');
   check(await page.locator('[data-testid="tab-/play"]').count() === 0, 'app: no separate Play & Earn tab');
-  // the map: the same HUD on top, one chip row, the rail with labels
+  const order = await page.locator('[data-testid=game-tabbar] a').evaluateAll((as) => as.map((a) => a.getAttribute('data-testid')));
+  check(order.join(',') === 'tab-/hub,tab-/social,tab-/world,tab-/inkborn,tab-/canvases', 'app: tabs are Play, Community, World, Inkborn, Create', order.join(','));
+  // the map: the HUD (boost next to Ink), one row under the avatar: Hot Zone, Luck, View, Grimoire
   await go(page, '/world');
-  await page.waitForSelector('[data-testid=map-rail]', { timeout: 60000 }).catch(() => {});
-  check(await page.locator('[data-testid=game-hud]').count() > 0 && await page.locator('[data-testid=map-rail] [data-testid=mode-button]').count() > 0, 'app map: HUD on top, rail on the left');
+  await page.waitForSelector('[data-testid=map-row]', { timeout: 60000 }).catch(() => {});
+  check(await page.locator('[data-testid=game-hud] [data-testid=boost]').count() > 0, 'app map: the boost sits in the HUD next to Ink');
+  check(await page.locator('[data-testid=map-row] [data-testid=mode-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count() > 0, 'app map: View and the Grimoire are in the row under the avatar');
+  check(await page.locator('[data-testid=streak-chip]').count() === 0, 'app map: the daily check-in stays in the Play hub');
   check(await page.locator('[data-testid=hud-pigments]').count() === 0, 'app map: one HUD, not two');
+  // (a new player is first asked where to drop their explorer: close that)
+  await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(800);
+  if (await page.locator('[data-testid=hot-zone-chip]').count()) {
+    await page.click('[data-testid=hot-zone-chip]', { timeout: 10000 }).catch((e) => console.log('  (hot zone tap:', String(e).split('\n')[0].slice(0, 120), ')'));
+    await page.waitForSelector('[data-testid=hot-zone-crowd]', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+    check(/here now/.test(await page.locator('[data-testid=hot-zone-sheet]').innerText().catch(() => '')) && await page.locator('[data-testid=hot-zone-fly]').count() > 0, 'app map: the Hot Zone opens with who’s there and Fly there');
+    await page.click('[data-testid=hot-zone-chip]').catch(() => {});
+  }
+  // hold the World button: the map's actions fan out around it
+  const wb = await page.locator('[data-testid="tab-/world"]').boundingBox();
+  await page.mouse.move(wb.x + wb.width / 2, wb.y + 20); await page.mouse.down(); await page.waitForTimeout(700); await page.mouse.up();
+  await page.waitForSelector('[data-testid=world-radial]', { timeout: 10000 }).catch(() => {});
+  check(await page.locator('[data-testid=world-radial] [data-testid=fly-chip]').count() > 0, 'app map: holding World fans out the map actions');
+  await shot(page, 'app-map-radial');
+  await page.click('.lv-radial-scrim', { position: { x: 30, y: 200 } }).catch(() => {});
+  await page.waitForSelector('[data-testid=world-radial]', { state: 'detached', timeout: 5000 }).catch(() => {});
+  check(await page.locator('[data-testid=world-radial]').count() === 0, 'app map: a tap outside closes them');
   await shot(page, 'app-map');
   await page.evaluate(() => window.__landvasUi.getState().updateSettings({ simpleMode: true }));
   // a player who accepted older terms is asked once to accept the new ones
@@ -145,6 +168,7 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await go(page, '/guide');
   await page.waitForSelector('[data-testid=hud-back]', { timeout: 30000 }).catch(() => {});
   check(await page.locator('[data-testid=hud-back]').count() > 0, 'app: deeper screens get a back button');
+  check(await page.locator('[data-testid=game-tabbar].away').count() > 0, 'app: deeper screens are full screen (the tab bar steps aside)');
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 6, y: 420 }] });
   for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 6 + i * 22, y: 422 }] }); await page.waitForTimeout(16); }
