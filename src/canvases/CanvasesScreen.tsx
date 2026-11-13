@@ -84,8 +84,8 @@ export default function CanvasesScreen() {
             const pub = g.latest_publication;
             const st = pub ? STATUS[pub.status] : null;
             return (
-              <div key={g.id} className="glass flex gap-4 rounded-3xl p-4">
-                <div className="flex min-h-24 w-24 items-center justify-center rounded-2xl bg-surface-2/60 p-2"><Shape g={g} /></div>
+              <div key={g.id} className={cn('flex gap-4 p-4', isNative() ? 'lv-canvascard' : 'glass rounded-3xl')} data-testid="canvas-card">
+                <div className={cn('flex min-h-24 w-24 items-center justify-center rounded-2xl p-2', isNative() ? 'lv-canvasshape' : 'bg-surface-2/60')}><Shape g={g} /></div>
                 <div className="min-w-0 flex-1">
                   {renaming?.id === g.id ? (
                     <form className="flex gap-2" onSubmit={async (e) => {

@@ -15,7 +15,7 @@ import type { SpaceState } from '../backend/types';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { Button, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { PARTS, PART_INFO, Rocket } from './Rocket';
@@ -83,7 +83,7 @@ function Control({ s, accent }: { s: SpaceState; accent: string }) {
   return (
     <div className="mx-auto grid min-w-0 max-w-5xl grid-cols-[minmax(0,1fr)] gap-4 overflow-x-hidden p-4 pb-28 md:p-6" data-testid="space">
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => nav('/world')} className="rounded-xl p-2 hover:bg-surface-2" aria-label="Back to the map"><ArrowLeft className="h-5 w-5" /></button>
+        {!isNative() && <button onClick={() => nav('/world')} className="rounded-xl p-2 hover:bg-surface-2" aria-label="Back to the map"><ArrowLeft className="h-5 w-5" /></button>}
         <div className="min-w-[150px] flex-1">
           <div className="eyebrow">Mission control</div>
           <h1 className="font-display text-2xl font-bold md:text-3xl">Space</h1>

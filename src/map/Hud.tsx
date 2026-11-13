@@ -138,7 +138,7 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
   return (
     <div className="pointer-events-auto relative">
       {rail ? (
-        <GameDisc tone="steel" size={44} on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
+        <GameDisc tone="azure" size={44} on={open} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Map view" data-testid="mode-button">
           <Cur className="h-[20px] w-[20px]" />
         </GameDisc>
       ) : (

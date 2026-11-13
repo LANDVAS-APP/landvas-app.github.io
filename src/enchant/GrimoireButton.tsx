@@ -1,5 +1,6 @@
 // The Grimoire on the map: a glowing spellbook that floats, sheds gold motes, and pulses a badge when an enchantment
 // needs you (a fox at the egg, a wish ready, a chick hatched…) or something is visiting your land.
+import { OrbGlyph } from '../ui/OrbGlyph';
 import { AnimatePresence, motion } from 'motion/react';
 import { Suspense, lazy, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -43,10 +44,11 @@ function GrimoireDisc({ attn }: { attn: number }) {
   const card = useHudCard((s) => s.card);
   const toggle = useHudCard((s) => s.toggle);
   return (
-    <GameDisc tone="gold" size={44} glow={attn > 0 && card !== 'grim'} on={card === 'grim'} badge={attn || undefined}
+    <GameDisc tone="gold" size={44} on={card === 'grim'} badge={attn || undefined}
       onClick={() => { buzz('light'); toggle('grim'); }} aria-expanded={card === 'grim'}
       aria-label={`Grimoire${attn ? ` — ${attn} need${attn === 1 ? 's' : ''} you` : ''}`} data-testid="grimoire-button">
-      <span className="text-[20px] leading-none">📖</span>
+      <span className="lv-aurora" aria-hidden><i /><i /><i /></span>
+      <OrbGlyph kind="book" on={card === 'grim'} size={22} />
     </GameDisc>
   );
 }

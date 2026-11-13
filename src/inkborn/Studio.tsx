@@ -17,7 +17,7 @@ import { Button, Field, ResourceIcon, Spinner, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from '../creative/SketchPad';
 import { CreatureView } from './CreatureView';
-import { isNative } from '../native/native';
+import { buzz, isNative } from '../native/native';
 
 const APP = isNative();
 import {
@@ -111,6 +111,7 @@ export default function Studio() {
       )}
       <div className={cn('grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]', APP && 'lv-studio')}>
         <div className="grid min-w-0 content-start gap-4">
+          {APP && !(mode === 'draw' && !alive && !existing) && <Stage genome={genome} />}
           {mode === 'draw' && !existing && (
             <section className={cn('relative grid justify-items-center gap-3', APP ? 'lv-studiodraw' : 'glass rounded-3xl p-4')} data-testid="studio-draw">
               {!alive ? (
@@ -122,6 +123,22 @@ export default function Studio() {
                     {!APP && <Button variant="rainbow" size="lg" onClick={bringToLife} disabled={revealing} data-testid="bring-to-life"><Wand2 className="h-5 w-5" /> Bring to Life</Button>}
                   </div>
                 </>
+              ) : APP ? (
+                <div className="lv-icard grid w-full gap-3" data-testid="came-alive">
+                  <div className="flex items-center gap-3">
+                    <div className="lv-ithumb"><StrokeView strokes={strokes} size={64} /></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display text-[18px] font-black leading-tight">It came alive!</div>
+                      <div className="text-[12px] font-semibold text-white/55">Fix the counts, change any part, or draw again.</div>
+                    </div>
+                  </div>
+                  <ul className="flex flex-wrap gap-1.5">{alive.notes.map((n) => <li key={n} className="lv-inote">✓ {n}</li>)}</ul>
+                  <WeSaw genome={genome} onChange={setGenome} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="lv-btn h-11 text-[14px]" onClick={() => setAlive(null)}><Paintbrush className="h-4 w-4" /> Draw again</button>
+                    <button className="lv-btn h-11 text-[14px]" onClick={() => setMode('custom')}><SlidersHorizontal className="h-4 w-4" /> Customize</button>
+                  </div>
+                </div>
               ) : (
                 <div className="grid w-full gap-3 sm:grid-cols-[160px_1fr] sm:items-center">
                   <div className="grid justify-items-center gap-1"><StrokeView strokes={strokes} size={150} /><span className="text-[11px] text-muted">Your drawing</span></div>
@@ -145,7 +162,21 @@ export default function Studio() {
               </AnimatePresence>
             </section>
           )}
-          {mode === 'random' && !existing && (
+          {mode === 'random' && !existing && APP && (
+            <section className="grid gap-3" data-testid="studio-random">
+              <motion.button whileTap={{ scale: 0.96 }} className="lv-btn lv-rainbow h-14 w-full text-[17px]" onClick={() => { buzz('medium'); roll(); }} data-testid="roll"><Dices className="h-5 w-5" /> Roll a creature</motion.button>
+              <p className="text-center text-[12px] font-semibold text-white/50">Every roll mixes body, colours, parts and personality.</p>
+              {history.length > 0 && (
+                <div className="lv-icard">
+                  <div className="mb-2 text-[12px] font-black text-white/60">Earlier rolls · tap to go back</div>
+                  <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+                    {history.map((h, i) => <button key={i} onClick={() => { buzz('light'); setGenome(h); }} className="lv-ipick shrink-0"><CreatureView genome={h} size={70} ground={false} /></button>)}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+          {mode === 'random' && !existing && !APP && (
             <section className="glass grid justify-items-center gap-3 rounded-3xl p-5" data-testid="studio-random">
               <p className="text-center text-sm text-muted">Every roll mixes body, colours, eyes, ears, horns, tail, wings, pattern and personality.</p>
               <motion.div whileTap={{ scale: 0.95, rotate: -4 }}><Button variant="rainbow" size="lg" onClick={roll} data-testid="roll"><Shuffle className="h-5 w-5" /> Roll a creature</Button></motion.div>
@@ -159,18 +190,40 @@ export default function Studio() {
               )}
             </section>
           )}
-          {(mode === 'custom' || existing) && <Customizer genome={genome} onChange={(g) => { setGenome(g); if (!existing && source !== 'drawn') setSource('custom'); }} />}
+          {(mode === 'custom' || existing) && (APP
+            ? <PartPicker genome={genome} onChange={(g) => { setGenome(g); if (!existing && source !== 'drawn') setSource('custom'); }} />
+            : <Customizer genome={genome} onChange={(g) => { setGenome(g); if (!existing && source !== 'drawn') setSource('custom'); }} />)}
         </div>
 
         <aside className="grid content-start gap-3 lg:sticky lg:top-16 lg:self-start">
-          <section className={cn('glass relative grid justify-items-center gap-2 overflow-hidden rounded-3xl p-4', APP && 'lv-studiopreview', APP && mode === 'draw' && !alive && !existing && 'hidden')} data-testid="studio-preview">
+          {!APP && <section className="glass relative grid justify-items-center gap-2 overflow-hidden rounded-3xl p-4" data-testid="studio-preview">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#2f7d3a]/40 to-transparent" />
             <motion.div key={JSON.stringify(genome)} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 16 }}>
               <CreatureView genome={genome} size={220} cycle testid="creature-preview" />
             </motion.div>
             <div className="relative text-center text-xs text-muted">{MOOD_INFO[genome.mood].emoji} {MOOD_INFO[genome.mood].label} — {MOOD_INFO[genome.mood].text}</div>
-          </section>
-          {ready && (
+          </section>}
+          {ready && APP && (
+            <section className="lv-icard lv-irelease grid gap-2.5" data-testid="studio-release">
+              <div className="lv-field relative">
+                <input id="ink-name" className="lv-input !pl-4 !pr-12" maxLength={24} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name your Inkborn" aria-label="Name" data-testid="inkborn-name" />
+                <button type="button" className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-white/10" onClick={() => { buzz('light'); setName(randomName()); }} aria-label="Suggest a name"><Sparkles className="h-4 w-4" /></button>
+              </div>
+              {!existing && habitats.length > 1 && (
+                <select className="lv-input h-11" value={homeId ?? ''} onChange={(e) => setHome(e.target.value)} aria-label="Home">
+                  {habitats.map((h) => <option key={h.id} value={h.id} disabled={h.creatures >= h.capacity}>🏡 {h.name} ({h.creatures}/{h.capacity}){h.creatures >= h.capacity ? ' — full' : ''}</option>)}
+                </select>
+              )}
+              {!existing && cost > 0 && !afford ? (
+                <button className="lv-btn h-14 w-full text-[15px]" onClick={() => nav('/play')}>Need {cost - Number(me.balances.ink)} more Ink — play to earn</button>
+              ) : (
+                <button className="lv-btn lv-rainbow h-14 w-full text-[17px]" disabled={busy || !name.trim()} onClick={save} data-testid="save-inkborn">
+                  {busy ? <Spinner /> : <>{existing ? 'Save changes' : `Release ${name.trim() || 'your Inkborn'}`}{!existing && eco.data && <span className="lv-icost" data-testid="inkborn-cost">{eco.data.next_cost === 0 ? 'Free' : <><ResourceIcon r="ink" className="h-3.5 w-3.5" />{eco.data.next_cost}</>}</span>}</>}
+                </button>
+              )}
+            </section>
+          )}
+          {ready && !APP && (
             <section className="glass grid gap-3 rounded-3xl p-4">
               <Field label="Name" htmlFor="ink-name">
                 <div className="flex gap-2">
@@ -198,7 +251,7 @@ export default function Studio() {
               )}
             </section>
           )}
-          {!existing && mode === 'draw' && (
+          {!existing && mode === 'draw' && !APP && (
             <p className="flex gap-2 rounded-2xl border border-line p-3 text-[11px] text-muted">
               <Info className="h-4 w-4 shrink-0" />
               {sanct.data?.ai_portraits ? 'Your drawing is also sent to be painted as a portrait.' : 'Your Inkborn is built from your drawing’s shape and colours on our animation rig. AI-painted portraits aren’t switched on yet.'}
@@ -219,7 +272,7 @@ function WeSaw({ genome, onChange, title = 'Here’s what we saw' }: { genome: G
     onChange(g);
   };
   const step = (label: string, value: number, max: number, key: 'eyecount' | 'legs', testid: string) => (
-    <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface-2/60 px-3 py-2">
+    <div className={cn('flex items-center justify-between gap-2 rounded-2xl px-3 py-2', APP ? 'lv-istep' : 'bg-surface-2/60')}>
       <span className="text-sm font-bold">{label}</span>
       <div className="flex items-center gap-1.5">
         <button className="h-8 w-8 rounded-xl bg-surface text-lg font-bold disabled:opacity-30" disabled={value <= 0} onClick={() => set({ [key]: value - 1 } as Partial<Genome>)} aria-label={`Fewer ${label.toLowerCase()}`} data-testid={`${testid}-minus`}>−</button>
@@ -231,7 +284,7 @@ function WeSaw({ genome, onChange, title = 'Here’s what we saw' }: { genome: G
   return (
     <div className="grid gap-2" data-testid="we-saw">
       <div className="text-xs font-bold text-muted">{title}</div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className={cn('grid gap-2 sm:grid-cols-2', APP && 'grid-cols-2')}>
         {step('Eyes', genome.eyecount, MAX_EYES, 'eyecount', 'eyes')}
         {step('Legs', genome.legs, MAX_LEGS, 'legs', 'legs')}
       </div>
@@ -244,6 +297,21 @@ function WeSaw({ genome, onChange, title = 'Here’s what we saw' }: { genome: G
         </div>
       ) : <div className="text-[11px] text-muted">{GAIT_INFO.walk.emoji} Walks on {genome.legs} leg{genome.legs === 1 ? '' : 's'} — take them all away and it can roll, bounce, slither or hover instead.</div>}
     </div>
+  );
+}
+
+/** the app: the creature on a lit stage, bouncing in when it changes */
+function Stage({ genome }: { genome: Genome }) {
+  const m = MOOD_INFO[genome.mood];
+  return (
+    <section className="lv-istage" style={{ ['--c' as string]: genome.color }} data-testid="studio-preview">
+      <div className="lv-istage-rays" />
+      <div className="lv-istage-floor" />
+      <motion.div key={JSON.stringify(genome)} className="relative" initial={{ scale: 0.55, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }}>
+        <CreatureView genome={genome} size={190} cycle testid="creature-preview" />
+      </motion.div>
+      <div className="lv-istage-mood">{m.emoji} {m.label}<span> · {m.text}</span></div>
+    </section>
   );
 }
 
@@ -296,6 +364,80 @@ function Customizer({ genome, onChange }: { genome: Genome; onChange(g: Genome):
           {MOODS.map((m) => <button key={m} onClick={() => set({ mood: m })} aria-pressed={genome.mood === m} className={cn('rounded-full border px-3 py-1.5 text-xs font-bold', genome.mood === m ? 'border-accent bg-accent/15' : 'border-line')}>{MOOD_INFO[m].emoji} {MOOD_INFO[m].label}</button>)}
         </div>
       </div>
+    </section>
+  );
+}
+
+type PartTab = 'body' | 'eyes' | 'ears' | 'horns' | 'tail' | 'wings' | 'pattern' | 'colours' | 'counts' | 'mood';
+const PART_TABS: { id: PartTab; label: string; emoji: string }[] = [
+  { id: 'body', label: 'Body', emoji: '🫧' }, { id: 'colours', label: 'Colours', emoji: '🎨' }, { id: 'eyes', label: 'Eyes', emoji: '👀' }, { id: 'ears', label: 'Ears', emoji: '👂' },
+  { id: 'horns', label: 'Horns', emoji: '🦄' }, { id: 'tail', label: 'Tail', emoji: '🐾' }, { id: 'wings', label: 'Wings', emoji: '🪽' }, { id: 'pattern', label: 'Pattern', emoji: '✨' },
+  { id: 'counts', label: 'Legs', emoji: '🦵' }, { id: 'mood', label: 'Mood', emoji: '💖' },
+];
+const PART_OPTS: Partial<Record<PartTab, { key: keyof Genome; options: readonly (string | number)[] }>> = {
+  body: { key: 'body', options: BODIES }, eyes: { key: 'eyes', options: EYES }, ears: { key: 'ears', options: EARS }, horns: { key: 'horns', options: HORNS },
+  tail: { key: 'tail', options: TAILS }, wings: { key: 'wings', options: WINGS }, pattern: { key: 'pattern', options: PATTERNS },
+};
+
+/** the app's customizer: pick a part, then pick from a row of live previews — everything fits on one screen */
+function PartPicker({ genome, onChange }: { genome: Genome; onChange(g: Genome): void }) {
+  const [tab, setTab] = useState<PartTab>('body');
+  const set = (p: Partial<Genome>) => { buzz('light'); onChange({ ...genome, ...p }); };
+  const opt = PART_OPTS[tab];
+  return (
+    <section className="lv-icard grid gap-3" data-testid="studio-custom">
+      <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1" role="tablist" aria-label="Part">
+        {PART_TABS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => { buzz('light'); setTab(t.id); }} className={cn('lv-ipart', tab === t.id && 'on')} data-testid={`part-${t.id}`}>
+            <span className="text-[17px] leading-none">{t.emoji}</span>{t.label}
+          </button>
+        ))}
+      </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={tab} initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -18 }} transition={{ duration: 0.16 }}>
+          {opt ? (
+            <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {opt.options.map((o) => {
+                const on = genome[opt.key] === o;
+                return (
+                  <button key={String(o)} onClick={() => set({ [opt.key]: o } as Partial<Genome>)} aria-pressed={on} className={cn('lv-ipick shrink-0', on && 'on')}>
+                    <CreatureView genome={{ ...genome, [opt.key]: o } as Genome} size={64} ground={false} />
+                    <span>{String(o)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : tab === 'colours' ? (
+            <div className="grid gap-3">
+              {([['Body', 'color'], ['Belly', 'belly'], ['Accent', 'accent']] as const).map(([label, k]) => (
+                <div key={k} className="grid gap-1.5">
+                  <div className="text-[12px] font-black text-white/60">{label}</div>
+                  <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 py-1">
+                    {SWATCHES.map((c) => <button key={c} onClick={() => set({ [k]: c } as Partial<Genome>)} aria-label={`${label} ${c}`} className={cn('lv-iswatch', genome[k].toUpperCase() === c.toUpperCase() && 'on')} style={{ background: c }} />)}
+                    <label className="lv-iswatch lv-iswatch-any" aria-label={`Pick ${label}`}><input type="color" value={genome[k]} onChange={(e) => set({ [k]: e.target.value.toUpperCase() } as Partial<Genome>)} />+</label>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] font-black text-white/60">Size</span>
+                <input type="range" className="lv-range flex-1" min={0.8} max={1.25} step={0.01} value={genome.size} onChange={(e) => onChange({ ...genome, size: Number(e.target.value) })} aria-label="Size" />
+                <button className={cn('lv-ipart', genome.cheeks && 'on')} aria-pressed={genome.cheeks} onClick={() => set({ cheeks: !genome.cheeks })}>😊 Cheeks</button>
+              </div>
+            </div>
+          ) : tab === 'counts' ? (
+            <WeSaw genome={genome} onChange={onChange} title="Eyes, legs and how it moves" />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {MOODS.map((m) => (
+                <button key={m} onClick={() => set({ mood: m })} aria-pressed={genome.mood === m} className={cn('lv-imood', genome.mood === m && 'on')}>
+                  <span className="text-[22px] leading-none">{MOOD_INFO[m].emoji}</span>
+                  <span className="min-w-0"><b>{MOOD_INFO[m].label}</b><small>{MOOD_INFO[m].text}</small></span>
+                </button>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </section>
   );
 }

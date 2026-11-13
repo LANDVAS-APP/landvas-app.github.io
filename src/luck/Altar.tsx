@@ -1,5 +1,6 @@
 // The Altar of Luck: sacrifice Base plots or offer Ink to charge your Luck (0–100), and choose how many rerolls your
 // next claim spends (20 Luck each) — extra rolls you pick from, and likelier ultras. The chip shows how charged you are; the altar is where you feed it.
+import { LuckLiquid, OrbGlyph } from '../ui/OrbGlyph';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
@@ -79,8 +80,8 @@ export function LuckDisc() {
       onPointerDown={() => { held.current = false; setHolding(true); clearTimeout(timer.current); timer.current = setTimeout(() => { held.current = true; setHolding(false); void arm(); }, 480); }}
       onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
       onClick={() => { if (held.current) { held.current = false; return; } buzz('light'); toggle('luck'); }}>
-      <span className="pointer-events-none absolute inset-[-4px] grid place-items-center"><Ring luck={l.luck} max={l.max} size={50} /></span>
-      <span className="text-[19px] leading-none">🍀</span>
+      <LuckLiquid fill={l.luck / Math.max(1, l.max)} armed={armed} />
+      <OrbGlyph kind="clover" on={card === 'luck'} size={21} />
       {armed ? <span className="lv-disc-count armed tnum">×{l.rolls}</span> : l.luck > 0 && <span className="lv-disc-count tnum">{l.luck}</span>}
     </GameDisc>
   );

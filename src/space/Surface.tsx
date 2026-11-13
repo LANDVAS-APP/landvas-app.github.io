@@ -5,6 +5,7 @@
 import GameHud, { ProfileMenu } from '../app/GameHud';
 import { useHudCard } from '../app/radial';
 import { BellCard } from '../updates/Notifications';
+import { BoostCard } from '../rent/RentHud';
 import { isNative } from '../native/native';
 import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -286,7 +287,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         // the app: the same HUD as on Earth (you, your earnings, Ink, the bell), and its cards
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
           <GameHud overlay />
-          <div className="px-3"><AnimatePresence mode="wait">{hudCard === 'me' && <ProfileMenu key="me" />}{hudCard === 'bell' && <BellCard key="bell" onClose={closeHudCard} />}</AnimatePresence></div>
+          <div className="px-3"><AnimatePresence mode="wait">{hudCard === 'me' && <ProfileMenu key="me" />}{hudCard === 'bell' && <BellCard key="bell" onClose={closeHudCard} />}{hudCard === 'boost' && <BoostCard key="boost" onClose={closeHudCard} />}</AnimatePresence></div>
         </div>
       )}
       <div className={cn('pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 px-3 pt-[max(10px,env(safe-area-inset-top,0px))]', APP && embedded && 'pt-[calc(max(10px,env(safe-area-inset-top,0px))+64px)]', APP && 'lv-planethud')}>

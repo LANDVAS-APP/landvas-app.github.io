@@ -27,6 +27,10 @@ import { formatUsd } from '../shared/rent';
 import { Button, Dialog, Empty, ResourceIcon, Spinner } from '../ui';
 import { PlacesSheet } from '../space/Places';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
+import { buzz, isNative } from '../native/native';
+import { useMergeStudio } from '../plot/MergeStudio';
+
+const APP = isNative();
 
 type Row = { gx: number; gy: number; plot_type: PlotTypeId; rarity: string; level: number; claimed_at: string; group_id: string | null; has_art: boolean; name: string | null; usd_per_second: number };
 type Sort = 'newest' | 'oldest' | 'rarity' | 'rent' | 'level' | 'nearest' | 'name' | 'type';
@@ -96,23 +100,44 @@ export default function PlotsScreen() {
       <div className="mb-4"><CollectionCard onOpen={() => setAlbum(true)} /></div>
       <div className="mb-4"><RentCalculator /></div>
       <CollectionDialog open={album} onOpenChange={setAlbum} />
+      {APP ? (
+        <div className="mb-4 grid grid-cols-2 gap-2.5">
+          <Link to="/home" className="lv-placetile t-ember" data-testid="plots-home"><span className="text-[28px]">🏠</span><b>Your home</b><small>Decorate it, see your doors</small></Link>
+          <button className="lv-placetile t-violet" onClick={() => setPlaces(true)} data-testid="plots-places"><span className="text-[28px]">🪐</span><b>Warp to any plot</b><small>On Earth and every world</small></button>
+        </div>
+      ) : <>
       <Link to="/home" className="glass mb-4 flex items-center gap-3 rounded-3xl p-3 hover:border-line-strong" data-testid="plots-home"><span className="text-3xl">🏠</span><span className="min-w-0 flex-1"><b className="block font-display">Your home</b><span className="text-xs text-muted">A door to each of your places — and the place visitors see. Decorate it your way.</span></span><span className="text-sm font-bold text-accent-2">Go →</span></Link>
       <Button variant="secondary" className="mb-4 w-full sm:w-auto" onClick={() => setPlaces(true)} data-testid="plots-places">🪐 All my plots, on Earth and every world — warp to any</Button>
+      </>}
       {places && <PlacesSheet open onOpenChange={setPlaces} />}
       {rows.length === 0 ? (
         <Empty icon={<MapPin className="h-6 w-6" />} title="No plots yet" action={<Button variant="rainbow" onClick={() => history.back()}>Claim your first plot</Button>}>Claim plots around your explorer on the map.</Empty>
       ) : (
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4" data-testid="plots">
           {/* summary */}
+          {APP ? (
+            <div className="lv-plotsum" data-testid="plots-summary">
+              <div className="flex items-end justify-between gap-3">
+                <div><div className="lv-plotsum-n tnum">{rows.length.toLocaleString()}</div><div className="lv-plotsum-l">plot{rows.length === 1 ? '' : 's'}{habitats ? ` · ${habitats} habitat${habitats === 1 ? '' : 's'}` : ''}</div></div>
+                <div className="text-right"><div className="lv-plotsum-usd tnum">{formatUsd(total * DAY, 6)}</div><div className="lv-plotsum-l">rent a day</div></div>
+              </div>
+              <div className="lv-plotsum-bar">{counts.map(([r, n]) => <span key={r} style={{ flex: n, background: rarityInfo(r).color }} />)}</div>
+              <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
+                {counts.map(([r, n]) => <button key={r} className="lv-rchip" onClick={() => { buzz('light'); setQ(rarityInfo(r).name); }}><i style={{ background: rarityInfo(r).color }} />{rarityInfo(r).name}<b className="tnum">{n}</b></button>)}
+              </div>
+              <button className="lv-btn h-11 w-full text-[14px]" onClick={() => { buzz('light'); useMergeStudio.getState().show(); }} data-testid="plots-merge-studio"><Combine className="h-4 w-4" /> Merge studio</button>
+            </div>
+          ) : (
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Plots" value={rows.length.toLocaleString()} />
             <Stat label="Rent a day" value={formatUsd(total * DAY, 6)} />
             <Stat label="Habitats" value={String(habitats)} />
             <div className="lv-card flex flex-wrap items-center gap-1 p-3">{counts.map(([r, n]) => <span key={r} className="flex items-center gap-1 text-xs font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: rarityInfo(r).color }} />{n}</span>)}</div>
           </div>
+          )}
           {/* search, filter, sort */}
-          <div className="lv-card grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 p-3">
-            <label className="flex h-11 items-center gap-2 rounded-2xl bg-surface-2/70 px-3">
+          <div className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 p-3', APP ? 'lv-icard' : 'lv-card')}>
+            <label className={cn('flex h-11 items-center gap-2 rounded-2xl px-3', APP ? 'bg-black/30' : 'bg-surface-2/70')}>
               <Search className="h-4 w-4 text-muted" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a plot by name, type, rarity or number" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint" data-testid="plots-search" />
               {q && <button onClick={() => setQ('')} aria-label="Clear"><X className="h-4 w-4 text-muted" /></button>}
@@ -132,11 +157,12 @@ export default function PlotsScreen() {
               const kind = kindOf(r);
               const d = here ? cellDistance(here, { gx: r.gx, gy: r.gy }) : null;
               return (
-                <motion.button key={`${r.gx}_${r.gy}`} whileTap={{ scale: 0.98 }} onClick={() => setOpen(r)} className="lv-card flex items-center gap-3 p-3 text-left" data-testid="plot-row">
-                  <PlotTile r={r} kind={kind} />
+                <motion.button key={`${r.gx}_${r.gy}`} whileTap={{ scale: 0.98 }} onClick={() => setOpen(r)} className={cn('flex items-center gap-3 p-3 text-left', APP ? 'lv-plotrow' : 'lv-card')} style={APP ? { ['--c' as string]: rarityInfo(r.rarity).color } : undefined} data-testid="plot-row">
+                  <PlotTile r={r} kind={kind} size={APP ? 54 : 48} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2"><span className="truncate font-bold">{plotTitle(r)}</span><RarityBadge r={r.rarity} small /></div>
+                    <div className="flex items-center gap-2"><span className="truncate font-bold">{plotTitle(r)}</span>{!APP && <RarityBadge r={r.rarity} small />}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
+                      {APP && <RarityBadge r={r.rarity} small />}
                       <span>{PLOT_TYPES[r.plot_type]?.name ?? r.plot_type}</span>
                       <span>Lv {r.level}</span>
                       <span>{isRealm(kind) ? `${REALM_META[kind].emoji} ${REALM_META[kind].name}` : kind === 'habitat' ? '🐾 Habitat' : kind === 'farm' ? '🌾 Farm' : kind === 'business' ? '🍋 Business' : kind === 'arcade' ? '🕹️ Arcade' : kind === 'train' ? '🚆 Train' : kind === 'plane' ? '✈️ Plane' : kind === 'home' ? '🏠 Home' : kind === 'landlord' ? '🏘️ Landlord' : r.has_art ? '🎨 Art' : '🎨 Blank'}</span>
@@ -202,10 +228,10 @@ function PlotSheet({ r, group, onClose }: { r: Row; group: CanvasGroup | null; o
         <div className="flex items-center gap-3">
           <PlotTile r={r} kind={kind} size={64} />
           <div className="grid flex-1 grid-cols-2 gap-2 text-center">
-            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Rent / day</div><div className="tnum text-sm font-bold text-ok">{formatUsd(r.usd_per_second * DAY, 6)}</div></div>
-            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Land</div><div className="text-sm font-bold">{group?.plot_count ?? 1} plot{(group?.plot_count ?? 1) === 1 ? '' : 's'}</div></div>
-            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Minigame</div><div className="text-sm font-bold">{d.data?.type_info?.minigame_name ?? t?.game}</div></div>
-            <div className="rounded-2xl bg-surface-2/70 p-2"><div className="text-[10px] font-bold uppercase text-muted">Ink bonus</div><div className="text-sm font-bold">×{ri.ink_reward_multiplier}</div></div>
+            <div className={cn('rounded-2xl p-2', APP ? 'lv-sheetstat' : 'bg-surface-2/70')}><div className="text-[10px] font-bold uppercase text-muted">Rent / day</div><div className="tnum text-sm font-bold text-ok">{formatUsd(r.usd_per_second * DAY, 6)}</div></div>
+            <div className={cn('rounded-2xl p-2', APP ? 'lv-sheetstat' : 'bg-surface-2/70')}><div className="text-[10px] font-bold uppercase text-muted">Land</div><div className="text-sm font-bold">{group?.plot_count ?? 1} plot{(group?.plot_count ?? 1) === 1 ? '' : 's'}</div></div>
+            <div className={cn('rounded-2xl p-2', APP ? 'lv-sheetstat' : 'bg-surface-2/70')}><div className="text-[10px] font-bold uppercase text-muted">Minigame</div><div className="text-sm font-bold">{d.data?.type_info?.minigame_name ?? t?.game}</div></div>
+            <div className={cn('rounded-2xl p-2', APP ? 'lv-sheetstat' : 'bg-surface-2/70')}><div className="text-[10px] font-bold uppercase text-muted">Ink bonus</div><div className="text-sm font-bold">×{ri.ink_reward_multiplier}</div></div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">

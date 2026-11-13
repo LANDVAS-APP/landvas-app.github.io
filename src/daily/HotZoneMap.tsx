@@ -1,5 +1,6 @@
 // The Hot Zone on the full map: a glowing circle over today's city (it stays when plots are hidden — it's light),
 // and a chip that flies you there.
+import { OrbGlyph } from '../ui/OrbGlyph';
 import * as maplibregl from 'maplibre-gl';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
@@ -126,9 +127,9 @@ export function HotZoneDisc() {
   const onToggle = () => toggle('hot');
   if (!q.data?.today) return null;
   return (
-    <GameDisc tone="ember" size={44} glow={!open} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
+    <GameDisc tone="ember" size={44} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
       aria-label={`Hot Zone: ${q.data.today.name}`} data-testid="hot-zone-chip">
-      <span className="text-[21px] leading-none">🔥</span>
+      <OrbGlyph kind="flame" on={open} size={21} />
     </GameDisc>
   );
 }

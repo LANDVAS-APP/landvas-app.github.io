@@ -21,7 +21,7 @@ import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
 import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotTypeId } from '../shared/grid';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
-import { BoostButton, RentHud, useRaritySync } from '../rent/RentHud';
+import { BoostButton, BoostCard, RentHud, useRaritySync } from '../rent/RentHud';
 import { NotificationBell } from '../updates/Notifications';
 import { MergeBar, startMerge, touchingGroups } from '../plot/MergeBar';
 import { enableGps, explorerNow, gpsSupported, startGps, stopGps, useExplorer } from '../explorer/explorer';
@@ -118,13 +118,12 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
               {!session && <div className="pointer-events-auto"><SignInChip /></div>}
             </div>
           )}
-          {/* one row: Hot Zone, Luck, Grimoire, View — then the boost */}
-          <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-0.5 [&>*]:pointer-events-auto" data-testid="map-row">
+          {/* one row, centred: Hot Zone, Luck, Grimoire, View (the boost lives up in the HUD beside your earnings) */}
+          <div className="lv-maprow flex items-center justify-center gap-3.5 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-1 [&>*]:pointer-events-auto" data-testid="map-row">
             {me && <HotZoneDisc />}
             {me && <LuckDisc />}
             {me && <GrimoireButton rail />}
             <ModeButton rail />
-            {me && <BoostButton hud />}
           </div>
           {/* whichever of them is open, as a card right under the row */}
           {me && (
@@ -134,6 +133,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
                 {card === 'luck' && <LuckCard key="luck" onClose={closeCard} />}
                 {card === 'grim' && <GrimoireCard key="grim" onClose={closeCard} />}
                 {card === 'bell' && <BellCard key="bell" onClose={closeCard} />}
+                {card === 'boost' && <BoostCard key="boost" onClose={closeCard} />}
                 {card === 'me' && <ProfileMenu key="me" />}
               </AnimatePresence>
             </div>
@@ -433,9 +433,9 @@ function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
             {open && (
               <motion.div key="radial" className="lv-radial" role="menu" data-testid="world-radial" exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 {spots.map(({ it, x, y }, i) => (
-                  <motion.div key={it.key} className="lv-radial-item" role="menuitem"
+                  <motion.div key={it.key} className={cn('lv-radial-item', `lv-logo-${i % LOGO_COLORS}`)} role="menuitem"
                     initial={{ opacity: 0, x: 0, y: 0, scale: 0.3 }} animate={{ opacity: 1, x, y, scale: 1 }} exit={{ opacity: 0, x: 0, y: 0, scale: 0.3, transition: { duration: 0.16, ease: 'easeIn' } }}
-                    transition={{ type: 'spring', stiffness: 520, damping: 30, delay: i * 0.018 }}
+                    transition={{ type: 'spring', stiffness: 520, damping: 26, delay: i * 0.035 }}
                     onClickCapture={() => { if (it.key !== 'spin' && it.key !== 'fly' && it.key !== 'joy' && it.key !== 'me') close(); }}>
                     {it.node}
                     <span className="lb">{it.label}</span>
@@ -450,6 +450,9 @@ function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
     </>
   );
 }
+
+/** the World button's actions take the colours of the LANDVAS mark, in order (red, orange, yellow, green, blue, violet) */
+const LOGO_COLORS = 6;
 
 /** First visit: the explorer starts where the player really is — GPS only. */
 function PlacementPrompt() {

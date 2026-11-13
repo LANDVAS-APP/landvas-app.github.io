@@ -23,7 +23,7 @@ export function CollectionCard({ onOpen }: { onOpen(): void }) {
   if (!c) return null;
   const have = c.types.filter((t) => t.owned > 0).length, all = c.types.length;
   return (
-    <button onClick={onOpen} className="grid gap-2 rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 text-left" data-testid="collection-card">
+    <button onClick={onOpen} className="grid w-full gap-2 rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 text-left" data-testid="collection-card">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-[14px] font-black">📖 Collection</span>
         <span className="text-[12px] font-bold text-white/60 tnum">{have}/{all} plot types · {c.rarities.filter((r) => r.owned > 0).length}/{c.rarities.length} rarities</span>

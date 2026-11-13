@@ -127,7 +127,36 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await go(page, '/world');
   await page.waitForSelector('[data-testid=map-row]', { timeout: 60000 }).catch(() => {});
   check(await page.locator('[data-testid=game-hud] [data-testid=hud-rent]').count() > 0 && await page.locator('[data-testid=game-hud] [data-testid=hud-ink]').count() > 0 && await page.locator('[data-testid=game-hud] [data-testid=notification-bell]').count() > 0, 'app map: earnings, Ink and the bell up top');
-  check(await page.locator('[data-testid=map-row] [data-testid=mode-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=boost]').count() > 0, 'app map: Grimoire, View and the boost are in the row under the avatar');
+  check(await page.locator('[data-testid=map-row] [data-testid=mode-button]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count() > 0, 'app map: Grimoire and View are in the row under the avatar');
+  check(await page.locator('[data-testid=game-hud] [data-testid=boost-chip]').count() > 0 && await page.locator('[data-testid=map-row] [data-testid=boost]').count() === 0, 'app map: the boost is a compact chip up top, beside the earnings');
+  {
+    // the top row fits on one line at phone width: avatar, earnings, boost, Ink, bell — nothing off-screen
+    const boxes = await page.evaluate(() => ['hud-avatar', 'hud-tag', 'hud-rent', 'boost-chip', 'hud-ink', 'notification-bell'].map((t) => {
+      const el = document.querySelector(`[data-testid=game-hud] [data-testid=${t}]`); const r = el?.getBoundingClientRect(); return r ? { t, l: r.left, r: r.right, top: r.top, b: r.bottom } : { t, missing: true };
+    }));
+    const W = await page.evaluate(() => innerWidth);
+    const bad = boxes.filter((b) => b.missing || b.l < 0 || b.r > W);
+    const rows = new Set(boxes.filter((b) => !b.missing && b.t !== 'hud-tag').map((b) => Math.round((b.top + b.b) / 2 / 12)));
+    check(!bad.length && rows.size === 1, 'app map: the top row fits the phone (nothing cut off, one line)', JSON.stringify(bad.length ? bad : boxes.map((b) => [b.t, Math.round(b.l), Math.round(b.r)])));
+    // the earnings text never spills out of its pill
+    const spill = await page.evaluate(() => { const p = document.querySelector('[data-testid=hud-rent]'); const t = p?.querySelector('[data-testid=usd-live]'); return p && t ? t.scrollWidth - t.clientWidth : -1; });
+    check(spill >= 0 && spill <= 1, 'app map: the earnings fit their pill', `${spill}px`);
+    // the boost chip opens the boost card; boosting from it starts the boost (first close the "drop your explorer" prompt)
+    await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(800);
+    await page.click('[data-testid=boost-chip]');
+    await page.waitForSelector('[data-testid=boost-card]', { timeout: 8000 }).catch(() => {});
+    check(await page.locator('[data-testid=boost-card]').count() === 1, 'app map: the boost chip opens the boost card');
+    await shot(page, 'app-boost-card');
+    await page.click('[data-testid=boost-card] [data-testid=boost]').catch(() => {});
+    await page.waitForSelector('[data-testid=boost-will-earn]', { timeout: 10000 }).catch(() => {});
+    check(await page.locator('[data-testid=boost-will-earn]').count() === 1 && /\d/.test(await page.locator('[data-testid=boost-left]').innerText().catch(() => '')), 'app map: after boosting, the card shows the time left and what it will earn');
+    await page.waitForSelector('.lv-map-top .lv-boostchip.live', { timeout: 5000 }).catch(() => {});
+    const chips = await page.locator('.lv-map-top [data-testid=boost-chip]').evaluateAll((els) => els.map((e) => e.className));
+    if (!chips.length || !chips.every((c) => /\blive\b/.test(c))) console.log('  boost chips:', chips.join(' | ') || 'none');
+    check(chips.length > 0 && chips.every((c) => /\blive\b/.test(c)), 'app map: the chip lights up while the boost is on');
+    await shot(page, 'app-boost-live');
+    await page.click('[data-testid=boost-chip]').catch(() => {}); await page.waitForTimeout(500);
+  }
   check(await page.locator('[data-testid=streak-chip]').count() === 0, 'app map: the daily check-in stays in the Play hub');
   check(await page.locator('[data-testid=hud-pigments]').count() === 0, 'app map: one HUD, not two');
   // (a new player is first asked where to drop their explorer: close that)

@@ -1,6 +1,9 @@
 // Live USD rent: a per-frame ticking balance, the current rate, and the 20x boost.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Zap } from 'lucide-react';
+import { Clock3, Zap } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useHudCard } from '../app/radial';
+import { buzz } from '../native/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -39,7 +42,7 @@ function splitUsd(t: string): [string, string] {
  * A live, ticking USD balance. React renders the element once and never its text: the numbers are written straight
  * into two text nodes (dim zeros + bright digits), so a parent re-rendering can't reset them and make them blink.
  */
-export function LiveUsd({ rent, offset, decimals = 10, className, dim }: { rent: RentState; offset: number; decimals?: number; className?: string; dim?: boolean }) {
+export function LiveUsd({ rent, offset, decimals = 10, className, dim, style, ...rest }: { rent: RentState; offset: number; decimals?: number; className?: string; dim?: boolean; style?: React.CSSProperties } & Record<`data-${string}`, unknown>) {
   const ref = useRef<HTMLSpanElement>(null);
   const latest = useRef({ rent, offset, decimals, dim });
   latest.current = { rent, offset, decimals, dim };
@@ -70,7 +73,7 @@ export function LiveUsd({ rent, offset, decimals = 10, className, dim }: { rent:
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', vis); el.textContent = ''; };
   }, []);
   // (no children on purpose — see above)
-  return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint' }} data-testid="usd-live" aria-live="off" />;
+  return <span ref={ref} className={cn('tnum inline-block', className)} style={{ contain: 'layout paint', ...style }} data-testid="usd-live" aria-live="off" {...rest} />;
 }
 
 export async function boost(update: (r: RentState) => void) {
@@ -121,6 +124,83 @@ export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean
       )}
       {!compact && !active && <span className="rounded-md bg-black/25 px-1 text-[10px] tnum">{rent.boost.left_today}</span>}
     </button>
+  );
+}
+
+/** the app's HUD: a compact "20×" chip beside your earnings; tap it for the boost card */
+export function BoostChip() {
+  const { rent, offset } = useRent();
+  const card = useHudCard((x) => x.card);
+  const toggle = useHudCard((x) => x.toggle);
+  useTicker(1000);
+  if (!rent) return null;
+  const active = boostRemaining(rent, Date.now() + offset) > 0;
+  const left = rent.boost.left_today;
+  return (
+    <button className={cn('lv-boostchip', active && 'live', card === 'boost' && 'open')} onClick={() => { buzz('light'); toggle('boost'); }}
+      aria-label={active ? `${rent.boost.multiplier}× boost on — see how much it earns` : `${rent.boost.multiplier}× boost — ${left} left today`} aria-expanded={card === 'boost'} data-testid="boost-chip">
+      <Zap className={cn('h-[13px] w-[13px] shrink-0', (active || left > 0) && 'fill-white')} />
+      <span className="tnum">{rent.boost.multiplier}×</span>
+      {!active && left > 0 && <i aria-hidden />}
+    </button>
+  );
+}
+
+/** the boost card: what's on, what it will still earn, what one more boost adds — and the button to boost again */
+export function BoostCard({ onClose }: { onClose(): void }) {
+  const { rent, offset, update } = useRent();
+  const [busy, setBusy] = useState(false);
+  useTicker(250);
+  if (!rent) return null;
+  const now = Date.now() + offset;
+  const remaining = boostRemaining(rent, now);
+  const active = remaining > 0;
+  const mult = Number(rent.boost.multiplier) || 1;
+  const base = Number(rent.rate_usd_per_second) || 0;
+  const per = Number(rent.boost.minutes_per_boost) * 60;
+  const capS = Number(rent.boost.max_stack_hours) * 3600;
+  const capped = remaining >= capS - 60;
+  const none = rent.boost.left_today <= 0;
+  const willEarn = base * mult * remaining;        // everything your plots make in the time left
+  const extra = base * (mult - 1) * remaining;      // of which the boost adds
+  const oneMore = base * (mult - 1) * Math.min(per, Math.max(0, capS - remaining));
+  const resets = new Date(rent.boost.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const usd = (v: number) => formatUsd(v, v >= 0.01 ? 4 : v >= 0.0001 ? 6 : v >= 0.000001 ? 8 : 10);
+  return (
+    <motion.div className="lv-mcard t-rose lv-boostcard pointer-events-auto w-[min(380px,100%)]" data-testid="boost-card"
+      initial={{ opacity: 0, y: -10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97, transition: { duration: 0.12 } }} transition={{ type: 'spring', stiffness: 420, damping: 30 }}>
+      <div className="flex items-center gap-3">
+        <div className={cn('lv-boostorb', active && 'live')}><Zap className="h-7 w-7 fill-white" /><b className="tnum">{mult}×</b></div>
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-[19px] font-black leading-tight">{active ? `${mult}× rent is on` : `${mult}× rent boost`}</div>
+          <div className="text-[12px] font-semibold text-white/60">{active ? 'Every plot you own earns ' + mult + '× until it runs out.' : `Each boost adds ${rent.boost.minutes_per_boost} min of ${mult}× rent to all your plots.`}</div>
+        </div>
+        <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      {active ? (
+        <div className="mt-3 grid gap-2">
+          <div className="lv-boosttime"><Clock3 className="h-4 w-4" /><span className="tnum" data-testid="boost-left">{fullLeft(remaining)}</span><small>left</small></div>
+          <div className="lv-boostbar"><span style={{ width: `${Math.min(100, (remaining / capS) * 100)}%` }} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="lv-sheetstat rounded-2xl p-2.5"><div className="text-[10px] font-bold uppercase text-white/50">You'll earn</div><div className="tnum font-display text-[16px] font-black text-[#5ff0b0]" data-testid="boost-will-earn">{usd(willEarn)}</div><div className="text-[10.5px] font-semibold text-white/45">in the time left</div></div>
+            <div className="lv-sheetstat rounded-2xl p-2.5"><div className="text-[10px] font-bold uppercase text-white/50">From the boost</div><div className="tnum font-display text-[16px] font-black text-[#ffd27a]">+{usd(extra)}</div><div className="text-[10.5px] font-semibold text-white/45">extra on top</div></div>
+          </div>
+          <div className="text-center text-[11.5px] font-semibold text-white/50 tnum">Earning {formatRate(base * mult)} now · {formatRate(base)} without it</div>
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="lv-sheetstat rounded-2xl p-2.5"><div className="text-[10px] font-bold uppercase text-white/50">Earning now</div><div className="tnum font-display text-[15px] font-black">{formatRate(base)}</div></div>
+          <div className="lv-sheetstat rounded-2xl p-2.5"><div className="text-[10px] font-bold uppercase text-white/50">Boosted</div><div className="tnum font-display text-[15px] font-black text-[#5ff0b0]">{formatRate(base * mult)}</div></div>
+        </div>
+      )}
+      <button className="lv-btn lv-rainbow mt-3 h-13 w-full flex-col !gap-0 py-2 text-[16px]" disabled={busy || capped || none} data-testid="boost"
+        onClick={async () => { setBusy(true); buzz('medium'); await boost(update); setBusy(false); }}>
+        {busy ? <Spinner className="h-5 w-5 text-white" /> : <>
+          <span className="flex items-center gap-1.5"><Zap className="h-4 w-4 fill-white" />{none ? 'No boosts left today' : capped ? 'Boost is full' : active ? 'Boost again' : 'Boost now'}</span>
+          <small className="text-[11px] font-bold opacity-85 tnum">{none ? `More at ${resets}` : capped ? `Stacks up to ${rent.boost.max_stack_hours}h` : `+${rent.boost.minutes_per_boost} min · +${usd(oneMore)} · ${rent.boost.left_today} left today`}</small>
+        </>}
+      </button>
+    </motion.div>
   );
 }
 

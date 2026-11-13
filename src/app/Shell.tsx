@@ -218,6 +218,7 @@ function GameTabBar({ tabs, simple, active, badge, meActive, away }: { tabs: typ
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const held = useRef(false);
   const [worldHold, setWorldHold] = useState(false);
+  const worldOpen = useWorldButton((w) => w.open);
   const stop = () => { clearTimeout(timer.current); setWorldHold(false); };
   const hold = {
     onPointerDown: () => {
@@ -256,7 +257,7 @@ function GameTabBar({ tabs, simple, active, badge, meActive, away }: { tabs: typ
     <nav className={cn('lv-tabbar lv-game', away && 'away')} aria-label="Main" aria-hidden={away || undefined} data-testid="game-tabbar">
       <div className="flex flex-1 justify-around">{rest.slice(0, half).map(item)}</div>
       {center && (
-        <Link to={center.to} data-sound="tab" className={cn('lv-tb-center', active(center.to) && 'on', worldHold && 'holding')} aria-current={active(center.to) ? 'page' : undefined} aria-label={simple ? 'Home' : `${center.label} — hold for map actions`} data-testid={`tab-${center.to}`}
+        <Link to={center.to} data-sound="tab" className={cn('lv-tb-center', active(center.to) && 'on', worldHold && 'holding', worldOpen && 'fanned')} aria-current={active(center.to) ? 'page' : undefined} aria-label={simple ? 'Home' : `${center.label} — hold for map actions`} data-testid={`tab-${center.to}`}
           {...(center.to === '/world' && !simple ? hold : {})}>
           <span className="orb">{simple ? <Home className="h-7 w-7" /> : <center.icon className="h-7 w-7" />}{badge(center.to) > 0 && <span className="lv-bang">{badge(center.to)}</span>}</span>
           <span className="lb">{simple ? 'Home' : center.label}</span>
