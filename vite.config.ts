@@ -100,7 +100,7 @@ export default defineConfig(({ mode }) => {
             globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
             // admin-only screen and non-Latin font subsets still load on demand, they just aren't
             // pre-downloaded onto every player's device
-            globIgnores: ['**/pglite*', '**/LocalBackend-*.js', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'og-image.png',
+            globIgnores: ['**/pglite*', '**/LocalBackend-*.js', '**/*.wasm', '**/*.data', '**/places*.json', 'brand/**', 'email/**', 'bimi/**', 'og-image.png',
               '**/AdminScreen-*.js', '**/*-{cyrillic,cyrillic-ext,greek,vietnamese}-wght-*.woff2'],
             maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
             navigateFallback: 'index.html',

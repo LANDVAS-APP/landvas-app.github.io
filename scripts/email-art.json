@@ -1,0 +1,114 @@
+{
+  "header": {
+    "file": "email/header-e67ae292cc.png",
+    "width": 164,
+    "height": 118,
+    "text": "LANDVAS",
+    "kind": "header"
+  },
+  "confirmation-title": {
+    "file": "email/confirmation-title-1def50dc13.png",
+    "width": 326,
+    "height": 67,
+    "text": "Welcome to LANDVAS",
+    "kind": "title"
+  },
+  "confirmation-text": {
+    "file": "email/confirmation-text-0a690d959d.png",
+    "width": 326,
+    "height": 76,
+    "text": "One tap and you’re in. Confirm your email to claim your first free plots, paint them, and start earning.",
+    "kind": "text"
+  },
+  "confirmation-button": {
+    "file": "email/confirmation-button-77a64ffd07.png",
+    "width": 146,
+    "height": 24,
+    "text": "Confirm my email",
+    "kind": "button"
+  },
+  "recovery-title": {
+    "file": "email/recovery-title-e321458bc6.png",
+    "width": 326,
+    "height": 67,
+    "text": "Choose a new password",
+    "kind": "title"
+  },
+  "recovery-text": {
+    "file": "email/recovery-text-9e9e006fd3.png",
+    "width": 326,
+    "height": 76,
+    "text": "Someone (hopefully you) asked to reset the password for this LANDVAS account. The link works once and expires soon.",
+    "kind": "text"
+  },
+  "recovery-button": {
+    "file": "email/recovery-button-e3e4a998e8.png",
+    "width": 160,
+    "height": 24,
+    "text": "Reset my password",
+    "kind": "button"
+  },
+  "magic_link-title": {
+    "file": "email/magic_link-title-8835acdd74.png",
+    "width": 261,
+    "height": 35,
+    "text": "Confirm it’s you",
+    "kind": "title"
+  },
+  "magic_link-text": {
+    "file": "email/magic_link-text-84c82f148c.png",
+    "width": 326,
+    "height": 76,
+    "text": "Tap below to confirm your email and jump straight back into LANDVAS. The link works once and expires soon.",
+    "kind": "text"
+  },
+  "magic_link-button": {
+    "file": "email/magic_link-button-77a64ffd07.png",
+    "width": 146,
+    "height": 24,
+    "text": "Confirm my email",
+    "kind": "button"
+  },
+  "email_change-title": {
+    "file": "email/email_change-title-445882b5f3.png",
+    "width": 326,
+    "height": 67,
+    "text": "Confirm your new email",
+    "kind": "title"
+  },
+  "email_change-text": {
+    "file": "email/email_change-text-b4beea36e5.png",
+    "width": 326,
+    "height": 52,
+    "text": "Tap below to use this address for your LANDVAS account.",
+    "kind": "text"
+  },
+  "email_change-button": {
+    "file": "email/email_change-button-8f90c50236.png",
+    "width": 155,
+    "height": 24,
+    "text": "Confirm new email",
+    "kind": "button"
+  },
+  "fallback": {
+    "file": "email/fallback-033410f54e.png",
+    "width": 233,
+    "height": 23,
+    "text": "If the button doesn’t work, open this link:",
+    "kind": "small"
+  },
+  "ignore": {
+    "file": "email/ignore-319945b262.png",
+    "width": 253,
+    "height": 23,
+    "text": "Didn’t ask for this? You can ignore this email.",
+    "kind": "small"
+  },
+  "company": {
+    "file": "email/company-c2e0874146.png",
+    "width": 212,
+    "height": 23,
+    "text": "LANDVAS LLC · contact@landvas.app",
+    "kind": "small"
+  }
+}

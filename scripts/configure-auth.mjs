@@ -11,7 +11,7 @@
 //                    own design (scripts/auth-emails.mjs; every button is a landvas.app link),
 //                    and new players must confirm their email (unless AUTH_AUTOCONFIRM says
 //                    otherwise). The key itself is never printed.
-import { authEmails } from './auth-emails.mjs';
+import { artUrls, authEmails } from './auth-emails.mjs';
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const ref = process.env.SUPABASE_PROJECT_REF;
@@ -41,9 +41,11 @@ if (resend) {
     rate_limit_email_sent: 120,
     mailer_autoconfirm: false,
     mailer_secure_email_change_enabled: true,
-    // LANDVAS-branded emails whose buttons open landvas.app/auth/confirm (see scripts/auth-emails.mjs)
-    ...authEmails(),
   });
+  // LANDVAS-branded emails whose buttons open landvas.app/auth/confirm (see scripts/auth-emails.mjs). Their words are
+  // images on landvas.app, so the emails only switch once every image is live (EMAIL_ART_WAIT_S: how long to wait).
+  if (await artLive(Number(process.env.EMAIL_ART_WAIT_S || 0))) Object.assign(body, authEmails());
+  else console.log('::warning::email art is not live on landvas.app yet, so the current email design stays (the next deploy switches it)');
 }
 if (process.env.AUTH_AUTOCONFIRM === 'true' || process.env.AUTH_AUTOCONFIRM === 'false') body.mailer_autoconfirm = process.env.AUTH_AUTOCONFIRM === 'true';
 const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
@@ -58,7 +60,7 @@ if (!res.ok) {
 }
 console.log(`auth: site_url=${body.site_url} redirects=${body.uri_allow_list}${'mailer_autoconfirm' in body ? ` autoconfirm=${body.mailer_autoconfirm}` : ''}${resend ? ' smtp=resend (no-reply@landvas.app)' : ''}`);
 // confirm the saved confirmation email now links to landvas.app (not the project's supabase.co address)
-if (resend) {
+if (resend && body.mailer_templates_confirmation_content) {
   let saved = '';
   try { saved = JSON.parse(text).mailer_templates_confirmation_content ?? ''; } catch { /* not JSON */ }
   console.log(`emails: confirmation link ${saved.includes('landvas.app/auth/confirm?token_hash=') ? 'is a landvas.app link' : 'NOT confirmed as a landvas.app link — check Authentication → Emails'}`);
@@ -74,4 +76,34 @@ try {
   if (row && typeof row.players === 'number') console.log(`players: ${row.players} total, ${row.confirmed} with a confirmed email, ${row.players - row.confirmed} still to confirm`);
 } catch (e) {
   console.log(`players: could not count confirmed emails (${e.message})`);
+}
+
+// read-only: the sender-identity DNS for landvas.app (DMARC policy, BIMI logo record, Resend's DKIM/SPF), so the log
+// shows what inboxes see when they decide whether to show LANDVAS's logo next to no-reply@landvas.app
+for (const name of ['_dmarc.landvas.app', 'default._bimi.landvas.app', 'resend._domainkey.landvas.app', 'send.landvas.app']) {
+  try {
+    const j = await (await fetch(`https://cloudflare-dns.com/dns-query?name=${name}&type=TXT`, { headers: { accept: 'application/dns-json' } })).json();
+    const txt = (j.Answer || []).filter((a) => a.type === 16).map((a) => String(a.data).replace(/"\s*"/g, '').replace(/^"|"$/g, ''));
+    console.log(`dns ${name}: ${txt.length ? txt.map((t) => (t.length > 90 ? t.slice(0, 90) + '…' : t)).join(' | ') : '(none)'}`);
+  } catch (e) {
+    console.log(`dns ${name}: could not look up (${e.message})`);
+  }
+}
+
+/** every email image answers as a PNG on landvas.app (waits up to `seconds` for a fresh deploy to go live) */
+async function artLive(seconds) {
+  const urls = artUrls();
+  const until = Date.now() + seconds * 1000;
+  for (;;) {
+    const missing = [];
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { method: 'HEAD', cache: 'no-store' });
+        if (!r.ok || !/^image\/png/.test(r.headers.get('content-type') || '')) missing.push(u);
+      } catch { missing.push(u); }
+    }
+    if (!missing.length) { console.log(`email art: all ${urls.length} images live on landvas.app`); return true; }
+    if (Date.now() > until) { console.log(`email art: ${missing.length} of ${urls.length} images not live yet (e.g. ${missing[0]})`); return false; }
+    await new Promise((r) => setTimeout(r, 15000));
+  }
 }
