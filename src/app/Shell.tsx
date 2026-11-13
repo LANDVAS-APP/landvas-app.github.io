@@ -8,7 +8,7 @@ import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { useUi } from '../lib/store';
-import { LogoMark, ResourcePill, PlayerAvatar } from '../ui';
+import { LogoMark, ResourcePill, PlayerAvatar, useEdgeFade } from '../ui';
 import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
 import { isNative, useOnline } from '../native/native';
@@ -50,12 +50,12 @@ const NATIVE = isNative();
 const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 /** A top-level place (a tab, a section page or a menu page): no back button there, just tabs. */
 export function isRootPage(path: string) {
-  return path === '/' || ME_PAGES.some((p) => p.to === path) || SECTIONS.some((s) => s.to === path || s.pages.some((p) => p.to === path));
+  return path === '/' || path === '/hub' || ME_PAGES.some((p) => p.to === path) || SECTIONS.some((s) => s.to === path || s.pages.some((p) => p.to === path));
 }
 /** Go back like an app: the previous screen, or (opened from a link) the section this screen belongs to. */
 export function goBack(nav: (to: string | number) => void, path: string) {
   const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-  if (idx > 0) nav(-1); else nav(sectionOf(path)?.to ?? '/world');
+  if (idx > 0) nav(-1); else nav(sectionOf(path)?.to ?? (NATIVE ? '/hub' : '/world'));
 }
 /** Which section (and its pages) a path belongs to. */
 function sectionOf(path: string) {
@@ -77,6 +77,16 @@ export const TAB_CHOICES = [
   { to: '/inventory', label: 'Studio', icon: Package }, { to: '/support', label: 'Help', icon: LifeBuoy },
 ];
 
+/** The app's tabs: '/play' becomes the hub (the game's menu); if the player didn't pick it, it takes the last slot. */
+function hubTabs(tabs: typeof TAB_CHOICES): typeof TAB_CHOICES {
+  const hub = { to: '/hub', label: 'Play', icon: Gamepad2 };
+  if (tabs.some((t) => t.to === '/play')) return tabs.map((t) => (t.to === '/play' ? hub : t));
+  const out = [...tabs];
+  const at = out.map((t) => t.to).lastIndexOf(out.filter((t) => t.to !== '/world').at(-1)?.to ?? '');
+  if (out.length >= MAX_TABS && at >= 0) out.splice(at, 1);
+  return [...out, hub];
+}
+
 export function Shell() {
   const me = useOnboardedMe();
   const loc = useLocation();
@@ -86,7 +96,7 @@ export function Shell() {
   const admin = me?.roles?.includes('owner');
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
   const claim = useClaimables();
-  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === '/world' ? claim.count : 0);
+  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === (NATIVE && !simple ? '/hub' : '/world') ? claim.count : 0);
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
   const sec = sectionOf(loc.pathname);
@@ -119,6 +129,9 @@ export function Shell() {
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
   // simple mode keeps just the essentials: home and play (and Me)
   const tabs = simple ? SIMPLE_TABS : (chosen?.length ? chosen : DEFAULT_TABS).map((to) => TAB_CHOICES.find((i) => i.to === to)).filter(Boolean).slice(0, MAX_TABS) as typeof TAB_CHOICES;
+  // the app: the Play tab is the game's main menu (the hub), and it's always in the bar
+  const gameTabs = NATIVE && !simple ? hubTabs(tabs) : tabs;
+  const hubActive = (to: string) => (to === '/hub' ? loc.pathname === '/hub' || !gameTabs.some((t) => t.to !== '/hub' && tabActive(t.to)) && sec?.to !== '/me' : tabActive(to));
   // the app: swipe from the left edge to go back, pull down to refresh, and screens that move like an app's
   const nav = useNavigate();
   const navType = useNavigationType();
@@ -165,7 +178,7 @@ export function Shell() {
       </main>
       <AnnouncementPopup />
       <Tour />
-      {NATIVE ? <GameTabBar tabs={tabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : tabActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
+      {NATIVE ? <GameTabBar tabs={gameTabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : hubActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
         {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={simple ? under(loc.pathname, i.to) : tabActive(i.to)} badge={badge(i.to)} />)}
         <TabItem to="/me" label="Me" icon={null} active={sec?.to === '/me'} avatar={me ? <PlayerAvatar p={me.profile} size={24} /> : null} />
       </nav>}
@@ -231,17 +244,28 @@ function TabItem({ to, label, icon: Icon, avatar, badge, active }: { to: string;
   );
 }
 
-/** The pages of the current section, as pills under the top of the screen. */
-function SubNav({ pages, path, inHud }: { pages: { to: string; label: string }[]; path: string; inHud?: boolean }) {
-  const cur = [...pages].sort((a, b) => b.to.length - a.to.length).find((p) => under(path, p.to))?.to;
-  if (inHud) return (
-    // the app: chunky game tabs under the HUD
-    <div className="no-scrollbar flex gap-2 overflow-x-auto px-3 pb-2.5" data-testid="subnav">
+/** The app: the section's pages as pills under the HUD; the current one slides into view, the row fades at the edge. */
+function HudTabs({ pages, cur }: { pages: { to: string; label: string }[]; cur?: string }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  useEffect(() => {
+    const row = ref.current, el = row?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!row || !el) return;
+    const left = el.offsetLeft - (row.clientWidth - el.offsetWidth) / 2;
+    row.scrollTo({ left: Math.max(0, left), behavior: row.scrollLeft ? 'smooth' : 'auto' });
+  }, [cur]);
+  return (
+    <div ref={ref} className="lv-fade no-scrollbar flex gap-2 overflow-x-auto px-3 pb-2.5" data-testid="subnav">
       {pages.map((p) => (
         <Link key={p.to} to={p.to} data-sound="tab" className={cn('lv-gtab', cur === p.to && 'on')} aria-current={cur === p.to ? 'page' : undefined}>{p.label}</Link>
       ))}
     </div>
   );
+}
+
+/** The pages of the current section, as pills under the top of the screen. */
+function SubNav({ pages, path, inHud }: { pages: { to: string; label: string }[]; path: string; inHud?: boolean }) {
+  const cur = [...pages].sort((a, b) => b.to.length - a.to.length).find((p) => under(path, p.to))?.to;
+  if (inHud) return <HudTabs pages={pages} cur={cur} />;
   return (
     <div className="sticky top-0 z-30 border-b border-white/5 bg-bg/75 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl" data-testid="subnav">
       <div className="gutter no-scrollbar mx-auto flex max-w-7xl gap-1 overflow-x-auto py-2">
@@ -274,6 +298,11 @@ export function Page({ children, wide }: { children: ReactNode; wide?: boolean }
   return <div className={cn('lv-page gutter relative mx-auto w-full md:pb-12', NATIVE ? 'pb-[calc(112px+env(safe-area-inset-bottom,0px))] pt-3' : 'pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
 }
 
+function HeaderActions({ children }: { children: ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="lv-fade no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [&>*]:shrink-0">{children}</div>;
+}
+
 export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: string; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
   const me = useOnboardedMe();
   const [info, setInfo] = useState(false);
@@ -290,7 +319,7 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
           <button className={cn('lv-gbtn round !h-9 !w-9 shrink-0 text-[15px] font-black', info && 'on')} onClick={() => setInfo(!info)} aria-label="What is this?" aria-expanded={info} data-testid="page-info">i</button>
         )}
       </div>
-      {actions && <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0">{actions}</div>}
+      {actions && <HeaderActions>{actions}</HeaderActions>}
       {children && info && (
         <motion.div className="lv-speech text-[13.5px] leading-snug" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 32 }}>{children}</motion.div>
       )}

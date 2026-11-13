@@ -103,13 +103,30 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await go(page, '/me');
   await page.waitForSelector('[data-testid=game-hud]', { timeout: 30000 }).catch(() => {});
   check(await page.locator('[data-testid=game-hud]').count() > 0, 'app: game HUD on screens');
-  await page.click('[data-testid=hud-menu]').catch(() => {});
-  await page.waitForSelector('[data-testid=game-menu]', { timeout: 10000 }).catch(() => {});
-  check(await page.locator('[data-testid="menu-/play"]').count() > 0, 'app: the menu lists every place');
-  await shot(page, 'app-menu');
-  await page.click('[data-testid="menu-/achievements"]').catch(() => {});
-  await page.waitForTimeout(800);
-  check(await page.locator('[data-testid=game-menu]').count() === 0, 'app: picking a place closes the menu');
+  check(await page.locator('[data-testid=hud-menu]').count() === 0, 'app: no menu button (the Play tab is the menu)');
+  // the Play hub: the game's main menu — rewards, the world, every part of the game
+  await go(page, '/hub');
+  await page.waitForSelector('[data-testid=game-hub]', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('[data-testid="hub-/play"]').count() > 0 && await page.locator('[data-testid=hub-world]').count() > 0, 'app: the Play hub shows the world and every section');
+  check(await page.locator('[data-testid="hub-all-/achievements"]').count() > 0 && await page.locator('[data-testid="hub-all-/settings"]').count() > 0, 'app: the hub lists every place');
+  check(await page.locator('[data-testid=hub-daily]').count() > 0, "app: the hub shows today's rewards");
+  await shot(page, 'app-hub');
+  await page.click('[data-testid="hub-all-/achievements"]').catch(() => {});
+  await page.waitForTimeout(1200);
+  check(await page.locator('[data-testid=game-hub]').count() === 0 && /Badges/.test(await page.locator('main').innerText()), 'app: a hub tile opens its place');
+  // full game: the Play tab is the hub, lit up for anywhere without its own tab
+  await page.evaluate(() => window.__landvasUi.getState().updateSettings({ simpleMode: false }));
+  await go(page, '/events');
+  await page.waitForSelector('[data-testid="tab-/hub"]', { timeout: 30000 }).catch(() => {});
+  check(await page.locator('[data-testid="tab-/hub"][aria-current=page]').count() > 0, 'app: the Play tab is the hub and lights up for its places');
+  check(await page.locator('[data-testid="tab-/play"]').count() === 0, 'app: no separate Play & Earn tab');
+  // the map: the same HUD on top, one chip row, the rail with labels
+  await go(page, '/world');
+  await page.waitForSelector('[data-testid=map-rail]', { timeout: 60000 }).catch(() => {});
+  check(await page.locator('[data-testid=game-hud]').count() > 0 && await page.locator('[data-testid=map-rail] [data-testid=mode-button]').count() > 0, 'app map: HUD on top, rail on the left');
+  check(await page.locator('[data-testid=hud-pigments]').count() === 0, 'app map: one HUD, not two');
+  await shot(page, 'app-map');
+  await page.evaluate(() => window.__landvasUi.getState().updateSettings({ simpleMode: true }));
   // a player who accepted older terms is asked once to accept the new ones
   await page.evaluate(async () => { await window.__landvasBackend.db.query("update public.players set terms_version = 'old'"); await window.__landvasQc.invalidateQueries({ queryKey: ['me'] }); });
   await page.waitForSelector('[data-testid=terms-update]', { timeout: 15000 }).catch(() => {});

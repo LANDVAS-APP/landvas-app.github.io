@@ -5,7 +5,7 @@ import * as RSlider from '@radix-ui/react-slider';
 import * as RSwitch from '@radix-ui/react-switch';
 import * as RTooltip from '@radix-ui/react-tooltip';
 import { Loader2, X } from 'lucide-react';
-import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createContext, forwardRef, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../lib/utils';
 import { isNative } from '../native/native';
 import type { Resource } from '../backend/types';
@@ -135,10 +135,31 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 export const useConfirm = () => useContext(ConfirmCtx);
 
 // ---- Tabs ----------------------------------------------------------------------
+/** A row that scrolls sideways fades out at whichever edge has more to see (data-fade="l" | "r" | "lr"). */
+export function useEdgeFade<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const set = () => {
+      const l = el.scrollLeft > 4, r = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+      const f = l && r ? 'lr' : l ? 'l' : r ? 'r' : '';
+      if (f) el.dataset.fade = f; else delete el.dataset.fade;
+    };
+    set();
+    el.addEventListener('scroll', set, { passive: true });
+    const ro = new ResizeObserver(set); ro.observe(el);
+    for (const c of Array.from(el.children)) ro.observe(c);
+    return () => { el.removeEventListener('scroll', set); ro.disconnect(); };
+  }, []);
+  return ref;
+}
+
 export function Tabs({ value, onValueChange, items, className }: { value: string; onValueChange(v: string): void; items: { value: string; label: ReactNode }[]; className?: string }) {
+  const fade = useEdgeFade<HTMLDivElement>();
   return (
     <RTabs.Root value={value} onValueChange={onValueChange}>
-      <RTabs.List className={cn(GAME ? 'lv-segs flex gap-1.5 overflow-x-auto no-scrollbar' : 'flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface/70 p-1 scroll-thin', className)}>
+      <RTabs.List ref={fade} className={cn(GAME ? 'lv-segs flex gap-1.5 overflow-x-auto no-scrollbar' : 'flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface/70 p-1 scroll-thin', className)}>
         {items.map((i) => (
           <RTabs.Trigger key={i.value} value={i.value}
             className={GAME ? 'lv-seg' : 'shrink-0 rounded-xl px-3 py-1.5 text-[13px] font-semibold text-muted transition data-[state=active]:bg-surface-2 data-[state=active]:text-fg data-[state=active]:shadow'}>
@@ -230,6 +251,38 @@ export function ResourceIcon({ r, className }: { r: Resource; className?: string
   );
 }
 
+/** A button in the app map's left rail: a glossy disc with its label underneath, all the same size. */
+export const RailBtn = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { icon: ReactNode; label: string; tone?: 'dark' | 'gold' | 'fire' | 'pink' | 'blue'; badge?: number | string; dot?: boolean; glow?: boolean; on?: boolean }>(
+  function RailBtn({ icon, label, tone = 'dark', badge, dot, glow, on, className, ...rest }, ref) {
+    return (
+      <button ref={ref} type="button" className={cn('lv-railbtn pointer-events-auto', `t-${tone}`, glow && 'glow', on && 'on', className)} {...rest}>
+        <span className="disc">{icon}{badge ? <span className="lv-bang">{badge}</span> : dot ? <span className="dot" /> : null}</span>
+        <span className="lb">{label}</span>
+      </button>
+    );
+  });
+
+/** The app's currency icons: a glossy green coin for USD rent and a glossy ink drop, no backgrounds. */
+export function CurrencyIcon({ kind, size = 24 }: { kind: 'usd' | 'ink'; size?: number }) {
+  const id = `lv${useId().replace(/:/g, '')}`;
+  if (kind === 'usd') return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className="shrink-0 drop-shadow-[0_2px_2px_rgba(0,0,0,0.35)]">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#7CF5B6" /><stop offset="1" stopColor="#0E9F5F" /></linearGradient></defs>
+      <circle cx="12" cy="12" r="11" fill={`url(#${id})`} />
+      <circle cx="12" cy="12" r="8.4" fill="none" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="1.2" />
+      <path d="M14.6 9.2c-.4-.9-1.4-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2 0 2.7 5.4 1.4 5.4 4.2 0 1.2-1.2 2-2.8 2-1.3 0-2.4-.6-2.8-1.6M12 6.4v1.4M12 16v1.5" fill="none" stroke="#ffffff" strokeWidth="1.7" strokeLinecap="round" />
+      <ellipse cx="9" cy="6.6" rx="4" ry="1.8" fill="#ffffff" opacity="0.28" />
+    </svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className="shrink-0 drop-shadow-[0_2px_2px_rgba(0,0,0,0.35)]">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8AE6FF" /><stop offset="1" stopColor="#1E6BFF" /></linearGradient></defs>
+      <path d="M12 1.6c3.9 5 6.9 8.7 6.9 12.4A6.9 6.9 0 0 1 12 20.9 6.9 6.9 0 0 1 5.1 14C5.1 10.3 8.1 6.6 12 1.6Z" fill={`url(#${id})`} />
+      <path d="M9.2 12.2c-.6 1.4-.5 3 .5 4" fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" opacity="0.75" />
+    </svg>
+  );
+}
+
 export function ResourcePill({ r, value, className }: { r: Resource; value: number | string; className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[13px] font-bold tnum', className)} title={`${RESOURCE_META[r].name} — ${RESOURCE_META[r].hint}`}>
@@ -302,14 +355,24 @@ function useAvatarImage(path: string | null | undefined) {
   return { url: failed ? null : url, onError: () => setFailed(true) };
 }
 
-type AvatarProfile = { avatar_seed: string; avatar_style?: string; accent_color?: string; avatar_path?: string | null; username?: string };
+type AvatarProfile = { avatar_seed: string; avatar_style?: string; accent_color?: string; avatar_path?: string | null; username?: string; display_name?: string | null };
 
 /** Avatar for a player profile: their uploaded picture, or the generated one. */
 export function PlayerAvatar({ p, size = 40, className, frame }: { p: AvatarProfile; size?: number; className?: string; frame?: 'gold' | 'prism' | null }) {
-  return <Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} image={p.avatar_path} size={size} className={className} frame={frame} alt={p.username ? `@${p.username}` : undefined} />;
+  return <Avatar seed={p.avatar_seed} style={p.avatar_style} accent={p.accent_color} image={p.avatar_path} size={size} className={className} frame={frame} alt={p.username ? `@${p.username}` : undefined}
+    name={p.display_name || p.username} />;
 }
 
-export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, className, frame, image, alt }: { seed: string; style?: string; accent?: string; size?: number; className?: string; frame?: 'gold' | 'prism' | null; image?: string | null; alt?: string }) {
+/** "#7b5cff" → a lighter and a darker shade of it, for a clean two-tone fill */
+function shades(hex: string): [string, string] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  const n = m ? parseInt(m[1], 16) : 0x7b5cff;
+  const ch = (sh: number, f: number) => Math.max(0, Math.min(255, Math.round(((n >> sh) & 255) * f + (f > 1 ? 30 : 0))));
+  const mk = (f: number) => `rgb(${ch(16, f)},${ch(8, f)},${ch(0, f)})`;
+  return [mk(1.12), mk(0.62)];
+}
+
+export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, className, frame, image, alt, name }: { seed: string; style?: string; accent?: string; size?: number; className?: string; frame?: 'gold' | 'prism' | null; image?: string | null; alt?: string; name?: string | null }) {
   const pic = useAvatarImage(image);
   const shapes = useMemo(() => {
     const r = seedRand(seed + style);
@@ -335,6 +398,17 @@ export function Avatar({ seed, style = 'prism', accent = '#7B5CFF', size = 40, c
     }
     return out;
   }, [seed, style]);
+  // the app: the default avatar is a clean monogram in the player's colour instead of random shards
+  if (GAME && !pic.url && style === 'prism') {
+    const [a, b] = shades(accent);
+    const letter = (name || seed || '?').replace(/^@/, '').trim().charAt(0).toUpperCase() || '?';
+    return (
+      <span className={cn('lv-mono relative inline-grid shrink-0 place-items-center overflow-hidden rounded-[30%]', className)} style={{ width: size, height: size, background: `linear-gradient(150deg, ${a}, ${b})` }} role={alt ? 'img' : undefined} aria-label={alt}>
+        <span aria-hidden style={{ fontSize: size * 0.46 }}>{letter}</span>
+        {frame && <span className={cn('pointer-events-none absolute inset-0 rounded-[30%]', frame === 'gold' ? 'ring-2 ring-gold ring-inset' : 'rainbow-edge')} />}
+      </span>
+    );
+  }
   return (
     <span className={cn('relative inline-block shrink-0 overflow-hidden rounded-[30%]', className)} style={{ width: size, height: size, background: accent }}>
       {pic.url

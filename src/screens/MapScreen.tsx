@@ -17,7 +17,7 @@ import { PlotPanel } from '../plot/PlotPanel';
 import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
+import { Button, Dialog, LogoMark, PlayerAvatar, useEdgeFade } from '../ui';
 import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotTypeId } from '../shared/grid';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
@@ -37,6 +37,7 @@ import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Tr
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { buzz, isNative } from '../native/native';
+import GameHud from '../app/GameHud';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
 import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
@@ -55,6 +56,7 @@ export function MapScreen() {
   if (s && w && !peekEarth) return <Suspense fallback={<div className="absolute inset-0 bg-[#05060F]" />}><PlanetView key={s.location} s={s} w={w} embedded onPeekEarth={() => setPeekEarth(true)} /></Suspense>;
   return <EarthMap away={w ? { name: w.name, back: () => setPeekEarth(false) } : null} />;
 }
+const APP = isNative();
 const PlanetView = lazy(() => import('../space/Surface').then((m) => ({ default: m.PlanetView })));
 
 /** Earth. `away`: you're off on another world — your explorer isn't here (and GPS rests) while you look around. */
@@ -98,6 +100,28 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       {me && <StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} />}
       {me && quick.element}
       {/* the game HUD */}
+      {APP ? (
+        // the app: the same top bar as every other screen (see-through here), one row of chips, and a tidy left
+        // rail of same-size buttons with their names under them
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col">
+          {me ? <div className="lv-map-top"><GameHud overlay /></div> : (
+            <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
+              {!session && <div className="pointer-events-auto"><SignInChip /></div>}
+              <NotificationBell className="pointer-events-auto lv-gbtn round ml-auto !h-10 !w-10" />
+            </div>
+          )}
+          {me && <MapChips>
+              <BoostButton compact /><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip />
+            </MapChips>}
+          {me && !away && !joystick && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
+          <div className="lv-rail mt-3 flex flex-col items-start gap-3 pl-[max(12px,env(safe-area-inset-left,0px))]" data-testid="map-rail">
+            {me && <StreakChip rail onOpen={() => setStreak(true)} />}
+            {me && <DailyChip rail />}
+            {me && <GrimoireButton rail />}
+            <ModeButton rail />
+          </div>
+        </div>
+      ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
         <div className="flex items-start gap-2">
           {me ? <PlayerBadge /> : !session ? <div className="pointer-events-auto"><SignInChip /></div> : null}
@@ -116,6 +140,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           {me && <DailyChip />}
         </div>
       </div>
+      )}
       {!travelling && <ZoomHint zoom={view.zoom} />}
       {me && !away && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
       {away && (
@@ -347,6 +372,16 @@ function PlacementPrompt() {
 }
 
 /** You steered the explorer somewhere: it stays there (through refreshes) until you go back to GPS or Home. */
+/** The app's map: Boost, the Hot Zone, Fly and Luck in one row that scrolls sideways. */
+function MapChips({ children }: { children: ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return (
+    <div ref={ref} className="lv-chiprow lv-fade no-scrollbar pointer-events-auto max-w-full self-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))]" data-testid="map-chips">
+      {children}
+    </div>
+  );
+}
+
 function JoystickSpot() {
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
@@ -382,9 +417,9 @@ function SignInChip() {
 function ZoomHint({ zoom }: { zoom: number }) {
   if (zoom >= Z_STREET - 1) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-10 flex justify-center md:bottom-6">
-      <div className="glass rounded-full px-4 py-2 text-[12.5px] font-semibold text-muted">
-        {zoom < Z_TOWN - 1 ? 'Zoom in to see plots — or tap 🎯 to jump to your explorer' : 'Keep zooming in to your street — tap the map to dive in'}
+    <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center md:bottom-6', APP ? 'bottom-[calc(172px+env(safe-area-inset-bottom,0px))] px-6' : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))]')}>
+      <div className="glass rounded-full px-4 py-2 text-center text-[12.5px] font-semibold text-muted">
+        {APP ? (zoom < Z_TOWN - 1 ? 'Zoom in to see plots' : 'Zoom in to your street') : zoom < Z_TOWN - 1 ? 'Zoom in to see plots — or tap 🎯 to jump to your explorer' : 'Keep zooming in to your street — tap the map to dive in'}
       </div>
     </div>
   );

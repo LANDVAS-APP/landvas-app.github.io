@@ -165,7 +165,7 @@ function ShareCard({ code, r, perFriend }: { code: string; r: Referrals; perFrie
         <Button size="sm" variant="secondary" onClick={(e) => copy(link, 'link', e)}>{copied === 'link' ? <><Check className="h-4 w-4 text-ok" /> Copied</> : <><Copy className="h-4 w-4" /> Copy</>}</Button>
       </div>
       <motion.div className="mt-3" whileTap={{ scale: 0.97 }}>
-        <Button variant="rainbow" size="lg" className="w-full" onClick={async (e) => {
+        <Button variant="rainbow" size="lg" className="w-full whitespace-nowrap text-[15px]" onClick={async (e) => {
           const at = { x: e.clientX, y: e.clientY };
           try {
             if (navigator.share) await navigator.share({ title: 'Join me on LANDVAS', text, url: link });

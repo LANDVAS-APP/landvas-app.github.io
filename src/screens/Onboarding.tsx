@@ -99,7 +99,7 @@ export function Onboarding() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass grid gap-6 rounded-[28px] p-6 md:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center gap-3">
             <motion.div key={pic?.url ?? seed + style + accent} initial={{ scale: 0.6, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15 }} className="relative">
-              {pic ? <img src={pic.url} alt="Your profile picture" className="h-28 w-28 rounded-full object-cover ring-4 ring-accent/50" data-testid="onboarding-pic" /> : <Avatar seed={seed} style={style} accent={accent} size={112} />}
+              {pic ? <img src={pic.url} alt="Your profile picture" className="h-28 w-28 rounded-full object-cover ring-4 ring-accent/50" data-testid="onboarding-pic" /> : <Avatar seed={seed} style={style} accent={accent} size={112} name={displayName || username} />}
               {pic && <button type="button" onClick={() => setPic(null)} className="absolute -right-1 -top-1 rounded-full bg-bg p-1 text-muted shadow hover:text-fg" aria-label="Remove picture"><X className="h-4 w-4" /></button>}
             </motion.div>
             <input ref={picInput} type="file" accept="image/*" className="hidden" data-testid="onboarding-pic-file" onChange={async (e) => {
@@ -129,7 +129,7 @@ export function Onboarding() {
               <div className="flex flex-wrap gap-2">
                 {STYLES.map((s) => (
                   <button type="button" key={s} onClick={() => setStyle(s)} className={cn('rounded-2xl border p-1 transition', style === s ? 'border-accent' : 'border-line hover:border-line-strong')} aria-label={`${s} avatar style`} aria-pressed={style === s}>
-                    <Avatar seed={seed} style={s} accent={accent} size={44} />
+                    <Avatar seed={seed} style={s} accent={accent} size={44} name={displayName || username} />
                   </button>
                 ))}
               </div>

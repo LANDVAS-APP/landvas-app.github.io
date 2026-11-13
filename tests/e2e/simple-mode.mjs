@@ -61,7 +61,7 @@ try {
   check('…and ticks up', t2 > t1, `${t1} → ${t2}`);
   await shot('04-two-plots');
   // the tab bar is just Home, Play, Me
-  const tabs = await page.locator('nav.lv-game a').allTextContents();
+  const tabs = (await page.locator('nav.lv-game a').allTextContents()).map((t) => t.replace(/\d+\+?/g, ''));
   check('simple tab bar', tabs.join('|') === 'Home|Play|Me', tabs.join('|'));
   // the daily streak: claim day 1 from the strip under the money
   await page.click('[data-testid=streak-strip]'); await page.waitForSelector('[data-testid=streak-dialog]', { timeout: 10000 });
@@ -77,7 +77,7 @@ try {
   // the collection album
   await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
   const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
-  check('the collection: every plot type and all 21 rarities', nRar === 21 && types >= 8, `${types} types, ${nRar} rarities`);
+  check('the collection: every plot type and every rarity (21 + Enchanted)', nRar === 22 && types >= 8, `${types} types, ${nRar} rarities`);
   check('…and the Crowns of the world', (await page.locator('[data-testid=crowns]').count()) === 1);
   await shot('08-collection');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
@@ -102,7 +102,7 @@ try {
   await shot('09-legend');
   await page.locator('[data-testid=legend-ultras]').scrollIntoViewIfNeeded(); await shot('10-legend-ultras');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
-} catch (e) { check('run completed', false, e.message.split('\n')[0]); await shot('99-err'); }
+} catch (e) { check('run completed', false, e.message.split('\n').slice(0, 6).join(' | ')); await shot('99-err'); }
 await browser.close(); server.close();
 console.log(`${results.filter(Boolean).length}/${results.length} passed`);
 process.exit(results.every(Boolean) ? 0 : 1);

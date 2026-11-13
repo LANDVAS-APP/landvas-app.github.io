@@ -165,7 +165,7 @@ function EditProfile({ onDone }: { onDone(): void }) {
         <div className="flex gap-2">
           {STYLES.map((s) => (
             <button type="button" key={s} onClick={() => setStyle(s)} className={cn('rounded-2xl border p-1', style === s ? 'border-accent-2' : 'border-line')}>
-              <Avatar seed={me.profile.avatar_seed} style={s} accent={accent} size={40} />
+              <Avatar seed={me.profile.avatar_seed} style={s} accent={accent} size={40} name={me.profile.display_name || me.profile.username} />
             </button>
           ))}
         </div>

@@ -8,8 +8,9 @@ import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
 import { DailyWheel } from './DailyWheel';
+import { RailBtn } from '../ui';
 
-export function DailyChip() {
+export function DailyChip({ rail }: { rail?: boolean } = {}) {
   const me = useOnboardedMe();
   const [open, setOpen] = useState(false);
   const reduce = useUi((s) => s.settings.reduceMotion);
@@ -17,7 +18,12 @@ export function DailyChip() {
   const n = st.data?.enabled ? st.data.spins_left : 0;
   return (
     <>
-      {n > 0 && (
+      {n > 0 && rail && (
+        <RailBtn icon={<motion.span className="text-[22px] leading-none" animate={reduce ? undefined : { rotate: [0, -16, 14, -8, 0] }} transition={{ duration: 1.1, repeat: Infinity, repeatDelay: 2.4 }}>🎡</motion.span>}
+          label="Spin" tone="pink" glow badge={n > 1 ? n : undefined} dot={n === 1} data-testid="hud-daily" aria-label={`Daily spin — ${n} left`}
+          onClick={() => { if (useUi.getState().settings.haptics) buzz('light'); setOpen(true); }} />
+      )}
+      {n > 0 && !rail && (
         <motion.button className="pointer-events-auto lv-gbtn round hot" data-testid="hud-daily" aria-label={`Daily spin — ${n} left`}
           initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
           onClick={() => { if (useUi.getState().settings.haptics) buzz('light'); setOpen(true); }}>

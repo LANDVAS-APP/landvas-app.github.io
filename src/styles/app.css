@@ -236,6 +236,10 @@ h1, h2, h3 {
 .maplibregl-ctrl-attrib a {
   color: var(--muted) !important;
 }
+/* the app: the map credits tuck under the HUD on the right, clear of the quest card and the tab bar */
+html.native .maplibregl-ctrl-bottom-left { left: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: auto; top: calc(max(10px, env(safe-area-inset-top, 0px)) + 108px); }
+html.native .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0; }
+html.native .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) { transform-origin: top right; }
 .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) { opacity: 0.55; transform: scale(0.85); transform-origin: bottom left; }
 .maplibregl-ctrl-group {
   background: var(--glass) !important;
@@ -1499,9 +1503,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* Panels: thick-edged, lit from above, sitting on a shadow — game cards instead of web cards */
 html.native .glass {
-  background: linear-gradient(180deg, rgba(38, 48, 112, 0.94), rgba(16, 22, 62, 0.94));
-  border: 1.5px solid rgba(170, 190, 255, 0.24);
-  box-shadow: 0 4px 0 rgba(4, 6, 22, 0.7), 0 18px 40px -24px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(32, 41, 98, 0.86), rgba(16, 21, 58, 0.86));
+  border: 1px solid rgba(190, 205, 255, 0.11);
+  box-shadow: 0 2px 0 rgba(4, 6, 22, 0.45), 0 16px 36px -22px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 html.native[data-theme="light"] .glass { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.14); box-shadow: 0 4px 0 rgba(24, 34, 96, 0.14), inset 0 1px 0 #fff; }
 @media (prefers-color-scheme: light) { html.native:not([data-theme="dark"]) .glass { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.14); box-shadow: 0 4px 0 rgba(24, 34, 96, 0.14), inset 0 1px 0 #fff; } }
@@ -1509,17 +1513,40 @@ html.native .lv-dialog { border-top: 2px solid rgba(190, 205, 255, 0.35); }
 
 /* the top bar: a dark glossy strip the whole width, the screen scrolling under it */
 .lv-hudbar {
-  background: linear-gradient(180deg, rgba(10, 13, 40, 0.98) 0%, rgba(10, 13, 40, 0.94) 75%, rgba(10, 13, 40, 0.86) 100%);
-  border-bottom: 1.5px solid rgba(170, 190, 255, 0.16);
-  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+  background: rgba(8, 11, 32, 0.9); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid rgba(190, 205, 255, 0.08);
 }
-.lv-hud-avatar { border-radius: 14px; padding: 2px; background: linear-gradient(180deg, #ffe14d, #ff9f1c); box-shadow: 0 3px 0 #8a4b00, inset 0 1px 0 rgba(255, 255, 255, 0.6); }
-.lv-hud-avatar > * { border-radius: 12px !important; }
+/* on the map: no strip, just a soft shade so the HUD reads over any map */
+.lv-hudbar-clear { background: linear-gradient(180deg, rgba(4, 6, 20, 0.7) 0%, rgba(4, 6, 20, 0.32) 62%, rgba(4, 6, 20, 0) 100%); }
+/* the app's HUD pills: frosted, thin-edged, one height */
+html.native .lv-hud {
+  height: 36px; gap: 6px; padding: 0 12px 0 6px; font-weight: 800; font-size: 13.5px;
+  background: rgba(12, 16, 44, 0.78); border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: transform 0.1s;
+}
+html.native .lv-hud:active { transform: scale(0.96); }
+html.native :is(.lv-hudbar, .lv-hudbar-clear) .lv-gbtn.round {
+  background: rgba(12, 16, 44, 0.78); border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+html.native :is(.lv-hudbar, .lv-hudbar-clear) .lv-gbtn.round:active { transform: scale(0.92); }
+.lv-hud-avatar {
+  position: relative; display: grid !important; border-radius: 15px; overflow: visible;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 4px 12px -2px rgba(0, 0, 0, 0.6);
+}
+.lv-hud-avatar > * { border-radius: 15px !important; }
+.lv-hud-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .lv-hud-level {
-  position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px;
-  display: grid; place-items: center; font: 900 11px/1 var(--font-display); color: #fff;
-  background: linear-gradient(180deg, #a48bff, #5b3df5); border: 2px solid #0a0d28; box-shadow: 0 2px 0 #2c1a8a;
+  position: absolute; right: -7px; bottom: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font: 800 10.5px/1 var(--font-display); color: #0a0d28;
+  background: linear-gradient(180deg, #fff6c9, #ffd23f); box-shadow: 0 0 0 2px #0a0d28, 0 2px 6px rgba(0, 0, 0, 0.5);
 }
+/* the monogram default avatar */
+.lv-mono { color: #fff; font-family: var(--font-display); font-weight: 900; letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -8px 16px -8px rgba(0, 0, 0, 0.35); }
+.lv-mono > span:first-child { line-height: 1; transform: translateY(0.02em); }
 .lv-bang {
   position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
   display: grid; place-items: center; font: 900 11px/1 var(--font-display); color: #fff;
@@ -1538,6 +1565,12 @@ html.native .lv-dialog { border-top: 2px solid rgba(190, 205, 255, 0.35); }
 }
 .lv-gtab:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 6, 22, 0.8); }
 .lv-gtab.on { color: #fff; background: linear-gradient(180deg, #ffd34d, #ff9f1c); color: #3a1d00; border-color: rgba(255, 255, 255, 0.6); box-shadow: 0 3px 0 #9a5200, inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+html.native .lv-gtab { height: 32px; border-radius: 999px; font-weight: 700; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: none; color: rgba(225, 230, 255, 0.72); }
+html.native .lv-gtab:active { transform: scale(0.95); box-shadow: none; }
+html.native .lv-gtab.on { background: #ffffff; color: #12163a; border-color: #ffffff; box-shadow: 0 6px 18px -10px rgba(255, 255, 255, 0.7); font-weight: 800; }
+.lv-fade[data-fade="r"], .lv-segs[data-fade="r"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); }
+.lv-fade[data-fade="l"], .lv-segs[data-fade="l"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 32px); mask-image: linear-gradient(90deg, transparent, #000 32px); }
+.lv-fade[data-fade="lr"], .lv-segs[data-fade="lr"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 32px, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(90deg, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
 
 /* screen titles: a bold, outlined game title; the eyebrow becomes a little ribbon */
 .lv-title-banner {
@@ -1545,12 +1578,15 @@ html.native .lv-dialog { border-top: 2px solid rgba(190, 205, 255, 0.35); }
   text-shadow: 0 2px 0 #2c1a8a, 0 3px 0 #1a0f5c, 0 8px 18px rgba(91, 61, 245, 0.55);
   -webkit-text-stroke: 0.6px rgba(20, 10, 70, 0.6);
 }
+html.native .lv-title-banner { -webkit-text-stroke: 0; letter-spacing: -0.015em; text-shadow: 0 2px 16px rgba(91, 61, 245, 0.5); }
 html.native[data-theme="light"] .lv-title-banner { color: #2c1a8a; text-shadow: 0 2px 0 rgba(91, 61, 245, 0.25); -webkit-text-stroke: 0; }
 .lv-ribbon {
   display: inline-block; padding: 3px 10px 3px 8px; border-radius: 8px 999px 999px 8px;
   font: 900 10px/1.2 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: #3a1d00;
   background: linear-gradient(180deg, #ffe680, #ffb31f); box-shadow: 0 2px 0 #9a5200;
 }
+html.native .lv-ribbon { padding: 0; border-radius: 0; background: none; box-shadow: none; color: #ffd84d; font: 800 11px/1.2 var(--font-display); letter-spacing: 0.14em; }
+html.native[data-theme="light"] .lv-ribbon { color: #b25e00; }
 .lv-speech {
   position: relative; padding: 12px 14px; border-radius: 18px; color: #1b1f3d; font-weight: 600;
   background: linear-gradient(180deg, #ffffff, #e9ecff); box-shadow: 0 4px 0 rgba(20, 24, 60, 0.45);
@@ -1605,9 +1641,10 @@ html.native[data-theme="light"] .lv-seg { color: #4a5480; }
 .lv-tabbar {
   position: fixed; z-index: 40; left: 10px; right: 10px; bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px));
   height: 62px; display: flex; align-items: center; padding: 0 6px; border-radius: 26px; color: #fff;
-  background: linear-gradient(180deg, rgba(34, 42, 104, 0.97), rgba(12, 15, 44, 0.98));
-  border: 1.5px solid rgba(190, 205, 255, 0.22);
-  box-shadow: 0 4px 0 rgba(4, 6, 22, 0.85), 0 16px 34px -10px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(28, 35, 90, 0.92), rgba(11, 14, 40, 0.95));
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(190, 205, 255, 0.16);
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 .lv-tb-item { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 4px; color: rgba(225, 230, 255, 0.55); transition: color 0.15s; }
 .lv-tb-item .ic { position: relative; display: grid; place-items: center; width: 44px; height: 30px; border-radius: 12px; transition: transform 0.25s cubic-bezier(0.2, 1.4, 0.4, 1), background 0.2s; }
@@ -1657,3 +1694,101 @@ html.reduce-motion .lv-tb-center.on .orb, html.reduce-motion .lv-bang { animatio
 .lv-mtile .lbl { font-size: 11.5px; font-weight: 800; line-height: 1.15; color: #eef1ff; }
 html.native[data-theme="light"] .lv-mtile { background: linear-gradient(180deg, #ffffff, #eef0ff); border-color: rgba(24, 34, 96, 0.12); box-shadow: 0 3px 0 rgba(24, 34, 96, 0.12); }
 html.native[data-theme="light"] .lv-mtile .lbl { color: #1b1f3d; }
+
+/* ---- the Play hub: the game's main menu ----------------------------------------------------------------- */
+.lv-hub-title { font: 900 26px/1.1 var(--font-display); letter-spacing: -0.02em; color: var(--fg); }
+.lv-stat { display: grid; justify-items: center; min-width: 54px; padding: 7px 8px 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.lv-stat b { font: 900 16px/1 var(--font-display); color: var(--fg); }
+.lv-stat i { margin-top: 3px; font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+/* today's rewards */
+.lv-daily {
+  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 62px; padding: 10px 12px; border-radius: 18px;
+  color: var(--fg); background: var(--surface); border: 1px solid var(--line); overflow: visible; transition: transform 0.1s;
+}
+.lv-daily:active { transform: scale(0.97); }
+.lv-daily .em { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; font-size: 20px; line-height: 1;
+  background: linear-gradient(150deg, var(--c1), var(--c2)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px -6px var(--c2); }
+.lv-daily .t { display: block; font: 800 14px/1.15 var(--font-display); }
+.lv-daily .s { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.lv-daily.ready { color: #fff; border-color: rgba(255, 255, 255, 0.25); background: linear-gradient(150deg, var(--c1), var(--c2)); box-shadow: 0 14px 30px -14px var(--c2), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.lv-daily.ready .em { background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-daily.ready .s { color: rgba(255, 255, 255, 0.85); }
+.lv-daily.ready::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: lv-sheen 3.2s ease-in-out infinite; }
+@keyframes lv-sheen { 0%, 55% { background-position: -150% 0; } 100% { background-position: 150% 0; } }
+
+/* the world hero */
+.lv-hero {
+  position: relative; display: block; height: 172px; padding: 16px; border-radius: 24px; overflow: hidden; color: #fff; isolation: isolate;
+  background: radial-gradient(90% 80% at 100% 0%, #48d6ff 0%, rgba(72, 214, 255, 0) 60%), radial-gradient(80% 90% at 0% 100%, #3b1fd6 0%, rgba(59, 31, 214, 0) 65%), linear-gradient(160deg, #2266ff, #121c66);
+  border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 20px 40px -20px rgba(34, 102, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: transform 0.12s;
+}
+.lv-hero:active { transform: scale(0.98); }
+.lv-hero::after { content: ""; position: absolute; z-index: -1; right: -46px; top: -40px; width: 190px; height: 190px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.6), rgba(150, 220, 255, 0.28) 32%, rgba(40, 90, 230, 0.1) 62%, rgba(40, 90, 230, 0) 72%);
+  box-shadow: inset -18px -22px 40px rgba(6, 12, 60, 0.35); }
+.lv-hero .grid-art { position: absolute; z-index: -1; left: -30%; right: -30%; bottom: -60%; height: 140%;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.13) 1px, transparent 1px);
+  background-size: 26px 26px; transform: perspective(260px) rotateX(58deg); transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 55%); mask-image: linear-gradient(180deg, transparent 0%, #000 55%); }
+.lv-hero .pin { position: absolute; z-index: -1; width: 10px; height: 10px; border-radius: 999px; background: var(--p); box-shadow: 0 0 12px var(--p); }
+.lv-hero .pin::after { content: ""; position: absolute; inset: -6px; border-radius: inherit; border: 2px solid var(--p); opacity: 0; animation: lv-ping 2.4s ease-out infinite; }
+.lv-hero .p1 { --p: #ffe14d; right: 25%; top: 40%; }
+.lv-hero .p2 { --p: #ff5ca8; right: 9%; top: 50%; }
+.lv-hero .p2::after { animation-delay: 0.8s; }
+.lv-hero .p3 { --p: #4fffb0; right: 42%; top: 33%; }
+.lv-hero .p3::after { animation-delay: 1.6s; }
+@keyframes lv-ping { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
+.lv-hero .disc { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: rgba(255, 255, 255, 0.2); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+.lv-hero .kicker { font: 800 11px/1 var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); }
+.lv-hero .go { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 10px 0 14px; border-radius: 999px;
+  background: #ffffff; color: #1238b8; font: 800 13px/1 var(--font-display); box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.6); }
+.lv-hero span { text-shadow: 0 1px 2px rgba(0, 10, 60, 0.25); }
+.lv-hero .go { text-shadow: none; }
+
+/* the section cards */
+.lv-card2 {
+  position: relative; display: flex; flex-direction: column; height: 126px; padding: 12px; border-radius: 22px; overflow: hidden; color: #fff; isolation: isolate;
+  background: linear-gradient(155deg, var(--c1), var(--c2)); border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 14px 28px -18px var(--c2), inset 0 1px 0 rgba(255, 255, 255, 0.35); transition: transform 0.12s;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+.lv-card2::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(120% 70% at 0% 0%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 55%); }
+.lv-card2:active { transform: scale(0.96); }
+.lv-card2 .art { position: absolute; z-index: -1; right: -16px; bottom: -18px; width: 98px; height: 98px; opacity: 0.2; transform: rotate(-12deg); stroke-width: 1.6; }
+.lv-card2 .disc { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+
+/* everything, grouped */
+.lv-allgroup { padding: 12px 8px 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.lv-allgroup h3 { margin: 0 6px 10px; font: 900 11px/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--g); }
+.lv-alltile { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.lv-alltile .ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; color: #fff; transition: transform 0.1s;
+  background: var(--g); background: linear-gradient(150deg, var(--g), color-mix(in srgb, var(--g) 55%, #000000 45%));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 14px -8px var(--g); }
+.lv-alltile:active .ic { transform: scale(0.9); }
+.lv-alltile .lb { max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11px; font-weight: 700; line-height: 1.15; color: var(--muted); }
+
+/* ---- the app's map: one chip row and a rail of same-size buttons ---------------------------------------- */
+.lv-chiprow { display: flex; gap: 8px; overflow-x: auto; padding-top: 2px; padding-bottom: 4px; }
+.lv-chiprow > * { flex-shrink: 0; height: 36px !important; border-radius: 999px !important; }
+.lv-chiprow > button { padding-top: 0 !important; padding-bottom: 0 !important; }
+.lv-chiprow [data-testid="luck-chip-note"] { display: none; }
+.lv-railbtn { position: relative; display: flex; width: 58px; flex-direction: column; align-items: center; gap: 4px; color: #fff; transition: transform 0.1s; }
+.lv-railbtn:active { transform: scale(0.92); }
+.lv-railbtn .disc { position: relative; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px;
+  background: linear-gradient(160deg, rgba(46, 56, 122, 0.96), rgba(18, 23, 62, 0.96)); border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+.lv-railbtn.t-gold .disc { background: linear-gradient(160deg, #ffd65a, #df7f0a); }
+.lv-railbtn.t-fire .disc { background: linear-gradient(160deg, #ffad4d, #ec3b3b); }
+.lv-railbtn.t-pink .disc { background: linear-gradient(160deg, #ff7cc2, #b9238a); }
+.lv-railbtn.t-blue .disc { background: linear-gradient(160deg, #5fd0ff, #1f6bff); }
+.lv-railbtn.on .disc { background: linear-gradient(160deg, #a48bff, #5b3df5); border-color: rgba(255, 255, 255, 0.5); }
+.lv-railbtn.glow .disc { animation: lv-railglow 2.2s ease-in-out infinite; }
+@keyframes lv-railglow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 8px 18px -8px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.16), 0 8px 22px -6px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); } }
+.lv-railbtn .lb { padding: 3px 7px; border-radius: 999px; background: rgba(6, 8, 26, 0.74); font: 800 10px/1 var(--font-display); letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.lv-railbtn .dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 999px; background: #ffe14d; border: 2px solid #0a0d28; }
+.lv-railbtn .lv-bang { top: -6px; right: -6px; }
+html.reduce-motion .lv-railbtn.glow .disc, html.reduce-motion .lv-daily.ready::after, html.reduce-motion .lv-hero .pin::after { animation: none; }

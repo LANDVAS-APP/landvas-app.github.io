@@ -37,6 +37,7 @@ import { useReferralRedeemer } from '../social/referral';
 const EditorScreen = lazy(() => import('../editor/EditorScreen'));
 const CanvasesScreen = lazy(() => import('../canvases/CanvasesScreen'));
 const PlayHub = lazy(() => import('../play/PlayEarn'));
+const GameHub = lazy(() => import('./GameHub'));
 const GameScreen = lazy(() => import('../play/GameScreen'));
 const GameSandbox = lazy(() => import('../play/GameScreen').then((m) => ({ default: m.GameSandbox })));
 const GalleryScreen = lazy(() => import('../gallery/GalleryScreen'));
@@ -104,7 +105,7 @@ const PlanetGame = lazy(() => import('../space/PlanetGame'));
 // the app: once the first screen is up, quietly load the main tabs' code so switching tabs is instant
 if (isNative()) {
   setTimeout(() => {
-    for (const load of [() => import('../play/PlayEarn'), () => import('../canvases/CanvasesScreen'), () => import('../inkborn/Hub'), () => import('../social/SocialScreen'),
+    for (const load of [() => import('./GameHub'), () => import('../play/PlayEarn'), () => import('../canvases/CanvasesScreen'), () => import('../inkborn/Hub'), () => import('../social/SocialScreen'),
       () => import('../profile/MeHub'), () => import('../screens/Settings'), () => import('./GameHud')]) void load().catch(() => {});
   }, 3000);
 }
@@ -235,6 +236,7 @@ const routes: RouteObject[] = [
           { path: '/world', element: <WorldRoute /> },
           { path: '/canvases', element: player(<CanvasesScreen />) },
           { path: '/play', element: player(<PlayRoute />) },
+          { path: '/hub', element: p(<GameHub />) },
           { path: '/gallery', element: p(<GalleryScreen />) },
           { path: '/art/:id', element: p(<ArtworkScreen />) },
           { path: '/u/:username', element: p(<ProfileScreen />) },

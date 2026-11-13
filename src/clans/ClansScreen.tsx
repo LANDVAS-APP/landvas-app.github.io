@@ -129,7 +129,7 @@ function FindClans({ home }: { home: ClanHome }) {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap gap-2">
-        <label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3 h-5 w-5 text-faint" />
+        <label className="relative min-w-[200px] flex-1"><Search className="absolute left-3 top-3 h-5 w-5 text-faint" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or tag" className={cn(inputCls, 'pl-10')} data-testid="clan-search" /></label>
         <div className="flex gap-1">{(['week', 'level', 'new'] as const).map((s) => <button key={s} onClick={() => setSort(s)} className={cn('rounded-xl px-3 text-sm font-bold', sort === s ? 'bg-accent text-white' : 'bg-surface-2')}>{s === 'week' ? '🔥 Busy' : s === 'level' ? '⭐ Level' : '✨ New'}</button>)}</div>
       </div>
