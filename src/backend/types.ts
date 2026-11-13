@@ -876,3 +876,9 @@ export type HotZone = { name: string; gx: number; gy: number; radius: number; da
 export type HotZoneInfo = { today: HotZone | null; tomorrow: HotZone | null; ends_at: string; ultra_mult: number; shiny_mult: number; crown_free?: boolean; roll_ink?: number };
 export type Collection = { types: { id: PlotTypeId; name: string; owned: number }[]; rarities: { id: RarityId; owned: number; shiny: number }[];
   tiers: { types: number; pct: number }[]; pct: number; multiplier: number };
+
+/** the Ultra tracker (my_ultras) */
+export type UltraPlot = { gx: number; gy: number; rarity: string; plot_type: string; level: number; name: string | null; ability: string; daily: boolean; mult: number | string | null;
+  window: { start: number | string; len: number | string; mult: number | string; open: boolean } | null };
+export type MyUltras = { day: string; resets_at: string; streak: number; checked_in: boolean;
+  phoenix: { per_day: number; max_days: number; now: number | string; next: number | string }; chaos_values: (number | string)[]; plots: UltraPlot[] };

@@ -9,17 +9,29 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../backend/api';
 import type { DailyStatus } from '../backend/types';
 import { StreakDialog, useStreakPrompt } from '../daily/Streak';
 import { DailyWheel } from '../earn/DailyWheel';
-import { useOnboardedMe } from '../lib/queries';
+import { useOnboardedMe, useWorld } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
 import { poll } from '../lib/poll';
 import { buzz } from '../native/native';
 import { useQuickRoll } from '../simple/useQuickRoll';
-import { Emblem, type DiscTone } from '../ui';
+import { Emblem, ResourceIcon, type DiscTone } from '../ui';
+import { qk } from '../lib/queries';
+import { useUi } from '../lib/store';
+import { PLOT_TYPES } from '../map/plotStyle';
+import { ORDER } from '../play/PlayHub';
+import { GamePreview } from '../play/GamePreview';
+import { GAME_INFO } from '../shared/minigames';
+import { rarityInfo } from '../shared/rarity';
+import { Z_PLOT, cellCenter } from '../shared/grid';
+import { UltraTracker } from '../ultra/UltraTracker';
+import { PlotWorlds } from '../play/PlotWorlds';
+import { activeBoost, fullClearInk } from '../play/rates';
+import { Footprints } from 'lucide-react';
 import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
 import { NATIVE_APP } from './buildFlags';
@@ -155,6 +167,11 @@ export default function GameHub() {
           })}
         </div>
 
+        {/* your plot games: every plot type you own — play its game, or step into your best plot of it */}
+        {me && <PlotGames />}
+        {me && <PlotWorlds />}
+        {me && <UltraTracker />}
+
         {/* everything, at a glance */}
         <motion.h2 {...rise(n++)} className="mb-2.5 px-0.5 font-display text-[17px] font-black">Everything</motion.h2>
         <div className="grid gap-3" data-testid="hub-all">
@@ -184,5 +201,67 @@ export default function GameHub() {
       {me && <DailyWheel open={wheelOpen} onOpenChange={setWheelOpen} />}
       {me && quick.element}
     </Page>
+  );
+}
+
+/** one card per plot type you own: its minigame on your highest-level plot of that type, or into that plot —
+ *  with what a clear pays, today's paid runs (or "No limit"), and games that are maxed for today at the bottom */
+function PlotGames() {
+  const me = useOnboardedMe();
+  const nav = useNavigate();
+  const world = useWorld();
+  const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me, staleTime: 60_000 });
+  const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me, staleTime: 60_000 });
+  const progress = useQuery({ queryKey: qk.plotProgress, queryFn: api.myPlotProgress, enabled: !!me, staleTime: 60_000 });
+  const unlimited = world.data?.minigames?.limit_paid_runs === false;
+  const limit = records.data?.daily_rewarded_wins_per_game ?? 6;
+  const cfg = world.data?.minigames?.games ?? {};
+  const rows = ORDER.filter(({ game }) => cfg[game]?.enabled !== false).map(({ game, type }) => {
+    const maxLevel = Number(cfg[game]?.max_level ?? world.data?.minigames?.max_level ?? 60);
+    const done = (p: { gx: number; gy: number }) => (progress.data?.[`${p.gx}_${p.gy}`]?.highest_level ?? 0) >= maxLevel;
+    const mine = ((plots.data ?? []) as { gx: number; gy: number; plot_type: string; level: number; rarity: string }[]).filter((p) => p.plot_type === type);
+    // the highest-level plot that still has levels to beat (a plot that beat them all goes last)
+    const best = [...mine].sort((a, b) => Number(done(a)) - Number(done(b)) || b.level - a.level || rarityInfo(b.rarity).ink_reward_multiplier - rarityInfo(a.rarity).ink_reward_multiplier)[0];
+    const left = unlimited ? Infinity : Math.max(0, limit - (records.data?.rewarded_today?.[game] ?? 0));
+    const allDone = mine.length > 0 && mine.every(done);
+    const lvl = best ? Math.min((progress.data?.[`${best.gx}_${best.gy}`]?.highest_level ?? 0) + 1, maxLevel) : 1;
+    return { game, type, count: mine.length, best, left, maxed: left === 0 || allDone, allDone, pay: best ? fullClearInk(world.data, game, lvl, best) : 0, boost: activeBoost(world.data, game) };
+  }).filter((r) => r.count > 0)
+    .sort((a, b) => Number(a.maxed) - Number(b.maxed) || (b.boost?.multiplier ?? 1) - (a.boost?.multiplier ?? 1));
+  if (!rows.length) return null;
+  const enter = (b: { gx: number; gy: number }) => {
+    buzz('medium');
+    const [lng, lat] = cellCenter(b.gx, b.gy);
+    nav('/world');
+    // fly down into it and open its card (the map picks this up when it's ready)
+    setTimeout(() => { useUi.getState().requestFly({ lng, lat, zoom: Z_PLOT + 1 }); useUi.getState().select({ gx: b.gx, gy: b.gy }); }, 350);
+  };
+  return (
+    <motion.section {...rise(14)} className="mb-6" data-testid="hub-plot-games">
+      <h2 className="mb-2.5 flex items-baseline justify-between px-0.5 font-display text-[17px] font-black">Your plot games
+        <span className="text-[11.5px] font-bold text-white/45">{unlimited ? 'Paid runs: no limit today' : `${limit} paid runs a game, every day`}</span></h2>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5">
+        {rows.map(({ game, type, count, best, left, maxed, allDone, pay, boost }) => {
+          const t = PLOT_TYPES[type];
+          return (
+            <motion.div layout key={game} className={cn('lv-plotgame', maxed && 'maxed', boost && 'boosted')} style={{ ['--a' as string]: t.a, ['--b' as string]: t.b }} data-testid={`hub-game-${game}`} data-maxed={maxed || undefined}>
+              <GamePreview game={game} size={54} className="shrink-0 rounded-2xl" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-display text-[16px] font-black">{GAME_INFO[game].name}{boost ? <span className="ml-1.5 rounded-full bg-[#FFC93D] px-1.5 py-0.5 align-middle text-[10px] font-black text-[#2a1800]">{boost.multiplier}×</span> : null}</div>
+                <div className="truncate text-[11.5px] font-semibold text-white/55">{t.name} · {count} plot{count === 1 ? '' : 's'} · best level {best!.level}</div>
+                <div className="mt-1 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px] font-extrabold tnum">
+                  {allDone ? <span className="text-[#3DDC97]">All levels beaten</span> : <span className="inline-flex items-center gap-0.5 text-[#9CF7C9]"><ResourceIcon r="ink" className="h-3.5 w-3.5" />+{fmt(pay)} a clear</span>}
+                  <span className={cn('rounded-full px-1.5 py-0.5', unlimited ? 'bg-[#34C3FF]/20 text-[#9BE1FF]' : left === 0 ? 'bg-white/10 text-white/50' : 'bg-white/10 text-white/75')} data-testid={`hub-runs-${game}`}>
+                    {unlimited ? 'No limit' : left === 0 ? 'Maxed today' : `${left}/${limit} runs`}
+                  </span>
+                </div>
+              </div>
+              <button className="lv-pgbtn enter" onClick={() => enter(best!)} aria-label={`Enter your best ${t.name} plot`} data-testid={`hub-enter-${game}`}><Footprints className="h-4 w-4" /></button>
+              <button className="lv-pgbtn play" onClick={() => { buzz('light'); nav(`/play/${game}?gx=${best!.gx}&gy=${best!.gy}`); }} data-testid={`hub-play-${game}`}>Play</button>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.section>
   );
 }

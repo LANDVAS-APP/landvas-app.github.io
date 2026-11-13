@@ -2,6 +2,10 @@
 // is parked there (it opens up high, with the whole planet in view). One zoom takes you from walking
 // to flying low over the plots to orbit; your live group of up to 10 walks with you; plots are bought
 // on the shared map, each with its world's two games; and a far-off world can be settled as home.
+import GameHud, { ProfileMenu } from '../app/GameHud';
+import { useHudCard } from '../app/radial';
+import { BellCard } from '../updates/Notifications';
+import { isNative } from '../native/native';
 import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -37,6 +41,7 @@ import { type World, worldKey, worldOf } from './worlds';
 import { poll, live as liveMs } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
 
+const APP = isNative();
 export default function Surface() {
   const q = useSpace();
   const nav = useNavigate();
@@ -64,6 +69,8 @@ const distance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 
 
 /** The planet itself. `embedded` = the World tab (game HUD, starts high over the globe). */
 export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceState; w: World; embedded?: boolean; onPeekEarth?(): void }) {
+  const hudCard = useHudCard((x) => x.card);
+  const closeHudCard = useHudCard((x) => x.close);
   const me = useOnboardedMe();
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -275,11 +282,18 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       )}
 
       {/* top: the game HUD (World tab) or back + world name (full screen) */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 px-3 pt-[max(10px,env(safe-area-inset-top,0px))]">
-        <div className="flex items-start gap-2">
+      {APP && embedded && (
+        // the app: the same HUD as on Earth (you, your earnings, Ink, the bell), and its cards
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
+          <GameHud overlay />
+          <div className="px-3"><AnimatePresence mode="wait">{hudCard === 'me' && <ProfileMenu key="me" />}{hudCard === 'bell' && <BellCard key="bell" onClose={closeHudCard} />}</AnimatePresence></div>
+        </div>
+      )}
+      <div className={cn('pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 px-3 pt-[max(10px,env(safe-area-inset-top,0px))]', APP && embedded && 'pt-[calc(max(10px,env(safe-area-inset-top,0px))+64px)]', APP && 'lv-planethud')}>
+        <div className={cn('flex items-start gap-2', APP && embedded && 'hidden')}>
           {embedded ? <PlayerBadge /> : (
-            <div className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-2xl bg-black/55 p-1.5 pr-3 backdrop-blur">
-              <button onClick={() => nav(-1)} className="rounded-xl p-2 hover:bg-white/10" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+            <div className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-2xl bg-black/55 p-1.5 pr-3 backdrop-blur lv-planetchip">
+              <button onClick={() => nav(-1)} className={APP ? 'lv-back !h-9 !w-9' : 'rounded-xl p-2 hover:bg-white/10'} aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
               <div className="min-w-0"><div className="truncate font-display text-sm font-bold">{w.name}{isHome ? ' · home' : ''}</div><div className="truncate text-[11px] text-white/70">Gravity {w.gravity}× · {taken && !paid ? 'samples collected' : `samples ${got}/${SAMPLES}`}</div></div>
             </div>
           )}
@@ -291,7 +305,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         </div>
         <div className="flex flex-col items-start gap-1.5">
           {embedded && (
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/55 px-3 py-1.5 backdrop-blur" data-testid="planet-banner">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/55 px-3 py-1.5 backdrop-blur lv-planetchip" data-testid="planet-banner">
               <span className="text-lg">🪐</span>
               <div className="leading-tight"><div className="font-display text-sm font-bold">{w.name}{isHome ? ' · home' : ''}</div><div className="whitespace-nowrap text-[10.5px] text-white/65">Rocket parked here</div></div>
               <button className="ml-1 rounded-xl bg-white/10 p-2 hover:bg-white/20" onClick={() => nav('/space')} aria-label="Mission control" data-testid="space-button"><RocketIcon className="h-4 w-4" /></button>

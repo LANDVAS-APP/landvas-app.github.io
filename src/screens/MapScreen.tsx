@@ -292,7 +292,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
     ...(has && !tripLive ? [{ key: 'travel', label: 'Trains & planes', node: <TravelButton /> }] : []),
     ...(has && !groupLive && group.data?.group ? [{ key: 'group', label: 'Your group', node: <GroupButton /> }] : []),
     ...(!flying ? [{ key: 'space', label: 'Your rocket', node: spaceBtn }] : []),
-    ...(canMerge && !merging ? [{ key: 'merge', label: 'Merge plots', node: (
+    ...((canMerge || APP) && !merging ? [{ key: 'merge', label: 'Merge plots', node: (
       <button className="lv-gbtn round" onClick={() => { tap(); setMore(false); startMerge(null); }} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
         <Combine className="h-5 w-5" /><span className="lbl">Merge</span>
       </button>) }] : []),

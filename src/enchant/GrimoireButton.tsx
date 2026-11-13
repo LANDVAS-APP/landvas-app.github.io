@@ -108,10 +108,16 @@ export function GrimoireSheet() {
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div key="grim" className="lv-sheet" role="dialog" aria-label="Grimoire" data-testid="grimoire-sheet"
-          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%', transition: { duration: 0.22, ease: 'easeIn' } }} transition={{ type: 'spring', stiffness: 380, damping: 38 }}>
+        <motion.div key="grim" className="lv-sheet lv-book" role="dialog" aria-label="Grimoire" data-testid="grimoire-sheet"
+          initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.2 } }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+          {/* a leather-bound collection book: the cover swings open, then the pages are yours */}
+          <motion.div className="lv-book-cover" aria-hidden initial={{ rotateY: 0 }} animate={{ rotateY: -115, opacity: [1, 1, 0] }} transition={{ duration: 0.85, ease: [0.6, 0.05, 0.3, 1], delay: 0.15 }}>
+            <span className="emblem">📖</span><span className="title">GRIMOIRE</span><span className="sub">Collected enchantments</span>
+          </motion.div>
+          <span className="lv-book-spine" aria-hidden />
+          <span className="lv-book-corner tl" aria-hidden /><span className="lv-book-corner tr" aria-hidden /><span className="lv-book-corner bl" aria-hidden /><span className="lv-book-corner br" aria-hidden />
           <button className="lv-sheet-close" onClick={() => set(false)} aria-label="Close the Grimoire" data-testid="grimoire-close">×</button>
-          <div className="lv-sheet-body"><Suspense fallback={<div className="grid place-items-center py-24"><Spinner /></div>}><GrimoireScreen /></Suspense></div>
+          <div className="lv-sheet-body lv-book-pages"><Suspense fallback={<div className="grid place-items-center py-24"><Spinner /></div>}><GrimoireScreen /></Suspense></div>
         </motion.div>
       )}
     </AnimatePresence>,

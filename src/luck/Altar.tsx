@@ -106,15 +106,17 @@ export function LuckCard({ onClose }: { onClose(): void }) {
       <motion.div className={cn('lv-mcard t-emerald pointer-events-auto w-[min(360px,100%)]', armed && 'armed')} data-testid="luck-card"
         initial={{ opacity: 0, scale: 0.7, y: -14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -10, transition: { duration: 0.14 } }}
         transition={{ type: 'spring', stiffness: 520, damping: 34 }} style={{ transformOrigin: '76px 0' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+        <button className="lv-x absolute right-3 top-3" onClick={onClose} aria-label="Close">×</button>
+        <div className="flex items-center gap-3.5">
+          <LuckWheel luck={l.luck} max={l.max} per={l.per_roll} armed={armed} />
+          <div className="min-w-0 flex-1 pr-6">
             <div className="kicker">🍀 Altar of Luck</div>
-            <div className="font-display text-[22px] font-black leading-tight">Luck <span className="tnum">{l.luck}</span><span className="text-[14px] text-white/45"> / {l.max}</span></div>
+            <div className="mt-0.5 font-display text-[30px] font-black leading-none tnum">{l.luck}<span className="text-[14px] text-white/45"> / {l.max}</span></div>
+            <div className="mt-1.5 text-[12px] font-bold text-[#7CF5B6]">{l.can_reroll} reroll{l.can_reroll === 1 ? '' : 's'} ready</div>
+            <div className="lv-meter mt-2"><span style={{ width: `${pct}%` }} /></div>
           </div>
-          <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
         </div>
-        <div className="lv-meter mt-2"><span style={{ width: `${pct}%` }} /></div>
-        <div className="mt-2.5 text-[12.5px] font-semibold text-white/75" data-testid="luck-card-status">
+        <div className="mt-3 text-[12.5px] font-semibold text-white/75" data-testid="luck-card-status">
           {armed ? <>✨ <b className="text-[#7CF5B6]">Armed</b> — your next claim rolls <b>{l.rolls}×</b> and you keep the best (ultras ×{Number(l.ultra_x.toFixed(1))})</>
             : l.can_reroll > 0 ? <>{l.can_reroll} reroll{l.can_reroll > 1 ? 's' : ''} saved — arm them for your next claim</>
             : <>{l.per_roll - (l.luck % l.per_roll)} more Luck for a free reroll</>}
@@ -133,6 +135,38 @@ export function LuckCard({ onClose }: { onClose(): void }) {
       </motion.div>
       <AltarDialog open={altar} onOpenChange={setAltar} />
     </>
+  );
+}
+
+/** the clover in its wheel: one glowing segment per reroll's worth of Luck, a turning ring of ticks, and a gold
+ *  halo when it's armed */
+function LuckWheel({ luck, max, per, armed }: { luck: number; max: number; per: number; armed: boolean }) {
+  const n = Math.max(1, Math.round(max / Math.max(1, per)));
+  const R = 52, r = 40, C = 64, gap = 5;
+  const seg = (i: number) => {
+    const a0 = ((-90 + (360 / n) * i + gap / 2) * Math.PI) / 180, a1 = ((-90 + (360 / n) * (i + 1) - gap / 2) * Math.PI) / 180;
+    const p = (a: number, rr: number) => `${C + Math.cos(a) * rr},${C + Math.sin(a) * rr}`;
+    const big = 360 / n - gap > 180 ? 1 : 0;
+    return `M${p(a0, R)} A${R},${R} 0 ${big} 1 ${p(a1, R)} L${p(a1, r)} A${r},${r} 0 ${big} 0 ${p(a0, r)} Z`;
+  };
+  const filled = luck / Math.max(1, per);
+  return (
+    <div className={cn('lv-luckwheel', armed && 'armed')} aria-hidden>
+      <svg viewBox="0 0 128 128" width={116} height={116}>
+        <defs>
+          <linearGradient id="lw-on" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#B6FFDC" /><stop offset="0.55" stopColor="#2FD493" /><stop offset="1" stopColor="#FFE14D" /></linearGradient>
+          <radialGradient id="lw-core" cx="0.5" cy="0.4" r="0.6"><stop offset="0" stopColor="#1f8a62" /><stop offset="1" stopColor="#06281b" /></radialGradient>
+        </defs>
+        <g className="ticks">{Array.from({ length: 48 }, (_, i) => <rect key={i} x={63} y={3} width={2} height={i % 4 ? 4 : 7} rx={1} fill="rgba(200,255,230,0.45)" transform={`rotate(${i * 7.5} 64 64)`} />)}</g>
+        {Array.from({ length: n }, (_, i) => {
+          const f = Math.max(0, Math.min(1, filled - i));
+          return <path key={i} d={seg(i)} fill={f >= 1 ? 'url(#lw-on)' : 'rgba(255,255,255,0.08)'} opacity={f >= 1 ? 1 : 1} className={f >= 1 ? 'on' : ''} style={f > 0 && f < 1 ? { fill: `rgba(47,212,147,${0.2 + f * 0.5})` } : undefined} />;
+        })}
+        <circle cx={C} cy={C} r={34} fill="url(#lw-core)" stroke="rgba(182,255,220,0.55)" strokeWidth={1.5} />
+      </svg>
+      <span className="clover">🍀</span>
+      {armed && <span className="armed-tag">ARMED</span>}
+    </div>
   );
 }
 

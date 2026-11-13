@@ -76,7 +76,7 @@ export function BellCard({ onClose }: { onClose(): void }) {
         <div><div className="kicker">🔔 Notifications</div><div className="font-display text-[20px] font-black leading-tight">What’s new</div></div>
         <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
       </div>
-      <div className="lv-mcard-scroll"><UpdatesBody open onClose={onClose} /></div>
+      <div className="lv-mcard-scroll lv-bellbody"><UpdatesBody open onClose={onClose} /></div>
     </motion.div>
   );
 }

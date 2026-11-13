@@ -1,5 +1,7 @@
 // A simple, friendly drawing pad for the creative games: 16 colours, four brush sizes,
 // eraser, undo and clear. Records strokes (with timing) for the server and for replays.
+import { MiniDock } from '../editor/MiniDock';
+import { isNative } from '../native/native';
 import { Eraser, Paintbrush, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { SKETCH_COLORS, drawStrokes, type Stroke } from '../shared/strokes';
@@ -8,6 +10,7 @@ import { holdUpdates } from '../app/updates';
 
 const SIZES = [6, 14, 28, 60];
 
+const APP = isNative();
 export function SketchPad({ strokes, onChange, t0, disabled, clip, underlay, size: want = 520, testid = 'sketch-pad' }: {
   strokes: Stroke[];
   onChange(s: Stroke[]): void;
@@ -91,15 +94,17 @@ export function SketchPad({ strokes, onChange, t0, disabled, clip, underlay, siz
     if (s && latest.current.length < 2500) onChange([...latest.current, s]);
   };
   return (
-    <div className="grid w-full justify-items-center gap-2" ref={wrap}>
-      <canvas ref={cv} style={{ width: size, height: size }} className={cn('no-touch-scroll touch-none rounded-2xl shadow-[0_0_0_1px_rgba(255,255,255,0.12)]', disabled ? 'opacity-80' : 'cursor-crosshair')}
+    <div className="grid w-full min-w-0 justify-items-center gap-2 justify-self-stretch" ref={wrap}>
+      <canvas ref={cv} style={{ width: size, height: size, maxWidth: '100%' }} className={cn('no-touch-scroll touch-none rounded-2xl shadow-[0_0_0_1px_rgba(255,255,255,0.12)]', disabled ? 'opacity-80' : 'cursor-crosshair')}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid={testid} />
-      <div className="flex flex-wrap justify-center gap-1.5" role="radiogroup" aria-label="Colour">
+      <div className={cn('flex flex-wrap justify-center gap-1.5', APP && 'lv-sketchcolors')} role="radiogroup" aria-label="Colour">
         {SKETCH_COLORS.slice(1).map((c, i) => (
           <button key={c} role="radio" aria-checked={!eraser && color === i + 1} aria-label={`Colour ${i + 1}`} onClick={() => { setColor(i + 1); setEraser(false); }}
             className={cn('h-7 w-7 rounded-lg border-2 transition', !eraser && color === i + 1 ? 'scale-110 border-white shadow-[0_0_0_2px_var(--accent)]' : 'border-white/15')} style={{ background: c }} />
         ))}
       </div>
+      {APP ? <MiniDock w={w} setW={setW} min={SIZES[0]} max={SIZES[SIZES.length - 1]} eraser={eraser} setEraser={setEraser} color={SKETCH_COLORS[color]} canUndo={!!strokes.length && !disabled}
+        onUndo={() => onChange(strokes.slice(0, -1))} onClear={() => onChange([])} /> :
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         {SIZES.map((s) => (
           <button key={s} onClick={() => setW(s)} aria-label={`Brush size ${s}`} className={cn('flex h-9 w-9 items-center justify-center rounded-xl border', w === s ? 'border-accent bg-accent/15' : 'border-line')}>
@@ -111,10 +116,11 @@ export function SketchPad({ strokes, onChange, t0, disabled, clip, underlay, siz
         </button>
         <button onClick={() => onChange(strokes.slice(0, -1))} disabled={!strokes.length || disabled} className="flex h-9 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold disabled:opacity-40" aria-label="Undo"><Undo2 className="h-4 w-4" /></button>
         <button onClick={() => onChange([])} disabled={!strokes.length || disabled} className="flex h-9 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold disabled:opacity-40" aria-label="Clear"><Trash2 className="h-4 w-4" /></button>
-      </div>
+      </div>}
     </div>
   );
 }
+
 
 /** A finished drawing; `replay` draws it stroke by stroke at its real pace (or `speed`× faster). */
 export function StrokeView({ strokes, size = 240, replay, speed = 1, onEnd, className, clip, testid }: {

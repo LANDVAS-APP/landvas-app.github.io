@@ -1,4 +1,5 @@
 // Social: the live feed of what everyone is doing, the global chat, and friends.
+import { isNative } from '../native/native';
 import { rarityInfo } from '../shared/rarity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -53,7 +54,7 @@ export default function SocialScreen() {
   const incoming = friends.data?.incoming.length ?? 0;
   return (
     <Page wide>
-      <PageHeader eyebrow="Together" title="Social" actions={<>
+      <PageHeader eyebrow="Together" title="Social" actions={isNative() ? undefined : <>
         <Link to="/players" className="glass flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-muted hover:text-fg"><Users className="h-4 w-4" /> Players</Link>
         {me && <Link to="/invite" className="glass flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-gold hover:text-fg" data-testid="social-invite"><Gift className="h-4 w-4" /> Invite</Link>}
       </>}>

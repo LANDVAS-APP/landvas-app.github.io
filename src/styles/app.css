@@ -2044,3 +2044,218 @@ html.reduce-motion .lv-hud.lv-money::after { animation: none; }
 .lv-motes i { position: absolute; bottom: -20px; border-radius: 28%; opacity: 0; animation: lv-mote linear infinite; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
 @keyframes lv-mote { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 12% { opacity: 0.85; } 80% { opacity: 0.6; } 100% { transform: translateY(-105vh) rotate(220deg); opacity: 0; } }
 html.reduce-motion .lv-btn.lv-rainbow, html.reduce-motion .lv-motes i { animation: none; }
+/* the bell's card: premium tabs and rows */
+.lv-bellbody [role="tablist"] { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px !important; border-radius: 16px !important; background: rgba(0, 0, 0, 0.35) !important; }
+.lv-bellbody [role="tab"] { display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; border-radius: 12px !important; font-family: var(--font-display); font-weight: 800 !important; color: rgba(255, 255, 255, 0.55) !important; background: none !important; box-shadow: none !important; }
+.lv-bellbody [role="tab"][aria-selected="true"] { color: #fff !important; background: linear-gradient(100deg, #34c3ff, #7b5cff) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35) !important; }
+.lv-bellbody [data-testid="activity-list"] { max-height: none !important; overflow: visible !important; gap: 6px !important; }
+.lv-bellbody [data-testid="activity-list"] > button { padding: 10px !important; border-radius: 16px !important; background: rgba(255, 255, 255, 0.045) !important; border: 1px solid rgba(255, 255, 255, 0.07); }
+.lv-bellbody [data-testid="activity-list"] > button:has(> .bg-hot) { border-color: rgba(52, 195, 255, 0.45); background: linear-gradient(90deg, rgba(52, 195, 255, 0.14), rgba(255, 255, 255, 0.03)) !important; }
+.lv-bellbody [data-testid="activity-list"] > button:active { transform: scale(0.98); }
+.lv-bellbody [data-testid="announcement-card"] { border-radius: 18px !important; background: rgba(255, 255, 255, 0.045) !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+.lv-bellbody p { color: rgba(255, 255, 255, 0.6); }
+/* the Altar of Luck's wheel */
+.lv-luckwheel { position: relative; flex-shrink: 0; width: 116px; height: 116px; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)); }
+.lv-luckwheel .ticks { transform-origin: 64px 64px; animation: lv-spin 24s linear infinite; }
+.lv-luckwheel path.on { filter: drop-shadow(0 0 5px rgba(47, 212, 147, 0.85)); }
+.lv-luckwheel .clover { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55)); animation: lv-clover 3.2s ease-in-out infinite; }
+@keyframes lv-clover { 0%, 100% { transform: rotate(-6deg) scale(1); } 50% { transform: rotate(6deg) scale(1.06); } }
+.lv-luckwheel.armed { filter: drop-shadow(0 0 16px rgba(255, 225, 77, 0.6)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)); }
+.lv-luckwheel.armed .ticks { animation-duration: 4s; }
+.lv-luckwheel .armed-tag { position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px; font: 900 9.5px/1.3 var(--font-display); letter-spacing: 0.12em; color: #2a1a00; background: linear-gradient(180deg, #fff3c4, #f2c048); box-shadow: 0 0 12px rgba(255, 225, 77, 0.7); }
+html.reduce-motion .lv-luckwheel .ticks, html.reduce-motion .lv-luckwheel .clover { animation: none; }
+/* the Grimoire: a leather-bound collection book */
+.lv-book { perspective: 1400px; background: radial-gradient(130% 80% at 50% 0%, #4a1d3e 0%, #24102a 45%, #0d0612 100%); }
+.lv-book::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.018) 0 2px, rgba(0, 0, 0, 0) 2px 7px), radial-gradient(120% 90% at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.65) 100%); }
+.lv-book-pages { inset: 10px 10px max(10px, env(safe-area-inset-bottom, 0px)) 18px; top: max(10px, env(safe-area-inset-top, 0px)); border-radius: 18px 22px 22px 18px;
+  background: radial-gradient(120% 60% at 50% 0%, rgba(255, 210, 120, 0.08), rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, #1b1230, #120b22);
+  border: 1px solid rgba(233, 178, 63, 0.35); box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.5); padding-top: 6px !important; }
+.lv-book-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 16px; z-index: 1; background: linear-gradient(90deg, #1a0816, #5a2347 45%, #2a0f22); box-shadow: 2px 0 8px rgba(0, 0, 0, 0.6); }
+.lv-book-corner { position: absolute; z-index: 2; width: 26px; height: 26px; pointer-events: none; border: 2px solid #e9b23f; opacity: 0.85; }
+.lv-book-corner.tl { left: 22px; top: max(16px, calc(env(safe-area-inset-top, 0px) + 6px)); border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+.lv-book-corner.tr { right: 16px; top: max(16px, calc(env(safe-area-inset-top, 0px) + 6px)); border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+.lv-book-corner.bl { left: 22px; bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 6px)); border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
+.lv-book-corner.br { right: 16px; bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 6px)); border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
+.lv-book-cover { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; transform-origin: left center; backface-visibility: hidden;
+  background: radial-gradient(90% 70% at 50% 40%, #6b2a58, #3a1230 60%, #1d0818); border-right: 3px solid #e9b23f; box-shadow: inset 0 0 0 10px rgba(0, 0, 0, 0.25), inset 0 0 0 12px rgba(233, 178, 63, 0.6); }
+.lv-book-cover .emblem { font-size: 64px; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6)); }
+.lv-book-cover .title { font: 900 28px/1 var(--font-display); letter-spacing: 0.3em; color: #ffd86b; text-shadow: 0 2px 0 #5a3a05; }
+.lv-book-cover .sub { font-size: 12px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 216, 107, 0.6); }
+.lv-book .lv-sheet-close { z-index: 6; }
+/* ---- the app's plot sheet: compact, glowing in the plot's rarity ---------------------------------------------- */
+.lv-plotsheet { color: #fff; border: 1px solid transparent; border-bottom: 0;
+  background: radial-gradient(90% 50% at 50% 0%, color-mix(in srgb, var(--glow, #8b6bff) 30%, transparent), rgba(0, 0, 0, 0) 70%) padding-box,
+    linear-gradient(180deg, rgba(27, 31, 80, 0.98), rgba(10, 12, 34, 0.99)) padding-box,
+    linear-gradient(180deg, var(--glow, #e9b23f), rgba(255, 255, 255, 0.08) 30%) border-box;
+  box-shadow: 0 -24px 60px -20px rgba(0, 0, 0, 0.9); }
+.lv-plotsheet > .mx-auto.mb-3 { background: rgba(255, 255, 255, 0.2); }
+.lv-plotsheet .eyebrow { color: rgba(255, 255, 255, 0.55); }
+.lv-plotsheet [class*="border-line"] { border-color: rgba(255, 255, 255, 0.08); }
+.lv-plothero { display: flex; gap: 12px; padding: 10px; border-radius: 20px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.lv-plothero .art { flex-shrink: 0; width: 88px; height: 88px; display: grid; place-items: center; border-radius: 18px; overflow: hidden; background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 2px var(--glow), 0 0 26px -4px var(--glow); }
+.lv-plothero .art > * { width: 84px !important; height: 84px !important; border-radius: 16px; }
+.lv-tag { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.8); }
+.lv-kchip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 999px; font: 800 13px/1 var(--font-display); color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.1s, background 0.15s; }
+.lv-kchip:active { transform: scale(0.95); }
+.lv-kchip.on { color: #fff; border-color: var(--k); background: color-mix(in srgb, var(--k) 30%, rgba(10, 12, 34, 0.9)); box-shadow: 0 0 16px -4px var(--k), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+.lv-kchip.sub { height: 32px; font-size: 12px; }
+.lv-buy { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 8px 10px 8px 8px; border-radius: 20px; color: #fff; overflow: hidden; border: 1.5px solid transparent;
+  background: linear-gradient(100deg, #ff4d6d, #ff4fd8 30%, #7b5cff 65%, #34c3ff) 0 0 / 220% 100% padding-box, linear-gradient(160deg, #fff, rgba(255, 255, 255, 0.3)) border-box;
+  box-shadow: 0 3px 0 rgba(48, 16, 110, 0.95), 0 16px 34px -12px rgba(123, 92, 255, 0.95); animation: lv-rainbowflow 7s linear infinite; text-shadow: 0 1px 2px rgba(20, 0, 60, 0.45); }
+.lv-buy::before { content: ""; position: absolute; left: 2px; right: 2px; top: 2px; height: 45%; border-radius: 18px 18px 8px 8px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0)); pointer-events: none; }
+.lv-buy:disabled { filter: grayscale(0.6); opacity: 0.7; }
+.lv-buy .ic { position: relative; display: grid; place-items: center; width: 46px; height: 46px; flex-shrink: 0; border-radius: 15px; background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+.lv-buy b { display: block; font: 900 19px/1.1 var(--font-display); }
+.lv-buy i { display: block; font-style: normal; font-size: 11.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); }
+.lv-buy .price { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 7px 11px; border-radius: 14px; font: 900 16px/1 var(--font-display); background: rgba(0, 0, 0, 0.3); }
+html.reduce-motion .lv-buy { animation: none; }
+/* ---- the Merge studio --------------------------------------------------------------------------------------- */
+.lv-merge { color: #fff; }
+.lv-seg2 { display: inline-flex; gap: 3px; padding: 3px; border-radius: 14px; background: rgba(0, 0, 0, 0.35); }
+.lv-seg2 button { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 11px; font: 800 12.5px/1 var(--font-display); color: rgba(255, 255, 255, 0.55); }
+.lv-seg2 button.on { color: #fff; background: linear-gradient(100deg, #ff4fd8, #7b5cff 60%, #34c3ff); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.lv-island { margin-bottom: 14px; padding: 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.07); }
+.lv-mcell { position: absolute; display: grid; place-items: center; border: 2px solid; border-radius: 3px; cursor: pointer; transition: transform 0.12s, filter 0.12s;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%), color-mix(in srgb, var(--c) 78%, #0b0f2c); }
+.lv-mcell .k { font-size: 12px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); pointer-events: none; }
+.lv-mcell.on { z-index: 1; filter: brightness(1.25) saturate(1.2); box-shadow: inset 0 0 0 3px #ffe14d, 0 0 14px rgba(255, 225, 77, 0.7); }
+.lv-mcell.dim { opacity: 0.35; }
+.lv-mergebar { display: grid; gap: 8px; justify-items: center; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(14, 17, 48, 0.96), rgba(8, 10, 30, 0.99)); }
+/* ---- daily streak & wheel (the app) --------------------------------------------------------------------------- */
+.lv-streakhero { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 22px; color: #fff; border: 1px solid transparent;
+  background: radial-gradient(90% 90% at 0% 50%, rgba(255, 122, 47, 0.38), rgba(0, 0, 0, 0) 60%) padding-box, linear-gradient(180deg, #23194a, #110c2a) padding-box,
+    linear-gradient(160deg, #ffd9b0, #ff7a2f 35%, rgba(255, 255, 255, 0.06) 70%) border-box; }
+.lv-streakhero .flame { position: relative; display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; }
+.lv-streakhero .flame .f1 { position: relative; z-index: 1; font-size: 46px; transform-origin: 50% 90%; animation: lv-flicker 1.6s ease-in-out infinite; }
+.lv-streakhero .flame .glow { position: absolute; inset: 4px; border-radius: 999px; background: radial-gradient(circle, rgba(255, 160, 40, 0.75), rgba(255, 90, 0, 0) 70%); animation: lv-breathe 2.4s ease-in-out infinite; }
+@keyframes lv-flicker { 0%, 100% { transform: scale(1) rotate(-2deg); } 30% { transform: scale(1.06, 0.97) rotate(2deg); } 60% { transform: scale(0.97, 1.05) rotate(-1deg); } }
+@keyframes lv-breathe { 0%, 100% { opacity: 0.6; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.08); } }
+.lv-claimed { flex-shrink: 0; padding: 7px 11px; border-radius: 999px; font: 800 12px/1 var(--font-display); color: #7cf5b6; background: rgba(47, 212, 147, 0.15); border: 1px solid rgba(47, 212, 147, 0.4); }
+.lv-streak [data-testid^="streak-day-"] { border-radius: 14px !important; background: rgba(255, 255, 255, 0.04); }
+.lv-streak [data-testid^="streak-day-"][class*="FFB31F"] { animation: lv-todayglow 1.8s ease-in-out infinite; }
+@keyframes lv-todayglow { 0%, 100% { box-shadow: 0 0 6px -2px #ffb31f; } 50% { box-shadow: 0 0 18px 0 #ffb31f; } }
+.lv-wheelwrap > .relative { padding: 0; }
+.lv-wheelrim { position: absolute; inset: -12px; border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle closest-side, rgba(0, 0, 0, 0) 91.5%, #3a2504 92%, #b07a12 93.5%, #fff4c8 95.5%, #e9b23f 97.5%, #6b4508 99.5%, rgba(0, 0, 0, 0) 100%);
+  box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.8), 0 0 30px -8px rgba(233, 178, 63, 0.5); }
+.lv-wheelrim i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 999px; transform-origin: 50% 50%;
+  background: #fff8d6; box-shadow: 0 0 8px #ffe14d; opacity: 0.55; }
+.lv-wheelwrap.spinning .lv-wheelrim i { animation: lv-bulb 0.48s steps(1) infinite; }
+@keyframes lv-bulb { 0% { opacity: 1; } 50% { opacity: 0.25; } }
+.lv-wheelpin { position: absolute; left: 50%; top: -20px; transform: translateX(-50%); width: 30px; height: 38px; z-index: 2; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6)); }
+.lv-wheelpin span { display: block; width: 100%; height: 100%; clip-path: polygon(50% 100%, 0 25%, 15% 0, 85% 0, 100% 25%); background: linear-gradient(180deg, #fff4c8, #e9b23f 55%, #8a5a0e); }
+.lv-prize { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 18px; font: 800 16px/1.2 var(--font-display); color: #fff;
+  background: linear-gradient(100deg, rgba(255, 77, 109, 0.25), rgba(123, 92, 255, 0.3)); border: 1px solid rgba(255, 216, 107, 0.6); box-shadow: 0 0 24px -6px rgba(255, 216, 107, 0.8); }
+.lv-prize b { color: #ffd86b; }
+html.reduce-motion .lv-streakhero .flame .f1, html.reduce-motion .lv-streakhero .flame .glow { animation: none; }
+/* the section's other screens, under its title */
+.lv-shortcut { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 5px 13px 5px 5px; border-radius: 999px; color: #fff; font: 800 13px/1 var(--font-display);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.1s, background 0.15s; }
+.lv-shortcut:active { transform: scale(0.95); background: rgba(255, 255, 255, 0.09); }
+/* the hub's plot games */
+.lv-plotgame { display: flex; align-items: center; gap: 11px; padding: 9px 9px 9px 9px; border-radius: 20px; color: #fff; border: 1px solid transparent;
+  background: radial-gradient(90% 120% at 0% 50%, color-mix(in srgb, var(--a) 35%, transparent), rgba(0, 0, 0, 0) 65%) padding-box, linear-gradient(180deg, #1b2156, #0b0f2d) padding-box,
+    linear-gradient(120deg, var(--a), rgba(255, 255, 255, 0.06) 40%, var(--b)) border-box; }
+.lv-pgbtn { flex-shrink: 0; display: grid; place-items: center; height: 40px; border-radius: 14px; font: 900 14px/1 var(--font-display); transition: transform 0.1s; }
+.lv-pgbtn:active { transform: scale(0.92); }
+.lv-pgbtn.enter { width: 40px; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); }
+.lv-pgbtn.play { padding: 0 16px; color: #2a1a00; background: linear-gradient(180deg, #fff3c4, #f2c048 55%, #d9962a); box-shadow: 0 6px 14px -6px rgba(233, 178, 63, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+/* planets in the app: premium chips */
+html.native .lv-planetchip { border: 1px solid transparent; background: linear-gradient(180deg, rgba(27, 31, 80, 0.88), rgba(10, 12, 34, 0.9)) padding-box,
+  linear-gradient(160deg, #e6dcff, #8a6bff 35%, rgba(255, 255, 255, 0.06)) border-box !important; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.8), 0 0 20px -10px rgba(138, 107, 255, 0.8); }
+html.native .lv-planetchip button:not(.lv-back) { border-radius: 12px; background: rgba(255, 255, 255, 0.08); }
+/* public profiles in the app */
+html.native .lv-profile-hero { border: 1px solid transparent; background-clip: padding-box; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 24px 50px -24px rgba(0, 0, 0, 0.9), 0 0 40px -16px var(--pc, rgba(138, 107, 255, 0.8)); }
+html.native .lv-proftabs { background: rgba(10, 12, 34, 0.88) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+html.native .lv-proftabs [role="tab"][aria-selected="true"] { color: #fff !important; background: linear-gradient(100deg, #ff4fd8, #7b5cff 60%, #34c3ff) !important; }
+html.native [data-testid="profile-showcase"] > *, html.native [data-testid="profile-ultras"] { border-radius: 22px; }
+/* ---- the app's paint dock ------------------------------------------------------------------------------------- */
+.lv-paintdock { position: relative; z-index: 5; display: flex; align-items: center; gap: 8px; margin: 0 8px calc(8px + env(safe-area-inset-bottom, 0px)); padding: 8px; border-radius: 24px; color: #fff;
+  border: 1px solid transparent; background: linear-gradient(180deg, rgba(27, 31, 80, 0.97), rgba(10, 12, 34, 0.98)) padding-box,
+    linear-gradient(100deg, #ff4d6d, #ff9f1c, #ffe14d, #3ddc97, #34c3ff, #8b6bff) border-box; box-shadow: 0 -10px 30px -12px rgba(0, 0, 0, 0.8); }
+.lv-colorbtn { flex-shrink: 0; width: 46px; height: 46px; border-radius: 999px; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 6px 14px -6px rgba(0, 0, 0, 0.8), inset 0 -4px 8px rgba(0, 0, 0, 0.25); }
+.lv-tool { position: relative; flex-shrink: 0; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; color: rgba(255, 255, 255, 0.7); transition: transform 0.1s, background 0.15s;
+  -webkit-touch-callout: none; user-select: none; touch-action: none; }
+.lv-tool:active { transform: scale(0.9); }
+.lv-tool:disabled { opacity: 0.3; }
+.lv-tool.on { color: #fff; background: linear-gradient(180deg, #8f72ff, #4a2fd6); box-shadow: 0 6px 14px -6px rgba(123, 92, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.lv-tool.locked { opacity: 0.5; }
+.lv-tool.held { box-shadow: 0 0 0 2px #ffe14d, 0 0 18px rgba(255, 225, 77, 0.6); }
+.lv-toolbubble { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); padding: 14px; border-radius: 22px; color: #fff; border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(31, 35, 88, 0.98), rgba(12, 14, 40, 0.98)) padding-box, linear-gradient(160deg, #fff3c4, #e9b23f 30%, rgba(255, 255, 255, 0.06) 60%) border-box;
+  box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.9); }
+.lv-sizeprev { display: grid; place-items: center; width: 72px; height: 72px; flex-shrink: 0; border-radius: 18px;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.06) 0 25%, rgba(255, 255, 255, 0.02) 0 50%) 0 0 / 14px 14px; border: 1px solid rgba(255, 255, 255, 0.1); }
+.lv-sizeprev span { display: block; border-radius: 999px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5); transition: width 0.08s, height 0.08s; }
+.lv-toolbubble label, .lv-toolbubble .text-muted { color: rgba(255, 255, 255, 0.6); }
+.lv-sketchcolors button { width: 32px !important; height: 32px !important; border-radius: 999px !important; box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.25); }
+.lv-sketchcolors button[aria-checked="true"] { box-shadow: 0 0 0 3px #fff, 0 0 14px rgba(255, 255, 255, 0.5) !important; }
+.lv-range { accent-color: #e9b23f; height: 28px; }
+.lv-paintdock.lv-paintdock-paper { background: linear-gradient(180deg, #3b2a20, #2a1d15); border-color: rgba(233, 178, 63, 0.35); }
+/* the Inkborn studio in the app */
+.lv-studiotabs { display: flex; width: 100%; }
+.lv-studiotabs button { flex: 1; justify-content: center; height: 40px; font-size: 13.5px; }
+.lv-studiodraw { margin: 0 -4px; }
+.lv-studiodraw canvas { border-radius: 22px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 14px 34px rgba(0, 0, 0, 0.45); }
+.lv-stickycta { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5; width: 100%; padding-top: 4px; }
+.lv-studiopreview { background: radial-gradient(120% 90% at 50% 0%, rgba(123, 92, 255, 0.28), transparent 62%), linear-gradient(180deg, #1b1630, #0f0d1a) !important; border: 1px solid rgba(255, 255, 255, 0.1); }
+/* the Ultra tracker */
+.lv-ultrarow, .lv-ultracard { position: relative; overflow: hidden; border-radius: 20px; padding: 12px 14px;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--c) 34%, transparent), transparent 60%), linear-gradient(160deg, #1c1830, #120f20);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.lv-ultrarow { display: flex; align-items: center; gap: 12px; }
+.lv-ultracard.open { box-shadow: inset 0 0 0 1.5px var(--g), 0 0 26px -8px var(--g), inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+.lv-ultramult { font: 900 24px/1 var(--font-display); letter-spacing: -0.02em; background: linear-gradient(180deg, #fff, var(--g)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lv-ultrastack { position: relative; display: grid; place-items: center; width: 46px; height: 46px; flex: none; border-radius: 15px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--g) 55%, transparent), color-mix(in srgb, var(--c) 40%, #120f20) 70%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -3px 8px rgba(0, 0, 0, 0.35); }
+.lv-ultrastack > span { position: absolute; font-size: 22px; line-height: 1; }
+.lv-ultrastack > b { position: absolute; right: -5px; bottom: -5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; display: grid; place-items: center;
+  font: 900 11px/1 var(--font-display); color: #1a1206; background: linear-gradient(180deg, #fff3c4, var(--g)); box-shadow: 0 0 0 2px #14111f; }
+.lv-ultrachip { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font: 800 11.5px/1 var(--font-display); color: #fff;
+  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent); }
+.lv-ultrachip b { color: var(--g); }
+.lv-chaoscell { flex: 1; min-width: 0; text-align: center; padding: 5px 0; border-radius: 9px; font: 800 10.5px/1 var(--font-display); color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.05); }
+.lv-chaoscell.on { color: #1a0710; background: linear-gradient(180deg, var(--g), var(--c)); box-shadow: 0 0 14px -2px var(--c); }
+.lv-phoenixbar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.lv-phoenixbar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff5a1f, #ffb31f, #ffe08a); box-shadow: 0 0 12px rgba(255, 140, 40, 0.6); }
+/* the minigame preview, before you play (the app) */
+.lv-gintro { display: grid; gap: 10px; }
+.lv-gintro-hero { position: relative; border-radius: 28px; padding: 3px; background: linear-gradient(140deg, var(--a), var(--b)); box-shadow: 0 18px 40px -12px color-mix(in srgb, var(--a) 60%, transparent); }
+.lv-gintro-hero svg { width: 100%; height: auto; aspect-ratio: 1.35; }
+.lv-gintro-cap { position: absolute; inset: auto 3px 3px 3px; padding: 40px 16px 14px; border-radius: 0 0 26px 26px; background: linear-gradient(180deg, transparent, rgba(8, 6, 16, 0.88) 55%); }
+.lv-gintro-type { display: inline-block; margin-bottom: 6px; padding: 3px 9px; border-radius: 999px; font: 900 10.5px/1.2 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: #fff; background: linear-gradient(100deg, var(--a), var(--b)); }
+.lv-gintro-boost { display: flex; align-items: center; gap: 7px; padding: 10px 14px; border-radius: 16px; color: #ffe08a; font-size: 13px; background: linear-gradient(100deg, rgba(255, 201, 61, 0.22), rgba(255, 138, 91, 0.12)); box-shadow: inset 0 0 0 1px rgba(255, 201, 61, 0.5); }
+.lv-gintro-boost span { color: rgba(255, 255, 255, 0.6); font-weight: 600; }
+.lv-gintro-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lv-gintro-stats > div { display: grid; gap: 4px; padding: 10px 8px; border-radius: 16px; text-align: center; background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09); }
+.lv-gintro-stats span { font: 800 10px/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+.lv-gintro-stats b { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font: 900 16px/1.1 var(--font-display); }
+.lv-gintro-how { display: grid; gap: 6px; }
+.lv-gintro-how li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+.lv-gintro-how li b { flex: none; width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font: 900 11.5px/1 var(--font-display); color: #fff; background: linear-gradient(140deg, var(--a), var(--b)); }
+.lv-pickrow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 16px; text-align: left;
+  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); transition: background 0.15s, box-shadow 0.15s; }
+.lv-pickrow.on { background: linear-gradient(100deg, color-mix(in srgb, var(--a) 26%, transparent), color-mix(in srgb, var(--b) 16%, transparent)); box-shadow: inset 0 0 0 1.5px var(--a); }
+.lv-pickrow.maxed { opacity: 0.5; }
+.lv-plotgame.maxed { opacity: 0.55; filter: saturate(0.6); }
+.lv-plotgame.boosted { box-shadow: inset 0 0 0 1.5px #ffc93d, 0 0 22px -8px #ffc93d; }
+/* plot worlds (arcades, farms, realms…) */
+.lv-worldcard { border-radius: 20px; padding: 11px 12px; background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--c) 26%, transparent), transparent 60%), linear-gradient(160deg, #1b1830, #110f1e);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+.lv-worldcard.maxed { opacity: 0.6; }
+.lv-worldicon { width: 46px; height: 46px; flex: none; border-radius: 15px; display: grid; place-items: center; font-size: 24px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--c) 60%, #fff 10%), color-mix(in srgb, var(--c) 30%, #110f1e) 75%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -3px 8px rgba(0, 0, 0, 0.35); }
+.lv-inklimit { display: grid; gap: 4px; justify-items: end; flex: none; font: 900 11px/1 var(--font-display); color: #9cf7c9; }
+.lv-inklimit i { display: block; width: 62px; height: 5px; border-radius: 99px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.lv-inklimit i b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3ddc97, #9cf7c9); }
+.lv-inklimit.full { color: rgba(255, 255, 255, 0.5); }
+.lv-inklimit.nolimit { padding: 4px 8px; border-radius: 999px; color: #9be1ff; background: rgba(52, 195, 255, 0.16); }
+.lv-worldgame { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 14px; text-align: left; background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+.lv-worldgame:active { transform: scale(0.98); }
+.lv-worldgame.locked { opacity: 0.55; }
+.lv-studio, .lv-studio > * { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.lv-studiodraw { width: 100%; min-width: 0; }

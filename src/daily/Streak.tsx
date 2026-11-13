@@ -11,16 +11,40 @@ import type { DailyStatus, StreakReward } from '../backend/types';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
 import { offerReminders } from '../native/reminders';
 import { rarityInfo } from '../shared/rarity';
 import { Dialog, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import type { RollOpts } from '../simple/useQuickRoll';
+import { UltraStrip, ultrasKey } from '../ultra/UltraTracker';
 
 export function useDaily() {
   const me = useOnboardedMe();
   return useQuery({ queryKey: ['daily'], queryFn: api.dailyStatus, enabled: !!me, staleTime: 60_000 });
+}
+
+/** the app: a flame that burns brighter with your streak, the count rolling up, and the way to the next milestone */
+function StreakHero({ d, busy, onClaim }: { d: DailyStatus; busy: boolean; onClaim(): void }) {
+  const next = d.streak < 7 ? 7 : d.streak < 30 ? 30 : Math.ceil((d.streak + 1) / 30) * 30;
+  const prev = next === 7 ? 0 : next === 30 ? 7 : next - 30;
+  const pct = Math.max(4, Math.min(100, ((d.streak - prev) / Math.max(1, next - prev)) * 100));
+  return (
+    <div className="lv-streakhero">
+      <div className="flame" aria-hidden><span className="f1">🔥</span><span className="glow" /></div>
+      <div className="min-w-0 flex-1">
+        <motion.div key={d.streak} className="font-display text-[44px] font-black leading-none tnum" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 18 }}>{d.streak}</motion.div>
+        <div className="text-[12px] font-bold text-white/60">day streak · best {d.best}</div>
+        <div className="lv-meter mt-2"><span style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#ff7a2f,#ffe14d)', boxShadow: '0 0 12px rgba(255,122,47,0.7)' }} /></div>
+        <div className="mt-1 text-[11px] font-bold text-white/50">{next - d.streak} day{next - d.streak === 1 ? '' : 's'} to {next === 30 ? 'a Legendary+ roll 👑' : 'a guaranteed Rare+ roll 🎟️'}</div>
+      </div>
+      {d.claimed_today
+        ? <span className="lv-claimed">✓ Claimed</span>
+        : <motion.button whileTap={{ scale: 0.94 }} onClick={onClaim} disabled={busy} className="lv-btn lv-rainbow lv-sheen h-14 shrink-0 px-4 text-left" data-testid="streak-claim">
+            <span className="grid leading-tight"><span className="font-display text-[15px] font-black">Claim day {d.streak + 1}</span><span className="text-[11px] font-bold tnum">+{fmt(d.next.ink)} Ink{d.next.ticket ? ' + 🎟️' : ''}</span></span>
+          </motion.button>}
+    </div>
+  );
 }
 
 function DayCell({ d, state }: { d: StreakReward; state: 'done' | 'today' | 'next' | 'future' }) {
@@ -37,6 +61,7 @@ function DayCell({ d, state }: { d: StreakReward; state: 'done' | 'today' | 'nex
   );
 }
 
+const APP = isNative();
 export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; onOpenChange(v: boolean): void; onRoll(o: RollOpts): void }) {
   const q = useDaily();
   const qc = useQueryClient();
@@ -49,6 +74,7 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
       const r = await api.dailyClaim();
       qc.setQueryData(['daily'], r.status);
       invalidateGame(qc);
+      void qc.invalidateQueries({ queryKey: ultrasKey });
       if (useUi.getState().settings.haptics) buzz('success');
       if (r.reward.ticket) confettiCannons(); else confetti({ y: innerHeight * 0.4, count: 70 });
       toast.success(`Day ${r.reward.day}! +${fmt(r.reward.ink)} Ink`, { description: r.reward.ticket ? `And a guaranteed ${rarityInfo(r.reward.ticket).name}-or-better roll — use it below!` : 'Come back tomorrow to keep your streak.' });
@@ -59,8 +85,10 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="🔥 Daily streak" description="Check in every day. Every 7th day: a guaranteed Rare+ roll. Day 30: a guaranteed Legendary+ roll.">
       {!d ? null : (
-        <div className="grid gap-4" data-testid="streak-dialog">
-          <div className="flex items-center justify-between rounded-2xl bg-[linear-gradient(135deg,#FF6A1F33,#FFB31F22)] p-3">
+        <div className={cn('grid gap-4', APP && 'lv-streak')} data-testid="streak-dialog">
+          {APP && <StreakHero d={d} busy={busy} onClaim={claim} />}
+          {APP && <UltraStrip />}
+          <div className={cn('flex items-center justify-between rounded-2xl bg-[linear-gradient(135deg,#FF6A1F33,#FFB31F22)] p-3', APP && 'hidden')}>
             <div>
               <div className="font-display text-[34px] font-black leading-none tnum">🔥 {d.streak}</div>
               <div className="text-[11px] font-bold text-white/60">day streak · best {d.best}</div>

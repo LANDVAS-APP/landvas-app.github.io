@@ -4,6 +4,10 @@ import { Eraser, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { BookDrawing } from '../backend/types';
 import { cn } from '../lib/utils';
+import { MiniDock } from '../editor/MiniDock';
+import { isNative } from '../native/native';
+
+const APP = isNative();
 
 export const PAGE_W = 400, PAGE_H = 300;
 const INKS = ['#1F3A5F', '#E8433A', '#FF8A3D', '#F5C842', '#3E9A44', '#22B8FF', '#7A5CC8', '#FF5FA2', '#5C3A21', '#FFFFFF'];
@@ -66,15 +70,24 @@ export function DrawPad({ onChange }: { onChange(d: BookDrawing | null): void })
     <div className="grid gap-2" data-testid="draw-pad">
       <canvas ref={cv} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         className="aspect-[4/3] w-full touch-none rounded-lg border-2 border-dashed border-[#C9B79C] bg-white" data-testid="draw-canvas" />
+      {APP ? (
+        <>
+          <div className="lv-sketchcolors flex flex-wrap justify-center gap-1.5" role="radiogroup" aria-label="Ink">
+            {INKS.map((c) => <button key={c} role="radio" aria-checked={ink === c} onClick={() => setInk(c)} aria-label={`Ink ${c}`} style={{ background: c }} />)}
+          </div>
+          <MiniDock light w={pen} setW={setPen} min={2} max={18} color={ink} canUndo={!!strokes.length} onUndo={() => setStrokes((l) => l.slice(0, -1))} onClear={() => setStrokes([])} />
+        </>
+      ) : (
       <div className="flex flex-wrap items-center gap-1.5">
-        {INKS.map((c) => <button key={c} onClick={() => setInk(c)} aria-label={`Ink ${c}`} className={cn('h-6 w-6 rounded-full border-2', ink === c ? 'border-[#3B2A20] scale-110' : 'border-black/10')} style={{ background: c }} />)}
-        <span className="mx-1 h-5 w-px bg-[#C9B79C]" />
-        {PENS.map((w) => <button key={w} onClick={() => setPen(w)} aria-label={`Pen ${w}`} className={cn('grid h-7 w-7 place-items-center rounded-lg', pen === w ? 'bg-[#F0E4C8]' : '')}><span className="rounded-full bg-[#3B2A20]" style={{ width: w + 2, height: w + 2 }} /></button>)}
-        <span className="ml-auto flex gap-1">
-          <button onClick={() => setStrokes((l) => l.slice(0, -1))} disabled={!strokes.length} className="rounded-lg p-1.5 text-[#5C3A21] disabled:opacity-30" aria-label="Undo"><Undo2 className="h-4 w-4" /></button>
-          <button onClick={() => setStrokes([])} disabled={!strokes.length} className="rounded-lg p-1.5 text-[#5C3A21] disabled:opacity-30" aria-label="Clear"><Eraser className="h-4 w-4" /></button>
-        </span>
-      </div>
+          {INKS.map((c) => <button key={c} onClick={() => setInk(c)} aria-label={`Ink ${c}`} className={cn('h-6 w-6 rounded-full border-2', ink === c ? 'border-[#3B2A20] scale-110' : 'border-black/10')} style={{ background: c }} />)}
+          <span className="mx-1 h-5 w-px bg-[#C9B79C]" />
+          {PENS.map((w) => <button key={w} onClick={() => setPen(w)} aria-label={`Pen ${w}`} className={cn('grid h-7 w-7 place-items-center rounded-lg', pen === w ? 'bg-[#F0E4C8]' : '')}><span className="rounded-full bg-[#3B2A20]" style={{ width: w + 2, height: w + 2 }} /></button>)}
+          <span className="ml-auto flex gap-1">
+            <button onClick={() => setStrokes((l) => l.slice(0, -1))} disabled={!strokes.length} className="rounded-lg p-1.5 text-[#5C3A21] disabled:opacity-30" aria-label="Undo"><Undo2 className="h-4 w-4" /></button>
+            <button onClick={() => setStrokes([])} disabled={!strokes.length} className="rounded-lg p-1.5 text-[#5C3A21] disabled:opacity-30" aria-label="Clear"><Eraser className="h-4 w-4" /></button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

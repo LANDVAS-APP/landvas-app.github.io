@@ -27,6 +27,9 @@ import { MirrorlineBoard } from './games/Mirrorline';
 import { SculptorBoard } from './games/Sculptor';
 import type { GameProps } from './common';
 import { RarityBadge } from '../plot/RarityBadge';
+import { buzz, isNative } from '../native/native';
+
+const APP = isNative();
 
 const GAMES: Record<GameId, (p: GameProps) => React.ReactElement | null> = {
   lightlines: boardsGame('lightlines', LightLinesGame),
@@ -58,13 +61,18 @@ export default function GameScreen() {
   const t = PLOT_TYPES[type];
 
   // which plot to play on: the one in the URL, else the best-paying plot of this type
+  const maxLevelCfg = Number(world.data?.minigames?.games?.[game]?.max_level ?? world.data?.minigames?.max_level ?? 60);
+  // plots that have beaten every level sink to the bottom
   const candidates = useMemo(() => (plots.data ?? []).filter((p: any) => p.plot_type === type)
-    .sort((a: any, b: any) => rarityInfo(b.rarity).ink_reward_multiplier * (1 + 0.05 * (b.level - 1)) - rarityInfo(a.rarity).ink_reward_multiplier * (1 + 0.05 * (a.level - 1))), [plots.data, type]);
+    .map((p: any) => ({ p, done: (plotProgress.data?.[`${p.gx}_${p.gy}`]?.highest_level ?? 0) >= maxLevelCfg }))
+    .sort((a, b) => Number(a.done) - Number(b.done)
+      || rarityInfo(b.p.rarity).ink_reward_multiplier * (1 + 0.05 * (b.p.level - 1)) - rarityInfo(a.p.rarity).ink_reward_multiplier * (1 + 0.05 * (a.p.level - 1)))
+    .map((x) => x.p), [plots.data, type, plotProgress.data, maxLevelCfg]);
   const urlCell = sp.get('gx') ? { gx: Number(sp.get('gx')), gy: Number(sp.get('gy')) } : null;
   const [cell, setCell] = useState<{ gx: number; gy: number } | null>(urlCell);
   useEffect(() => {
-    if (!cell && candidates[0]) setCell({ gx: candidates[0].gx, gy: candidates[0].gy });
-  }, [candidates, cell]);
+    if (!cell && candidates[0] && !plotProgress.isLoading) setCell({ gx: candidates[0].gx, gy: candidates[0].gy });
+  }, [candidates, cell, plotProgress.isLoading]);
   const plot = candidates.find((p: any) => cell && p.gx === cell.gx && p.gy === cell.gy);
 
   const rec = records.data?.records?.[game];
@@ -142,7 +150,43 @@ export default function GameScreen() {
       </header>
 
       <main className="gutter flex flex-1 flex-col items-center pb-[max(20px,env(safe-area-inset-bottom,0px))] [&>*]:my-auto">
-        {phase.k === 'intro' && (
+        {phase.k === 'intro' && APP && (
+          <div className="lv-gintro w-full max-w-lg" style={{ ['--a' as string]: t.a, ['--b' as string]: t.b }} data-testid="game-intro">
+            <div className="lv-gintro-hero">
+              <GamePreview game={game} className="!rounded-[26px]" />
+              <div className="lv-gintro-cap">
+                <span className="lv-gintro-type">{t.name} plots</span>
+                <h2 className="font-display text-[26px] font-black leading-none">{info.name}</h2>
+                <p className="mt-1 text-[12.5px] font-semibold text-white/70">{info.tagline}</p>
+              </div>
+            </div>
+            {boost && (
+              <div className="lv-gintro-boost" data-testid="game-boost"><Zap className="h-4 w-4" /><b>{boost.multiplier}× Ink</b><span>{boostLeft(boost)}</span></div>
+            )}
+            <div className="lv-gintro-stats">
+              <div><span>Pays</span><b className="tnum" data-testid="level-ink">{leftToday > 0 ? <><ResourceIcon r="ink" className="h-4 w-4" /> {fmt(fullClearInk(world.data, game, lvl, plot))}</> : 'Practice'}</b></div>
+              <div><span>Paid runs</span><b className="tnum">{unlimitedRuns ? '∞ No limit' : `${leftToday}/${limit}`}</b></div>
+              <div><span>Level</span><b className="tnum">{maxed ? 'MAX' : `${lvl}/${maxLevel}`}</b></div>
+            </div>
+            {leftToday === 0 && !unlimitedRuns && <p className="mt-2 text-center text-[11.5px] font-semibold text-white/55">Paid runs are used up for today — they reset {records.data?.resets_at ? new Date(records.data.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'daily'}. You can still play for fun.</p>}
+            <ol className="lv-gintro-how">
+              {info.howTo.map((h, i) => <li key={i}><b>{i + 1}</b><span>{h}</span></li>)}
+            </ol>
+            {!candidates.length && !plots.isLoading && (
+              <p className="mt-3 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">You need a {t.name} plot to play {info.name}. Plot types are revealed when you claim them — keep claiming to find one.</p>
+            )}
+            {candidates.length > 0 && (
+              <PlotPicker plots={candidates} progress={plotProgress.data} maxLevel={maxLevel} cell={cell} onPick={(c) => { buzz('light'); setCell(c); nav(`/play/${game}?gx=${c.gx}&gy=${c.gy}`, { replace: true }); }} />
+            )}
+            {maxed && <p className="mt-2 text-center text-[12px] font-semibold text-[#3DDC97]" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels — pick another to keep earning.</p>}
+            <div className="lv-stickycta mt-3">
+              <button className="lv-btn lv-rainbow h-14 w-full text-[17px]" disabled={!cell || !candidates.length || maxed} onClick={() => { buzz('medium'); void start(lvl); }} data-testid="game-start">
+                <Sparkles className="h-5 w-5" /> {maxed ? 'Every level beaten' : `Play level ${lvl}`}
+              </button>
+            </div>
+          </div>
+        )}
+        {phase.k === 'intro' && !APP && (
           <div className="glass w-full max-w-lg rounded-[28px] p-5 sm:p-6">
             <div className="flex items-center gap-4">
               <GamePreview game={game} size={104} className="shrink-0 shadow-lg ring-1 ring-white/10" />
@@ -223,8 +267,8 @@ function PlotPicker({ plots, progress, maxLevel, cell, onPick }: {
           const on = cell?.gx === p.gx && cell?.gy === p.gy;
           const maxed = done >= maxLevel;
           return (
-            <button key={key} onClick={() => onPick({ gx: p.gx, gy: p.gy })} aria-pressed={on} data-testid="plot-pick"
-              className={cn('grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border px-3 py-2 text-left transition', on ? 'border-accent-2 bg-accent-2/10 shadow-[0_0_0_1px_rgba(34,227,255,0.35)]' : 'border-line hover:border-line-strong')}>
+            <button key={key} onClick={() => onPick({ gx: p.gx, gy: p.gy })} aria-pressed={on} data-testid="plot-pick" data-maxed={maxed || undefined}
+              className={cn(APP ? cn('lv-pickrow', on && 'on', maxed && 'maxed') : cn('grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border px-3 py-2 text-left transition', on ? 'border-accent-2 bg-accent-2/10 shadow-[0_0_0_1px_rgba(34,227,255,0.35)]' : 'border-line hover:border-line-strong', maxed && 'opacity-60'))}>
               <span className={cn('flex h-6 w-6 items-center justify-center rounded-full border', on ? 'border-accent-2 bg-accent-2 text-bg' : 'border-line-strong')}>{on && <Check className="h-3.5 w-3.5" />}</span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">{p.name || plotLabel(p.gx, p.gy)}</span>

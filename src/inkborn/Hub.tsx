@@ -1,5 +1,6 @@
 // /inkborn — your creatures and your sanctuaries. Everyone has a free starter sanctuary;
 // plots turned into Inkborn Habitats add bigger ones that others can find on the map.
+import { isNative } from '../native/native';
 import { IfCapped } from '../ui/IfCapped';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -43,7 +44,7 @@ export default function Hub() {
   const cur = open ? d.creatures.find((c) => c.id === open.id) ?? open : null;
   return (
     <Page wide>
-      <PageHeader eyebrow="Inkborn" title="Your creatures" actions={
+      <PageHeader eyebrow="Inkborn" title="Your creatures" actions={isNative() ? undefined : // (the app: the same places are in the shortcuts under the title)
         <div className="flex gap-2">
           <Link to={`/habitat/${d.starter_id}`}><Button variant="secondary"><TreePine className="h-4 w-4" /> Sanctuary</Button></Link>
           <Link to="/inkborn/visit"><Button variant="secondary" data-testid="visit-sanctuaries"><Users className="h-4 w-4" /> Visit</Button></Link>

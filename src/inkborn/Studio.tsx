@@ -17,6 +17,9 @@ import { Button, Field, ResourceIcon, Spinner, inputCls } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { SketchPad, StrokeView } from '../creative/SketchPad';
 import { CreatureView } from './CreatureView';
+import { isNative } from '../native/native';
+
+const APP = isNative();
 import {
   BODIES, EARS, EYES, GAITS, GAIT_INFO, HORNS, MAX_EYES, MAX_LEGS, MOODS, MOOD_INFO, PATTERNS, TAILS, WINGS, cleanGenome, defaultGait, genomeFromDrawing, hsl, randomGenome, randomName, type Genome,
 } from './genome';
@@ -96,25 +99,28 @@ export default function Studio() {
         {existing ? 'Change any part — your Inkborn keeps its name, bond and memories.' : 'Draw a creature and bring it to life, roll a surprise, or build one part by part.'}
       </PageHeader>
       {!existing && (
-        <div className="glass mb-4 inline-flex gap-1 rounded-2xl p-1" role="tablist">
+        <div className={cn(APP ? 'lv-seg2 lv-studiotabs mb-3' : 'glass mb-4 inline-flex gap-1 rounded-2xl p-1')} role="tablist">
           {([['draw', 'Draw', Paintbrush], ['random', 'Randomize', Dices], ['custom', 'Customize', SlidersHorizontal]] as const).map(([m, label, Icon]) => (
             <button key={m} role="tab" aria-selected={mode === m} onClick={() => { setMode(m); if (m !== 'draw') setSource(m === 'random' ? 'random' : 'custom'); else if (alive) setSource('drawn'); }} data-testid={`studio-${m}`}
-              className={cn('relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-bold', mode === m ? 'text-fg' : 'text-muted')}>
-              {mode === m && <motion.span layoutId="studio-tab" className="absolute inset-0 rounded-xl bg-surface-2" />}
+              className={cn(APP ? (mode === m && 'on') : cn('relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-bold', mode === m ? 'text-fg' : 'text-muted'))}>
+              {!APP && mode === m && <motion.span layoutId="studio-tab" className="absolute inset-0 rounded-xl bg-surface-2" />}
               <Icon className="relative h-4 w-4" /><span className="relative">{label}</span>
             </button>
           ))}
         </div>
       )}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="grid content-start gap-4">
+      <div className={cn('grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]', APP && 'lv-studio')}>
+        <div className="grid min-w-0 content-start gap-4">
           {mode === 'draw' && !existing && (
-            <section className="glass relative grid justify-items-center gap-3 rounded-3xl p-4" data-testid="studio-draw">
+            <section className={cn('relative grid justify-items-center gap-3', APP ? 'lv-studiodraw' : 'glass rounded-3xl p-4')} data-testid="studio-draw">
               {!alive ? (
                 <>
-                  <p className="text-center text-sm text-muted">Draw your creature: a body, eyes, and maybe ears, horns, a tail or spots. Its shape and colours become a living Inkborn.</p>
-                  <SketchPad strokes={strokes} onChange={(s) => { setStrokes(s); saveStorage('landvas.inkborn.draft', s); }} t0={t0.current} size={440} testid="inkborn-pad" />
-                  <Button variant="rainbow" size="lg" onClick={bringToLife} disabled={revealing} data-testid="bring-to-life"><Wand2 className="h-5 w-5" /> Bring to Life</Button>
+                  <p className="text-center text-sm text-muted">{APP ? 'Draw a body, eyes — maybe ears, horns, a tail or spots.' : 'Draw your creature: a body, eyes, and maybe ears, horns, a tail or spots. Its shape and colours become a living Inkborn.'}</p>
+                  <SketchPad strokes={strokes} onChange={(s) => { setStrokes(s); saveStorage('landvas.inkborn.draft', s); }} t0={t0.current} size={APP ? 560 : 440} testid="inkborn-pad" />
+                  <div className={cn(APP && 'lv-stickycta')}>
+                    <button className={cn(APP ? 'lv-btn lv-rainbow h-14 w-full text-[17px]' : 'hidden')} onClick={bringToLife} disabled={revealing} data-testid={APP ? 'bring-to-life' : undefined}><Wand2 className="h-5 w-5" /> Bring to Life</button>
+                    {!APP && <Button variant="rainbow" size="lg" onClick={bringToLife} disabled={revealing} data-testid="bring-to-life"><Wand2 className="h-5 w-5" /> Bring to Life</Button>}
+                  </div>
                 </>
               ) : (
                 <div className="grid w-full gap-3 sm:grid-cols-[160px_1fr] sm:items-center">
@@ -157,7 +163,7 @@ export default function Studio() {
         </div>
 
         <aside className="grid content-start gap-3 lg:sticky lg:top-16 lg:self-start">
-          <section className="glass relative grid justify-items-center gap-2 overflow-hidden rounded-3xl p-4" data-testid="studio-preview">
+          <section className={cn('glass relative grid justify-items-center gap-2 overflow-hidden rounded-3xl p-4', APP && 'lv-studiopreview', APP && mode === 'draw' && !alive && !existing && 'hidden')} data-testid="studio-preview">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#2f7d3a]/40 to-transparent" />
             <motion.div key={JSON.stringify(genome)} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 16 }}>
               <CreatureView genome={genome} size={220} cycle testid="creature-preview" />

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isNative, buzz as _buzz } from '../native/native';
 import {
   ArrowLeft, Brush, Circle, Columns2, Eraser, Expand, Grid2X2, Hand, History as HistoryIcon, ImagePlus, Minus, Move, PaintBucket,
   Pencil, Pipette, Plus, Redo2, RotateCw, Send, Slash, Square, Undo2, Blend, FlipHorizontal2, Check, X, Layers3, SlidersHorizontal, Maximize, Lock,
@@ -17,7 +18,8 @@ import { celebrate, invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, timeAgo } from '../lib/utils';
 import { cellCenter, Z_PLOT, Z_STREET } from '../shared/grid';
-import { Button, Dialog, Field, Spinner, Tabs, Tip, inputCls, useConfirm } from '../ui';
+import { Button, Dialog, Field, Slider, Spinner, Tabs, Tip, inputCls, useConfirm } from '../ui';
+import { AnimatePresence, motion } from 'motion/react';
 import { BRUSHES } from './engine/brush';
 import type { Doc } from './engine/doc';
 import { Editor, type ToolId } from './engine/Editor';
@@ -33,6 +35,8 @@ import { BrushPanel, ColorPanel, LayersPanel } from './ui/panels';
 import { isRealm, realmRoute } from '../realms/kinds';
 
 type ToolDef = { id: string; label: string; icon: any; key: string; apply: (ed: Editor) => void; active: (ed: Editor) => boolean; unlock?: string };
+const APP = isNative();
+const buzz = _buzz;
 const TOOLS: ToolDef[] = [
   { id: 'pencil', label: 'Pencil', icon: Pencil, key: 'P', apply: (e) => e.set({ tool: 'brush', brush: 'pencil' }), active: (e) => e.s.tool === 'brush' && e.s.brush === 'pencil' },
   { id: 'brush', label: 'Paintbrush', icon: Brush, key: 'B', apply: (e) => e.set({ tool: 'brush', brush: ['pencil', 'pixel'].includes(e.s.brush) ? 'round' : e.s.brush }), active: (e) => e.s.tool === 'brush' && !['pencil', 'pixel'].includes(e.s.brush) },
@@ -333,8 +337,10 @@ function PaintEditor() {
         </aside>
       </div>
 
+      {/* the app: a premium dock — hold any tool to change its size and opacity (slide up/down while holding) */}
+      {ed && APP && <PaintDock ed={ed} onSheet={setMobileSheet} onImport={() => setImportOpen(true)} />}
       {/* mobile / tablet toolbar */}
-      {ed && (
+      {ed && !APP && (
         <div className="border-t border-line bg-bg-2/90 pb-[env(safe-area-inset-bottom,0px)] lg:hidden">
           <div className="gutter flex items-center gap-1 overflow-x-auto py-2 scroll-thin">
             <button onClick={() => setMobileSheet('create')} className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-gold/15 px-2 text-xs font-bold text-gold" aria-label="Ideas and helpers" data-testid="mobile-create"><Lightbulb className="h-5 w-5" /></button>
@@ -607,5 +613,81 @@ function CraftMeter({ craft, similar, imported }: { craft: Craft; similar: { sim
       {craft.tips.slice(0, 2).map((t) => <p key={t} className="text-faint">• {t}</p>)}
       <p className="text-faint">Careful, original work earns the most.</p>
     </div>
+  );
+}
+
+// ---- the app's paint dock ------------------------------------------------------------------------------------------
+function PaintDock({ ed, onSheet, onImport }: { ed: Editor; onSheet(s: 'create' | 'color' | 'brush' | 'layers'): void; onImport(): void }) {
+  const [, force] = useState(0);
+  useEffect(() => ed.subscribe?.(() => force((n) => n + 1)), [ed]);
+  const [held, setHeld] = useState<string | null>(null);
+  const press = useRef<{ id: string; t: ReturnType<typeof setTimeout>; y: number; size: number; on: boolean } | null>(null);
+  const tools = TOOLS.filter((t) => t.id !== 'hand' && t.id !== 'move');
+  const sized = (id: string) => ['pencil', 'brush', 'pixel', 'eraser', 'line', 'rect', 'ellipse'].includes(id);
+  const start = (e: React.PointerEvent, t: ToolDef) => {
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    const p = { id: t.id, y: e.clientY, size: ed.size, on: false, t: setTimeout(() => {
+      if (!ed.canUse(t.unlock)) return;
+      t.apply(ed); p.on = true; p.size = ed.size; setHeld(t.id); buzz('medium');
+    }, 320) };
+    press.current = p;
+  };
+  const move = (e: React.PointerEvent) => {
+    const p = press.current;
+    if (!p?.on || !sized(p.id)) return;
+    // slide up to grow, down to shrink
+    const dy = p.y - e.clientY;
+    ed.setSize(Math.max(1, Math.min(ed.sizeCap(), p.size * Math.pow(1.02, dy))));
+  };
+  const end = (t: ToolDef) => {
+    const p = press.current; press.current = null;
+    if (!p) return;
+    clearTimeout(p.t);
+    if (!p.on) { t.apply(ed); buzz('light'); }
+  };
+  const preview = Math.max(4, Math.min(64, ed.size));
+  return (
+    <>
+      <AnimatePresence>
+        {held && (
+          <motion.div key="bubble" className="lv-toolbubble" initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 460, damping: 32 }} data-testid="tool-bubble">
+            <div className="flex items-center gap-3">
+              <div className="lv-sizeprev"><span style={{ width: preview, height: preview, background: ed.s.tool === 'eraser' ? '#fff' : ed.s.color, opacity: ed.s.opacity }} /></div>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-[15px] font-black">{TOOLS.find((t) => t.id === held)?.label}</div>
+                <div className="text-[11.5px] font-semibold text-white/55">{sized(held) ? 'Slide up or down to change the size' : 'Tool picked'}</div>
+              </div>
+              <button className="lv-x" onClick={() => setHeld(null)} aria-label="Done">×</button>
+            </div>
+            {sized(held) && <div className="mt-3"><Slider id="dock-size" label="Size" min={1} max={ed.sizeCap()} step={ed.s.brush === 'pixel' ? 1 : 0.5} value={ed.size} onChange={(v) => ed.setSize(v)} format={(v) => `${Math.round(v * 10) / 10} px`} /></div>}
+            <div className="mt-2"><Slider id="dock-opacity" label="Opacity" min={0.05} max={1} step={0.01} value={ed.s.opacity} onChange={(v) => ed.set({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} /></div>
+            <button className="lv-btn mt-3 h-10 w-full text-[13px]" onClick={() => { setHeld(null); onSheet('brush'); }}>All {TOOLS.find((t) => t.id === held)?.label.toLowerCase()} settings</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="lv-paintdock" data-testid="paint-dock">
+        <button className="lv-colorbtn" onClick={() => onSheet('color')} aria-label="Colour" style={{ background: ed.s.color }} data-testid="dock-color" />
+        <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-1">
+          {tools.map((t) => {
+            const on = t.active(ed), locked = !ed.canUse(t.unlock);
+            return (
+              <button key={t.id} className={cn('lv-tool', on && 'on', locked && 'locked', held === t.id && 'held')} aria-label={`${t.label}${sized(t.id) ? ' — hold to change size' : ''}`} aria-pressed={on}
+                onPointerDown={(e) => start(e, t)} onPointerMove={move} onPointerUp={() => end(t)} onPointerCancel={() => { if (press.current) clearTimeout(press.current.t); press.current = null; }}
+                onContextMenu={(e) => e.preventDefault()} data-testid={`dock-${t.id}`}>
+                <t.icon className="h-5 w-5" />{locked && <Lock className="absolute bottom-0.5 right-0.5 h-3 w-3 text-gold" />}
+              </button>
+            );
+          })}
+          <button className="lv-tool" onClick={onImport} aria-label="Upload image"><ImagePlus className="h-5 w-5" /></button>
+          <button className="lv-tool" onClick={() => onSheet('create')} aria-label="Ideas and helpers" data-testid="mobile-create"><Lightbulb className="h-5 w-5" /></button>
+          <button className="lv-tool" onClick={() => onSheet('layers')} aria-label="Layers"><Layers3 className="h-5 w-5" /></button>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button className="lv-tool" onClick={() => ed.undo()} disabled={!ed.history.canUndo} aria-label="Undo"><Undo2 className="h-5 w-5" /></button>
+          <button className="lv-tool" onClick={() => ed.redo()} disabled={!ed.history.canRedo} aria-label="Redo"><Redo2 className="h-5 w-5" /></button>
+        </div>
+      </div>
+    </>
   );
 }

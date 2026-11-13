@@ -1,6 +1,6 @@
 import { getBackend } from '../backend/backend';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
+import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { AnnouncementPopup, NotificationBell } from '../updates/Notifications';
 import { Tour } from '../tour/Tour';
 import { buzz, isNative, useOnline } from '../native/native';
 import { useWorldButton } from './radial';
+import { MergeStudio } from '../plot/MergeStudio';
 import { useStreakReminder } from '../native/reminders';
 import { initAds } from '../ads/ads';
 import { useEffect, useRef, useState } from 'react';
@@ -51,6 +52,12 @@ const NATIVE = isNative();
 const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 /** A top-level place (a tab, a section page or a menu page): no back button there, just tabs. */
 export function isRootPage(path: string) {
+  // the app: only the tabs (and the hub) are top level — everything else opens full screen with a back button
+  if (NATIVE) {
+    const st = useUi.getState().settings;
+    if (st.simpleMode) return ['/', '/hub', '/world', '/play', '/me'].includes(path);
+    return path === '/' || path === '/hub' || (st.mobileTabs?.length ? st.mobileTabs : DEFAULT_TABS).some((t) => t === path);
+  }
   return path === '/' || path === '/hub' || ME_PAGES.some((p) => p.to === path) || SECTIONS.some((s) => s.to === path || s.pages.some((p) => p.to === path));
 }
 /** Go back like an app: the previous screen, or (opened from a link) the section this screen belongs to. */
@@ -181,7 +188,7 @@ export function Shell() {
           // the app: no top bar on screens — just a back button (deeper screens) and the section's tabs, which
           // scroll away with the screen; the HUD lives on the map and in the Play hub
           loc.pathname === '/hub' || (simple && loc.pathname === '/world') ? null
-            : <ScreenBar deep={deep} pages={!simple && sec && sec.pages.length > 1 ? sec.pages : null} path={loc.pathname} onBack={() => goBack(nav as (to: string | number) => void, loc.pathname)} />
+            : <ScreenBar deep={deep} pages={null} path={loc.pathname} onBack={() => goBack(nav as (to: string | number) => void, loc.pathname)} />
         ) : !isMap && !simple && sec && sec.pages.length > 1 && <SubNav pages={sec.pages} path={loc.pathname} />}
         {isMap ? <Outlet /> : (
           <div style={gest.offset ? { transform: `translateY(${gest.offset}px)`, transition: 'transform 0.2s ease-out' } : undefined}>
@@ -192,6 +199,7 @@ export function Shell() {
         )}
       </main>
       <AnnouncementPopup />
+      {NATIVE && me && <MergeStudio />}
       <Tour />
       {NATIVE ? <GameTabBar away={deep && !isMap} tabs={gameTabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : hubActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">
         {tabs.map((i) => <TabItem key={i.to} {...i} label={i.to === '/play' ? 'Play' : i.label} active={simple ? under(loc.pathname, i.to) : tabActive(i.to)} badge={badge(i.to)} />)}
@@ -293,7 +301,7 @@ function ScreenBar({ deep, pages, path, onBack }: { deep: boolean; pages: { to: 
       {deep && (
         <button className="lv-back ml-3 shrink-0" onClick={onBack} aria-label="Back" data-testid="hud-back"><ChevronLeft className="h-6 w-6" strokeWidth={2.6} /></button>
       )}
-      {pages ? <HudTabs pages={pages} cur={cur} /> : <div className="h-10" />}
+      {!deep && <div className="h-2" />}
     </div>
   );
 }
@@ -353,6 +361,28 @@ export function Page({ children, wide }: { children: ReactNode; wide?: boolean }
   return <div className={cn('lv-page gutter relative mx-auto w-full md:pb-12', NATIVE ? (deep ? 'pb-[calc(28px+env(safe-area-inset-bottom,0px))] pt-2' : 'pb-[calc(112px+env(safe-area-inset-bottom,0px))] pt-2') : 'pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-[max(20px,env(safe-area-inset-top,0px))]', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</div>;
 }
 
+/** the app: the section's other screens as a row of medallion buttons under its title */
+const PAGE_ICON: Record<string, typeof Globe2> = {
+  '/plots': LayoutGrid, '/challenges': Trophy, '/sketch': PenLine, '/duet': Users, '/inventory': Package, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen,
+  '/space/play/asteroids': Rocket, '/space/play/lander': Moon, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Trophy, '/clans': Shield, '/gallery': Images,
+  '/players': Users, '/invite': Gift, '/achievements': Award, '/explorer': Compass, '/settings': Settings, '/support': LifeBuoy,
+};
+function SectionShortcuts({ pages, tone }: { pages: { to: string; label: string }[]; tone: DiscTone }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return (
+    <div ref={ref} className="lv-fade no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1" data-testid="section-shortcuts">
+      {pages.map((p) => {
+        const Icon = PAGE_ICON[p.to] ?? Sparkles;
+        return (
+          <Link key={p.to} to={p.to} data-sound="tab" className="lv-shortcut" data-testid={`shortcut-${p.to}`}>
+            <Emblem tone={tone} size={34}><Icon className="h-4 w-4" /></Emblem><span>{p.label}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function HeaderActions({ children }: { children: ReactNode }) {
   const ref = useEdgeFade<HTMLDivElement>();
   return <div ref={ref} className="lv-fade no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [&>*]:shrink-0">{children}</div>;
@@ -382,6 +412,7 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
           <button className={cn('lv-info shrink-0', info && 'on')} onClick={() => setInfo(!info)} aria-label="What is this?" aria-expanded={info} data-testid="page-info">i</button>
         )}
       </div>
+      {sec && sec.to === loc.pathname && sec.pages.length > 1 && <SectionShortcuts pages={sec.pages.filter((p) => p.to !== sec.to)} tone={look?.tone ?? 'steel'} />}
       {actions && <HeaderActions>{actions}</HeaderActions>}
       {children && info && (
         <motion.div className="lv-speech text-[13.5px] leading-snug" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 32 }}>{children}</motion.div>

@@ -65,10 +65,13 @@ export default function GameHud({ overlay, after }: { overlay?: boolean; after?:
 export function InkPill() {
   const me = useOnboardedMe();
   if (!me) return null;
+  // the number gets smaller as it grows, so any balance fits beside the bell
+  const text = fmt(Math.floor(Number(me.balances.ink ?? 0)));
+  const size = text.length <= 4 ? 13.5 : text.length <= 6 ? 12.5 : text.length <= 8 ? 11 : text.length <= 10 ? 9.5 : 8.5;
   return (
-    <Link to="/play" className="lv-hud shrink-0" aria-label="Ink — win minigames to earn more" data-testid="hud-ink">
-      <CurrencyIcon kind="ink" />
-      <span className="tnum">{fmt(Math.floor(Number(me.balances.ink ?? 0)))}</span>
+    <Link to="/play" className="lv-hud shrink-0" aria-label={`Ink: ${text} — win minigames to earn more`} data-testid="hud-ink">
+      <CurrencyIcon kind="ink" size={22} />
+      <span className="tnum leading-none" style={{ fontSize: size }}>{text}</span>
     </Link>
   );
 }
@@ -79,9 +82,9 @@ export function BellDisc() {
   const card = useHudCard((s) => s.card);
   const toggle = useHudCard((s) => s.toggle);
   return (
-    <GameDisc tone="azure" size={42} on={card === 'bell'} badge={count ? (count > 9 ? '9+' : count) : undefined}
+    <GameDisc tone="azure" size={38} on={card === 'bell'} badge={count ? (count > 9 ? '9+' : count) : undefined}
       onClick={() => { buzz('light'); toggle('bell'); }} aria-label={count ? `Updates, ${count} new` : 'Updates'} aria-expanded={card === 'bell'} data-testid="notification-bell">
-      <Bell className="h-[19px] w-[19px]" />
+      <Bell className="h-[17px] w-[17px]" />
     </GameDisc>
   );
 }

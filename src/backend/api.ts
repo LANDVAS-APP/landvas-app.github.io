@@ -85,6 +85,8 @@ export const api = {
   quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; choice_types?: string[] | null; choice_shiny?: boolean[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
   /** the daily streak: status, and today's check-in */
   dailyStatus: () => rpc<import('./types').DailyStatus>('daily_status'),
+  /** every Ultra plot you own and where it stands today */
+  myUltras: () => rpc<import('./types').MyUltras>('my_ultras'),
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
   /** today's Hot Zone (a real city with boosted rarities) and tomorrow's */
   hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),

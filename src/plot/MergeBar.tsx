@@ -11,6 +11,8 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { CanvasGroup } from '../backend/types';
 import { celebrate, invalidateGame, qk, useOnboardedMe } from '../lib/queries';
+import { isNative } from '../native/native';
+import { useMergeStudio } from './MergeStudio';
 import { useUi } from '../lib/store';
 import { components, isConnected } from '../shared/fusion';
 import type { CellTuple } from '../shared/grid';
@@ -52,6 +54,8 @@ export function useFuseCost(ids: string[], enabled = true) {
 }
 
 export function startMerge(groupId?: string | null) {
+  // the app: the Merge studio (every plot you own as boards — drag to pick, merge or unmerge)
+  if (isNative()) { useMergeStudio.getState().show(groupId ?? null); return; }
   useUi.getState().setMerge(groupId ? [groupId] : []);
 }
 

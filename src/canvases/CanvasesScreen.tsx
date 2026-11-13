@@ -1,4 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isNative } from '../native/native';
+import { useMergeStudio } from '../plot/MergeStudio';
 import { PlotKindControl } from '../inkborn/PlotKindPicker';
 import { Brush, Combine, LayoutGrid, MapPin, Pencil } from 'lucide-react';
 import { touchingGroups } from '../plot/MergeBar';
@@ -49,6 +51,8 @@ export default function CanvasesScreen() {
   const nav = useNavigate();
   /** Open the map in merge mode around a canvas, with some canvases already picked. */
   const openMerge = (g: CanvasGroup, picked: string[]) => {
+    // the app: the Merge studio, right here
+    if (isNative()) { useMergeStudio.getState().show(g.id); return; }
     const [gx, gy] = g.cells[0];
     const [lng, lat] = cellCenter(gx, gy);
     useUi.getState().requestFly({ lng, lat, zoom: Z_HOUSE });

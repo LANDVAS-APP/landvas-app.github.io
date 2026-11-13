@@ -37,6 +37,8 @@ import type { RarityId } from '../shared/rarity';
 import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 import { PlotEnchant } from '../enchant/PlotEnchant';
+import { buzz, isNative } from '../native/native';
+const NATIVE = isNative();
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
 const useArcadeAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'arcade', gx, gy], queryFn: () => api.arcadeForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -67,13 +69,16 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
   return (
     <motion.aside
       initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-      className="glass fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5"
+      className={NATIVE
+        ? 'lv-plotsheet fixed inset-x-0 bottom-0 z-30 max-h-[66dvh] overflow-y-auto overscroll-contain rounded-t-[28px] px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-3'
+        : 'glass fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5'}
+      style={NATIVE && d?.rarity_info ? { ['--glow' as string]: d.rarity_info.glow } : undefined}
       aria-label="Plot details" data-testid="plot-panel">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
       <div className="flex items-start gap-3">
-        {d?.plot_type ? <PlotSwatch type={d.plot_type} className="ring-2" /> : d ? <MysterySwatch /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
+        {NATIVE && d?.owned ? null : d?.plot_type ? <PlotSwatch type={d.plot_type} className="ring-2" /> : d ? <MysterySwatch /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={cn('flex flex-wrap items-center gap-2', NATIVE && d?.owned && 'hidden')}>
             {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
             {(d?.owned || d?.type_info) && <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>}
           </div>
@@ -87,8 +92,8 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       {q.isLoading && <div className="flex justify-center py-10"><Spinner /></div>}
       {q.error && <p className="mt-4 text-sm text-bad">{toGameError(q.error).message}</p>}
       {d && !d.owned && (
-        <div className="mt-4 grid gap-3">
-          {d.type_info && d.plot_type ? (
+        <div className={cn('grid gap-3', NATIVE ? 'mt-3' : 'mt-4')}>
+          {!NATIVE && d.type_info && d.plot_type ? (
             <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface/50 p-2.5">
               <GamePreview game={d.type_info.minigame} size={44} className="shrink-0" />
               <div className="min-w-0">
@@ -97,15 +102,16 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
               </div>
             </div>
           ) : null}
-          {!d.rarity && <RarityOdds />}
+          {!NATIVE && !d.rarity && <RarityOdds />}
           {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
           <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />
         </div>
       )}
       {d && d.rarity === 'enchanted' && <PlotEnchant gx={d.gx} gy={d.gy} />}
+      {d && d.owned && NATIVE && <OwnedHero d={d} />}
       {d && d.owned && (
-        <div className="mt-4 grid gap-4">
-          <div className="grid grid-cols-2 gap-2">
+        <div className={cn('grid gap-4', NATIVE ? 'mt-3' : 'mt-4')}>
+          {!NATIVE && <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-line bg-surface/50 p-3">
               <div className="eyebrow !text-[10px]">Rent</div>
               {d.rent && d.rarity_info ? (
@@ -134,8 +140,8 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
                 </>
               )}
             </div>
-          </div>
-          {d.type_info && d.plot_type ? (
+          </div>}
+          {NATIVE ? null : d.type_info && d.plot_type ? (
             <div className="flex items-center gap-3">
               <GamePreview game={d.type_info.minigame} size={64} className="shrink-0" />
               <p className="text-sm text-muted">{PLOT_TYPES[d.plot_type].blurb}. Owners earn USD rent every second and win Ink by playing <b className="text-fg">{d.type_info.minigame_name}</b>.</p>
@@ -145,7 +151,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
           )}
           {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
           {d.art && <ArtCard art={d.art} />}
-          <NeighborDiagram d={d} />
+          {!NATIVE && <NeighborDiagram d={d} />}
           {!d.is_mine && d.owner && (
             <Link to={`/u/${d.owner.username}`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3 hover:border-line-strong">
               <PlayerAvatar p={d.owner} size={40} />
@@ -233,7 +239,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [naming, setNaming] = useState(false);
-  const [kind, setKind] = useState<PlotKind>(() => { const k = safeStorage<string>('landvas.plotKind', 'base'); return k === 'canvas' || k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || isRealm(k) ? (k as PlotKind) : 'base'; });
+  const [kind, setKind] = useState<PlotKind>(() => { if (NATIVE) return 'base'; const k = safeStorage<string>('landvas.plotKind', 'base'); return k === 'canvas' || k === 'habitat' || k === 'farm' || k === 'business' || k === 'arcade' || k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || isRealm(k) ? (k as PlotKind) : 'base'; });
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
@@ -276,12 +282,14 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
           gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null,
-          onDone: mineAdjacent.length ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
+          onDone: mineAdjacent.length && !NATIVE ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }
       invalidateGame(qc);
       void qc.invalidateQueries({ queryKey: ['sanctuaries'] });
       void qc.invalidateQueries({ queryKey: ['luck'] });
+      // the app: straight back to the map after the roll (tap your new plot for its card)
+      if (NATIVE) useUi.getState().select(null);
     } catch (e) {
       toast.error(toGameError(e).message);
     } finally {
@@ -323,6 +331,27 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   }
   // 3) in reach: pick what to build, then one big button
   const affordable = starter || canAfford;
+  if (NATIVE) return (
+    <div className="grid gap-2.5" data-testid="plot-buy">
+      {affordable && !unavailable && <KindChips kind={kind} onPick={pickKind} />}
+      {unavailable ? <button className="lv-buy" disabled>Unavailable</button> : affordable ? (
+        <motion.button whileTap={{ scale: 0.97 }} className="lv-buy" onClick={run} disabled={busy === 'claim'} data-testid="claim-plot" style={{ ['--k' as string]: opt.color }}>
+          <span className="ic">{busy === 'claim' ? <span className="lv-loader sm"><i /><i /><i /></span> : <span className="text-[22px] leading-none">{SUBS[kind]?.icon ?? opt.icon}</span>}</span>
+          <span className="min-w-0 flex-1 text-left"><b>{starter ? 'Claim free plot' : 'Claim plot'}</b><i>{SUBS[kind] ? SUBS[kind]!.title : opt.title}{freeLeft > 0 ? ` · ${freeLeft} free left` : ''}</i></span>
+          <span className="price">{starter || cost === 0 ? 'FREE' : <><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</>}</span>
+        </motion.button>
+      ) : (
+        <div className="grid gap-2" data-testid="plot-need-ink">
+          <div className="flex items-center justify-between text-[13px] font-bold"><span>Not enough Ink</span><span className="tnum">{fmt(ink)} / {fmt(cost)}</span></div>
+          <div className="lv-meter"><span style={{ width: `${Math.max(4, Math.min(100, (ink / Math.max(1, cost)) * 100))}%`, background: 'linear-gradient(90deg,#22e3ff,#8b6bff)' }} /></div>
+          <button className="lv-btn lv-rainbow h-12 w-full" onClick={() => nav('/play')}><Gamepad2 className="h-5 w-5" /> Win {fmt(cost - ink)} more Ink</button>
+        </div>
+      )}
+      {affordable && !unavailable && (naming
+        ? <input autoFocus className="lv-input !h-11 text-sm" maxLength={32} placeholder="Plot name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
+        : <button type="button" onClick={() => setNaming(true)} className="justify-self-center text-[12px] font-bold text-white/50" data-testid="plot-name-toggle">✎ Name it (optional)</button>)}
+    </div>
+  );
   return (
     <div className="grid gap-3">
       {affordable && !unavailable && <PlotKindChoice kind={kind} onPick={pickKind} />}
@@ -387,6 +416,52 @@ const SUBS: Partial<Record<PlotKind, { icon: string; title: string; body: string
 };
 /** the type a kind belongs to (a subplot belongs to its main type) */
 const optOf = (k: PlotKind) => KIND_OPTS.find((o) => o.k === k || o.subs?.includes(k)) ?? KIND_OPTS[0];
+
+/** the app: every plot type in one sideways row (Base picked), subplots underneath when a type has them */
+function KindChips({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
+  const opt = optOf(kind);
+  const ref = useRef<HTMLDivElement>(null);
+  return (
+    <div className="grid gap-2" data-testid="plot-kind">
+      <div ref={ref} className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+        {KIND_OPTS.map((o) => {
+          const on = opt.k === o.k;
+          return (
+            <button key={o.k} type="button" className={cn('lv-kchip', on && 'on')} style={{ ['--k' as string]: o.color }} aria-pressed={on} data-testid={`kind-${o.tid ?? o.k}`}
+              onClick={() => { buzz('light'); onPick(o.subs ? o.subs[0] : o.k); }}>
+              <span className="text-[17px] leading-none">{o.icon}</span>{o.title}
+            </button>
+          );
+        })}
+      </div>
+      {opt.subs && (
+        <div className="flex gap-2">
+          {opt.subs.map((k) => <button key={k} type="button" className={cn('lv-kchip sub', kind === k && 'on')} style={{ ['--k' as string]: opt.color }} onClick={() => onPick(k)} data-testid={`kind-${k}`}>{SUBS[k]?.icon} {SUBS[k]?.title}</button>)}
+        </div>
+      )}
+      <div className="text-[11.5px] font-semibold text-white/50">{SUBS[kind]?.body ?? opt.body}</div>
+    </div>
+  );
+}
+
+/** the app: your plot (or someone's) as a premium card — its art or swatch glowing in its rarity, the numbers that
+ *  matter, and who owns it */
+function OwnedHero({ d }: { d: PlotDetails }) {
+  const glow = d.rarity_info?.glow ?? '#8b6bff';
+  return (
+    <div className="lv-plothero mt-3" style={{ ['--glow' as string]: glow }} data-testid="plot-hero">
+      <div className="art">{d.plot_type ? <PlotSwatch type={d.plot_type} size={84} /> : <MysterySwatch size={84} />}</div>
+      <div className="grid min-w-0 flex-1 content-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">{d.rarity && <RarityBadge r={d.rarity} />}{d.type_info && <span className="lv-tag">{d.type_info.name}</span>}</div>
+        <div className="lv-mstat !px-2.5 !py-1.5"><b className="truncate !text-[13px] tnum" style={{ color: glow }}>{d.rent ? formatRate(Number(d.rent.usd_per_second)) : '—'}</b><i>rent</i></div>
+        <div className="flex gap-1.5 text-[11.5px] font-bold text-white/70">
+          <span className="lv-tag">×{d.rarity_info ? Number(d.rarity_info.ink_reward_multiplier).toFixed(2) : '1.00'} Ink</span><span className="lv-tag">Level {d.level}</span>
+        </div>
+        {d.type_info && <div className="truncate text-[11.5px] font-semibold text-white/55">🎮 {d.type_info.minigame_name}</div>}
+      </div>
+    </div>
+  );
+}
 
 function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
   const [details, setDetails] = useState(false);
@@ -659,14 +734,14 @@ function MineBlock({ d }: { d: PlotDetails }) {
       {d.group && d.group.plot_count > 1 && (
         <p className="text-xs text-muted">Part of <b className="text-fg">{d.group.name}</b> — a {d.group.max_gx - d.group.min_gx + 1}×{d.group.max_gy - d.group.min_gy + 1} canvas of {d.group.plot_count} plots.</p>
       )}
-      {sameKind.length > 0 && (
+      {sameKind.length > 0 && !NATIVE && (
         <div className="grid gap-2 rounded-2xl border border-accent-2/40 bg-accent-2/10 p-3">
           <div className="text-sm font-bold">Your canvas can grow</div>
           {sameKind.map((c) => <ConnectButton key={c.group_id} c={c} mine={d.group?.id ?? null} busy={busy === 'fuse'} onGo={() => { useUi.getState().setMergeHover(null); void fuse(c.group_id); }} />)}
           <p className="text-[11px] text-muted">Bigger murals earn bigger craft bonuses — merging costs Ink for each plot that joins.</p>
         </div>
       )}
-      <Button variant="secondary" size="sm" onClick={() => startMerge(d.group?.id)} data-testid="start-merge"><Combine className="h-4 w-4" /> Merge several plots at once</Button>
+      <Button variant="secondary" size="sm" onClick={() => startMerge(d.group?.id)} data-testid="start-merge"><Combine className="h-4 w-4" /> {NATIVE ? `Merge studio${sameKind.length ? ` · ${sameKind.length} can join` : ''}` : 'Merge several plots at once'}</Button>
       {myGroup && <PlaceAccessCard group={myGroup} />}
       {d.group && d.group.plot_count > 1 && (
         <Button variant="ghost" size="sm" onClick={detach} loading={busy === 'detach'}><Scissors className="h-4 w-4" /> Detach this plot from the canvas</Button>
