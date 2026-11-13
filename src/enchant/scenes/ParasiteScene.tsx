@@ -4,9 +4,29 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { rarityInfo } from '../../shared/rarity';
-import { PlayerAvatar, Button } from '../../ui';
+import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
+import { useNavigate } from 'react-router-dom';
+import { toMap } from '../../lib/toMap';
+import { cellCenter } from '../../shared/grid';
+import { useWrapFx } from '../ParasiteWraps';
+
+/** where it's wrapped: a little picture of the host plot with the parasite coiled all the way round it */
+function WrapPreview({ stage, feeds }: { stage: number; feeds: number }) {
+  const w = 2 + Math.min(10, feeds) * 0.9;
+  const sym = stage >= 2;
+  return (
+    <svg viewBox="0 0 60 60" className="h-full w-full" aria-hidden>
+      <defs><linearGradient id="pw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={sym ? '#3DDC97' : '#7CFF6B'} /><stop offset="1" stopColor={sym ? '#FFD23F' : '#B026FF'} /></linearGradient></defs>
+      <rect x="14" y="14" width="32" height="32" rx="3" fill="#2B3B66" />
+      <rect x="14" y="14" width="32" height="32" rx="4" fill="none" stroke="url(#pw)" strokeWidth={w} strokeDasharray="7 2" className="lv-coil" />
+      {Array.from({ length: Math.min(8, feeds) }, (_, i) => <path key={i} d={`M${16 + (i % 4) * 9} ${i < 4 ? 15 : 45} q4 ${i < 4 ? 6 : -6} ${2 + (i % 3)} ${i < 4 ? 12 : -12}`} stroke={sym ? '#3DDC97' : '#B026FF'} strokeWidth="1" fill="none" opacity="0.7" />)}
+      {sym && [0, 1, 2, 3].map((i) => <circle key={i} cx={[14, 46, 46, 14][i]} cy={[14, 14, 46, 46][i]} r="3" fill="#FF8FD0" />)}
+      <circle cx="46" cy="14" r="3.5" fill="#fff" /><circle cx="46.6" cy="14.4" r="1.6" fill="#0B1F08" />
+    </svg>
+  );
+}
 
 const STAGES = [
   { name: 'Larva', c: '#E6FFB3', g: '#9BE15D', text: 'A hungry little thing. 3 feeds to grow.' },
@@ -33,8 +53,14 @@ function Creature({ stage, fat }: { stage: number; fat: number }) {
   );
 }
 
-export function ParasiteScene({ view, act, busy, at }: SceneProps) {
+export function ParasiteScene({ v, view, act, busy, at }: SceneProps) {
   const tank = useRef<HTMLDivElement>(null);
+  const nav = useNavigate();
+  const showHost = () => {
+    if (!view.host) return;
+    const [lng, lat] = cellCenter(view.host.gx, view.host.gy);
+    toMap(nav, { lng, lat, zoom: 19.4 });
+  };
   const [leap, setLeap] = useState(false);
   const [evolved, setEvolved] = useState<number | null>(null);
   const readyIn = useLeft(view.ready_in, at);
@@ -50,6 +76,7 @@ export function ParasiteScene({ view, act, busy, at }: SceneProps) {
   };
   const harvest = async () => {
     const r = await act('harvest', {}, { at: centerOf(tank.current) });
+    if (r) useWrapFx.getState().pulseAt(v.id);
     if (r?.result?.evolved) {
       setEvolved(r.result.stage);
       efx.burst({ ...centerOf(tank.current), colors: ['#7CFF6B', '#FFD23F', '#B026FF', '#fff'], count: 220, speed: 15, kind: 'spark' });
@@ -76,13 +103,13 @@ export function ParasiteScene({ view, act, busy, at }: SceneProps) {
           <motion.div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded-2xl bg-black/55 p-2.5 backdrop-blur" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} data-testid="parasite-host">
             <div className="relative h-14 w-14 shrink-0">
               <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90" aria-hidden><circle cx="20" cy="20" r="17" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="4" /><circle cx="20" cy="20" r="17" fill="none" stroke="#7CFF6B" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(fed / 100) * 106.8} 106.8`} /></svg>
-              <div className="absolute inset-[18%]"><Creature stage={stage} fat={fed / 100} /></div>
+              <div className="absolute inset-[12%]"><WrapPreview stage={stage} feeds={Number(view.feeds)} /></div>
             </div>
             <div className="grid min-w-0 flex-1 leading-tight">
               <span className="truncate text-[13px] font-black text-white">Feeding on @{host.owner_name}’s <span style={{ color: rarityInfo(host.rarity).color }}>{rarityInfo(host.rarity).name}</span> plot</span>
               <span className="text-[11px] text-white/60">{(readyIn ?? 0) > 0 ? `${Math.round(fed)}% fed · ready in ${dur(readyIn)}` : 'Fully fed!'}{host.welcomed ? ' · 💚 welcomed' : ''}</span>
             </div>
-            <PlayerAvatar p={{ username: host.owner_name, avatar_seed: host.owner_name, avatar_style: 'prism', accent_color: '#7CFF6B' } as never} size={34} />
+            <button onClick={showHost} className="shrink-0 rounded-full bg-[#7CFF6B] px-2.5 py-1.5 text-[11px] font-black text-[#0B1F08]" data-testid="parasite-show">📍 Show on map</button>
           </motion.div>
         )}
         <div className="absolute left-3 top-3 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black backdrop-blur" style={{ color: STAGES[stage].c }} data-testid="parasite-stage">{STAGES[stage].name} · {view.feeds} feed{view.feeds === 1 ? '' : 's'}</div>

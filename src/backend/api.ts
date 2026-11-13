@@ -13,12 +13,35 @@ export type EstateState = { group_id: string; name: string; houses: number; cycl
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
 export type EnchantBrief = { id: string; kind: string; serial: number; sigil: number; nickname: string | null; level: number; gx: number; gy: number; titles: string[];
   born_place: string | null; born_at: string; minted: number; population: number; name: string; emoji: string; gene?: string | null };
+export type EnchantPartner = { kind: string; id: string | null; gene: string; resonant: boolean; strength: number; perfect: boolean; hybrid: string; ends_at: string; started_at?: string;
+  mode: 'swap' | 'graft' | 'chimera' | 'trinity' | 'plot' | 'friend'; aberration: string | null; unstable: boolean; plot_kind: string | null; plot: [number, number] | null; friend: any };
+export type PlotSize = { mode: 'grow' | 'shrink'; mult: number; until: string; owner: string; linked: boolean; id: number; prank?: boolean; by_name?: string | null };
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
-  clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: { kind: string; id: string; gene: string; resonant: boolean; hybrid: string; ends_at: string } | null;
+  clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
   view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean };
-export type EnchantVisitor = { id: string; kind: string; mirror: boolean; owner: any; serial: number; stage: number; welcomed: boolean; gx: number; gy: number; at: number; hatch_at: number | null; what: 'parasite' | 'egg' };
-export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null }[];
-  attached: { id: string; what: 'parasite' | 'egg'; stage: number; gx: number; gy: number; mine: boolean; on_mine: boolean }[]; giants: { gx: number; gy: number; mult: number }[] };
+export type EnchantVisitor = { id: string; kind: string; mirror: boolean; owner: any; serial: number; stage: number; feeds?: number; welcomed: boolean; gx: number; gy: number; at: number; hatch_at: number | null; what: 'parasite' | 'egg' };
+export type MapSize = { gx: number; gy: number; mode: 'grow' | 'shrink'; mult: number; until: string; from: string; mine: boolean; owner_name: string | null; rarity: string | null; name: string | null; visited: boolean; tips: number;
+  /** 100 for a giant, 0.01 for a tiny plot; a prank is someone else's zap, just for show */
+  scale?: number; prank?: boolean; by_name?: string | null; by_me?: boolean; plot_type?: string | null };
+export type MapWormhole = { id: string; mine: boolean; owner_name?: string | null; until?: number; ends: { gx: number; gy: number; home: boolean; name: string | null; rarity: string | null; place: string | null }[] };
+export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string }[];
+  attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
+  giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[] };
+export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null }[]; wormholes: MapWormhole[] };
+export type LevPos = { lng: number; lat: number; km: number; seg: number; heading: number; done: boolean; paused: boolean };
+export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number; path: [number, number][]; path_km: number; speed_kmh: number;
+  walk_s: number; walk_at: string; pause_until: string | null; rise_at: string; spawned_at: string; origin: string; exit_sea: string | null; place: string | null; trail: [number, number][];
+  shrunk_until: string | null; foretold_until: string | null; roar_at: string | null; target: { gx: number; gy: number; owner_name: string; giant: boolean } | null; cities: string[] | null; pos: LevPos; fighters: number };
+export type LevMove = { id: string; kind: string; serial: number; level: number; sigil: number; name: string; move: string; effect: string | null; dmg: number; ready_in: number };
+export type LevState = { server_time: string; lev: Leviathan | null;
+  feed: { id: number; name: string | null; label: string; emoji: string; dmg: number; at: string; move: string }[] | null;
+  top: { player: any; dmg: number; me: boolean }[] | null;
+  me: { dmg: number; hits: number; bombs: number; bombs_max: number; bomb_regen_s: number; next_bomb_in: number | null; moves: LevMove[]; rank: number | null; trampled: number } | null;
+  last: { id: string; gen: number; status: 'fallen' | 'escaped'; ended_at: string; place: string | null; hp: number; hp_max: number; strength: number; exit_sea: string | null; fighters: number; top: { player: any; dmg: number }[] | null;
+    loot: { loot: { fell: boolean; rank: number; share: number; ink: number; enchant?: number; ticket?: string } | null; seen: boolean; dmg: number } | null } | null;
+  next_at: string | null; bones: { id: number; gen: number; lng: number; lat: number; at: string; place: string | null; players: number; top: string | null }[] };
+export type SpliceFriend = { friend: any; enchantments: { id: string; kind: string; serial: number; sigil: number; level: number; nickname: string | null }[] };
+export type SpliceInvite = { id: number; from: any; expires_at: string; theirs: EnchantBrief; yours: EnchantBrief; hybrid: string; perfect: boolean };
 export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; armed: number; can_reroll: number; per_roll: number; max_rerolls: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number;
   enchant: number; enchant_max: number; enchant_ink: number; enchant_step: number; enchant_base: number; enchant_pct: number };
 
@@ -121,7 +144,20 @@ export const api = {
   enchantVisitors: () => rpc<EnchantVisitor[]>('enchant_visitors'),
   enchantVisitorAct: (id: string, action: 'shake' | 'welcome' | 'eject') => rpc<{ result: any; visitors: EnchantVisitor[] }>('enchant_visitor_act', { p_id: id, p_action: action }),
   enchantMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap>('enchant_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
-  enchantBestiary: () => rpc<{ kinds: { kind: string; name: string; emoji: string; population: number; minted: number; mine: number }[]; codex: string[]; chance: { base: number; charges: number; step: number } }>('enchant_bestiary'),
+  enchantBestiary: () => rpc<{ kinds: { kind: string; name: string; emoji: string; population: number; minted: number; mine: number }[]; codex: string[]; trinities: string[]; plots: string[]; aberrations: string[]; aberrations_total: number;
+    chance: { base: number; charges: number; step: number } }>('enchant_bestiary'),
+  enchantWorld: () => rpc<EnchantWorld>('enchant_world'),
+  sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),
+  sizeUndo: (gx: number, gy: number) => rpc<{ undone: boolean; was_prank: boolean }>('size_undo', { p_gx: gx, p_gy: gy }),
+  spliceFriends: () => rpc<SpliceFriend[]>('splice_friends'),
+  spliceInvites: () => rpc<SpliceInvite[]>('splice_invites'),
+  spliceInviteRespond: (id: number, accept: boolean) => rpc<{ accepted?: boolean; declined?: boolean; hybrid?: string; invites: SpliceInvite[] }>('splice_invite_respond', { p_id: id, p_accept: accept }),
+  // the Leviathan
+  leviathanState: () => rpc<LevState>('leviathan_state', { p_tick: true }),
+  leviathanHit: (move: 'bomb' | 'enchant', n = 1, enchant: string | null = null) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_hit', { p_move: move, p_n: n, p_enchant: enchant }),
+  leviathanScrub: (gx: number, gy: number) => rpc<{ scrubbed: boolean; ink: number }>('leviathan_scrub', { p_gx: gx, p_gy: gy }),
+  leviathanSeen: (id: string) => rpc<void>('leviathan_seen', { p_lev: id }),
+  leviathanMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<{ gx: number; gy: number; until: string; mine: boolean }[] | null>('leviathan_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   luckOfferInk: (points: number) => rpc<LuckState & { gained: number; cost: number }>('luck_offer_ink', { p_points: points }),
   /** every city's Crown and who holds it */
   crowns: () => rpc<{ total: number; states: number; countries: number; held: { tier: RarityId; city: string; country: string; holder: string; since: string; mine: boolean; strength: number; rivals: number; need: number }[] }>('crowns'),
@@ -615,6 +651,7 @@ export const api = {
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
     inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
     setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
+    leviathan: (action: 'summon' | 'dismiss' | 'status', args: Record<string, unknown> = {}) => rpc<LevState & { cfg: any; history: any[] }>('admin_leviathan', { p_action: action, p_args: args }),
     giveEnchantment: (player: string, kind: string, reason: string, near: { gx: number; gy: number } | null) =>
       rpc<EnchantBrief>('admin_give_enchantment', { p_player: player, p_kind: kind, p_reason: reason, p_near_gx: near?.gx ?? null, p_near_gy: near?.gy ?? null }),
     playerPlots: (player: string) => rpc<any[]>('admin_player_plots', { p_player: player }),

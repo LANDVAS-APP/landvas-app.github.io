@@ -29,6 +29,8 @@ import { currentRate, formatRate } from '../shared/rent';
 import type { PlotTypeId } from '../shared/grid';
 import { PlayerAvatar, ResourcePill, Spinner } from '../ui';
 import { NotificationBell } from '../updates/Notifications';
+import { LeviathanBanner, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
+import { WarpTunnel } from '../enchant/scenes/WormholeScene';
 
 type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean; today_mult?: number | null };
 
@@ -116,6 +118,11 @@ export default function SimpleHome() {
         <LuckChip />
         <GrimoireButton />
       </div>
+      {/* the Leviathan, when one walks the Earth (no map here: the fight opens over the home) */}
+      <div className="flex justify-center"><LeviathanBanner /></div>
+      <LeviathanFight />
+      <LeviathanMoments />
+      <WarpTunnel />
 
       {/* what you can roll */}
       <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">

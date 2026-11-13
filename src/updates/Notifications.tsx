@@ -173,7 +173,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   enchant: { icon: Sparkles, color: '#B26BFF', text: (a) => {
     const d = a.data as Record<string, any>;
     switch (d.sub) {
-      case 'parasite_attached': return <>let a 🦠 <b>Parasite</b> loose — it latched onto your plot! Shake it off in your Grimoire (you get paid for it)</>;
+      case 'parasite_attached': return <>let a 🦠 <b>Parasite</b> loose — it’s wrapped itself around your plot! Peel it off (you get paid for it)</>;
       case 'symbiote_attached': return <>’s 💚 <b>Symbiote</b> settled on your plot — it shares its meals with you</>;
       case 'symbiote_gift': return <>’s Symbiote shared its meal with you <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'parasite_shaken': return <>shook your 🦠 Parasite off their plot</>;
@@ -182,10 +182,30 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'cuckoo_ejected': return <>found your 🪺 Cuckoo’s egg and threw it out</>;
       case 'treasure_piece': return <>found a 🗺️ treasure map piece on your plot <span className="text-ok">· +{d.ink} Ink finder’s tip</span></>;
       case 'mirror_seen': return <>saw your ✨ enchantment in their 🪞 Mirror Shard and stepped through <span className="text-ok">· +{d.ink} Ink</span></>;
-      case 'spore': return <>A spore of Ink drifted onto you from a spliced 🦠 gene <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'spore': return <>A spore of Ink drifted onto you {d.kind === 'wormhole' ? 'out of a 🌀 wormhole' : 'from a Spreading splice'} <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'giant_tip': return <>visited your 📡 giant plot and tipped it <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'size_prank': return <>🤡 <b>pranked you</b> with a 📡 Size Ray — your plot is {d.mode === 'grow' ? <b>100× GIANT</b> : <b>100× tiny</b>} on everyone’s map for {d.hours} h. Only for show — tap to see it (you can undo it there)</>;
+      case 'splice_invite': return <>wants to 🧬 splice with you: <b>{d.hybrid}</b> — say yes in your Grimoire</>;
+      case 'splice_accepted': return <>said yes — you’re spliced: <b>{d.hybrid}</b> 🧬</>;
+      case 'splice_declined': return <>said no to your splice (you got the charge back)</>;
+      case 'prophecy_sealed': return <>sealed a 🔏 prophecy about your next plot roll… roll to see if the Eye was right</>;
+      case 'prophecy_true': return <>’s next roll came out just as your 👁️ Oracle foretold <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'prophecy_true_you': return <>’s sealed 👁️ prophecy came true on your roll <span className="text-ok">· +{d.ink} Ink</span></>;
       default: return <>did something with an enchantment</>;
     }
-  }, to: () => '/grimoire?tab=visitors' },
+  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : '/grimoire?tab=visitors') },
+  leviathan: { icon: Sparkles, color: '#FF5CDB', text: (a) => {
+    const d = a.data as Record<string, any>;
+    switch (d.sub) {
+      case 'warning': return <>🐉 <b>Something is rising {d.where}.</b> The Leviathan is coming — every player can fight it.</>;
+      case 'trampled': return <>🐉 The Leviathan <b>trampled your plots</b> {d.place} — scrub the ink off to get their minigames paying in full</>;
+      case 'blocked': return <>📡 Your giant plot <b>stood in the Leviathan’s way</b> and stopped it <span className="text-ok">· {Number(d.dmg).toLocaleString()} damage</span></>;
+      case 'scrubbed': return <>scrubbed the Leviathan’s ink off your plot 🧽</>;
+      case 'fallen': return <>🦴 <b>The Leviathan has fallen!</b> Your share: #{d.rank} <span className="text-ok">· +{d.ink} Ink</span>{d.ticket ? <> · a {d.ticket} ticket</> : null}</>;
+      case 'escaped': return <>🌊 The Leviathan escaped to the sea… it will be back stronger <span className="text-ok">· +{d.ink} Ink</span></>;
+      default: return <>🐉 The Leviathan stirs</>;
+    }
+  }, to: () => '/world' },
   ultra_set: { icon: Sparkles, color: '#FFD23F', text: (a) => <>{ultraOfRarity(a.data.rarity)?.emoji} Your <b>{ultraOfRarity(a.data.rarity)?.name ?? 'ultra'} set</b> is unlocked — a hat, outfit, relic, aura and trail for your explorer, and wear for your Inkborn</>, to: () => '/explorer' },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };

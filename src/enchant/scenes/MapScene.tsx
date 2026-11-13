@@ -4,7 +4,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUi } from '../../lib/store';
+import { toMap } from '../../lib/toMap';
 import { cn, fmt } from '../../lib/utils';
 import { cellCenter } from '../../shared/grid';
 import { rarityInfo } from '../../shared/rarity';
@@ -22,7 +22,7 @@ export function MapScene({ view, act, busy, at }: SceneProps) {
   const [opened, setOpened] = useState<any>(null);
   const nextIn = useLeft(view.next_in, at);
   const pieces: any[] = view.pieces ?? [];
-  const fly = (gx: number, gy: number) => { const [lng, lat] = cellCenter(gx, gy); useUi.getState().requestFly({ lng, lat, zoom: 18.5 }); nav('/world'); };
+  const fly = (gx: number, gy: number) => { const [lng, lat] = cellCenter(gx, gy); toMap(nav, { lng, lat, zoom: 18.5 }); };
   const collect = async (i: number, el: Element | null) => {
     const r = await act('collect', { i });
     if (r) efx.burst({ ...centerOf(el), colors: ['#E9C46A', '#8B5E34', '#fff'], count: 50, speed: 9, kind: 'glitter' });

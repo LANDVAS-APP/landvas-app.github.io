@@ -38,6 +38,7 @@ import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 import { PlotEnchant } from '../enchant/PlotEnchant';
 import { buzz, isNative } from '../native/native';
+import { PlotWonders } from '../enchant/PlotWonders';
 const NATIVE = isNative();
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -109,6 +110,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       )}
       {d && d.rarity === 'enchanted' && <PlotEnchant gx={d.gx} gy={d.gy} />}
       {d && d.owned && NATIVE && <OwnedHero d={d} />}
+      {d && (d.owned || d.owner) && <PlotWonders gx={d.gx} gy={d.gy} plotType={d.plot_type} />}
       {d && d.owned && (
         <div className={cn('grid gap-4', NATIVE ? 'mt-3' : 'mt-4')}>
           {!NATIVE && <div className="grid grid-cols-2 gap-2">

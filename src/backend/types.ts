@@ -255,7 +255,7 @@ export type PlayerPlaces = {
 export type FeedEvent = {
   id: number;
   kind: 'join' | 'claim' | 'publish' | 'achievement' | 'referral' | 'level' | 'minigame' | 'pvp' | 'challenge' | 'featured' | 'sketch' | 'duet' | 'stamp'
-    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core' | 'harvest' | 'ipo' | 'arcade' | 'luck' | 'crown' | 'flight' | 'estate' | 'moderation' | 'enchant';
+    | 'planet_plot' | 'settle' | 'exploring' | 'playdate' | 'dig' | 'base' | 'core' | 'harvest' | 'ipo' | 'arcade' | 'luck' | 'crown' | 'flight' | 'estate' | 'moderation' | 'enchant' | 'leviathan';
   data: Record<string, any>;
   created_at: string;
   player: Profile;
@@ -479,7 +479,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;

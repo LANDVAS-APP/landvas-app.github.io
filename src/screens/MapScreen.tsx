@@ -48,6 +48,9 @@ import { DailyChip } from '../earn/DailyChip';
 import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
 import { HotZoneChip, HotZoneDisc, HotZoneLayer, HotZonePanel } from '../daily/HotZoneMap';
 import { useQuickRoll } from '../simple/useQuickRoll';
+import { FlyParam, RayTargeting, useRayTarget } from '../enchant/sizeray';
+import { WarpTunnel } from '../enchant/scenes/WormholeScene';
+import { LeviathanBanner, LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -123,6 +126,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
             {me && <HotZoneDisc />}
             {me && <LuckDisc />}
             {me && <GrimoireButton rail />}
+            <LeviathanDisc />
             <ModeButton rail />
           </div>
           {/* whichever of them is open, as a card right under the row */}
@@ -132,6 +136,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
                 {card === 'hot' && <HotZonePanel key="hot" onClose={closeCard} onRoll={() => void quick.roll({ hot: true })} />}
                 {card === 'luck' && <LuckCard key="luck" onClose={closeCard} />}
                 {card === 'grim' && <GrimoireCard key="grim" onClose={closeCard} />}
+                {card === 'lev' && <LeviathanCard key="lev" onClose={closeCard} />}
                 {card === 'bell' && <BellCard key="bell" onClose={closeCard} />}
                 {card === 'boost' && <BoostCard key="boost" onClose={closeCard} />}
                 {card === 'me' && <ProfileMenu key="me" />}
@@ -142,6 +147,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         </div>
       ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
+        <div className="flex justify-center"><LeviathanBanner /></div>
         <div className="flex items-start gap-2">
           {me ? <PlayerBadge /> : !session ? <div className="pointer-events-auto"><SignInChip /></div> : null}
           <div className="pointer-events-auto ml-auto flex items-center gap-1.5">
@@ -193,6 +199,11 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       <ClaimCelebration />
       <PinFlight />
       {APP && me && <GrimoireSheet />}
+      <RayTargeting />
+      <FlyParam />
+      <WarpTunnel />
+      <LeviathanFight />
+      <LeviathanMoments />
     </div>
   );
 }
@@ -460,7 +471,10 @@ function PlacementPrompt() {
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
   const [dismissed, setDismissed] = useState(false);
-  const open = !!me && !me.explorer && !ex.state && ex.gps !== 'on' && ex.gps !== 'asking' && !dismissed;
+  // (not while you're aiming a Size Ray at the map)
+  const aiming = !!useRayTarget((r) => r.ray);
+  useEffect(() => { if (aiming) setDismissed(true); }, [aiming]);
+  const open = !!me && !me.explorer && !ex.state && ex.gps !== 'on' && ex.gps !== 'asking' && !dismissed && !aiming;
   const blocked = ex.gps === 'denied' || ex.gps === 'unavailable' || !gpsSupported();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setDismissed(true)} title="Drop into the world"

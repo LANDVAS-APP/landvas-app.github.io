@@ -493,6 +493,7 @@ export function Earnings() {
         <PlotPrice economy={cfg.data.config.economy.value} />
         <BoostSettings rent={cfg.data.config.rent.value} />
         {cfg.data.config.enchantments && <EnchantSettings value={cfg.data.config.enchantments.value} />}
+        {cfg.data.config.leviathan && <LeviathanSettings value={cfg.data.config.leviathan.value} />}
         {cfg.data.config.earn && <EarnSettings value={cfg.data.config.earn.value} onSave={(v) => save('earn', v, 'Earning settings saved for everyone')} />}
         {cfg.data.config.creative && <CreativeSettings value={cfg.data.config.creative.value} onSave={(v) => save('creative', v, 'Creative games saved for everyone')} />}
         {cfg.data.config.pvp && <PvpSettings value={cfg.data.config.pvp.value} onSave={(v) => save('pvp', v, 'PvP settings saved for everyone')} />}
@@ -860,6 +861,53 @@ function EnchantSettings({ value }: { value: any }) {
           })}
         </div>
         <p className="text-[11px] text-faint">Weight 0 stops a kind from turning up. On a wide screen the right column is how many are alive now and how many have ever been minted. Give one to a player from Players → their plots.</p>
+      </div>
+    </Card>
+  );
+}
+
+/** the Leviathan: when it comes, how tough it is, what it pays — and summon one now, or send it back to the sea */
+function LeviathanSettings({ value }: { value: any }) {
+  const save = useSaveConfig();
+  const qc = useQueryClient();
+  const [v, setV] = useState<any>(() => structuredClone(value));
+  useEffect(() => setV(structuredClone(value)), [value]);
+  const st = useQuery({ queryKey: ['admin-leviathan'], queryFn: () => api.admin.leviathan('status'), staleTime: 10_000 });
+  const [warn, setWarn] = useState(60);
+  const dirty = JSON.stringify(v) !== JSON.stringify(value);
+  const run = async (a: 'summon' | 'dismiss') => {
+    try { await api.admin.leviathan(a, { warn_min: warn }); toast.success(a === 'summon' ? `Summoned — it rises in ${warn} min` : 'Sent back to the sea'); void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); }
+    catch (e) { toast.error(toGameError(e).message); }
+  };
+  const l = st.data?.lev;
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return (
+    <Card title="🐉 The Leviathan" actions={<Button size="sm" variant="primary" disabled={!dirty} data-testid="lev-cfg-save" onClick={() => save('leviathan', v, 'Leviathan settings saved')}>Save</Button>}>
+      <div className="grid gap-3" data-testid="lev-cfg">
+        <div className="rounded-2xl border border-line bg-surface/50 p-3 text-sm">
+          {l ? <><b>Leviathan #{l.gen}</b> {l.status} · {l.place ?? l.origin} · {fmt(l.hp)} / {fmt(l.hp_max)} HP · {l.fighters} fighting{Number(l.strength) > 1 ? ` · ×${l.strength} strength` : ''}</>
+            : <>No Leviathan right now.{st.data?.next_at ? ` The next one is warned ${new Date(st.data.next_at).toLocaleString()} (it rises ${v.warn_min ?? 60} min later).` : ''}</>}
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          {!l && <><NumberField label="Warning before it rises" value={warn} min={0} max={1440} suffix="min" onChange={(n) => setWarn(Math.round(n))} />
+            <Button variant="rainbow" onClick={() => void run('summon')} data-testid="lev-summon">Summon one now</Button></>}
+          {l && <Button variant="danger" onClick={() => void run('dismiss')} data-testid="lev-dismiss">Send it back to the sea (no loot)</Button>}
+        </div>
+        <Switch id="lev-enabled" checked={v.enabled !== false} label={v.enabled !== false ? 'It comes on its own every week' : 'Only when you summon it'} onCheckedChange={(on) => setV({ ...v, enabled: on })} />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1 text-xs font-semibold">Day (UTC)<select className={cn(inputCls, 'h-9')} value={Number(v.weekday ?? 6)} onChange={(e) => setV({ ...v, weekday: Number(e.target.value) })}>{days.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></label>
+          <NumberField label="Rises at (UTC hour)" value={Number(v.hour_utc ?? 17)} min={0} max={23} onChange={(n) => setV({ ...v, hour_utc: Math.round(n) })} />
+          <NumberField label="Warning" value={Number(v.warn_min ?? 60)} min={0} max={1440} suffix="min" onChange={(n) => setV({ ...v, warn_min: Math.round(n) })} />
+          <NumberField label="Walks for" value={Number(v.walk_hours ?? 48)} min={1} max={240} suffix="h" onChange={(n) => setV({ ...v, walk_hours: n })} />
+          <NumberField label="Health per active player" value={Number(v.hp_per_player ?? 2500)} min={1} onChange={(n) => setV({ ...v, hp_per_player: Math.round(n) })} />
+          <NumberField label="Least health" value={Number(v.hp_min ?? 60000)} min={1} onChange={(n) => setV({ ...v, hp_min: Math.round(n) })} />
+          <NumberField label="Stronger after an escape" value={Number(v.strength_step ?? 0.5)} step={0.1} min={0} max={5} suffix="×" onChange={(n) => setV({ ...v, strength_step: n })} />
+          <NumberField label="Ink bombs per player" value={Number(v.bombs_max ?? 60)} min={1} max={1000} onChange={(n) => setV({ ...v, bombs_max: Math.round(n) })} />
+          <NumberField label="Enchantment move cooldown" value={Number(v.move_cd_h ?? 3)} step={0.5} min={0} max={72} suffix="h" onChange={(n) => setV({ ...v, move_cd_h: n })} />
+          <NumberField label="Most Ink one player can win" value={Number(v.loot_cap ?? 1500)} min={0} onChange={(n) => setV({ ...v, loot_cap: Math.round(n) })} />
+        </div>
+        <p className="text-[11px] text-faint">Loot when it falls: {v.loot_base ?? 25} Ink each, plus a share of {fmt(Math.round(1 / Number(v.loot_pool_div ?? 100) * 100))}% of its health in Ink by damage; the top fighter gets a Legendary+ ticket, the top 10% Epic+, everyone with 1%+ of the damage a charge of Enchanted Luck. An escape pays 10 Ink each, and it comes back stronger. Ink only — never USD.</p>
+        {(st.data?.history ?? []).length > 0 && <div className="grid gap-1 text-xs">{st.data!.history.map((h: any) => <div key={h.spawned_at} className="flex gap-2"><b>#{h.gen}</b><span className="flex-1 truncate">{h.origin}</span><span>{h.status}</span><span className="tnum text-muted">{h.fighters} fought</span></div>)}</div>}
       </div>
     </Card>
   );

@@ -192,7 +192,7 @@ const FEED_KEYS: { k: string; label: string; hint: string; acts: Act[] }[] = [
     { k: 'fa_minigame', label: 'Clearing a minigame level' }, { k: 'fa_pvp', label: 'Winning a PvP match' }, { k: 'fa_challenge', label: 'Placing in a challenge' },
     { k: 'fa_sketch', label: 'Placing in Sketch of the Day' }, { k: 'fa_level', label: 'Reaching an artist level' },
     { k: 'fa_arcade_playing', label: 'Playing in an arcade' }, { k: 'fa_arcade_record', label: 'Arcade high scores' }, { k: 'fa_arcade_prize', label: 'Arcade prizes' },
-    { k: 'fa_arcade_cosmetic', label: 'Unlocking arcade gear' }, { k: 'fa_arcade_level', label: 'Your arcade levelling up' }, { k: 'fa_arcade_install', label: 'Installing arcade machines' }] },
+    { k: 'fa_arcade_cosmetic', label: 'Unlocking arcade gear' }, { k: 'fa_arcade_level', label: 'Your arcade levelling up' }, { k: 'fa_arcade_install', label: 'Installing arcade machines' }, { k: 'fa_leviathan', label: 'Landing the biggest blows on the Leviathan' }] },
   { k: 'feed_art', label: 'Art', hint: 'Art you publish, duets, stamps', acts: [
     { k: 'fa_publish', label: 'Publishing art' }, { k: 'fa_featured', label: 'Getting Featured' }, { k: 'fa_duet', label: 'Finishing a duet' }, { k: 'fa_stamp', label: 'Collecting a stamp' }] },
   { k: 'feed_luck', label: 'Luck', hint: 'Sacrifices at the Altar and your lucky picks', acts: [

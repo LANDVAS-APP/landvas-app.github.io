@@ -13,6 +13,7 @@ import { GameError, toGameError, type Backend, type Session } from '../backend';
 import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { BlobDb } from './blobs';
 import { canvasCodec } from './codec-canvas';
+import { config } from '../../env';
 
 const migrationFiles = import.meta.glob('../../../supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const SESSION_KEY = 'landvas.local.session';
@@ -135,6 +136,9 @@ export class LocalBackend implements Backend {
       }
     }
     await this.db.exec(overridesSql);
+    // automated browser tests run on the real clock: no Leviathan rises on its weekly schedule in the middle of one
+    // (a test summons it by hand when it wants one)
+    if (config.e2e) await this.db.exec(`update public.game_config set value = value || '{"enabled": false}' where key = 'leviathan'`);
   }
 
   // ---- auth -------------------------------------------------------------------

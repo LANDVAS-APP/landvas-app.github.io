@@ -30,6 +30,8 @@ import { drawCreature } from '../inkborn/rig';
 import { MapFx, invalidateResidents } from './MapFx';
 import { PlotBubbles } from './Hud';
 import { EnchantLayer } from '../enchant/EnchantLayer';
+import { LeviathanLayer } from '../leviathan/LeviathanLayer';
+import { useRayTarget } from '../enchant/sizeray';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -192,6 +194,13 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         }
         const cell = lngLatToCell(e.lngLat.lng, e.lngLat.lat);
         const ui = useUi.getState();
+        // the Size Ray is aiming: a tap picks one of your plots
+        const ray = useRayTarget.getState();
+        if (ray.ray) {
+          // any plot: yours for real, anyone else's as a prank (the fire sheet says which)
+          ray.pick(cell);
+          return;
+        }
         if (ui.merge) {
           // merge mode: tapping one of your plots adds or removes its canvas (a drag-pick already did)
           if (performance.now() - lastMergePaint < 700) return;
@@ -649,6 +658,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       {!lite && <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />}
       {!lite && <PlotBubbles ready={ready} />}
       {!lite && <EnchantLayer ready={ready} />}
+      <LeviathanLayer ready={ready} />
     </div>
   );
 }

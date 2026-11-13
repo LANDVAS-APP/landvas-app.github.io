@@ -268,13 +268,21 @@ function FeedRow({ e }: { e: FeedEvent }) {
       const k = ENCH[d.kind as keyof typeof ENCH];
       icon = <span className="text-[12px] leading-none">✨</span>;
       body = d.sub === 'born' ? <>{who} rolled an <b className="text-[#C9A0FF]">Enchanted</b> plot: <b style={{ color: k?.a }}>{k?.emoji} {k?.name} #{d.serial}</b>{d.place ? <span className="text-muted"> · {d.place}</span> : null}</>
-        : d.sub === 'hybrid' ? <>{who} spliced a resonant hybrid: <b className="text-[#00F5D4]">🧬 {d.hybrid}</b></>
+        : d.sub === 'hybrid' ? <>{who} spliced a Perfect Match: <b className="text-[#00F5D4]">🧬 {d.hybrid}</b></>
+        : d.sub === 'aberration' ? <>{who}’s splice <b className="text-[#FF8FB3]">mutated into an Aberration</b>: <b className="text-[#FFD1DE]">☣️ {d.hybrid}</b></>
         : d.sub === 'hope' ? <>{who} released all seven evils from <b style={{ color: k?.a }}>🏺 Pandora’s Box</b> — and <b>Hope</b> 🦋 came out</>
         : d.sub === 'symbiote' ? <>{who}’s <b style={{ color: k?.a }}>🦠 Parasite</b> evolved into a <b className="text-[#3DDC97]">💚 Symbiote</b></>
         : d.sub === 'genie_freed' ? <>{who} made the Forbidden Wish — and <b style={{ color: k?.a }}>🧞 the Genie went free</b></>
         : d.sub === 'treasure' ? <>{who} dug up a <b className="text-gold">🧰 treasure chest</b> with a Legendary+ roll ticket</>
         : d.sub === 'shatter' ? <>{who}’s <b style={{ color: k?.a }}>🪞 Mirror Shard</b> shattered after seven reflections</>
         : <>{who} did something enchanted</>;
+      break;
+    }
+    case 'leviathan': {
+      const d = e.data as Record<string, any>;
+      icon = <span className="text-[12px] leading-none">🐉</span>;
+      body = d.sub === 'fallen' ? <>{who} led the fight — <b className="text-[#FFE8A3]">the Leviathan has fallen</b>{d.place ? <span className="text-muted"> {d.place}</span> : null} · {d.players} players brought it down 🦴</>
+        : <>{who} fought the <b className="text-[#C9A0FF]">🐉 Leviathan</b></>;
       break;
     }
     case 'crown': {

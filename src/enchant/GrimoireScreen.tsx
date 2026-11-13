@@ -10,13 +10,18 @@ import { toGameError } from '../backend/backend';
 import { Page } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
+import { toMap } from '../lib/toMap';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { buzz } from '../native/native';
 import { cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, Tabs, inputCls } from '../ui';
 import { EnchantFxLayer, centerOf, efx, useAct, useEnchant, useMyEnchantments, useVisitors } from './core';
-import { EVILS, HYBRIDS, KINDS, KIND_ORDER, TITLES, dur, enchantName, kindInfo, type EnchantKind } from './kinds';
+import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, dur, enchantName, hybridCard, hybridKey, kindInfo, traitText, type EnchantKind, type SpliceMode } from './kinds';
+import { HybridCard } from './HybridCard';
+import { EvolveAura, MoodVeil, useMood } from './living';
+import { PeelOff } from './PeelOff';
 import { SceneFor } from './scenes';
+import { WarpTunnel } from './scenes/WormholeScene';
 import { Sigil } from './Sigil';
 import './enchant.css';
 
@@ -58,6 +63,7 @@ function Home() {
           </div>
         )}
       </header>
+      <SpliceInvites />
       <Tabs value={tab} onValueChange={(t) => setSp((p) => { p.set('tab', t); return p; }, { replace: true })} className="mb-4"
         items={[{ value: 'mine', label: `Enchantments${list.length ? ` · ${list.length}` : ''}` }, { value: 'visitors', label: `On my land${visitors.data?.length ? ` · ${visitors.data.length}` : ''}` }, { value: 'bestiary', label: 'Bestiary' }, { value: 'codex', label: 'Codex' }]} />
       {tab === 'mine' && (mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : list.length ? (
@@ -69,7 +75,7 @@ function Home() {
       ))}
       {tab === 'visitors' && <Visitors list={visitors.data ?? []} loading={visitors.isLoading} />}
       {tab === 'bestiary' && <Bestiary data={best.data} />}
-      {tab === 'codex' && <Codex codex={best.data?.codex ?? []} />}
+      {tab === 'codex' && <Codex codex={best.data?.codex ?? []} trinities={best.data?.trinities ?? []} plots={best.data?.plots ?? []} aberrations={best.data?.aberrations ?? []} />}
     </Page>
   );
 }
@@ -96,6 +102,7 @@ function Card({ e, i }: { e: EnchantView; i: number }) {
 
 // ---- things on my land -----------------------------------------------------------------------------------------------
 function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean }) {
+  const nav = useNavigate();
   const qc = useQueryClient();
   const [taps, setTaps] = useState<Record<string, number>>({});
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -127,11 +134,11 @@ function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean 
           <div key={v.id} ref={(el) => { refs.current[v.id] = el; }} className="lv-ench-card flex flex-wrap items-center gap-3 p-3" style={{ ['--a' as string]: k.a }} data-testid="visitor">
             <motion.span className={cn('text-5xl', v.what === 'parasite' && 'lv-wriggle')} animate={n ? { x: [0, -8, 8, -4, 0], rotate: [0, -12, 12, 0] } : {}} transition={{ duration: 0.25 }} key={n}>{v.what === 'parasite' ? (sym ? '💚' : '🦠') : '🥚'}</motion.span>
             <div className="grid min-w-0 flex-1">
-              <span className="font-black">{v.what === 'parasite' ? (sym ? 'A Symbiote is sharing your plot' : 'A Parasite is feeding on your plot') : 'A strange egg is in your nest'}</span>
+              <span className="font-black">{v.what === 'parasite' ? (sym ? 'A Symbiote is wrapped around your plot — sharing it' : `A Parasite is wrapped around your plot${v.feeds ? ` (fed ${v.feeds}×)` : ''}`) : 'A strange egg is in your nest'}</span>
               <span className="text-[12px] text-white/60">@{v.owner?.username ?? '?'}’s {v.mirror ? 'mirrored ' : ''}{k.name} #{v.serial}{v.what === 'egg' && v.hatch_at ? ` · hatches in ${dur(v.hatch_at - Date.now() / 1000)}` : ''}</span>
-              <button className="w-fit text-[11px] font-bold text-[#9BE7FF] underline" onClick={() => { useUi.getState().requestFly({ lng, lat, zoom: 19 }); }}>Show the plot</button>
+              <button className="w-fit text-[11px] font-bold text-[#9BE7FF] underline" onClick={() => toMap(nav, { lng, lat, zoom: 19 })}>Show the plot</button>
             </div>
-            {v.what === 'parasite' && !sym && <Button variant="rainbow" onClick={() => tap(v)} data-testid="visitor-shake">👋 Shake it off {n ? `(${n}/5)` : '— tap 5×'}</Button>}
+            {v.what === 'parasite' && !sym && <div className="w-full"><PeelOff v={v} /></div>}
             {sym && !v.welcomed && <Button variant="secondary" onClick={() => void run(v, 'welcome')} data-testid="visitor-welcome">💚 Welcome it</Button>}
             {sym && v.welcomed && <span className="text-[12px] font-black text-[#3DDC97]">Welcomed 💚</span>}
             {v.what === 'egg' && <Button variant="rainbow" onClick={() => void run(v, 'eject')} data-testid="visitor-eject">🥚 Throw it out</Button>}
@@ -163,7 +170,7 @@ function Bestiary({ data }: { data: Awaited<ReturnType<typeof api.enchantBestiar
               {open === id && (
                 <motion.div className="grid gap-1 overflow-hidden text-[12px] text-white/80" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
                   {k.how.map((h) => <div key={h}>• {h}</div>)}
-                  {k.geneText && <div className="mt-1 font-bold text-[#9BF6E5]">🧬 Splice gene — {k.geneName}: {k.geneText}.</div>}
+                  {k.geneText && <div className="mt-1 font-bold text-[#9BF6E5]">🧬 When spliced, it lends its <b>{k.geneName}</b> Trait: the other one {k.geneText}.</div>}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -174,27 +181,101 @@ function Bestiary({ data }: { data: Awaited<ReturnType<typeof api.enchantBestiar
   );
 }
 
-function Codex({ codex }: { codex: string[] }) {
+/** the Codex: a grid of every pairing — what you've made shows its card, the rest are silhouettes */
+function Codex({ codex, trinities, plots, aberrations }: { codex: string[]; trinities: string[]; plots: string[]; aberrations: string[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const ks = KIND_ORDER.filter((k) => k !== 'splice');
+  const perfectFound = Object.entries(HYBRIDS).filter(([key, [, p]]) => p && codex.includes(key)).length;
   return (
     <div className="grid gap-3" data-testid="grimoire-codex">
-      <div className="flex items-center justify-between rounded-2xl border border-[#00F5D4]/30 bg-[#00F5D4]/10 px-3 py-2">
-        <span className="text-[13px] font-black text-[#9BF6E5]">🧬 Splice Codex — every hybrid you’ve made</span><span className="font-display text-xl font-black text-[#00F5D4]">{codex.length}/36</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#00F5D4]/30 bg-[#00F5D4]/10 px-3 py-2">
+        <span className="text-[13px] font-black text-[#9BF6E5]">🧬 Splice Codex — every hybrid you’ve made</span><span className="font-display text-xl font-black text-[#00F5D4]">{codex.length}/{HYBRID_COUNT}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {Object.entries(HYBRIDS).map(([key, [name, res]]) => {
-          const has = codex.includes(key), [a, b] = key.split('+') as EnchantKind[];
-          return (
-            <div key={key} className={cn('rounded-2xl border p-2.5', has ? 'border-[#00F5D4]/40 bg-[#00F5D4]/10' : 'border-white/5 bg-white/[0.02]')}>
-              <div className="text-xl">{has ? `${KINDS[a].emoji} ${KINDS[b].emoji}` : '❔ ❔'}</div>
-              <div className={cn('font-display text-[14px] font-black', has ? 'text-[#9BF6E5]' : 'text-white/25')}>{has ? name : '???'}{has && res ? ' ✦' : ''}</div>
-              <div className="text-[10px] text-white/45">{has ? `${KINDS[a].name} + ${KINDS[b].name}` : res ? 'a resonant pair awaits' : 'undiscovered'}</div>
+      <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black">
+        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#E5CCFF]">{perfectFound}/{PERFECT_COUNT}</div>✦ Perfect Matches</div>
+        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#9BF6E5]">{trinities.length}</div>🔺 Trinities</div>
+        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#FFB3C7]">{aberrations.length}/{ABERRATION_COUNT}</div>☣️ Aberrations</div>
+      </div>
+      {/* the grid: a row and a column for every kind */}
+      <div className="overflow-x-auto pb-1">
+        <div className="lv-codex-grid grid gap-[3px]" style={{ gridTemplateColumns: `28px repeat(${ks.length}, minmax(28px, 1fr))` }}>
+          <span />
+          {ks.map((k) => <span key={k} className="grid h-7 place-items-center text-[15px]">{KINDS[k].emoji}</span>)}
+          {ks.map((r) => [
+            <span key={`r${r}`} className="grid h-7 place-items-center text-[15px]">{KINDS[r].emoji}</span>,
+            ...ks.map((c) => {
+              if (r === c) return <span key={r + c} className="h-7 rounded-md bg-white/[0.02]" />;
+              const key = hybridKey(r, c), [name, perfect] = HYBRIDS[key] ?? ['?', false], has = codex.includes(key);
+              return (
+                <button key={r + c} onClick={() => setOpen(open === key ? null : key)} title={has ? name : perfect ? 'A Perfect Match awaits' : 'Undiscovered'}
+                  className={cn('h-7 rounded-md text-[11px] font-black', has ? (perfect ? 'bg-[linear-gradient(135deg,#00F5D4,#B26BFF)] text-[#04211D]' : 'bg-[#00F5D4]/35 text-white') : perfect ? 'border border-dashed border-[#E5CCFF]/50 text-[#E5CCFF]/60' : 'bg-white/[0.04] text-white/20', open === key && 'ring-2 ring-white')}>
+                  {has ? (perfect ? '✦' : '●') : perfect ? '✦' : '?'}
+                </button>
+              );
+            }),
+          ])}
+        </div>
+      </div>
+      <AnimatePresence>
+        {open && (() => { const [a, b] = open.split('+') as EnchantKind[]; const has = codex.includes(open); return (
+          <motion.div key={open} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            {has ? <HybridCard a={a} b={b} /> : (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-[12.5px] text-white/70">
+                <b className="text-white">{KINDS[a].emoji} + {KINDS[b].emoji} = ???</b><div>{hybridCard(a, b).perfect ? '✦ A Perfect Match — both Traits doubled. Splice these two to find out its name.' : 'Undiscovered. Splice a ' + KINDS[a].name + ' with a ' + KINDS[b].name + ' to find it.'}</div>
+              </div>
+            )}
+          </motion.div>
+        ); })()}
+      </AnimatePresence>
+      <div className="grid gap-1.5">
+        <div className="text-[12px] font-black uppercase tracking-wider text-white/60">☣️ Aberrations — 1 in 20 Swaps or Chimeras mutates</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {Object.entries(ABERRATIONS).map(([name, a]) => { const has = aberrations.includes(name); return (
+            <div key={name} className={cn('rounded-xl p-2 text-center text-[10.5px] font-black', has ? 'bg-[#FF5C8A]/20 text-[#FFD1DE]' : 'bg-white/[0.03] text-white/25')} title={has ? a.secret : 'A secret'}>
+              <div className="text-[18px]">{has ? a.emoji : '☣️'}</div>{has ? name : '???'}
             </div>
-          );
-        })}
+          ); })}
+        </div>
       </div>
-      <p className="text-center text-[11px] text-white/50">✦ resonant pairs wear each other’s genes twice as strong. Make hybrids with a 🧪 Splice enchantment.</p>
+      {(trinities.length > 0 || plots.length > 0) && (
+        <div className="grid gap-1 text-[12px] text-white/75">
+          {trinities.map((t) => { const k = t.split('+'); return <div key={t}>🔺 {k.map((x) => KINDS[x as EnchantKind]?.emoji).join('')} {k.map((x) => KINDS[x as EnchantKind]?.name).join(' + ')}</div>; })}
+          {plots.map((p) => { const [k, pk] = p.split('@'); return <div key={p}>🏞️ {KINDS[k as EnchantKind]?.emoji} {KINDS[k as EnchantKind]?.name} + a {pk} plot</div>; })}
+        </div>
+      )}
+      <p className="text-center text-[11px] text-white/50">✦ Perfect Matches wear each other’s Traits twice as strong. Make hybrids with a 🧪 Splice enchantment.</p>
     </div>
   );
+}
+
+/** a friend wants to splice with one of yours */
+function SpliceInvites() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['splice-invites'], queryFn: api.spliceInvites, staleTime: 20_000, refetchInterval: 60_000 });
+  if (!q.data?.length) return null;
+  const respond = async (id: number, yes: boolean) => {
+    try {
+      const r = await api.spliceInviteRespond(id, yes);
+      qc.setQueryData(['splice-invites'], r.invites); invalidateGame(qc); void qc.invalidateQueries({ queryKey: ['enchantments'] });
+      if (yes) { toast.success(`Spliced: ${r.hybrid}!`); efx.burst({ x: innerWidth / 2, y: innerHeight / 3, colors: ['#00F5D4', '#9B5DE5', '#fff'], count: 200, speed: 14, kind: 'spark' }); }
+    } catch (e) { toast.error(toGameError(e).message); }
+  };
+  return (
+    <div className="mb-4 grid gap-2" data-testid="splice-invites">
+      {q.data.map((i) => (
+        <div key={i.id} className="grid gap-2 rounded-3xl border border-[#00F5D4]/40 bg-[#00F5D4]/10 p-3">
+          <div className="text-[13px] font-black text-white">🤝 @{i.from?.username} wants to splice their {kindInfo(i.theirs.kind).name} with your {enchantName(i.yours)}</div>
+          <HybridCard a={i.theirs.kind as EnchantKind} b={i.yours.kind as EnchantKind} compact />
+          <div className="flex gap-2"><Button variant="rainbow" size="sm" onClick={() => void respond(i.id, true)} data-testid="splice-accept">Splice! (24 h)</Button><Button variant="ghost" size="sm" onClick={() => void respond(i.id, false)}>No thanks</Button></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SceneMood({ v }: { v: EnchantView }) {
+  const m = useMood(v);
+  return <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[4/3] overflow-hidden rounded-[28px]"><MoodVeil {...m} /></div>;
 }
 
 // ---- one enchantment ------------------------------------------------------------------------------------------------
@@ -213,11 +294,11 @@ function Detail({ id }: { id: string }) {
   return (
     <Page>
       <div className="mb-3 flex items-center justify-between"><Link to="/grimoire" className="text-sm font-bold text-white/70">← Grimoire</Link>
-        <button className="text-sm font-bold text-[#9BE7FF]" onClick={() => { useUi.getState().requestFly({ lng, lat, zoom: 19 }); nav('/world'); }}>📍 On the map</button></div>
+        <button className="text-sm font-bold text-[#9BE7FF]" onClick={() => toMap(nav, { lng, lat, zoom: 19 })}>📍 On the map</button></div>
       {/* the header: one of a kind */}
       <motion.section className="lv-ench-card mb-4 grid gap-3 p-4" style={{ ['--a' as string]: k.a }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} data-testid="ench-header">
         <div className="flex items-center gap-4">
-          <Sigil kind={v.kind} seed={v.sigil} size={112} level={v.level} />
+          <EvolveAura level={v.level} color={k.a} size={120}><Sigil kind={v.kind} seed={v.sigil} size={112} level={v.level} /></EvolveAura>
           <div className="grid min-w-0 flex-1 gap-1">
             {naming == null ? (
               <button className="text-left" onClick={() => mine && setNaming(v.nickname ?? '')} data-testid="ench-name"><span className="font-display text-[26px] font-black leading-tight">{enchantName(v)}</span>{mine && <span className="ml-1 text-xs text-white/40">✎</span>}</button>
@@ -239,24 +320,29 @@ function Detail({ id }: { id: string }) {
         {(v.titles ?? []).length > 0 && (
           <div className="flex flex-wrap gap-1.5" data-testid="ench-titles">{v.titles.map((t) => <span key={t} title={TITLES[t]} className="rounded-full bg-[linear-gradient(90deg,#FFD23F33,#B26BFF33)] px-2.5 py-0.5 text-[11px] font-black text-[#FFE8A3]">🏅 {t}</span>)}</div>
         )}
-        {v.partner && (
-          <div className="flex items-center gap-2 rounded-2xl bg-[#00F5D4]/10 px-3 py-2 text-[12px]" data-testid="ench-partner">
-            <span className="text-lg">🧬</span><span className="flex-1"><b className="text-[#00F5D4]">{v.partner.hybrid}</b>{v.partner.resonant ? ' ✦' : ''} — spliced with a {kindInfo(v.partner.kind).name}. It wears the <b>{kindInfo(v.partner.kind).geneName}</b> gene: {kindInfo(v.partner.kind).geneText}{v.partner.resonant ? ' (doubled)' : ''}.</span>
-            <span className="text-white/50">{dur((Date.parse(v.partner.ends_at) - Date.now()) / 1000)}</span>
+        {(v.partners ?? (v.partner ? [v.partner] : [])).map((p) => (
+          <div key={(p as any).row ?? p.id} className="grid gap-1 rounded-2xl bg-[#00F5D4]/10 px-3 py-2 text-[12px]" data-testid="ench-partner">
+            <div className="flex items-center gap-2"><span className="text-lg">🧬</span><b className="flex-1 text-[#00F5D4]">{p.hybrid}{p.perfect ? ' ✦' : ''}{p.aberration ? ' ☣️' : ''}</b><span className="text-white/50">{dur((Date.parse(p.ends_at) - Date.now()) / 1000)}</span></div>
+            <div className="text-white/85">{p.kind === 'plot' ? `Spliced into your ${p.plot_kind ?? 'canvas'} plot` : `${SPLICE_MODES[(p.mode === 'friend' ? 'friend' : p.mode) as SpliceMode]?.name ?? 'Spliced'} with ${p.friend ? `@${p.friend.username}’s ` : 'a '}${kindInfo(p.kind).name}`}. It wears the <b>{p.kind === 'plot' ? 'plot’s' : kindInfo(p.kind).geneName}</b> Trait: it {traitText(p.gene, p.strength)}{p.strength >= 3 ? ' (tripled — an Aberration)' : p.strength === 2 ? ' (doubled)' : ''}.</div>
+            {p.aberration && ABERRATIONS[p.aberration] && <div className="font-bold text-[#FFB3C7]">{ABERRATIONS[p.aberration].emoji} {ABERRATIONS[p.aberration].secret}</div>}
+            {mine && <button className="w-fit text-[11px] font-bold text-white/55 underline" onClick={() => void act('separate')} data-testid="ench-separate">Step out of the splice</button>}
           </div>
-        )}
+        ))}
+        {v.size && <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={{ background: v.size.mode === 'grow' ? '#39FF1418' : '#FF00E518', color: v.size.mode === 'grow' ? '#B6FF3D' : '#FF7AE0' }} data-testid="ench-size">
+          {v.size.prank ? `🤡 @${v.size.by_name ?? '?'} pranked its plot ${v.size.mode === 'grow' ? 'GIANT' : 'TINY'} (only for show)` : v.size.mode === 'grow' ? '🔼 Its plot is 100× GIANT' : '🔽 Its plot is 100× tiny — its time runs twice as fast'}{v.size.linked ? ' (through a wormhole)' : ''} · {dur((Date.parse(v.size.until) - Date.now()) / 1000)} left</div>}
         {v.clock?.frozen_until && <div className="rounded-2xl bg-[#C0F5FF]/10 px-3 py-2 text-[12px] font-bold text-[#C0F5FF]">❄️ Frozen in time by a Clockwork for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)} — nothing grows, nothing comes.</div>}
         {!!v.clock?.skip_s && <div className="text-[11px] text-white/45">⏩ Its clock runs {dur(v.clock.skip_s)} ahead of the world.</div>}
         <div className="flex flex-wrap gap-3 text-[11px] text-white/55">{v.stats?.ink ? <span>💧 {fmt(v.stats.ink)} Ink earned</span> : null}{v.owner && <span>Held by @{v.owner.username}</span>}</div>
       </motion.section>
       {/* the scene */}
-      {mine ? <SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
+      {mine ? <div className="relative mx-auto w-full max-w-[680px]"><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /><SceneMood v={v} /></div> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
       {/* how it works */}
       <details className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-[13px]">
         <summary className="cursor-pointer font-black">How the {k.name} works</summary>
-        <div className="mt-2 grid gap-1 text-white/75">{k.how.map((h) => <div key={h}>• {h}</div>)}{k.geneText && <div className="font-bold text-[#9BF6E5]">🧬 Its splice gene — {k.geneName}: {k.geneText}.</div>}</div>
+        <div className="mt-2 grid gap-1 text-white/75">{k.how.map((h) => <div key={h}>• {h}</div>)}{k.geneText && <div className="font-bold text-[#9BF6E5]">🧬 When spliced, it lends its {k.geneName} Trait: the other one {k.geneText}.</div>}</div>
       </details>
       {mine && <Chronicle id={v.id} />}
+      {mine && v.kind === 'wormhole' && <WarpTunnel />}
     </Page>
   );
 }
@@ -272,7 +358,11 @@ const EV: Record<string, (d: any) => string> = {
   ejected: () => '🥚 An egg was thrown out', evil: (d) => `${EVILS[d.evil]?.emoji ?? '👿'} ${EVILS[d.evil]?.name ?? d.evil} escaped${d.dodged ? ' — curse dodged' : ''}`, hope: (d) => `🦋 Hope rose! Cycle ${d.cycle}`,
   spliced: (d) => `🧬 Spliced: ${d.hybrid}${d.with ? ` (with a ${kindInfo(d.with).name})` : ''}`, forward: (d) => `⏩ Fast-forwarded a ${kindInfo(d.target).name} by ${d.minutes} min`,
   forwarded: (d) => `⏩ Time skipped ${d.minutes} min`, freeze: (d) => `❄️ Froze a ${kindInfo(d.target).name} for ${d.hours} h`, frozen: (d) => `❄️ Frozen for ${d.hours} h`,
-  zap: (d) => `📡 Zapped a ${d.target} — ${Math.round(Number(d.accuracy) * 100)}%`, reflect: (d) => `🪞 Reflected ${d.owner ? `@${d.owner}’s ` : 'a dream of a '}${kindInfo(d.kind).name}`, shatter: () => '💥 Shattered — and mended',
+  zap: (d) => `📡 ${d.target === 'plot' ? (d.bounced ? `A prank bounced back onto your own plot` : d.prank ? `Pranked @${d.prank} — ${d.mode === 'shrink' ? 'shrank' : 'grew'} their plot 100×` : `${d.backfire ? 'Backfired on' : d.mode === 'shrink' ? 'Shrank' : 'Grew'} a plot 100×`) : `Zapped a ${d.target}`} — ${Math.round(Number(d.accuracy) * 100)}%`,
+  opened: (d) => `🌀 Opened a wormhole ${d.km} km wide (${d.stability}% stable, ${d.hours} h)`, caught: (d) => `🌀 Caught ${d.type === 'chest' ? 'a chest' : d.type === 'star' ? 'a falling star' : d.type === 'fox' ? 'a fox' : 'some spores'} from the wormhole`,
+  gaze: (d) => `👁️ Gazed into ${d.what === 'roll' ? 'your next rolls' : d.what === 'reward' ? 'your next rewards' : d.what === 'pandora' ? 'Pandora’s lid' : 'the Goose’s eggs'}`,
+  swap: () => '👁️ Rewrote fate: two cards swapped', burn: () => '🔥 Burned a card of fate', foretell: (d) => `🔏 Sealed a prophecy for @${d.to}`, prophecy_true: () => '✅ A sealed prophecy came true',
+  invited: (d) => `🤝 Asked @${d.to} to splice: ${d.hybrid}`, leviathan: (d) => `🐉 Struck the Leviathan with ${d.move} — ${Number(d.dmg).toLocaleString()}`, reflect: (d) => `🪞 Reflected ${d.owner ? `@${d.owner}’s ` : 'a dream of a '}${kindInfo(d.kind).name}`, shatter: () => '💥 Shattered — and mended',
 };
 function Chronicle({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['enchant-chronicle', id], queryFn: () => api.enchantChronicle(id), staleTime: 10_000 });

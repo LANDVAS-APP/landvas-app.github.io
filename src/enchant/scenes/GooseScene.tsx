@@ -1,11 +1,13 @@
 // 🪿 The Golden Goose: a meadow at golden hour. The egg swells as it grows (Platinum ones shimmer silver), cracks show
 // every bite the fox took, the bush rustles before the fox comes — and when it peeks out, tap it to chase it off.
+// Rub the egg with your finger to polish it (the shine follows your finger); hold it to feel its heartbeat; poke the goose.
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef } from 'react';
 import { cn, fmt } from '../../lib/utils';
 import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
+import { useHeartbeat, usePoke, useRub } from '../living';
 
 const eNow = (v: SceneProps['v']) => Date.parse(v.clock?.now ?? v.server_time) / 1000;
 
@@ -20,10 +22,15 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
   const plat = !!view.platinum;
   const lurking = view.lurking != null && (lurkLeft ?? 0) > 0;
   const small = (view.visits ?? []).some((x: any) => x.state === 'lurking_small');
+  const canPolish = !busy && !((polishIn ?? 0) > 0) && view.polish < view.polish_max;
   const polish = async () => {
     const r = await act('polish');
     if (r) efx.burst({ ...centerOf(egg.current), colors: plat ? ['#fff', '#DDE6F0', '#B8C4D6'] : ['#FFE8A3', '#FFD23F', '#fff'], count: 40, speed: 6, kind: 'glitter' });
+    rub.reset();
   };
+  const rub = useRub(700, () => { if (canPolish) void polish(); });
+  const heart = useHeartbeat(view.grow > 80 ? 96 : 68);
+  const { n: pokes, poke } = usePoke();
   const chase = async () => {
     const r = await act('chase', {}, { at: centerOf(fox.current) });
     if (r) efx.burst({ ...centerOf(fox.current), colors: ['#FF8C42', '#fff'], count: 30, speed: 9, kind: 'emoji', emojis: ['💨', '🍂'] });
@@ -61,23 +68,27 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
           )}
         </AnimatePresence>
         {/* the goose */}
-        <div className="absolute bottom-[18%] right-[8%] w-[30%] lv-waddle">
+        <motion.button key={pokes} onClick={poke} className="absolute bottom-[18%] right-[8%] w-[30%] lv-waddle" animate={pokes ? { scaleY: [1, 0.82, 1.08, 1], rotate: [0, -6, 4, 0] } : {}} transition={{ duration: 0.4 }} aria-label="Poke the goose" data-testid="goose-goose">
+          {pokes > 0 && <motion.span key={`h${pokes}`} className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[12px] font-black text-[#3A2600]" initial={{ y: 6, opacity: 0 }} animate={{ y: -6, opacity: [0, 1, 0] }} transition={{ duration: 0.9 }}>HONK!</motion.span>}
           <svg viewBox="0 0 120 120" className="w-full drop-shadow-[0_8px_8px_rgba(0,0,0,0.25)]" aria-hidden>
             <ellipse cx="60" cy="82" rx="38" ry="26" fill="#FFF8E7" /><path d="M30 78 Q20 60 34 58 Q46 70 48 82Z" fill="#F3E2BE" />
             <path d="M78 66 Q80 30 92 22 Q104 18 104 32 Q100 40 92 44 Q90 60 92 72Z" fill="#FFF8E7" />
             <path d="M102 28 L118 32 L102 36Z" fill="#FF9F1C" /><circle cx="97" cy="28" r="2.6" fill="#1a1205" />
             <path d="M54 106 L50 116 M66 106 L70 116" stroke="#FF9F1C" strokeWidth="4" strokeLinecap="round" />
             <path d="M40 74 Q60 64 80 76" stroke="#FFD23F" strokeWidth="3" fill="none" opacity="0.8" /></svg>
-        </div>
+        </motion.button>
         {/* the nest and the egg */}
         <div className="absolute bottom-[10%] left-1/2 w-[38%] -translate-x-1/2">
           <div className="relative grid place-items-center">
-            <motion.button ref={egg} onClick={() => void polish()} disabled={!!busy || (polishIn ?? 0) > 0 || view.polish >= view.polish_max} data-testid="goose-egg"
-              className="relative mb-[-14%] aspect-[4/5] w-[62%] origin-bottom" animate={{ scale }} whileTap={{ scale: scale * 0.94 }} transition={{ type: 'spring', stiffness: 120, damping: 12 }} aria-label="Polish the egg">
+            <motion.button ref={egg} data-testid="goose-egg" {...rub.bind}
+              onPointerDown={(e) => { rub.bind.onPointerDown(e); heart.onPointerDown(); }} onPointerUp={() => { rub.bind.onPointerUp(); heart.onPointerUp(); }} onPointerLeave={heart.onPointerLeave} onPointerCancel={() => { rub.bind.onPointerCancel(); heart.onPointerCancel(); }}
+              className="relative mb-[-14%] aspect-[4/5] w-[62%] origin-bottom" animate={{ scale }} whileTap={{ scale: scale * 0.94 }} transition={{ type: 'spring', stiffness: 120, damping: 12 }} aria-label="Rub the egg to polish it">
               <div className="absolute inset-0 overflow-hidden rounded-[50%_50%_46%_46%/60%_60%_40%_40%]" style={{
                 background: plat ? 'radial-gradient(circle at 35% 28%,#FFFFFF,#E3EAF3 35%,#A9B7CB 75%,#7D8BA3)' : 'radial-gradient(circle at 35% 28%,#FFF6C8,#FFD23F 38%,#E9A100 78%,#9C6400)',
                 boxShadow: `0 0 ${20 + view.grow / 2}px ${plat ? '#E6F0FF' : '#FFD23F'}` }}>
                 <div className="lv-shine absolute -inset-y-4 left-0 w-1/3 bg-white/50 blur-[2px]" />
+                {rub.at && <span className="pointer-events-none absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80 blur-md" style={{ left: rub.at.x, top: rub.at.y }} />}
+                {rub.progress > 0 && rub.progress < 1 && <span className="pointer-events-none absolute inset-x-[18%] bottom-[12%] h-1.5 overflow-hidden rounded-full bg-black/25"><span className="block h-full bg-white" style={{ width: `${rub.progress * 100}%` }} /></span>}
                 {Array.from({ length: Math.min(view.bites, 4) }, (_, i) => (
                   <svg key={i} viewBox="0 0 40 50" className="absolute inset-0 h-full w-full" aria-hidden><path d={['M8 18 L16 22 L12 28 L20 32', 'M30 12 L24 20 L30 24 L26 30', 'M14 36 L22 34 L20 42', 'M32 30 L26 36 L32 40'][i]} stroke="#5A3A00" strokeWidth="1.4" fill="none" /></svg>
                 ))}
@@ -102,7 +113,7 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
           {(collectIn ?? 0) > 0 ? `Ready in ${dur(collectIn)}` : `🥚 Collect ≈${fmt(view.value)}`}
         </Button>
       </div>
-      <p className="text-center text-[11px] text-white/55">Wait longer for a bigger egg — but every fox that slips past takes a bite. {view.eggs} egg{view.eggs === 1 ? '' : 's'} laid.</p>
+      <p className="text-center text-[11px] text-white/55">Rub the egg to polish it · hold it to feel it beat. Wait longer for a bigger egg — but every fox that slips past takes a bite. {view.eggs} egg{view.eggs === 1 ? '' : 's'} laid.</p>
     </div>
   );
 }

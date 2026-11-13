@@ -10,7 +10,7 @@ export const useWorldButton = create<{ open: boolean; recenter: number; setOpen(
 }));
 
 /** The app's HUD cards (the Hot Zone, Luck, the Grimoire, the bell, your profile menu): one open at a time. */
-export type HudCard = 'hot' | 'luck' | 'grim' | 'bell' | 'me' | 'view' | 'boost';
+export type HudCard = 'hot' | 'luck' | 'grim' | 'bell' | 'me' | 'view' | 'boost' | 'lev';
 export const useHudCard = create<{ card: HudCard | null; toggle(c: HudCard): void; close(): void }>((set) => ({
   card: null,
   toggle: (c) => set((s) => ({ card: s.card === c ? null : c })),

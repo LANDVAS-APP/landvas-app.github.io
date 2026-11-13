@@ -110,8 +110,13 @@ try {
   await nav('/world'); await page.waitForSelector('[data-testid=simple-buy]', { timeout: 20000 });
   await page.click('[data-testid=simple-buy]'); await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 30000 }); await page.waitForTimeout(1200);
   await page.click('[data-testid=roll-done]'); await page.waitForTimeout(900);
-  await nav(`/grimoire/${ids.sizeray}`); await page.waitForSelector('[data-testid=ray-target]', { timeout: 20000 }); await page.waitForTimeout(600);
-  await page.locator('[data-testid=ray-target]').first().click(); await page.click('[data-testid=ray-aim]');
+  // (the Size Ray aims at a plot of yours: here, picked on its radar — the map's targeting mode is in wonders.mjs)
+  await nav(`/grimoire/${ids.sizeray}`); await page.waitForSelector('[data-testid=ray-dial]', { timeout: 20000 }); await page.waitForTimeout(600);
+  // (in simple mode the radar is already open — there's no map to pick on)
+  if (!(await page.locator('[data-testid=ray-blip]').first().isVisible().catch(() => false))) await page.locator('details summary').first().click().catch(() => {});
+  check('simple mode has no “Pick on the map” (no map there)', (await page.locator('[data-testid=ray-pick-map]').count()) === 0);
+  await page.waitForSelector('[data-testid=ray-blip]', { timeout: 10000 });
+  await page.locator('[data-testid=ray-blip]').first().click(); await page.click('[data-testid=ray-aim]');
   await page.waitForSelector('[data-testid=ray-fire]', { timeout: 15000 }); await page.waitForTimeout(1100);
   await shot('17-sizeray-aiming');
   await page.click('[data-testid=ray-fire]');
@@ -128,7 +133,7 @@ try {
   // a Splice: pull the lever on the Goose and the Size Ray — a resonant Giant Goose, new in the codex
   await nav(`/grimoire/${ids.splice}`); await page.waitForSelector('[data-testid=splice-pick-goose]', { timeout: 20000 }); await page.waitForTimeout(600);
   await page.click('[data-testid=splice-pick-goose]'); await page.click('[data-testid=splice-pick-sizeray]'); await page.waitForTimeout(400);
-  check('the Splice previews the hybrid', /Giant Goose/.test(await page.textContent('[data-testid=splice-go]')));
+  check('the Splice previews the hybrid, in plain words', /Giant Goose/.test(await page.textContent('[data-testid=hybrid-card]')) && /Your Golden Goose gets/.test(await page.textContent('[data-testid=hybrid-card]')));
   await shot('18b-splice-ready');
   await page.click('[data-testid=splice-go]');
   const made = await page.waitForSelector('[data-testid=splice-made]', { timeout: 15000 }).then(() => true, () => false);
@@ -147,7 +152,7 @@ try {
   check('the bestiary shows all ten kinds', /Golden Goose/.test(await page.textContent('[data-testid=grimoire-bestiary]')) && /Mirror Shard/.test(await page.textContent('[data-testid=grimoire-bestiary]')));
   await nav('/grimoire?tab=codex'); await page.waitForSelector('[data-testid=grimoire-codex]', { timeout: 15000 }); await page.waitForTimeout(800);
   await shot('21-codex');
-  check('the codex shows the Giant Goose, the rest still secret', /1\/36/.test(await page.textContent('[data-testid=grimoire-codex]')) && /Giant Goose/.test(await page.textContent('[data-testid=grimoire-codex]')) && /undiscovered/.test(await page.textContent('[data-testid=grimoire-codex]')));
+  check('the codex shows the Giant Goose, the rest still secret', /1\/55/.test(await page.textContent('[data-testid=grimoire-codex]')) && (await page.locator('[data-testid=grimoire-codex] [title="Giant Goose"]').count()) === 2 && (await page.locator('[data-testid=grimoire-codex] [title=Undiscovered]').count()) > 30);
   check('…and the Codex tab is the one lit', /Codex/.test(await page.textContent('[role=tab][data-state=active]')));
 
   // ---- the owner: the Enchantments card (Admin → Earnings) and “Give an enchantment” on a player ----
@@ -157,7 +162,7 @@ try {
   await page.getByRole('tab', { name: /^Earnings/ }).click().catch(() => {});
   await page.waitForSelector('[data-testid=enchant-cfg]', { timeout: 20000 });
   await page.locator('[data-testid=enchant-cfg]').scrollIntoViewIfNeeded(); await page.waitForTimeout(800);
-  check('the Enchantments card lists all ten kinds with their numbers', (await page.locator('[data-testid=enchant-weight]').count()) === 10 && /#1/.test(await page.locator('[data-testid=enchant-weight]').first().getAttribute('data-pop')));
+  check('the Enchantments card lists all twelve kinds with their numbers', (await page.locator('[data-testid=enchant-weight]').count()) === 12 && /#1/.test(await page.locator('[data-testid=enchant-weight]').first().getAttribute('data-pop')));
   await page.fill('#nf-chance-per-plot-roll', '5'); await page.fill('[aria-label="Mirror Shard weight"]', '0'); await page.waitForTimeout(300);
   await shot('21b-admin-enchant-card');
   const wide = await page.evaluate(() => document.querySelector('[data-testid=enchant-cfg]').scrollWidth - document.querySelector('[data-testid=enchant-cfg]').clientWidth);

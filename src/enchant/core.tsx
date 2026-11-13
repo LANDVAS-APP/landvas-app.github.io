@@ -11,6 +11,7 @@ import { toGameError } from '../backend/backend';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
+import { config } from '../env';
 import { Fx, type BurstOpts } from '../roll/fx';
 import { kindInfo } from './kinds';
 import './enchant.css';
@@ -32,7 +33,7 @@ export function useAct(id: string) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const act = async (action: string, args: Record<string, unknown> = {}, opts: { silent?: boolean; at?: { x: number; y: number } } = {}) => {
-    if (busy) return null;
+    if (busy) { if (config.e2e) console.warn(`[enchant] ${action} ignored: still busy with ${busy}`); return null; }
     setBusy(action);
     try {
       const r = await api.enchantAct(id, action, args);
@@ -46,6 +47,7 @@ export function useAct(id: string) {
       return r;
     } catch (e) {
       const g = toGameError(e);
+      if (config.e2e) console.warn(`[enchant] ${action} failed: ${g.code ?? ''} ${g.message}`);
       toast.error(g.message);
       if (useUi.getState().settings.haptics) buzz('heavy');
       return null;

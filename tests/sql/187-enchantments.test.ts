@@ -244,7 +244,7 @@ describe('🧪 Splice, ⚙️ Clockwork, 📡 Size Ray', () => {
     // the Giant gene triples the goose's egg
     await skip(ids.goose, 3 * 3600);
     const c = await act(ann, ids.goose, 'collect');
-    expect(c.result.pay.mods.some((m: any) => /Giant gene ×3/.test(m.label))).toBe(true);
+    expect(c.result.pay.mods.some((m: any) => /Giant ×3/.test(m.label))).toBe(true);
   });
   it('Clockwork: wind it, fast-forward an enchantment, freeze a spliced one to keep the hybrid longer', async () => {
     ids.clock = await enchant(ann, 'clockwork', 32);
@@ -316,7 +316,7 @@ describe('the land, the map and the owner', () => {
     expect(mine.map((x: any) => x.kind).sort()).toEqual(expect.arrayContaining(['goose', 'genie', 'map', 'parasite', 'cuckoo', 'pandora', 'splice', 'sizeray', 'clockwork']));
     expect(mine.some((x: any) => x.attention)).toBe(true);
     const b = await db.rpc(ann, 'enchant_bestiary');
-    expect(b.kinds).toHaveLength(10); expect(b.codex).toContain('goose+sizeray');
+    expect(b.kinds).toHaveLength(12); expect(b.codex).toContain('goose+sizeray');
     const ch = await db.rpc(ann, 'enchant_chronicle', { p_id: ids.goose });
     const older = await db.rpc(ann, 'enchant_chronicle', { p_id: ids.goose, p_before: ch[ch.length - 1].id });
     expect([...ch, ...older].map((x: any) => x.kind)).toEqual(expect.arrayContaining(['born', 'fox', 'egg', 'spliced', 'frozen']));
