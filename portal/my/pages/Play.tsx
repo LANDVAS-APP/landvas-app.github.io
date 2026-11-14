@@ -8,6 +8,7 @@ import { portal, type Day } from '../../shared/api';
 import { DataTable } from '../../shared/table';
 import { ago, date, dateShort, dateTime, duration, int, plotLabel, tzName, words, gameName } from '../../shared/format';
 import { Badge, Empty, KV, PageHeader, Panel, Q, Stat, statusTone } from '../../shared/ui';
+import { Readable } from '../readable';
 
 export function ActivityPage() {
   const me = useOutletContext<any>();
@@ -133,7 +134,13 @@ export function Inkborn() {
       ) : <Empty title="No Inkborn yet">Draw one in the game’s Inkborn studio.</Empty>}</Q>
       {eggs.data && eggs.data.rows.length > 0 && (
         <Panel className="mt-3" title={`Eggs (${eggs.data.total})`} pad={false}>
-          <DataTable rows={eggs.data.rows} rowKey={(r: any, i) => r.id ?? String(i)} cols={Object.keys(eggs.data.rows[0]).filter((k) => !['owner_id', 'id', 'genome', 'drawing'].includes(k)).slice(0, 7).map((k) => ({ key: k, label: words(k), render: (r: any) => (/_at$/.test(k) ? dateTime(r[k]) : typeof r[k] === 'object' ? JSON.stringify(r[k]) : String(r[k] ?? '—')) }))} />
+          <DataTable rows={eggs.data.rows} rowKey={(r: any, i) => r.id ?? String(i)} cols={[
+            { key: 'kind', label: 'Egg', render: (r: any) => <b>{words(r.kind)} egg{r.mutated ? <span className="font-normal text-accent-2"> · mutated</span> : ''}</b> },
+            { key: 'parents', label: 'Parents', render: (r: any) => <Readable v={r.parents} /> },
+            { key: 'status', label: 'Status', render: (r: any) => (r.hatched_inkborn || r.hatched_at ? <Badge tone="ok">hatched</Badge> : new Date(r.hatch_at) <= new Date() ? <Badge tone="accent">ready to hatch</Badge> : <Badge>incubating</Badge>) },
+            { key: 'laid_at', label: 'Laid', sort: true, render: (r: any) => dateTime(r.laid_at) },
+            { key: 'hatch_at', label: 'Hatches', sort: true, render: (r: any) => (r.hatched_at ? dateTime(r.hatched_at) : dateTime(r.hatch_at)) },
+          ]} />
         </Panel>
       )}
     </>

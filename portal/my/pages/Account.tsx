@@ -8,9 +8,10 @@ import { getBackend, toGameError } from '../../../src/backend/backend';
 import { Button, PlayerAvatar } from '../../../src/ui';
 import { cn } from '../../../src/lib/utils';
 import { portal } from '../../shared/api';
-import { DataTable } from '../../shared/table';
-import { date, dateTime, downloadFile, int, words } from '../../shared/format';
-import { Badge, Cell, Empty, KV, PageHeader, Panel, Q, statusTone } from '../../shared/ui';
+import { DataTable, type Col } from '../../shared/table';
+import { date, dateTime, downloadFile, int, plotLabel, words } from '../../shared/format';
+import { Badge, Empty, KV, PageHeader, Panel, Q, statusTone } from '../../shared/ui';
+import { fieldName, isHiddenKey, isId, Readable } from '../readable';
 
 export function MyData() {
   const me = useOutletContext<any>();
@@ -37,17 +38,17 @@ export function MyData() {
   };
   return (
     <>
-      <PageHeader title="All my data" sub="Every table in LANDVAS that holds something about you, row by row. Very long text, like drawings, is shortened here but kept in full in the download."
+      <PageHeader title="All my data" sub="Everything LANDVAS keeps about you, part by part. Drawings, saved game data and internal reference numbers are left out here but kept in full in the download."
         actions={<Button size="sm" variant="primary" loading={!!busy} disabled={!tables.data} onClick={exportAll}><Download className="h-4 w-4" /> {busy ? `Collecting ${busy}` : 'Download everything'}</Button>} />
       <div className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Panel pad={false} className="xl:self-start">
           <Q q={tables}>{(list) => (
-            <div className="p-scroll max-h-[70vh] p-2">
+            <div className="p-scroll max-h-[70vh] p-2" data-testid="my-tables">
               {list.sort((a, b) => b.rows - a.rows).map((t) => {
                 const on = sel?.table === t.table && sel?.column === t.column;
                 return (
                   <button key={`${t.table}.${t.column}`} onClick={() => setSel({ table: t.table, column: t.column })} className={cn('flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-surface-2/60', on && 'bg-accent/15')}>
-                    <span className="min-w-0 flex-1 truncate">{words(t.table)}{!['player_id', 'owner_id', 'id'].includes(t.column) && <span className="text-faint"> · as {words(t.column)}</span>}</span>
+                    <span className="min-w-0 flex-1 truncate">{words(t.table)}{!['player_id', 'owner_id', 'id'].includes(t.column) && <span className="text-faint"> · as {words(t.column.replace(/_(id|uid)$/, '')).toLowerCase()}</span>}</span>
                     <span className="text-[11px] text-faint tnum">{t.rows >= 10000 ? '10K+' : int(t.rows)}</span>
                   </button>
                 );
@@ -61,15 +62,34 @@ export function MyData() {
   );
 }
 
+/** the columns a player sees: plain names, no internal IDs, a plot's two coordinates as one "Plot" */
+function playerCols(rows: Record<string, unknown>[]): Col<any>[] {
+  const keys = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+  const shown = keys.filter((k) => !isHiddenKey(k) && !rows.every((r) => r[k] === null || r[k] === undefined || isId(r[k]))
+    // a thing's inner workings (an enchantment's state) mean nothing outside the game
+    && !(k === 'state' && rows.some((r) => r[k] !== null && typeof r[k] === 'object')));
+  const plot = shown.includes('gx') && shown.includes('gy');
+  const cols: Col<any>[] = [];
+  for (const k of shown) {
+    if (plot && k === 'gy') continue;
+    if (plot && k === 'gx') {
+      cols.push({ key: 'plot', label: 'Plot', render: (r) => (r.gx != null && r.gy != null ? <span className="tnum">{plotLabel(Number(r.gx), Number(r.gy))}</span> : '—') });
+      continue;
+    }
+    const simple = rows.every((r) => r[k] === null || typeof r[k] !== 'object');
+    cols.push({ key: k, label: fieldName(k), num: rows.some((r) => typeof r[k] === 'number'), sort: simple ? true : undefined, render: (r) => <Readable v={r[k]} k={k} /> });
+  }
+  return cols;
+}
+
 function Rows({ table, column }: { table: string; column: string }) {
   const [offset, setOffset] = useState(0);
   const q = useQuery({ queryKey: ['me', 'rows', table, column, offset], queryFn: () => portal.meRows(table, column, 100, offset) });
   return (
-    <Panel title={<span>{words(table)} <span className="p-mono text-xs font-normal text-faint">{table}</span></span>} pad={false}>
+    <Panel title={words(table)} pad={false}>
       <Q q={q}>{(d) => (
         <>
-          <DataTable rows={d.rows} rowKey={(_, i) => String(offset + i)} maxHeight="calc(100vh - 280px)" dense
-            cols={Object.keys(d.rows[0] ?? {}).map((k) => ({ key: k, label: k, sort: true, render: (r: any) => <Cell v={r[k]} /> }))} />
+          <DataTable rows={d.rows} rowKey={(_, i) => String(offset + i)} maxHeight="calc(100vh - 280px)" dense cols={playerCols(d.rows)} />
           <div className="flex items-center justify-between px-4 py-3 text-xs text-muted">
             <span className="tnum">{d.total ? `${offset + 1}–${offset + d.rows.length} of ${int(d.total)}` : 'No rows'}</span>
             <span className="flex gap-1.5"><Button size="sm" variant="ghost" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</Button><Button size="sm" variant="ghost" disabled={offset + d.rows.length >= d.total} onClick={() => setOffset(offset + 100)}>Next</Button></span>

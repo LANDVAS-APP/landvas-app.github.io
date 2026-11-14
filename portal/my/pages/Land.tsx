@@ -5,13 +5,20 @@ import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { api } from '../../../src/backend/api';
 import { Button } from '../../../src/ui';
+import type { Collection as CollectionData } from '../../../src/backend/types';
+import { KINDS, type EnchantKind } from '../../../src/enchant/kinds';
+import { PLOT_TYPES } from '../../../src/map/plotStyle';
+import { BadgeIcon, tierOf } from '../../../src/screens/BadgeIcon';
+import type { PlotTypeId } from '../../../src/shared/grid';
+import { GAME_INFO } from '../../../src/shared/minigames';
 import { RARITY_ORDER, rarities, rarityInfo, isUltra } from '../../../src/shared/rarity';
 import { portal, type MyPlot } from '../../shared/api';
 import { HBars, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { DataTable, type Col } from '../../shared/table';
-import { compact, date, dateTime, downloadFile, duration, int, perDay, perMonth, plotLabel, toCsv, usd, words, gameName } from '../../shared/format';
-import { Badge, Empty, Json, KV, PageHeader, Panel, Q, Rarity, Stat, statusTone } from '../../shared/ui';
+import { compact, date, dateTime, downloadFile, duration, int, num, perDay, perMonth, plotLabel, toCsv, usd, words, gameName } from '../../shared/format';
+import { Badge, Empty, KV, PageHeader, Panel, Q, Rarity, Stat, statusTone } from '../../shared/ui';
+import { fieldName } from '../readable';
 
 export function Plots() {
   const nav = useNavigate();
@@ -141,11 +148,31 @@ export function Plot() {
               ]} />
             </Panel>
             {d.art.length > 0 && <Panel title="Its art over time"><ul className="grid gap-1.5 text-sm">{d.art.map((a: any, i: number) => <li key={i} className="flex justify-between gap-2"><span>{a.title ?? 'Untitled'} {a.mine ? '' : <span className="text-faint">(someone else’s)</span>}</span><span className="text-muted">{date(a.set_at)}</span></li>)}</ul></Panel>}
-            {d.enchantment && <Panel title={`Enchantment: ${words(d.enchantment.kind)}`}><KV items={[['Nickname', d.enchantment.nickname ?? '—'], ['Level', d.enchantment.level], ['XP', int(d.enchantment.xp)], ['Serial', `#${d.enchantment.serial}`], ['Born', `${date(d.enchantment.born_at)}${d.enchantment.born_place ? ` in ${d.enchantment.born_place}` : ''}`], ['Status', d.enchantment.status]]} /><details className="mt-3"><summary className="cursor-pointer text-sm text-muted">Everything about it</summary><Json value={d.enchantment} className="mt-2" /></details></Panel>}
+            {d.enchantment && <PlotEnchantment e={d.enchantment} />}
           </div>
         );
       }}</Q>
     </>
+  );
+}
+
+/** the enchantment living on a plot, in plain words (its internal state stays in the game) */
+function PlotEnchantment({ e }: { e: any }) {
+  const k = KINDS[e.kind as EnchantKind];
+  const stats = Object.entries((e.stats ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && v !== 0);
+  const frozen = e.frozen_until && new Date(e.frozen_until) > new Date();
+  return (
+    <Panel title={<span>{k?.emoji} {e.nickname || k?.name || words(e.kind)}</span>} actions={<Badge tone={statusTone(e.status)}>{e.status}</Badge>}>
+      {k?.tagline && <p className="mb-3 text-sm text-muted">{k.tagline}</p>}
+      <KV items={[
+        ['Kind', k?.name ?? words(e.kind)], ['Level', `${e.level} · ${int(e.xp)} XP`], ['Serial', `#${e.serial}`],
+        ['Born', `${date(e.born_at)}${e.born_place ? ` in ${e.born_place}` : ''}`],
+        ...(frozen ? [['Frozen until', dateTime(e.frozen_until)] as [string, string]] : []),
+        ...(e.titles?.length ? [['Titles', e.titles.join(', ')] as [string, string]] : []),
+      ]} />
+      {stats.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{stats.map(([s, v]) => <Badge key={s}>{fieldName(s)} {int(v)}</Badge>)}</div>}
+      <Link to="/enchantments" className="mt-3 inline-block text-sm text-accent-2 hover:underline">All my enchantments</Link>
+    </Panel>
   );
 }
 
@@ -156,6 +183,7 @@ export function Collection() {
   const plots = useQuery({ queryKey: ['me', 'plots'], queryFn: portal.mePlots });
   const all = rarities().filter((r) => r.id !== 'enchanted').sort((a, b) => a.sort - b.sort);
   const owned = me.rarities ?? {};
+  const shiny: Record<string, number> = Object.fromEntries((col.data?.rarities ?? []).map((r) => [r.id, r.shiny]));
   const countries = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of plots.data?.plots ?? []) if (p.country_name || p.country) m.set(p.country_name ?? p.country!, (m.get(p.country_name ?? p.country!) ?? 0) + 1);
@@ -174,26 +202,28 @@ export function Collection() {
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {all.map((r) => {
               const n = Number(owned[r.id] ?? 0);
+              const sh = Number(shiny[r.id] ?? 0);
               return (
                 <div key={r.id} className={`flex items-center gap-3 rounded-xl border p-3 ${n ? 'border-line' : 'border-dashed border-line opacity-55'}`}>
                   <span className="h-8 w-8 shrink-0 rounded-md" style={{ background: n ? r.color : 'transparent', boxShadow: `inset 0 0 0 2px ${r.color}` }} />
-                  <div className="min-w-0 flex-1"><div className="font-semibold">{r.name}</div><div className="text-xs text-muted">{n ? `${int(n)} owned` : 'not yet'} · {usd(perDay(r.usd_per_second))}/day each</div></div>
+                  <div className="min-w-0 flex-1"><div className="font-semibold">{r.name}</div><div className="text-xs text-muted">{n ? `${int(n)} owned${sh ? ` · ${int(sh)} shiny` : ''}` : 'not yet'} · {usd(perDay(r.usd_per_second))}/day each</div></div>
                   {isUltra(r.id) && <Badge tone="gold">ultra</Badge>}
                 </div>
               );
             })}
           </div>
         </Panel>
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Panel title="Plot types"><HBars items={Object.entries(me.plot_types ?? {}).map(([k, v], i) => ({ key: k, label: words(k), value: Number(v), color: SERIES[i % 8] }))} /></Panel>
+        <div className="grid gap-3 lg:grid-cols-2">
           <Panel title={`Countries (${countries.length})`}><HBars items={countries.map(([k, v], i) => ({ key: k, label: k, value: v, color: SERIES[i % 8] }))} /></Panel>
           <Panel title="Top cities"><HBars items={cities.map(([k, v], i) => ({ key: k, label: k, value: v, color: SERIES[(i + 2) % 8] }))} /></Panel>
         </div>
-        {col.data && <Panel title="Collection bonuses"><Json value={col.data} max={300} /></Panel>}
+        <Q q={col} label="Loading your collection…">{(c) => <CollectionBonuses c={c} />}</Q>
         <Panel title={`Achievements: ${int(me.counts.achievements)} of ${int(me.counts.achievements_total)}`} pad={false}>
           <Q q={ach}>{(list) => (
             <DataTable rows={[...list].sort((a, b) => Number(!!b.unlocked_at) - Number(!!a.unlocked_at) || b.progress / Math.max(1, b.threshold) - a.progress / Math.max(1, a.threshold))} rowKey={(a) => a.key} maxHeight={560} cols={[
-              { key: 'name', label: 'Achievement', render: (a) => <span><b>{a.icon} {a.name}</b><span className="block text-xs text-muted">{a.description}</span></span> },
+              { key: 'name', label: 'Achievement', render: (a) => (
+                <span className="flex items-center gap-2.5"><BadgeIcon icon={a.icon} category={a.category} tier={tierOf(a)} locked={!a.unlocked_at} size={34} /><span><b>{a.name}</b><span className="block text-xs text-muted">{a.description}</span></span></span>
+              ) },
               { key: 'category', label: 'Kind', render: (a) => words(a.category) },
               { key: 'progress', label: 'Progress', num: true, render: (a) => (
                 <span className="inline-flex items-center gap-2"><span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-2"><span className="block h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (a.progress / Math.max(1, a.threshold)) * 100)}%` }} /></span>{int(Math.min(a.progress, a.threshold))}/{int(a.threshold)}</span>
@@ -209,6 +239,51 @@ export function Collection() {
   );
 }
 
+/** the plot-type collection: every plot type (owned or still to find) and, when it's switched on, the rent bonus for
+ *  owning many different ones */
+function CollectionBonuses({ c }: { c: CollectionData }) {
+  const have = c.types.filter((t) => t.owned > 0).length;
+  const tiers = [...(c.tiers ?? [])].sort((a, b) => a.types - b.types);
+  const now = Number(c.pct ?? 0);
+  const next = tiers.find((t) => have < t.types);
+  return (
+    <Panel title={tiers.length ? 'Collection bonuses' : 'Plot types collected'}
+      actions={tiers.length ? <Badge tone={now ? 'gold' : 'muted'}>{now ? `+${num(now, 1)}% on all your rent` : 'No bonus yet'}</Badge> : <Badge>{have} of {c.types.length}</Badge>}>
+      {tiers.length > 0 && (
+        <div className="mb-4 grid gap-2">
+          <p className="text-sm text-muted">Own different plot types to add a bonus to all your rent. You have {have} of {c.types.length}.{next ? ` ${next.types - have} more for +${num(next.pct, 1)}%.` : ''}</p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {tiers.map((t) => {
+              const done = have >= t.types;
+              return (
+                <div key={t.types} className={`rounded-xl border p-3 ${done ? 'border-gold/40 bg-gold/10' : 'border-line'}`} data-testid={`bonus-tier-${t.types}`}>
+                  <div className="flex items-center justify-between gap-2"><b className={done ? 'text-gold' : undefined}>+{num(t.pct, 1)}% rent</b>{done ? <Badge tone="ok">unlocked</Badge> : <span className="text-xs text-muted tnum">{have}/{t.types}</span>}</div>
+                  <div className="mt-0.5 text-xs text-muted">Own {t.types} different plot types</div>
+                  <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-2"><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (have / Math.max(1, t.types)) * 100)}%`, background: done ? 'var(--gold)' : 'var(--accent)' }} /></span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {!tiers.length && <p className="mb-3 text-sm text-muted">Every plot type in LANDVAS. Each one comes with its own minigame.</p>}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8" data-testid="plot-type-album">
+        {c.types.map((t) => {
+          const s = PLOT_TYPES[t.id as PlotTypeId];
+          const game = Object.values(GAME_INFO).find((g) => g.plotType === t.id);
+          return (
+            <div key={t.id} className={`grid aspect-[4/3] content-between rounded-xl p-2.5 ${t.owned ? '' : 'opacity-40 grayscale'}`}
+              style={{ background: `linear-gradient(160deg, ${s?.a ?? '#6c7aa8'}, ${s?.base ?? '#1b2033'})` }} data-testid={`plot-type-${t.id}`}>
+              <span className="text-xs font-bold text-white drop-shadow">{t.owned ? `${int(t.owned)} owned` : 'Not yet'}</span>
+              <span className="grid leading-tight"><span className="truncate text-sm font-bold text-white drop-shadow">{t.name}</span>{game && <span className="truncate text-[11px] text-white/80">{game.name}</span>}</span>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
 export function Enchantments() {
   const q = useQuery({ queryKey: ['me', 'enchantments'], queryFn: api.myEnchantments });
   return (
@@ -219,12 +294,12 @@ export function Enchantments() {
           {list.map((e) => (
             <Panel key={e.id} title={<span>{e.emoji} {e.nickname || e.name} <span className="text-faint">#{e.serial}</span></span>} actions={<Badge tone={statusTone(e.status)}>{e.status}</Badge>}>
               <KV cols={1} items={[
-                ['Kind', words(e.kind)], ['Level', `${e.level} · ${int(e.xp)} XP`], ['On plot', <Link className="text-accent-2" to={`/plots/${e.gx}/${e.gy}`}>{plotLabel(e.gx, e.gy)}</Link>],
+                ['Kind', KINDS[e.kind as EnchantKind]?.name ?? words(e.kind)], ['Level', `${e.level} · ${int(e.xp)} XP`], ['On plot', <Link className="text-accent-2" to={`/plots/${e.gx}/${e.gy}`}>{plotLabel(e.gx, e.gy)}</Link>],
                 ['Born', `${date(e.born_at)}${e.born_place ? ` in ${e.born_place}` : ''}`], ['One of', `${int(e.population)} of this kind`], ['Ink made', int(e.minted)],
                 ...(e.partner ? [['Spliced with', `${words(e.partner.kind)} until ${dateTime(e.partner.ends_at)}`] as [string, string]] : []),
                 ...(e.titles?.length ? [['Titles', e.titles.join(', ')] as [string, string]] : []),
               ]} />
-              {e.stats && Object.keys(e.stats).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{Object.entries(e.stats).map(([k, v]) => <Badge key={k}>{words(k)} {int(v)}</Badge>)}</div>}
+              {e.stats && Object.keys(e.stats).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{Object.entries(e.stats).filter(([, v]) => typeof v === 'number').map(([k, v]) => <Badge key={k}>{fieldName(k)} {int(v)}</Badge>)}</div>}
             </Panel>
           ))}
         </div>
