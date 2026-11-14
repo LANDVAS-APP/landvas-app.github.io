@@ -719,6 +719,11 @@ export type ArcadePrize = { id: string; name: string; emoji: string; tickets: nu
 export type ArcadeMe = { tickets: number; lifetime: number; prizes: Record<string, number>; bonus_ready: boolean; streak: number; ink_today: number; daily_cap: number | null; ink_progress?: number; best: Record<string, number>; best_endless?: Record<string, number>; played_today?: string[]; owned?: string[] };
 export type ArcadeCosmetic = { key: string; name: string; emoji: string; tickets: number; kind: 'explorer' | 'inkborn'; part: string; id?: string };
 export type ArcadeMode = 'classic' | 'endless';
+/** The hidden Mirror Arcade: every cabinet mirrored with a twist, plus four of its own. Pays more Ink, uncapped. */
+export type MirrorGame = { id: string; name: string; emoji: string; color: string; order: number; own: boolean };
+export type MirrorBoard = { player: Profile; score: number }[];
+export type MirrorArcade = { found: false } | { found: true; found_at: string; ink_mult: number; games: MirrorGame[]; boards: Record<string, MirrorBoard>; boards_endless: Record<string, MirrorBoard>;
+  best: Record<string, number>; best_endless: Record<string, number>; me: ArcadeMe };
 export type Arcade = {
   id: string; group_id: string; seed: number; name: string; plots: number; owner: Profile; mine: boolean;
   level: { level: number; xp: number; into: number; need: number; max: boolean }; plays: number;

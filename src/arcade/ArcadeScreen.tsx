@@ -30,6 +30,7 @@ import { ArenaRoom } from './live/ArenaRoom';
 import { BoothHud, CarnivalNear, startBooth, TreatCart, type CarnivalBusy } from './CarnivalUi';
 import type { CarnivalMe } from '../backend/types';
 import { config } from '../env';
+import { GlassCrack, MirrorRoom, mirrorKey } from './mirror/MirrorRoom';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
 export const arcadeKey = (id: string) => ['arcade', id] as const;
@@ -56,9 +57,12 @@ export default function ArcadeScreen() {
 
 /** The arcade, or (through its portal) the shared Live Arena. */
 function ArcadeOrArena({ a }: { a: Arcade }) {
-  const [room, setRoom] = useState<'arcade' | 'arena'>(() => (new URLSearchParams(location.search).get('room') === 'arena' ? 'arena' : 'arcade'));
+  const [room, setRoom] = useState<'arcade' | 'arena' | 'mirror'>(() => (new URLSearchParams(location.search).get('room') === 'arena' ? 'arena' : 'arcade'));
+  const [first, setFirst] = useState<{ bounty: number } | null>(null);
   useEffect(() => { sfx.blip(14); }, [room]);
-  return room === 'arena' ? <ArenaRoom from={a.id} onBack={() => setRoom('arcade')} /> : <ArcadeView a={a} onArena={() => setRoom('arena')} />;
+  if (room === 'mirror') return <MirrorRoom a={a} first={first} onBack={() => { setFirst(null); setRoom('arcade'); }} />;
+  return room === 'arena' ? <ArenaRoom from={a.id} onBack={() => setRoom('arcade')} />
+    : <ArcadeView a={a} onArena={() => setRoom('arena')} onMirror={(f) => { setFirst(f); setRoom('mirror'); }} />;
 }
 
 /** A handful of regulars hanging round the cabinets (more as the arcade levels up). */
@@ -73,7 +77,7 @@ function regulars(seed: number, n: number) {
   return out;
 }
 
-function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
+function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMirror(first: { bounty: number } | null): void }) {
   // a bigger arcade (more plots merged) has more cabinets in service
   const access = usePlaceAccess('arcade', a.id).data;
   const nav = useNavigate();
@@ -95,6 +99,9 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
   useEffect(() => setCme(a.carnival?.me ?? null), [a.carnival?.me]);
   const [cBusy, setCBusy] = useState<CarnivalBusy>(null);
   const [treats, setTreats] = useState(false);
+  // the Mirror Arcade: a 🪞 button only for players who've found it (everyone else gets { found: false })
+  const mirror = useQuery({ queryKey: mirrorKey, queryFn: () => api.arcadeMirrorGet(), staleTime: 60_000, refetchOnWindowFocus: false });
+  const [crack, setCrack] = useState<{ bounty: number } | null | false>(false);
   const title = /^untitled/i.test(a.name.trim()) || !a.name.trim() ? `${a.owner.username}’s Arcade` : a.name;
   const games = useMemo(() => Object.entries(a.games).sort((x, y) => x[1].order - y[1].order), [a.games]);
   const prizeEmoji = useMemo(() => Object.fromEntries(a.prizes.map((p) => [p.id, p.emoji])), [a.prizes]);
@@ -213,6 +220,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-scores"><Trophy className="h-5 w-5 text-[#FFE14D]" />Scores</button>
           <button onClick={() => setSheet('prizes')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-prizes-btn"><span className="text-lg leading-none">🎁</span>Prizes</button>
           <button onClick={() => setSheet('jukebox')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-jukebox-btn"><Music className="h-5 w-5 text-[#22E3FF]" />Music</button>
+          {mirror.data?.found && <button onClick={() => { sfx.blip(16); onMirror(null); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #DDE8FF' }} data-testid="arcade-mirror-btn"><span className="text-lg leading-none" style={{ transform: 'scaleX(-1)' }}>🪞</span>Mirror</button>}
           {a.mine && <button onClick={() => setSheet('manage')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-manage"><Wrench className="h-5 w-5" />Manage</button>}
         </div>
       )}
@@ -269,7 +277,9 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
           </motion.div>
         )}
       </AnimatePresence>
+      {crack !== false && <GlassCrack onDone={() => { const f = crack; setCrack(false); setPlaying(null); void qc.invalidateQueries({ queryKey: mirrorKey }); onMirror(f); }} />}
       {playing && <Cabinet a={a} me={meState} game={playing} haptics={haptics} reduce={reduce} onExit={stopPlaying} onMe={setMeState}
+        onMirror={(m) => setTimeout(() => setCrack(m.first ? { bounty: m.bounty ?? 0 } : null), 900)}
         match={matchOn && matchOn.game === playing ? { m: live?.match?.id === matchOn.id ? live.match : matchOn, myId: myId!, scores: liveRoom.scores, send: (s) => liveRoom.send({ t: 'score', m: matchOn.id, id: myId!, s }) } : null} />}
       {carnival && <BoothHud c={carnival} me={meState} busy={cBusy} hall={hall} onClose={closeBooth} />}
       {cBusy?.k === 'ride' && <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]"><button onClick={() => { hall.current?.carnival?.endRide(); setCBusy(null); }} className="rounded-full bg-black/70 px-5 py-2 text-sm font-bold" data-testid="carnival-get-off">{carnival?.rides[cBusy.id]?.emoji} Get off the ride</button></div>}
@@ -296,7 +306,8 @@ function InkMeter({ p }: { p: number }) {
 type Phase = { k: 'attract' } | { k: 'count'; n: number; session: string; seed: number; level: number } | { k: 'play'; session: string; seed: number; level: number } | { k: 'done'; r: ArcadeFinish | null; score: number }
   | { k: 'mwait' } | { k: 'mdone'; r: ArcadeFinish | null; score: number };
 type MatchCtx = { m: ArcadeMatch; myId: string; scores: Record<string, number>; send(score: number): void };
-function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void; match: MatchCtx | null }) {
+function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onMirror }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void; match: MatchCtx | null;
+  /** the round just played opened the way through the glass */ onMirror?(m: { first?: boolean; bounty?: number }): void }) {
   const qc = useQueryClient();
   const info = a.games[game];
   const Arena = ARENAS[game];
@@ -348,6 +359,8 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match }: { a: Arc
       if (match) { match.send(r.score); setPhase({ k: 'mdone', r, score: r.score }); return; }
       setCounted(0); setPhase({ k: 'done', r, score: r.score });
       if (r.new_record || r.level_up) confettiCannons();
+      // the server knows if this round finished something; it only ever answers yes or no
+      if (!r.repeat) void api.arcadeMirrorCheck(session).then((m) => { if (m.opened) onMirror?.(m); }).catch(() => {});
     } catch (e) { toast.error(toGameError(e).message); setPhase(match ? { k: 'mdone', r: null, score } : { k: 'done', r: null, score }); }
   };
   // tickets spill out, counted up one by one

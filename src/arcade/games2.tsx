@@ -16,16 +16,17 @@ import { Hud, Lives, clamp, rng, tap, usePops, type ArenaProps } from './games';
 import { sfx } from './sfx';
 import { CHIP_R, DROP_MAX, DROP_MIN, PEG_R, PEG_SLOTS, clampAim, newChip, pegLayout, stepChip, type Chip as PegChip } from './pegdrop';
 import { config } from '../env';
+import { MIR, mirKey, mirX, mirY, unflipText } from './mirror/mir';
 
 // ---- a little 2D engine: a sized canvas, a loop and pointer input in CSS pixels ----------------------------------
-type Ptr = { x: number; y: number; id: number };
-type Engine = { frame(g: CanvasRenderingContext2D, W: number, H: number, dt: number, t: number): void; down?(p: Ptr): void; move?(p: Ptr): void; up?(p: Ptr): void; key?(k: string, down: boolean): void };
-function run2d(cv: HTMLCanvasElement, e: Engine) {
-  const g = cv.getContext('2d')!;
+export type Ptr = { x: number; y: number; id: number };
+export type Engine = { frame(g: CanvasRenderingContext2D, W: number, H: number, dt: number, t: number): void; down?(p: Ptr): void; move?(p: Ptr): void; up?(p: Ptr): void; key?(k: string, down: boolean): void };
+export function run2d(cv: HTMLCanvasElement, e: Engine) {
+  const g = cv.getContext('2d')!; unflipText(g);
   let raf = 0, last = performance.now(), t = 0, W = 0, H = 0;
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop);
-    const dt = Math.min(0.04, (now - last) / 1000); last = now; t += dt;
+    const dt = Math.min(0.04, (now - last) / 1000) * MIR.speed; last = now; t += dt;
     const b = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
     if (!b.width) return;
     if (cv.width !== Math.round(b.width * dpr) || cv.height !== Math.round(b.height * dpr)) { cv.width = Math.round(b.width * dpr); cv.height = Math.round(b.height * dpr); }
@@ -34,12 +35,12 @@ function run2d(cv: HTMLCanvasElement, e: Engine) {
     e.frame(g, W, H, dt, t);
   };
   raf = requestAnimationFrame(loop);
-  const at = (ev: PointerEvent): Ptr => { const b = cv.getBoundingClientRect(); return { x: ev.clientX - b.left, y: ev.clientY - b.top, id: ev.pointerId }; };
+  const at = (ev: PointerEvent): Ptr => { const b = cv.getBoundingClientRect(); return { x: mirX(ev.clientX - b.left, b.width), y: mirY(ev.clientY - b.top, b.height), id: ev.pointerId }; };
   const pd = (ev: PointerEvent) => { ev.preventDefault(); try { cv.setPointerCapture(ev.pointerId); } catch { /* fine */ } e.down?.(at(ev)); };
   const pm = (ev: PointerEvent) => e.move?.(at(ev));
   const pu = (ev: PointerEvent) => e.up?.(at(ev));
-  const kd = (ev: KeyboardEvent) => { if (e.key) { e.key(ev.key, true); if (ev.key.startsWith('Arrow') || ev.key === ' ') ev.preventDefault(); } };
-  const ku = (ev: KeyboardEvent) => e.key?.(ev.key, false);
+  const kd = (ev: KeyboardEvent) => { if (e.key) { e.key(mirKey(ev.key), true); if (ev.key.startsWith('Arrow') || ev.key === ' ') ev.preventDefault(); } };
+  const ku = (ev: KeyboardEvent) => e.key?.(mirKey(ev.key), false);
   cv.addEventListener('pointerdown', pd); cv.addEventListener('pointermove', pm); cv.addEventListener('pointerup', pu); cv.addEventListener('pointercancel', pu);
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
   return () => {
@@ -49,7 +50,7 @@ function run2d(cv: HTMLCanvasElement, e: Engine) {
   };
 }
 /** sparks and confetti for 2D games */
-function sparks() {
+export function sparks() {
   const list: { x: number; y: number; vx: number; vy: number; life: number; max: number; c: string; r: number }[] = [];
   return {
     burst(x: number, y: number, c: string | string[], n = 14, sp = 160) {
@@ -65,22 +66,22 @@ function sparks() {
     },
   };
 }
-const RAINBOW = ['#FF3D9A', '#22E3FF', '#FFE14D', '#3DDC97', '#B57BFF'];
-function bg(g: CanvasRenderingContext2D, W: number, H: number, a: string, b: string) {
+export const RAINBOW = ['#FF3D9A', '#22E3FF', '#FFE14D', '#3DDC97', '#B57BFF'];
+export function bg(g: CanvasRenderingContext2D, W: number, H: number, a: string, b: string) {
   const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(0, 0, W, H);
 }
-function glowCircle(g: CanvasRenderingContext2D, x: number, y: number, r: number, c: string, blur = 12) {
+export function glowCircle(g: CanvasRenderingContext2D, x: number, y: number, r: number, c: string, blur = 12) {
   g.shadowColor = c; g.shadowBlur = blur; g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
 }
 /** keep a bit of HUD state in React without re-rendering every frame */
-function useHud<T extends Record<string, unknown>>(init: T) {
+export function useHud<T extends Record<string, unknown>>(init: T) {
   const [hud, setHud] = useState(init);
   const ref = useRef(init);
   const set = (p: Partial<T>) => { const n = { ...ref.current, ...p }; if (Object.keys(p).some((k) => ref.current[k] !== n[k])) { ref.current = n; setHud(n); } };
   return [hud, set] as const;
 }
 /** swipe directions (and arrow keys) for grid games */
-function swipe(onDir: (d: 0 | 1 | 2 | 3) => void) {
+export function swipe(onDir: (d: 0 | 1 | 2 | 3) => void) {
   let st: Ptr | null = null;
   return {
     down: (p: Ptr) => { st = p; },
@@ -89,15 +90,15 @@ function swipe(onDir: (d: 0 | 1 | 2 | 3) => void) {
     key: (k: string, d: boolean) => { if (!d) return; const m: Record<string, 0 | 1 | 2 | 3> = { ArrowUp: 0, w: 0, ArrowRight: 1, d: 1, ArrowDown: 2, s: 2, ArrowLeft: 3, a: 3 }; if (k in m) onDir(m[k]); },
   };
 }
-const DIRS: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-const Screen = ({ id, cv, children }: { id: string; cv: React.RefObject<HTMLCanvasElement | null>; children?: React.ReactNode }) => (
+export const DIRS: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+export const Screen = ({ id, cv, children }: { id: string; cv: React.RefObject<HTMLCanvasElement | null>; children?: React.ReactNode }) => (
   <div className="relative h-full w-full touch-none select-none" data-testid={`arc-${id}`}>
     <canvas ref={cv} className="absolute inset-0 h-full w-full" />
     {children}
   </div>
 );
-const Tip = ({ children }: { children: React.ReactNode }) => <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center font-mono text-[11px] font-bold text-white/70">{children}</div>;
-const Led = ({ label, v, c }: { label: string; v: React.ReactNode; c?: string }) => <div className="lv-arc-led" style={c ? { color: c } : undefined}><span className="text-[9px] opacity-70">{label}</span><b>{v}</b></div>;
+export const Tip = ({ children }: { children: React.ReactNode }) => <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center font-mono text-[11px] font-bold text-white/70">{children}</div>;
+export const Led = ({ label, v, c }: { label: string; v: React.ReactNode; c?: string }) => <div className="lv-arc-led" style={c ? { color: c } : undefined}><span className="text-[9px] opacity-70">{label}</span><b>{v}</b></div>;
 
 // ======================================================================================================
 // Air Hockey
@@ -203,7 +204,7 @@ export function AirHockey({ seed, onEnd, haptics, mode }: ArenaProps) {
                 }
               }
             }
-            const f = Math.pow(0.55, dt); P.vx *= f; P.vy *= f;
+            const f = Math.pow(MIR.on ? 0.97 : 0.55, dt); P.vx *= f; P.vy *= f; // mirror twist: an ice table, the puck barely slows
             hitCd -= dt;
             // goals
             if (P.y < G.y0 - G.pr) {
@@ -381,7 +382,7 @@ export function CoinPusher({ seed, onEnd, haptics, mode }: ArenaProps) {
     const drop = (x: number) => {
       if (over || tray <= 0) return;
       tray--; drops++; idle = 0;
-      const gold = drops % 10 === 0;
+      const gold = drops % (MIR.on ? 5 : 10) === 0; // mirror twist: every 5th coin is gold
       coins.push({ x: clamp(x, 0.08, 0.92), y: Math.max(0.4, P + CR + 0.01), vx: 0, vy: 0, gold, falling: 0.25 });
       sfx.coin(); tap(haptics); setHud({ coins: tray });
       if (gold) pops.add('GOLD COIN!', '#FFD84D', 50, 40);
@@ -643,6 +644,8 @@ export function InkMaze({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
           }
         });
         fx.draw(g, dt, 0);
+        // mirror twist: lights out — you only see a lantern's glow round your blob
+        if (MIR.on) { const lx = ox + (blob.fx + 0.5) * cs, ly = oy + (blob.fy + 0.5) * cs, lr = cs * 3.4; const lg = g.createRadialGradient(lx, ly, lr * 0.3, lx, ly, lr); lg.addColorStop(0, 'rgba(3,2,12,0)'); lg.addColorStop(1, 'rgba(3,2,12,0.97)'); g.fillStyle = lg; g.fillRect(0, 0, W, H); }
         if (pause > 0 && !over) { g.font = '900 22px ui-rounded, system-ui'; g.textAlign = 'center'; g.fillStyle = '#B57BFF'; g.fillText(lvl > 1 ? `MAZE ${lvl}` : 'GO!', W / 2, oy + 9.6 * cs); }
       },
       ...dir,
@@ -1202,7 +1205,7 @@ export function NeonSnake({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const r = rng(seed), fx = sparks();
     const GW = 16, GH = 22;
     let snake: [number, number][] = [[8, 14], [8, 15], [8, 16], [8, 17]], dir = 0, queue: number[] = [], acc = 0, rate = 7, score = 0, over = false, timeLeft = 90, eatenN = 0, wait = 0.8;
-    let food: [number, number] = [8, 6], gold: { x: number; y: number; t: number } | null = null;
+    let food: [number, number] = [8, 6], gold: { x: number; y: number; t: number } | null = null, flee = 0;
     const free = (): [number, number] => { for (let k = 0; k < 200; k++) { const p: [number, number] = [Math.floor(r() * GW), Math.floor(r() * GH)]; if (!snake.some(([x, y]) => x === p[0] && y === p[1]) && !(food[0] === p[0] && food[1] === p[1])) return p; } return [0, 0]; };
     const die = () => { over = true; sfx.fail(); tap(haptics, 'heavy'); pops.add('CRASH!', '#FF3D6E', 50, 40, true); setTimeout(() => onEnd(score), 1300); };
     const tick = (ox: number, oy: number, cs: number) => {
@@ -1219,6 +1222,15 @@ export function NeonSnake({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
         food = free();
         if (eatenN % 5 === 0) { const p = free(); gold = { x: p[0], y: p[1], t: 6 }; }
       } else snake.pop();
+      // mirror twist: the apple runs away from your head (corner it to catch it)
+      if (MIR.on && ++flee % 3 === 0) {
+        const d0 = Math.abs(food[0] - hx) + Math.abs(food[1] - hy);
+        if (d0 > 1 && d0 <= 6) {
+          let best = food, bd = d0;
+          for (const [ax, ay] of DIRS) { const nx = food[0] + ax, ny = food[1] + ay; if (nx < 0 || ny < 0 || nx >= GW || ny >= GH || snake.some(([x, y]) => x === nx && y === ny)) continue; const nd = Math.abs(nx - hx) + Math.abs(ny - hy); if (nd > bd) { bd = nd; best = [nx, ny]; } }
+          food = best;
+        }
+      }
       if (gold && hx === gold.x && hy === gold.y) {
         score += 50; setHud({ score }); pops.add('GOLDEN APPLE +50', '#FFD84D', 50, 40, true); sfx.jackpot(); tap(haptics, 'success');
         fx.burst(ox + (hx + 0.5) * cs, oy + (hy + 0.5) * cs, RAINBOW, 30, 200);

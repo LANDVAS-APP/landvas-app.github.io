@@ -17,6 +17,8 @@ export type HallOpts = {
   /** the shared Live Arena room: pods for the live games, no prize counter / ticket machine / jukebox */ arena?: boolean;
   /** you're standing at something you can use (or walked away: null) */ onNear?(s: HallSpot | null): void;
   /** an Arcade Estate: the front door opens onto a carnival */ carnival?: boolean;
+  /** the Mirror Arcade: the page flips the canvas left-right (CSS), so taps, drags and arrow keys are flipped back here;
+   *  no prize counter, ticket machine or jukebox, a row of extra cabinets along the back wall, and the portal leads home */ mirror?: boolean;
 };
 export type Decor = { floor: string; neon: string; lights: string };
 
@@ -144,7 +146,8 @@ export function createHall(o: HallOpts) {
   const fps = framePacer({ ambient: true });
   const tune = adaptiveDpr((d) => renderer.setPixelRatio(d), undefined, fps);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#05040F'); scene.fog = new THREE.Fog('#05040F', 22, 52);
+  const bgc = o.mirror ? '#06121E' : '#05040F';
+  scene.background = new THREE.Color(bgc); scene.fog = new THREE.Fog(bgc, 22, 52);
   const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 120);
   const bag: { dispose(): void }[] = [];
   const T = <X extends { dispose(): void }>(x: X) => { bag.push(x); return x; };
@@ -220,6 +223,8 @@ export function createHall(o: HallOpts) {
   const slots: { x: number; z: number }[] = [];
   // the middle rows fill first (closest to where you come in, without leaving the far end empty)
   for (const z of [ROWS[1], ROWS[2], ROWS[0], ROWS[3]]) for (const x of COLS) slots.push({ x, z });
+  // the Mirror Arcade's own cabinets stand along the back wall, where the counter would be
+  if (o.mirror) for (const x of COLS) slots.push({ x, z: -D / 2 + 2.6 });
   const marqueeOn = (g: THREE.Group, m: HallMachine, y: number, w = 1.3) => {
     const mq = new THREE.Mesh(T(new THREE.PlaneGeometry(w - 0.04, 0.36)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(m.name, m.locked ? '#555' : m.color)), toneMapped: false })));
     mq.position.set(0, y, 0.33); g.add(mq);
@@ -485,14 +490,14 @@ export function createHall(o: HallOpts) {
   let musicOn = false;
   // the portal between the arcade and the shared Live Arena (on the right wall, by the front aisle)
   const portal = new THREE.Group(); portal.position.set(W / 2 - 0.4, 0, 4.4); portal.rotation.y = -Math.PI / 2; scene.add(portal);
-  const portalCol = o.arena ? '#FFE14D' : '#22E3FF';
+  const portalCol = o.arena ? '#FFE14D' : o.mirror ? '#DDE8FF' : '#22E3FF';
   const portalRing = new THREE.Mesh(T(new THREE.TorusGeometry(1.05, 0.09, 10, 40)), glow(portalCol, 2.4)); portalRing.position.y = 1.35; portal.add(portalRing);
   const portalFill = new THREE.Mesh(T(new THREE.CircleGeometry(1.0, 40)), T(new THREE.MeshBasicMaterial({ color: portalCol, transparent: true, opacity: 0.25, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })));
   portalFill.position.y = 1.35; portal.add(portalFill);
-  const portalSign = new THREE.Mesh(T(new THREE.PlaneGeometry(2.2, 0.55)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(o.arena ? '← ARCADE' : 'LIVE ARENA', portalCol)), toneMapped: false })));
+  const portalSign = new THREE.Mesh(T(new THREE.PlaneGeometry(2.2, 0.55)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(o.arena || o.mirror ? '← ARCADE' : 'LIVE ARENA', portalCol)), toneMapped: false })));
   portalSign.position.set(0, 2.75, 0); portal.add(portalSign);
   const portalSpot = new THREE.Vector3(portal.position.x - 1.3, 0, portal.position.z);
-  if (o.arena) { counter.visible = false; juke.visible = false; bonus.visible = false; }
+  if (o.arena || o.mirror) { counter.visible = false; juke.visible = false; bonus.visible = false; }
   // ---- the carnival out the front door (Arcade Estates) --------------------------------------------------------
   let carn: Carnival | null = null;
   if (o.carnival && !o.arena) {
@@ -559,7 +564,7 @@ export function createHall(o: HallOpts) {
   const solids = () => {
     const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
     for (const c of cabs.values()) out.push({ x0: c.g.position.x - c.hw - 0.25, x1: c.g.position.x + c.hw + 0.25, z0: c.g.position.z - c.hd * (c.hd > 1 ? 1.7 : 1) - 0.25, z1: c.g.position.z + 0.55 + 0.2 });
-    if (!o.arena) {
+    if (!o.arena && !o.mirror) {
       out.push({ x0: -3.1, x1: 3.1, z0: -D / 2, z1: -D / 2 + 2.25 });
       out.push({ x0: -W / 2, x1: -W / 2 + 2.4, z0: -D / 2, z1: -D / 2 + 1.75 }, { x0: W / 2 - 2.2, x1: W / 2, z0: -D / 2, z1: -D / 2 + 1.75 });
     }
@@ -596,7 +601,8 @@ export function createHall(o: HallOpts) {
     return pts;
   };
   const go = (x: number, z: number) => { if (carn?.riding()) return; P.path = route(x, z); ring.visible = true; ring.position.set(clampX(x, z), 0.02, clampZ(z)); };
-  const setRay = (e: PointerEvent) => { const r = o.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return ray; };
+  const MX = o.mirror ? -1 : 1;
+  const setRay = (e: PointerEvent) => { const r = o.canvas.getBoundingClientRect(); ndc.set((((e.clientX - r.left) / r.width) * 2 - 1) * MX, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return ray; };
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down: { x: number; y: number; t: number; id: number } | null = null;
   const pd = (e: PointerEvent) => { if (zoom.on) { if (carn?.playing()) { carn.input('down', setRay(e)); held = e.pointerId; } return; } down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; };
@@ -604,7 +610,7 @@ export function createHall(o: HallOpts) {
   const pm = (e: PointerEvent) => {
     if (held === e.pointerId && carn?.playing()) { carn.input('move', setRay(e)); return; }
     if (!down || e.pointerId !== down.id || zoom.on) return;
-    const dx = e.clientX - down.x, dy = e.clientY - down.y, d = Math.hypot(dx, dy);
+    const dx = (e.clientX - down.x) * MX, dy = e.clientY - down.y, d = Math.hypot(dx, dy);
     if (d > 14) { P.stick = new THREE.Vector2(dx / Math.max(d, 60), dy / Math.max(d, 60)); P.path = []; ring.visible = false; }
   };
   const pu = (e: PointerEvent) => {
@@ -613,18 +619,18 @@ export function createHall(o: HallOpts) {
     const wasStick = !!P.stick; P.stick = null;
     const tap = !wasStick && performance.now() - down.t < 500; down = null;
     if (!tap || zoom.on) return;
-    const r = o.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    const r = o.canvas.getBoundingClientRect(); ndc.set((((e.clientX - r.left) / r.width) * 2 - 1) * MX, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     for (const c of cabs.values()) if (ray.intersectObject(c.g, true).length) { go(c.spot.x, c.spot.z); return; }
     if (ray.intersectObject(portal, true).length) { go(portalSpot.x, portalSpot.z); return; }
-    if (!o.arena) {
+    if (!o.arena && !o.mirror) {
       if (ray.intersectObject(counter, true).length) { go(prizeSpot.x, prizeSpot.z); return; }
       if (ray.intersectObject(bonus, true).length) { go(bonusSpot.x, bonusSpot.z); return; }
       if (ray.intersectObject(juke, true).length) { go(jukeSpot.x, jukeSpot.z); return; }
     }
     const h = ray.intersectObjects(carn ? [floor, carn.ground] : [floor])[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
   };
-  const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -1; if (k === 'd' || k === 'arrowright') P.keys.x = 1; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
+  const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -MX; if (k === 'd' || k === 'arrowright') P.keys.x = MX; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
   const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (['a', 'd', 'arrowleft', 'arrowright'].includes(k)) P.keys.x = 0; if (['w', 's', 'arrowup', 'arrowdown'].includes(k)) P.keys.z = 0; };
   o.canvas.addEventListener('pointerdown', pd); window.addEventListener('pointermove', pm); window.addEventListener('pointerup', pu); window.addEventListener('pointercancel', pu);
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
@@ -681,7 +687,7 @@ export function createHall(o: HallOpts) {
     if (!P.moving) {
       let best = 1.0;
       for (const c of cabs.values()) { const d = Math.hypot(c.spot.x - P.x, c.spot.z - P.z); if (d < best) { best = d; s = { kind: 'machine', id: c.m.id }; } }
-      if (!o.arena) {
+      if (!o.arena && !o.mirror) {
         if (Math.hypot(prizeSpot.x - P.x, prizeSpot.z - P.z) < 1.5) s = { kind: 'prizes' };
         if (Math.hypot(bonusSpot.x - P.x, bonusSpot.z - P.z) < 1.2) s = { kind: 'bonus' };
         if (Math.hypot(jukeSpot.x - P.x, jukeSpot.z - P.z) < 1.2) s = { kind: 'jukebox' };

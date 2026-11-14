@@ -345,6 +345,11 @@ export const api = {
   arcadeForPlot: (gx: number, gy: number) => rpc<{ arcade_id: string; name: string; owner: Profile; plots: number; level: number; plays: number; machines: number } | null>('arcade_for_plot', { p_gx: gx, p_gy: gy }),
   arcadeStart: (arcade: string, game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number; hot: boolean; best: number | null; record: number | null }>('arcade_start', { p_arcade: arcade, p_game: game, p_mode: mode }),
   arcadeFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_finish', { p_session: session, p_score: score }),
+  // the Mirror Arcade (hidden: arcadeMirrorGet answers only { found: false } until you've found it)
+  arcadeMirrorCheck: (session: string) => rpc<{ opened: boolean; first?: boolean; bounty?: number }>('arcade_mirror_check', { p_session: session }),
+  arcadeMirrorGet: () => rpc<import('./types').MirrorArcade>('arcade_mirror_get'),
+  arcadeMirrorStart: (game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_mirror_start', { p_game: game, p_mode: mode }),
+  arcadeMirrorFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_mirror_finish', { p_session: session, p_score: score }),
   carnivalStart: (arcade: string, game: string) => rpc<{ session: string; seed: number; game: string; seconds: number; mult: number }>('carnival_start', { p_arcade: arcade, p_game: game }),
   carnivalTreat: (arcade: string, treat: string) => rpc<{ treat: string; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_treat', { p_arcade: arcade, p_treat: treat }),
   carnivalFortune: (arcade: string) => rpc<{ fortune: import('./types').CarnivalFortune; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_fortune', { p_arcade: arcade }),

@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { MIR, mirDX, mirDY, unflipText } from './mirror/mir';
 import { buzz } from '../native/native';
 import { sfx } from './sfx';
 import { config } from '../env';
@@ -28,7 +29,7 @@ let popId = 0;
 export function usePops() {
   const [pops, setPops] = useState<Pop[]>([]);
   const add = (text: string, color = '#fff', x = 50, y = 40, big = false) => {
-    const id = ++popId; setPops((p) => [...p.slice(-6), { id, text, color, x, y, big }]);
+    const id = ++popId; if (MIR.x) x = 100 - x; if (MIR.y) y = 100 - y; setPops((p) => [...p.slice(-6), { id, text, color, x, y, big }]);
     setTimeout(() => setPops((p) => p.filter((q) => q.id !== id)), big ? 1400 : 900);
   };
   const el = (
@@ -190,7 +191,7 @@ export function TowerStacker({ seed, onEnd, haptics, reduce, mode }: ArenaProps)
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      const dt = Math.min(0.05, (now - last) / 1000) * MIR.speed; last = now; t += dt;
       if (cur) {
         // like the real machines: leave it too long and it drops by itself
         idle += dt; if (idle > 9) { drop(); return; }
@@ -233,8 +234,9 @@ export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const press = useRef<() => void>(() => {});
   const pops = usePops();
   useEffect(() => {
-    const c = cv.current!; const g = c.getContext('2d')!; const r = rng(seed);
+    const c = cv.current!; const g = c.getContext('2d')!; const r = rng(seed); unflipText(g);
     const N = 36, SPINS = 7;
+    let dir = 1; // mirror twist: the light reverses at random
     // a JACKPOT earns a SUPER spin straight after (a free extra go, the jackpot worth double)
     let pos = r() * N, speed = 13, stopped = -1, hold = 0, spin = 1, score = 0, raf = 0, last = performance.now(), t = 0, flash = 0, over = false, sup = false, nextSup = false, lives = 3;
     const value = (i: number) => (i === 0 ? (sup ? 300 : 150) : i === 1 || i === N - 1 ? 40 : i === N / 4 || i === (3 * N) / 4 ? 25 : i === N / 2 ? 60 : 5);
@@ -255,12 +257,12 @@ export function Cyclone({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      const dt = Math.min(0.05, (now - last) / 1000) * MIR.speed; last = now; t += dt;
       const b = c.getBoundingClientRect(); const dpr = Math.min(2, devicePixelRatio || 1);
       if (c.width !== Math.round(b.width * dpr)) { c.width = Math.round(b.width * dpr); c.height = Math.round(b.height * dpr); }
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       const W = b.width, H = b.height, cx = W / 2, cy = H * 0.48, R = Math.min(W, H) * 0.38;
-      if (stopped < 0) { pos = (pos + speed * dt) % N; const lit = Math.floor(pos) % N; if (lit !== lastLit) { lastLit = lit; if (!reduce || lit % 3 === 0) sfx.tick(); } }
+      if (stopped < 0) { if (MIR.on && Math.random() < dt * 0.75) dir = -dir; pos = (((pos + dir * speed * dt) % N) + N) % N; const lit = Math.floor(pos) % N; if (lit !== lastLit) { lastLit = lit; if (!reduce || lit % 3 === 0) sfx.tick(); } }
       else {
         hold -= dt;
         if (hold <= 0) {
@@ -371,7 +373,7 @@ export function SkeeBall({ onEnd, haptics, reduce, mode }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const dt = Math.min(0.05, (now - last) / 1000) * MIR.speed; last = now;
       for (const b of balls) {
         if (b.done) continue;
         b.t += dt;
@@ -399,11 +401,11 @@ export function SkeeBall({ onEnd, haptics, reduce, mode }: ArenaProps) {
     raf = requestAnimationFrame(loop);
     // flick: drag up from the bottom of the screen
     let st: { x: number; y: number; t: number } | null = null;
-    const pd = (e: PointerEvent) => { st = { x: e.clientX, y: e.clientY, t: performance.now() }; setMeter(0); };
-    const pm = (e: PointerEvent) => { if (!st) return; const r = el.getBoundingClientRect(); setMeter(clamp((st.y - e.clientY) / (r.height * 0.6), 0, 1.1)); };
+    const pd = (e: PointerEvent) => { st = { x: mirDX(e.clientX), y: mirDY(e.clientY), t: performance.now() }; setMeter(0); };
+    const pm = (e: PointerEvent) => { if (!st) return; const r = el.getBoundingClientRect(); setMeter(clamp((st.y - mirDY(e.clientY)) / (r.height * 0.6), 0, 1.1)); };
     const pu = (e: PointerEvent) => {
       if (!st) return; const r = el.getBoundingClientRect();
-      const dy = st.y - e.clientY, dx = e.clientX - st.x; st = null; setMeter(null);
+      const dy = st.y - mirDY(e.clientY), dx = mirDX(e.clientX) - st.x; st = null; setMeter(null);
       if (dy < 20) return;
       roll((dx / dy) * 2.2, dy / (r.height * 0.6));
     };
@@ -474,13 +476,13 @@ export function HoopShot({ onEnd, haptics, reduce, mode }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.033, (now - last) / 1000); last = now; t += dt;
+      const dt = Math.min(0.033, (now - last) / 1000) * MIR.speed; last = now; t += dt;
       const played = (now - T0) / 1000, left = Math.max(0, DUR + extra - played);
       if (left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
       if (left > 0) setHud((h) => (Math.ceil(left) !== h.left ? { ...h, left: Math.ceil(left) } : h));
       // after 20 seconds the hoop starts moving (in endless it gets faster and wider the longer you last)
-      const moving = played > 20;
-      if (moving) { const k = endless ? Math.min(2.2, 1 + (played - 20) / 60) : 1; hoop.position.x = Math.sin((played - 20) * 1.1 * k) * Math.min(1.6, 1.1 * k); }
+      const moving = MIR.on || played > 20; // mirror twist: it moves from the first ball, and quicker
+      if (moving) { const pp = MIR.on ? played + 6 : played - 20; const k = (endless ? Math.min(2.2, 1 + Math.max(0, pp) / 60) : 1) * (MIR.on ? 1.3 : 1); hoop.position.x = Math.sin(pp * 1.1 * k) * Math.min(1.6, 1.1 * k); }
       backboard.position.x = square.position.x = hoop.position.x;
       for (let i = balls.length - 1; i >= 0; i--) {
         const b = balls[i]; b.life -= dt;
@@ -517,8 +519,8 @@ export function HoopShot({ onEnd, haptics, reduce, mode }: ArenaProps) {
     };
     raf = requestAnimationFrame(loop);
     let st: { x: number; y: number } | null = null;
-    const pd = (e: PointerEvent) => { st = { x: e.clientX, y: e.clientY }; };
-    const pu = (e: PointerEvent) => { if (!st) return; const r = el.getBoundingClientRect(); const dy = st.y - e.clientY, dx = e.clientX - st.x; st = null; if (dy > 25) shoot(dx, dy, r.width, r.height); };
+    const pd = (e: PointerEvent) => { st = { x: mirDX(e.clientX), y: mirDY(e.clientY) }; };
+    const pu = (e: PointerEvent) => { if (!st) return; const r = el.getBoundingClientRect(); const dy = st.y - mirDY(e.clientY), dx = mirDX(e.clientX) - st.x; st = null; if (dy > 25) shoot(dx, dy, r.width, r.height); };
     el.addEventListener('pointerdown', pd); window.addEventListener('pointerup', pu);
     (el as unknown as { __shoot: typeof shoot }).__shoot = shoot;
     return () => { cancelAnimationFrame(raf); el.removeEventListener('pointerdown', pd); window.removeEventListener('pointerup', pu); dispose(); };
@@ -605,6 +607,7 @@ export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
     const pd = (e: PointerEvent) => {
       const b = el.getBoundingClientRect(); ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+      if (MIR.x) ndc.x = -ndc.x; if (MIR.y) ndc.y = -ndc.y;
       ray.setFromCamera(ndc, camera);
       const hit = holes.find((h) => ray.intersectObject(h.g, true).length);
       if (hit) bop(hit);
@@ -621,7 +624,7 @@ export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      const dt = Math.min(0.05, (now - last) / 1000) * MIR.speed; last = now; t += dt;
       const played = (now - T0) / 1000, left = endless ? 0 : Math.max(0, DUR - played);
       if (!endless && left <= 0 && !over) { over = true; pops.add('TIME!', '#FFE14D', 50, 40, true); sfx.fail(); setTimeout(() => onEnd(score), 1200); }
       if (frenzy > 0) { frenzy = Math.max(0, frenzy - dt); setHud((h) => (Math.ceil(frenzy) !== h.frenzy ? { ...h, frenzy: Math.ceil(frenzy) } : h)); }
@@ -640,6 +643,10 @@ export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
             if (h.target === 1 && !h.hit && h.kind !== 'kitty') { if (combo) { combo = 0; setHud((x) => ({ ...x, combo })); } if (frenzy <= 0) lose('ONE GOT AWAY! −1'); }
             h.target = 0; h.timer = 0.3 + r() * 1.4;
           }
+        }
+        // mirror twist: shapeshifters — a bot can turn into a kitty while it's up (and back again)
+        if (MIR.on && h.target === 1 && !h.hit && h.up > 0.6 && h.kind !== 'gold' && frenzy <= 0 && Math.random() < dt * 0.7) {
+          h.kind = h.kind === 'kitty' ? 'bot' : 'kitty'; for (const k of Object.keys(h.parts) as Kind[]) h.parts[k].visible = k === h.kind;
         }
         h.up += (h.target - h.up) * Math.min(1, dt * (h.hit ? 16 : 11));
         h.g.position.y = -1.95 + h.up * 1.85;
@@ -733,7 +740,7 @@ export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (!fps.ready(now)) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      const dt = Math.min(0.05, (now - last) / 1000) * MIR.speed; last = now; t += dt;
       if (phase === 'x' || phase === 'z') {
         tryT -= dt;
         if (Math.ceil(tryT) !== Math.ceil(tryT + dt)) setHud((h) => ({ ...h, left: Math.max(0, Math.ceil(tryT)) }));
@@ -811,8 +818,8 @@ export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
       <Hud score={hud.score} left={<div className="lv-arc-led"><span className="text-[9px] opacity-70">TIME</span><b>{hud.phase === 'busy' ? '--' : hud.left}</b></div>}
         right={endless ? <Lives n={hud.tries} max={3} /> : <div className="lv-arc-led"><span className="text-[9px] opacity-70">TRIES</span><b>{hud.tries}</b></div>} />
       <div className="absolute inset-x-0 bottom-3 flex items-end justify-center gap-6">
-        {btn('x', '→', hud.phase === 'x')}
-        {btn('z', '↑', hud.phase === 'z')}
+        {btn('x', MIR.x ? '←' : '→', hud.phase === 'x')}
+        {btn('z', MIR.y ? '↓' : '↑', hud.phase === 'z')}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-[88px] text-center font-mono text-[11px] font-bold text-white/70">{hud.phase === 'x' ? 'HOLD → TO SLIDE ACROSS' : hud.phase === 'z' ? 'HOLD ↑ TO SEND IT BACK · LET GO TO DROP' : 'GRABBING…'}</div>
       {pops.el}
