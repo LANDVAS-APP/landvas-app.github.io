@@ -2,15 +2,15 @@
 import type { ReactNode } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Cashouts, Earnings, Flags, Plots, ReviewTab, ShopAdmin, SocialAdmin, System, World } from '../../../src/admin/AdminScreen';
-import { IntegrityAdmin } from '../../../src/admin/IntegrityAdmin';
 import { SupportAdmin, UpdatesAdmin } from '../../../src/admin/UpdatesSupportAdmin';
 import { ChallengesAdmin } from '../../../src/admin/EarnAdmin';
 import { AllRollGrants } from '../../../src/admin/RollGrants';
 import { PageHeader, Panel } from '../../shared/ui';
+import FairPlayPage from './FairPlay';
 
 const TOOLS: Record<string, { title: string; sub: string; el: () => ReactNode }> = {
   review: { title: 'Art review', sub: 'Approve or reject artwork before it goes on the map, and handle reports.', el: () => <ReviewTab /> },
-  integrity: { title: 'Fair play', sub: 'Risk scores, linked accounts and actions against cheating and multi-accounting.', el: () => <IntegrityAdmin /> },
+  integrity: { title: 'Fair play', sub: 'Risk scores and linked accounts, the egg loop (and the plots it rolled), and every player’s ultras and rent.', el: () => <FairPlayPage /> },
   support: { title: 'Support', sub: 'Players’ tickets and your replies.', el: () => <SupportAdmin /> },
   social: { title: 'Chat & social', sub: 'Chat moderation, bans shown to players, invites and friendships.', el: () => <SocialAdmin /> },
   earnings: { title: 'Rates & rarities', sub: 'Every way to earn, rarity odds and USD rates, plot prices, boosts and enchantments.', el: () => <Earnings /> },

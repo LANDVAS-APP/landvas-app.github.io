@@ -10,6 +10,7 @@ import { PlayerMinigameStats } from '../../../src/admin/PvpAdmin';
 import { PlayerPlots } from '../../../src/admin/PlayerPlots';
 import { rarityInfo } from '../../../src/shared/rarity';
 import { portal, type WhoAmI } from '../../shared/api';
+import { EggLoopPlayer, PlayerUltras } from './FairPlay';
 import { HBars, Split, TimeChart, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { DataTable, type Col } from '../../shared/table';
@@ -98,6 +99,7 @@ function Overview({ d, id }: { d: any; id: string }) {
         <Stat label="Plots" value={int(d.counts.plots)} sub={`${int(d.counts.plots_ever)} ever owned`} />
         <Stat label="Streak" value={int(d.streak?.streak ?? 0)} sub={`best ${int(d.streak?.best ?? 0)} · ${int(d.streak?.total_days ?? 0)} days played`} />
       </div>
+      <PlayerUltras id={id} />
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Their last {days} days</h2>
         <Seg value={days} onChange={setDays} options={[{ value: 14, label: '14 days' }, { value: 30, label: '30 days' }, { value: 90, label: '90 days' }, { value: 365, label: 'A year' }]} />
@@ -293,6 +295,7 @@ function FairPlay({ id, pacing }: { id: string; pacing: any[] }) {
   const q = useQuery({ queryKey: ['admin', 'integrity-player', id], queryFn: () => api.admin.integrityPlayer(id) });
   return (
     <div className="grid gap-3">
+      <EggLoopPlayer id={id} embedded />
       <Q q={q}>{(d) => (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

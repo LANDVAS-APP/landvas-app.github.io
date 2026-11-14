@@ -55,6 +55,18 @@ export const portal = {
   secrets: () => rpc<SecretsAdmin>('admin_arcade_secrets'),
   secretSave: (id: string, cfg: Record<string, any>) => rpc<SecretsAdmin>('admin_arcade_secret_save', { p_id: id, p_cfg: cfg }),
   secretFinder: (id: string, player: string, found: boolean) => rpc<SecretStats>('admin_arcade_secret_finder', { p_id: id, p_player: player, p_found: found }),
+  // fair play: the egg loop (moderators look, economy staff fix) and ultras & rent
+  eggLoopScan: (min = 1) => rpc<EggLoopScan>('admin_egg_loop_scan', { p_min: min }),
+  eggLoopPlayer: (id: string) => rpc<EggLoopPlayer>('admin_egg_loop_player', { p_player: id }),
+  eggLoopFix: (id: string, plots: { gx: number; gy: number; action: 'downgrade' | 'take'; rarity?: string | null }[], reason: string) =>
+    rpc<EggLoopPlayer & { done: number; results: { gx: number; gy: number; ok: boolean; why?: string }[] }>('admin_egg_loop_fix', { p_player: id, p_plots: plots, p_reason: reason }),
+  eggLoopUndo: (fix: number) => rpc<EggLoopPlayer>('admin_egg_loop_undo', { p_fix: fix }),
+  eggLoopReverse: (id: string, plots: { gx: number; gy: number }[], mode: 'all' | 'extra', reason: string, preview: boolean) =>
+    rpc<any>('admin_egg_loop_reverse', { p_player: id, p_plots: plots, p_mode: mode, p_reason: reason, p_preview: preview }),
+  eggLoopReverseUndo: (id: number) => rpc<EggLoopPlayer & { ink_returned: number; usd_returned: number }>('admin_egg_loop_reverse_undo', { p_id: id }),
+  ultraScan: (a: { q?: string; min?: number; sort?: 'boosted' | 'ultras' | 'crowns' | 'plots'; limit?: number }) =>
+    rpc<UltraScan>('admin_ultra_scan', { p_q: a.q || null, p_min: a.min ?? 1, p_sort: a.sort ?? 'boosted', p_limit: a.limit ?? 200 }),
+  playerUltras: (id: string) => rpc<PlayerUltras>('admin_player_ultras', { p_player: id }),
   // players
   me: () => rpc<any>('portal_me_summary'),
   meSeries: (days: number, tz: string) => rpc<Day[]>('portal_me_series', { p_days: days, p_tz: tz }),
@@ -85,3 +97,24 @@ export type SecretStats = { finders: number; finders_7d: number; plays: number; 
 export type SecretRow = { id: string; cfg: Record<string, any>; updated_at: string; updated_by: { username: string } | null; stats: SecretStats };
 export type HallCabinet = { id: string; name: string; emoji: string; color: string; order: number; level: number | null; cell: [number, number] | null };
 export type SecretsAdmin = { secrets: SecretRow[]; cabinets: HallCabinet[] };
+
+export type EggLoopStats = { sacrificed: number; luck_from_inkborn: number; luck_total: number; first_at: string | null; last_at: string | null; peak_day: number;
+  made: number; alive: number; eggs: number; after_fix: number; could_have: number; excess: number };
+export type EggLoopScan = { fixed_at: string; rows: { player: any; email: string | null; status: string; stats: EggLoopStats;
+  rolls: { n: number; improved: number; ultras: number; open: number; fixed: number } }[] };
+export type EggLoopPlot = { gx: number; gy: number; rolled_at: string; options: string[]; shinies: boolean[] | null; kept: number; kept_rarity: string; own: string; own_shiny: boolean;
+  improved: boolean; ultra: boolean; in_window: boolean; theirs: boolean; rarity: string | null; shiny: boolean; name: string | null; level: number | null;
+  fix: { id: number; action: 'downgrade' | 'take'; from: string; to: string | null; at: string } | null };
+export type EggLoopPlayer = { player: any; email: string | null; stats: EggLoopStats; fixed_at: string; days: { day: string; inkborn: number; luck: number }[];
+  plots: EggLoopPlot[]; fixes: { id: number; gx: number; gy: number; action: 'downgrade' | 'take'; from: string; from_shiny: boolean; to: string | null; to_shiny: boolean | null;
+    reason: string; at: string; by: string | null; undone_at: string | null }[];
+  reversals: { id: number; mode: 'all' | 'extra'; plots: number; ink_games: number; usd: number; usd_taken: number; usd_as_ink: number; ink_taken: number;
+    plots_removed: { gx: number; gy: number; rarity: string; ink: number }[]; plots_ink: number; debt: number; reason: string; at: string; by: string | null; undone_at: string | null }[];
+  owed: number; tiers: { id: string; name: string; ultra: boolean }[]; can_fix: boolean; can_take: boolean };
+export type UltraRow = { player: any; email: string | null; ultras: number; crowns: number; shiny_ultras: number; plots: number; rate: number; day: number; day_free_boosts: number;
+  day_boosted: number; by_rarity: { rarity: string; n: number }[]; egg_loop: number };
+export type UltraScan = { boost_mult: number; free_boost_seconds: number; totals: { players: number; ultras: number; crowns: number; day: number; day_boosted: number }; rows: UltraRow[] };
+export type PlayerUltras = { plots: number; ultras: number; crowns: number; shiny_ultras: number; by_rarity: { rarity: string; n: number; shiny: number }[];
+  list: { gx: number; gy: number; rarity: string; shiny: boolean; level: number; name: string | null; claimed_at: string | null; rate: number; luck: boolean }[];
+  rent_mult: number; boost_mult: number; free_boost_seconds: number; rate: number; ultra_rate: number; extras_day: number; day: number; day_free_boosts: number; day_boosted: number;
+  egg_loop: EggLoopStats | null };

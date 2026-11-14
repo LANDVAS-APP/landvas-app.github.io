@@ -52,7 +52,7 @@ export const resourceName = (r: string) => RESOURCES[r] ?? words(r);
 const REASONS: Record<string, string> = {
   minigame_reward: 'Plot minigames', minigame: 'Plot minigames', acquire_plot: 'Buying plots', starter_bonus: 'Welcome bonus', publish_reward: 'Publishing art',
   daily_wheel: 'Daily wheel', daily_streak: 'Daily streak', admin_adjustment: 'Adjustment by LANDVAS', referral_share: 'Invite share', referral_reward: 'Invite reward',
-  fresh_start_event: 'Fresh Start credit', integrity_penalty: 'Fair-play correction', integrity_refund: 'Fair-play refund', achievement: 'Achievements',
+  fresh_start_event: 'Fresh Start credit', integrity_penalty: 'Fair-play correction', integrity_refund: 'Fair-play refund', egg_loop_reversal: 'Fair-play correction (egg loop)', egg_loop_refund: 'Fair-play refund (egg loop)', debt_repay: 'Owed Ink repaid', achievement: 'Achievements',
   upgrade_plot: 'Plot upgrades', boost: 'Rent boosts', convert: 'USD → Ink conversion', luck: 'Luck', inkborn: 'Inkborn', farm: 'Farm', arcade: 'Arcade',
   business: 'Business', space: 'Space', realm: 'Realms', travel: 'Travel', pvp: 'PvP', challenge: 'Challenges', craft: 'Crafting', inspire: 'Inspire',
   inspire_given: 'Inspiring others', room_visit: 'Room visits', room_host: 'Hosting visitors', enchantment: 'Enchantments', group_game: 'Group games',
