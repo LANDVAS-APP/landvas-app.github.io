@@ -129,9 +129,12 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
                 {act0.perfect && <span className="lv-badge-perfect">✦ Perfect Match</span>}
                 {act0.data?.aberration && <span className="lv-badge-aberr">☣️ Aberration</span>}
                 {act0.data?.unstable && <span className="rounded-full bg-[#FF4D6D] px-2 py-0.5 text-[10px] font-black text-white">⚠️ UNSTABLE</span>}
+                {act0.data?.coil_by && <span className="rounded-full bg-[#3DDC97] px-2 py-0.5 text-[10px] font-black text-[#03160F]">🐍 COILED{Number(act0.data?.coil_k ?? 0) > 1 ? ` ×${act0.data.coil_k}` : ''}</span>}
+                {Number(act0.data?.storm_k ?? 0) > 1 && <span className="rounded-full bg-[#7DF9FF] px-2 py-0.5 text-[10px] font-black text-[#04102E]">⚡ SURGED ×{act0.data.storm_k}</span>}
+                {Number(act0.data?.renewed ?? 0) > 0 && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-black">♾️ renewed ×{act0.data.renewed}</span>}
               </div>
               <div className="text-[12px] text-white/70">{members.map((m) => m.name).join(act0.mode === 'graft' ? ' ← ' : ' + ')}{act0.mode === 'plot' ? ' + your plot' : ''}</div>
-              <div className="mt-1 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black text-white">{act0.data?.unstable ? 'Rejects in ' : 'Fused for '}{dur(endsIn)}</div>
+              <div className="mt-1 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black text-white">{act0.data?.coil_by ? 'Loops again in ' : act0.data?.unstable ? 'Rejects in ' : 'Fused for '}{dur(endsIn)}</div>
             </div>
           </div>
         ) : view.invite ? (
@@ -194,7 +197,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
         <>
           <div className="flex items-center justify-between text-[12px]">
             <span className="font-black uppercase tracking-wider text-white/60">{mode === 'friend' ? (a ? 'Now a friend’s enchantment' : 'First, one of yours') : mode === 'plot' ? (a ? 'Now pick the plot' : 'First, the enchantment') : `Pour in ${slots} enchantments`}</span>
-            <span className="font-bold text-[#9BF6E5]">{view.charges}/{view.max} charges{view.charges < view.max ? ` · next ${dur(nextIn)}` : ''}</span>
+            <span className="font-bold text-[#9BF6E5]" data-testid="splice-charges">{view.natural ?? view.charges}/{view.max} charges{Number(view.bonus ?? 0) > 0 ? ` + ${view.bonus} spare` : ''}{(view.natural ?? view.charges) < view.max ? ` · next ${dur(nextIn)}` : ''}</span>
           </div>
           {(mode !== 'friend' && mode !== 'plot') || !a ? (
             <div className="flex gap-2 overflow-x-auto pb-1" data-testid="splice-pool">
@@ -248,11 +251,57 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
           </Button>
         </>
       )}
+      <MoreCharges view={view} act={act} busy={busy} />
       <div className="flex items-center justify-between rounded-2xl border border-[#00F5D4]/25 bg-[#00F5D4]/[0.06] px-3 py-2 text-[12px]" data-testid="splice-codex">
         <span className="font-black text-[#9BF6E5]">🧬 Splice Codex</span>
         <span className="font-bold text-white/70">{codexN}/{HYBRID_COUNT} hybrids · {(view.trinities ?? []).length} trinities · {(view.aberrations ?? []).length}/6 aberrations</span>
       </div>
-      <p className="text-center text-[11px] text-white/55">{view.made} splice{view.made === 1 ? '' : 's'} made. A Clockwork can freeze a hybrid to keep it fused longer.</p>
+      <p className="text-center text-[11px] text-white/55">{view.made} splice{view.made === 1 ? '' : 's'} made. A Clockwork can freeze a hybrid to keep it fused longer; an Ouroboros can coil it into loops; a Storm Coil’s lightning mutates it.</p>
+    </div>
+  );
+}
+
+/** more charges: a bigger lab with more plots, spare charges for Ink or an Inkborn egg, sparks from golden eggs and hearts */
+function MoreCharges({ view, act, busy }: { view: any; act: SceneProps['act']; busy: string | null }) {
+  const [open, setOpen] = useState(false);
+  const lab = view.lab ?? {}, shop = view.shop ?? {}, eggs: any[] = view.eggs ?? [];
+  const full = Number(view.bonus ?? 0) >= Number(shop.bonus_max ?? 6);
+  const buy = async () => { const r = await act('buy', {}, { silent: true }); if (r) { feel('success'); efx.burst({ x: innerWidth / 2, y: innerHeight * 0.5, colors: ['#00F5D4', '#9B5DE5', '#fff'], count: 90, speed: 9, kind: 'spark' }); } };
+  const crack = async (id: string) => { const r = await act('egg', { egg: id }, { silent: true }); if (r) { feel('success'); efx.burst({ x: innerWidth / 2, y: innerHeight * 0.5, colors: ['#FFF3C9', '#00F5D4', '#fff'], count: 90, speed: 9, kind: 'glitter' }); } };
+  return (
+    <div className="grid gap-2 rounded-2xl border border-[#9B5DE5]/30 bg-[#9B5DE5]/[0.07] p-3" data-testid="splice-more">
+      <button className="flex items-center justify-between text-left" onClick={() => setOpen((x) => !x)}>
+        <span className="text-[13px] font-black text-[#E5CCFF]">⚡ More charges</span>
+        <span className="text-[11px] font-bold text-white/60">Lab tier {lab.tier ?? 1} · holds {view.max} · {Number(view.bonus ?? 0)}/{shop.bonus_max ?? 6} spare {open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="grid gap-2 text-[12px]">
+          <div className="rounded-xl bg-black/25 p-2.5 text-white/80">
+            🏞️ <b>Your lab grows with your land.</b> With {lab.plots ?? 0} plots it holds {view.max} charges and brings one back every {lab.recharge_h} h.
+            {lab.next_plots ? <> At <b>{lab.next_plots} plots</b>: {lab.next_max} charges, one every {lab.next_recharge_h} h.</> : ' That’s the biggest lab there is.'}
+          </div>
+          <div className="flex items-center gap-2 rounded-xl bg-black/25 p-2.5">
+            <span className="min-w-0 flex-1 text-white/80">💧 <b>Buy a spare</b> — the price doubles each time ({shop.bought ?? 0}/{shop.per_day ?? 3} today). Spares never expire and don’t count against the lab.</span>
+            <Button size="sm" variant="rainbow" disabled={!!busy || shop.price == null || full} onClick={() => void buy()} data-testid="splice-buy">{full ? 'Full' : shop.price == null ? 'Tomorrow' : `${Number(shop.price).toLocaleString()} Ink`}</Button>
+          </div>
+          <div className="grid gap-1.5 rounded-xl bg-black/25 p-2.5">
+            <span className="text-white/80">🥚 <b>Crack an Inkborn egg</b> into the vat for a spare ({shop.eggs ?? 0}/{shop.eggs_per_day ?? 2} today). The egg is used up.</span>
+            {eggs.length ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {eggs.map((g) => (
+                  <button key={g.id} disabled={!!busy || full || Number(shop.eggs ?? 0) >= Number(shop.eggs_per_day ?? 2)} onClick={() => void crack(g.id)}
+                    className="grid w-16 shrink-0 justify-items-center rounded-xl bg-white/[0.06] p-1.5 text-[10px] font-black disabled:opacity-40" data-testid="splice-egg">
+                    <span className="text-2xl">{g.mutated ? '🌟' : '🥚'}</span>{g.kind}
+                  </button>
+                ))}
+              </div>
+            ) : <span className="text-[11px] text-white/50">No unhatched eggs — Inkborn playdates lay them.</span>}
+          </div>
+          <div className="rounded-xl bg-black/25 p-2.5 text-white/75">
+            🪿 A Golden Goose egg carries a spark {shop.spark_pct ?? 20}% of the time (a Platinum one always does) · 🧫 a Homunculus’s heart brings one.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

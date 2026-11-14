@@ -24,6 +24,7 @@ import { feel } from './living';
 import { ParasiteWraps } from './ParasiteWraps';
 import { useDigChest } from './Chests';
 import { usePlotPick } from './plotPick';
+import { MapMarvels } from './MapMarvels';
 import { useWarp } from './scenes/WormholeScene';
 import './enchant.css';
 
@@ -84,6 +85,7 @@ function creature(p: EnchantMap['plots'][number]) {
     goose: '<i class="egg"></i>', genie: '<i class="puff"></i><i class="puff"></i><i class="puff"></i>', map: '<i class="x">✕</i>', parasite: '<i class="drip"></i>',
     cuckoo: '<i class="feather">🪶</i>', pandora: '<i class="glow"></i>', splice: '<i class="bub"></i><i class="bub"></i><i class="bub"></i>', clockwork: '<i class="gear">⚙</i>',
     sizeray: '<i class="wave"></i><i class="wave"></i>', shard: '<i class="glint"></i>', wormhole: '<i class="swirl"></i>', oracle: '<i class="lid"></i>',
+    ouroboros: '<i class="ring"></i>', homunculus: '<i class="bub"></i><i class="bub"></i>', stormcoil: '<i class="zap">⚡</i>',
   };
   return `<span class="lv-cr k-${p.reflect ?? p.kind} lvl${lvl}${night ? ' night' : ''}${dusty ? ' dusty' : ''}" style="--a:${k.a};--b:${k.b};--r:${p.mine ? '#FFD23F' : k.a}">`
     + `<span class="lv-cr-ring"></span>${lvl >= 6 ? '<span class="lv-cr-crown">👑</span>' : ''}<span class="lv-cr-body">${k.emoji}</span>${fx[p.reflect ?? p.kind] ?? ''}`
@@ -326,5 +328,8 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
     shown.current = new Set();
   }, []);
 
-  return <ParasiteWraps ready={ready} attached={(data?.attached ?? []).filter((a) => a.what === 'parasite')} />;
+  return <>
+    <ParasiteWraps ready={ready} attached={(data?.attached ?? []).filter((a) => a.what === 'parasite')} />
+    <MapMarvels ready={ready} />
+  </>;
 }

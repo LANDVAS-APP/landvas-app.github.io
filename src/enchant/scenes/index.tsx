@@ -12,10 +12,14 @@ import { SizeRayScene } from './SizeRayScene';
 import { SpliceScene } from './SpliceScene';
 import { WormholeScene } from './WormholeScene';
 import { OracleScene } from './OracleScene';
+import { OuroborosScene } from './OuroborosScene';
+import { HomunculusScene } from './HomunculusScene';
+import { StormCoilScene } from './StormCoilScene';
 
 const SCENES: Record<string, (p: SceneProps) => React.ReactElement> = {
   goose: GooseScene, genie: GenieScene, map: MapScene, parasite: ParasiteScene, cuckoo: CuckooScene, pandora: PandoraScene,
   splice: SpliceScene, clockwork: ClockworkScene, sizeray: SizeRayScene, shard: ShardScene, wormhole: WormholeScene, oracle: OracleScene,
+  ouroboros: OuroborosScene, homunculus: HomunculusScene, stormcoil: StormCoilScene,
 };
 
 export function SceneFor({ kind, ...p }: SceneProps & { kind: string }) {

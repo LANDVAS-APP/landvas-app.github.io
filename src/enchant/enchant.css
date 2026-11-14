@@ -365,3 +365,101 @@ html.reduce-motion .lv-lev-marker::before, html.reduce-motion .lv-lev-marker::af
   .lv-lev-moment.fallen { background: radial-gradient(circle at 50% 40%, rgb(110, 80, 10), rgb(10, 6, 2)); }
   .lv-coil { animation: none; }
 }
+
+/* ===== part 4: the Ouroboros, the Homunculus, the Storm Coil ===== */
+/* ---- creatures on their plots ---- */
+.k-ouroboros .ring { inset: -5px; border-radius: 999px; border: 3px solid transparent; border-top-color: #3DDC97; border-right-color: #9BF6C9; animation: lv-sigil-spin 2.4s linear infinite; }
+.k-homunculus .bub { width: 5px; height: 5px; border-radius: 999px; background: rgba(255, 154, 200, 0.85); bottom: 4px; left: 19px; animation: lv-smoke 2.2s ease-out infinite; }
+.k-homunculus .bub:nth-of-type(2) { left: 25px; animation-delay: 1.1s; }
+.k-homunculus .lv-cr-body { animation: lv-homu-float 2.6s ease-in-out infinite; }
+.k-stormcoil .zap { font-size: 13px; right: -6px; top: -6px; animation: lv-storm-flicker 1.7s steps(1) infinite; }
+@keyframes lv-homu-float { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+@keyframes lv-storm-flicker { 0%, 100% { opacity: 1; } 8% { opacity: 0.2; } 12% { opacity: 1; } 55% { opacity: 0.4; } 58% { opacity: 1; } }
+
+/* ---- 🐍 the serpent's ring (scene) ---- */
+.lv-ouro-spin { transform-origin: 50% 50%; animation: lv-ouro-turn 14s linear infinite; }
+.lv-ouro-spin.fast { animation-duration: 3.5s; }
+@keyframes lv-ouro-turn { to { transform: rotate(360deg); } }
+.lv-ouro-tail { transform-origin: 50% 50%; animation: lv-ouro-glint 1.1s ease-in-out infinite; }
+@keyframes lv-ouro-glint { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.lv-ouro-pip { display: grid; place-items: center; height: 30px; border-radius: 10px; font: 900 10px/1 var(--font-display); }
+.lv-ouro-grade { animation: lv-ouro-pop 0.9s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes lv-ouro-pop { 0% { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+.lv-ouro-shed { animation: lv-ouro-shed 4s ease-in-out infinite; }
+@keyframes lv-ouro-shed { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.04); } }
+/* on the map: a serpent coiled round the plot */
+.lv-ouro-mk { position: relative; display: grid; place-items: center; width: 62px; height: 62px; pointer-events: none; }
+.lv-ouro-mk i { position: absolute; inset: 0; border-radius: 999px; border: 4px dotted #3DDC97; animation: lv-ouro-turn 6s linear infinite; box-shadow: 0 0 14px rgba(61, 220, 151, 0.6); }
+.lv-ouro-mk b { position: absolute; top: -6px; right: -4px; min-width: 20px; padding: 1px 5px; border-radius: 999px; font: 900 10px/1.4 system-ui; color: #03160F; background: #9BF6C9; box-shadow: 0 0 0 1.5px #03160F; }
+.lv-ouro-mk.closed i { border-color: #FFD23F; box-shadow: 0 0 18px #FFD23F; }
+
+/* ---- 🧫 the flask (scene) ---- */
+.lv-homu-figure svg { overflow: visible; }
+.lv-homu-figure .gear { transform-box: fill-box; transform-origin: center; animation: lv-sigil-spin 5s linear infinite; }
+.lv-homu-figure .tend { transform-box: fill-box; transform-origin: top center; animation: lv-rustle 1.6s ease-in-out infinite; }
+.lv-homu-figure .wing { transform-box: fill-box; transform-origin: right center; animation: lv-homu-flap 1.4s ease-in-out infinite; }
+.lv-homu-figure .wing.r { transform-origin: left center; animation-delay: 0.1s; }
+.lv-homu-figure .spark { animation: lv-storm-flicker 1.3s steps(1) infinite; }
+.lv-homu-figure .glow { filter: drop-shadow(0 0 4px #FF5CDB) drop-shadow(0 0 8px #FFD23F); }
+.lv-homu-figure.walking { animation: lv-homu-walk 0.9s ease-in-out infinite; }
+@keyframes lv-homu-flap { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-16deg); } }
+@keyframes lv-homu-walk { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
+.lv-homu-liquid { transform-origin: 50% 100%; animation: lv-homu-slosh 3.4s ease-in-out infinite; }
+@keyframes lv-homu-slosh { 0%, 100% { transform: skewX(0deg); } 25% { transform: skewX(3deg); } 75% { transform: skewX(-3deg); } }
+.lv-homu-bub { position: absolute; bottom: 12%; width: 8px; height: 8px; border-radius: 999px; border: 1.5px solid rgba(255, 220, 240, 0.8); animation: lv-homu-rise 3s ease-in infinite; }
+@keyframes lv-homu-rise { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-160px) scale(1.2); opacity: 0; } }
+.lv-homu-hold { position: relative; overflow: hidden; }
+.lv-homu-hold::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: rgba(255, 255, 255, 0.28); }
+.lv-homu-heart { animation: lv-homu-beat 1s ease-in-out infinite; }
+@keyframes lv-homu-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } 30% { transform: scale(0.96); } 45% { transform: scale(1.1); } }
+/* on the map: it walks between your plots */
+.lv-homu-mk { position: relative; display: grid; justify-items: center; gap: 1px; cursor: pointer; }
+.lv-homu-mk .fig { width: 46px; height: 46px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55)); }
+.lv-homu-mk .tag { padding: 1px 7px; border-radius: 999px; font: 900 10px/1.4 system-ui; white-space: nowrap; color: #22061A; background: linear-gradient(90deg, #FF9AC8, #FFE8A3); }
+.lv-homu-mk .tag.mine { background: linear-gradient(90deg, #FFD23F, #FF9AC8); }
+.lv-homu-mk .wave { position: absolute; top: -10px; right: -12px; font-size: 16px; animation: lv-wobble 1.4s ease-in-out infinite; }
+
+/* ---- ⚡ the coil and the storm (scene) ---- */
+.lv-storm-arc { animation: lv-storm-flicker 0.9s steps(1) infinite; }
+.lv-storm-arc:nth-of-type(2) { animation-delay: 0.3s; } .lv-storm-arc:nth-of-type(3) { animation-delay: 0.6s; }
+.lv-storm-rain { position: absolute; inset: -20% 0 0; background-image: linear-gradient(105deg, transparent 0 48%, rgba(170, 210, 255, 0.35) 49% 51%, transparent 52%);
+  background-size: 14px 40px; animation: lv-storm-rain 0.5s linear infinite; pointer-events: none; }
+@keyframes lv-storm-rain { from { transform: translateY(-40px); } to { transform: translateY(0); } }
+.lv-storm-cloud { animation: lv-storm-drift 9s ease-in-out infinite; }
+@keyframes lv-storm-drift { 0%, 100% { transform: translateX(-4%); } 50% { transform: translateX(4%); } }
+.lv-storm-flash { position: absolute; inset: 0; background: #E8F6FF; opacity: 0; pointer-events: none; animation: lv-storm-white 0.35s ease-out; }
+@keyframes lv-storm-white { 0% { opacity: 0.75; } 100% { opacity: 0; } }
+.lv-storm-tgt { position: absolute; display: grid; place-items: center; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 999px; font-size: 24px;
+  background: radial-gradient(circle, rgba(125, 249, 255, 0.12), transparent 70%); transition: transform 0.12s; touch-action: manipulation; }
+.lv-storm-tgt .ret { position: absolute; inset: -6px; border-radius: 999px; border: 3px solid #7DF9FF; opacity: 0; transform: scale(1.8); }
+.lv-storm-tgt.charging .ret { opacity: 1; transform: scale(1); transition: transform 1.5s linear, opacity 0.2s; box-shadow: 0 0 18px #7DF9FF; }
+.lv-storm-tgt.charging { transform: scale(1.1); }
+.lv-storm-tgt .bolt { position: absolute; bottom: 50%; left: 50%; width: 30px; height: 220px; margin-left: -15px; opacity: 0; pointer-events: none; }
+.lv-storm-tgt.strike .bolt { opacity: 1; animation: lv-storm-strike 0.8s ease-out both; }
+@keyframes lv-storm-strike { 0% { opacity: 1; transform: scaleY(0.2); transform-origin: bottom; } 15% { transform: scaleY(1); } 100% { opacity: 0; } }
+.lv-storm-tgt.caught { animation: lv-ouro-pop 0.6s cubic-bezier(.2, 1.6, .4, 1) both; }
+.lv-storm-tgt.caught::after { content: ''; position: absolute; inset: -10px; border-radius: 999px; box-shadow: 0 0 0 3px #FFE8A3, 0 0 26px #7DF9FF; opacity: 0.9; }
+.lv-storm-tgt.scorched { filter: grayscale(1) brightness(0.6); }
+.lv-storm-pop { position: absolute; z-index: 3; transform: translate(-50%, -100%); white-space: nowrap; padding: 2px 8px; border-radius: 999px; font: 900 11px/1.4 var(--font-display); color: #04102E;
+  background: linear-gradient(90deg, #7DF9FF, #FFE8A3); animation: lv-storm-up 1.6s ease-out both; pointer-events: none; }
+@keyframes lv-storm-up { 0% { transform: translate(-50%, -60%) scale(0.6); opacity: 0; } 15% { transform: translate(-50%, -110%) scale(1.1); opacity: 1; } 100% { transform: translate(-50%, -220%) scale(1); opacity: 0; } }
+/* on the map: a storm over the plots, bolts striking where they land */
+.lv-storm-mk { position: relative; display: block; width: 120px; height: 70px; pointer-events: none; }
+.lv-storm-mk::before { content: ''; position: absolute; left: 50%; top: 60%; width: 320px; height: 320px; margin: -160px 0 0 -160px; border-radius: 999px;
+  background: radial-gradient(circle, rgba(8, 16, 50, 0.5), rgba(8, 16, 50, 0.25) 45%, transparent 70%); }
+.lv-storm-mk .cl { position: absolute; inset: 0; font-size: 56px; line-height: 70px; text-align: center; filter: drop-shadow(0 6px 10px rgba(0, 0, 40, 0.6)); animation: lv-storm-drift 6s ease-in-out infinite; }
+.lv-storm-mk b { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); white-space: nowrap; padding: 1px 8px; border-radius: 999px; font: 900 10px/1.4 system-ui; color: #04102E; background: #7DF9FF; }
+.lv-storm-bolt-mk { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; opacity: 0; transition: opacity 0.2s; }
+.lv-storm-bolt-mk.charging, .lv-storm-bolt-mk.strike { opacity: 1; }
+.lv-storm-bolt-mk .ret { position: absolute; inset: 0; border-radius: 999px; border: 3px solid #7DF9FF; box-shadow: 0 0 16px #7DF9FF; }
+.lv-storm-bolt-mk.charging .ret { animation: lv-sigil-pulse 0.5s ease-in-out infinite; }
+.lv-storm-bolt-mk .zz { position: absolute; bottom: 50%; left: 50%; width: 26px; height: 160px; margin-left: -13px; opacity: 0; }
+.lv-storm-bolt-mk.strike .zz { animation: lv-storm-strike 0.8s ease-out both; }
+.lv-storm-bolt-mk.stray .ret { border-color: #FFD23F; box-shadow: 0 0 16px #FFD23F; }
+.lv-storm-bolt-mk.done { opacity: 0 !important; pointer-events: none; }
+
+html.reduce-motion .lv-storm-rain, html.reduce-motion .lv-ouro-spin, html.reduce-motion .lv-homu-figure *, html.reduce-motion .lv-homu-figure.walking { animation: none !important; }
+/* phones: the rain slides a background (a repaint every frame) — it holds still there */
+@media (pointer: coarse) {
+  .lv-storm-rain { animation: none; }
+}

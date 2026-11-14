@@ -16,7 +16,9 @@ const results = []; const check = (n, ok, x = '') => { results.push(ok); console
 const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a), [f, a]);
 const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
 const nav = async (p) => { await page.evaluate((p) => window.__landvasNav(p), p); await page.waitForTimeout(900); };
-const KINDS = { goose: 'goose-scene', genie: 'genie-scene', map: 'map-scene', parasite: 'parasite-scene', cuckoo: 'cuckoo-scene', pandora: 'pandora-scene', splice: 'splice-scene', clockwork: 'clock-scene', sizeray: 'ray-scene', shard: 'shard-scene' };
+const KINDS = { goose: 'goose-scene', genie: 'genie-scene', map: 'map-scene', parasite: 'parasite-scene', cuckoo: 'cuckoo-scene', pandora: 'pandora-scene', splice: 'splice-scene', clockwork: 'clock-scene', sizeray: 'ray-scene', shard: 'shard-scene',
+  wormhole: 'wormhole-scene', oracle: 'oracle-scene', ouroboros: 'ouro-scene', homunculus: 'homu-scene', stormcoil: 'storm-scene' };
+const N = Object.keys(KINDS).length;
 try {
   await page.addInitScript(() => { try { const s = JSON.parse(localStorage.getItem('landvas.settings') || '{}'); if (!('simpleMode' in s)) localStorage.setItem('landvas.settings', JSON.stringify({ ...s, simpleMode: true })); } catch {} });
   await page.goto('http://localhost:4331/?e2e=1', { waitUntil: 'load' });
@@ -82,7 +84,7 @@ try {
     const g = await page.evaluate(([me, k]) => window.__landvasApi.admin.giveEnchantment(me, k, 'e2e: one of each', null), [me, k]);
     ids[k] = g.id;
   }
-  check('the owner can give every kind', Object.keys(ids).length === 10);
+  check('the owner can give every kind', Object.keys(ids).length === N);
   let i = 5;
   for (const [k, tid] of Object.entries(KINDS)) {
     await nav(`/grimoire/${ids[k]}`);
@@ -145,7 +147,7 @@ try {
   // ---- the book: list, bestiary, codex ----
   await nav('/grimoire'); await page.waitForSelector('[data-testid=grimoire-list]', { timeout: 20000 }); await page.waitForTimeout(1200);
   const cards = await page.locator('[data-testid=grimoire-card]').count();
-  check('the Grimoire lists all ten', cards === 10, `${cards}`);
+  check('the Grimoire lists every kind', cards === N, `${cards}`);
   check('…and shows your next roll’s chance', /0% Enchanted/.test(await page.textContent('[data-testid=grimoire-chance]')));
   await shot('19-grimoire-list');
   await nav('/grimoire?tab=bestiary'); await page.waitForSelector('[data-testid=grimoire-bestiary]', { timeout: 15000 }); await page.waitForTimeout(800);
@@ -153,7 +155,7 @@ try {
   check('the bestiary shows all ten kinds', /Golden Goose/.test(await page.textContent('[data-testid=grimoire-bestiary]')) && /Mirror Shard/.test(await page.textContent('[data-testid=grimoire-bestiary]')));
   await nav('/grimoire?tab=codex'); await page.waitForSelector('[data-testid=grimoire-codex]', { timeout: 15000 }); await page.waitForTimeout(800);
   await shot('21-codex');
-  check('the codex shows the Giant Goose, the rest still secret', /1\/55/.test(await page.textContent('[data-testid=grimoire-codex]')) && (await page.locator('[data-testid=grimoire-codex] [title="Giant Goose"]').count()) === 2 && (await page.locator('[data-testid=grimoire-codex] [title=Undiscovered]').count()) > 30);
+  check('the codex shows the Giant Goose, the rest still secret', /1\/91/.test(await page.textContent('[data-testid=grimoire-codex]')) && (await page.locator('[data-testid=grimoire-codex] [title="Giant Goose"]').count()) === 2 && (await page.locator('[data-testid=grimoire-codex] [title=Undiscovered]').count()) > 30);
   check('…and the Codex tab is the one lit', /Codex/.test(await page.textContent('[role=tab][data-state=active]')));
 
   // ---- the owner: the Enchantments card (Admin → Earnings) and “Give an enchantment” on a player ----
@@ -163,7 +165,7 @@ try {
   await page.getByRole('tab', { name: /^Earnings/ }).click().catch(() => {});
   await page.waitForSelector('[data-testid=enchant-cfg]', { timeout: 20000 });
   await page.locator('[data-testid=enchant-cfg]').scrollIntoViewIfNeeded(); await page.waitForTimeout(800);
-  check('the Enchantments card lists all twelve kinds with their numbers', (await page.locator('[data-testid=enchant-weight]').count()) === 12 && /#1/.test(await page.locator('[data-testid=enchant-weight]').first().getAttribute('data-pop')));
+  check('the Enchantments card lists every kind with their numbers', (await page.locator('[data-testid=enchant-weight]').count()) === N && /#1/.test(await page.locator('[data-testid=enchant-weight]').first().getAttribute('data-pop')));
   await page.fill('#nf-chance-per-plot-roll', '5'); await page.fill('[aria-label="Mirror Shard weight"]', '0'); await page.waitForTimeout(300);
   await shot('21b-admin-enchant-card');
   const wide = await page.evaluate(() => document.querySelector('[data-testid=enchant-cfg]').scrollWidth - document.querySelector('[data-testid=enchant-cfg]').clientWidth);

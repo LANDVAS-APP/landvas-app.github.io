@@ -153,7 +153,7 @@ function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean 
   );
 }
 
-// ---- the ten kinds -----------------------------------------------------------------------------------------------------
+// ---- every kind -----------------------------------------------------------------------------------------------------
 function Bestiary({ data }: { data: Awaited<ReturnType<typeof api.enchantBestiary>> | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
@@ -414,6 +414,15 @@ const EV: Record<string, (d: any) => string> = {
   opened: (d) => `🌀 Opened a wormhole ${d.km} km wide (${d.stability}% stable, ${d.hours} h)`, caught: (d) => `🌀 Caught ${d.type === 'chest' ? 'a chest' : d.type === 'star' ? 'a falling star' : d.type === 'fox' ? 'a fox' : 'some spores'} from the wormhole`,
   gaze: (d) => `👁️ Gazed into ${d.what === 'roll' ? 'your next rolls' : d.what === 'reward' ? 'your next rewards' : d.what === 'pandora' ? 'Pandora’s lid' : 'the Goose’s eggs'}`,
   swap: () => '👁️ Rewrote fate: two cards swapped', burn: () => '🔥 Burned a card of fate', foretell: (d) => `🔏 Sealed a prophecy for @${d.to}`, prophecy_true: () => '✅ A sealed prophecy came true',
+  coiled: (d) => `🐍 Coiled around ${d.hybrid}`, looped: (d) => `🐍 Loop ${d.loop} held — ${d.bank} Ink banked`, catch: (d) => `🎯 ${d.grade === 'CLEAN' ? 'A clean catch' : d.grade === 'CLOSE' ? 'A close catch' : 'Missed the tail'} before loop ${d.loop}`,
+  bitten: (d) => `💥 Bit through on loop ${d.loop} — ${d.hybrid} snapped (${d.lost ?? 0} Ink lost)`, slipped: (d) => `🍀 Slipped a bite on loop ${d.loop}`, closed: (d) => `⭕ The circle closed around ${d.hybrid}`,
+  circle: (d) => `☣️ ${d.hybrid} became ${d.aberration}`, broke: (d) => `💰 Broke the circle after ${d.loops} loops (+${d.ink ?? 0} Ink)`, uncoiled: (d) => `🐍 Let go of ${d.hybrid} (the splice was separated)`,
+  renewed: (d) => `♾️ ${d.hybrid} renewed itself (${d.n}/${d.of})`,
+  drip: (d) => `🧪 ${d.hybrid} dripped in${(d.new ?? []).length ? ` — new: ${(d.new as string[]).map((k) => kindInfo(k).emoji).join(' ')}` : ''}${(d.grew ?? []).length ? ` · grew: ${(d.grew as string[]).map((k) => kindInfo(k).emoji).join(' ')}` : ''}${d.glow ? ' ✨' : ''}`,
+  awoke: (d) => `💓 Woke and walked out of the flask (${d.parts} parts, generation ${d.gen})`, led: () => '🫱 Led to a plot', greeted: (d) => `👋 @${d.by} said hello`,
+  heart: (d) => `❤️ Melted into a heart: +${d.ink ?? 0} Ink, +${d.luck} Enchanted Luck${d.spark ? ', a Splice charge' : ''}${d.kept ? ` · kept ${kindInfo(d.kept).emoji}` : ''}`,
+  storm: (d) => `⛈️ Called a storm (${d.bolts} bolts${d.hybrids ? `, ${d.hybrids} hybrids under it` : ''})`, storm_end: (d) => `⚡ The storm passed: ${d.caught}/${d.of} caught, +${d.ink ?? 0} Ink${d.scorched ? `, ${d.scorched} scorched` : ''}`,
+  charge: (d) => `⚡ A spare charge — ${d.from === 'ink' ? `bought for ${d.ink} Ink` : d.from === 'egg' ? `cracked a ${d.egg} egg` : d.from === 'goose' ? 'a spark from a golden egg' : d.from === 'heart' ? 'from a Homunculus’s heart' : d.from}`,
   invited: (d) => `🤝 Asked @${d.to} to splice: ${d.hybrid}`, leviathan: (d) => `🐉 Struck the Leviathan with ${d.move} — ${Number(d.dmg).toLocaleString()}`, reflect: (d) => `🪞 Reflected ${d.owner ? `@${d.owner}’s ` : 'a dream of a '}${kindInfo(d.kind).name}`, shatter: () => '💥 Shattered — and mended',
   seek_chest: (d) => `🧰 Dug up a chest its Seeking Trait buried: +${d.ink} Ink`, chime: () => '🔔 The clock chimed',
 };

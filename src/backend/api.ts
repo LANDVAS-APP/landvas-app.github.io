@@ -31,6 +31,11 @@ export type MapWormhole = { id: string; mine: boolean; owner_name?: string | nul
 export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string }[];
   attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
   giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[]; chests?: { id: number; gx: number; gy: number; ink: number; kind: string }[] };
+export type MapWalker = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; serial: number; nickname: string | null; sigil: number; level: number;
+  parts: { k: string; lv: number; glow: boolean }[]; mult: number; home: [number, number]; greeted: boolean };
+export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
+  bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
+export type EnchantMap2 = { walkers: MapWalker[]; coils: { id: string; gx: number; gy: number; loops: number; status: string; mine: boolean }[]; storms: MapStorm[]; server_now: number };
 export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null }[]; wormholes: MapWormhole[] };
 export type LevPos = { lng: number; lat: number; km: number; seg: number; heading: number; done: boolean; paused: boolean; haze?: boolean };
 export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number;
@@ -158,6 +163,9 @@ export const api = {
   enchantWorld: () => rpc<EnchantWorld>('enchant_world'),
   seekChests: () => rpc<SeekChest[]>('seek_chests'),
   seekChestDig: (id: number) => rpc<{ ink: number; gx: number; gy: number; kind: string; chests: SeekChest[] }>('seek_chest_dig', { p_id: id }),
+  enchantMap2: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap2>('enchant_map2', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
+  homunculusGreet: (id: string) => rpc<{ greeted: boolean; you: number; them: number }>('homunculus_greet', { p_id: id }),
+  stormCatch: (id: string, i: number) => rpc<{ caught: boolean; ink: number }>('storm_catch', { p_id: id, p_i: i }),
   sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),
   sizeUndo: (gx: number, gy: number) => rpc<{ undone: boolean; was_prank: boolean }>('size_undo', { p_gx: gx, p_gy: gy }),
   spliceFriends: () => rpc<SpliceFriend[]>('splice_friends'),

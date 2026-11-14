@@ -1,9 +1,10 @@
-// The twelve enchantments, their splice Traits, the 55 hybrids and the seven evils — a client mirror of the server's
+// The fifteen enchantments, their splice Traits, the 91 hybrids and the seven evils — a client mirror of the server's
 // private.ench_info / private.ench_hybrid / private.pandora_evils (the server is authoritative).
 //
 // Plain words everywhere: a splice "gene" is a Trait, a "resonant" pair is a Perfect Match, and every hybrid card says
 // what each side actually gets, with numbers.
-export type EnchantKind = 'goose' | 'genie' | 'map' | 'parasite' | 'cuckoo' | 'pandora' | 'splice' | 'clockwork' | 'sizeray' | 'shard' | 'wormhole' | 'oracle';
+export type EnchantKind = 'goose' | 'genie' | 'map' | 'parasite' | 'cuckoo' | 'pandora' | 'splice' | 'clockwork' | 'sizeray' | 'shard' | 'wormhole' | 'oracle'
+  | 'ouroboros' | 'homunculus' | 'stormcoil';
 
 export type KindInfo = {
   id: EnchantKind; name: string; emoji: string; a: string; b: string; ink: string;
@@ -71,11 +72,32 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
       'Rewrite fate: swap two cards, or burn one for a new draw (it might come out worse).',
       'Every card that comes true pays the Eye 8 Ink. Seal a prophecy about a friend’s next roll: when it comes true, you both get Ink. At level 10 it sees 5 cards and you can rewrite twice.'],
     gene: 'foresight', geneName: 'Foresight', geneText: 'earns 20% more Ink and sees 35% of bad luck coming (and dodges it)' },
+  ouroboros: { id: 'ouroboros', name: 'Ouroboros', emoji: '🐍', a: '#3DDC97', b: '#0E7C5A', ink: '#03160F', noun: 'endless splices',
+    tagline: 'The splice that eats its own tail — and never has to end.',
+    how: ['Coil it around any splice you have running (not a Graft). When the splice would end, it loops instead — every 12 hours.',
+      'Every loop that holds banks Ink and makes the hybrid stronger: Traits ×2 from loop 2, ×3 from loop 4. But each loop is likelier to bite through (0 → 10 → 20 → 35 → 50 → 60 → 70%). A bite snaps the splice, loses the bank, and the serpent sheds its skin for a day.',
+      'Catch the tail before a loop: tap as its head meets its tail. A clean catch halves that loop’s risk. Break the circle any time to cash out.',
+      'Survive seven loops and the circle closes: you choose which secret Aberration the hybrid becomes. A coiled unstable Chimera is steadied.'],
+    gene: 'endless', geneName: 'Endless', geneText: 'earns 10% more Ink, and its splice renews itself once when it ends' },
+  homunculus: { id: 'homunculus', name: 'Homunculus', emoji: '🧫', a: '#FF9AC8', b: '#8A3FFC', ink: '#22061A', noun: 'walking your plots',
+    tagline: 'A creature grown in a flask — out of your splices.',
+    how: ['Every splice you make drips into its flask: it grows a body part from each enchantment in it — goose wings, a genie’s smoke tail, clockwork gears, a glass eye… A part it already has grows instead. An Aberration’s parts glow and count double.',
+      'At 5 it can wake (4 if it’s spliced with a Storm Coil). It walks out onto the map for 7 days, moving between your plots every 2 hours — everyone can see it, and anyone can greet it (a few Ink each). Lead it to a plot twice a day.',
+      'The plot it stands on wears its parts: its minigames pay more (up to +150%).',
+      'Then it melts into a Heart — Ink, Enchanted Luck and a Splice charge — and keeps one part, of your choice, for the next one.'],
+    gene: 'patchwork', geneName: 'Patchwork', geneText: 'borrows a surprise Trait from the Homunculus’s parts on every reward' },
+  stormcoil: { id: 'stormcoil', name: 'Storm Coil', emoji: '⚡', a: '#7DF9FF', b: '#3D5AFE', ink: '#04102E', noun: 'lightning',
+    tagline: 'Crank it up. Call down a storm on your hybrids.',
+    how: ['Crank it full, then call a 3-minute thunderstorm over your plots — live, on the map too. Bolts gather and strike: tap them as they land.',
+      'A bolt on a spliced enchantment mutates it: +6 hours, a surge (its Traits doubled), an overcharge (its next reward ×2) — or, 1 in 6, a secret Aberration.',
+      'Bolts on your plots pay Ink; ones nobody catches can scorch the plot (its minigames −20% for an hour). Stray bolts land on neighbours’ plots — anyone can catch those.',
+      'One storm a day (two at level 10).'],
+    gene: 'charged', geneName: 'Charged', geneText: 'earns 25% more Ink, and a splice with it is 3× as likely to mutate into an Aberration' },
 };
-export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'cuckoo', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle'];
+export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'cuckoo', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle', 'ouroboros', 'homunculus', 'stormcoil'];
 export const kindInfo = (k: string | null | undefined): KindInfo => KINDS[(k ?? 'goose') as EnchantKind] ?? KINDS.goose;
 
-/** the 55 hybrids: [name, Perfect Match] (mirrors private.ench_hybrid) */
+/** the 91 hybrids: [name, Perfect Match] (mirrors private.ench_hybrid) */
 export const HYBRIDS: Record<string, [string, boolean]> = {
   'genie+goose': ['Wishing Goose', false], 'goose+map': ['Treasure Goose', false], 'goose+parasite': ['Leech Goose', false],
   'cuckoo+goose': ['Changeling Goose', true], 'goose+pandora': ['Cursed Goose', false], 'clockwork+goose': ['Clockwork Goose', false],
@@ -98,6 +120,19 @@ export const HYBRIDS: Record<string, [string, boolean]> = {
   'goose+oracle': ['Augur Goose', false], 'genie+oracle': ['Djinn of Fate', true], 'map+oracle': ['Seer’s Map', false],
   'oracle+parasite': ['Mind Leech', false], 'cuckoo+oracle': ['Prophet Cuckoo', false], 'oracle+pandora': ['Pandora’s Prophecy', true],
   'clockwork+oracle': ['Clock of Ages', false], 'oracle+sizeray': ['Far-Sight Ray', false], 'oracle+shard': ['Scrying Glass', false],
+  'goose+ouroboros': ['Eternal Egg', false], 'genie+ouroboros': ['Undying Djinn', false], 'map+ouroboros': ['Map of Return', false],
+  'ouroboros+parasite': ['Tail-Eater Worm', false], 'cuckoo+ouroboros': ['Ever-Nest', false], 'ouroboros+pandora': ['Box Without End', false],
+  'clockwork+ouroboros': ['Infinity Clock', true], 'ouroboros+sizeray': ['Coil Titan', false], 'ouroboros+shard': ['Endless Mirror', true],
+  'ouroboros+wormhole': ['Möbius Gate', false], 'oracle+ouroboros': ['Eye of Eternity', false],
+  'goose+homunculus': ['Golem Hen', false], 'genie+homunculus': ['Flask Djinn', true], 'homunculus+map': ['Patchwork Atlas', false],
+  'homunculus+parasite': ['Flesh-Weaver', true], 'cuckoo+homunculus': ['Changeling Child', false], 'homunculus+pandora': ['Box of Limbs', false],
+  'clockwork+homunculus': ['Clockwork Golem', false], 'homunculus+sizeray': ['Titan-Born', false], 'homunculus+shard': ['Glass Golem', false],
+  'homunculus+wormhole': ['Walker Between', false], 'homunculus+oracle': ['Many-Eyed Child', false],
+  'goose+stormcoil': ['Thunder Goose', false], 'genie+stormcoil': ['Storm Djinn', false], 'map+stormcoil': ['Map of Storms', false],
+  'parasite+stormcoil': ['Galvanic Leech', false], 'cuckoo+stormcoil': ['Thunderbird', true], 'pandora+stormcoil': ['Box of Thunder', false],
+  'clockwork+stormcoil': ['Dynamo Clock', false], 'sizeray+stormcoil': ['Plasma Ray', false], 'shard+stormcoil': ['Fulgurite', false],
+  'stormcoil+wormhole': ['Storm Gate', false], 'oracle+stormcoil': ['Eye of the Storm', true],
+  'homunculus+ouroboros': ['Undying Child', false], 'homunculus+stormcoil': ['Galvanized Golem', true], 'ouroboros+stormcoil': ['Storm Serpent', false],
 };
 export const HYBRID_COUNT = Object.keys(HYBRIDS).length;
 export const PERFECT_COUNT = Object.values(HYBRIDS).filter(([, p]) => p).length;
@@ -109,6 +144,8 @@ export const PERFECT_EXTRA: Record<string, string> = {
   'clockwork+wormhole': 'The wormhole’s clock runs fast: what comes through arrives hours early.',
   'genie+oracle': 'See how the Forbidden Wish will turn out before you make it.',
   'oracle+pandora': 'See what every notch of the lid will let out before you lift it.',
+  'clockwork+ouroboros': 'While they’re spliced, the Ouroboros’s coils loop every 6 hours instead of 12.',
+  'homunculus+stormcoil': 'Lightning wakes it: the Homunculus can wake with 4 parts instead of 5.',
 };
 
 // ---- Traits, in plain words ----------------------------------------------------------------------------------------
@@ -127,6 +164,9 @@ export const TRAITS: Record<string, TraitInfo> = {
   tempo: { name: 'Tempo', emoji: '⚙️', text: (k) => `its timers run ${k + 2}× as fast` },
   linked: { name: 'Linked', emoji: '🌀', text: (k) => `works as if on a second plot: +${40 * k}% Ink`, mult: (k) => 1 + 0.4 * k },
   foresight: { name: 'Foresight', emoji: '👁️', text: (k) => `earns ${20 * k}% more Ink and sees ${[35, 60, 80][k - 1]}% of bad luck coming`, mult: (k) => 1 + 0.2 * k },
+  endless: { name: 'Endless', emoji: '🐍', text: (k) => `earns ${10 * k}% more Ink, and the splice renews itself ${['once', 'twice', 'three times'][k - 1]} when it ends`, mult: (k) => 1 + 0.1 * k },
+  patchwork: { name: 'Patchwork', emoji: '🧫', text: (k) => `every reward borrows a surprise Trait from the Homunculus’s parts${k > 1 ? ` (at ${k}× strength)` : ''}` },
+  charged: { name: 'Charged', emoji: '⚡', text: (k) => `earns ${25 * k}% more Ink — and this splice was 3× as likely to mutate`, mult: (k) => 1 + 0.25 * k },
   // what a plot lends the enchantment spliced with it
   inspired: { name: 'Inspired', emoji: '🎨', text: () => 'earns 20% more Ink (your canvas inspires it)', mult: () => 1.2 },
   wild: { name: 'Wild', emoji: '🐾', text: () => 'earns 10% more Ink and levels up twice as fast', mult: () => 1.1 },
@@ -143,6 +183,7 @@ export const PAYS_FROM: Record<EnchantKind, string> = {
   goose: 'its golden eggs and chased foxes', genie: 'its Ink wishes', map: 'its treasure chests', parasite: 'its feeds', cuckoo: 'the chicks it raises',
   pandora: 'gifts from the box, and Hope', splice: 'the Chimera’s roars', clockwork: 'its daily chime (wind the day’s last turn)',
   sizeray: 'micro-gems and parasites it shrinks', shard: 'whatever it reflects', wormhole: 'what you catch coming through it', oracle: 'each prophecy that comes true',
+  ouroboros: 'its bank (when you break the circle or close it)', homunculus: 'its heart (when its week is up)', stormcoil: 'the bolts you catch in its storms',
 };
 /** what a kind's charge is called, where Wishing keeps one */
 const KEEPS: Partial<Record<EnchantKind, string>> = { genie: 'wish', sizeray: 'shot', oracle: 'gaze' };
@@ -152,12 +193,15 @@ const DODGES: Partial<Record<EnchantKind, (pct: number) => string>> = {
   genie: (p) => `the Forbidden Wish’s twist misses ${p}% of the time`,
   cuckoo: (p) => `${p}% of the time a thrown-out egg rolls on into a neighbour’s nest instead`,
   pandora: (p) => `${p}% of the curses that escape miss you`,
+  ouroboros: (p) => `${p}% of the time a loop that would bite through holds instead`,
+  stormcoil: (p) => `${p}% of the plots a missed bolt would scorch are spared`,
 };
-const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
+const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'endless', 'charged', 'patchwork', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
 /** what a reward's chip says when a Trait worked (mirrors the labels private.ench_pay writes) */
 export const TRAIT_CHIP: Record<string, string> = {
   golden: 'Golden', grow: 'Giant', chaos: 'Chaos', seek: 'Seeking', spread: 'Spreading', echo: 'Echo', linked: 'Linked', foresight: 'Foresight',
   wish: 'Wishing', trick: 'Trickster', inspired: 'Inspired', wild: 'Wild', fertile: 'Fertile', invested: 'Invested', streak: 'Arcade streak', homely: 'At home',
+  endless: 'Endless', charged: 'Charged', patchwork: 'Patchwork',
 };
 export type TraitHere = { gene: string; k: number; name: string; emoji: string; text: string;
   /** what you have to do for it (null: it works by itself) */ you: string | null;
@@ -179,11 +223,12 @@ export function traitHere(gene: string | null | undefined, k: number, kind: stri
     else { text = `earns ${20 * s}% more Ink (it has no bad luck to dodge)`; on = PAYS_FROM[me] ?? null; }
   }
   if (gene === 'foresight') {
-    const extra = me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'cuckoo' || me === 'pandora' ? `, and ${[35, 60, 80][s - 1]}% of its bad luck is seen coming and dodged` : '';
+    const extra = me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'cuckoo' || me === 'pandora' || me === 'ouroboros' || me === 'stormcoil' ? `, and ${[35, 60, 80][s - 1]}% of its bad luck is seen coming and dodged` : '';
     text = `earns ${20 * s}% more Ink${extra}`;
   }
   if (gene === 'linked' && me === 'map') text = `earns ${40 * s}% more Ink, and picks up map pieces from anywhere`;
   if (gene === 'tempo') text = `its timers run ${s + 2}× as fast — eggs, wishes, charges and cooldowns all come sooner`;
+  if (gene === 'patchwork') text = `every reward borrows a Trait from one of the Homunculus’s parts${s > 1 ? ` (at ${s}× strength)` : ''}`;
   return { gene, k: s, name: t.name, emoji: t.emoji, text, you, on };
 }
 /** what a plot's minigames get when an enchantment is spliced into it (mirrors private.ench_minigame_mult) */
@@ -191,12 +236,14 @@ export const PLOT_GETS: Record<string, string> = {
   golden: 'its minigames pay 1.5× Ink', grow: 'its minigames pay 2× Ink', chaos: 'its minigame wins are a gamble: 0.5× to 2.5×', seek: '1 in 4 wins pays 1.5×',
   spread: 'its minigames pay 15% more', echo: '35% of wins pay double', wish: 'its minigames pay 25% more', trick: 'its minigames pay 20% more',
   tempo: 'its minigames pay 30% more', linked: 'its minigames pay 40% more', foresight: 'its minigames pay 20% more',
+  endless: 'its minigames pay 10% more', patchwork: 'its minigames borrow a part’s Trait', charged: 'its minigames pay 25% more',
 };
 export const PLOT_TRAIT: Record<string, string> = { canvas: 'inspired', habitat: 'wild', farm: 'fertile', business: 'invested', arcade: 'streak' };
 export const plotTrait = (kind: string | null | undefined) => PLOT_TRAIT[kind ?? 'canvas'] ?? 'homely';
 const ADJ: Record<string, [string, string]> = { goose: ['Golden', 'Hen'], genie: ['Wishing', 'Djinn'], map: ['Treasure', 'Atlas'], parasite: ['Hungering', 'Worm'],
   cuckoo: ['Trickster', 'Roc'], pandora: ['Cursed', 'Box'], clockwork: ['Ticking', 'Engine'], sizeray: ['Giant', 'Titan'], shard: ['Mirrored', 'Glass'],
-  wormhole: ['Warped', 'Gate'], oracle: ['All-Seeing', 'Eye'], splice: ['Spliced', 'Chimera'] };
+  wormhole: ['Warped', 'Gate'], oracle: ['All-Seeing', 'Eye'], splice: ['Spliced', 'Chimera'],
+  ouroboros: ['Endless', 'Serpent'], homunculus: ['Patchwork', 'Golem'], stormcoil: ['Charged', 'Storm'] };
 const PLOT_NOUN: Record<string, string> = { canvas: 'Canvas', habitat: 'Habitat', farm: 'Farm', business: 'Shop', arcade: 'Arcade', home: 'House', landlord: 'Manor', train: 'Station',
   plane: 'Airfield', base: 'Plot', mine: 'Mine', sky: 'Sky Isle', workshop: 'Workshop', diner: 'Diner', dungeon: 'Dungeon', brawl: 'Arena' };
 export const plotHybridName = (kind: string, plotKind: string | null | undefined) => `${ADJ[kind]?.[0] ?? 'Spliced'} ${PLOT_NOUN[plotKind ?? 'canvas'] ?? 'Realm'}`;
@@ -263,11 +310,14 @@ export const TITLES: Record<string, string> = {
   Platinum: 'Laid a Platinum egg', Forbidden: 'Made the Forbidden Wish', Wishmaster: 'Granted 30 wishes', Liberator: 'Set the Genie free',
   Cartographer: 'Dug up 5 treasure chests', Pathfinder: 'Found 40 map pieces', Symbiote: 'Evolved into a Symbiote', Devourer: 'Fed 25 times',
   'Brood Mother': 'Raised 5 chicks', 'Nest Thief': 'Raised 20 chicks', 'Hope-Bringer': 'Released Hope', 'Mad Scientist': 'Made 10 splices',
-  'Chimera Codex': 'Discovered 36 hybrids', 'Grand Codex': 'Discovered all 55 hybrids', Aberrant: 'Made an Aberration', Trinitarian: 'Made 3 different Trinities',
+  'Chimera Codex': 'Discovered 36 hybrids', 'Grand Codex': 'Discovered 55 hybrids', Aberrant: 'Made an Aberration', Trinitarian: 'Made 3 different Trinities',
   Timekeeper: 'Wound the key 100 times', Stopwatch: 'Froze time 10 times', Sharpshooter: '10 PERFECT zaps',
   'Big Bang': 'Fired 50 times', Colossus: 'Made 10 plots giant', 'Ant-Maker': 'Made 10 plots tiny', Prankster: 'Pranked 10 players', 'Seven Years': 'Shattered the glass', 'Many Faces': 'Made 20 reflections',
   Gatekeeper: 'Opened the wormhole 5 times', Worldwalker: 'Linked plots 1,000 km apart', Constellation: 'Reached level 10',
   Seer: '10 prophecies came true', 'Fate-Weaver': 'Rewrote fate 10 times',
+  'Codex Complete': 'Discovered all 91 hybrids', Eternal: 'Closed the circle (7 loops)', 'Tail-Catcher': '10 clean catches', Snakeskin: 'Bitten through 3 times',
+  Alchemist: 'Woke a Homunculus', Generations: 'Three hearts', 'Many Limbs': 'Grew 7 parts', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
+  Galvanist: 'Made an Aberration with lightning',
 };
 
 /** "2h 14m" / "6m 30s" */
