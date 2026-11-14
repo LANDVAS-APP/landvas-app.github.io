@@ -674,6 +674,8 @@ export function BopABot({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
 // Claw Crane
 // ======================================================================================================
 const CLAW_PRIZES = [['🧸', 60, '#C98A4E'], ['🦄', 120, '#FFB3E6'], ['🐙', 80, '#FF7AB8'], ['👾', 150, '#8B5CFF'], ['🦖', 100, '#3DDC97'], ['🦆', 30, '#FFE14D'], ['🐻‍❄️', 70, '#E9F4FF'], ['🐸', 50, '#4FD18B']] as const;
+/** where each go of the last Claw Crane round dropped: [0..1 across from the left, 0..1 from the back] */
+export const CLAW_LOG = { drops: [] as [number, number][] };
 export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
   const endless = mode === 'endless';
   const cv = useRef<HTMLCanvasElement>(null);
@@ -729,6 +731,7 @@ export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
     type Phase = 'x' | 'z' | 'drop' | 'grab' | 'lift' | 'home' | 'release' | 'over';
     // endless: three lives, and only a miss costs one; the machine restocks when it runs low
     let phase: Phase = 'x', held: Prize | null = null, tries = endless ? 3 : 5, score = 0, wait = 0, tryT = 0, grabbed = false;
+    CLAW_LOG.drops = [];
     const startTry = () => { phase = 'x'; tryT = 15; C.x = -AX + 0.25; C.z = AZ - 0.25; setHud({ score, tries, phase: 'x', left: 15 }); };
     const release = (axis: 'x' | 'z') => {
       if (phase === 'x' && axis === 'x') { phase = 'z'; setHud((h) => ({ ...h, phase: 'z' })); sfx.blip(2); }
@@ -753,7 +756,7 @@ export function ClawCrane({ seed, onEnd, haptics, reduce, mode }: ArenaProps) {
         const under = prizes.filter((p) => !p.gone && Math.hypot(p.x - C.x, p.z - C.z) < p.r + 0.1).sort((a, b) => b.r - a.r)[0];
         const stopY = under ? under.r * 2 + 0.25 : 0.35;
         C.y -= 1.6 * dt; C.open = Math.min(1, C.open + dt * 3);
-        if (C.y <= stopY) { C.y = stopY; phase = 'grab'; wait = 0.5; }
+        if (C.y <= stopY) { C.y = stopY; phase = 'grab'; wait = 0.5; CLAW_LOG.drops.push([(C.x + AX) / (2 * AX), (C.z + AZ) / (2 * AZ)]); }
       } else if (phase === 'grab') {
         C.open = Math.max(0, C.open - dt * 2.4); wait -= dt;
         if (wait <= 0) {

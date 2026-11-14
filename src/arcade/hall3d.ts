@@ -10,8 +10,9 @@ import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buildCarnival, CARNIVAL_BOUNDS, CARNIVAL_Z, type Carnival } from './carnival3d';
 
-export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string };
-export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' } | { kind: 'door' } | { kind: 'carnival'; id: string };
+export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string;
+  /** a fixed place (index into the hall's slots) instead of the next free one: secret cabinets */ slot?: number };
+export type HallSpot = { kind: 'machine'; id: string } | { kind: 'prizes' } | { kind: 'bonus' } | { kind: 'jukebox' } | { kind: 'door' } | { kind: 'carnival'; id: string } | { kind: 'backroom' };
 export type HallOpts = {
   canvas: HTMLCanvasElement; explorerUrl: string; seed: number; reduceMotion?: boolean;
   /** the shared Live Arena room: pods for the live games, no prize counter / ticket machine / jukebox */ arena?: boolean;
@@ -19,6 +20,7 @@ export type HallOpts = {
   /** an Arcade Estate: the front door opens onto a carnival */ carnival?: boolean;
   /** the Mirror Arcade: the page flips the canvas left-right (CSS), so taps, drags and arrow keys are flipped back here;
    *  no prize counter, ticket machine or jukebox, a row of extra cabinets along the back wall, and the portal leads home */ mirror?: boolean;
+  /** someone gave the jukebox three quick thumps */ onThump?(): void;
 };
 export type Decor = { floor: string; neon: string; lights: string };
 
@@ -225,6 +227,8 @@ export function createHall(o: HallOpts) {
   for (const z of [ROWS[1], ROWS[2], ROWS[0], ROWS[3]]) for (const x of COLS) slots.push({ x, z });
   // the Mirror Arcade's own cabinets stand along the back wall, where the counter would be
   if (o.mirror) for (const x of COLS) slots.push({ x, z: -D / 2 + 2.6 });
+  // a secret cabinet's place in an ordinary arcade: by the front door, on the left (LAND GRAB rises out of the floor here)
+  else if (!o.arena) slots.push({ x: COLS[0], z: D / 2 - 2.6 });
   const marqueeOn = (g: THREE.Group, m: HallMachine, y: number, w = 1.3) => {
     const mq = new THREE.Mesh(T(new THREE.PlaneGeometry(w - 0.04, 0.36)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(m.name, m.locked ? '#555' : m.color)), toneMapped: false })));
     mq.position.set(0, y, 0.33); g.add(mq);
@@ -451,7 +455,7 @@ export function createHall(o: HallOpts) {
   const setMachines = (list: HallMachine[]) => {
     for (const c of cabs.values()) scene.remove(c.g);
     cabs.clear();
-    list.slice(0, slots.length).forEach((m, i) => cabs.set(m.id, buildCab(m, slots[i])));
+    list.forEach((m, i) => { const sl = slots[m.slot ?? i]; if (sl && (m.slot != null || i < 16 || o.mirror)) cabs.set(m.id, buildCab(m, sl)); });
   };
   // a flame over this hour's hot cabinet
   const hotFx = emojiSprite('🔥', 0.7); hotFx.visible = false; scene.add(hotFx);
@@ -480,6 +484,32 @@ export function createHall(o: HallOpts) {
     const grill = box(0.9, 0.5, 0.05, std('#C9A86B', { metalness: 0.8, roughness: 0.3 })); grill.position.set(0, 0.55, 0.41); juke.add(grill);
     const note = emojiSprite('🎵', 0.5); note.position.set(0, 2.45, 0); note.name = 'note'; juke.add(note); }
   const jukeSpot = new THREE.Vector3(juke.position.x, 0, juke.position.z + 1.3);
+  const jukeBody = juke.children[0] as THREE.Mesh, jukeWood = jukeBody.material as THREE.MeshStandardMaterial;
+  const jukeGold = std('#E8B84A', { metalness: 0.85, roughness: 0.25, emissive: '#7A5410', emissiveIntensity: 0.35 });
+  let jolt = 0; const thumps: number[] = [];
+  // ---- the back room: a panel in the back wall between the counter and the jukebox. Shut, it's a seam and a faded
+  // STAFF ONLY stencil; for someone who's found the back room it slides away (behind the jukebox) onto a warm doorway.
+  const brX = -4.4, brSpot = new THREE.Vector3(brX, 0, -D / 2 + 1.3);
+  const brGroup = new THREE.Group(); brGroup.position.set(brX, 0, -D / 2 + 0.17); scene.add(brGroup);
+  const brGlowMat = T(new THREE.MeshBasicMaterial({ color: '#FFB13D', transparent: true, opacity: 0, toneMapped: false }));
+  const brGlow = new THREE.Mesh(T(new THREE.PlaneGeometry(1.2, 2.25)), brGlowMat); brGlow.position.set(0, 1.125, 0.005); brGroup.add(brGlow);
+  const brPanel = new THREE.Group(); brGroup.add(brPanel);
+  { const pnl = box(1.25, 2.3, 0.05, std('#1C1440', { roughness: 0.85 })); pnl.position.set(0, 1.15, 0.03); brPanel.add(pnl);
+    for (const [w, h, x, y] of [[1.3, 0.025, 0, 2.31], [0.025, 2.3, -0.64, 1.15], [0.025, 2.3, 0.64, 1.15]] as const) { const sm = box(w, h, 0.06, std('#3A2D6E')); sm.position.set(x, y, 0.03); brPanel.add(sm); }
+    const knob = new THREE.Mesh(T(new THREE.SphereGeometry(0.035, 8, 6)), std('#5C4E90', { metalness: 0.6 })); knob.position.set(0.5, 1.05, 0.08); brPanel.add(knob);
+    const st = new THREE.Mesh(T(new THREE.PlaneGeometry(0.9, 0.22)), T(new THREE.MeshBasicMaterial({ map: labelTex('STAFF ONLY', '#7A6BB8'), transparent: true, opacity: 0.32, depthWrite: false })));
+    st.position.set(0, 1.78, 0.06); brPanel.add(st); }
+  const brLight = new THREE.PointLight('#FFB13D', 0, 5, 2); brLight.position.set(brX, 1.7, -D / 2 + 0.9); scene.add(brLight);
+  let brOpen = false, brK = 0;
+  // ---- the Founder's Code: the logo's L assembles in the air in front of you, one plot at a time, in its colours
+  const LOGO_COLS = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF'];
+  const fxL = new THREE.Group(); fxL.visible = false; scene.add(fxL); let fxLT = -1;
+  [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]].forEach(([c, r], i) => {
+    const m = new THREE.Mesh(T(new THREE.PlaneGeometry(0.62, 0.62)), T(new THREE.MeshBasicMaterial({ color: LOGO_COLS[i], transparent: true, opacity: 0, toneMapped: false, depthWrite: false })));
+    m.position.set(-0.68 + c * 0.68, 0.68 - r * 0.68, 0); fxL.add(m);
+  });
+  let expTarget = 1.15, dimUntil = 0, signName = 'Arcade', signBack = 0;
+  const rising = new Map<string, number>();
   const bonus = new THREE.Group(); bonus.position.set(W / 2 - 1.6, 0, -D / 2 + 1.2); scene.add(bonus);
   { const b1 = box(0.9, 1.7, 0.7, std('#FFB13D', { emissive: '#FF7A00', emissiveIntensity: 0.25, roughness: 0.3 })); b1.position.y = 0.85; bonus.add(b1);
     const slot = box(0.4, 0.05, 0.05, glow('#FF3D9A', 2)); slot.position.set(0, 0.9, 0.36); bonus.add(slot);
@@ -497,7 +527,7 @@ export function createHall(o: HallOpts) {
   const portalSign = new THREE.Mesh(T(new THREE.PlaneGeometry(2.2, 0.55)), T(new THREE.MeshBasicMaterial({ map: T(labelTex(o.arena || o.mirror ? '← ARCADE' : 'LIVE ARENA', portalCol)), toneMapped: false })));
   portalSign.position.set(0, 2.75, 0); portal.add(portalSign);
   const portalSpot = new THREE.Vector3(portal.position.x - 1.3, 0, portal.position.z);
-  if (o.arena || o.mirror) { counter.visible = false; juke.visible = false; bonus.visible = false; }
+  if (o.arena || o.mirror) { counter.visible = false; juke.visible = false; bonus.visible = false; brGroup.visible = false; }
   // ---- the carnival out the front door (Arcade Estates) --------------------------------------------------------
   let carn: Carnival | null = null;
   if (o.carnival && !o.arena) {
@@ -597,7 +627,14 @@ export function createHall(o: HallOpts) {
       pts.push(new THREE.Vector2(gx, tz < fz ? r + 1.6 : r - 1.6 - 0.6), new THREE.Vector2(gx, tz < fz ? r - 1.6 - 0.6 : r + 1.6));
       x = gx;
     }
-    pts.push(new THREE.Vector2(Math.max(-W / 2 + 0.6, Math.min(W / 2 - 0.6, tx)), Math.max(-D / 2 + 0.6, Math.min(D / 2 - 0.6, tz))));
+    const end = new THREE.Vector2(Math.max(-W / 2 + 0.6, Math.min(W / 2 - 0.6, tx)), Math.max(-D / 2 + 0.6, Math.min(D / 2 - 0.6, tz)));
+    // the nooks along the back wall (the back room's panel, behind the jukebox's side): step out in front of the
+    // counter first rather than walking into it
+    const lx = pts.length ? pts[pts.length - 1].x : fx, lz = pts.length ? pts[pts.length - 1].y : fz, front = -D / 2 + 2.9;
+    let hit = false;
+    for (let s = 0.04; s < 1 && !hit; s += 0.04) hit = blocked(lx + (end.x - lx) * s, lz + (end.y - lz) * s);
+    if (hit) { if (lz < front) pts.push(new THREE.Vector2(lx, front)); if (end.y < front) pts.push(new THREE.Vector2(end.x, front)); }
+    pts.push(end);
     return pts;
   };
   const go = (x: number, z: number) => { if (carn?.riding()) return; P.path = route(x, z); ring.visible = true; ring.position.set(clampX(x, z), 0.02, clampZ(z)); };
@@ -626,7 +663,13 @@ export function createHall(o: HallOpts) {
     if (!o.arena && !o.mirror) {
       if (ray.intersectObject(counter, true).length) { go(prizeSpot.x, prizeSpot.z); return; }
       if (ray.intersectObject(bonus, true).length) { go(bonusSpot.x, bonusSpot.z); return; }
-      if (ray.intersectObject(juke, true).length) { go(jukeSpot.x, jukeSpot.z); return; }
+      if (ray.intersectObject(juke, true).length) {
+        // three quick thumps on the jukebox (it jolts each time)
+        const now = performance.now(); thumps.push(now); while (thumps.length && now - thumps[0] > 1400) thumps.shift();
+        jolt = 1; if (thumps.length >= 3) { thumps.length = 0; o.onThump?.(); }
+        go(jukeSpot.x, jukeSpot.z); return;
+      }
+      if (brOpen && ray.intersectObject(brGroup, true).length) { go(brSpot.x, brSpot.z); return; }
     }
     const h = ray.intersectObjects(carn ? [floor, carn.ground] : [floor])[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
   };
@@ -691,6 +734,7 @@ export function createHall(o: HallOpts) {
         if (Math.hypot(prizeSpot.x - P.x, prizeSpot.z - P.z) < 1.5) s = { kind: 'prizes' };
         if (Math.hypot(bonusSpot.x - P.x, bonusSpot.z - P.z) < 1.2) s = { kind: 'bonus' };
         if (Math.hypot(jukeSpot.x - P.x, jukeSpot.z - P.z) < 1.2) s = { kind: 'jukebox' };
+        if (brOpen && Math.hypot(brSpot.x - P.x, brSpot.z - P.z) < 1.1) s = { kind: 'backroom' };
       }
       if (Math.hypot(portalSpot.x - P.x, portalSpot.z - P.z) < 1.2) s = { kind: 'door' };
       if (carn && P.z > OUT) { let bd = 1.4; for (const sp of carn.spots) { const d = Math.hypot(sp.x - P.x, sp.z - P.z); if (d < bd) { bd = d; s = { kind: 'carnival', id: sp.id }; } } }
@@ -777,6 +821,23 @@ export function createHall(o: HallOpts) {
     }
     if (!o.reduceMotion) { portalRing.rotation.z = t * 0.6; (portalFill.material as THREE.MeshBasicMaterial).opacity = 0.18 + Math.sin(t * 3) * 0.08; }
     carn?.update(t, dt, camPos.z, P.z);
+    // secrets: the jukebox jolting, the back room's panel, the L on the floor, a cabinet rising, the lights dipping
+    if (jolt > 0) { jolt = Math.max(0, jolt - dt * 4); juke.rotation.z = Math.sin(t * 55) * 0.06 * jolt; juke.position.x = -W / 2 + 1.6 + Math.sin(t * 70) * 0.04 * jolt; }
+    if (Math.abs(brK - (brOpen ? 1 : 0)) > 0.001) { brK += ((brOpen ? 1 : 0) - brK) * Math.min(1, dt * 1.6); brPanel.position.x = -brK * 1.32; brGlowMat.opacity = brK * 0.85; brLight.intensity = brK * 9; }
+    else if (brOpen && !o.reduceMotion) brLight.intensity = 8.5 + Math.sin(t * 7) * 0.6 + (Math.sin(t * 23) > 0.97 ? -4 : 0);
+    if (fxLT >= 0) {
+      fxLT += dt;
+      fxL.children.forEach((m, i) => {
+        const k = Math.max(0, Math.min(1, (fxLT - i * 0.38) / 0.3)), out = fxLT > 7 ? Math.max(0, 1 - (fxLT - 7) / 1.5) : 1;
+        ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = k * out * 0.95; m.scale.setScalar(0.4 + 0.6 * (1 - Math.pow(1 - k, 3)));
+      });
+      fxL.position.y = 3.6 + Math.sin(t * 1.6) * 0.06; fxL.lookAt(camera.position.x, fxL.position.y, camera.position.z);
+      if (fxLT > 8.6) { fxLT = -1; fxL.visible = false; }
+    }
+    for (const [id, t0] of rising) { const c = cabs.get(id); if (!c) { rising.delete(id); continue; } const k = Math.max(0, Math.min(1, (t - t0) / 1.8)), e = 1 - Math.pow(1 - k, 3); c.g.position.y = -3.2 * (1 - e); if (k >= 1) rising.delete(id); }
+    if (dimUntil && t > dimUntil) { dimUntil = 0; expTarget = 1.15; }
+    if (signBack && t > signBack) { signBack = 0; signMat.map?.dispose(); signMat.map = labelTex(signName.slice(0, 28) || 'Arcade', neon[0]); signMat.needsUpdate = true; }
+    if (Math.abs(renderer.toneMappingExposure - expTarget) > 0.005) renderer.toneMappingExposure += (expTarget - renderer.toneMappingExposure) * Math.min(1, dt * 2.5);
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -787,7 +848,7 @@ export function createHall(o: HallOpts) {
     floorMat.map?.dispose();
     const tex = floorTex(d.floor, neon); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(W / 6, FL / 6);
     floorMat.map = tex; floorMat.needsUpdate = true;
-    signMat.map?.dispose(); signMat.map = labelTex(name.slice(0, 28) || 'Arcade', neon[0]); signMat.needsUpdate = true;
+    signName = name; signMat.map?.dispose(); signMat.map = labelTex(name.slice(0, 28) || 'Arcade', neon[0]); signMat.needsUpdate = true;
     lights = d.lights;
     disco.visible = lights === 'disco'; lasers.visible = lights === 'lasers' && !phone;
     for (const sp of spots) { scene.remove(sp); scene.remove(sp.target); } spots.length = 0;
@@ -798,13 +859,32 @@ export function createHall(o: HallOpts) {
   return {
     setMachines: (list: HallMachine[]) => { setMachines(list); walls = solids(); },
     setShelf, setDecor, setRegulars,
+    /** the back room's panel: open (sliding open when animate) or shut */
+    setBackroom(open: boolean, animate = false) { brOpen = open; if (!animate) { brK = open ? 1 : 0; brPanel.position.x = -brK * 1.32; brGlowMat.opacity = brK * 0.85; brLight.intensity = brK * 9; } },
+    /** a golden jukebox (every B-Side chart full-combo'd on Expert) */
+    setJukeGold(on: boolean) { jukeBody.material = on ? jukeGold : jukeWood; },
+    /** tests: where the jukebox or the back room's panel is on the screen (page CSS pixels) */
+    screenOf(kind: 'jukebox' | 'backroom') {
+      const v = kind === 'jukebox' ? new THREE.Vector3(juke.position.x, 1.0, juke.position.z) : new THREE.Vector3(brX, 1.2, -D / 2 + 0.25);
+      v.project(camera); const r = o.canvas.getBoundingClientRect();
+      return { x: r.left + ((v.x * MX + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    },
+    /** the lights go down for a while (seconds) */
+    lightsOut(sec: number, level = 0.3) { expTarget = level; dimUntil = t + sec; },
+    /** the Founder's Code: lights down, the L lights up on the floor, the sign says LANDVAS, and a cabinet rises */
+    founderFx(rise?: string) {
+      fxLT = 0; expTarget = 0.42; dimUntil = t + 5.5;
+      fxL.visible = true; fxL.position.set(Math.max(-5.5, Math.min(5.5, P.x)), 3.6, Math.max(-9.5, Math.min(9, P.z - 1.4)));
+      signMat.map?.dispose(); signMat.map = labelTex('LANDVAS', '#FFE14D'); signMat.needsUpdate = true; signBack = t + 7;
+      if (rise) { const c = cabs.get(rise); if (c) { rising.set(rise, t + 1.6); c.g.position.y = -3.2; } }
+    },
     setHot(id: string | null) { hotId = id; },
     setMusic(on: boolean) { musicOn = on; },
     setBonus(ready: boolean) { bonusReady = ready; },
     /** glide the camera up to a machine's play area; resolves when it fills the view */
     zoomIn(id: string) { const c = cabs.get(id); if (!c) return Promise.resolve(); zoom.cab = c; zoom.on = true; P.path = []; P.stick = null; P.x = c.spot.x; P.z = c.spot.z; return new Promise<void>((res) => { zoom.resolve = res; }); },
     zoomOut() { zoom.on = false; zoom.resolve = null; near = null; },
-    walkTo(s: HallSpot) { if (s.kind === 'carnival') { const sp = carn?.spots.find((x) => x.id === s.id); if (sp) go(sp.x, sp.z); } else if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else if (s.kind === 'door') go(portalSpot.x, portalSpot.z); else go(bonusSpot.x, bonusSpot.z); },
+    walkTo(s: HallSpot) { if (s.kind === 'carnival') { const sp = carn?.spots.find((x) => x.id === s.id); if (sp) go(sp.x, sp.z); } else if (s.kind === 'machine') { const c = cabs.get(s.id); if (c) go(c.spot.x, c.spot.z); } else if (s.kind === 'prizes') go(prizeSpot.x, prizeSpot.z); else if (s.kind === 'jukebox') go(jukeSpot.x, jukeSpot.z); else if (s.kind === 'door') go(portalSpot.x, portalSpot.z); else if (s.kind === 'backroom') go(brSpot.x, brSpot.z); else go(bonusSpot.x, bonusSpot.z); },
     setPaused(p: boolean) { paused = p; },
     carnival: carn ? {
       spots: carn.spots,

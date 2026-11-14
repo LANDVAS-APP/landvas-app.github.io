@@ -35,6 +35,12 @@ export const TRACKS: Track[] = [
     bass: [0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12, 13, 12],
     lead: [12, X, 15, X, 19, X, 18, X, 19, X, 22, X, 24, X, X, X, 13, X, 17, X, 20, X, 19, X, 17, X, 15, X, 13, X, X, X, 12, X, 15, X, 19, X, 24, X, 22, X, 19, X, 15, X, X, X, 10, X, 14, X, 17, X, 22, X, 19, X, 17, X, 14, X, X, X],
     kick: 'x.x.x.x.x.x.x.x.', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx' },
+  // Track 00: the hidden B-side (never on the jukebox list): it plays when the B-Side opens, and it's the last chart
+  { id: 'after', name: 'Ink After Dark', emoji: '💿', bpm: 122, swing: 0.08, root: 42, wave: 'sawtooth', leadWave: 'square', arp: true, game: true,
+    chords: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]],
+    bass: [0, X, 0, 12, X, 0, X, 10, 0, X, 0, 12, X, 7, X, 10],
+    lead: [15, X, X, 14, X, 12, X, X, 10, X, 12, X, 14, X, X, X, 12, X, X, 10, X, 8, X, X, 7, X, 8, X, 10, X, X, X, 15, X, 17, X, 19, X, 17, X, 15, X, 14, X, 12, X, 10, X, 7, X, X, X, 10, X, X, X, 14, X, 12, X, X, X, X, X],
+    kick: 'x...x...x...x.x.', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx' },
   // records for the record player at home: softer, cosier
   { id: 'jazz', name: 'Sunday Jazz', emoji: '🎷', bpm: 92, swing: 0.22, root: 48, wave: 'triangle', leadWave: 'sine', home: true,
     chords: [[0, 4, 7, 11], [2, 5, 9, 12], [-1, 2, 5, 9], [0, 4, 7, 11]],
@@ -137,6 +143,8 @@ let track: Track | null = null, step = 0, nextAt = 0, volume = 0.5, duck = 1, te
 const saved = (() => { try { return JSON.parse(localStorage.getItem('landvas.arcade.music') ?? 'null') as { id: string | null; vol: number } | null; } catch { return null; } })();
 let chosen: string | null = saved ? saved.id : 'neon';
 let playing: string | null = null;
+/** what the jukebox has played this visit, for the B-Side's thump */
+const log: { id: string | null; at: number }[] = [];
 volume = saved?.vol ?? 0.5;
 const listeners = new Set<() => void>();
 const emit = () => { for (const f of listeners) f(); };
@@ -187,7 +195,7 @@ export const music = {
   subscribe(f: () => void) { listeners.add(f); return () => { listeners.delete(f); }; },
   /** Start (or switch to) a track; null = jukebox off. Needs a tap first on phones (browsers only allow sound after one). */
   play(id: string | null = chosen, remember = true) {
-    if (remember) { chosen = id; save(); }
+    if (remember) { chosen = id; save(); log.push({ id, at: performance.now() }); if (log.length > 16) log.shift(); }
     playing = id; emit();
     if (!id) { this.stop(false); return; }
     if (remember) { tempo = 1; heat = 0; }
@@ -214,4 +222,32 @@ export const music = {
   /** 0..1: more hats from 0.35, a heartbeat from 0.7 (someone's close!) */ setHeat(x: number) { heat = Math.max(0, Math.min(1, x)); },
   /** a bit quieter while a game is running */ setDuck(on: boolean) { duck = on ? 0.45 : 1; apply(); },
   get playing() { return !!timer; },
+  /** The songs picked on the jukebox lately, oldest first, with how long each played (the same song picked again
+   *  carries on counting). */
+  history() {
+    const out: { id: string; secs: number }[] = [];
+    log.forEach((e, i) => {
+      const secs = ((log[i + 1]?.at ?? performance.now()) - e.at) / 1000;
+      if (!e.id) { out.push({ id: '', secs }); return; }
+      const lastE = out[out.length - 1];
+      if (lastE && lastE.id === e.id) lastE.secs += secs; else out.push({ id: e.id, secs });
+    });
+    return out.map((x) => ({ id: x.id, secs: Math.round(x.secs * 10) / 10 }));
+  },
+  /** Start a song from its first beat, for a game that plays along to it (not remembered as the jukebox's pick).
+   *  Returns false when there's no sound to play it on. */
+  restart(id: string) {
+    this.play(id, false);
+    if (!ctx || !track) return false;
+    tempo = 1; heat = 0; step = 0; nextAt = ctx.currentTime + 0.25;
+    return true;
+  },
+  /** Where the song is right now, in 16th-note steps since it started (fractional, adjusted for the speakers' delay),
+   *  and the length of a step in seconds; null with no sound. */
+  position() {
+    if (!ctx || !track || !timer) return null;
+    const sp = 60 / (track.bpm * tempo) / 4;
+    const now = ctx.currentTime - ((ctx as AudioContext & { outputLatency?: number }).outputLatency ?? 0);
+    return { step: step - (nextAt - now) / sp, sp, id: track.id };
+  },
 };

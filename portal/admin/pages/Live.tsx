@@ -37,6 +37,7 @@ const ELSEWHERE: { to: string; title: string; what: string }[] = [
   { to: '/tools/challenges', title: 'Challenges', what: 'Weekly painting themes.' },
   { to: '/tools/updates', title: 'Updates', what: 'Announcements and pop-ups every player sees.' },
   { to: '/tools/social', title: 'Chat & social', what: 'Mute, remove messages, clans.' },
+  { to: '/secrets', title: 'Arcade secrets', what: 'The hidden Mirror Arcade, Founder’s Code, Back Room and B-Side: their recipes, payouts, games and finders.' },
   { to: '/data', title: 'Data explorer', what: 'Any row in any table (owner).' },
 ];
 

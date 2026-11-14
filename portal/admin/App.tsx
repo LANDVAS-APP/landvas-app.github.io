@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Coins, Database, FileClock, Flag, Globe2, HeartPulse, LayoutDashboard, LifeBuoy, Map as MapIcon, Megaphone,
-  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower,
+  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles,
 } from 'lucide-react';
 import { api } from '../../src/backend/api';
 import { getBackend } from '../../src/backend/backend';
@@ -31,6 +31,7 @@ const Config = lazy(() => import('./pages/Config'));
 const Live = lazy(() => import('./pages/Live'));
 const Security = lazy(() => import('./pages/Security'));
 const Tool = lazy(() => import('./pages/Tools'));
+const Secrets = lazy(() => import('./pages/Secrets'));
 
 export function useWho() {
   return useQuery({ queryKey: ['whoami', getBackend().session()?.userId], queryFn: portal.whoami, staleTime: 60_000 });
@@ -81,6 +82,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     has('economy') && { to: '/tools/earnings', label: 'Rates & rarities', icon: <Coins />, group: 'Economy' },
     has('economy') && { to: '/tools/shop', label: 'Shop', icon: <ShoppingBag />, group: 'Economy' },
     has('payouts') && { to: '/tools/cashouts', label: 'Cash-outs', icon: <Wallet />, group: 'Economy', count: cash.data?.length },
+    has('economy') && { to: '/secrets', label: 'Arcade secrets', icon: <Sparkles />, group: 'Secrets' },
     { to: '/map', label: 'World map', icon: <MapIcon />, group: 'World', short: 'Map' },
     has('moderator') && { to: '/tools/plots', label: 'Plot tools', icon: <Wrench />, group: 'World' },
     has('economy') && { to: '/tools/world', label: 'World & events', icon: <Globe2 />, group: 'World' },
@@ -147,6 +149,7 @@ const router = createBrowserRouter([
       { path: 'live', element: page(<Live />) },
       { path: 'security', element: page(<Security />) },
       { path: 'tools/:tool', element: page(<Tool />) },
+      { path: 'secrets', element: page(<Secrets />) },
       { path: 'world', element: <GameWorldLink /> },
       { path: 'u/:username', element: <GameProfileLink /> },
       { path: 'u/:username/home', element: <GameHomeLink /> },

@@ -720,6 +720,11 @@ export type ArcadeMe = { tickets: number; lifetime: number; prizes: Record<strin
 export type ArcadeCosmetic = { key: string; name: string; emoji: string; tickets: number; kind: 'explorer' | 'inkborn'; part: string; id?: string };
 export type ArcadeMode = 'classic' | 'endless';
 /** The hidden Mirror Arcade: every cabinet mirrored with a twist, plus four of its own. Pays more Ink, uncapped. */
+/** What a player has found among the arcade's other secrets, and their progress. Empty for everyone else. */
+export type SecretsMe = { found: string[]; token_until: string | null;
+  bside: { cleared?: Record<string, string[]>; fc?: Record<string, string[]>; gold?: boolean } | null; proto: { stage?: number } | null };
+export type SecretGames = { found: false } | { found: true; secret: string; ink_mult: number; games: { id: string; name: string; emoji: string; color: string }[]; songs: string[] | null;
+  boards: Record<string, { player: Profile; score: number }[]>; best: Record<string, number>; data: Record<string, any> | null; me: ArcadeMe };
 export type MirrorGame = { id: string; name: string; emoji: string; color: string; order: number; own: boolean };
 export type MirrorBoard = { player: Profile; score: number }[];
 export type MirrorArcade = { found: false } | { found: true; found_at: string; ink_mult: number; games: MirrorGame[]; boards: Record<string, MirrorBoard>; boards_endless: Record<string, MirrorBoard>;

@@ -18,7 +18,7 @@ import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
-import { ARENAS as ARENAS1, BONUS as BONUS1, ENDLESS as ENDLESS1, HOW as HOW1 } from './games';
+import { ARENAS as ARENAS1, BONUS as BONUS1, CLAW_LOG, ENDLESS as ENDLESS1, HOW as HOW1 } from './games';
 import { ARENAS2, BONUS2, ENDLESS2, HOW2 } from './games2';
 import { createHall, type HallScene, type HallSpot } from './hall3d';
 import { music } from './music';
@@ -31,6 +31,8 @@ import { BoothHud, CarnivalNear, startBooth, TreatCart, type CarnivalBusy } from
 import type { CarnivalMe } from '../backend/types';
 import { config } from '../env';
 import { GlassCrack, MirrorRoom, mirrorKey } from './mirror/MirrorRoom';
+import { AdmitOne, BackRoom, BSIDE_GAME, BSideMenu, LANDGRAB, PROTO, SecretCabinet, SecretReveal, TokenChip, hallPads, secretKey, secretsKey } from './secrets/SecretUI';
+import type { BSideDiff } from './secrets/bside';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2 }, HOW = { ...HOW1, ...HOW2 }, BONUS = { ...BONUS1, ...BONUS2 }, ENDLESS = { ...ENDLESS1, ...ENDLESS2 };
 export const arcadeKey = (id: string) => ['arcade', id] as const;
@@ -102,6 +104,20 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
   // the Mirror Arcade: a 🪞 button only for players who've found it (everyone else gets { found: false })
   const mirror = useQuery({ queryKey: mirrorKey, queryFn: () => api.arcadeMirrorGet(), staleTime: 60_000, refetchOnWindowFocus: false });
   const [crack, setCrack] = useState<{ bounty: number } | null | false>(false);
+  // the arcade's other secrets (all hidden until found: the server answers { found: [] } to everyone else)
+  const secrets = useQuery({ queryKey: secretsKey, queryFn: () => api.arcadeSecretsMe(), staleTime: 60_000, refetchOnWindowFocus: false });
+  const found = useMemo(() => new Set(secrets.data?.found ?? []), [secrets.data]);
+  const founderQ = useQuery({ queryKey: secretKey('founder'), queryFn: () => api.arcadeSecretGet('founder'), enabled: found.has('founder'), staleTime: 30_000 });
+  const protoQ = useQuery({ queryKey: secretKey('backroom'), queryFn: () => api.arcadeSecretGet('backroom'), enabled: found.has('backroom'), staleTime: 30_000 });
+  const bsideQ = useQuery({ queryKey: secretKey('bside'), queryFn: () => api.arcadeSecretGet('bside'), enabled: found.has('bside'), staleTime: 30_000 });
+  type SecretPlay = { kind: 'landgrab' } | { kind: 'proto' } | { kind: 'bside'; song: string; diff: BSideDiff };
+  const [secretPlay, setSecretPlay] = useState<SecretPlay | null>(null);
+  const [inBackroom, setInBackroom] = useState(false);
+  const [bsideMenu, setBsideMenu] = useState(false);
+  const [reveal, setReveal] = useState<{ id: 'founder' | 'backroom' | 'bside'; bounty: number } | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => { setToken(secrets.data?.token_until ?? null); }, [secrets.data?.token_until]);
+  const thumpRef = useRef<() => void>(() => {});
   const title = /^untitled/i.test(a.name.trim()) || !a.name.trim() ? `${a.owner.username}’s Arcade` : a.name;
   const games = useMemo(() => Object.entries(a.games).sort((x, y) => x[1].order - y[1].order), [a.games]);
   const prizeEmoji = useMemo(() => Object.fromEntries(a.prizes.map((p) => [p.id, p.emoji])), [a.prizes]);
@@ -112,6 +128,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
       canvas: cv.current, seed: a.seed, reduceMotion: reduce, carnival: !!a.carnival,
       explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)),
       onNear: (s) => { setNear(s); if (s) sfx.blip(s.kind === 'machine' ? 7 : 12); },
+      onThump: () => thumpRef.current(),
     });
     hall.current = h;
     if (import.meta.env.DEV || config.e2e) (window as unknown as { __landvasArcade: HallScene }).__landvasArcade = h;
@@ -127,14 +144,21 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
   // what's in the hall
   useEffect(() => {
     const h = hall.current; if (!h) return;
-    h.setMachines(games.map(([id, g]) => { const land = lockLabel(access, id); return { id, name: g.name, color: g.color, emoji: g.emoji, level: a.machines[id] ?? 0, locked: !!land || !(id in a.machines), lockLabel: land ? `🔒 ${land}` : `LV ${g.level}` }; }));
+    h.setMachines([
+      ...games.map(([id, g]) => { const land = lockLabel(access, id); return { id, name: g.name, color: g.color, emoji: g.emoji, level: a.machines[id] ?? 0, locked: !!land || !(id in a.machines), lockLabel: land ? `🔒 ${land}` : `LV ${g.level}` }; }),
+      // LAND GRAB stands by the front door, for whoever found the Founder's Code
+      ...(found.has('founder') ? [{ id: 'landgrab', name: 'LAND GRAB', color: '#3DDC97', emoji: '🟩', level: 1, locked: false, lockLabel: '✦', slot: 16 }] : []),
+    ]);
     h.setRegulars(regulars(a.seed, Math.min(5, 1 + Math.floor(a.level.level / 2))));
-  }, [games, a.machines, a.level.level, a.seed, access]);
+  }, [games, a.machines, a.level.level, a.seed, access, found]);
   useEffect(() => { hall.current?.setDecor(a.decor, title); }, [a.decor, title]);
   useEffect(() => { hall.current?.setShelf(Object.entries(a.shelf).map(([k, n]) => ({ emoji: prizeEmoji[k] ?? '🎁', n }))); }, [a.shelf, prizeEmoji]);
   useEffect(() => { hall.current?.setBonus(meState.bonus_ready); }, [meState.bonus_ready]);
-  useEffect(() => { hall.current?.setPaused(!!sheet && !playing); }, [sheet, playing]);
-  const busy = !!playing || !!cBusy;
+  useEffect(() => { hall.current?.setBackroom(found.has('backroom')); }, [found]);
+  useEffect(() => { hall.current?.setJukeGold(!!secrets.data?.bside?.gold); }, [secrets.data?.bside?.gold]);
+  // the hall holds still behind anything that covers it: a sheet, the back room, a B-Side chart (a rhythm game wants every frame)
+  useEffect(() => { hall.current?.setPaused((!!sheet && !playing) || inBackroom || secretPlay?.kind === 'proto' || secretPlay?.kind === 'bside'); }, [sheet, playing, inBackroom, secretPlay?.kind]);
+  const busy = !!playing || !!cBusy || !!secretPlay || inBackroom;
   useEffect(() => { hall.current?.setHot(a.hot?.game ?? null); }, [a.hot?.game]);
   // the jukebox: starts with your first tap (browsers need one before any sound), a bit quieter on a cabinet
   useEffect(() => {
@@ -179,6 +203,39 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
     } catch (e) { toast(toGameError(e).message); }
   };
 
+  // ---- the secrets' moments
+  const refetchSecrets = () => { void qc.invalidateQueries({ queryKey: secretsKey }); };
+  const founderMoment = (m: { first?: boolean; bounty?: number }) => {
+    setPlaying(null); hall.current?.zoomOut(); void qc.invalidateQueries({ queryKey: secretsKey });
+    // the cabinet joins the hall (below the floor), then the lights drop, the L lights up and it rises
+    setTimeout(() => hall.current?.founderFx('landgrab'), 700);
+    setTimeout(() => setReveal({ id: 'founder', bounty: m.first ? m.bounty ?? 0 : 0 }), 4200);
+  };
+  const tokenMoment = (until: string) => {
+    setToken(until); sfx.coin();
+    toast('🪙 The claw fished something out of the prize chute…', { description: 'A rusty old token. It looks like it fits a slot somewhere — but it won’t keep for long.', duration: 7000 });
+  };
+  const feedToken = async () => {
+    try {
+      const r = await api.arcadeSecretEvent('backroom', 'feed');
+      if (!r.opened) { setToken(null); toast('The machine spat the token back out. It’s gone cold.'); return; }
+      setToken(null); sfx.tickets(1); refetchSecrets();
+      setTimeout(() => hall.current?.setBackroom(true, true), 600);
+      setReveal({ id: 'backroom', bounty: r.first ? r.bounty ?? 0 : 0 });
+    } catch (e) { toast(toGameError(e).message); }
+  };
+  thumpRef.current = () => {
+    sfx.thud();
+    const tracks = music.history().filter((x) => x.id);
+    if (tracks.length < 2) return;
+    void api.arcadeSecretEvent('bside', 'thump', { tracks }).then((r) => {
+      if (!r.opened) return;
+      hall.current?.lightsOut(8, 0.16); music.play('after', false); refetchSecrets(); void qc.invalidateQueries({ queryKey: secretKey('bside') });
+      setReveal({ id: 'bside', bounty: r.first ? r.bounty ?? 0 : 0 });
+    }).catch(() => {});
+  };
+  const playSecret = async (sp: SecretPlay) => { sfx.coin(); if (sp.kind === 'landgrab') await hall.current?.zoomIn('landgrab'); setBsideMenu(false); setSecretPlay(sp); };
+  const stopSecret = () => { const was = secretPlay; setSecretPlay(null); if (was?.kind === 'landgrab') hall.current?.zoomOut(); if (was?.kind === 'bside') setBsideMenu(true); };
   const nearGame = near?.kind === 'machine' ? a.games[near.id] : null;
   const nearLand = near?.kind === 'machine' ? lockLabel(access, near.id) : null;
   const nearLocked = near?.kind === 'machine' && (!!nearLand || !(near.id in a.machines));
@@ -205,6 +262,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
         <div className="pointer-events-auto grid justify-items-end gap-1.5">
           <div className="lv-arc-ticket text-sm" data-testid="arcade-tickets">🎟️ {tix(meState.tickets)}</div>
           <InkMeter p={meState.ink_progress ?? 0} />
+          {token && <TokenChip until={token} />}
           <button onClick={() => { setMuted(!mute); setMute(!mute); if (!mute) music.stop(false); else if (music.current) music.play(); }} className="rounded-xl bg-black/55 p-1.5" aria-label={mute ? 'Sound on' : 'Sound off'}>{mute ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
         </div>
       </div>
@@ -243,6 +301,13 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
               </button>
             )}
             {near.kind === 'machine' && nearGame && !nearLocked && myId && <MatchButtons arcade={a.id} game={near.id} onMatch={() => liveRoom.refresh()} />}
+            {near.kind === 'machine' && near.id === 'landgrab' && found.has('founder') && (
+              <button onClick={() => void playSecret({ kind: 'landgrab' })} className="lv-arc-play flex items-center gap-3 rounded-3xl px-5 py-3 text-left shadow-2xl" style={{ background: 'linear-gradient(135deg, #FF4D6D, #FF9F1C, #FFE14D, #3DDC97, #34C3FF)', boxShadow: '0 0 40px #3DDC97' }} data-testid="landgrab-play">
+                <span className="text-4xl">🟩</span>
+                <span className="text-[#06121E]"><span className="block text-xs font-black uppercase tracking-widest">✦ Secret · ×{founderQ.data && founderQ.data.found ? founderQ.data.ink_mult : 3} Ink · no cap</span><span className="flex items-center gap-1.5 font-display text-2xl font-black"><Play className="h-5 w-5 fill-current" /> LAND GRAB</span>
+                  <span className="block text-[11px] font-bold">Your best: {founderQ.data && founderQ.data.found ? founderQ.data.best['landgrab:classic'] ?? '—' : '—'}</span></span>
+              </button>
+            )}
             {near.kind === 'machine' && nearGame && nearLocked && (
               <div className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3">
                 <Lock className="h-6 w-6 text-white/60" />
@@ -259,9 +324,21 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
             {near.kind === 'prizes' && (
               <button onClick={() => setSheet('prizes')} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFB13D] to-[#FF3D9A] px-5 py-3 shadow-2xl" data-testid="arcade-counter"><span className="text-4xl">🎁</span><span className="font-display text-2xl font-black">Prize counter</span></button>
             )}
+            {near.kind === 'jukebox' && found.has('bside') && (
+              <button onClick={() => { sfx.blip(14); setBsideMenu(true); }} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#4B2A8C] to-[#B57BFF] px-5 py-2.5 shadow-2xl" data-testid="bside-open">
+                <span className="text-3xl">💿</span><span><span className="block font-display text-xl font-black">The B-Side</span><span className="block text-[11px] text-white/80">Play the arcade itself to every song</span></span></button>
+            )}
             {near.kind === 'jukebox' && (
               <button onClick={() => setSheet('jukebox')} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#7A3A1A] to-[#FF3D9A] px-5 py-3 shadow-2xl" data-testid="arcade-jukebox"><span className="text-4xl">🎵</span>
                 <span><span className="block font-display text-2xl font-black">Jukebox</span><span className="block text-xs text-white/80">{music.current ? `Now playing: ${music.tracks.find((t) => t.id === music.current)?.name ?? ''}` : 'Pick a song'}</span></span></button>
+            )}
+            {near.kind === 'bonus' && token && (
+              <button onClick={() => void feedToken()} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#7A5A30] to-[#3A2810] px-5 py-2.5 text-[#FFE6A8] shadow-2xl" data-testid="feed-token">
+                <span className="text-3xl">🪙</span><span><span className="block font-display text-xl font-black">Feed it the rusty token</span><span className="block text-[11px] opacity-80">There’s a slot just its size…</span></span></button>
+            )}
+            {near.kind === 'backroom' && found.has('backroom') && (
+              <button onClick={() => { sfx.thud(); setInBackroom(true); }} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFB13D] to-[#5C3A10] px-5 py-3 text-left shadow-2xl" data-testid="backroom-enter">
+                <span className="text-4xl">🚪</span><span><span className="block font-display text-2xl font-black">The back room</span><span className="block text-xs text-white/80">ADMIT ONE · something’s still plugged in</span></span></button>
             )}
             {near.kind === 'bonus' && (
               <button onClick={daily} disabled={!meState.bonus_ready} className={cn('lv-arc-play flex items-center gap-3 rounded-3xl px-5 py-3 shadow-2xl', meState.bonus_ready ? 'bg-gradient-to-br from-[#FFE14D] to-[#FF7A3D] text-[#3A1A00]' : 'bg-black/75')} data-testid="arcade-daily">
@@ -279,8 +356,24 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
       </AnimatePresence>
       {crack !== false && <GlassCrack onDone={() => { const f = crack; setCrack(false); setPlaying(null); void qc.invalidateQueries({ queryKey: mirrorKey }); onMirror(f); }} />}
       {playing && <Cabinet a={a} me={meState} game={playing} haptics={haptics} reduce={reduce} onExit={stopPlaying} onMe={setMeState}
-        onMirror={(m) => setTimeout(() => setCrack(m.first ? { bounty: m.bounty ?? 0 } : null), 900)}
+        onSecret={(m) => { if (m.secret === 'founder') setTimeout(() => founderMoment(m), 900); else setTimeout(() => setCrack(m.first ? { bounty: m.bounty ?? 0 } : null), 900); }}
+        onToken={tokenMoment}
         match={matchOn && matchOn.game === playing ? { m: live?.match?.id === matchOn.id ? live.match : matchOn, myId: myId!, scores: liveRoom.scores, send: (s) => liveRoom.send({ t: 'score', m: matchOn.id, id: myId!, s }) } : null} />}
+      {secretPlay?.kind === 'landgrab' && <SecretCabinet secret="founder" game="landgrab" {...LANDGRAB} inkMult={founderQ.data && founderQ.data.found ? founderQ.data.ink_mult : 3}
+        best={founderQ.data && founderQ.data.found ? founderQ.data.best['landgrab:classic'] : undefined} record={founderQ.data && founderQ.data.found ? founderQ.data.boards['landgrab:classic']?.[0]?.score : undefined}
+        me={meState} haptics={haptics} reduce={reduce} onExit={stopSecret} onMe={setMeState} />}
+      {inBackroom && <BackRoom stage={Number(secrets.data?.proto?.stage ?? 0)} reduce={reduce} onBack={() => setInBackroom(false)} onPlay={() => void playSecret({ kind: 'proto' })} />}
+      {secretPlay?.kind === 'proto' && <div className="fixed inset-0 z-50"><SecretCabinet secret="backroom" game="proto" {...PROTO} inkMult={protoQ.data && protoQ.data.found ? protoQ.data.ink_mult : 3}
+        best={protoQ.data && protoQ.data.found ? protoQ.data.best['proto:classic'] : undefined} record={protoQ.data && protoQ.data.found ? protoQ.data.boards['proto:classic']?.[0]?.score : undefined}
+        me={meState} haptics={haptics} reduce={reduce} onExit={stopSecret} onMe={setMeState} onData={() => refetchSecrets()} /></div>}
+      {secretPlay?.kind === 'bside' && <SecretCabinet secret="bside" game={`bside.${secretPlay.song}.${secretPlay.diff}`} {...BSIDE_GAME(secretPlay.song, secretPlay.diff, hallPads(games))}
+        inkMult={bsideQ.data && bsideQ.data.found ? bsideQ.data.ink_mult : 3} best={bsideQ.data && bsideQ.data.found ? bsideQ.data.best[`bside.${secretPlay.song}.${secretPlay.diff}:classic`] : undefined}
+        record={bsideQ.data && bsideQ.data.found ? bsideQ.data.boards[`bside.${secretPlay.song}.${secretPlay.diff}:classic`]?.[0]?.score : undefined}
+        me={meState} haptics={haptics} reduce={reduce} onExit={stopSecret} onMe={setMeState} onData={() => refetchSecrets()} />}
+      {bsideMenu && !secretPlay && bsideQ.data?.found && <BSideMenu s={bsideQ.data} onPick={(song, diff) => void playSecret({ kind: 'bside', song, diff })} onClose={() => setBsideMenu(false)} />}
+      {reveal && <SecretReveal id={reveal.id} bounty={reveal.bounty} onClose={() => { const r = reveal; setReveal(null); if (r.id === 'bside') setBsideMenu(true); if (r.id === 'founder') hall.current?.walkTo({ kind: 'machine', id: 'landgrab' }); if (r.id === 'backroom') hall.current?.walkTo({ kind: 'backroom' }); }}>
+        {reveal.id === 'backroom' && <AdmitOne />}
+      </SecretReveal>}
       {carnival && <BoothHud c={carnival} me={meState} busy={cBusy} hall={hall} onClose={closeBooth} />}
       {cBusy?.k === 'ride' && <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]"><button onClick={() => { hall.current?.carnival?.endRide(); setCBusy(null); }} className="rounded-full bg-black/70 px-5 py-2 text-sm font-bold" data-testid="carnival-get-off">{carnival?.rides[cBusy.id]?.emoji} Get off the ride</button></div>}
       {treats && carnival && cme && <TreatCart a={a} c={carnival} cme={cme} me={meState} onMe={setMeState} onCme={setCme} onClose={() => setTreats(false)} />}
@@ -306,8 +399,9 @@ function InkMeter({ p }: { p: number }) {
 type Phase = { k: 'attract' } | { k: 'count'; n: number; session: string; seed: number; level: number } | { k: 'play'; session: string; seed: number; level: number } | { k: 'done'; r: ArcadeFinish | null; score: number }
   | { k: 'mwait' } | { k: 'mdone'; r: ArcadeFinish | null; score: number };
 type MatchCtx = { m: ArcadeMatch; myId: string; scores: Record<string, number>; send(score: number): void };
-function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onMirror }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void; match: MatchCtx | null;
-  /** the round just played opened the way through the glass */ onMirror?(m: { first?: boolean; bounty?: number }): void }) {
+function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, onToken }: { a: Arcade; me: ArcadeMe; game: string; haptics: boolean; reduce: boolean; onExit(): void; onMe(m: ArcadeMe): void; match: MatchCtx | null;
+  /** the round just played opened a secret (the Mirror Arcade or the Founder's Code) */ onSecret?(m: { secret?: string; first?: boolean; bounty?: number }): void;
+  /** a Claw Crane round fished a rusty token out of the chute */ onToken?(until: string): void }) {
   const qc = useQueryClient();
   const info = a.games[game];
   const Arena = ARENAS[game];
@@ -360,7 +454,11 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onMirror }
       setCounted(0); setPhase({ k: 'done', r, score: r.score });
       if (r.new_record || r.level_up) confettiCannons();
       // the server knows if this round finished something; it only ever answers yes or no
-      if (!r.repeat) void api.arcadeMirrorCheck(session).then((m) => { if (m.opened) onMirror?.(m); }).catch(() => {});
+      if (!r.repeat) {
+        void api.arcadeSecretCheck(session).then((m) => { if (m.opened) onSecret?.(m); }).catch(() => {});
+        // where the claw dropped on each go (the server knows if that means anything)
+        if (game === 'claw' && CLAW_LOG.drops.length) void api.arcadeSecretEvent('backroom', 'claw', { session, drops: CLAW_LOG.drops }).then((t) => { if (t.token && t.until) onToken?.(t.until); }).catch(() => {});
+      }
     } catch (e) { toast.error(toGameError(e).message); setPhase(match ? { k: 'mdone', r: null, score } : { k: 'done', r: null, score }); }
   };
   // tickets spill out, counted up one by one

@@ -350,6 +350,16 @@ export const api = {
   arcadeMirrorGet: () => rpc<import('./types').MirrorArcade>('arcade_mirror_get'),
   arcadeMirrorStart: (game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_mirror_start', { p_game: game, p_mode: mode }),
   arcadeMirrorFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_mirror_finish', { p_session: session, p_score: score }),
+  // the arcade's other secrets (hidden: arcadeSecretsMe answers { found: [] } until you've found one)
+  arcadeSecretsMe: () => rpc<import('./types').SecretsMe>('arcade_secrets_me'),
+  arcadeSecretCheck: (session: string) => rpc<{ opened: boolean; secret?: 'mirror' | 'founder'; first?: boolean; bounty?: number }>('arcade_secret_check', { p_session: session }),
+  arcadeSecretEvent: (secret: string, kind: string, data: Record<string, unknown> = {}) =>
+    rpc<{ opened?: boolean; secret?: string; first?: boolean; bounty?: number; token?: boolean; until?: string }>('arcade_secret_event', { p_secret: secret, p_kind: kind, p_data: data }),
+  arcadeSecretGet: (secret: string) => rpc<import('./types').SecretGames>('arcade_secret_get', { p_secret: secret }),
+  arcadeSecretStart: (secret: string, game: string, mode: import('./types').ArcadeMode = 'classic') =>
+    rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_secret_start', { p_secret: secret, p_game: game, p_mode: mode }),
+  arcadeSecretFinish: (session: string, score: number, meta: Record<string, unknown> = {}) =>
+    rpc<import('./types').ArcadeFinish & { data?: Record<string, any> }>('arcade_secret_finish', { p_session: session, p_score: score, p_meta: meta }),
   carnivalStart: (arcade: string, game: string) => rpc<{ session: string; seed: number; game: string; seconds: number; mult: number }>('carnival_start', { p_arcade: arcade, p_game: game }),
   carnivalTreat: (arcade: string, treat: string) => rpc<{ treat: string; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_treat', { p_arcade: arcade, p_treat: treat }),
   carnivalFortune: (arcade: string) => rpc<{ fortune: import('./types').CarnivalFortune; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_fortune', { p_arcade: arcade }),

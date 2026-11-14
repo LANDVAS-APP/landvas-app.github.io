@@ -51,6 +51,10 @@ export const portal = {
   rowDelete: (schema: string, table: string, pk: Record<string, unknown>, reason: string) => rpc<any>('portal_admin_row_delete', { p_schema: schema, p_table: table, p_pk: pk, p_reason: reason }),
   sql: (query: string) => rpc<{ columns: string[]; rows: unknown[][]; count: number; truncated: boolean; ms: number; error?: string; state?: string }>('portal_admin_sql', { p_query: query }),
   setMfa: (on: boolean) => rpc<WhoAmI>('portal_admin_set_mfa', { p_on: on }),
+  // arcade secrets (economy staff)
+  secrets: () => rpc<SecretsAdmin>('admin_arcade_secrets'),
+  secretSave: (id: string, cfg: Record<string, any>) => rpc<SecretsAdmin>('admin_arcade_secret_save', { p_id: id, p_cfg: cfg }),
+  secretFinder: (id: string, player: string, found: boolean) => rpc<SecretStats>('admin_arcade_secret_finder', { p_id: id, p_player: player, p_found: found }),
   // players
   me: () => rpc<any>('portal_me_summary'),
   meSeries: (days: number, tz: string) => rpc<Day[]>('portal_me_series', { p_days: days, p_tz: tz }),
@@ -75,3 +79,9 @@ export type MyPlot = {
   progress: { game: string; level: number; best: number; plays: number; wins: number; at: string } | null;
   acquired: { method: string; cost: Record<string, number> | null; at: string } | null;
 };
+
+export type SecretStats = { finders: number; finders_7d: number; plays: number; plays_24h: number; players_24h: number; ink: number; ink_7d: number; tokens?: number | null;
+  games: Record<string, number>; recent: { player: { id: string; username: string; [k: string]: any }; found_at: string }[] };
+export type SecretRow = { id: string; cfg: Record<string, any>; updated_at: string; updated_by: { username: string } | null; stats: SecretStats };
+export type HallCabinet = { id: string; name: string; emoji: string; color: string; order: number; level: number | null; cell: [number, number] | null };
+export type SecretsAdmin = { secrets: SecretRow[]; cabinets: HallCabinet[] };
