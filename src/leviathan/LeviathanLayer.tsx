@@ -4,7 +4,8 @@
 // Its powers show here too: TINY (a speck in a ring), HIDDEN (gone — only a hazy area; zoom in and pan around to search:
 // it tells you hot or cold, and when it's in view you've found it), and the owner's RAMPAGE (speed streaks, red).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -47,7 +48,7 @@ export function LeviathanLayer({ ready }: { ready: boolean }) {
   useEffect(() => {
     const map = mapHandle.current;
     if (!ready || !map || !l || !l.path) return;
-    const m = new maplibregl.Marker({ element: node, anchor: 'bottom' });
+    const m = newMarker({ element: node, anchor: 'bottom' });
     marker.current = m;
     const p0 = levPos(l);
     m.setLngLat([p0.lng, p0.lat]).addTo(map);
@@ -120,21 +121,21 @@ export function LeviathanLayer({ ready }: { ready: boolean }) {
       : l?.target && l.target.gx != null && l.target.gy != null ? [cellCenter(l.target.gx, l.target.gy)] : [];
     aims.forEach((pt, i) => {
       const n = document.createElement('div'); n.className = 'lv-lev-target'; n.innerHTML = `<i></i>${i === 0 && l?.target?.owner_name ? `<b>🎯 @${l.target.owner_name}</b>` : '<b>🎯</b>'}`;
-      ms.push(new maplibregl.Marker({ element: holder(n) }).setLngLat(pt).addTo(map));
+      ms.push(newMarker({ element: holder(n) }).setLngLat(pt).addTo(map));
     });
     // hidden: a question mark in the middle of the haze
     if (l && !l.path && l.haze) {
       const n = document.createElement('button'); n.className = 'lv-lev-haze-mark'; n.innerHTML = '<span>🫥</span><b>Hiding somewhere in here — zoom in to search</b>';
       n.dataset.testid = 'map-lev-haze';
       n.addEventListener('click', (e) => { e.stopPropagation(); useUi.getState().requestFly({ lng: Number(l.haze!.lng), lat: Number(l.haze!.lat), zoom: 9.6 }); });
-      ms.push(new maplibregl.Marker({ element: holder(n) }).setLngLat([Number(l.haze.lng), Number(l.haze.lat)]).addTo(map));
+      ms.push(newMarker({ element: holder(n) }).setLngLat([Number(l.haze.lng), Number(l.haze.lat)]).addTo(map));
     }
     for (const b of bones) {
       const n = document.createElement('button'); n.className = 'lv-bones'; n.innerHTML = '<span>🦴</span><i>💀</i>';
       n.title = `Leviathan #${b.gen} fell here${b.place ? ` (${b.place})` : ''} · ${b.players} fought it${b.top ? ` · top: @${b.top}` : ''}`;
       n.dataset.testid = 'map-bones';
       n.addEventListener('click', (e) => { e.stopPropagation(); useLevUi.getState().showBones(b); });
-      ms.push(new maplibregl.Marker({ element: holder(n), anchor: 'bottom' }).setLngLat([b.lng, b.lat]).addTo(map));
+      ms.push(newMarker({ element: holder(n), anchor: 'bottom' }).setLngLat([b.lng, b.lat]).addTo(map));
     }
     return () => ms.forEach((m) => m.remove());
   }, [ready, l?.target?.gx, l?.target?.gy, l?.target?.owner_name, JSON.stringify(l?.targets), JSON.stringify(l?.haze), !!l?.path, bones.length]); // eslint-disable-line react-hooks/exhaustive-deps

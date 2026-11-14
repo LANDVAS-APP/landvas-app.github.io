@@ -2666,3 +2666,21 @@ html.reduce-motion .lv-grim-aurora::before, html.reduce-motion .lv-grim-aurora i
 @keyframes lv-glow-fade { 50% { opacity: 1; } }
 @keyframes lv-hot-ring { from { transform: scale(1); opacity: 1; } to { transform: scale(1.22, 1.8); opacity: 0; } }
 @keyframes lv-dot-ring { from { transform: scale(1); opacity: 1; } 70%, to { transform: scale(3.3); opacity: 0; } }
+/* ---- nothing animates that can't be seen ---- */
+/* the Grimoire button's swirl and sparkles only play while it's open (closed, they were spinning at opacity 0) */
+.lv-disc:not(.on) .lv-grim-aurora::before, .lv-disc:not(.on) .lv-grim-aurora i { animation-play-state: paused; }
+/* an empty Luck meter has no liquid to slosh */
+.lv-liquid.empty i { display: none; }
+
+
+/* ---- phones: no blur behind anything (see CLAUDE.md). The rules above cover the app's own HUD pieces; this covers
+   the rest — the shared .glass cards and panels (253 places) and every Tailwind backdrop-blur utility, which sat on
+   the HUDs over the 3D places (home, mine, dungeon, farm, brawl, the planets…) and re-blurred the moving scene under
+   them every frame. See-through dark overlays get a little more tint instead, so text on them reads as before. ---- */
+@media (pointer: coarse) {
+  .glass, [class*="backdrop-blur"], .lv-lev-moment { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  [class*="backdrop-blur"]:is(.bg-black\/25, .bg-black\/30, .bg-black\/35, .bg-black\/40, .bg-black\/45) { background-color: rgb(0 0 0 / 0.56); }
+  [class*="backdrop-blur"]:is(.bg-black\/50, .bg-black\/55, .bg-black\/60) { background-color: rgb(0 0 0 / 0.66); }
+}
+/* the plots list shows up to hundreds of rows: rows scrolled far off screen skip layout and painting */
+.lv-plotrow { content-visibility: auto; contain-intrinsic-size: auto 72px; }

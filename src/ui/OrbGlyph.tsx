@@ -87,7 +87,7 @@ function draw(kind: GlyphKind, id: string | null): ReactNode {
 export function LuckLiquid({ fill, armed }: { fill: number; armed?: boolean }) {
   const f = Math.max(0, Math.min(1, fill));
   return (
-    <span className={cn('lv-liquid', armed && 'armed', f >= 1 && 'full')} style={{ ['--fill' as string]: f }} aria-hidden>
+    <span className={cn('lv-liquid', armed && 'armed', f >= 1 && 'full', f <= 0 && 'empty')} style={{ ['--fill' as string]: f }} aria-hidden>
       <i className="back" /><i className="front" />
     </span>
   );

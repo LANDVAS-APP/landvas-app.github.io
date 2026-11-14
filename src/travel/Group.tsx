@@ -3,7 +3,8 @@
 // they're away travelling: nobody's GPS, and nobody's home, ever shows.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { toast } from 'sonner';
 import { Copy, Crown, LogOut, UserPlus, X } from 'lucide-react';
 import { api } from '../backend/api';
@@ -158,7 +159,7 @@ export function GroupMapLayer() {
       const nm = document.createElement('div'); nm.className = 'lv-mate-name'; nm.textContent = `@${m.username}`;
       el.appendChild(nm);
       el.style.display = 'none';
-      const mk = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 6] }).setLngLat([0, 0]).addTo(map);
+      const mk = newMarker({ element: el, anchor: 'bottom', offset: [0, 6] }).setLngLat([0, 0]).addTo(map);
       have.set(m.id, { mk, el, at: null, target: null });
     }
     // glide each one towards where they are (live positions arrive a few times a second)
@@ -218,7 +219,7 @@ export function GroupMapLayer() {
       el.className = 'lv-ping'; el.dataset.testid = 'group-ping';
       el.innerHTML = '<i></i><b></b><span></span>';
       (el.querySelector('span') as HTMLElement).textContent = `@${p.who}: meet here!`;
-      pinRefs.current.set(k, new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map));
+      pinRefs.current.set(k, newMarker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map));
     }
   }, [pings]);
   useEffect(() => () => {

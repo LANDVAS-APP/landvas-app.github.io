@@ -23,6 +23,7 @@ import { useClaimables } from './claimables';
 import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
 import { NATIVE_APP } from './buildFlags';
+import { restRoute, startRest } from '../lib/rest';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
@@ -113,6 +114,8 @@ export function Shell() {
   const simple = useUi((s) => !!s.settings.simpleMode);
   const isMap = loc.pathname === '/world' && !simple;
   const admin = !NATIVE_APP && me?.roles?.includes('owner');
+  // decorations rest on screens nobody is touching (see lib/rest.ts)
+  useEffect(() => { startRest(); restRoute(loc.pathname); }, [loc.pathname]);
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
   const claim = useClaimables();
   const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === (NATIVE && !simple ? '/hub' : '/world') ? claim.count : 0);

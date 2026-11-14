@@ -3,7 +3,8 @@
 // everyone's map — the camera pulls back to show the whole giant. Your own plot: for real. Someone else's: a prank, just
 // for show (they're told, and can undo it). The server times the needle from its own clock and decides how long it lasts.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -221,7 +222,7 @@ function Targeting({ id }: { id: string }) {
       el.addEventListener('click', (ev) => { ev.stopPropagation(); feel('medium'); pick({ gx: p.gx, gy: p.gy }); });
       // (the marker's own element only gets moved by the map: the spinning crosshair lives inside it)
       const holder = document.createElement('div'); holder.appendChild(el);
-      return new maplibregl.Marker({ element: holder }).setLngLat(cellCenter(p.gx, p.gy)).addTo(map);
+      return newMarker({ element: holder }).setLngLat(cellCenter(p.gx, p.gy)).addTo(map);
     });
     return () => { for (const m of markers.current) m.remove(); markers.current = []; };
   }, [bbox, list.length, picked, mode]); // eslint-disable-line react-hooks/exhaustive-deps

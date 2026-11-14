@@ -157,6 +157,16 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
     await shot(page, 'app-boost-live');
     await page.click('[data-testid=boost-chip]').catch(() => {}); await page.waitForTimeout(500);
   }
+  {
+    // resting decorations: on the map, untouched for a while, endless loops hold still; the next touch wakes them
+    await page.evaluate(() => { window.__landvasRestMs = 1500; });
+    await page.mouse.move(200, 400); await page.waitForTimeout(2600);
+    const rest = await page.evaluate(() => ({ on: document.documentElement.classList.contains('lv-rest'), running: document.getAnimations().filter((a) => a.playState === 'running' && a.effect?.getTiming?.().iterations === Infinity && a.animationName).length }));
+    check(rest.on && rest.running === 0, `decorations rest on an untouched map (${rest.running} endless loops still running)`);
+    await page.mouse.move(210, 410); await page.waitForTimeout(300);
+    check(!(await page.evaluate(() => document.documentElement.classList.contains('lv-rest'))), 'a touch wakes them');
+    await page.evaluate(() => { window.__landvasRestMs = undefined; });
+  }
   check(await page.locator('[data-testid=streak-chip]').count() === 0, 'app map: the daily check-in stays in the Play hub');
   check(await page.locator('[data-testid=hud-pigments]').count() === 0, 'app map: one HUD, not two');
   // (a new player is first asked where to drop their explorer: close that)

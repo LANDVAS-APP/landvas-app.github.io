@@ -23,12 +23,15 @@ export function haptic(ms = 8) {
   }
 }
 
-/** Re-render every `ms` while mounted (for timers). */
+/** Re-render every `ms` while mounted (for timers) — not while the app is in the background (it catches up the
+ *  moment it's back: everything it shows is worked out from the clock). */
 export function useTicker(ms = 250) {
   const [, set] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => set((n) => n + 1), ms);
-    return () => clearInterval(id);
+    const id = setInterval(() => { if (!document.hidden) set((n) => n + 1); }, ms);
+    const back = () => { if (!document.hidden) set((n) => n + 1); };
+    document.addEventListener('visibilitychange', back);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', back); };
   }, [ms]);
 }
 

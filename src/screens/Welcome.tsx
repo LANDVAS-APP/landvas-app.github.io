@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { framePacer } from '../lib/gfx';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
@@ -32,7 +33,7 @@ export function LivingCanvas() {
     const types = Object.keys(PLOT_TYPES) as PlotTypeId[];
     const state: { t: PlotTypeId; on: number; seed: number }[] = Array.from({ length: cols * rows }, (_, i) => ({ t: types[(i * 7 + (i >> 3)) % 4], on: 0, seed: i * 13 + 5 }));
     const mural = { x: 4, y: 2, w: 5, h: 4 };
-    let frame = 0, raf = 0;
+    let raf = 0;
     const tiles = new Map<string, HTMLCanvasElement>();
     const tile = (t: PlotTypeId, seed: number, px: number) => {
       const k = `${t}-${seed}-${px}`;
@@ -44,28 +45,60 @@ export function LivingCanvas() {
       }
       return tiles.get(k)!;
     };
-    const draw = () => {
-      const dpr = Math.min(2, devicePixelRatio || 1);
-      const w = c.clientWidth, h = c.clientHeight;
-      if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const size = Math.max(w / cols, h / rows);
-      const gap = Math.max(2, size * 0.06);
-      ctx.clearRect(0, 0, w, h);
-      frame++;
-      if (frame % 9 === 0 || reduce) {
-        const pick = state[(frame * 37) % state.length];
-        pick.on = Math.min(1, pick.on + 1);
+    // What's still is drawn once, off screen: the plot tiles (a tile is redrawn only when it lights up) and the
+    // mural's glowing frame (a blur, the costliest thing to draw). Each frame then copies those two layers and
+    // paints just the moving mural — instead of every tile and the blur, every refresh.
+    const bg = document.createElement('canvas'), bgx = bg.getContext('2d')!;
+    const rim = document.createElement('canvas'), rimx = rim.getContext('2d')!;
+    let w = 0, h = 0, dpr = 1, size = 0, gap = 0;
+    const cell = (i: number) => {
+      const s = state[i];
+      const x = (i % cols) * size, y = Math.floor(i / cols) * size;
+      const inMural = (i % cols) >= mural.x && (i % cols) < mural.x + mural.w && Math.floor(i / cols) >= mural.y && Math.floor(i / cols) < mural.y + mural.h;
+      if (inMural) return;
+      bgx.clearRect(x, y, size, size);
+      bgx.globalAlpha = reduce ? 0.9 : 0.12 + s.on * 0.75;
+      bgx.drawImage(tile(s.t, s.seed, 64), x + gap / 2, y + gap / 2, size - gap, size - gap);
+      bgx.globalAlpha = 1;
+    };
+    const layout = () => {
+      dpr = Math.min(2, devicePixelRatio || 1);
+      w = c.clientWidth; h = c.clientHeight;
+      c.width = bg.width = rim.width = Math.round(w * dpr);
+      c.height = bg.height = rim.height = Math.round(h * dpr);
+      size = Math.max(w / cols, h / rows);
+      gap = Math.max(2, size * 0.06);
+      bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (let i = 0; i < state.length; i++) cell(i);
+      const mx = mural.x * size, my = mural.y * size, mw = mural.w * size, mh = mural.h * size;
+      rimx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      rimx.clearRect(0, 0, w, h);
+      rimx.strokeStyle = 'rgba(201,246,255,0.9)';
+      rimx.lineWidth = 2;
+      rimx.shadowColor = '#22E3FF';
+      rimx.shadowBlur = 16;
+      rimx.strokeRect(mx + gap / 2, my + gap / 2, mw - gap, mh - gap);
+    };
+    const pace = framePacer({ ambient: true });
+    const t0 = performance.now();
+    let flips = 0, lit = 0;
+    const draw = (now: number) => {
+      if (!reduce) raf = requestAnimationFrame(draw);
+      if (!reduce && !pace.ready(now)) return;
+      if (c.clientWidth !== w || c.clientHeight !== h) layout();
+      if (!w || !h) return; // not laid out yet
+      // a tile lights up every 150 ms (what was every 9th frame at 60 a second), until they all have
+      for (let due = Math.floor((now - t0) / 150); flips < due && lit < state.length; flips++) {
+        const i = (flips * 37) % state.length;
+        if (state[i].on < 1) { state[i].on = 1; lit++; cell(i); }
       }
-      state.forEach((s, i) => {
-        const x = (i % cols) * size, y = Math.floor(i / cols) * size;
-        const inMural = (i % cols) >= mural.x && (i % cols) < mural.x + mural.w && Math.floor(i / cols) >= mural.y && Math.floor(i / cols) < mural.y + mural.h;
-        ctx.globalAlpha = reduce ? 0.9 : 0.12 + s.on * 0.75;
-        if (!inMural) ctx.drawImage(tile(s.t, s.seed, 64), x + gap / 2, y + gap / 2, size - gap, size - gap);
-      });
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(bg, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // the fused mural: one continuous painting across 20 plots
       const mx = mural.x * size, my = mural.y * size, mw = mural.w * size, mh = mural.h * size;
-      const t = reduce ? 0 : frame / 120;
+      const t = reduce ? 0 : (now - t0) / 2000;
       const g = ctx.createLinearGradient(mx, my, mx + mw, my + mh);
       g.addColorStop(0, '#FF4D6D'); g.addColorStop(0.35, '#FF9F1C'); g.addColorStop(0.6, '#7B5CFF'); g.addColorStop(1, '#22E3FF');
       ctx.globalAlpha = 0.95;
@@ -83,15 +116,11 @@ export function LivingCanvas() {
       ctx.lineTo(mx + mw, my + mh);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = 'rgba(201,246,255,0.9)';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#22E3FF';
-      ctx.shadowBlur = 16;
-      ctx.strokeRect(mx + gap / 2, my + gap / 2, mw - gap, mh - gap);
-      ctx.shadowBlur = 0;
-      if (!reduce) raf = requestAnimationFrame(draw);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(rim, 0, 0);
     };
-    draw();
+    if (reduce) for (const s of state) s.on = 1;
+    draw(performance.now());
     return () => cancelAnimationFrame(raf);
   }, []);
   return <canvas ref={ref} className="absolute inset-0 h-full w-full opacity-70" aria-hidden />;

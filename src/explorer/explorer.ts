@@ -185,7 +185,14 @@ function hookResume() {
   if (resumeHooked || typeof document === 'undefined') return;
   resumeHooked = true;
   const back = () => { if (!document.hidden && wanted && useExplorer.getState().gps !== 'paused') { lastReport.at = 0; restartGps(); } };
-  document.addEventListener('visibilitychange', back);
+  // In the background the game doesn't need your position (nothing reports it until you're back), but the phone's
+  // GPS kept running at full accuracy for as long as the app stayed open behind other apps (Android's location plugin
+  // doesn't stop on its own). Let go of it while away; the watch starts afresh on the way back in.
+  const away = () => { if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; } };
+  document.addEventListener('visibilitychange', () => (document.hidden ? away() : back()));
+  // the app shell's own lifecycle events (they arrive even where the page's visibility lags behind)
+  document.addEventListener('pause', away);
+  document.addEventListener('resume', () => { if (wanted && useExplorer.getState().gps !== 'paused') { lastReport.at = 0; restartGps(); } });
   window.addEventListener('pageshow', back);
   window.addEventListener('focus', () => { if (wanted && Date.now() - lastFix > 20_000) back(); });
 }

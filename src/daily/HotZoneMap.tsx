@@ -1,7 +1,8 @@
 // The Hot Zone on the full map: a glowing circle over today's city (it stays when plots are hidden — it's light),
 // and a chip that flies you there.
 import { OrbGlyph } from '../ui/OrbGlyph';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -63,7 +64,7 @@ export function HotZoneLayer() {
     (el.querySelector('b') as HTMLElement).textContent = z.name;
     el.addEventListener('click', (e) => { e.stopPropagation(); flyToHotZone(z); });
     const [lng, lat] = hotCenter(z);
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
+    const marker = newMarker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map);
     const zoom = () => { el.style.display = map.getZoom() < 11 ? '' : 'none'; };
     zoom(); map.on('zoom', zoom);
     return () => {

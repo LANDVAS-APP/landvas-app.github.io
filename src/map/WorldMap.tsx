@@ -2,6 +2,7 @@
 // plots, the published-art tile pyramid, the player's explorer and four modes.
 import { autoSaveMapCache, restoreMapCache, saveMapCache } from './mapCache';
 import * as maplibregl from 'maplibre-gl';
+import { setMapLib } from './maplib';
 import type { GeoJSONSource, Map as MLMap, RasterTileSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,6 +42,7 @@ const PLOT_TILES = (gen: number) => [`lvplots://{z}/{x}/{y}?g=${gen}`];
 const HAB_TILES = (gen: number) => [`lvhab://{z}/{x}/{y}?g=${gen}`];
 const NAMES_MIN_ZOOM = GRID_LEVEL - 1.8;
 // phones with 3x screens draw at 2x: a third of the pixels to fill, the same look
+setMapLib(maplibregl);
 const PIXEL_RATIO = Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2);
 
 function poly(gx: number, gy: number, props: Record<string, unknown>): GeoJSON.Feature {

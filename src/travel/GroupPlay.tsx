@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { toast } from 'sonner';
 import { Users } from 'lucide-react';
 import { api } from '../backend/api';
@@ -250,7 +251,7 @@ export function GroupGameLayer() {
       el.dataset.testid = 'game-item'; el.dataset.i = String(it.i);
       el.innerHTML = game.kind === 'race' ? flagArt(it.c) : balloonArt(it.c);
       el.addEventListener('click', (e) => { e.stopPropagation(); void hitRef.current(game, it.i); });
-      markers.current.set(k, new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([it.lng, it.lat]).addTo(map));
+      markers.current.set(k, newMarker({ element: el, anchor: 'bottom' }).setLngLat([it.lng, it.lat]).addTo(map));
     }
   }, [items, game]);
   useEffect(() => () => { for (const mk of markers.current.values()) mk.remove(); markers.current.clear(); }, []);

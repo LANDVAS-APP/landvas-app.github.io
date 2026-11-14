@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { Home, Plane, Search, TrainFront } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -504,7 +505,7 @@ export function TravelMapLayer() {
       if (have.has(id)) continue;
       const el = stopEl(w.name, w.kind, w.cls, () => useTravelUi.getState().setStop(id));
       el.dataset.testid = 'travel-building'; el.dataset.stop = id;
-      have.set(id, { m: new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, w.cls === 'way' ? -4 : -34] }).setLngLat([w.lng, w.lat]).addTo(map), key: w.cls + w.name });
+      have.set(id, { m: newMarker({ element: el, anchor: 'bottom', offset: [0, w.cls === 'way' ? -4 : -34] }).setLngLat([w.lng, w.lat]).addTo(map), key: w.cls + w.name });
     }
   }, [want]);
   useEffect(() => () => { for (const v of markers.current.values()) v.m.remove(); markers.current.clear(); }, []);

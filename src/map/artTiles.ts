@@ -2,7 +2,7 @@
 // index of which tiles exist and their immutable revision. Only tiles in view
 // are requested, at the zoom-appropriate pyramid level, so a 100-plot mural
 // costs a mobile client the same as a single plot.
-import { addProtocol } from 'maplibre-gl';
+import { mapLib } from './maplib';
 import { api } from '../backend/api';
 import { getBackend } from '../backend/backend';
 import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE } from '../shared/grid';
@@ -130,7 +130,7 @@ let registered = false;
 export function registerArtProtocol(index: ArtIndex) {
   if (registered) return;
   registered = true;
-  addProtocol('lvart', async (params, abort) => {
+  mapLib().addProtocol('lvart', async (params, abort) => {
     const m = /^lvart:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
     if (!m) return { data: EMPTY_PNG.slice().buffer };
     const [z, x, y] = [Number(m[1]), Number(m[2]), Number(m[3])];

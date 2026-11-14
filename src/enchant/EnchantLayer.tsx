@@ -5,7 +5,8 @@
 // the whole neighbourhood (a beacon from far away); a tiny plot is the same, a hundredth of one, in a dark hole (with a 🔍).
 // Open Wormholes arc across the world between their ends; tap the vortex to fly through.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { api, type EnchantMap, type EnchantWorld } from '../backend/api';
@@ -125,7 +126,7 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
     const tinies: { cv: HTMLCanvasElement; scale: number }[] = [];
     const eyes: { m: maplibregl.Marker; node: HTMLElement }[] = [];
     const add = (lngLat: [number, number], node: HTMLElement, anchor: maplibregl.PositionAnchor = 'center', offset: [number, number] = [0, 0]) => {
-      const m = new maplibregl.Marker({ element: node, anchor, offset }).setLngLat(lngLat).addTo(map);
+      const m = newMarker({ element: node, anchor, offset }).setLngLat(lngLat).addTo(map);
       markers.push(m); return m;
     };
     for (const p of data?.plots ?? []) {
@@ -254,7 +255,7 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
       const node = el(`<span class="lv-beacon" style="--c:${c}"><i></i>${g.prank ? '🤡' : '📡'}<b>${g.prank ? `GIANT · @${g.by_name ?? '?'}’s prank` : `GIANT${g.owner_name ? ` · @${g.owner_name}` : ''}`}</b></span>`, 'lv-em', () => { const [lng, lat] = cellCenter(g.gx, g.gy); flyAway({ lng, lat, zoom: 15.6 }); });
       node.title = `A giant plot${g.owner_name ? ` · @${g.owner_name}` : ''}${g.prank ? ` · @${g.by_name ?? '?'}’s prank` : ` · ×${Number(g.mult).toFixed(1)}`}`;
       node.dataset.testid = 'map-beacon';
-      return new maplibregl.Marker({ element: node, anchor: 'bottom' }).setLngLat(cellCenter(g.gx, g.gy)).addTo(map);
+      return newMarker({ element: node, anchor: 'bottom' }).setLngLat(cellCenter(g.gx, g.gy)).addTo(map);
     });
     // (close enough that the giant fills the screen, the beacon says what it is)
     const vis = () => { const z = map.getZoom(), show = z >= BEACON_ZOOM && z < MIN_ZOOM; for (const m of markers) { const n = m.getElement(); n.style.display = show ? '' : 'none'; n.classList.toggle('lv-near', z >= 12.5); } };

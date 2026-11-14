@@ -3,7 +3,8 @@
 // when each trip set off and lands, and the map plays it back.
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from '../map/maplib';
 import { api } from '../backend/api';
 import type { TravelTraffic } from '../backend/types';
 import { mapHandle } from '../map/mapHandle';
@@ -120,7 +121,7 @@ export function TrafficLayer({ enabled }: { enabled: boolean }) {
     const keep = new Set(live.map((t) => t.trip));
     for (const [id, m] of have) if (!keep.has(id)) { m.remove(); have.delete(id); }
     if (!map) return;
-    for (const t of live) if (!have.has(t.trip)) have.set(t.trip, new maplibregl.Marker({ element: vehicleEl(t), anchor: 'center' }).setLngLat([t.to.lng, t.to.lat]).addTo(map));
+    for (const t of live) if (!have.has(t.trip)) have.set(t.trip, newMarker({ element: vehicleEl(t), anchor: 'center' }).setLngLat([t.to.lng, t.to.lat]).addTo(map));
     const tick = () => {
       const now = Date.now() + useExplorer.getState().offset;
       for (const t of live) {

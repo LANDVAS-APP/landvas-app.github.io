@@ -7,7 +7,7 @@
 // GPU, and panning only ever loads the edges it hasn't drawn yet. The cost of a
 // frame no longer depends on how many plots or players exist.
 import { hasTierScene, tierScene } from './tierScenes';
-import { addProtocol } from 'maplibre-gl';
+import { mapLib } from './maplib';
 import { api } from '../backend/api';
 import { config } from '../env';
 import type { PlotKind, PlotRow } from '../backend/types';
@@ -1062,7 +1062,7 @@ let registered = false;
 export function registerPlotProtocols(blocks: PlotBlocks, opts: () => PlotTileOpts) {
   if (registered) return;
   registered = true;
-  addProtocol('lvplots', async (params, abort) => {
+  mapLib().addProtocol('lvplots', async (params, abort) => {
     const m = /^lvplots:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
     if (!m) return { data: new ArrayBuffer(0) };
     try {
@@ -1073,7 +1073,7 @@ export function registerPlotProtocols(blocks: PlotBlocks, opts: () => PlotTileOp
       return { data: new ArrayBuffer(0) };
     }
   });
-  addProtocol('lvhab', async (params, abort) => {
+  mapLib().addProtocol('lvhab', async (params, abort) => {
     const m = /^lvhab:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
     if (!m) return { data: new ArrayBuffer(0) };
     try {

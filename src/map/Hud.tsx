@@ -5,7 +5,8 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MAP_THEMES } from './basemap';
 import { AnimatePresence, motion } from 'motion/react';
 import { Compass, Layers, MapPinned, Palette } from 'lucide-react';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
+import { newMarker } from './maplib';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -301,7 +302,7 @@ export function PlotBubbles({ ready }: { ready: boolean }) {
       // element itself would override the map's own transform)
       const wrap = document.createElement('div');
       wrap.appendChild(el);
-      const m = new maplibregl.Marker({ element: wrap, anchor: 'bottom', offset: [0, -14] }).setLngLat([lng, lat]).addTo(map);
+      const m = newMarker({ element: wrap, anchor: 'bottom', offset: [0, -14] }).setLngLat([lng, lat]).addTo(map);
       markers.push(m);
     });
     // only once plots are big enough to see

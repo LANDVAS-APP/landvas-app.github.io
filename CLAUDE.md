@@ -49,4 +49,21 @@ What made phones stutter and run hot, and the rules that keep it fixed:
   of tiles in one go on the main thread.
 - **Sound engines sleep** (`audioNap` in `src/lib/audioNap.ts`): an AudioContext left running keeps the
   phone's audio hardware awake.
-- Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) after `npm run build:artifact`.
+- **No blur behind anything on phones** — that includes the shared `.glass` class and every Tailwind `backdrop-blur-*`
+  (a phone rule at the end of `app.css` turns them off and tints see-through dark overlays instead).
+- **Decorations rest** (`src/lib/rest.ts`): on browsing screens nobody has touched for 20 s, endless CSS loops (and the
+  SVG previews) pause until the next touch. Only *endless* loops are held — never pause one-off animations (a dialog
+  opening while things rest must still animate in). Loaders (`.lv-loader`, `.lv-skel`, `animate-spin/pulse`) and
+  anything marked `.lv-keep-moving` never rest. Games, the editor and 3D places aren't on the resting list.
+- **Nothing animates that can't be seen**: a closed button's effects pause (`.lv-disc:not(.on) …`), an empty meter has
+  no liquid; check `document.getAnimations()` on a screen for loops on invisible things.
+- **The map library (~1 MB) belongs to the map screen.** Never `import * as maplibregl from 'maplibre-gl'` (or any
+  value import) outside `src/map/WorldMap.tsx`: make markers with `newMarker()` and reach the library with `mapLib()`
+  from `src/map/maplib.ts` (types: `import type`). A value import anywhere else drags the library into the hub, plot
+  sheets, the planets, simple mode… (`tests/e2e/simple-mode.mjs` checks it isn't loaded there).
+- **In the background the app rests**: Android's web view is paused with the app (`MainActivity.java`), so the page is
+  hidden there like a background tab; timers that tick a display check `document.hidden` (`useTicker` does); the GPS
+  watch is let go while hidden and restarted on the way back (`src/explorer/explorer.ts`).
+- The title screen's living canvas draws its still layers once and only repaints the moving mural, paced.
+- Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) and `node tests/e2e/perf-app.mjs`
+  (idle cost, frames, loops, timers per screen in the app shell) after `npm run build:artifact`.
