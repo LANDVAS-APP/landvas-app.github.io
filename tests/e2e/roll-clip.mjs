@@ -1,5 +1,5 @@
 // Roll clips (better than Rare): the clip replays the roll itself; snips; the Clips page (past rolls, moments, any plot);
-// the minigame reel before the rarity; and the reroll speed setting.
+// the classic rarity drum, each roll landing with its own minigame tag; and the reroll speed setting.
 // Run: npm run build:artifact && node tests/e2e/roll-clip.mjs
 import { serve } from './browser.mjs';
 import chromium from '@sparticuz/chromium';
@@ -28,23 +28,36 @@ try {
   await page.waitForFunction(() => typeof window.__landvasRollDemo === 'function', null, { timeout: 30000 });
   // quick rerolls: 4 rolls should be over fast
   await page.evaluate(() => localStorage.setItem('landvas.rerollSpeed', 'quick'));
+  // (every minigame tag that drops onto the card, in order)
+  // (and the phase of the roll each time it shows: it should come on while the drum is still in view)
+  await page.evaluate(() => {
+    window.__tags = []; window.__tagSeen = [];
+    new MutationObserver(() => {
+      const el = document.querySelector('[data-testid=roll-game]'), ty = el?.getAttribute('data-type');
+      const ph = document.querySelector('[data-testid=ink-roll]')?.getAttribute('data-phase');
+      if (ty && window.__tags[window.__tags.length - 1] !== ty) window.__tags.push(ty);
+      const k = `${ph}:${ty}`;
+      if (ty && window.__tagSeen[window.__tagSeen.length - 1] !== k) window.__tagSeen.push(k);
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-type', 'data-phase'] });
+  });
   const t0 = Date.now();
   await page.evaluate(() => window.__landvasRollDemo('kraken', true, ['rare', 'epic', 'kraken', 'legendary'], ['pigment', 'mosaic', 'lumina', 'clay'], [false, true, true, false]));
-  await page.waitForSelector('[data-testid=ink-roll][data-stage=type]', { timeout: 15000 });
-  check('the minigame reel spins first', true);
-  await page.waitForSelector('[data-testid=ink-roll][data-stage=rarity]', { timeout: 15000 });
-  check('…then the rarity', true);
+  await page.waitForSelector('[data-testid=ink-roll][data-phase=spin] .lv-rr-slot', { timeout: 15000 });
+  check('the classic rarity drum spins', (await page.locator('.lv-rr-slot').count()) === 7);
+  await page.waitForTimeout(500); await shot('00a-drum');
   await page.waitForSelector('[data-testid=roll-speed]', { timeout: 15000 });
   check('the speed switch shows during rerolls', /Quick/.test(await page.textContent('[data-testid=roll-speed]')));
   await page.waitForSelector('[data-testid=roll-pick]', { timeout: 30000 });
   const quickMs = Date.now() - t0;
   await page.waitForTimeout(900); await shot('00-pick');
+  check('each roll lands with its own minigame', JSON.stringify(await page.evaluate(() => window.__tags)) === JSON.stringify(['pigment', 'mosaic', 'lumina', 'clay']), JSON.stringify(await page.evaluate(() => window.__tags)));
   check('rerolls show their minigame', /Lumina/.test(await page.textContent('[data-testid=roll-choice-type-2]')) && /Mosaic/.test(await page.textContent('[data-testid=roll-choice-type-1]')));
   check('…and which are shiny', (await page.locator('[data-testid^=roll-choice-shiny-]').count()) === 2 && (await page.locator('[data-testid=roll-choice-shiny-1]').count()) === 1);
   check('the best suggestion is the shiny Kraken', /BEST/.test(await page.textContent('[data-testid=roll-choice-2]')));
   await page.click('[data-testid=roll-choice-2]'); await page.click('[data-testid=roll-keep]');
   await page.waitForSelector('[data-testid=roll-clip]', { timeout: 20000 }); await page.waitForTimeout(1500);
   await shot('01-reveal-with-clip');
+  check('the kept plot shows its minigame', (await page.getAttribute('[data-testid=roll-game]', 'data-type')) === 'lumina' && /LIGHTLINES/.test(await page.textContent('[data-testid=roll-game]')), await page.textContent('[data-testid=roll-game]'));
   check('quick rerolls are quick', quickMs < 9000, `${quickMs}ms`);
   if (process.env.DEBUG_CLIP) { console.log(JSON.stringify(await page.evaluate(() => window.__landvasClip({ rolls: ['epic', 'kraken'], kept: 1, shiny: true, username: 'x', accent: '#f0f' })))); }
   await page.click('[data-testid=roll-clip]');
@@ -77,8 +90,13 @@ try {
   await page.locator('[data-testid=clip-sheet] button', { hasText: 'Close' }).click();
   // a Rare: no clip
   await page.keyboard.press('Escape'); await page.waitForTimeout(800);
-  await page.evaluate(() => window.__landvasRollDemo('rare', false, null));
+  await page.evaluate(() => { window.__tagSeen = []; window.__landvasRollDemo('rare', false, null); });
   await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 20000 }); await page.waitForTimeout(1500);
+  const seen = await page.evaluate(() => window.__tagSeen);
+  check('a single roll: its minigame drops on as the drum lands, and stays for the reveal', seen[0] === 'spin:pigment' && seen.includes('reveal:pigment'), JSON.stringify(seen));
+  await shot('01b-rare');
+  const ink = await page.evaluate(() => { const r = [...document.querySelectorAll('[data-testid=ink-roll]')].pop(); return [...r.querySelectorAll('.lv-rr-ink')].map((x) => getComputedStyle(x).fill); });
+  check('the ink floods in the rarity\'s colour', ink.length > 5 && ink.every((f) => f === 'rgb(47, 184, 255)'), [...new Set(ink)].join(' '));
   check('no clip for a Rare', (await page.locator('[data-testid=roll-clip]').count()) === 0);
   // normal speed takes longer
   await page.keyboard.press('Escape'); await page.waitForTimeout(800);

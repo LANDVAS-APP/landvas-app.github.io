@@ -1,8 +1,8 @@
-// The roll's stage, painted for any moment from its trace — the very same function draws the live roll on the phone
-// and every frame of its clip. A drop of ink falls and splashes; the minigame strip races past and clunks onto the
-// plot's game (the ink takes on that medium's pattern); then the rarity drum spins, each name in its own material,
-// the rarity ink spreading wider as the drum slows, teasing the next one up, and floods the canvas as it lands —
-// flash, rays, a particle storm, the rarity slams in.
+// The roll's stage, painted for any moment from its trace: every frame of a roll's clip. The classic roll (the one on
+// screen, RollReveal) is drawn just as the phone showed it — a drop of ink falls and splashes, the rarity drum spins
+// with the ink taking each name's colour, slows, teases the next one up and clicks into place, the minigame's tag
+// drops onto the card, and the ink floods it: flash, rays, a particle storm, the rarity slams in. Rolls kept from
+// the premium-reel days (no `look`) still play back their minigame strip and rarity materials.
 import { kindInfo } from '../../enchant/kinds';
 import { PLOT_TYPES } from '../../map/plotStyle';
 import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
@@ -10,6 +10,7 @@ import { Assets, BODY, DISPLAY, EMOJI_FONT, GAME_EMOJI } from './assets';
 import type { Layout } from './layout';
 import { bezier, clamp, clamp01, easeOut, easeOutCubic, frames, framesAt, inkEase, lerp, mix, mod, rgba, rng, shade, smooth, spring } from './math';
 import { drawParticles } from './particles';
+import { inkSplash } from './splash';
 import { TYPE_ORDER, lastLand, reelPos, type Step, type Trace } from './trace';
 
 const INK = '#1B1240';
@@ -48,38 +49,21 @@ export function inkColor(tr: Trace, t: number) {
   return ty?.a ?? INK;
 }
 
-// ---- the ink splash (the same shapes the old SVG splash made) -------------------------------------------------------
+// ---- the ink splash (the very shapes the roll's SVG splash makes: splash.ts) ------------------------------------------
 type Shape = { p: Path2D; cx: number; cy: number; s: number; d: number; dl: number };
 type Splash = { flood: Shape; shapes: Shape[]; tendrils: { p: Path2D; len: number; w: number; dl: number }[]; cx: number; cy: number };
 const splashes = new Map<number, Splash>();
-function blob(rnd: () => number, cx: number, cy: number, r: number, n = 12, wob = 0.35) {
-  const pts = Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + rnd() * 0.3, rr = r * (1 - wob / 2 + rnd() * wob); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
-  let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
-    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
-  }
-  return new Path2D(d + 'Z');
-}
 function splash(seed: number): Splash {
   let sp = splashes.get(seed);
   if (sp) return sp;
-  const rnd = rng(seed);
-  const cx = 44 + rnd() * 12, cy = 44 + rnd() * 12;
-  const splats = Array.from({ length: 8 + Math.floor(rnd() * 4) }, () => { const a = rnd() * Math.PI * 2, dist = 20 + rnd() * 26; return { x: cx + Math.cos(a) * dist, y: cy + Math.sin(a) * dist, r: 3 + rnd() * 9, d: 0.08 + rnd() * 0.22 }; });
-  const blooms = Array.from({ length: 5 }, (_, i) => { const a = (i / 5) * Math.PI * 2 + rnd(), dist = 18 + rnd() * 18; return { x: cx + Math.cos(a) * dist, y: cy + Math.sin(a) * dist, r: 10 + rnd() * 8, d: 0.16 + rnd() * 0.2 }; });
-  const main = blob(rnd, cx, cy, 20, 14, 0.4);
-  const sps = splats.map((p) => ({ p: blob(rnd, p.x, p.y, p.r, 8, 0.5), cx: p.x, cy: p.y, s: 1.25, d: 0.32, dl: p.d }));
-  const tendrils = splats.slice(0, 6).map((p) => {
-    const qx = (cx + p.x) / 2 + (rnd() - 0.5) * 10, qy = (cy + p.y) / 2 + (rnd() - 0.5) * 10;
-    const path = new Path2D(`M${cx} ${cy} Q${qx} ${qy} ${p.x} ${p.y}`);
-    let len = 0, px = cx, py = cy;
-    for (let k = 1; k <= 12; k++) { const u = k / 12, x = (1 - u) ** 2 * cx + 2 * (1 - u) * u * qx + u * u * p.x, y = (1 - u) ** 2 * cy + 2 * (1 - u) * u * qy + u * u * p.y; len += Math.hypot(x - px, y - py); px = x; py = y; }
-    return { p: path, len, w: 2 + rnd() * 3, dl: p.d * 0.6 };
+  const data = inkSplash(seed);
+  const tendrils = data.tendrils.map((td) => {
+    let len = 0, px = td.cx, py = td.cy;
+    for (let k = 1; k <= 12; k++) { const u = k / 12, x = (1 - u) ** 2 * td.cx + 2 * (1 - u) * u * td.qx + u * u * td.x, y = (1 - u) ** 2 * td.cy + 2 * (1 - u) * u * td.qy + u * u * td.y; len += Math.hypot(x - px, y - py); px = x; py = y; }
+    return { p: new Path2D(td.d), len, w: td.w, dl: td.dl };
   });
-  const bls = blooms.map((p) => ({ p: blob(rnd, p.x, p.y, p.r, 10, 0.45), cx: p.x, cy: p.y, s: 2.6, d: 0.55, dl: p.d }));
   const flood = { p: (() => { const c = new Path2D(); c.arc(50, 50, 76, 0, Math.PI * 2); return c; })(), cx: 50, cy: 50, s: 1, d: 0.5, dl: 0.3 };
-  sp = { flood, shapes: [...sps, ...bls, { p: main, cx, cy, s: 3.6, d: 0.7, dl: 0 }], tendrils, cx, cy };
+  sp = { flood, shapes: data.shapes.map((x) => ({ p: new Path2D(x.d), cx: x.cx, cy: x.cy, s: x.s, d: x.dur, dl: x.dl })), tendrils, cx: data.cx, cy: data.cy };
   splashes.set(seed, sp);
   if (splashes.size > 40) splashes.delete(splashes.keys().next().value!);
   return sp;
@@ -156,6 +140,7 @@ export function drawStage(g: CanvasRenderingContext2D, L: Layout, tr: Trace, t: 
   const fcol = colorOf(final), fglow = ench ? '#F0DBFF' : finfo.glow;
   const si = stepAt(tr, t), step = tr.steps[si];
   const c = inkColor(tr, t);
+  const classic = tr.look === 'classic';
 
   g.setTransform(o.dpr, 0, 0, o.dpr, 0, 0);
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
@@ -196,7 +181,7 @@ export function drawStage(g: CanvasRenderingContext2D, L: Layout, tr: Trace, t: 
 
   // the reels, then the name
   if (revealed) drawTitle(g, L, A, tr, rt);
-  else if (step && ph !== 'drop') drawReels(g, L, A, tr, step, si, t, ph);
+  else if (step && ph !== 'drop') { if (classic) drawDrum(g, { ...L, ry: L.cardTop - 55 * s }, A, tr, step, t, ph); else drawReels(g, L, A, tr, step, si, t, ph); }
   else if (ph === 'drop') {
     g.font = `900 ${Math.round(22 * s)}px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillText('Rolling your plot…', cx, L.cardTop - 55 * s);
@@ -206,7 +191,8 @@ export function drawStage(g: CanvasRenderingContext2D, L: Layout, tr: Trace, t: 
   drawCard(g, L, A, tr, t, ph, step, si, rt);
 
   // the minigame tag on the card
-  drawTypeChip(g, L, A, tr, t, step, ph);
+  if (classic) drawTag(g, L, tr, t, step, ph);
+  else drawTypeChip(g, L, A, tr, t, step, ph);
   g.restore();
 
   // the Enchanted transformation
@@ -441,24 +427,7 @@ function drawRarityReel(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: T
     g.beginPath(); g.roundRect(x0 + 10 * s, y0, pw - 20 * s, ph2, 16 * s); g.fill();
   }
   // an Enchanted roll: the drum cracks
-  if (breaking) {
-    const et = t - tr.enchant!.t0, op = 1 - clamp01((et - 350) / 400);
-    if (op > 0) {
-      const bw = Math.min(W * 0.8, 360 * s);
-      g.globalAlpha = op; g.strokeStyle = '#FFE8A3'; g.lineWidth = 1.2 * (bw / 100); g.lineCap = 'round'; g.lineJoin = 'round';
-      const P = [[[50, 50], [8, 20], [20, 34]], [[50, 50], [92, 26], [80, 40]], [[50, 50], [30, 92]], [[50, 50], [76, 88], [70, 74]], [[50, 50], [4, 62]], [[50, 50], [97, 66]]];
-      P.forEach((pts, i) => {
-        const p = clamp01((et - i * 30) / 300), segs = pts.length - 1;
-        g.beginPath(); g.moveTo(cx + (pts[0][0] - 50) * bw / 100, ry + (pts[0][1] - 50) * bw / 100 * 0.5);
-        for (let j = 1; j <= segs; j++) {
-          const f = clamp01(p * segs - (j - 1)); if (f <= 0) break;
-          const [ax, ay] = pts[j - 1], [bx, by] = pts[j];
-          g.lineTo(cx + (lerp(ax, bx, f) - 50) * bw / 100, ry + (lerp(ay, by, f) - 50) * bw / 100 * 0.5);
-        }
-        g.stroke();
-      });
-    }
-  }
+  if (breaking) drawCracks(g, L, t - tr.enchant!.t0);
   g.restore();
   void si;
 }
@@ -508,6 +477,92 @@ function rarityFx(g: CanvasRenderingContext2D, L: Layout, id: RarityId, tier: nu
   g.restore();
 }
 
+/** an Enchanted roll: cracks shoot across the drum where it broke */
+function drawCracks(g: CanvasRenderingContext2D, L: Layout, et: number) {
+  const { s, cx, ry, W } = L;
+  const op = 1 - clamp01((et - 350) / 400);
+  if (op <= 0) return;
+  const bw = Math.min(W * 0.8, 360 * s);
+  g.save();
+  g.globalAlpha = op; g.strokeStyle = '#FFE8A3'; g.lineWidth = 1.2 * (bw / 100); g.lineCap = 'round'; g.lineJoin = 'round';
+  const P = [[[50, 50], [8, 20], [20, 34]], [[50, 50], [92, 26], [80, 40]], [[50, 50], [30, 92]], [[50, 50], [76, 88], [70, 74]], [[50, 50], [4, 62]], [[50, 50], [97, 66]]];
+  P.forEach((pts, i) => {
+    const p = clamp01((et - i * 30) / 300), segs = pts.length - 1;
+    g.beginPath(); g.moveTo(cx + (pts[0][0] - 50) * bw / 100, ry + (pts[0][1] - 50) * bw / 100 * 0.5);
+    for (let j = 1; j <= segs; j++) {
+      const f = clamp01(p * segs - (j - 1)); if (f <= 0) break;
+      const [ax, ay] = pts[j - 1], [bx, by] = pts[j];
+      g.lineTo(cx + (lerp(ax, bx, f) - 50) * bw / 100, ry + (lerp(ay, by, f) - 50) * bw / 100 * 0.5);
+    }
+    g.stroke();
+  });
+  g.restore();
+}
+
+// ---- the classic roll: one rarity drum, then the minigame's tag ------------------------------------------------------------
+/** the drum, as RollReveal draws it: rows of rarity names on a turning drum (each tilted away and fading out above
+ *  and below the window), the name in the window glowing in its colour */
+function drawDrum(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: Trace, st: Step, t: number, ph: Phase) {
+  if (ph === 'enchant') { drawCracks(g, L, t - tr.enchant!.t0); return; }
+  if (!st.rReel) return;
+  const { s, cx, ry, W } = L, dpr = A.dpr;
+  const pos = reelPos(st.rReel, t);
+  const rowH = 58 * s, pw = Math.min(W - 96 * s, 312 * s), wh = 58 * s;
+  // the window
+  const x0 = cx - pw / 2, y0 = ry - wh / 2;
+  const band = g.createLinearGradient(x0, 0, x0 + pw, 0);
+  band.addColorStop(0, 'rgba(255,255,255,0)'); band.addColorStop(0.2, 'rgba(255,255,255,0.07)'); band.addColorStop(0.8, 'rgba(255,255,255,0.07)'); band.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = band; g.beginPath(); g.roundRect(x0, y0, pw, wh, 16 * s); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(x0 + 12 * s, y0, pw - 24 * s, Math.max(1, s)); g.fillRect(x0 + 12 * s, y0 + wh - Math.max(1, s), pw - 24 * s, Math.max(1, s));
+  // the rows (the drum fades out a row and a bit above and below the window)
+  const base = Math.floor(pos);
+  for (let k = base - 3; k <= base + 3; k++) {
+    const d = k - pos, ad = Math.abs(d);
+    const a = Math.max(0, 1 - ad * 0.34) * clamp01((105 - ad * 58) / 67);
+    if (a <= 0.01) continue;
+    const id = RARITY_ORDER[mod(k, NR)];
+    const spr = A.plainLabel(id, rowFont(id, s));
+    const sc = 1 - Math.min(ad, 3) * 0.1, tilt = Math.cos(clamp(d * 26, -88, 88) * (Math.PI / 180));
+    const sw = spr.width / dpr, fit = sw > W - 12 ? (W - 12) / sw : 1;
+    g.save(); g.globalAlpha = a;
+    blit(g, spr, dpr, cx, ry + d * rowH, sc * fit, sc * fit * tilt);
+    g.restore();
+  }
+}
+
+/** the minigame's tag: it drops onto the foot of the card as each roll clicks into place */
+function drawTag(g: CanvasRenderingContext2D, L: Layout, tr: Trace, t: number, st: Step | undefined, ph: Phase) {
+  if (ph === 'drop' || ph === 'pick' || ph === 'enchant' || !st) return;
+  const revealed = ph === 'reveal';
+  const multi = !!(tr.final.choices && tr.final.choices.length > 1);
+  // (a single roll's tag stays put into the reveal; after Luck's pick, or an Enchanted roll, it comes in again)
+  const at = revealed && (multi || tr.final.enchant || st.rLock == null) ? tr.reveal! : st.rLock;
+  if (at == null || t < at) return;
+  const type = revealed ? tr.final.type : st.type;
+  const ty = PLOT_TYPES[type as keyof typeof PLOT_TYPES];
+  if (!ty) return;
+  const { s, cx, cy, u } = L;
+  const p = tr.reduce ? 1 : spring((t - at) / 1000, 500, 18);
+  if (p <= 0) return;
+  const text = `${GAME_EMOJI[type] ?? '🎮'} ${ty.game.toUpperCase()}`;
+  g.save(); g.translate(cx, cy + u / 2 + 8 * s * (1 - p)); g.scale(lerp(0.4, 1, p), lerp(0.4, 1, p)); g.globalAlpha *= clamp01(p);
+  tagPill(g, text, ty, s);
+  g.restore();
+}
+/** the pill itself (the same look as the tag on screen: .lv-rr-tag) */
+function tagPill(g: CanvasRenderingContext2D, text: string, ty: { a: string; b: string; base: string }, s: number) {
+  g.font = `900 ${Math.round(11.5 * s)}px ${DISPLAY}`;
+  const w = g.measureText(text).width + 26 * s, h = 26 * s, b = 2.5 * s;
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.roundRect(-w / 2 - b, -h / 2 - b + 3.5 * s, w + b * 2, h + b * 2, h / 2 + b); g.fill();
+  g.fillStyle = shade(ty.base, -0.2); g.beginPath(); g.roundRect(-w / 2 - b, -h / 2 - b, w + b * 2, h + b * 2, h / 2 + b); g.fill();
+  const gr = g.createLinearGradient(-w / 2, 0, w / 2, 0); gr.addColorStop(0, ty.a); gr.addColorStop(1, ty.b);
+  g.fillStyle = gr; g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, h / 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.28)'; g.beginPath(); g.roundRect(-w / 2 + 4 * s, -h / 2 + 2.5 * s, w - 8 * s, h * 0.36, h * 0.2); g.fill();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = 3 * s; g.strokeStyle = shade(ty.base, -0.1); g.strokeText(text, 0, 1);
+  g.fillStyle = '#fff'; g.fillText(text, 0, 1);
+}
+
 // ---- the name at the reveal ---------------------------------------------------------------------------------------------
 function drawTitle(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: Trace, rt: number) {
   const { s, cx, cardTop, W } = L, dpr = A.dpr;
@@ -517,7 +572,7 @@ function drawTitle(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: Trace,
   const emoji = ek ? ek.emoji : info.emoji ?? null;
   const len = [...`${emoji ? `${emoji} ` : ''}${name}`].length;
   const fs = Math.max(22, Math.min(50, Math.floor(470 / Math.max(6, len)))) * s;
-  const spr = A.title(name.toUpperCase(), emoji, ench ? 'enchanted' : final, fs);
+  const spr = A.title(name.toUpperCase(), emoji, ench ? 'enchanted' : final, fs, tr.look === 'classic');
   const ty = cardTop - 55 * s;
   const p = tr.reduce ? 1 : spring(rt / 1000, 520, 22);
   const sw = spr.width / dpr, fit = sw > W - 16 ? (W - 16) / sw : 1;
@@ -574,7 +629,13 @@ function drawCard(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: Trace, 
   g.save(); g.beginPath(); g.roundRect(-half, -half, u, u, r); g.clip();
   g.drawImage(A.card(u), -half, -half, u, u);
   // the ink
-  if (ph !== 'drop' && st) {
+  if (ph !== 'drop' && st && tr.look === 'classic') {
+    // one splash per roll, in the colour of the rarity passing the drum's window (and the one it lands on)
+    // (an Enchanted roll: the ink keeps the colour the drum broke on)
+    const col = revealed ? fcol : rarityInfo(rarityAt(st, ph === 'enchant' ? tr.enchant!.t0 : t)).color;
+    const la = inkLayer(A, 'inkA', u, splash(st.seed), reduce ? 9e9 : (t - stepStart(st)) / 1000, { color: col });
+    g.drawImage(la, -half, -half, u, u);
+  } else if (ph !== 'drop' && st) {
     const prev = tr.steps[si - 1];
     if (prev && !revealed) {
       g.fillStyle = rarityInfo(prev.rarity).color; g.fillRect(-half, -half, u, u);
@@ -662,7 +723,7 @@ function drawCard(g: CanvasRenderingContext2D, L: Layout, A: Assets, tr: Trace, 
   }
   // shockwaves: each splash, then the reveal
   if (!reduce) {
-    for (const st2 of tr.steps) { const wt = t - stepStart(st2); if (wt >= 0 && wt < 500 && !revealed) wave(g, wt / 500, 4, 0.9, '#ffffff', s); }
+    for (const st2 of tr.look === 'classic' ? tr.steps.slice(0, 1) : tr.steps) { const wt = t - stepStart(st2); if (wt >= 0 && wt < 500 && !revealed) wave(g, wt / 500, 4, 0.9, '#ffffff', s); }
     if (revealed) {
       if (rt < 800) wave(g, rt / 800, 8, 1, finfo.glow, s);
       if (tier >= 2 && rt > 180 && rt < 980) wave(g, (rt - 180) / 800, 8, 1, finfo.glow, s);

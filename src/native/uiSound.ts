@@ -47,17 +47,15 @@ export const uiSound = {
   },
   /** something didn't work */
   nope() { tone(300, 0.12, 'triangle', 0.035, 0, 220); },
-  /** the plot roll: a click for every tile and name that passes, a clunk when the minigame locks, a hum as an Epic+
-      charges, and a fanfare at the reveal that grows with the rarity (tier 0–5) */
-  roll(kind: 'tickType' | 'tickRarity' | 'lockType' | 'land' | 'charge' | 'reveal' | 'enchant', n = 0) {
+  /** the plot roll: a click for every name that passes as the drum lands, a hum as an Epic+ charges, and a fanfare
+      at the reveal that grows with the rarity (tier 0–5) */
+  roll(kind: 'tickRarity' | 'land' | 'charge' | 'reveal' | 'enchant', n = 0) {
     const now = performance.now();
-    if (kind === 'tickType' || kind === 'tickRarity') {
+    if (kind === 'tickRarity') {
       if (now - lastTick < 34) return; lastTick = now;
-      if (kind === 'tickType') tone(1500 + (n % 4) * 60, 0.025, 'square', 0.012);
-      else tone(880 + (n % 7) * 40, 0.03, 'triangle', 0.022);
+      tone(880 + (n % 7) * 40, 0.03, 'triangle', 0.022);
       return;
     }
-    if (kind === 'lockType') { tone(196, 0.09, 'square', 0.025, 0, 120); tone(784, 0.07, 'triangle', 0.03, 0.03); tone(1175, 0.09, 'triangle', 0.025, 0.07); return; }
     if (kind === 'land') { tone(523 + n * 40, 0.08, 'triangle', 0.03); return; }
     if (kind === 'charge') { tone(180, 0.7, 'sawtooth', 0.012, 0, 520 + n * 80); return; }
     if (kind === 'enchant') { tone(110, 1.6, 'sine', 0.04, 0, 55); [0, 3, 7, 10, 14].forEach((k, i) => tone(392 * Math.pow(2, k / 12), 0.5, 'sine', 0.018, 0.4 + i * 0.14)); return; }

@@ -142,17 +142,39 @@ export class Assets {
     this.sprites.set(key, c);
     return c;
   }
-  /** the big title at the reveal: the name, outlined like a sticker and glowing */
-  title(text: string, emoji: string | null, r: RarityId | 'enchanted', fontPx: number) {
-    const fp = Math.round(fontPx * this.dpr), key = `ttl:${r}:${text}:${fp}`;
+  /** a rarity's name on the classic drum: its colour, glowing (like the CSS text-shadow on screen) */
+  plainLabel(r: RarityId, fontPx: number) {
+    const fp = Math.round(fontPx * this.dpr), key = `plab:${r}:${fp}`;
     let c = this.sprites.get(key);
     if (c) return c;
-    c = this.text(emoji, text, fp, r as RarityId, false, 1.4, true);
+    const info = rarityInfo(r), name = info.name.toUpperCase(), emoji = info.emoji ?? null;
+    const meas = this.canvas(4, 4).getContext('2d')!;
+    meas.font = `900 ${fp}px ${DISPLAY}`;
+    const nw = meas.measureText(name).width;
+    meas.font = `${Math.round(fp * 0.92)}px ${EMOJI_FONT}`;
+    const ew = emoji ? meas.measureText(emoji).width + fp * 0.3 : 0;
+    const pad = Math.ceil(fp * 0.6);
+    c = this.canvas(nw + ew + pad * 2, fp * 1.35 + pad * 2);
+    const g = c.getContext('2d')!;
+    const y = c.height / 2 + fp * 0.04;
+    g.textBaseline = 'middle'; g.shadowColor = info.color; g.shadowBlur = fp * 0.5; g.fillStyle = info.color;
+    if (emoji) { g.font = `${Math.round(fp * 0.92)}px ${EMOJI_FONT}`; g.fillText(emoji, pad, y); }
+    g.font = `900 ${fp}px ${DISPLAY}`; g.fillText(name, pad + ew, y);
+    this.sprites.set(key, c);
+    return c;
+  }
+  /** the big title at the reveal: the name, outlined like a sticker and glowing (plain: just its colour, as the
+   *  classic roll shows it) */
+  title(text: string, emoji: string | null, r: RarityId | 'enchanted', fontPx: number, plain = false) {
+    const fp = Math.round(fontPx * this.dpr), key = `ttl:${r}:${text}:${fp}:${plain ? 1 : 0}`;
+    let c = this.sprites.get(key);
+    if (c) return c;
+    c = this.text(emoji, text, fp, r as RarityId, false, 1.4, plain ? 'plain' : true);
     this.sprites.set(key, c);
     return c;
   }
 
-  private text(emoji: string | null, name: string, fp: number, r: RarityId, mask: boolean, glow: number, sticker = false) {
+  private text(emoji: string | null, name: string, fp: number, r: RarityId, mask: boolean, glow: number, sticker: boolean | 'plain' = false) {
     const info = rarityInfo(r);
     const meas = this.canvas(4, 4).getContext('2d')!;
     meas.font = `900 ${fp}px ${DISPLAY}`;
@@ -182,7 +204,7 @@ export class Assets {
       g.fillText(name, x, y + fp * 0.12);
       g.lineWidth = fp * 0.16; g.strokeStyle = line; g.strokeText(name, x, y);
       g.fillStyle = '#fff'; g.fillText(name, x, y);
-      g.save(); g.globalAlpha = 0.35; g.globalCompositeOperation = 'source-atop'; g.fillStyle = fill; g.fillRect(x, y - fp, nw, fp * 0.55); g.restore();
+      if (sticker !== 'plain') { g.save(); g.globalAlpha = 0.35; g.globalCompositeOperation = 'source-atop'; g.fillStyle = fill; g.fillRect(x, y - fp, nw, fp * 0.55); g.restore(); }
     } else {
       g.save(); g.shadowColor = col; g.shadowBlur = fp * glow * 0.9; g.fillStyle = col; g.globalAlpha = 0.85; g.fillText(name, x, y); g.restore();
       g.lineWidth = fp * 0.12; g.strokeStyle = shade(col, -0.6); g.strokeText(name, x, y);

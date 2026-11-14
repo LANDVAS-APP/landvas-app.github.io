@@ -32,10 +32,10 @@ export function reelLanding(r: Reel, t: number) {
 export const lastLand = (r: Reel, t: number) => { let l: Land | null = null; for (const x of r.lands) if (x.t <= t) l = x; return l; };
 export const reelEnd = (r: Reel) => { const l = r.lands[r.lands.length - 1]; return l ? l.t + l.D + l.settle : Infinity; };
 
-/** one of the rolls (Luck gives several): first its minigame (plot type), then its rarity */
+/** one of the rolls (Luck gives several): its rarity drum, and the minigame (plot type) it lands with */
 export type Step = {
   type: string; rarity: RarityId; shiny: boolean;
-  /** the minigame reel (absent for a plot type the reel doesn't know) */
+  /** (rolls from the premium-reel days: a minigame reel before the rarity; null in the classic roll) */
   tReel: Reel | null;
   tLock?: number;
   /** the rarity reel */
@@ -68,6 +68,9 @@ export type Final = {
 export type Trace = {
   v: 2;
   id: string;
+  /** how it was drawn: the classic roll (one rarity drum, the minigame tag as it lands). Absent: an older roll with
+   *  the minigame reel and the rarity materials, still drawn that way */
+  look?: 'classic';
   /** wall-clock start (ms since epoch) */
   at: number;
   seed: number;
@@ -96,8 +99,8 @@ export const isReelType = (t: string | null | undefined): t is PlotTypeId => !!t
 export const HOLD = 4200;
 /** the pick screen, in a clip */
 export const PICK_MONTAGE = 1600;
-/** the longest the reel waits for the server, in a clip */
-const WAIT_MAX = 900;
+/** the longest the drum spins waiting for the server, in a clip (the classic roll always spins 0.9 s first) */
+const WAIT_MAX = 1200;
 
 /** A clip's timeline: clip time → roll time, skipping the dull bits (a slow server, a long think over the pick). */
 export type Seg = { c0: number; c1: number; t0: number; kind: 'play' | 'pick' };

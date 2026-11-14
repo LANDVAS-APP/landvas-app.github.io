@@ -1,14 +1,15 @@
-// The roll's director: the state machine that runs a roll — the drop, the minigame reel, the rarity reel, Luck's
-// rerolls, the pick, the Enchanted transformation and the reveal — and writes every moment of it into the trace.
-// It never draws; the stage (draw.ts) paints whatever the trace says for any time. Pure logic: the live roll drives it
-// with the clock, and a past plot's roll can be re-created by driving it with a pretend clock.
+// The roll's director: the state machine that runs a roll — the drop, the rarity drum (and the minigame each roll
+// lands with), Luck's rerolls, the pick, the Enchanted transformation and the reveal — and writes every moment of it
+// into the trace. It never draws: the roll on screen and its clip (draw.ts) both show whatever the trace says for any
+// time. Pure logic: the live roll drives it with the clock, and a past plot's roll can be re-created by driving it
+// with a pretend clock.
 import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
 import { PLOT_TYPES } from '../../map/plotStyle';
 import type { BurstOpts } from '../fx';
 import { celebrate } from '../celebrate';
 import { kindInfo } from '../../enchant/kinds';
-import { clamp, hash, newSeed, rng } from './math';
-import { TYPE_ORDER, isReelType, lastLand, reelEnd, reelPos, type Burst, type EnchantBrief, type Final, type Reel, type Step, type Trace } from './trace';
+import { hash, newSeed, rng } from './math';
+import { lastLand, reelEnd, reelPos, type Burst, type EnchantBrief, type Final, type Reel, type Step, type Trace } from './trace';
 import type { Layout } from './layout';
 
 export type RollInput = {
@@ -18,20 +19,19 @@ export type RollInput = {
 export type Phase = 'drop' | 'spin' | 'pick' | 'enchant' | 'reveal';
 export type Hooks = {
   phase?(p: Phase): void;
-  /** the reel on screen: the minigame or the rarity */
-  stage?(s: 'type' | 'rarity'): void;
   /** which of Luck's rolls is rolling */
   step?(i: number): void;
+  /** a roll clicked into place (its minigame shows) */
+  lock?(i: number): void;
   /** one of Luck's rolls landed */
   landed?(i: number, r: RarityId): void;
   /** the pick screen opens, suggesting this roll */
   pick?(best: number): void;
   reveal?(): void;
   buzz?(k: 'light' | 'medium' | 'heavy' | 'success'): void;
-  sound?(k: 'tickType' | 'tickRarity' | 'lockType' | 'land' | 'charge' | 'reveal' | 'enchant', tier?: number): void;
+  sound?(k: 'tickRarity' | 'land' | 'charge' | 'reveal' | 'enchant', tier?: number): void;
 };
 
-const NT = TYPE_ORDER.length;
 const NR = RARITY_ORDER.length;
 export const DROP_MS = 640;
 const INK = ['#1B1240', '#2A1F5C', '#3B2A7A'];
@@ -58,7 +58,7 @@ export class Director {
     const seed = o.seed ?? newSeed();
     this.rnd = rng(seed);
     this.trace = {
-      v: 2, id: `${Date.now().toString(36)}${(seed % 46656).toString(36)}`, at: Date.now(), seed, reduce: o.reduce, u0: L.u,
+      v: 2, look: 'classic', id: `${Date.now().toString(36)}${(seed % 46656).toString(36)}`, at: Date.now(), seed, reduce: o.reduce, u0: L.u,
       drop: o.reduce ? 0 : DROP_MS, steps: [], shakes: [], bursts: [], user: o.user,
       final: { rarity: 'common', type: '', shiny: false, usd: 0, first: false, kept: 0 },
     };
@@ -67,8 +67,10 @@ export class Director {
   }
 
   private get h() { return this.o.hooks ?? {}; }
-  /** the stage moved (a resize, room for Luck's meter): bursts are recorded against the card where it is now */
-  setLayout(L: Layout) { this.L = L; }
+  /** the stage moved (a resize, the details coming in under it): bursts are recorded against the card where it is now */
+  setLayout(L: Layout) { this.L = L; if (!this.trace.bursts.length) this.trace.u0 = L.u; }
+  /** still something to come (a buzz, the next of Luck's rolls) */
+  get busy() { return this.queue.length > 0 || this.phase !== 'reveal'; }
   private get multi() { return !!(this.result?.choices && this.result.choices.length > 1); }
   private typeOf(i: number) { const r = this.result!; return (this.multi ? r.choiceTypes?.[i] : null) ?? r.type; }
   private rarityOf(i: number): RarityId { const r = this.result!; return this.multi ? r.choices![i] : r.rarity; }
@@ -144,104 +146,47 @@ export class Director {
     const quick = i > 0 && this.o.quickRerolls();
     const s: Step = { type: '', rarity: 'common', shiny: false, tReel: null, quick, seed: hash(this.trace.seed, 1000 + i) };
     if (this.result) this.fill(s, i);
-    const known = !!this.result;
-    if (!known || isReelType(s.type)) {
-      const p0 = prev?.tReel ? reelPos(prev.tReel, t) : this.rnd() * NT;
-      s.tReel = { t0: t, p0, v: this.o.reduce ? 30 : 22, lands: [] };
-    }
+    // the drum carries on from where the last roll left it
+    s.rStart = t;
+    s.rReel = { t0: t, p0: prev?.rReel ? reelPos(prev.rReel, t) : this.rnd() * NR, v: i > 0 ? 30 : this.o.reduce ? 40 : 24, lands: [] };
     this.trace.steps.push(s);
     this.h.step?.(i);
-    if (!s.tReel || quick) this.startRarity(s, i, t);
-    this.h.stage?.(s.tReel && !quick ? 'type' : 'rarity');
-  }
-
-  private startRarity(s: Step, i: number, t: number) {
-    const prev = this.trace.steps[i - 1];
-    s.rStart = t;
-    const p0 = prev?.rReel ? reelPos(prev.rReel, t) : this.rnd() * NR;
-    s.rReel = { t0: t, p0, v: this.o.reduce ? 40 : i > 0 ? 30 : 24, lands: [] };
   }
 
   private spin(t: number) {
     const i = this.trace.steps.length - 1, s = this.trace.steps[i];
-    if (!s) return;
-    const reduce = this.o.reduce;
-    // the minigame reel
-    if (s.tReel && s.tLock == null) {
-      const r = s.tReel;
-      if (this.result && !isReelType(this.typeOf(i))) {
-        // (a plot type the reel doesn't show: straight to the rarity)
-        s.tReel = null; s.tLock = undefined;
-        if (s.rStart == null) this.startRarity(s, i, t);
-        this.h.stage?.('rarity');
-      } else if (!r.lands.length) {
-        const min = reduce || s.quick ? 0 : i > 0 ? 160 : 280;
-        if (this.result && (this.skipping || t - r.t0 >= min)) this.landType(s, t, this.skipping);
-      } else {
-        const l = lastLand(r, t)!;
-        if (this.skipping && l.D > 600 && !this.skipLanded.has(`t${i}`)) { this.skipLanded.add(`t${i}`); this.landType(s, t, true); }
-        this.ticks(`t${i}`, r, t, NT, 'tickType');
-        if (t >= reelEnd(r)) this.lockType(s, i, t);
-      }
-    }
-    if (s.tReel && s.tLock != null && s.rStart == null && t >= s.tLock + (reduce ? 0 : this.skipping || i > 0 ? 140 : 240)) {
-      this.startRarity(s, i, t);
-      this.h.stage?.('rarity');
-    }
-    // the rarity reel
-    const rr = s.rReel;
+    const rr = s?.rReel;
     if (!rr || s.rLock != null) return;
+    const reduce = this.o.reduce;
     if (!rr.lands.length) {
-      const min = reduce || s.quick ? 0 : i > 0 ? 360 : 380;
-      const typeDone = !s.tReel || s.tLock != null || s.quick;
-      if (this.result && typeDone && (this.skipping || t - (s.rStart ?? t) >= min)) {
+      // a few turns of the drum at least (fewer on a reroll; none on a quick one)
+      const min = reduce || s.quick ? 0 : i > 0 ? 600 : 900;
+      if (this.result && (this.skipping || t - rr.t0 > min)) {
         // an Enchanted roll: the drum breaks off mid-spin and the transformation takes over
         if (this.result.enchant) { this.enchant(t); return; }
         this.landRarity(s, i, t, this.skipping);
-      }
+      } else this.ticks(`r${i}`, rr, t, NR, null);
       return;
     }
     const l = lastLand(rr, t)!;
-    if (this.skipping && l.D > 1000 && !this.skipLanded.has(`r${i}`)) { this.skipLanded.add(`r${i}`); this.landRarity(s, i, t, true); }
+    if (this.skipping && l.D > 500 && !this.skipLanded.has(`r${i}`)) { this.skipLanded.add(`r${i}`); this.landRarity(s, i, t, true); }
+    // the build-up: Epic and up charge the canvas for the last stretch
     const tier = rarityTier(s.rarity);
     if (s.charge == null && tier >= 2 && !reduce && (t - l.t) / l.D > 0.5) { s.charge = t; this.h.sound?.('charge', tier); }
     this.ticks(`r${i}`, rr, t, NR, 'tickRarity');
     if (t >= reelEnd(rr)) this.lockRarity(s, i, t);
   }
 
-  /** a click (and a tick of the phone) for each row that passes the window while a reel lands */
-  private ticks(key: string, r: Reel, t: number, n: number, sound: 'tickType' | 'tickRarity') {
+  /** a tick of the phone (and a click) for each row that passes the window as the drum lands — every third while it
+   *  spins freely */
+  private ticks(key: string, r: Reel, t: number, n: number, sound: 'tickRarity' | null) {
     const k = Math.round(reelPos(r, t));
     if (this.centers[key] === k) return;
     const first = this.centers[key] == null;
     this.centers[key] = k;
     if (first) return;
-    this.h.buzz?.('light');
-    this.h.sound?.(sound, ((k % n) + n) % n);
-  }
-
-  private landType(s: Step, t: number, quickIn: boolean) {
-    const r = s.tReel!, reduce = this.o.reduce;
-    const quick = quickIn || !!s.quick;
-    const fi = Math.max(0, TYPE_ORDER.indexOf(s.type as never));
-    const pos = reelPos(r, t);
-    const dist = NT + (quick ? 0 : 4);
-    let pT = Math.ceil((pos + dist - fi) / NT) * NT + fi;
-    if (pT < pos + dist) pT += NT;
-    const ov = reduce ? 0 : quick ? 0.16 : 0.42;
-    const brisk = this.multi && this.o.quickRerolls(); // (quick rerolls: the first of Luck's rolls is brisk too)
-    const again = this.trace.steps.indexOf(s) > 0; // (a reroll: the minigame lands briskly)
-    const D = reduce ? 300 : s.quick ? 380 : quickIn ? 520 : clamp((3 * (pT + ov - pos)) / r.v, again ? 0.7 : 0.85, brisk || again ? 0.85 : 1.2) * 1000;
-    r.lands.push({ t, p0: pos, pT, ov, D, settle: quick || reduce ? 110 : again ? 220 : 300 });
-  }
-
-  private lockType(s: Step, i: number, t: number) {
-    s.tLock = t;
-    const ty = PLOT_TYPES[s.type as keyof typeof PLOT_TYPES];
-    if (!this.o.reduce && ty) this.burst({ x: this.L.cx, y: this.L.ry, colors: [ty.a, ty.b, '#fff'], count: s.quick ? 18 : 44, speed: 8, kind: 'spark', life: 0.8 });
-    this.h.buzz?.('medium');
-    this.h.sound?.('lockType');
-    void i;
+    if (sound || k % 3 === 0) this.h.buzz?.('light');
+    if (sound) this.h.sound?.(sound, ((k % n) + n) % n);
   }
 
   private landRarity(s: Step, i: number, t: number, quickIn: boolean) {
@@ -255,13 +200,14 @@ export class Director {
     if (pT < pos + dist) pT += NR;
     // a near miss: low rolls tease the next rarity up before clicking back; big ones crawl straight in
     const ov = reduce ? 0 : tr >= 3 ? 0.16 : 0.6;
-    const D = reduce ? 450 : s.quick ? 380 : quickIn ? 900 : Math.min(i === 0 ? (this.multi && this.o.quickRerolls() ? 2200 : 3000) : 2600, Math.max(1300, ((3 * (pT + ov - pos)) / r.v) * 1000) + tr * 180);
+    const D = reduce ? 450 : s.quick ? 380 : quick ? 900 : Math.min(3600, Math.max(1300, ((3 * (pT + ov - pos)) / r.v) * 1000) + tr * 180);
     r.lands.push({ t, p0: pos, pT, ov, D, settle: quick || reduce ? 120 : 420 });
+    void i;
   }
 
   private lockRarity(s: Step, i: number, t: number) {
     s.rLock = t;
-    if (s.tReel && s.tLock == null) s.tLock = t;
+    this.h.lock?.(i);
     if (this.multi) {
       // one of Luck's rolls lands: into the tray it goes, then the next — or, after the last, you choose
       const n = this.result!.choices!.length, f = rarityInfo(s.rarity), tier = rarityTier(s.rarity);

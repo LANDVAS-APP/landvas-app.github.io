@@ -1,22 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { Director, recreate } from '../../src/roll/stage/director';
 import { layoutFor } from '../../src/roll/stage/layout';
-import { HOLD, PICK_MONTAGE, TYPE_ORDER, clipAt, clipTimeline, reelPos } from '../../src/roll/stage/trace';
+import { HOLD, PICK_MONTAGE, clipAt, clipTimeline, reelPos } from '../../src/roll/stage/trace';
+import { inkSplash } from '../../src/roll/stage/splash';
 import { RARITY_ORDER, type RarityId } from '../../src/shared/rarity';
 
 const L = layoutFor(390, 844);
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
 describe('the roll director', () => {
-  it('rolls the minigame first, then the rarity, and lands on both', () => {
-    const tr = recreate({ rarity: 'legendary', type: 'lumina', usd: 1e-9, first: false }, L, { seed: 42 });
+  it('spins the rarity drum after the drop, lands on the rarity, and the minigame shows as it lands', () => {
+    const locks: number[] = [];
+    const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 42, hooks: { lock: (i) => locks.push(i) } });
+    d.setResult({ rarity: 'legendary', type: 'lumina', usd: 1e-9, first: false });
+    let t = 0;
+    for (; t < 20_000 && d.phase !== 'reveal'; t += 1000 / 60) d.tick(t);
+    const tr = d.trace;
+    expect(tr.look).toBe('classic');
     expect(tr.steps).toHaveLength(1);
     const s = tr.steps[0];
-    expect(s.tLock).toBeDefined();
-    expect(s.rStart!).toBeGreaterThan(s.tLock!);
-    expect(TYPE_ORDER[mod(Math.round(reelPos(s.tReel!, s.tLock!)), TYPE_ORDER.length)]).toBe('lumina');
+    expect(s.tReel).toBeNull();
+    expect(s.type).toBe('lumina');
+    expect(s.rStart).toBe(tr.drop);
     expect(RARITY_ORDER[mod(Math.round(reelPos(s.rReel!, s.rLock!)), RARITY_ORDER.length)]).toBe('legendary');
+    expect(locks).toEqual([0]);
     expect(tr.reveal!).toBeGreaterThan(s.rLock!);
+    // a few turns of the drum before it starts to land (the classic roll's timing)
+    expect(s.rReel!.lands[0].t - s.rStart!).toBeGreaterThan(900);
     // an Epic+ charges the canvas as it slows; the reveal shakes and bursts
     expect(s.charge).toBeDefined();
     expect(tr.shakes.length).toBe(1);
@@ -24,22 +34,29 @@ describe('the roll director', () => {
     expect(tr.overlay?.kind).toBe('gold');
   });
 
-  it('the reels move smoothly into their landings (no jumps)', () => {
+  it('the drum moves smoothly into its landing (no jumps)', () => {
     const tr = recreate({ rarity: 'mythic', type: 'clay', usd: 1e-9, first: false }, L, { seed: 7 });
-    for (const r of [tr.steps[0].tReel!, tr.steps[0].rReel!]) {
-      const l = r.lands[0];
-      expect(Math.abs(reelPos(r, l.t - 0.01) - reelPos(r, l.t + 0.01))).toBeLessThan(0.05);
-      const end = l.t + l.D;
-      expect(Math.abs(reelPos(r, end - 0.01) - reelPos(r, end + 0.01))).toBeLessThan(0.05);
-    }
+    const r = tr.steps[0].rReel!, l = r.lands[0];
+    expect(Math.abs(reelPos(r, l.t - 0.01) - reelPos(r, l.t + 0.01))).toBeLessThan(0.05);
+    const end = l.t + l.D;
+    expect(Math.abs(reelPos(r, end - 0.01) - reelPos(r, end + 0.01))).toBeLessThan(0.05);
   });
 
-  it('Luck: every reroll gets its own minigame and rarity, then the pick decides the reveal', () => {
+  it('Luck: every reroll lands with its own minigame and rarity, then the pick decides the reveal', () => {
     const choices: RarityId[] = ['rare', 'epic', 'kraken', 'legendary'];
-    const tr = recreate({ rarity: 'kraken', type: 'pigment', usd: 1e-9, first: false, choices, choiceTypes: ['pigment', 'mosaic', 'lumina', 'clay'], choiceShiny: [false, true, true, false] }, L, { seed: 3 });
+    const locks: number[] = [];
+    const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 3, hooks: { lock: (i) => locks.push(i) } });
+    d.setResult({ rarity: 'kraken', type: 'pigment', usd: 1e-9, first: false, choices, choiceTypes: ['pigment', 'mosaic', 'lumina', 'clay'], choiceShiny: [false, true, true, false] });
+    let t = 0;
+    for (; t < 60_000 && d.phase !== 'pick'; t += 1000 / 60) d.tick(t);
+    d.pick(2);
+    const tr = d.trace;
     expect(tr.steps.map((s) => s.rarity)).toEqual(choices);
     expect(tr.steps.map((s) => s.type)).toEqual(['pigment', 'mosaic', 'lumina', 'clay']);
-    expect(tr.pick?.t1).toBeDefined();
+    expect(locks).toEqual([0, 1, 2, 3]);
+    // each reroll carries on from where the drum stopped
+    expect(Math.abs(tr.steps[1].rReel!.p0 - reelPos(tr.steps[0].rReel!, tr.steps[1].rStart!))).toBeLessThan(1e-6);
+    expect(tr.final).toMatchObject({ rarity: 'kraken', type: 'lumina', shiny: true, kept: 2 });
     expect(tr.reveal).toBe(tr.pick!.t1);
   });
 
@@ -53,19 +70,25 @@ describe('the roll director', () => {
     expect(d.trace.reveal! - d.trace.enchant!.t0).toBeGreaterThanOrEqual(3500);
   });
 
-  it('a tap hurries it along', () => {
+  it('a tap hurries it along (and it still lands)', () => {
     const slow = recreate({ rarity: 'epic', type: 'glass', usd: 0, first: false }, L, { seed: 5 });
-    const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 5 });
-    d.setResult({ rarity: 'epic', type: 'glass', usd: 0, first: false });
-    let t = 0;
-    for (; t < 20_000 && d.phase !== 'reveal'; t += 16) { if (t > 800) d.skip(); d.tick(t); }
-    expect(d.trace.reveal!).toBeLessThan(slow.reveal!);
+    for (const at of [300, 1600]) {
+      const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 5 });
+      d.setResult({ rarity: 'epic', type: 'glass', usd: 0, first: false });
+      let t = 0;
+      for (; t < 20_000 && d.phase !== 'reveal'; t += 16) { if (t > at) d.skip(); d.tick(t); }
+      expect(d.phase).toBe('reveal');
+      expect(d.trace.reveal!).toBeLessThan(slow.reveal!);
+      const s = d.trace.steps[0];
+      expect(RARITY_ORDER[mod(Math.round(reelPos(s.rReel!, s.rLock!)), RARITY_ORDER.length)]).toBe('epic');
+    }
   });
 
-  it('a plot type the reel doesn’t know goes straight to the rarity', () => {
-    const tr = recreate({ rarity: 'rare', type: 'farm', usd: 0, first: false }, L, { seed: 11 });
-    expect(tr.steps[0].tReel).toBeNull();
-    expect(tr.reveal).toBeDefined();
+  it('the roll on screen and its clip splash the same ink', () => {
+    const a = inkSplash(1234), b = inkSplash(1234), c = inkSplash(99);
+    expect(a.shapes.map((x) => x.d)).toEqual(b.shapes.map((x) => x.d));
+    expect(a.shapes[a.shapes.length - 1].d).not.toBe(c.shapes[c.shapes.length - 1].d);
+    expect(a.tendrils.length).toBe(6);
   });
 });
 
