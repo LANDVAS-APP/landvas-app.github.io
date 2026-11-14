@@ -118,10 +118,11 @@ try {
   await page.waitForSelector('[data-testid=ray-blip]', { timeout: 10000 });
   await page.locator('[data-testid=ray-blip]').first().click(); await page.click('[data-testid=ray-aim]');
   await page.waitForSelector('[data-testid=ray-fire]', { timeout: 15000 }); await page.waitForTimeout(1100);
-  await shot('17-sizeray-aiming');
+  // (no screenshot between aiming and firing: the server only holds an aim for 12 seconds, and a screenshot can take longer)
   await page.click('[data-testid=ray-fire]');
   const graded = await page.waitForSelector('[data-testid=ray-grade]', { timeout: 10000 }).then(() => true, () => false);
-  check('the Size Ray aims, fires and is graded by the server', graded, graded ? await page.textContent('[data-testid=ray-grade]') : '');
+  check('the Size Ray aims, fires and is graded by the server', graded, graded ? await page.textContent('[data-testid=ray-grade]') : await page.evaluate(() => [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent).join(' | ')));
+  await shot('17-sizeray-graded');
   await page.waitForTimeout(600); await shot('18-sizeray-fired');
   // renaming
   await nav(`/grimoire/${ids.genie}`); await page.waitForSelector('[data-testid=ench-name]', { timeout: 20000 });

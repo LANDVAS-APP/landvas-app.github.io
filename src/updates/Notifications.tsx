@@ -203,6 +203,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'scrubbed': return <>scrubbed the Leviathan’s ink off your plot 🧽</>;
       case 'fallen': return <>🦴 <b>The Leviathan has fallen!</b> Your share: #{d.rank} <span className="text-ok">· +{d.ink} Ink</span>{d.ticket ? <> · a {d.ticket} ticket</> : null}</>;
       case 'escaped': return <>🌊 The Leviathan escaped to the sea… it will be back stronger <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'coming': return <>🐉 <b>The Leviathan is coming for you{d.rampage ? ' — on a RAMPAGE' : ''}!</b> Get your friends and your enchantments ready</>;
       default: return <>🐉 The Leviathan stirs</>;
     }
   }, to: () => '/world' },

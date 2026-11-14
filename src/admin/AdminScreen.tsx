@@ -893,6 +893,21 @@ function LeviathanSettings({ value }: { value: any }) {
             <Button variant="rainbow" onClick={() => void run('summon')} data-testid="lev-summon">Summon one now</Button></>}
           {l && <Button variant="danger" onClick={() => void run('dismiss')} data-testid="lev-dismiss">Send it back to the sea (no loot)</Button>}
         </div>
+        {l && l.status !== 'warning' && <LevLive l={l} cfg={value} onDone={() => { void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); }} />}
+        <div className="text-xs font-black uppercase tracking-wider text-muted">Every Leviathan (these apply to the one walking now too)</div>
+        <Switch id="lev-roam" checked={v.roam !== false} label={v.roam !== false ? 'At the end of its road it turns back inland and keeps roaming' : 'At the end of its road it escapes to the sea'} onCheckedChange={(on) => setV({ ...v, roam: on })} />
+        <Switch id="lev-powers" checked={v.powers_auto !== false} label={v.powers_auto !== false ? 'It uses its powers on its own (goes tiny, or hides)' : 'It only uses powers when you tell it to'} onCheckedChange={(on) => setV({ ...v, powers_auto: on })} />
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="A power every" value={Number(v.power_every_h ?? 3)} step={0.5} min={0.1} max={168} suffix="h" onChange={(n) => setV({ ...v, power_every_h: n })} />
+          <NumberField label="A power lasts" value={Number(v.power_min ?? 25)} min={1} max={1440} suffix="min" onChange={(n) => setV({ ...v, power_min: Math.round(n) })} />
+          <NumberField label="Tiny: bombs that miss" value={Math.round(Number(v.tiny_miss ?? 0.5) * 100)} min={0} max={95} suffix="%" onChange={(n) => setV({ ...v, tiny_miss: Math.round(n) / 100 })} />
+          <NumberField label="Hidden: haze across" value={Number(v.hidden_km ?? 60)} min={5} max={2000} suffix="km" onChange={(n) => setV({ ...v, hidden_km: n })} hint="How far from the middle of the haze it can be" />
+          <NumberField label="Hidden: zoomed in to search" value={Number(v.seek_km ?? 90)} min={5} max={5000} suffix="km" onChange={(n) => setV({ ...v, seek_km: n })} hint="The map must show less than this across" />
+          <NumberField label="Trample width" value={Number(v.trample_km ?? 1.2)} step={0.1} min={0.05} max={50} suffix="km" onChange={(n) => setV({ ...v, trample_km: n })} />
+          <NumberField label="Trampled for" value={Number(v.trample_hours ?? 2)} min={1} max={72} suffix="h" onChange={(n) => setV({ ...v, trample_hours: Math.round(n) })} />
+          <NumberField label="New ones walk at" value={Number(v.speed_mult ?? 1)} step={0.5} min={0.1} max={50} suffix="× pace" onChange={(n) => setV({ ...v, speed_mult: n })} hint="× the pace that gets it across its road in “Walks for”" />
+        </div>
+        <div className="text-xs font-black uppercase tracking-wider text-muted">The weekly schedule</div>
         <Switch id="lev-enabled" checked={v.enabled !== false} label={v.enabled !== false ? 'It comes on its own every week' : 'Only when you summon it'} onCheckedChange={(on) => setV({ ...v, enabled: on })} />
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1 text-xs font-semibold">Day (UTC)<select className={cn(inputCls, 'h-9')} value={Number(v.weekday ?? 6)} onChange={(e) => setV({ ...v, weekday: Number(e.target.value) })}>{days.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></label>
@@ -910,6 +925,124 @@ function LeviathanSettings({ value }: { value: any }) {
         {(st.data?.history ?? []).length > 0 && <div className="grid gap-1 text-xs">{st.data!.history.map((h: any) => <div key={h.spawned_at} className="flex gap-2"><b>#{h.gen}</b><span className="flex-1 truncate">{h.origin}</span><span>{h.status}</span><span className="tnum text-muted">{h.fighters} fought</span></div>)}</div>}
       </div>
     </Card>
+  );
+}
+
+/** the Leviathan that's walking now: speed, where it goes, its powers, retreat / stay / heal — nothing about it resets */
+function LevLive({ l, cfg, onDone }: { l: any; cfg: any; onDone(): void }) {
+  const [kmh, setKmh] = useState(() => Math.round(Number(l.speed_kmh)));
+  const [mins, setMins] = useState({ tiny: 20, hide: 30, rampage: 20 });
+  const [mult, setMult] = useState(8);
+  const [heal, setHeal] = useState(10);
+  const [who, setWho] = useState('');
+  const [player, setPlayer] = useState<any>(null);
+  const [plots, setPlots] = useState<[number, number][]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => setKmh(Math.round(Number(l.speed_kmh))), [l.speed_kmh]);
+  const found = useQuery({ queryKey: ['admin', 'players', 'lev', who], queryFn: () => api.admin.searchPlayers(who), enabled: who.trim().length >= 2 && !player, staleTime: 10_000 });
+  const theirPlots = useQuery({ queryKey: ['admin', 'player-plots', player?.id], queryFn: () => api.admin.playerPlots(player.id), enabled: !!player });
+  const act = async (a: Parameters<typeof api.admin.leviathan>[0], args: Record<string, unknown>, msg: string) => {
+    setBusy(a);
+    try { await api.admin.leviathan(a, args); toast.success(msg); onDone(); }
+    catch (e) { toast.error(toGameError(e).message); }
+    finally { setBusy(null); }
+  };
+  const base = Number(l.base_kmh || l.speed_kmh);
+  const pace = Number(l.speed_kmh) / Math.max(0.001, base);
+  const left = (t: string | null) => (t && Date.parse(t) > Date.now() ? `${Math.max(1, Math.round((Date.parse(t) - Date.now()) / 60000))} min left` : null);
+  const aim = () => ({ ...(player ? { player: player.id } : {}), ...(plots.length ? { plots } : {}) });
+  const aimName = player ? `@${player.username}${plots.length ? ` (${plots.length} plot${plots.length === 1 ? '' : 's'})` : ''}` : plots.length ? `${plots.length} plot${plots.length === 1 ? '' : 's'}` : null;
+  const togglePlot = (gx: number, gy: number) => setPlots((ps): [number, number][] => (ps.some((p) => p[0] === gx && p[1] === gy) ? ps.filter((p) => !(p[0] === gx && p[1] === gy)) : [...ps, [gx, gy] as [number, number]].slice(0, 12)));
+  return (
+    <div className="grid gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-3" data-testid="lev-live">
+      <div className="text-xs font-black uppercase tracking-wider text-accent">Live controls — this Leviathan, right now (its health and everyone’s damage stay as they are)</div>
+      <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
+        <span className="rounded-full bg-surface-2 px-2 py-0.5">📍 {l.true_place ?? l.place}</span>
+        <span className="rounded-full bg-surface-2 px-2 py-0.5">💨 {fmt(Math.round(Number(l.speed_kmh)))} km/h · ×{pace.toFixed(pace >= 10 ? 0 : 1)} its pace</span>
+        {l.target?.owner_name && <span className="rounded-full bg-surface-2 px-2 py-0.5">🎯 @{l.target.owner_name}</span>}
+        {left(l.rampage_until) && <span className="rounded-full bg-warn/20 px-2 py-0.5">⚡ rampage · {left(l.rampage_until)}</span>}
+        {left(l.tiny_until) && <span className="rounded-full bg-surface-2 px-2 py-0.5">🔬 tiny · {left(l.tiny_until)}</span>}
+        {left(l.hidden_until) && <span className="rounded-full bg-surface-2 px-2 py-0.5">🫥 hidden · {left(l.hidden_until)}</span>}
+        {l.retreat && <span className="rounded-full bg-surface-2 px-2 py-0.5">🌊 retreating to {l.exit_sea ?? 'the sea'}</span>}
+        {l.next_power_at && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">next power by itself {new Date(l.next_power_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+      </div>
+
+      <div className="grid gap-2">
+        <div className="text-sm font-bold">💨 Speed</div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="km/h" value={kmh} min={1} max={5000} onChange={(n) => setKmh(Math.round(n))} />
+          <Button size="sm" variant="primary" disabled={!!busy} onClick={() => void act('speed', { kmh }, `It walks at ${kmh} km/h now`)} data-testid="lev-speed-set">Set</Button>
+          {[1, 2, 5, 10, 25].map((m) => <Button key={m} size="sm" variant={Math.abs(pace - m) < 0.05 ? 'secondary' : 'ghost'} disabled={!!busy} onClick={() => void act('speed', { mult: m }, m === 1 ? 'Back to its normal pace' : `×${m} its pace`)} data-testid={`lev-speed-x${m}`}>×{m}</Button>)}
+        </div>
+        <p className="text-[11px] text-faint">Faster = more ground (and more plots trampled) every minute. It goes on from where it is — no jump.</p>
+      </div>
+
+      <div className="grid gap-2">
+        <div className="text-sm font-bold">🎯 Send it after someone</div>
+        {player ? (
+          <div className="flex items-center gap-2 text-sm"><b>@{player.username}</b><span className="text-faint">· it heads for their explorer, then their best plots{plots.length ? ' — or just the plots you tick' : ''}</span>
+            <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => { setPlayer(null); setPlots([]); setWho(''); }}>Change</Button></div>
+        ) : (
+          <input className={inputCls} placeholder="Search a player (username)" value={who} onChange={(e) => setWho(e.target.value)} data-testid="lev-target-search" />
+        )}
+        {!player && (found.data ?? []).length > 0 && (
+          <div className="grid max-h-40 gap-1 overflow-y-auto scroll-thin">
+            {found.data!.slice(0, 8).map((p: any) => (
+              <button key={p.id} className="flex items-center justify-between rounded-xl px-2 py-1.5 text-left text-sm hover:bg-surface-2" onClick={() => setPlayer(p)} data-testid="lev-target-player">
+                <b>@{p.username}</b><span className="text-xs text-muted">{p.plots} plots</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {player && (theirPlots.data ?? []).length > 0 && (
+          <div className="grid max-h-44 gap-1 overflow-y-auto scroll-thin text-xs" data-testid="lev-target-plots">
+            {(theirPlots.data ?? []).slice(0, 40).map((p: any) => {
+              const on = plots.some((x) => x[0] === p.gx && x[1] === p.gy);
+              return (
+                <label key={`${p.gx},${p.gy}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1', on && 'bg-surface-2')}>
+                  <input type="checkbox" checked={on} onChange={() => togglePlot(p.gx, p.gy)} data-testid="lev-target-plot" />
+                  <RarityBadge r={p.rarity} small /><span className="truncate text-muted">{p.kingdom ? `👑 ${p.kingdom}` : p.place ?? `${p.gx}, ${p.gy}`}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <Button size="sm" variant="primary" disabled={!!busy || !aimName} onClick={() => void act('target', plots.length ? { plots } : aim(), `It’s heading for ${aimName}`)} data-testid="lev-target-go">Go for {aimName ?? '…'}</Button>
+          <NumberField label="Rampage for" value={mins.rampage} min={1} max={240} suffix="min" onChange={(n) => setMins({ ...mins, rampage: Math.round(n) })} />
+          <NumberField label="at" value={mult} min={1.5} max={50} suffix="× pace" onChange={(n) => setMult(n)} />
+          <Button size="sm" variant="rainbow" disabled={!!busy} onClick={() => void act('rampage', { ...(plots.length ? { plots } : aim()), minutes: mins.rampage, mult }, aimName ? `RAMPAGE — charging at ${aimName}` : 'RAMPAGE — charging at the players near it')} data-testid="lev-rampage">⚡ Rampage{aimName ? ` at ${aimName}` : ' (players near it)'}</Button>
+        </div>
+        <p className="text-[11px] text-faint">The players it’s coming for are told. A rampage goes that fast for that long, then drops back to the pace it had.</p>
+      </div>
+
+      <div className="grid gap-2">
+        <div className="text-sm font-bold">✨ Powers</div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Tiny for" value={mins.tiny} min={1} max={1440} suffix="min" onChange={(n) => setMins({ ...mins, tiny: Math.round(n) })} />
+          <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act('tiny', { minutes: mins.tiny }, `It’s tiny for ${mins.tiny} min`)} data-testid="lev-tiny">🔬 Make it tiny</Button>
+          {left(l.tiny_until) && <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void act('tiny', { minutes: 0 }, 'Back to its size')}>End</Button>}
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Hidden for" value={mins.hide} min={1} max={1440} suffix="min" onChange={(n) => setMins({ ...mins, hide: Math.round(n) })} />
+          <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act('hide', { minutes: mins.hide }, `It’s hidden for ${mins.hide} min — players have to find it`)} data-testid="lev-hide">🫥 Hide it</Button>
+          {left(l.hidden_until) && <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void act('hide', { minutes: 0 }, 'Everyone can see it again')} data-testid="lev-reveal">Reveal</Button>}
+        </div>
+        <p className="text-[11px] text-faint">Tiny: a speck on the map, {Math.round(Number(cfg?.tiny_miss ?? 0.5) * 100)}% of ink bombs miss, it tramples a narrow path (a Size Ray move blows it back up). Hidden: only a hazy area shows — players zoom in and search (hot / cold), only finders can hit it (the Oracle Eye’s move reveals it to all).</p>
+      </div>
+
+      <div className="grid gap-2">
+        <div className="text-sm font-bold">🌊 Retreat, stay, heal</div>
+        <div className="flex flex-wrap items-end gap-2">
+          {l.retreat || l.status === 'fleeing'
+            ? <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act('stay', {}, 'It turned back inland')} data-testid="lev-stay">↩️ Turn back inland</Button>
+            : <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => void act('retreat', {}, 'It’s retreating to the sea — it escapes when it gets there')} data-testid="lev-retreat">🌊 Retreat to the sea</Button>}
+          <NumberField label="Heal" value={heal} min={1} max={100} suffix="% of its health" onChange={(n) => setHeal(Math.round(n))} />
+          <Button size="sm" variant="secondary" disabled={!!busy || Number(l.hp) >= Number(l.hp_max)} onClick={() => void act('heal', { pct: heal }, `It healed ${heal}%`)} data-testid="lev-heal">💚 Heal it</Button>
+          <Switch id="lev-roam-now" checked={l.roam !== false} label={l.roam !== false ? 'Keeps roaming at the end of its road' : 'Escapes at the end of its road'} onCheckedChange={(on) => void act('roam', { on }, on ? 'It will keep roaming' : 'It will escape when it reaches the sea')} />
+        </div>
+      </div>
+    </div>
   );
 }
 

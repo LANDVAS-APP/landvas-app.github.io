@@ -23,7 +23,7 @@ import { dur, kindInfo } from '../enchant/kinds';
 import { feel } from '../enchant/living';
 import { Sigil } from '../enchant/Sigil';
 import { LeviathanArt } from './LeviathanArt';
-import { LEV_KEY, STATUS_TEXT, fmtDmg, levMult, levPos, serverNow, useLeviathan } from './useLeviathan';
+import { LEV_KEY, STATUS_TEXT, fmtDmg, levHidden, levMult, levPace, levPos, levRampage, levTiny, serverNow, useLeviathan } from './useLeviathan';
 
 export const useLevUi = create<{ fight: boolean; bones: LevState['bones'][number] | null; open(): void; close(): void; showBones(b: LevState['bones'][number] | null): void }>((set) => ({
   fight: false, bones: null, open: () => set({ fight: true }), close: () => set({ fight: false }), showBones: (bones) => set({ bones }),
@@ -31,7 +31,7 @@ export const useLevUi = create<{ fight: boolean; bones: LevState['bones'][number
 // (automated browser tests open the fight directly)
 if (typeof window !== 'undefined' && config.e2e) (window as any).__landvasLevOpen = () => useLevUi.getState().open(); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const EFFECT: Record<string, string> = { shrink: 'Shrunk! Everyone hits ×1.5 for 10 min', freeze: 'Frozen in time for 10 min', foretell: 'Its weak spot is foretold: ×1.25 for 10 min', decoy: 'Distracted by a decoy egg for 5 min', pull: 'Pulled through a wormhole: stalled 5 min' };
+const EFFECT: Record<string, string> = { reveal: 'Foretold where it hides — everyone can see it now!', grow: 'Blew it back up to size — it can be hit again!', shrink: 'Shrunk! Everyone hits ×1.5 for 10 min', freeze: 'Frozen in time for 10 min', foretell: 'Its weak spot is foretold: ×1.25 for 10 min', decoy: 'Distracted by a decoy egg for 5 min', pull: 'Pulled through a wormhole: stalled 5 min' };
 
 function HpBar({ l, big }: { l: Lev; big?: boolean }) {
   const pct = Math.max(0, Math.min(100, (Number(l.hp) / Math.max(1, Number(l.hp_max))) * 100));
@@ -43,6 +43,19 @@ function HpBar({ l, big }: { l: Lev; big?: boolean }) {
       {big && <span className="absolute inset-0 grid place-items-center text-[11px] font-black text-white drop-shadow">{fmtDmg(Number(l.hp))} / {fmtDmg(Number(l.hp_max))}</span>}
     </div>
   );
+}
+
+/** what it's up to right now, in a few words (its powers, a rampage, its speed) */
+function levNow(l: Lev): string | null {
+  if (l.status === 'warning') return null;
+  if (l.hidden) return `🫥 Hiding${l.place ? ` somewhere around ${l.place}` : ''} — search the map`;
+  const bits: string[] = [];
+  if (levRampage(l)) bits.push('⚡ RAMPAGE');
+  if (levHidden(l)) bits.push('🫥 hidden (you found it)');
+  if (levTiny(l)) bits.push('🔬 tiny — bombs miss');
+  const pace = levPace(l);
+  if (!levRampage(l) && Math.abs(pace - 1) > 0.15) bits.push(`${pace > 1 ? '💨' : '🐢'} ×${pace >= 10 ? Math.round(pace) : pace.toFixed(1)} speed`);
+  return bits.length ? bits.join(' · ') : null;
 }
 
 function Countdown({ to }: { to: string }) {
@@ -57,13 +70,13 @@ export function LeviathanBanner() {
   const l = q.data?.lev;
   if (!l) return null;
   return (
-    <motion.button onClick={() => useLevUi.getState().open()} className={cn('lv-lev-banner pointer-events-auto grid w-[min(420px,100%)] gap-1.5 rounded-2xl px-3 py-2 text-left', l.status)}
+    <motion.button onClick={() => useLevUi.getState().open()} className={cn('lv-lev-banner pointer-events-auto grid w-[min(420px,100%)] gap-1.5 rounded-2xl px-3 py-2 text-left', l.status, levRampage(l) && 'rampage', l.hidden && 'veiled')}
       initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} data-testid="lev-banner">
       <div className="flex items-center gap-2">
         <span className="text-2xl lv-lev-bob">🐉</span>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate font-display text-[15px] font-black text-white">The Leviathan {STATUS_TEXT[l.status]}</div>
-          <div className="truncate text-[11px] font-bold text-white/70">{l.status === 'warning' ? <>{l.origin} · rises in <Countdown to={l.rise_at} /></> : `${l.place ?? ''} · ${l.fighters} fighting`}</div>
+          <div className="truncate text-[11px] font-bold text-white/70">{l.status === 'warning' ? <>{l.origin} · rises in <Countdown to={l.rise_at} /></> : levNow(l) ?? `${l.place ?? ''} · ${l.fighters} fighting`}</div>
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#2A0D44]">{l.status === 'warning' ? 'Watch' : 'FIGHT'}</span>
       </div>
@@ -96,7 +109,7 @@ export function LeviathanCard({ onClose }: { onClose(): void }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><div className="kicker">🐉 Leviathan #{l.gen}{Number(l.strength) > 1 ? ` · ×${l.strength} stronger` : ''}</div>
           <div className="font-display text-[20px] font-black leading-tight">{l.status === 'warning' ? 'Something is rising…' : `It ${STATUS_TEXT[l.status]}`}</div>
-          <div className="text-[12px] font-semibold text-white/65">{l.status === 'warning' ? <>{l.origin} · <Countdown to={l.rise_at} /></> : l.place}</div></div>
+          <div className="text-[12px] font-semibold text-white/65">{l.status === 'warning' ? <>{l.origin} · <Countdown to={l.rise_at} /></> : levNow(l) ?? l.place}</div></div>
         <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
       </div>
       <div className="relative mx-auto my-2 h-28 w-40"><LeviathanArt status={l.status} className="h-full w-full" /></div>
@@ -143,14 +156,15 @@ function Fight() {
       const r = await api.leviathanHit('bomb', n);
       apply(r);
       const c = centerOf(beast.current);
-      setFlies((f) => [...f, { id: Math.random(), x: c.x + (Math.random() - 0.5) * 80, y: c.y - 40, dmg: r.dmg }]);
+      setFlies((f) => [...f, { id: Math.random(), x: c.x + (Math.random() - 0.5) * 80, y: c.y - 40, dmg: r.dmg, label: r.missed ? `${r.missed} missed — it’s tiny!` : undefined }]);
       if (r.fell) feel('success');
     } catch (e) { pending.current = 0; toast.error(toGameError(e).message); void q.refetch(); }
     finally { sending.current = false; if (pending.current > 0) setTimeout(() => void flush(), 250); }
   };
   useEffect(() => { const t = setInterval(() => void flush(), 700); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const hiddenFromMe = !!l?.hidden;
   const throwBomb = (e: React.PointerEvent) => {
-    if (!l || l.status === 'warning' || !me) return;
+    if (!l || l.status === 'warning' || !me || hiddenFromMe) return;
     if ((bombs ?? 0) < 1) { toast('Out of ink bombs — one comes back every minute.'); return; }
     feel('light'); setHit((h) => h + 1);
     setBombs((b) => (b ?? 1) - 1); pending.current += 1;
@@ -172,10 +186,11 @@ function Fight() {
     if (!l) return;
     const p = levPos(l);
     useLevUi.getState().close();
-    toMap(nav, { lng: p.lng, lat: p.lat, zoom: 8.5 });
+    // (hidden: to the middle of the haze, close enough to start searching)
+    toMap(nav, { lng: p.lng, lat: p.lat, zoom: l.hidden ? 9.6 : levTiny(l) ? 12 : 8.5 });
   };
   return (
-    <motion.div className={cn('lv-lev-fight fixed inset-0 z-[140] flex flex-col overflow-y-auto', app && 'app')} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 34 }} data-testid="lev-fight">
+    <motion.div className={cn('lv-lev-fight pointer-events-auto fixed inset-0 z-[140] flex flex-col overflow-y-auto', app && 'app')} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 34 }} data-testid="lev-fight">
       <EnchantFxLayer />
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 pb-2 pt-[max(14px,env(safe-area-inset-top,0px))]">
         <div className="min-w-0 flex-1 leading-tight">
@@ -191,15 +206,29 @@ function Fight() {
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">📍 {l.status === 'warning' ? l.origin : l.place}</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">⚔️ {l.fighters} fighting</span>
             {levMult(l) > 1 && <span className="rounded-full bg-[#FF5CDB] px-2.5 py-1 text-white">💥 hits ×{levMult(l)}</span>}
-            {l.status === 'enraged' && l.target && <span className="rounded-full bg-[#FF2D55] px-2.5 py-1 text-white">🎯 heading for @{l.target.owner_name}’s {l.target.giant ? 'giant ' : ''}plot</span>}
+            {l.target?.owner_name && <span className="rounded-full bg-[#FF2D55] px-2.5 py-1 text-white">🎯 heading for @{l.target.owner_name}{l.target.player ? '' : `’s ${l.target.giant ? 'giant ' : ''}plot`}</span>}
+            {levRampage(l) && <span className="rounded-full bg-[#FF9F1C] px-2.5 py-1 text-[#2A0D00]" data-testid="lev-rampage">⚡ RAMPAGE · <Countdown to={l.rampage_until!} /></span>}
+            {levTiny(l) && <span className="rounded-full bg-[#22E3FF] px-2.5 py-1 text-[#06222C]" data-testid="lev-tiny">🔬 TINY — half your bombs miss · <Countdown to={l.tiny_until!} /></span>}
+            {l.hidden_until && <span className="rounded-full bg-[#6B2BD9] px-2.5 py-1 text-white" data-testid="lev-hidden">🫥 {l.hidden ? 'HIDING' : 'Hidden — you found it'} · <Countdown to={l.hidden_until} /></span>}
+            {!levRampage(l) && Math.abs(levPace(l) - 1) > 0.15 && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">{levPace(l) > 1 ? '💨' : '🐢'} ×{levPace(l) >= 10 ? Math.round(levPace(l)) : levPace(l).toFixed(1)} speed</span>}
             {l.status === 'fleeing' && <span className="rounded-full bg-[#9BE7FF] px-2.5 py-1 text-[#06222C]">🌊 racing {l.exit_sea ?? 'to the sea'} — finish it!</span>}
           </div>
           <div ref={beast} className="lv-lev-arena relative grid h-[min(46vh,360px)] touch-none select-none place-items-center overflow-hidden rounded-[28px]" onPointerDown={throwBomb} data-testid="lev-arena">
             <div className="lv-lev-sea absolute inset-x-0 bottom-0 h-1/3" />
-            <div className="relative h-[86%] w-[96%]"><LeviathanArt status={l.status} paused={levPos(l).paused} shrunk={!!l.shrunk_until && Date.parse(l.shrunk_until) > serverNow()} foretold={!!l.foretold_until && Date.parse(l.foretold_until) > serverNow()} hit={hit} className="h-full w-full" /></div>
+            <div className={cn('relative h-[86%] w-[96%]', levTiny(l) && 'lv-lev-tinyart', hiddenFromMe && 'opacity-0')}><LeviathanArt status={l.status} paused={levPos(l).paused} shrunk={!!l.shrunk_until && Date.parse(l.shrunk_until) > serverNow()} foretold={!!l.foretold_until && Date.parse(l.foretold_until) > serverNow()} hit={hit} className="h-full w-full" /></div>
+            {hiddenFromMe && (
+              <div className="absolute inset-0 grid place-items-center px-6 text-center" data-testid="lev-fog">
+                <div className="grid justify-items-center gap-2">
+                  <div className="text-5xl">🫥</div>
+                  <div className="font-display text-[20px] font-black text-white">It’s hiding</div>
+                  <div className="text-[12.5px] font-bold text-white/75">Only players who find it can hit it. Zoom in on the haze on the map and look around — it tells you when you’re getting warm. (The Oracle Eye’s move shows everyone where it is.)</div>
+                  <button className="lv-cta gold mt-1 px-5" onPointerDown={(e) => e.stopPropagation()} onClick={flyTo} data-testid="lev-search">🔍 Search the map</button>
+                </div>
+              </div>
+            )}
             {l.status === 'warning'
               ? <div className="absolute inset-x-0 bottom-4 text-center"><div className="font-display text-2xl font-black text-white">Rises in <Countdown to={l.rise_at} /></div><div className="text-[12px] font-bold text-white/70">{l.origin}</div></div>
-              : <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[13px] font-black text-white drop-shadow">{me ? 'TAP IT to throw ink bombs' : 'Sign in to fight it'}</div>}
+              : !hiddenFromMe && <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[13px] font-black text-white drop-shadow">{me ? (levTiny(l) ? 'It’s TINY — tap fast, half your bombs miss' : 'TAP IT to throw ink bombs') : 'Sign in to fight it'}</div>}
             <AnimatePresence>{banner && <motion.div key={banner} className="absolute inset-x-6 top-4 rounded-2xl bg-black/70 px-3 py-2 text-center text-[13px] font-black text-[#FFE8A3]" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}>{banner}</motion.div>}</AnimatePresence>
           </div>
           {createPortal(<div className="pointer-events-none fixed inset-0 z-[160]">{flies.map((f) => <Flyer key={f.id} f={f} onDone={() => setFlies((x) => x.filter((y) => y.id !== f.id))} />)}</div>, document.body)}
@@ -228,8 +257,11 @@ function Fight() {
             <AnimatePresence initial={false}>
               {(st?.feed ?? []).slice(0, 12).map((h) => (
                 <motion.div key={h.id} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-[12.5px]">
-                  <span>{h.emoji}</span><span className="min-w-0 flex-1 truncate text-white/85"><b className="text-white">@{h.name ?? '?'}</b> {h.move === 'giant' ? '’s giant plot stood in its way' : `· ${h.label}`}</span>
-                  <b className="shrink-0 text-[#FF8FD0]">{fmtDmg(h.dmg)}</b>
+                  <span>{h.emoji}</span>
+                  {h.move === 'heal'
+                    ? <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-[#9BE7FF]">The Leviathan</b> {h.label.toLowerCase()}</span>
+                    : <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-white">@{h.name ?? '?'}</b> {h.move === 'giant' ? '’s giant plot stood in its way' : `· ${h.label}`}</span>}
+                  <b className={cn('shrink-0', h.move === 'heal' ? 'text-[#7CFFB2]' : 'text-[#FF8FD0]')}>{h.move === 'heal' ? '+' : ''}{fmtDmg(h.dmg)}</b>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -287,6 +319,24 @@ export function LeviathanMoments() {
     else if (l && l.status !== 'warning' && seen[l.id] !== 'risen') { setMoment({ kind: 'risen', id: l.id }); quake(); }
     else if (!l && st.last?.loot?.loot && !st.last.loot.seen) setMoment({ kind: st.last.status === 'fallen' ? 'fallen' : 'escaped', id: st.last.id });
   }, [st?.lev?.id, st?.lev?.status, st?.last?.id, st?.last?.loot?.seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // its powers and the owner's tricks, as they happen (a toast each, once — not for what was already going on when you came)
+  const powers = useRef<Record<string, string>>({});
+  const mountedAt = useRef(Date.now());
+  useEffect(() => {
+    if (!l || l.status === 'warning') return;
+    const said = powers.current;
+    const tell = (key: string, at: string | null | undefined, text: string, desc: string) => {
+      if (!at || Date.parse(at) <= serverNow()) return;
+      const k = `${l.id}:${key}:${at}`;
+      if (said[key] === k) return;
+      const first = said[key] === undefined && Date.now() - mountedAt.current < 4000;
+      said[key] = k;
+      if (!first) { toast(text, { description: desc }); feel('medium'); }
+    };
+    tell('tiny', l.tiny_until, '🔬 The Leviathan shrank itself!', 'It’s tiny — half the ink bombs miss. A Size Ray move blows it back up.');
+    tell('hidden', l.hidden_until, '🫥 The Leviathan vanished!', 'It’s hiding somewhere on the map — zoom in and search to find it (and fight it).');
+    tell('rampage', l.rampage_until, '⚡ The Leviathan is on a RAMPAGE!', l.target?.owner_name ? `It’s charging at @${l.target.owner_name}.` : 'It’s charging across the map.');
+  }, [l?.id, l?.tiny_until, l?.hidden_until, l?.rampage_until, l?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const done = () => {
     if (!moment) return;
     if (moment.kind === 'warning' || moment.kind === 'risen') saveStorage('landvas.leviathan.seen', { ...seen, [moment.id]: moment.kind });
@@ -297,7 +347,7 @@ export function LeviathanMoments() {
   return createPortal(
     <AnimatePresence>
       {moment && (
-        <motion.div key={moment.kind} className={cn('lv-lev-moment fixed inset-0 z-[260] grid place-items-center px-6 text-center', moment.kind)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid={`lev-moment-${moment.kind}`}>
+        <motion.div key={moment.kind} className={cn('lv-lev-moment pointer-events-auto fixed inset-0 z-[260] grid place-items-center px-6 text-center', moment.kind)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid={`lev-moment-${moment.kind}`}>
           <motion.div className="grid justify-items-center gap-3" initial={{ scale: 0.6, y: 30 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 16, delay: 0.2 }}>
             <div className="h-44 w-60"><LeviathanArt status={moment.kind === 'fallen' ? 'fleeing' : moment.kind === 'escaped' ? 'fleeing' : 'walking'} paused={moment.kind === 'fallen'} className={cn('h-full w-full', moment.kind === 'fallen' && 'rotate-[18deg] opacity-80')} /></div>
             {moment.kind === 'warning' && l && <>
@@ -330,7 +380,7 @@ export function LeviathanMoments() {
         </motion.div>
       )}
       {bones && (
-        <motion.button key="bones" className="fixed inset-0 z-[250] grid place-items-center bg-black/60 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useLevUi.getState().showBones(null)} data-testid="lev-bones-card">
+        <motion.button key="bones" className="pointer-events-auto fixed inset-0 z-[250] grid place-items-center bg-black/60 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useLevUi.getState().showBones(null)} data-testid="lev-bones-card">
           <div className="grid gap-1.5 rounded-3xl border border-white/20 bg-[#12051F] px-6 py-5"><span className="text-5xl">🦴</span>
             <div className="font-display text-xl font-black text-white">Leviathan #{bones.gen} fell here</div>
             <div className="text-[13px] text-white/70">{bones.place ?? ''} · {new Date(bones.at).toLocaleDateString()} · {bones.players} players fought it{bones.top ? ` · the last word belonged to @${bones.top}` : ''}</div></div>

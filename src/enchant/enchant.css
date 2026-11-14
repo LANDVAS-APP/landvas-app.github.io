@@ -29,8 +29,9 @@
 .lv-ench-card::after { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0.35;
   background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 45%, transparent 60%); background-size: 250% 100%; animation: lv-ench-sheen 5s ease-in-out infinite; }
 @keyframes lv-ench-sheen { 0% { background-position: 120% 0; } 60%, 100% { background-position: -40% 0; } }
-.lv-ench-attn { animation: lv-ench-attn 1.6s ease-in-out infinite; }
-@keyframes lv-ench-attn { 0%, 100% { box-shadow: 0 0 0 1.5px var(--a), 0 0 0 0 var(--a); } 50% { box-shadow: 0 0 0 1.5px var(--a), 0 0 22px 2px var(--a); } }
+.lv-ench-attn::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1.5px var(--a), inset 0 0 26px 2px var(--a); opacity: 0; animation: lv-ench-attn 1.6s ease-in-out infinite; }
+@keyframes lv-ench-attn { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
 /* scenes */
 .lv-scene { position: relative; overflow: hidden; border-radius: 28px; isolation: isolate; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
@@ -89,7 +90,6 @@
    hold still there (see the phones section of app.css) */
 @media (pointer: coarse) {
   .lv-ench-card::after { animation: none; background-position: 120% 0; }
-  .lv-ench-attn { animation: none; }
 }
 /* ===== wonders: living creatures, giants & specks, wormholes, the Size Ray, splices, the Oracle, the Leviathan ===== */
 
@@ -106,12 +106,12 @@
 .lv-cr.lvl10::after { content: ''; position: absolute; inset: -14px; border-radius: 999px; background: conic-gradient(from 0deg, transparent, #FFE8A3, transparent 30%); animation: lv-sigil-spin 3s linear infinite; opacity: 0.6; z-index: -1; }
 .lv-cr-crown { position: absolute; top: -16px; font-size: 14px; z-index: 2; animation: lv-em-bob 2.4s ease-in-out infinite; }
 .lv-cr.night { filter: saturate(0.55) brightness(0.75); }
-.lv-cr.night .lv-cr-body { animation: lv-breathe 3.6s ease-in-out infinite; }
+.lv-cr.night .lv-cr-body { animation: lv-cr-breathe 3.6s ease-in-out infinite; }
 .lv-cr-z { position: absolute; right: -6px; top: -10px; font: 900 13px/1 var(--font-display); color: #C9D7FF; animation: lv-zzz 2.6s ease-in-out infinite; }
 .lv-cr.dusty::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 2; pointer-events: none;
   background: radial-gradient(circle at 30% 30%, rgba(180, 170, 150, 0.55) 0 2px, transparent 3px), radial-gradient(circle at 70% 60%, rgba(180, 170, 150, 0.5) 0 1.5px, transparent 2.5px),
     radial-gradient(circle at 45% 75%, rgba(180, 170, 150, 0.5) 0 1.5px, transparent 2.5px), rgba(120, 110, 95, 0.35); }
-@keyframes lv-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.92) translateY(1px); } }
+@keyframes lv-cr-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.92) translateY(1px); } }
 @keyframes lv-zzz { 0% { transform: translate(0, 4px) scale(0.6); opacity: 0; } 40% { opacity: 1; } 100% { transform: translate(6px, -12px) scale(1); opacity: 0; } }
 /* each kind moves its own way */
 .k-goose .lv-cr-body { animation: lv-waddle 1.1s ease-in-out infinite; transform-origin: 50% 90%; }
@@ -129,9 +129,9 @@
 .k-splice .bub { width: 5px; height: 5px; border-radius: 999px; border: 1px solid #9BF6E5; bottom: 6px; left: 20px; animation: lv-smoke 2s ease-out infinite; }
 .k-splice .bub:nth-of-type(2) { left: 14px; animation-delay: 0.7s; } .k-splice .bub:nth-of-type(3) { left: 26px; animation-delay: 1.4s; }
 .k-clockwork .gear { font-size: 14px; right: -6px; bottom: -6px; color: #FFE8A3; animation: lv-sigil-spin 4s linear infinite; }
-.k-sizeray .wave { inset: -4px; border-radius: 999px; border: 2px solid #39FF14; animation: lv-wave 1.8s ease-out infinite; }
+.k-sizeray .wave { inset: -4px; border-radius: 999px; border: 2px solid #39FF14; animation: lv-ring-wave 1.8s ease-out infinite; }
 .k-sizeray .wave:nth-of-type(2) { animation-delay: 0.9s; border-color: #FF00E5; }
-@keyframes lv-wave { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes lv-ring-wave { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
 .k-shard .glint { width: 6px; height: 22px; top: 6px; left: 8px; background: linear-gradient(180deg, transparent, #fff, transparent); transform: rotate(25deg); animation: lv-shine 2.4s ease-in-out infinite; }
 .k-wormhole .swirl { inset: 4px; border-radius: 999px; background: conic-gradient(from 0deg, #7B5CFF, transparent, #00E0FF, transparent, #7B5CFF); animation: lv-sigil-spin 1.6s linear infinite; opacity: 0.7; }
 .k-oracle .lv-cr-body { transform: translate(var(--lx, 0px), var(--ly, 0px)); transition: transform 0.15s ease-out; }
@@ -151,7 +151,7 @@
 .lv-ring.sm { width: 22px; height: 22px; font-size: 11px; }
 .lv-em-speck { padding: 0; background: none; border: 0; cursor: pointer; width: 26px; height: 26px; display: grid; place-items: center; }
 .lv-speck { width: 18px; height: 18px; border-radius: 999px; border: 1.5px dashed #FF7AE0; box-shadow: 0 0 10px -1px #FF00E5; position: relative; }
-.lv-speck::after { content: ''; position: absolute; inset: -6px; border-radius: 999px; border: 1px solid #FF00E5; animation: lv-wave 1.6s ease-out infinite; }
+.lv-speck::after { content: ''; position: absolute; inset: -6px; border-radius: 999px; border: 1px solid #FF00E5; animation: lv-ring-wave 1.6s ease-out infinite; }
 .lv-speck { display: grid; place-items: center; }
 .lv-speck-plot { display: block; width: 1px; height: 1px; image-rendering: auto; box-shadow: 0 0 0 0.5px rgba(255, 232, 251, 0.9); }
 .lv-speck::before { content: '🔍'; position: absolute; left: 13px; top: -13px; font-size: 12px; filter: drop-shadow(0 0 4px #FF00E5); }
@@ -178,8 +178,8 @@ html.lv-targeting [data-testid=world-map] { filter: saturate(0.6) brightness(0.7
 .lv-crosshair.on i { border-color: #fff; }
 @keyframes lv-lockon { 0% { transform: scale(2.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .lv-lockon { animation: lv-lockon 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
-.lv-shake { animation: lv-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
-@keyframes lv-shake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-7px, 3px); } 40%, 60% { transform: translate(7px, -3px); } }
+.lv-shake { animation: lv-ray-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes lv-ray-shake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-7px, 3px); } 40%, 60% { transform: translate(7px, -3px); } }
 .lv-quake { animation: lv-quake 2s ease-in-out both; }
 @keyframes lv-quake { 0%, 100% { transform: none; } 5%, 25%, 45%, 65%, 85% { transform: translate(-6px, 3px) rotate(-0.4deg); } 15%, 35%, 55%, 75%, 95% { transform: translate(6px, -3px) rotate(0.4deg); } }
 .lv-radar { background: radial-gradient(circle, #0E2A14, #051108 70%); box-shadow: inset 0 0 0 2px rgba(57, 255, 20, 0.4), 0 0 30px -10px #39FF14; }
@@ -210,8 +210,8 @@ html.lv-targeting [data-testid=world-map] { filter: saturate(0.6) brightness(0.7
   radial-gradient(circle at 80% 70%, rgba(200, 190, 170, 0.3) 0 2px, transparent 3px), radial-gradient(circle at 35% 80%, rgba(200, 190, 170, 0.3) 0 1.5px, transparent 2.5px), rgba(110, 100, 85, 0.22); background-size: 120px 120px; }
 
 /* ---- the Wormhole ---- */
-.lv-star { animation: lv-twinkle 2.6s ease-in-out infinite; }
-@keyframes lv-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+.lv-star { animation: lv-star-twinkle 2.6s ease-in-out infinite; }
+@keyframes lv-star-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 .lv-vortex { border-radius: 999px; transition: transform 0.6s cubic-bezier(0.2, 1.4, 0.4, 1); }
 .lv-vortex.shut { transform: translate(-50%, -50%) scale(0.35); opacity: 0.55; }
 .lv-vortex span { position: absolute; inset: 0; border-radius: 999px; }
@@ -226,8 +226,9 @@ html.lv-targeting [data-testid=world-map] { filter: saturate(0.6) brightness(0.7
 .lv-warp { background: radial-gradient(circle, #000 0%, #0A0630 40%, #05031A 100%); perspective: 600px; }
 .lv-warp-ring { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; border-radius: 999px; border: 3px solid #7B5CFF; box-shadow: 0 0 20px #00E0FF, inset 0 0 20px #FF5CDB; animation: lv-warp 1.4s ease-in infinite; }
 @keyframes lv-warp { 0% { transform: scale(0.1); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(30); opacity: 0; } }
-.lv-warp-star { position: absolute; left: 50%; top: 50%; width: 2px; height: 30px; background: linear-gradient(180deg, transparent, #fff); transform-origin: 0 0; animation: lv-streak 0.8s linear infinite; }
-@keyframes lv-streak { 0% { transform: rotate(var(--a)) translateY(10px) scaleY(0.2); opacity: 0; } 50% { opacity: 1; } 100% { transform: rotate(var(--a)) translateY(60vmax) scaleY(3); opacity: 0; } }
+.lv-warp-star { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: rotate(var(--a)); }
+.lv-warp-star i { position: absolute; left: 0; top: 0; width: 2px; height: 30px; background: linear-gradient(180deg, transparent, #fff); transform-origin: 0 0; animation: lv-streak 0.8s linear infinite; }
+@keyframes lv-streak { 0% { transform: translateY(10px) scaleY(0.2); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(60vmax) scaleY(3); opacity: 0; } }
 
 /* ---- the Oracle's cards ---- */
 .lv-tarot { aspect-ratio: 2 / 3; perspective: 600px; position: relative; padding: 0; border: 0; background: none; transition: transform 0.2s; }
@@ -270,7 +271,7 @@ html.lv-targeting [data-testid=world-map] { filter: saturate(0.6) brightness(0.7
 .lv-lev-head { animation: lv-lev-head 3.2s ease-in-out infinite; }
 @keyframes lv-lev-head { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
 .lv-lev-spine { animation: lv-ench-rune 2s ease-in-out infinite; }
-.lv-lev-spot { animation: lv-twinkle 2.2s ease-in-out infinite; }
+.lv-lev-spot { animation: lv-star-twinkle 2.2s ease-in-out infinite; }
 .lv-lev-eye { animation: lv-sigil-pulse 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .lv-lev-drip { animation: lv-lev-drip 2.4s ease-in infinite; }
 @keyframes lv-lev-drip { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(32px); opacity: 0; } }
@@ -281,18 +282,27 @@ html.lv-targeting [data-testid=world-map] { filter: saturate(0.6) brightness(0.7
 .lv-lev-weak { animation: lv-sigil-pulse 0.9s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .lv-lev-marker { cursor: pointer; filter: drop-shadow(0 18px 18px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 22px rgba(176, 38, 255, 0.55)); z-index: 5; }
 .lv-lev-target { position: relative; display: grid; justify-items: center; gap: 2px; }
-.lv-lev-target i { width: 44px; height: 44px; border-radius: 999px; border: 3px solid #FF2D55; box-shadow: 0 0 20px #FF2D55; animation: lv-wave 1.2s ease-out infinite; }
+.lv-lev-target i { width: 44px; height: 44px; border-radius: 999px; border: 3px solid #FF2D55; box-shadow: 0 0 20px #FF2D55; animation: lv-ring-wave 1.2s ease-out infinite; }
 .lv-lev-target b { font: 900 11px/1 var(--font-display); color: #fff; padding: 3px 7px; border-radius: 999px; background: #FF2D55; white-space: nowrap; }
 .lv-bones { position: relative; display: grid; justify-items: center; padding: 0; background: none; border: 0; cursor: pointer; filter: drop-shadow(0 0 8px rgba(229, 217, 255, 0.7)); }
 .lv-bones span { font-size: 22px; transform: rotate(-30deg); }
 .lv-bones i { font-style: normal; font-size: 18px; margin-top: -10px; }
 .lv-lev-hp { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15); }
 .lv-lev-banner { background: linear-gradient(135deg, rgba(42, 13, 92, 0.95), rgba(12, 3, 24, 0.95)); box-shadow: 0 0 0 1.5px rgba(176, 38, 255, 0.7), 0 14px 30px -10px rgba(176, 38, 255, 0.8); }
-.lv-lev-banner.enraged { box-shadow: 0 0 0 1.5px #FF2D55, 0 14px 30px -10px #FF2D55; animation: lv-ench-attn 1.2s ease-in-out infinite; --a: #FF2D55; }
+.lv-lev-banner { position: relative; }
+.lv-lev-banner.enraged { box-shadow: 0 0 0 1.5px #FF2D55, 0 14px 30px -10px #FF2D55; }
+.lv-lev-banner.enraged::after, .lv-lev-banner.rampage::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 1.5px #FF2D55, 0 0 24px 3px #FF2D55; opacity: 0; animation: lv-lev-glow 1.2s ease-in-out infinite; }
+@keyframes lv-lev-glow { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+.lv-lev-banner.rampage { background: linear-gradient(135deg, rgba(120, 40, 6, 0.96), rgba(30, 6, 2, 0.96)); box-shadow: 0 0 0 1.5px #FF9F1C, 0 14px 30px -10px #FF9F1C; }
+.lv-lev-banner.rampage::after { box-shadow: 0 0 0 2px #FFD23F, 0 0 28px 4px #FF9F1C; animation-duration: 0.55s; }
+.lv-lev-banner.veiled { background: linear-gradient(135deg, rgba(40, 30, 70, 0.92), rgba(10, 8, 22, 0.94)); box-shadow: 0 0 0 1.5px rgba(200, 190, 255, 0.45), 0 14px 30px -10px rgba(120, 100, 255, 0.5); }
+.lv-lev-banner.veiled::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; border: 1.5px dashed rgba(220, 210, 255, 0.55); }
 .lv-lev-fight { background: radial-gradient(120% 60% at 50% 0%, #3B0F55, #0C0318 55%, #05010A); color: #fff; }
 .lv-lev-arena { background: radial-gradient(circle at 50% 30%, #2A0D5C, #0C0318 70%); box-shadow: inset 0 0 0 1px rgba(176, 38, 255, 0.4), 0 20px 50px -20px #B026FF; cursor: crosshair; }
-.lv-lev-sea { background: linear-gradient(180deg, transparent, rgba(34, 227, 255, 0.18)), repeating-linear-gradient(90deg, rgba(155, 231, 255, 0.12) 0 20px, transparent 20px 40px); animation: lv-sea 6s linear infinite; }
-@keyframes lv-sea { to { background-position: 0 0, 80px 0; } }
+.lv-lev-sea { overflow: hidden; background: linear-gradient(180deg, transparent, rgba(34, 227, 255, 0.18)); }
+.lv-lev-sea::before { content: ''; position: absolute; inset: 0 0 0 -80px; background: repeating-linear-gradient(90deg, rgba(155, 231, 255, 0.12) 0 20px, transparent 20px 40px); animation: lv-sea 6s linear infinite; }
+@keyframes lv-sea { to { transform: translateX(80px); } }
 .lv-lev-move { background: linear-gradient(135deg, color-mix(in srgb, var(--a) 26%, #160A30), #0E061F); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a) 45%, transparent); transition: transform 0.1s; }
 .lv-lev-move:active:not(:disabled) { transform: scale(0.97); }
 .lv-lev-moment { background: radial-gradient(circle at 50% 40%, rgba(59, 15, 85, 0.92), rgba(5, 1, 10, 0.96)); backdrop-filter: blur(6px); }
@@ -309,4 +319,49 @@ html.native .lv-raydial { border: 2px solid transparent; background: linear-grad
 html.native .lv-tarot-back { box-shadow: inset 0 0 0 2px #FFD23F, 0 6px 0 rgba(0, 0, 0, 0.35); }
 html.native .lv-radar { box-shadow: inset 0 0 0 3px rgba(57, 255, 20, 0.5), 0 0 0 3px #1B1F4C, 0 0 0 5px #9aa6d6, 0 0 40px -10px #39FF14; }
 html.native .lv-lev-moment .font-display { letter-spacing: -0.01em; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 0 30px rgba(255, 92, 219, 0.6); }
-html.reduce-motion .lv-cr *, html.reduce-motion .lv-lev *, html.reduce-motion .lv-vortex span, html.reduce-motion .lv-warp-ring, html.reduce-motion .lv-warp-star { animation: none !important; }
+html.reduce-motion .lv-cr *, html.reduce-motion .lv-lev *, html.reduce-motion .lv-vortex span, html.reduce-motion .lv-warp-ring, html.reduce-motion .lv-warp-star i { animation: none !important; }
+
+/* ---- the Leviathan's powers ---- */
+/* the marker is moved by the map (its transform is the map's): every effect sits on its children / pseudo-elements */
+.lv-lev-marker.tiny { filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(34, 227, 255, 0.9)); }
+.lv-lev-marker.tiny::after { content: ''; position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 999px;
+  border: 2px solid #22E3FF; pointer-events: none; animation: lv-lev-ping 1.4s ease-out infinite; }
+@keyframes lv-lev-ping { 0% { transform: scale(0.3); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.lv-lev-marker.rampage { filter: drop-shadow(0 18px 18px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 26px rgba(255, 159, 28, 0.9)); }
+.lv-lev-marker.rampage .lv-lev > svg { animation: lv-lev-charge 0.32s ease-in-out infinite; }
+@keyframes lv-lev-charge { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(3px, -2px); } }
+.lv-lev-marker.rampage::before { content: ''; position: absolute; left: -30%; top: 30%; width: 55%; height: 40%; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(255, 210, 63, 0.85) 7px 9px); animation: lv-lev-rush 0.4s linear infinite; }
+@keyframes lv-lev-rush { 0% { transform: translateX(30%) scaleX(0.6); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateX(-40%) scaleX(1.2); opacity: 0; } }
+
+/* hidden: a "?" in the haze to fly to */
+.lv-lev-haze-mark { display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; background: none; cursor: pointer; }
+.lv-lev-haze-mark span { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 999px; font-size: 26px;
+  background: radial-gradient(circle at 50% 40%, #6B2BD9, #1A0630 75%); box-shadow: 0 0 0 2px rgba(220, 210, 255, 0.7), 0 0 26px rgba(176, 38, 255, 0.8);
+  animation: lv-lev-bob 1.8s ease-in-out infinite; }
+.lv-lev-haze-mark b { max-width: 220px; padding: 4px 9px; border-radius: 999px; font: 900 11px/1.2 var(--font-display); color: #fff; text-align: center; background: rgba(26, 6, 48, 0.92); box-shadow: 0 0 0 1px rgba(220, 210, 255, 0.4); }
+
+/* hidden: hot / cold while you search */
+.lv-lev-seek { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 136px); z-index: 45; transform: translateX(-50%); pointer-events: none;
+  display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); padding: 9px 14px; border-radius: 999px;
+  font: 900 13px/1.2 var(--font-display); color: #fff; background: rgba(26, 6, 48, 0.94); box-shadow: 0 0 0 1.5px rgba(220, 210, 255, 0.5), 0 12px 26px -10px rgba(0, 0, 0, 0.7); }
+.lv-lev-seek span { font-size: 18px; }
+.lv-lev-seek.looking b { animation: lv-ench-rune 1.2s ease-in-out infinite; }
+.lv-lev-seek.cold { background: rgba(6, 30, 60, 0.95); box-shadow: 0 0 0 1.5px #7CC8FF, 0 12px 26px -10px #2E8BFF; }
+.lv-lev-seek.warm { background: rgba(70, 36, 4, 0.95); box-shadow: 0 0 0 1.5px #FFB547, 0 12px 26px -10px #FF9F1C; }
+.lv-lev-seek.hot { color: #2A0400; background: linear-gradient(90deg, #FFD23F, #FF5A1F); box-shadow: 0 0 0 2px #fff, 0 0 30px #FF5A1F; }
+.lv-lev-seek.hot span { display: inline-block; animation: lv-lev-bob 0.7s ease-in-out infinite; }
+
+/* tiny, in the fight: a speck that darts about */
+.lv-lev-tinyart { transform: scale(0.22); animation: lv-lev-dart 3.2s ease-in-out infinite; }
+@keyframes lv-lev-dart { 0%, 100% { transform: translate(0, 0) scale(0.22); } 25% { transform: translate(-28%, 10%) scale(0.22); } 50% { transform: translate(24%, -12%) scale(0.22); } 75% { transform: translate(-10%, -18%) scale(0.22); } }
+
+html.reduce-motion .lv-lev-marker::before, html.reduce-motion .lv-lev-marker::after, html.reduce-motion .lv-lev-tinyart, html.reduce-motion .lv-lev-haze-mark span, html.reduce-motion .lv-lev-sea::before { animation: none !important; }
+
+/* phones: no blur behind the big moments; the parasite's marching dashes hold still (a repaint every frame) */
+@media (pointer: coarse) {
+  .lv-lev-moment { backdrop-filter: none; background: radial-gradient(circle at 50% 40%, rgb(59, 15, 85), rgb(5, 1, 10)); }
+  .lv-lev-moment.warning { background: radial-gradient(circle at 50% 60%, rgb(12, 60, 90), rgb(2, 6, 18)); }
+  .lv-lev-moment.fallen { background: radial-gradient(circle at 50% 40%, rgb(110, 80, 10), rgb(10, 6, 2)); }
+  .lv-coil { animation: none; }
+}

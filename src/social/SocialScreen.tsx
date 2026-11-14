@@ -282,6 +282,8 @@ function FeedRow({ e }: { e: FeedEvent }) {
       const d = e.data as Record<string, any>;
       icon = <span className="text-[12px] leading-none">🐉</span>;
       body = d.sub === 'fallen' ? <>{who} led the fight — <b className="text-[#FFE8A3]">the Leviathan has fallen</b>{d.place ? <span className="text-muted"> {d.place}</span> : null} · {d.players} players brought it down 🦴</>
+        : d.sub === 'found' ? <>{who} <b className="text-[#C9A0FF]">found the hidden 🐉 Leviathan</b>{d.place ? <span className="text-muted"> {d.place}</span> : null} 🔍</>
+        : d.sub === 'roams' ? <>{who} is leading the fight — <b className="text-[#C9A0FF]">the 🐉 Leviathan turned back inland</b>{d.place ? <span className="text-muted"> {d.place}</span> : null}</>
         : <>{who} fought the <b className="text-[#C9A0FF]">🐉 Leviathan</b></>;
       break;
     }

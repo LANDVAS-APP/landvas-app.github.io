@@ -59,7 +59,7 @@ export function WarpTunnel() {
       {to && (
         <motion.div key="warp" className="lv-warp fixed inset-0 z-[300] overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="warp-tunnel">
           {Array.from({ length: 14 }, (_, i) => <span key={i} className="lv-warp-ring" style={{ animationDelay: `${i * 0.11}s` }} />)}
-          {Array.from({ length: 40 }, (_, i) => <span key={`s${i}`} className="lv-warp-star" style={{ ['--a' as string]: `${(i * 137.5) % 360}deg`, animationDelay: `${(i % 10) * 0.08}s` }} />)}
+          {Array.from({ length: 40 }, (_, i) => <span key={`s${i}`} className="lv-warp-star" style={{ ['--a' as string]: `${(i * 137.5) % 360}deg` }}><i style={{ animationDelay: `${(i % 10) * 0.08}s` }} /></span>)}
           <div className="absolute inset-x-0 bottom-[14%] text-center font-display text-2xl font-black text-white drop-shadow-[0_0_14px_#00E0FF]">Through the wormhole…</div>
         </motion.div>
       )}
