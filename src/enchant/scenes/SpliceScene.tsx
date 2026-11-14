@@ -3,7 +3,7 @@
 // lever: the vials drain into the test tube, the helix spins, a flash — and the hybrid steps out wearing both its parents.
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../backend/api';
 import { qk } from '../../lib/queries';
 import { cn } from '../../lib/utils';
@@ -15,6 +15,9 @@ import { HybridCard, PlotHybridCard } from '../HybridCard';
 import { ABERRATIONS, HYBRID_COUNT, SPLICE_MODES, dur, enchantName, kindInfo, plotHybridName, traitText, trinityName, type EnchantKind, type SpliceMode } from '../kinds';
 import { HybridSigil, feel } from '../living';
 import { Radar, plotLabel } from '../sizeray';
+import { pickedFor, usePlotPick } from '../plotPick';
+import { usePickOnMapFor } from '../PlotPickOverlay';
+import { useUi } from '../../lib/store';
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
 import type { Moment } from '../../clips/moments';
 
@@ -35,9 +38,23 @@ function Vial({ e, label, onClear, draining, tone }: { e: any | null; label: str
 export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
   const mine = useMyEnchantments();
   const chamber = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<SpliceMode>('swap');
+  // (back from picking a plot on the map: Splice-with-a-plot, the enchantment already chosen, and the plot picked there)
+  const [mode, setMode] = useState<SpliceMode>(() => (pickedFor(v.id, 'plot') ? 'plot' : 'swap'));
   const [a, setA] = useState<any>(null);
-  const [b, setB] = useState<any>(null);
+  const [b, setB] = useState<any>(() => { const d = pickedFor(v.id, 'plot'); return d ? { plot: true, gx: d.plot.gx, gy: d.plot.gy, rarity: d.plot.rarity, label: plotLabel(d.plot) } : null; });
+  const [restoreA, setRestoreA] = useState<string | null>(() => (pickedFor(v.id, 'plot')?.keep?.a as string | undefined) ?? null);
+  useEffect(() => { if (pickedFor(v.id, 'plot')) usePlotPick.getState().clear(); }, [v.id]);
+  const pickOnMap = usePickOnMapFor();
+  const simple = useUi((s) => !!s.settings.simpleMode);
+  // (the chosen mode's chip stays in view — the row scrolls sideways)
+  const modesRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = modesRow.current, chip = row?.querySelector<HTMLElement>(`[data-testid=splice-mode-${mode}]`);
+    if (!row || !chip) return;
+    const r = row.getBoundingClientRect(), c = chip.getBoundingClientRect();
+    if (c.right > r.right) row.scrollLeft += c.right - r.right + 8;
+    else if (c.left < r.left) row.scrollLeft -= r.left - c.left + 8;
+  }, [mode]);
   const [c, setC] = useState<any>(null);
   const [spin, setSpin] = useState(false);
   const [made, setMade] = useState<any>(null);
@@ -51,6 +68,12 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: mode === 'plot' });
   const kindAt = (gx: number, gy: number) => (groups.data ?? []).find((g) => g.status === 'active' && g.cells.some((k) => k[0] === gx && k[1] === gy))?.kind ?? 'canvas';
   const pool = (mine.data ?? []).filter((x) => x.kind !== 'splice' && !x.partner && !(x.partners ?? []).length && !x.clock?.frozen_until && x.id !== v.id);
+  useEffect(() => {
+    if (!restoreA || !mine.data) return;
+    const e = mine.data.find((x) => x.id === restoreA);
+    if (e) setA(e);
+    setRestoreA(null);
+  }, [restoreA, mine.data]);
   const slots = mode === 'trinity' ? 3 : 2;
   const cost = SPLICE_MODES[mode].cost;
   const choose = (m: SpliceMode) => { feel('light'); setMode(m); setA(null); setB(null); setC(null); };
@@ -82,9 +105,10 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
   return (
     <div className="grid gap-3">
       {!act0 && !view.invite && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1" data-testid="splice-modes">
+        <div ref={modesRow} className="flex gap-1.5 overflow-x-auto pb-1" data-testid="splice-modes">
           {(Object.keys(SPLICE_MODES) as SpliceMode[]).map((m) => (
-            <button key={m} onClick={() => choose(m)} className={cn('shrink-0 rounded-2xl px-3 py-2 text-left text-[12px] font-black', mode === m ? 'bg-[linear-gradient(135deg,#00F5D4,#9B5DE5)] text-[#04211D]' : 'bg-white/[0.06] text-white/75')} data-testid={`splice-mode-${m}`}>
+            <button key={m} onClick={() => choose(m)} className={cn('shrink-0 rounded-2xl px-3 py-2 text-left text-[12px] font-black', mode === m ? 'bg-[linear-gradient(135deg,#00F5D4,#9B5DE5)] text-[#04211D]' : 'bg-white/[0.06] text-white/75')} data-testid={`splice-mode-${m}`}
+>
               {SPLICE_MODES[m].emoji} {SPLICE_MODES[m].name}{SPLICE_MODES[m].cost > 1 ? ' · 2⚡' : ''}
             </button>
           ))}
@@ -199,11 +223,19 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
             </div>
           ) : (
             <div className="grid gap-2">
+              {!simple && (
+                <Button variant="secondary" data-testid="splice-pick-map" onClick={() => pickOnMap({
+                  id: v.id, slot: 'plot', title: `Splice ${enchantName(a)} into a plot`, emoji: '🏞️', color: '#3DDC97', back: `/grimoire/${v.id}`, keep: { a: a.id },
+                  hint: 'Tap one of your plots — its minigames will wear the Trait', refuse: 'Pick one of your plots in crosshairs.',
+                  allowed: ((plots.data ?? []) as any[]).map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name, plot_type: p.plot_type })),
+                })}>🗺️ Pick the plot on the map</Button>
+              )}
+              {!simple && <div className="text-center text-[11px] font-bold text-white/45">…or tap it on the radar</div>}
               <Radar plots={(plots.data ?? []) as any[]} picked={b} onPick={(p) => setB({ plot: true, gx: p.gx, gy: p.gy, rarity: p.rarity, label: plotLabel(p), plot_kind: kindAt(p.gx, p.gy) })} />
               {b && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(b.rarity).color }}>{b.label}</div>}
             </div>
           )}
-          {ready && (mode === 'plot' ? <PlotHybridCard kind={a.kind} plotKind={b.plot_kind ?? 'canvas'} name={plotHybridName(a.kind, b.plot_kind ?? 'canvas')} />
+          {ready && (mode === 'plot' ? <PlotHybridCard kind={a.kind} plotKind={b.plot_kind ?? kindAt(b.gx, b.gy)} name={plotHybridName(a.kind, b.plot_kind ?? kindAt(b.gx, b.gy))} />
             : mode === 'trinity' ? (
               <div className="lv-hcard grid gap-1 rounded-2xl p-3" style={{ ['--a' as string]: '#00F5D4', ['--b' as string]: '#9B5DE5' }} data-testid="hybrid-card">
                 <div className="font-display text-[17px] font-black">🔺 {trinityName(a.kind, b.kind, c.kind)}</div>

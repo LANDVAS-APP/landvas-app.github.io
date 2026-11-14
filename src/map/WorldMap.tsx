@@ -33,6 +33,7 @@ import { PlotBubbles } from './Hud';
 import { EnchantLayer } from '../enchant/EnchantLayer';
 import { LeviathanLayer } from '../leviathan/LeviathanLayer';
 import { useRayTarget } from '../enchant/sizeray';
+import { usePlotPick } from '../enchant/plotPick';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -203,6 +204,9 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
           ray.pick(cell);
           return;
         }
+        // an enchantment is picking one of your plots (the Wormhole's far end, a plot to Splice into)
+        const pp = usePlotPick.getState();
+        if (pp.spec) { pp.tap(cell); return; }
         if (ui.merge) {
           // merge mode: tapping one of your plots adds or removes its canvas (a drag-pick already did)
           if (performance.now() - lastMergePaint < 700) return;

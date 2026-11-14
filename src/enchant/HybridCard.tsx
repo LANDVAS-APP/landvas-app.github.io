@@ -19,7 +19,8 @@ export function HybridCard({ a, b, mode = 'swap', levels, aberration, compact, c
       {h.lines.map((l) => (
         <div key={l.me} className="text-[12.5px] leading-snug text-white/90">
           <span className="mr-1">{l.emoji}</span><b>Your {l.who} gets</b> <span className="text-white/60">({l.traitEmoji} {l.trait})</span>: {l.gets}
-          {!compact && l.live && <div className="ml-6 text-[11px] font-bold text-[#9BF6E5]">{l.live}</div>}
+          {!compact && l.live && <div className="ml-6 text-[11px] font-bold text-[#9BF6E5]">{l.live}{l.on ? ` · on ${l.on}` : ''}</div>}
+          {!compact && l.you && <div className="ml-6 text-[11px] font-bold text-[#FFE8A3]">👆 {l.you}</div>}
         </div>
       ))}
       {h.sleeps && <div className="text-[12px] text-white/70">💤 Your {h.sleeps} sleeps while its Trait is lent out (nothing grows, nothing comes).</div>}

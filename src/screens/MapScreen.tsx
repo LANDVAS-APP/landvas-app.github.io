@@ -49,6 +49,8 @@ import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
 import { HotZoneChip, HotZoneDisc, HotZoneLayer, HotZonePanel } from '../daily/HotZoneMap';
 import { useQuickRoll } from '../simple/useQuickRoll';
 import { FlyParam, RayTargeting, useRayTarget } from '../enchant/sizeray';
+import { PlotPickOverlay } from '../enchant/PlotPickOverlay';
+import { usePlotPick } from '../enchant/plotPick';
 import { WarpTunnel } from '../enchant/scenes/WormholeScene';
 import { LeviathanBanner, LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
 
@@ -99,6 +101,10 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   }, [landscape, canDrive]);
   const merging = useUi((s) => s.merge !== null);
   const celebrating = useCelebration((s) => s.hidden !== null);
+  // (aiming the Size Ray, or picking a plot for an enchantment: the quest bar would sit on the pick sheet)
+  const pickingPlot = !!usePlotPick((p) => p.spec);
+  const aimingRay = !!useRayTarget((r) => r.ray);
+  const picking = pickingPlot || aimingRay;
   const travel = useTravel();
   const travelling = !!me && !!travel.data?.away;
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
@@ -193,13 +199,14 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
       {me && !away && <TravelOverlays />}
-      {me && !selected && !joystick && !merging && !away && !travelling && <Checklist />}
+      {me && !selected && !joystick && !merging && !away && !travelling && !picking && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}
       <ClaimCelebration />
       <PinFlight />
       {APP && me && <GrimoireSheet />}
       <RayTargeting />
+      <PlotPickOverlay />
       <FlyParam />
       <WarpTunnel />
       <LeviathanFight />
@@ -472,7 +479,9 @@ function PlacementPrompt() {
   const requestFly = useUi((s) => s.requestFly);
   const [dismissed, setDismissed] = useState(false);
   // (not while you're aiming a Size Ray at the map)
-  const aiming = !!useRayTarget((r) => r.ray);
+  const aimingRay = !!useRayTarget((r) => r.ray);
+  const pickingPlot = !!usePlotPick((p) => p.spec);
+  const aiming = aimingRay || pickingPlot;
   useEffect(() => { if (aiming) setDismissed(true); }, [aiming]);
   const open = !!me && !me.explorer && !ex.state && ex.gps !== 'on' && ex.gps !== 'asking' && !dismissed && !aiming;
   const blocked = ex.gps === 'denied' || ex.gps === 'unavailable' || !gpsSupported();

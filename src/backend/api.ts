@@ -18,7 +18,11 @@ export type EnchantPartner = { kind: string; id: string | null; gene: string; re
 export type PlotSize = { mode: 'grow' | 'shrink'; mult: number; until: string; owner: string; linked: boolean; id: number; prank?: boolean; by_name?: string | null };
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
   clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
-  view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean };
+  view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean;
+  /** chests its Seeking Trait buried (or, for a Treasure Map, that the Seeking it lent buried) */
+  chests?: SeekChest[] };
+/** a chest a Seeking Trait buried by a plot: dig it up with a tap */
+export type SeekChest = { id: number; gx: number; gy: number; ink: number; kind: string; finder: string | null; serial: number | null; nickname: string | null; source: string | null; at: string; expires_at: string };
 export type EnchantVisitor = { id: string; kind: string; mirror: boolean; owner: any; serial: number; stage: number; feeds?: number; welcomed: boolean; gx: number; gy: number; at: number; hatch_at: number | null; what: 'parasite' | 'egg' };
 export type MapSize = { gx: number; gy: number; mode: 'grow' | 'shrink'; mult: number; until: string; from: string; mine: boolean; owner_name: string | null; rarity: string | null; name: string | null; visited: boolean; tips: number;
   /** 100 for a giant, 0.01 for a tiny plot; a prank is someone else's zap, just for show */
@@ -26,7 +30,7 @@ export type MapSize = { gx: number; gy: number; mode: 'grow' | 'shrink'; mult: n
 export type MapWormhole = { id: string; mine: boolean; owner_name?: string | null; until?: number; ends: { gx: number; gy: number; home: boolean; name: string | null; rarity: string | null; place: string | null }[] };
 export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string }[];
   attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
-  giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[] };
+  giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[]; chests?: { id: number; gx: number; gy: number; ink: number; kind: string }[] };
 export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null }[]; wormholes: MapWormhole[] };
 export type LevPos = { lng: number; lat: number; km: number; seg: number; heading: number; done: boolean; paused: boolean; haze?: boolean };
 export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number;
@@ -152,6 +156,8 @@ export const api = {
   enchantBestiary: () => rpc<{ kinds: { kind: string; name: string; emoji: string; population: number; minted: number; mine: number }[]; codex: string[]; trinities: string[]; plots: string[]; aberrations: string[]; aberrations_total: number;
     chance: { base: number; charges: number; step: number } }>('enchant_bestiary'),
   enchantWorld: () => rpc<EnchantWorld>('enchant_world'),
+  seekChests: () => rpc<SeekChest[]>('seek_chests'),
+  seekChestDig: (id: number) => rpc<{ ink: number; gx: number; gy: number; kind: string; chests: SeekChest[] }>('seek_chest_dig', { p_id: id }),
   sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),
   sizeUndo: (gx: number, gy: number) => rpc<{ undone: boolean; was_prank: boolean }>('size_undo', { p_gx: gx, p_gy: gy }),
   spliceFriends: () => rpc<SpliceFriend[]>('splice_friends'),

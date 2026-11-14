@@ -19,8 +19,11 @@ import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
 import { feel } from '../living';
 import { Radar, plotLabel } from '../sizeray';
+import { pickedFor, usePlotPick } from '../plotPick';
+import { usePickOnMapFor } from '../PlotPickOverlay';
 
 const DROP = { chest: { e: '🧰', t: 'A chest!' }, star: { e: '⭐', t: 'A falling star (+5 Luck)' }, fox: { e: '🦊', t: 'A fox — chase it back!' }, spores: { e: '🍄', t: 'Spores…' } } as const;
+const away = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m away` : `${fmt(Math.round(km))} km away`);
 const haversine = (a: [number, number], b: [number, number]) => {
   const R = 6371, dLat = ((b[1] - a[1]) * Math.PI) / 180, dLng = ((b[0] - a[0]) * Math.PI) / 180;
   const s = Math.sin(dLat / 2) ** 2 + Math.cos((a[1] * Math.PI) / 180) * Math.cos((b[1] * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
@@ -109,8 +112,15 @@ function SpiralTrace({ onDone, onCancel }: { onDone(smooth: number): void; onCan
 
 export function WormholeScene({ v, view, act, busy, at }: SceneProps) {
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots });
-  const [far, setFar] = useState<{ gx: number; gy: number } | null>(null);
-  const [third, setThird] = useState<{ gx: number; gy: number } | null>(null);
+  // (back from picking on the map: the plot picked there, and the far end already chosen)
+  const [far, setFar] = useState<{ gx: number; gy: number } | null>(() => {
+    const f = pickedFor(v.id, 'far'), t = pickedFor(v.id, 'third');
+    return f ? { gx: f.plot.gx, gy: f.plot.gy } : ((t?.keep?.far as { gx: number; gy: number } | undefined) ?? null);
+  });
+  const [third, setThird] = useState<{ gx: number; gy: number } | null>(() => { const t = pickedFor(v.id, 'third'); return t ? { gx: t.plot.gx, gy: t.plot.gy } : null; });
+  useEffect(() => { if (pickedFor(v.id, 'far') || pickedFor(v.id, 'third')) usePlotPick.getState().clear(); }, [v.id]);
+  const pickOnMap = usePickOnMapFor();
+  const simple = useUi((s) => !!s.settings.simpleMode);
   const [tracing, setTracing] = useState(false);
   const [opened, setOpened] = useState<any>(null);
   const portal = useRef<HTMLDivElement>(null);
@@ -195,12 +205,31 @@ export function WormholeScene({ v, view, act, busy, at }: SceneProps) {
         <div className="grid gap-2">
           <div className="flex items-center justify-between text-[12px]"><span className="font-black uppercase tracking-wider text-white/60">The far end</span>
             <span className="font-bold text-white/55">{maxKm ? `within ${Math.round(maxKm)} km (anywhere from level 5)` : 'anywhere on Earth'}</span></div>
+          {!simple && (
+            <Button variant="secondary" data-testid="wormhole-pick-map" onClick={() => pickOnMap({
+              id: v.id, slot: 'far', title: 'Pick the wormhole’s far end', emoji: '🌀', color: '#00E0FF', back: `/grimoire/${v.id}`,
+              hint: maxKm ? `Tap one of your plots within ${Math.round(maxKm)} km of the wormhole` : 'Tap any plot of yours, anywhere on Earth',
+              refuse: maxKm ? `That isn’t one of your plots within ${Math.round(maxKm)} km. Pick one in crosshairs.` : 'That isn’t one of your plots. Pick one in crosshairs.',
+              allowed: reachable.map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name, plot_type: p.plot_type, note: away(p.km) })),
+            })}>🗺️ Pick the far end on the map</Button>
+          )}
+          {!simple && <div className="text-center text-[11px] font-bold text-white/45">…or tap it on the radar</div>}
           <Radar plots={reachable} picked={far} onPick={(p) => { setFar({ gx: p.gx, gy: p.gy }); if (third?.gx === p.gx && third.gy === p.gy) setThird(null); }} />
-          {pfar && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(pfar.rarity).color }}>{plotLabel(pfar)} · {fmt(Math.round(pfar.km))} km away</div>}
+          {pfar && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(pfar.rarity).color }} data-testid="wormhole-far">{plotLabel(pfar)} · {away(pfar.km)}</div>}
           {list.length > reachable.length && <p className="text-center text-[11px] text-white/50">{list.length - reachable.length} of your plots are too far for a young wormhole.</p>}
           {view.three && far && (
             <details className="rounded-2xl bg-white/[0.04] p-2"><summary className="cursor-pointer text-[12px] font-black text-[#9BE7FF]">⭐ Constellation: add a third plot</summary>
-              <div className="mt-2"><Radar plots={reachable.filter((p) => !(p.gx === far.gx && p.gy === far.gy))} picked={third} onPick={(p) => setThird({ gx: p.gx, gy: p.gy })} /></div></details>
+              <div className="mt-2 grid gap-2">
+                {!simple && (
+                  <Button size="sm" variant="secondary" data-testid="wormhole-pick-map-third" onClick={() => pickOnMap({
+                    id: v.id, slot: 'third', title: 'Pick a third plot', emoji: '⭐', color: '#9BE7FF', back: `/grimoire/${v.id}`, keep: { far },
+                    hint: 'Tap another plot of yours to join the constellation', refuse: 'Pick one of your plots in crosshairs.',
+                    allowed: reachable.filter((p) => !(p.gx === far.gx && p.gy === far.gy)).map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name, plot_type: p.plot_type, note: away(p.km) })),
+                  })}>🗺️ Pick it on the map</Button>
+                )}
+                <Radar plots={reachable.filter((p) => !(p.gx === far.gx && p.gy === far.gy))} picked={third} onPick={(p) => setThird({ gx: p.gx, gy: p.gy })} />
+                {third && (() => { const pt = list.find((p) => p.gx === third.gx && p.gy === third.gy); return pt ? <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(pt.rarity).color }}>⭐ {plotLabel(pt)} · {away(pt.km)}</div> : null; })()}
+              </div></details>
           )}
           <Button variant="rainbow" size="lg" disabled={!far || !!busy || (canIn ?? 0) > 0} onClick={() => void start()} data-testid="wormhole-open">
             {(canIn ?? 0) > 0 ? `Recharging · ${dur(canIn)}` : far ? '🌀 Trace the spiral to open it' : 'Pick the far end first'}

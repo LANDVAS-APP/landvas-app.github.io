@@ -22,6 +22,8 @@ import { useMyEnchantments } from './core';
 import { dur, kindInfo, nightAt } from './kinds';
 import { feel } from './living';
 import { ParasiteWraps } from './ParasiteWraps';
+import { useDigChest } from './Chests';
+import { usePlotPick } from './plotPick';
 import { useWarp } from './scenes/WormholeScene';
 import './enchant.css';
 
@@ -117,6 +119,9 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
   const data: EnchantMap | undefined = on ? q.data : undefined;
   const w: EnchantWorld | undefined = world.data;
   const maps = (mine.data ?? []).filter((e) => (e.reflect_kind ?? e.kind) === 'map').map((e) => (e.reflect_kind ? e.reflected : e.view)).filter(Boolean);
+  const dig = useDigChest();
+  const digRef = useRef(dig);
+  digRef.current = dig;
 
   // ---- the creatures, nests, specks, labels, map pieces (zoomed in) ----
   useEffect(() => {
@@ -131,7 +136,12 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
     };
     for (const p of data?.plots ?? []) {
       const k = kindInfo(p.kind);
-      const node = el(creature(p), 'lv-em', () => useUi.getState().select({ gx: p.gx, gy: p.gy }));
+      const node = el(creature(p), 'lv-em', () => {
+        // (picking one of your plots for an enchantment: a creature's plot is picked like any other)
+        const pick = usePlotPick.getState();
+        if (pick.spec) { pick.tap({ gx: p.gx, gy: p.gy }); return; }
+        useUi.getState().select({ gx: p.gx, gy: p.gy });
+      });
       node.title = `${k.name} #${p.serial}${p.owner_name ? ` · @${p.owner_name}` : ''}`;
       node.dataset.testid = 'map-enchant'; node.dataset.kind = p.kind;
       const m = add(cellCenter(p.gx, p.gy), node);
@@ -189,6 +199,17 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
         node.dataset.testid = 'map-wormhole';
         add(cellCenter(e.gx, e.gy), node, 'center', [14, -14]);
       }
+    }
+    // 🧰 chests your Seeking Trait buried: tap one to dig it up, right here
+    for (const c of data?.chests ?? []) {
+      const node = el('<span class="lv-chest-mk">🧰</span>', 'lv-em-small lv-em-alert', () => {
+        const r = node.getBoundingClientRect();
+        feel('medium');
+        void digRef.current(c, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      });
+      node.title = `A buried chest: +${c.ink} Ink — tap to dig it up`;
+      node.dataset.testid = 'map-chest';
+      add(cellCenter(c.gx, c.gy), node, 'bottom', [0, -2]);
     }
     for (const m of maps) {
       for (const p of m.pieces ?? []) if (!p.found_at) add(cellCenter(p.gx, p.gy), el('🧩', 'lv-em-small lv-em-alert'), 'bottom', [0, -6]);

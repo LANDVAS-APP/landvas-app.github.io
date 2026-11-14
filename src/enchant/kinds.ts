@@ -20,11 +20,11 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
   genie: { id: 'genie', name: 'Genie', emoji: '🧞', a: '#8B5CFF', b: '#22E3FF', ink: '#14082E', noun: 'wishes',
     tagline: 'Rub the lamp. Three wishes — and one that is forbidden.',
     how: ['A wish recharges every 8 hours; hold up to three.', 'Wish for Ink, Luck, Enchanted Luck, or a Golden Hour (your next 3 minigame wins pay ×2).', 'With three stored, the Forbidden Wish: seven wishes… or a twisted fortune and a cold lamp… or the Genie goes free, leaving a Mythic+ roll ticket.'],
-    gene: 'wish', geneName: 'Wishing', geneText: 'sometimes keeps a charge it spends (30%)' },
+    gene: 'wish', geneName: 'Wishing', geneText: 'keeps a charge it spends 30% of the time (one with no charges earns +25% Ink instead)' },
   map: { id: 'map', name: 'Treasure Map', emoji: '🗺️', a: '#E9C46A', b: '#8B5E34', ink: '#2B1A08', noun: 'treasure hunts',
     tagline: 'Four torn pieces hidden on other players’ land. X marks the spot.',
     how: ['Draw a map: four pieces are hidden on other players’ plots nearby (or buried in the wild).', 'Walk your explorer to each piece to pick it up — the plot’s owner gets a finder’s tip.', 'With all four, an X appears. Stand on it and dig for the chest: Ink, and sometimes an Epic+ or Legendary+ roll ticket.'],
-    gene: 'seek', geneName: 'Seeking', geneText: '1 in 4 rewards comes with a buried chest (+50 Ink)' },
+    gene: 'seek', geneName: 'Seeking', geneText: 'buries a chest by its plot with 1 in 4 of its rewards — dig it up for +50 Ink' },
   parasite: { id: 'parasite', name: 'Parasite', emoji: '🦠', a: '#7CFF6B', b: '#B026FF', ink: '#0B1F08', noun: 'feeding',
     tagline: 'Wraps itself around a stranger’s plot and feeds — until it becomes something more.',
     how: ['Release it: it wraps around a random player’s plot — you can see it there on the map. They can peel it off (and get paid for it).', 'If it’s still there after 20 hours, harvest it for Ink.', '3 feeds: a Parasite. 10 feeds: a Symbiote — its hosts can’t peel it off, they share the meal, and can welcome it for more.'],
@@ -32,7 +32,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
   cuckoo: { id: 'cuckoo', name: 'Cuckoo', emoji: '🪺', a: '#4CC9F0', b: '#F72585', ink: '#06222C', noun: 'raising chicks',
     tagline: 'Sneaks its egg into someone else’s nest.',
     how: ['Scout three nests on other players’ plots: rarer plots raise richer chicks, but watchful owners spot eggs.', 'Lay your egg in one. It hatches in 10 hours — unless the owner finds it and throws it out (they get paid).', 'Raise the chick for Ink; sometimes it brings a lucky feather (+20 Luck).'],
-    gene: 'trick', geneName: 'Trickster', geneText: 'dodges half its bad luck (foxes, curses, being thrown out)' },
+    gene: 'trick', geneName: 'Trickster', geneText: 'dodges half its bad luck — foxes, curses, being thrown out (one with no bad luck earns +20% Ink instead)' },
   pandora: { id: 'pandora', name: 'Pandora’s Box', emoji: '🏺', a: '#FF4D6D', b: '#2A0A3D', ink: '#1A0410', noun: 'opening the box',
     tagline: 'Lift the lid. Gifts — or one of seven evils.',
     how: ['Once a day, lift the lid one, two or three notches. Wider means bigger gifts — and likelier evils.', 'Each evil that escapes curses you for a while, and can only escape once.', 'When all seven are out, Hope rises from the bottom: a Legendary+ roll ticket and a fortune. The box closes again, richer.'],
@@ -45,7 +45,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     gene: null, geneName: null, geneText: null },
   clockwork: { id: 'clockwork', name: 'Clockwork', emoji: '⚙️', a: '#D4A373', b: '#6C584C', ink: '#20170E', noun: 'bending time',
     tagline: 'Wind it up. Then bend time.',
-    how: ['Wind the key (15 turns a day, 8 minutes each); it also ticks up on its own.', 'Spend the minutes to fast-forward any enchantment: grow an egg, hatch a chick, recharge a wish.', 'Or freeze one — a frozen spliced hybrid stays fused for longer.'],
+    how: ['Wind the key (15 turns a day, 8 minutes each); it also ticks up on its own. Wind the day’s last turn and it chimes: 30–50 Ink.', 'Spend the minutes to fast-forward any enchantment: grow an egg, hatch a chick, recharge a wish.', 'Or freeze one — a frozen spliced hybrid stays fused for longer.'],
     gene: 'tempo', geneName: 'Tempo', geneText: 'its timers run 3× as fast' },
   sizeray: { id: 'sizeray', name: 'Size Ray', emoji: '📡', a: '#39FF14', b: '#FF00E5', ink: '#071F05', noun: 'zapping',
     tagline: 'Pick any plot on the map. Make it 100× bigger — or 100× smaller.',
@@ -69,7 +69,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     tagline: 'It sees what’s coming. And it is never wrong.',
     how: ['Once a day, gaze at your next plot rolls (minigame rewards from level 3; Pandora’s lid and the Goose’s eggs from level 5). The cards show the next 3 outcomes — the server locks them in.',
       'Rewrite fate: swap two cards, or burn one for a new draw (it might come out worse).',
-      'Seal a prophecy about a friend’s next roll: when it comes true, you both get Ink. At level 10 it sees 5 cards and you can rewrite twice.'],
+      'Every card that comes true pays the Eye 8 Ink. Seal a prophecy about a friend’s next roll: when it comes true, you both get Ink. At level 10 it sees 5 cards and you can rewrite twice.'],
     gene: 'foresight', geneName: 'Foresight', geneText: 'earns 20% more Ink and sees 35% of bad luck coming (and dodges it)' },
 };
 export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'cuckoo', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle'];
@@ -119,11 +119,11 @@ export const TRAITS: Record<string, TraitInfo> = {
   golden: { name: 'Golden', emoji: '🪿', text: (k) => `earns ${x(1 + 0.5 * k)} Ink`, mult: (k) => 1 + 0.5 * k },
   grow: { name: 'Giant', emoji: '📡', text: (k) => `earns ${x(1 + k)} Ink`, mult: (k) => 1 + k },
   chaos: { name: 'Chaos', emoji: '🏺', text: (k) => `every reward is a gamble: ${[0.5, 0.75, 1][k - 1]}× to ${[2.5, 3.5, 4][k - 1]}× Ink` },
-  seek: { name: 'Seeking', emoji: '🗺️', text: (k) => `${[25, 50, 75][k - 1]}% of rewards come with a buried chest (+50 Ink)` },
+  seek: { name: 'Seeking', emoji: '🗺️', text: (k) => `${[25, 50, 75][k - 1]}% of its rewards bury a chest by its plot — dig it up for +50 Ink` },
   spread: { name: 'Spreading', emoji: '🦠', text: (k) => `earns ${15 * k}% more Ink, and drops a gift on a random player`, mult: (k) => 1 + 0.15 * k },
   echo: { name: 'Echo', emoji: '🪞', text: (k) => `${[35, 60, 80][k - 1]}% of its rewards are paid twice` },
-  wish: { name: 'Wishing', emoji: '🧞', text: (k) => `${[30, 55, 75][k - 1]}% of the time, using a charge doesn’t use it up` },
-  trick: { name: 'Trickster', emoji: '🪺', text: (k) => `dodges ${[50, 75, 90][k - 1]}% of its bad luck (foxes, curses, being thrown out)` },
+  wish: { name: 'Wishing', emoji: '🧞', text: (k) => `${[30, 55, 75][k - 1]}% of the time, using a charge doesn’t use it up (no charges: +${25 * k}% Ink)` },
+  trick: { name: 'Trickster', emoji: '🪺', text: (k) => `dodges ${[50, 75, 90][k - 1]}% of its bad luck (no bad luck: +${20 * k}% Ink)` },
   tempo: { name: 'Tempo', emoji: '⚙️', text: (k) => `its timers run ${k + 2}× as fast` },
   linked: { name: 'Linked', emoji: '🌀', text: (k) => `works as if on a second plot: +${40 * k}% Ink`, mult: (k) => 1 + 0.4 * k },
   foresight: { name: 'Foresight', emoji: '👁️', text: (k) => `earns ${20 * k}% more Ink and sees ${[35, 60, 80][k - 1]}% of bad luck coming`, mult: (k) => 1 + 0.2 * k },
@@ -137,6 +137,55 @@ export const TRAITS: Record<string, TraitInfo> = {
 };
 export const traitOf = (gene: string | null | undefined) => (gene ? TRAITS[gene] : undefined);
 export const traitText = (gene: string | null | undefined, k = 1) => traitOf(gene)?.text(Math.min(3, Math.max(1, k))) ?? '';
+
+/** where each kind's Ink comes from — an Ink Trait boosts exactly these */
+export const PAYS_FROM: Record<EnchantKind, string> = {
+  goose: 'its golden eggs and chased foxes', genie: 'its Ink wishes', map: 'its treasure chests', parasite: 'its feeds', cuckoo: 'the chicks it raises',
+  pandora: 'gifts from the box, and Hope', splice: 'the Chimera’s roars', clockwork: 'its daily chime (wind the day’s last turn)',
+  sizeray: 'micro-gems and parasites it shrinks', shard: 'whatever it reflects', wormhole: 'what you catch coming through it', oracle: 'each prophecy that comes true',
+};
+/** what a kind's charge is called, where Wishing keeps one */
+const KEEPS: Partial<Record<EnchantKind, string>> = { genie: 'wish', sizeray: 'shot', oracle: 'gaze' };
+/** the bad luck a kind can dodge, where Trickster and Foresight dodge it */
+const DODGES: Partial<Record<EnchantKind, (pct: number) => string>> = {
+  goose: () => 'foxes miss its egg half the time (from its next egg on)',
+  genie: (p) => `the Forbidden Wish’s twist misses ${p}% of the time`,
+  cuckoo: (p) => `${p}% of the time a thrown-out egg rolls on into a neighbour’s nest instead`,
+  pandora: (p) => `${p}% of the curses that escape miss you`,
+};
+const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
+/** what a reward's chip says when a Trait worked (mirrors the labels private.ench_pay writes) */
+export const TRAIT_CHIP: Record<string, string> = {
+  golden: 'Golden', grow: 'Giant', chaos: 'Chaos', seek: 'Seeking', spread: 'Spreading', echo: 'Echo', linked: 'Linked', foresight: 'Foresight',
+  wish: 'Wishing', trick: 'Trickster', inspired: 'Inspired', wild: 'Wild', fertile: 'Fertile', invested: 'Invested', streak: 'Arcade streak', homely: 'At home',
+};
+export type TraitHere = { gene: string; k: number; name: string; emoji: string; text: string;
+  /** what you have to do for it (null: it works by itself) */ you: string | null;
+  /** what it works on, for a Trait that boosts Ink */ on: string | null };
+/** a Trait as it works on one particular kind, in plain words (mirrors private.ench_pay, ench_keep_charge and ench_dodge) */
+export function traitHere(gene: string | null | undefined, k: number, kind: string): TraitHere | null {
+  const t = traitOf(gene);
+  if (!gene || !t) return null;
+  const s = Math.min(3, Math.max(1, k || 1)), me = kind as EnchantKind, pct = [50, 75, 90][s - 1];
+  let text = t.text(s), on: string | null = INK_GENES.has(gene) ? PAYS_FROM[me] ?? null : null, you: string | null = null;
+  if (gene === 'seek') { text = `${[25, 50, 75][s - 1]}% of its rewards bury a chest by its plot (+50 Ink each, keeps 7 days)`; you = 'Dig its chests up — tap them here or on the map'; }
+  if (gene === 'wish') {
+    if (KEEPS[me]) text = `${[30, 55, 75][s - 1]}% of the time a ${KEEPS[me]} doesn’t use up its charge`;
+    else { text = `earns ${25 * s}% more Ink (it has no charges to keep)`; on = PAYS_FROM[me] ?? null; }
+  }
+  if (gene === 'trick') {
+    const d = DODGES[me];
+    if (d) text = d(pct);
+    else { text = `earns ${20 * s}% more Ink (it has no bad luck to dodge)`; on = PAYS_FROM[me] ?? null; }
+  }
+  if (gene === 'foresight') {
+    const extra = me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'cuckoo' || me === 'pandora' ? `, and ${[35, 60, 80][s - 1]}% of its bad luck is seen coming and dodged` : '';
+    text = `earns ${20 * s}% more Ink${extra}`;
+  }
+  if (gene === 'linked' && me === 'map') text = `earns ${40 * s}% more Ink, and picks up map pieces from anywhere`;
+  if (gene === 'tempo') text = `its timers run ${s + 2}× as fast — eggs, wishes, charges and cooldowns all come sooner`;
+  return { gene, k: s, name: t.name, emoji: t.emoji, text, you, on };
+}
 /** what a plot's minigames get when an enchantment is spliced into it (mirrors private.ench_minigame_mult) */
 export const PLOT_GETS: Record<string, string> = {
   golden: 'its minigames pay 1.5× Ink', grow: 'its minigames pay 2× Ink', chaos: 'its minigame wins are a gamble: 0.5× to 2.5×', seek: '1 in 4 wins pays 1.5×',
@@ -178,9 +227,10 @@ export function hybridCard(a: EnchantKind, b: EnchantKind, opts: { mode?: Splice
     const g = KINDS[other].gene;
     if (!g || (mode === 'graft' && me === b)) return null;
     const t = TRAITS[g];
+    const here = traitHere(g, k, me);
     const lvl = lv && lv > 1 ? 1 + 0.06 * (lv - 1) : 1;
     const now = t.mult ? `Ink ×${lvl.toFixed(2)} now → ×${(lvl * t.mult(k)).toFixed(2)} spliced` : null;
-    return { me, emoji: KINDS[me].emoji, who: KINDS[me].name, gets: t.text(k), trait: t.name, traitEmoji: t.emoji, live: now };
+    return { me, emoji: KINDS[me].emoji, who: KINDS[me].name, gets: here?.text ?? t.text(k), trait: t.name, traitEmoji: t.emoji, live: now, on: here?.on ?? null, you: here?.you ?? null };
   };
   const lines = [side(a, b, opts.levels?.[0]), side(b, a, opts.levels?.[1])].filter(Boolean) as NonNullable<ReturnType<typeof side>>[];
   const strongest = lines.slice().sort((p, q) => (TRAITS[KINDS[q.me === a ? b : a].gene!]?.mult?.(k) ?? 1.3) - (TRAITS[KINDS[p.me === a ? b : a].gene!]?.mult?.(k) ?? 1.3))[0];

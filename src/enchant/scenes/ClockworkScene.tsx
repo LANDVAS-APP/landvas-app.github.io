@@ -88,6 +88,7 @@ export function ClockworkScene({ v, view, act, busy }: SceneProps) {
           <span className="rounded-full bg-black/45 px-3 py-1 font-display text-[16px] font-black text-[#FFE8A3]" data-testid="clock-charge">⏱ {Math.floor(charge)} min stored</span>
           <div className="h-1.5 w-36 overflow-hidden rounded-full bg-white/15"><div className="h-full bg-[linear-gradient(90deg,#D4A373,#FFE8A3)]" style={{ width: `${(charge / Number(view.cap)) * 100}%` }} /></div>
           <span className="text-[10px] font-bold text-white/60">{left}/{view.turns_max} turns left today · ticks +3 min an hour</span>
+          <span className="text-[10px] font-bold text-[#FFE8A3]" data-testid="clock-chime">{left ? `🔔 The day’s last turn chimes: +30–50 Ink` : '🔔 Chimed today — wind again tomorrow'}</span>
         </div>
       </div>
       <div className="grid gap-1.5" data-testid="clock-targets">

@@ -16,7 +16,8 @@ import { buzz } from '../native/native';
 import { cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, Tabs, inputCls } from '../ui';
 import { EnchantFxLayer, centerOf, efx, useAct, useEnchant, useMyEnchantments, useVisitors } from './core';
-import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, dur, enchantName, hybridCard, hybridKey, kindInfo, traitText, type EnchantKind, type SpliceMode } from './kinds';
+import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, TRAIT_CHIP, dur, enchantName, hybridCard, hybridKey, kindInfo, traitHere, type EnchantKind, type SpliceMode } from './kinds';
+import { SeekChests, useSeekChests } from './Chests';
 import { HybridCard } from './HybridCard';
 import { EvolveAura, MoodVeil, useMood } from './living';
 import { PeelOff } from './PeelOff';
@@ -66,6 +67,7 @@ function Home() {
         )}
       </header>
       <SpliceInvites />
+      <AllChests />
       <Tabs value={tab} onValueChange={(t) => setSp((p) => { p.set('tab', t); return p; }, { replace: true })} className="mb-4"
         items={[{ value: 'mine', label: `Enchantments${list.length ? ` · ${list.length}` : ''}` }, { value: 'visitors', label: `On my land${visitors.data?.length ? ` · ${visitors.data.length}` : ''}` }, { value: 'bestiary', label: 'Bestiary' }, { value: 'codex', label: 'Codex' }]} />
       {tab === 'mine' && (mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : list.length ? (
@@ -275,6 +277,54 @@ function SpliceInvites() {
   );
 }
 
+/** every chest your enchantments' Seeking Trait buried, waiting to be dug up */
+function AllChests() {
+  const q = useSeekChests();
+  return <SeekChests className="mb-4" chests={q.data ?? []} title={`Buried chests waiting · ${q.data?.length ?? 0}`} hint="Your enchantments’ Seeking Trait buried these by their plots. Dig them up here or tap them on the map." />;
+}
+
+/** the Traits an enchantment wears right now: what each one does on this kind, whether it needs you, and what it's done */
+function TraitsAtWork({ v, mine, onSeparate }: { v: EnchantView; mine: boolean; onSeparate(): void }) {
+  const partners = v.partners ?? (v.partner ? [v.partner] : []);
+  const chron = useQuery({ queryKey: ['enchant-chronicle', v.id], queryFn: () => api.enchantChronicle(v.id), staleTime: 10_000, enabled: mine && partners.length > 0 });
+  if (!partners.length) return null;
+  const kind = v.reflect_kind ?? v.kind;
+  return (
+    <div className="grid gap-2" data-testid="ench-traits">
+      {partners.map((p) => {
+        const t = traitHere(p.gene, p.strength, kind);
+        const since = Date.parse((p as any).started_at ?? '') || 0;
+        const paid = (chron.data ?? []).filter((e) => e.kind === 'paid' && Date.parse(e.at) >= since);
+        const chip = TRAIT_CHIP[p.gene ?? ''];
+        const hits = chip ? paid.filter((e) => (e.data?.mods ?? []).some((m: any) => String(m.label).startsWith(chip))).length : 0;
+        const buried = paid.reduce((a, e) => a + Number(e.data?.chests ?? 0), 0);
+        const proof = p.gene === 'seek' ? `${buried} chest${buried === 1 ? '' : 's'} buried since the splice`
+          : p.gene === 'tempo' ? (v.clock?.skip_s ? `Its clock has run ${dur(v.clock.skip_s)} ahead so far` : null)
+          : t?.on ? (paid.length ? `Worked on ${hits} of ${paid.length} reward${paid.length === 1 ? '' : 's'} since the splice` : `No reward since the splice yet — it works on ${t.on}`) : null;
+        return (
+          <div key={(p as any).row ?? p.id} className="grid gap-1.5 rounded-2xl bg-[#00F5D4]/10 px-3 py-2.5 text-[12px]" data-testid="ench-partner">
+            <div className="flex items-center gap-2"><span className="text-lg">🧬</span><b className="flex-1 text-[#00F5D4]">{p.hybrid}{p.perfect ? ' ✦' : ''}{p.aberration ? ' ☣️' : ''}</b><span className="text-white/50">{dur((Date.parse(p.ends_at) - Date.now()) / 1000)} left</span></div>
+            <div className="text-white/70">{p.kind === 'plot' ? `Spliced into your ${p.plot_kind ?? 'canvas'} plot` : `${SPLICE_MODES[(p.mode === 'friend' ? 'friend' : p.mode) as SpliceMode]?.name ?? 'Spliced'} with ${p.friend ? `@${p.friend.username}’s ` : 'a '}${kindInfo(p.kind).name}`}. It wears this Trait:</div>
+            {t ? (
+              <div className="grid gap-1 rounded-xl bg-black/25 px-2.5 py-2" data-testid="ench-trait" data-gene={p.gene}>
+                <div className="flex flex-wrap items-center gap-1.5 text-[13px]"><span>{t.emoji}</span><b className="text-white">{t.name}</b>
+                  {t.k >= 2 && <span className="rounded-full bg-[#E5CCFF]/20 px-1.5 text-[10px] font-black text-[#E5CCFF]">{t.k >= 3 ? '×3 · Aberration' : '×2 strength'}</span>}
+                  <span className={cn('ml-auto rounded-full px-2 py-0.5 text-[10px] font-black', t.you ? 'bg-[#FFD23F] text-[#1a0b2e]' : 'bg-[#3DDC97]/20 text-[#9BF6C8]')} data-testid="ench-trait-tag">{t.you ? '👆 Needs you' : '✓ Works by itself'}</span></div>
+                <div className="text-white/90">{t.text[0].toUpperCase() + t.text.slice(1)}.</div>
+                {t.on && <div className="text-[11.5px] text-white/60">Works on {t.on}.</div>}
+                {t.you && <div className="text-[11.5px] font-bold text-[#FFE8A3]">👆 {t.you}.</div>}
+                {proof && <div className="text-[11px] font-bold text-[#9BF6E5]" data-testid="ench-trait-proof">📈 {proof}</div>}
+              </div>
+            ) : <div className="text-white/70">—</div>}
+            {p.aberration && ABERRATIONS[p.aberration] && <div className="font-bold text-[#FFB3C7]">{ABERRATIONS[p.aberration].emoji} {ABERRATIONS[p.aberration].secret}</div>}
+            {mine && <button className="w-fit text-[11px] font-bold text-white/55 underline" onClick={onSeparate} data-testid="ench-separate">Step out of the splice</button>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SceneMood({ v }: { v: EnchantView }) {
   const m = useMood(v);
   return <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[4/3] overflow-hidden rounded-[28px]"><MoodVeil {...m} /></div>;
@@ -325,20 +375,17 @@ function Detail({ id }: { id: string }) {
         {(v.titles ?? []).length > 0 && (
           <div className="flex flex-wrap gap-1.5" data-testid="ench-titles">{v.titles.map((t) => <span key={t} title={TITLES[t]} className="rounded-full bg-[linear-gradient(90deg,#FFD23F33,#B26BFF33)] px-2.5 py-0.5 text-[11px] font-black text-[#FFE8A3]">🏅 {t}</span>)}</div>
         )}
-        {(v.partners ?? (v.partner ? [v.partner] : [])).map((p) => (
-          <div key={(p as any).row ?? p.id} className="grid gap-1 rounded-2xl bg-[#00F5D4]/10 px-3 py-2 text-[12px]" data-testid="ench-partner">
-            <div className="flex items-center gap-2"><span className="text-lg">🧬</span><b className="flex-1 text-[#00F5D4]">{p.hybrid}{p.perfect ? ' ✦' : ''}{p.aberration ? ' ☣️' : ''}</b><span className="text-white/50">{dur((Date.parse(p.ends_at) - Date.now()) / 1000)}</span></div>
-            <div className="text-white/85">{p.kind === 'plot' ? `Spliced into your ${p.plot_kind ?? 'canvas'} plot` : `${SPLICE_MODES[(p.mode === 'friend' ? 'friend' : p.mode) as SpliceMode]?.name ?? 'Spliced'} with ${p.friend ? `@${p.friend.username}’s ` : 'a '}${kindInfo(p.kind).name}`}. It wears the <b>{p.kind === 'plot' ? 'plot’s' : kindInfo(p.kind).geneName}</b> Trait: it {traitText(p.gene, p.strength)}{p.strength >= 3 ? ' (tripled — an Aberration)' : p.strength === 2 ? ' (doubled)' : ''}.</div>
-            {p.aberration && ABERRATIONS[p.aberration] && <div className="font-bold text-[#FFB3C7]">{ABERRATIONS[p.aberration].emoji} {ABERRATIONS[p.aberration].secret}</div>}
-            {mine && <button className="w-fit text-[11px] font-bold text-white/55 underline" onClick={() => void act('separate')} data-testid="ench-separate">Step out of the splice</button>}
-          </div>
-        ))}
+        <TraitsAtWork v={v} mine={mine} onSeparate={() => void act('separate')} />
         {v.size && <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={{ background: v.size.mode === 'grow' ? '#39FF1418' : '#FF00E518', color: v.size.mode === 'grow' ? '#B6FF3D' : '#FF7AE0' }} data-testid="ench-size">
           {v.size.prank ? `🤡 @${v.size.by_name ?? '?'} pranked its plot ${v.size.mode === 'grow' ? 'GIANT' : 'TINY'} (only for show)` : v.size.mode === 'grow' ? '🔼 Its plot is 100× GIANT' : '🔽 Its plot is 100× tiny — its time runs twice as fast'}{v.size.linked ? ' (through a wormhole)' : ''} · {dur((Date.parse(v.size.until) - Date.now()) / 1000)} left</div>}
         {v.clock?.frozen_until && <div className="rounded-2xl bg-[#C0F5FF]/10 px-3 py-2 text-[12px] font-bold text-[#C0F5FF]">❄️ Frozen in time by a Clockwork for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)} — nothing grows, nothing comes.</div>}
         {!!v.clock?.skip_s && <div className="text-[11px] text-white/45">⏩ Its clock runs {dur(v.clock.skip_s)} ahead of the world.</div>}
         <div className="flex flex-wrap gap-3 text-[11px] text-white/55">{v.stats?.ink ? <span>💧 {fmt(v.stats.ink)} Ink earned</span> : null}{v.owner && <span>Held by @{v.owner.username}</span>}</div>
       </motion.section>
+      {mine && (v.chests?.length ?? 0) > 0 && (
+        <SeekChests className="mb-4" chests={v.chests!} title={v.kind === 'map' ? `Chests your Seeking Trait buried · ${v.chests!.length}` : `Its buried chests · ${v.chests!.length}`}
+          hint={v.kind === 'map' ? 'This map lent its Seeking Trait in a splice: these chests are buried by the plots of the enchantments that wore it.' : 'Its Seeking Trait buried these right by its plot. Dig them up here or tap them on the map.'} />
+      )}
       {/* the scene */}
       {mine ? <div className="relative mx-auto w-full max-w-[680px]"><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /><SceneMood v={v} /></div> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
       {/* how it works */}
@@ -354,7 +401,7 @@ function Detail({ id }: { id: string }) {
 
 const EV: Record<string, (d: any) => string> = {
   born: (d) => `✨ Born in ${d.place ?? 'the world'} — #${d.serial}`, woke: () => '🌅 Woke for a new owner', named: (d) => (d.name ? `✎ Named “${d.name}”` : '✎ Name cleared'),
-  level: (d) => `⭐ Reached level ${d.level}`, title: (d) => `🏅 Earned ${(d.titles ?? []).join(', ')}`, paid: (d) => `💧 +${d.ink} Ink — ${d.what}`,
+  level: (d) => `⭐ Reached level ${d.level}`, title: (d) => `🏅 Earned ${(d.titles ?? []).join(', ')}`, paid: (d) => `💧 +${d.ink} Ink — ${d.what}${d.chests ? ` · 🧰 ${d.chests === 1 ? 'a chest' : `${d.chests} chests`} buried` : ''}`,
   fox: () => '🦊 Chased off a fox', egg: (d) => `🥚 ${d.platinum ? 'Platinum' : 'Golden'} egg collected${d.bites ? ` (bitten ×${d.bites})` : ''}${d.streak ? ` · streak ${d.streak}` : ''}`,
   wish: (d) => `🧞 Wished for ${d.wish}${d.kept ? ' (and kept the wish!)' : ''}`, forbidden: (d) => `⛓️ The Forbidden Wish: ${d.outcome}`,
   map: () => '🗺️ Drew a treasure map', piece: (d) => `🧩 Found piece ${d.n} of 4`, chest: (d) => `🧰 Dug up a chest${d.legendary ? ' — with a Legendary ticket!' : d.epic ? ' — with an Epic ticket!' : ''}`,
@@ -368,6 +415,7 @@ const EV: Record<string, (d: any) => string> = {
   gaze: (d) => `👁️ Gazed into ${d.what === 'roll' ? 'your next rolls' : d.what === 'reward' ? 'your next rewards' : d.what === 'pandora' ? 'Pandora’s lid' : 'the Goose’s eggs'}`,
   swap: () => '👁️ Rewrote fate: two cards swapped', burn: () => '🔥 Burned a card of fate', foretell: (d) => `🔏 Sealed a prophecy for @${d.to}`, prophecy_true: () => '✅ A sealed prophecy came true',
   invited: (d) => `🤝 Asked @${d.to} to splice: ${d.hybrid}`, leviathan: (d) => `🐉 Struck the Leviathan with ${d.move} — ${Number(d.dmg).toLocaleString()}`, reflect: (d) => `🪞 Reflected ${d.owner ? `@${d.owner}’s ` : 'a dream of a '}${kindInfo(d.kind).name}`, shatter: () => '💥 Shattered — and mended',
+  seek_chest: (d) => `🧰 Dug up a chest its Seeking Trait buried: +${d.ink} Ink`, chime: () => '🔔 The clock chimed',
 };
 function Chronicle({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['enchant-chronicle', id], queryFn: () => api.enchantChronicle(id), staleTime: 10_000 });
