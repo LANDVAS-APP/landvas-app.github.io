@@ -1,0 +1,1 @@
+import{K as e}from"./index-DOZ21r-c.js";var t=class extends e{async show(e){}async hide(e){}};export{t as SplashScreenWeb};

@@ -1,0 +1,1 @@
+import{ut as e}from"./index-DOZ21r-c.js";import{i as t}from"./queries-D8k7wC4P.js";var n=e();function r({children:e}){return t()?null:(0,n.jsx)(n.Fragment,{children:e})}export{r as t};

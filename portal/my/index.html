@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>My LANDVAS: your plots, rent and earnings in one place</title>
+    <meta name="description" content="The free account page for LANDVAS players. See your live USD rent, every plot on a world map, every Ink you've earned and spent, and your whole history." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://my.landvas.app/" />
+    <meta name="theme-color" content="#070b1c" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="My LANDVAS" />
+    <meta name="apple-mobile-web-app-title" content="My LANDVAS" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no, address=no, email=no" />
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon-48.png" type="image/png" sizes="48x48" />
+    <link rel="icon" href="/favicon-96.png" type="image/png" sizes="96x96" />
+    <link rel="icon" href="/favicon-144.png" type="image/png" sizes="144x144" />
+    <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LANDVAS" />
+    <meta property="og:url" content="https://my.landvas.app/" />
+    <meta property="og:title" content="My LANDVAS: every plot you own, every cent it earns" />
+    <meta property="og:description" content="Your live USD rent, all your land on one map, every Ink you've earned and spent, and your whole LANDVAS history. Free for every player." />
+    <meta property="og:image" content="https://my.landvas.app/og-portal.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The My LANDVAS overview page on a laptop and a phone" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="My LANDVAS: every plot you own, every cent it earns" />
+    <meta name="twitter:description" content="Your live USD rent, all your land on one map, every Ink you've earned and spent, and your whole LANDVAS history." />
+    <meta name="twitter:image" content="https://my.landvas.app/og-portal.png" />
+    <meta name="twitter:image:alt" content="The My LANDVAS overview page on a laptop and a phone" />
+
+    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[
+      {"@type":"Organization","@id":"https://landvas.app/#organization","name":"LANDVAS","url":"https://landvas.app/","logo":{"@type":"ImageObject","url":"https://landvas.app/brand/landvas-mark-1024.png","width":1024,"height":1024},"sameAs":["https://discord.gg/EsEQB9Zw3","https://www.reddit.com/r/LANDVAS/"]},
+      {"@type":"WebSite","@id":"https://my.landvas.app/#website","name":"My LANDVAS","url":"https://my.landvas.app/","publisher":{"@id":"https://landvas.app/#organization"},"inLanguage":"en"},
+      {"@type":"WebApplication","@id":"https://my.landvas.app/#app","name":"My LANDVAS","url":"https://my.landvas.app/","description":"The account page for LANDVAS players: live USD rent, every plot on a world map, every Ink earned and spent, collection, activity and full account history.","applicationCategory":"GameApplication","operatingSystem":"Any (web browser)","browserRequirements":"Requires JavaScript","image":"https://my.landvas.app/og-portal.png","screenshot":["https://my.landvas.app/screens/desktop-overview.webp","https://my.landvas.app/screens/desktop-plots.webp","https://my.landvas.app/screens/phone-overview.webp"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isPartOf":{"@id":"https://my.landvas.app/#website"},"publisher":{"@id":"https://landvas.app/#organization"}},
+      {"@type":"FAQPage","@id":"https://my.landvas.app/#faq","mainEntity":[
+        {"@type":"Question","name":"What is My LANDVAS?","acceptedAnswer":{"@type":"Answer","text":"My LANDVAS is the account page for LANDVAS players. It shows everything about your account in one place: your live USD rent, every plot you own and where it is, every Ink, pigment and XP you've earned or spent, your collection, your activity and your full history."}},
+        {"@type":"Question","name":"How do I sign in?","acceptedAnswer":{"@type":"Answer","text":"With the same email and password you use in LANDVAS. You can also have a sign-in link sent to your email, or reset your password from the sign-in page."}},
+        {"@type":"Question","name":"Is My LANDVAS free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Every LANDVAS player can use it at no cost."}},
+        {"@type":"Question","name":"Can I change anything here?","acceptedAnswer":{"@type":"Answer","text":"No, My LANDVAS is read-only. Claiming plots, buying, painting, playing and cash-outs all happen in the game, and show up here."}},
+        {"@type":"Question","name":"How up to date are the numbers?","acceptedAnswer":{"@type":"Answer","text":"Your rent counts up live, every second. Everything else refreshes every minute while the page is open."}},
+        {"@type":"Question","name":"Who can see my page?","acceptedAnswer":{"@type":"Answer","text":"Only you, while you're signed in. Every number on it is loaded for your account alone, and the server checks that on every request."}},
+        {"@type":"Question","name":"Can I download my data?","acceptedAnswer":{"@type":"Answer","text":"Yes. All my data shows every record LANDVAS keeps about your account, and you can download all of it in one file. Your plot list downloads as a spreadsheet file too."}},
+        {"@type":"Question","name":"Does it work on my phone?","acceptedAnswer":{"@type":"Answer","text":"Yes. It's made for phones first, with tabs at the bottom of the screen, and works in any modern browser. Add it to your home screen to open it like an app."}}
+      ]}
+    ]}</script>
+
+    <script>
+      // Signed in, back from an email link, or on a page of the portal: go straight to the app, without the landing page.
+      (function () {
+        try {
+          var signedIn = Object.keys(localStorage).some(function (k) {
+            return /^sb-.+-auth-token$/.test(k) || (k === 'portal-dev-session' && localStorage.getItem(k) !== 'null');
+          });
+          var fromEmail = /access_token|error_description|type=recovery/.test(location.hash) || /[?&](code|token_hash|error)=/.test(location.search);
+          if (signedIn || fromEmail || location.pathname !== '/') document.documentElement.classList.add('app-mode');
+        } catch (e) {
+          document.documentElement.classList.add('app-mode');
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-BZOKzBDn.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BHLgFvE3.css">
+  </head>
+  <body class="portal">
+    <div id="landing">
+      <header class="l-top l-wrap">
+        <a class="l-brand" href="/" aria-label="My LANDVAS home">
+          <img src="/favicon.svg" width="34" height="34" alt="" />
+          <span>My LANDVAS</span>
+        </a>
+        <nav class="l-top-links" aria-label="Main">
+          <a class="l-link l-hide-sm" href="https://landvas.app/">Play LANDVAS</a>
+          <a class="l-btn l-btn-gold l-btn-sm" href="/sign-in" data-app-link>Sign in</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="l-hero">
+          <div class="l-grid-bg" aria-hidden="true">
+            <i style="--x: 13; --y: 3; --c: #ff4d6d"></i><i style="--x: 13; --y: 4; --c: #ff9f1c"></i><i style="--x: 13; --y: 5; --c: #ffe14d"></i><i style="--x: 14; --y: 5; --c: #3ddc97"></i><i style="--x: 15; --y: 5; --c: #34c3ff"></i>
+            <i style="--x: 30; --y: 2; --c: #8b6bff"></i><i style="--x: 31; --y: 15; --c: #ff6fb5"></i><i style="--x: 20; --y: 16; --c: #22e3ff"></i>
+          </div>
+          <div class="l-wrap l-hero-in">
+            <div class="l-hero-copy">
+              <h1><span class="l-nw">Every plot</span> <span class="l-nw">you own.</span> <span class="l-nw">Every cent</span> <span class="l-nw">it earns.</span></h1>
+              <p class="l-lede">My LANDVAS is the account page for LANDVAS players. See your rent count up live, all your land on one map, every Ink you've won and spent, and your whole history. It's free, on any phone or computer.</p>
+              <div class="l-ctas">
+                <a class="l-btn l-btn-gold" href="/sign-in" data-app-link>Sign in to My LANDVAS</a>
+                <a class="l-btn l-btn-line" href="https://landvas.app/">Play LANDVAS</a>
+              </div>
+              <p class="l-fine">Use the email and password you play with, or get a sign-in link by email. New to LANDVAS? Start in the game: your first 4 plots are free.</p>
+            </div>
+            <figure class="l-shot">
+              <img class="l-shot-desk" src="/screens/desktop-overview.webp" width="1600" height="1000" alt="The My LANDVAS overview: live USD rent of $0.0951 from 87 plots, a world map of the plots, and Ink, pigments, XP and rank" fetchpriority="high" />
+              <img class="l-shot-phone" src="/screens/phone-overview.webp" width="600" height="1298" alt="The same overview on a phone, with tabs at the bottom" fetchpriority="high" />
+              <figcaption>Sample account</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="l-wrap l-features" aria-labelledby="inside">
+          <h2 id="inside" class="l-section-title">What you'll find inside</h2>
+
+          <article class="l-feature">
+            <div class="l-feature-copy">
+              <h3>Your rent, counting live</h3>
+              <p>Your USD rent ticks up every second, to the eighth decimal, next to what your land earns a day and a month. Below it sit your Ink, pigments, XP and tokens, your daily streak and where you rank among all players.</p>
+            </div>
+            <figure class="l-frame"><img src="/screens/content-overview.webp" width="1400" height="991" loading="lazy" alt="The overview page with live rent, a world map and account totals" /><figcaption>Sample account</figcaption></figure>
+          </article>
+
+          <article class="l-feature">
+            <div class="l-feature-copy">
+              <h3>Where every Ink comes from</h3>
+              <p>Day-by-day charts of the Ink you earned and spent, split by source: plot minigames, the arcade, the farm, Inkborn, the daily wheel and more. Pick 7 days, 30 days, 90 days or a year, and switch any chart to a table.</p>
+              <p>The ledger lists every single change to your Ink, pigments, XP and tokens with the reason for it, ready to filter.</p>
+            </div>
+            <figure class="l-frame"><img src="/screens/content-earnings.webp" width="1400" height="991" loading="lazy" alt="The earnings page with a stacked chart of Ink earned each day by source" /><figcaption>Sample account</figcaption></figure>
+          </article>
+
+          <article class="l-feature">
+            <div class="l-feature-copy">
+              <h3>All your land on one map</h3>
+              <p>Every plot you own on the world map, down to its real square when you zoom in. Search by name, city, country or type, sort by what each one earns, and open any plot for its full history.</p>
+              <p>Download the whole list as a spreadsheet file whenever you like.</p>
+            </div>
+            <figure class="l-frame"><img src="/screens/content-plots.webp" width="1400" height="991" loading="lazy" alt="The plots page with a world map of every plot and a sortable table" /><figcaption>Sample account</figcaption></figure>
+          </article>
+
+          <article class="l-feature">
+            <div class="l-feature-copy">
+              <h3>Your collection, rarity by rarity</h3>
+              <p>Which rarities you own, which you haven't found yet, and what each one earns a day. Plus every plot type, country and city you've collected, and every achievement.</p>
+            </div>
+            <figure class="l-frame"><img src="/screens/content-collection.webp" width="1400" height="991" loading="lazy" alt="The collection page with a grid of rarities, owned and not yet found" /><figcaption>Sample account</figcaption></figure>
+          </article>
+
+          <article class="l-feature">
+            <div class="l-feature-copy">
+              <h3>Every day you played</h3>
+              <p>A calendar of your year, your daily and best streaks, how many minigames you've won, and your best score on every level of every minigame.</p>
+            </div>
+            <figure class="l-frame"><img src="/screens/content-activity.webp" width="1400" height="991" loading="lazy" alt="The activity page with a calendar of days played and best scores" /><figcaption>Sample account</figcaption></figure>
+          </article>
+
+          <div class="l-more">
+            <h3>And the rest of your account</h3>
+            <dl>
+              <div><dt>USD rent</dt><dd>Your balance, what you've earned and been paid, and every time your rent was added up.</dd></div>
+              <div><dt>Cash-outs</dt><dd>Every cash-out you've asked for and where it stands.</dd></div>
+              <div><dt>Enchantments</dt><dd>Each one, its level and XP, and the plot it lives on.</dd></div>
+              <div><dt>Inkborn</dt><dd>Your creatures and how they're growing.</dd></div>
+              <div><dt>Friends and clan</dt><dd>Your friends, your invites and your clan.</dd></div>
+              <div><dt>All my data</dt><dd>Every record LANDVAS keeps about you, row by row, with a download of all of it.</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="l-phones" aria-labelledby="phone">
+          <div class="l-wrap l-phones-in">
+            <div class="l-phones-copy">
+              <h2 id="phone" class="l-section-title">Made for your phone</h2>
+              <p>Tabs at the bottom, big numbers and maps you can pinch. Add My LANDVAS to your home screen and it opens like an app.</p>
+            </div>
+            <ul class="l-phone-row" aria-label="Phone screenshots, sample account">
+              <li><img src="/screens/phone-overview.webp" width="600" height="1298" loading="lazy" alt="Overview on a phone" /></li>
+              <li><img src="/screens/phone-earnings.webp" width="600" height="1298" loading="lazy" alt="Earnings on a phone" /></li>
+              <li><img src="/screens/phone-plots.webp" width="600" height="1298" loading="lazy" alt="My plots on a phone" /></li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="l-wrap l-private" aria-labelledby="private">
+          <h2 id="private" class="l-section-title">Only you see your page</h2>
+          <p>My LANDVAS only ever loads your own account, and the server checks that on every request. Nothing can be changed here: claiming, buying, painting and cash-outs all happen in the game, then show up on your page.</p>
+        </section>
+
+        <section class="l-wrap l-faq" aria-labelledby="faq">
+          <h2 id="faq" class="l-section-title">Questions</h2>
+          <details><summary>What is My LANDVAS?</summary><p>My LANDVAS is the account page for LANDVAS players. It shows everything about your account in one place: your live USD rent, every plot you own and where it is, every Ink, pigment and XP you've earned or spent, your collection, your activity and your full history.</p></details>
+          <details><summary>How do I sign in?</summary><p>With the same email and password you use in LANDVAS. You can also have a sign-in link sent to your email, or reset your password from the sign-in page.</p></details>
+          <details><summary>Is My LANDVAS free?</summary><p>Yes. Every LANDVAS player can use it at no cost.</p></details>
+          <details><summary>Can I change anything here?</summary><p>No, My LANDVAS is read-only. Claiming plots, buying, painting, playing and cash-outs all happen in the game, and show up here.</p></details>
+          <details><summary>How up to date are the numbers?</summary><p>Your rent counts up live, every second. Everything else refreshes every minute while the page is open.</p></details>
+          <details><summary>Who can see my page?</summary><p>Only you, while you're signed in. Every number on it is loaded for your account alone, and the server checks that on every request.</p></details>
+          <details><summary>Can I download my data?</summary><p>Yes. All my data shows every record LANDVAS keeps about your account, and you can download all of it in one file. Your plot list downloads as a spreadsheet file too.</p></details>
+          <details><summary>Does it work on my phone?</summary><p>Yes. It's made for phones first, with tabs at the bottom of the screen, and works in any modern browser. Add it to your home screen to open it like an app.</p></details>
+        </section>
+
+        <section class="l-wrap l-end">
+          <h2 class="l-section-title">See your whole LANDVAS</h2>
+          <a class="l-btn l-btn-gold" href="/sign-in" data-app-link>Sign in to My LANDVAS</a>
+        </section>
+      </main>
+
+      <footer class="l-foot">
+        <div class="l-wrap l-foot-in">
+          <a class="l-brand" href="https://landvas.app/"><img src="/favicon.svg" width="26" height="26" alt="" /><span>LANDVAS</span></a>
+          <nav aria-label="More from LANDVAS">
+            <a href="https://landvas.app/">Play LANDVAS</a>
+            <a href="https://discord.gg/EsEQB9Zw3">Discord</a>
+            <a href="https://www.reddit.com/r/LANDVAS/">Reddit</a>
+            <a href="https://landvas.app/legal/terms">Terms</a>
+            <a href="https://landvas.app/legal/privacy">Privacy</a>
+          </nav>
+          <p>© 2026 LANDVAS</p>
+        </div>
+      </footer>
+    </div>
+    <div id="root"></div>
+    <noscript><p style="padding: 24px; color: #a1abd6; text-align: center">Signing in to My LANDVAS needs JavaScript. Turn it on and reload the page.</p></noscript>
+  </body>
+</html>

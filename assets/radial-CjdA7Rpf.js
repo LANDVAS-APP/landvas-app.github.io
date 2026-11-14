@@ -1,0 +1,1 @@
+import{St as e}from"./index-DOZ21r-c.js";var t=e(e=>({open:!1,recenter:0,setOpen:t=>e({open:t}),center:()=>e(e=>({recenter:e.recenter+1}))})),n=e(e=>({card:null,toggle:t=>e(e=>({card:e.card===t?null:t})),close:()=>e({card:null})}));export{t as n,n as t};
