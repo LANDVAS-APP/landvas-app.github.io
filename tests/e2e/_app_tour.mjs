@@ -29,7 +29,7 @@ await page.fill('#username', 'tour_app');
 await page.check('input[type=checkbox]');
 await page.click('button[type=submit]');
 await page.waitForSelector('[data-testid=place-gps], [data-testid=place-simple]', { timeout: 30000 }).catch(() => {});
-await page.click('[data-testid=place-simple]').catch(() => {});
+if (process.env.NORMAL) { await page.waitForTimeout(1500); await page.keyboard.press('Escape').catch(() => {}); } else await page.click('[data-testid=place-simple]').catch(() => {});
 await page.waitForTimeout(2500);
 // a few plots so the plot pages have something in them (SEED=1)
 if (process.env.SEED) {
@@ -43,9 +43,12 @@ if (process.env.SEED) {
 }
 for (const r of ROUTES) {
   await page.evaluate((x) => window.__landvasNav(x), r);
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(Number(process.env.WAIT ?? 1800));
   const name = r.replace(/\//g, '_').replace(/^_/, '') || 'root';
-  await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true, timeout: 60000 }).catch(() => console.log('skip', r));
+  const dlg = await page.evaluate(() => [...document.querySelectorAll('[role=dialog]')].map((d) => d.textContent.slice(0, 80)));
+  if (dlg.length) console.log('  open dialogs:', dlg);
+  if (process.env.EVAL) console.log('  eval:', await page.evaluate(process.env.EVAL).catch((e) => String(e)));
+  await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: !process.env.VIEWPORT, timeout: 60000 }).catch(() => console.log('skip', r));
   if (process.env.SCROLL) {
     for (let k = 1; k <= Number(process.env.SCROLL); k++) {
       const moved = await page.evaluate((k) => {

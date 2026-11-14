@@ -1,4 +1,5 @@
 // Live USD rent: a per-frame ticking balance, the current rate, and the 20x boost.
+import { NATIVE_APP } from '../app/buildFlags';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -229,7 +230,8 @@ export function RentHud() {
 export function WalletDialog({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
   const { rent, offset } = useRent();
   const world = useWorld();
-  const cash = useQuery({ queryKey: ['cashout'], queryFn: api.cashoutStatus, enabled: open });
+  // the apps carry no cash-out at all: it isn't offered there, and an unavailable feature is left out, not teased
+  const cash = useQuery({ queryKey: ['cashout'], queryFn: api.cashoutStatus, enabled: open && !NATIVE_APP });
   const ledger = useQuery({ queryKey: ['rent-ledger'], queryFn: () => api.myRentLedger(20), enabled: open });
   useTicker(1000);
   if (!rent) return null;
@@ -278,12 +280,14 @@ export function WalletDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           </div>
         </div>
         <ConvertToInk />
-        <div className="rounded-2xl border border-line bg-surface/40 p-3 text-sm">
-          <div className="font-bold">Cash-out</div>
-          {cash.isLoading ? <Spinner /> : (
-            <p className="text-muted">{cash.data?.message ?? 'Cash-out isn\'t available yet.'}{cash.data?.enabled ? ` Minimum $${Number(cash.data.minimum_usd).toFixed(2)}.` : ''}</p>
-          )}
-        </div>
+        {!NATIVE_APP && (
+          <div className="rounded-2xl border border-line bg-surface/40 p-3 text-sm">
+            <div className="font-bold">Cash-out</div>
+            {cash.isLoading ? <Spinner /> : (
+              <p className="text-muted">{cash.data?.message ?? 'Cash-out isn\'t available yet.'}{cash.data?.enabled ? ` Minimum $${Number(cash.data.minimum_usd).toFixed(2)}.` : ''}</p>
+            )}
+          </div>
+        )}
         {!!ledger.data?.length && (
           <details className="text-xs text-muted">
             <summary className="cursor-pointer font-semibold text-fg">Rent history</summary>

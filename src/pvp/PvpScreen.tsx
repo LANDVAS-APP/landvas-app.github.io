@@ -20,6 +20,9 @@ import { PvpPreview } from './PvpPreview';
 import { bonusText } from '../play/rates';
 import { poll } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
+import { isNative } from '../native/native';
+
+const APP = isNative();
 
 type Phase = { k: 'lobby' } | { k: 'playing'; s: PvpStart } | { k: 'checking' } | { k: 'result'; r: PvpFinish };
 
@@ -71,7 +74,21 @@ export default function PvpScreen() {
         <Empty icon={<Swords className="h-6 w-6" />} title="PvP is taking a break">Check the bell for when it’s back.</Empty>
       ) : (
         <>
-          {rec && (
+          {rec && APP && (
+            <section className="lv-arena" data-testid="pvp-record">
+              <div className="lv-arena-stats">
+                <div className="win"><Trophy className="h-4 w-4" /><b className="tnum">{fmt(rec.won)}</b><small>won</small></div>
+                <div><b className="tnum">{fmt(rec.lost)}</b><small>lost</small></div>
+                <div><b className="tnum">{fmt(rec.draws)}</b><small>draws</small></div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="lv-earnchip hot"><ResourceIcon r="ink" /> <b className="tnum">{fmt(rec.ink)}</b> earned</span>
+                <span className="lv-earnchip tnum">{rec.paid_today}/{cfg.daily_rewarded_matches} paid today</span>
+              </div>
+              <div className="lv-questbar mt-2.5"><span style={{ width: `${Math.min(100, (rec.paid_today / Math.max(1, cfg.daily_rewarded_matches)) * 100)}%` }} /></div>
+            </section>
+          )}
+          {rec && !APP && (
             <div className="mb-4 flex flex-wrap gap-2 text-sm" data-testid="pvp-record">
               <span className="glass rounded-full px-3 py-1.5 tnum"><Trophy className="mr-1 inline h-4 w-4 text-gold" />{rec.won} won</span>
               <span className="glass rounded-full px-3 py-1.5 tnum">{rec.lost} lost</span>
@@ -115,7 +132,7 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
   const info = PVP_INFO[g];
   const perRound = (c.round_win_ink ?? []).slice(0, c.rounds).filter((x) => x > 0);
   return (
-    <div className={cn('glass grid gap-3 rounded-[22px] p-4', c.waiting > 0 && 'ring-2 ring-ok/60')} data-testid={`pvp-game-${g}`}>
+    <div className={cn(APP ? 'lv-pvpcard' : 'glass rounded-[22px] p-4', 'grid gap-3', c.waiting > 0 && (APP ? 'ready' : 'ring-2 ring-ok/60'))} style={APP ? { '--c': info.color } as React.CSSProperties : undefined} data-testid={`pvp-game-${g}`}>
       <div className="flex items-start gap-3">
         <div className="relative w-20 shrink-0">
           <PvpPreview game={g} />
@@ -139,7 +156,12 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
           ? <span className="flex items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-ok"><Users className="h-3 w-3" /> {c.waiting === 1 ? 'a rival is' : `${fmt(c.waiting)} rivals are`} waiting</span>
           : <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">be the first — a rival takes you on later</span>}
       </div>
-      <ol className="grid gap-1 text-xs text-muted">{info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}</ol>
+      {APP ? (
+        <details className="lv-howto">
+          <summary>How to play</summary>
+          <ol className="grid gap-1 pt-2 text-xs text-muted">{info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}</ol>
+        </details>
+      ) : <ol className="grid gap-1 text-xs text-muted">{info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}</ol>}
       <Button variant="rainbow" loading={busy} onClick={onPlay} data-testid={`pvp-play-${g}`}><Swords className="h-4 w-4" /> {c.waiting > 0 ? 'Play now' : 'Start a match'}</Button>
     </div>
   );

@@ -239,7 +239,7 @@ function ArcadeView({ a, onArena }: { a: Arcade; onArena(): void }) {
               <div className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3">
                 <Lock className="h-6 w-6 text-white/60" />
                 <div><div className="font-display text-lg font-black">{nearGame.emoji} {nearGame.name}</div>
-                  <div className="text-xs text-white/70">{nearLand ? `Opens when this arcade is ${nearLand} — merge more arcade plots into it` : a.mine ? (a.level.level >= nearGame.level ? `Install it for ${nearGame.cost} 🎟️` : `Reach arcade level ${nearGame.level} to install it`) : 'Coming soon to this arcade'}</div></div>
+                  <div className="text-xs text-white/70">{nearLand ? `Opens when this arcade is ${nearLand} — merge more arcade plots into it` : a.mine ? (a.level.level >= nearGame.level ? `Install it for ${nearGame.cost} 🎟️` : `Reach arcade level ${nearGame.level} to install it`) : 'Not in this arcade yet'}</div></div>
                 {!nearLand && a.mine && a.level.level >= nearGame.level && <Button size="sm" variant="rainbow" disabled={meState.tickets < nearGame.cost} onClick={async () => { try { const n = await api.arcadeUnlock(a.id, near.id); refresh(n); sfx.jackpot(); confettiCannons(); toast.success(`${nearGame.name} installed!`); } catch (e) { toast.error(toGameError(e).message); } }} data-testid="arcade-install">Install</Button>}
               </div>
             )}

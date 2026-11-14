@@ -17,6 +17,10 @@ import { Button, Cost, Empty, RESOURCE_META, Spinner, Tabs } from '../ui';
 import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
+import { isNative } from '../native/native';
+
+const APP = isNative();
+const GROUP_TONE: Record<string, string> = { Brushes: 't-violet', Colours: 't-rose', Tools: 't-teal', Studio: 't-gold' };
 
 const GROUPS: { id: string; title: string; icon: any; blurb: string }[] = [
   { id: 'Brushes', title: 'Brushes', icon: Brush, blurb: 'Everyone starts with the pencil, paintbrush and eraser.' },
@@ -104,8 +108,8 @@ function Shop() {
             <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><g.icon className="h-4 w-4 text-accent-2" /> {g.title}</h2>
             <span className="text-xs text-muted">{g.blurb}</span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {g.items.map((it) => <ShopCard key={it.key} it={it} />)}
+          <div className={cn('grid gap-3', APP ? 'grid-cols-2 gap-2.5' : 'sm:grid-cols-2 lg:grid-cols-3')}>
+            {g.items.map((it) => APP ? <ShopTile key={it.key} it={it} icon={g.icon} tone={GROUP_TONE[g.id] ?? 't-violet'} /> : <ShopCard key={it.key} it={it} />)}
           </div>
         </section>
       ))}
@@ -142,6 +146,36 @@ function ShopCard({ it }: { it: ShopItem }) {
       }}>
         {owned ? <><Check className="h-4 w-4" /> Owned</> : locked ? <><Lock className="h-4 w-4" /> Buy the previous one first</> : can ? 'Buy' : 'Not enough yet'}
       </Button>
+    </div>
+  );
+}
+
+// the app: a 2-across grid of item tiles, the price on the buy button
+function ShopTile({ it, icon: Icon, tone }: { it: ShopItem; icon: any; tone: string }) {
+  const me = useOnboardedMe()!;
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const owned = me.unlocks.includes(it.key);
+  const locked = !!it.requires && !me.unlocks.includes(it.requires);
+  const can = affordable(it.cost, me.balances);
+  const palette = it.kind === 'palette' ? Object.values(PALETTES).find((p) => p.unlock === it.key) : null;
+  const buy = async () => {
+    setBusy(true);
+    try { await api.purchaseUnlock(it.key); toast.success(`${it.name} unlocked`); invalidateGame(qc); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className={cn('lv-shoptile', tone, owned && 'owned')} data-testid="shop-item" data-key={it.key}>
+      <div className="lv-shopart">
+        {palette ? (
+          <div className="grid w-full grid-cols-4 gap-1 p-2">{palette.colors.slice(0, 8).map((c, i) => <span key={c + i} className="aspect-square rounded-md" style={{ background: c }} />)}</div>
+        ) : <Icon className="h-8 w-8" />}
+        {owned && <span className="lv-tag done absolute right-1.5 top-1.5"><Check className="h-3 w-3" /> Owned</span>}
+      </div>
+      <div className="mt-2 font-display text-[14.5px] font-bold leading-tight">{it.name}</div>
+      <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-muted">{it.description}</p>
+      <button className={cn('lv-shopbuy', can && !locked && !owned && 'can')} disabled={owned || locked || !can || busy} onClick={() => void buy()} data-testid="shop-buy">
+        {owned ? <><Check className="h-3.5 w-3.5" /> Owned</> : locked ? <><Lock className="h-3.5 w-3.5" /> Locked</> : busy ? <Spinner /> : <Cost cost={it.cost} />}
+      </button>
     </div>
   );
 }

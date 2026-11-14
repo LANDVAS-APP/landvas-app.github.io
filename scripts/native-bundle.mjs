@@ -24,6 +24,40 @@ for (const f of ['og-image.png']) {
   if (fs.existsSync(p)) { saved += fs.statSync(p).size; fs.rmSync(p); }
 }
 
+// the website's search and share tags (keywords, FAQ, social cards) mean nothing inside the app: leave them out
+{
+  const f = path.join(dir, 'index.html');
+  const before = fs.readFileSync(f, 'utf8');
+  const after = before
+    .replace(/\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '')
+    .replace(/\s*<meta (name="(keywords|robots|twitter:[a-z:]+)"|property="og:[a-z:]+")[^>]*>/g, '')
+    .replace(/\s*<link rel="canonical"[^>]*>/g, '');
+  fs.writeFileSync(f, after);
+  saved += before.length - after.length;
+}
+
+// chunks nothing in the app can reach (code the app build switched off, e.g. the website's home page, whose lazy
+// import was dropped after the chunk was already split off): a chunk stays if its file name appears in any file that
+// the app can reach, starting from index.html and every non-script file
+{
+  const assets = path.join(dir, 'assets');
+  if (fs.existsSync(assets)) {
+    const js = fs.readdirSync(assets).filter((f) => f.endsWith('.js'));
+    const text = (f) => fs.readFileSync(f, 'utf8');
+    const roots = [];
+    const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else if (!(d === assets && e.name.endsWith('.js'))) roots.push(f); } };
+    walk(dir);
+    const reach = new Set();
+    let queue = roots.filter((f) => /\.(html|css|json|js|webmanifest)$/.test(f)).map(text);
+    while (queue.length) {
+      const next = [];
+      for (const t of queue) for (const f of js) if (!reach.has(f) && t.includes(f)) { reach.add(f); next.push(text(path.join(assets, f))); }
+      queue = next;
+    }
+    for (const f of js) if (!reach.has(f)) { saved += fs.statSync(path.join(assets, f)).size; fs.rmSync(path.join(assets, f)); console.log(`  unreachable, left out: ${f}`); }
+  }
+}
+
 const info = {
   build: process.env.LANDVAS_BUILD_ID || null,
   built_at: new Date().toISOString(),

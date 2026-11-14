@@ -111,25 +111,44 @@ Play icon and feature graphic are ready: `docs/store/play-icon-512.png` and `doc
 
 ## 6. Review answers
 
-**App Review notes (Apple) / App access (Play):**
-> Sign in with the demo account below (or create a new account in the app).
-> LANDVAS places your explorer on the map where you are; any location works. If you'd rather not share location,
-> tap "Play without location (Simple mode)" on the first map prompt — the whole game loop (rolling plots, minigames,
-> daily streak) works without it.
-> USD rent is a virtual in-game balance: cash-out is not available in this version and there are no purchases.
-> Players can report messages, block players (profile → Block) and delete their account (Settings → Account).
+**App Review notes (Apple "Notes for Review") / App access (Play)** — paste as is, with the demo account filled in.
+Apple 2.3.1(a) wants every feature described specifically, and 2.5.19 (from Oct 16, 2026) rejects hidden, dormant or
+undocumented features, so this lists everything the reviewer can reach:
+> Sign in with the demo account below (or create a new account in the app). Demo account: <email> / <password>
+>
+> WHAT LANDVAS IS: a free world-map game. The real world is split into house-sized virtual plots (they are never real
+> land). Players claim plots, then play them their way.
+> • Map (World tab): your explorer stands where you are; any location works. To play without sharing location, tap
+>   "Play without location (Simple mode)" on the first map prompt — the whole game loop works without it.
+> • Plots: claiming a plot reveals its rarity (a free roll paid with Ink, the game's earned currency). Each plot earns
+>   a virtual "USD rent" balance and has its own minigame.
+> • Create tab: a paint editor for murals on your plots, Sketch of the Day, Draw & Guess, duets and weekly challenges.
+> • Inkborn tab: draw a creature and it comes alive in your sanctuary (pet, feed and play with it).
+> • Play tab: Play & Earn (daily tasks, a free daily wheel, minigames), PvP minigames against anonymous rivals,
+>   rankings and badges.
+> • Community tab: a live feed, chat, friends, clans, a gallery and visiting other players' rooms.
+>
+> CURRENCIES: Ink is earned by playing and can't be bought. USD rent is a virtual in-game balance: there is no cash-out
+> and there are no purchases or ads in this version (none of that code is in the app).
+> SAFETY: players can report chat messages and art, block players (profile → Block), and delete their account in the app
+> (Me → Settings → Account → Delete my account) or at landvas.app/legal/delete-account. Chat and art are moderated.
+> CONTENT UPDATES: the game's own HTML/JavaScript/CSS can be updated without a store release (Capacitor Updater,
+> files from landvas.app, checked by sha-256), as Apple's developer agreement 3.3.1(B) allows. No native code or
+> permissions change that way, and the version under review is held on the submitted build until it's approved.
+> Staff tools are not in the app (they live on a separate website). There are no hidden or test features.
 > Developer: LANDVAS LLC (Utah) · contact@landvas.app
-> Demo account: <email> / <password>
 
 **Apple — App Privacy** (all "linked to the user", none used for tracking, none sold) — matches the privacy manifest:
 Contact info: email · Location: precise (app functionality) · User content: photos, gameplay content, other user
 content (art, chat), customer support · Identifiers: user ID, device ID (random install id, for fraud prevention) ·
 Usage data: product interaction · Diagnostics: crash data. **Tracking: No** (1.0 has no ads).
 
-**Apple — Age rating questionnaire:** user-generated content **yes**, messaging & chat **yes**, **social media
-(feed of player content) yes** → Apple rates this **13+**. Advertising: **no** for 1.0 (yes from 1.1). Unrestricted
-web access: no (links open single pages). Simulated gambling: **no** (no casino games; the free daily wheel and plot
-rarity rolls are free game rewards — answer "contests" honestly if you run prize events). Parental controls: none.
+**Apple — Age rating questionnaire** (the 2026 questionnaire: tiers 4+/9+/13+/16+/18+): user-generated content
+**yes**, messaging & chat **yes**, **social media capability yes** (a feed of player content; asked since Sept 2026),
+**loot boxes no** (plot rarity rolls are paid only with earned Ink, which can't be bought, and the daily wheel is free — nothing
+random is for sale), simulated gambling **no** (no casino games; answer "contests" honestly if you run prize events),
+advertising **no** for 1.0 (yes from 1.1), unrestricted web access no (links open single pages), parental controls
+none, age assurance none. Expected result: **13+**.
 
 **Google Play — Data safety:** Location (precise, app functionality, collected) · Personal info: email ·
 Photos · Messages (in-app chat) · App activity (in-game actions, user-generated content) · App info and performance
@@ -175,5 +194,12 @@ when AdMob's signed callback reaches the server.
   that way: no new native code or permissions through live versions, nothing in the app that mentions "updating",
   and the review hold above. If a reviewer cites guideline 2.5.2, answer that the app only downloads interpreted
   JavaScript, HTML and CSS for its existing WebView, which 3.3.1(B) permits, and no native executable code.
+- **What the app build leaves out** (compile-time `NATIVE_APP`, checked by grepping `dist-native` after
+  `npm run build:native`): admin and moderator tools, cash-out, ads (until 1.1), the website's home page and FAQ,
+  the comparison with other games (no other apps are named anywhere in the app), and the website's search tags.
+  `scripts/native-bundle.mjs` also drops chunks nothing in the app can reach.
+- **Android permissions** (merged manifest): internet, network state, coarse + fine location, vibrate, notifications,
+  wake lock, boot completed (Capgo's updater). `FOREGROUND_SERVICE` is removed (`tools:node="remove"`): nothing runs
+  as a foreground service, and Play asks apps that declare it for a foreground-service declaration.
 - **Sign in with Apple** isn't required: LANDVAS uses its own email accounts and no third-party logins. If you ever
   add Google/Discord sign-in, add Sign in with Apple too.

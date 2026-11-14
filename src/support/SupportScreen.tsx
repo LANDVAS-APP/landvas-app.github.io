@@ -1,5 +1,6 @@
 // /support — in-app help. Tickets replace every public email address: players write
 // to the team here, replies come back here (and ring the bell).
+import { NATIVE_APP } from '../app/buildFlags';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, LifeBuoy, Mail, MessageSquarePlus, Send, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +21,7 @@ export const CATEGORIES: { value: string; label: string }[] = [
   { value: 'bug', label: 'Something’s broken' },
   { value: 'account', label: 'My account' },
   { value: 'minigames', label: 'Minigames & Ink' },
-  { value: 'payments', label: 'Rent, boosts & cash-out' },
+  { value: 'payments', label: NATIVE_APP ? 'Rent & boosts' : 'Rent, boosts & cash-out' },
   { value: 'art', label: 'Art & reviews' },
   { value: 'report', label: 'Report a player' },
   { value: 'copyright', label: 'Copyright' },

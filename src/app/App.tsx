@@ -68,7 +68,8 @@ const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
 // no /admin page at all and the admin screens' code is left out of the app entirely
 const AdminScreen = NATIVE_APP ? null : lazy(() => import('../admin/AdminScreen'));
 const PlayersScreen = lazy(() => import('../players/PlayersScreen'));
-const HomePage = lazy(() => import('../home/HomePage'));
+// (the app opens straight into the game, so the website's home page isn't in it)
+const HomePage = NATIVE_APP ? null : lazy(() => import('../home/HomePage'));
 const SupportScreen = lazy(() => import('../support/SupportScreen'));
 const PvpScreen = lazy(() => import('../pvp/PvpScreen'));
 const ChallengesScreen = lazy(() => import('../earn/ChallengesScreen'));
@@ -78,7 +79,7 @@ const PvpSandbox = lazy(() => import('../pvp/PvpScreen').then((m) => ({ default:
 /** landvas.app: the public homepage (the live map lives at /world). */
 function RootRoute() {
   // the app opens straight into the game (the website's home page is for visitors)
-  if (isNative()) return <Navigate to={getBackend().session() ? '/world' : '/welcome'} replace />;
+  if (NATIVE_APP || isNative() || !HomePage) return <Navigate to={getBackend().session() ? '/world' : '/welcome'} replace />;
   return p(<HomePage />);
 }
 const HomeScreen = lazy(() => import('../home/HomeScreen'));

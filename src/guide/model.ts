@@ -1,5 +1,6 @@
 // The numbers behind the Guide page. LANDVAS's come live from the server (game_guide); Atlas Earth's and TerraMine's are
 // their published figures (sources listed in COMPETITORS). Everything here is plain maths so it can be tested.
+import { NATIVE_APP } from '../app/buildFlags';
 
 export const SECONDS_PER_MONTH = 30 * 86_400;
 
@@ -141,7 +142,8 @@ export function otherCappedInk(g: Guide) {
 
 // ---- Atlas Earth and TerraMine: their published numbers ----------------------------------------------------------------
 
-export const COMPETITORS = {
+// (the apps leave them out: no other games are named in the app stores' builds)
+const RIVALS = {
   atlas: {
     name: 'Atlas Earth', emoji: '🌎', color: '#3DA5FF',
     startPlots: 1,
@@ -183,6 +185,7 @@ export const COMPETITORS = {
     ],
   },
 } as const;
+export const COMPETITORS = NATIVE_APP ? (null as unknown as typeof RIVALS) : RIVALS;
 
 export type GameId = 'landvas' | 'atlas' | 'terramine';
 export type Projection = { id: GameId; name: string; color: string; plots: number[]; monthly: number[]; earned: number[]; perPlotMonthly: number; plotsPerDay: number; currencyPerDay: number };
@@ -203,10 +206,6 @@ export function project(g: Guide, hours: number, days: number, winsPerHour: numb
   const b = boostPerDay(g);
   const lv = { start: n(g.config.economy?.free_plots, 1), cost: plotPrice(g), perDay: landvasInk, perPlot: expectedRate(g) * b.avg * SECONDS_PER_MONTH };
 
-  const a = COMPETITORS.atlas;
-  const atlas = { start: a.startPlots, cost: a.plotCost, perDay: Math.min(hours * a.earn.perHour, a.earn.perDayCap), perPlot: a.ratePerPlot * ((a.boost.hours * a.boost.mult + (24 - a.boost.hours)) / 24) * SECONDS_PER_MONTH };
-  const t = COMPETITORS.terramine;
-  const terra = { start: t.startPlots, cost: t.plotCost, perDay: wins * t.earn.perWin, perPlot: t.ratePerPlot * ((t.boost.hours * t.boost.mult + (24 - t.boost.hours)) / 24) * SECONDS_PER_MONTH };
 
   const run = (id: GameId, name: string, color: string, x: { start: number; cost: number; perDay: number; perPlot: number }): Projection => {
     const plots: number[] = [], monthly: number[] = [], earned: number[] = [];
@@ -219,6 +218,11 @@ export function project(g: Guide, hours: number, days: number, winsPerHour: numb
     }
     return { id, name, color, plots, monthly, earned, perPlotMonthly: x.perPlot, plotsPerDay: x.perDay / x.cost, currencyPerDay: x.perDay };
   };
+  if (NATIVE_APP) return [run('landvas', 'LANDVAS', '#8B5CFF', lv)];
+  const a = COMPETITORS.atlas;
+  const atlas = { start: a.startPlots, cost: a.plotCost, perDay: Math.min(hours * a.earn.perHour, a.earn.perDayCap), perPlot: a.ratePerPlot * ((a.boost.hours * a.boost.mult + (24 - a.boost.hours)) / 24) * SECONDS_PER_MONTH };
+  const t = COMPETITORS.terramine;
+  const terra = { start: t.startPlots, cost: t.plotCost, perDay: wins * t.earn.perWin, perPlot: t.ratePerPlot * ((t.boost.hours * t.boost.mult + (24 - t.boost.hours)) / 24) * SECONDS_PER_MONTH };
   return [
     run('landvas', 'LANDVAS', '#8B5CFF', lv),
     run('terramine', t.name, t.color, terra),

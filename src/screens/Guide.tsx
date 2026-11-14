@@ -1,6 +1,7 @@
 // The Guide: what everything in LANDVAS does, every live rate, how much Ink each thing gives, what players really earn,
 // a grind calculator, and LANDVAS next to Atlas Earth and TerraMine. All LANDVAS numbers come live from the server
 // (game_guide), so changing a rate or the config changes this page by itself.
+import { NATIVE_APP } from '../app/buildFlags';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -59,10 +60,12 @@ function Tile({ k, v, hint }: { k: string; v: React.ReactNode; hint?: string }) 
   );
 }
 
-const TOC: [string, string][] = [
+// The apps leave out the comparisons with other games and cash-out: neither belongs in an app store build (other
+// apps' names and a feature that isn't offered there).
+const TOC: [string, string][] = ([
   ['rates', 'Live rates'], ['minigames', 'Ink per win by rarity'], ['score', 'Uncapped games'], ['ink', 'Every Ink source'], ['real', 'What players earn'],
-  ['grind', 'What grinders make'], ['progress', 'Progression race'], ['calc', 'Grind calculator'], ['compare', 'vs Atlas Earth & TerraMine'], ['how', 'How everything works'],
-];
+  ['grind', 'What grinders make'], ['progress', 'Progression race'], ['calc', 'Grind calculator'], ...(NATIVE_APP ? [] : [['compare', 'vs Atlas Earth & TerraMine']]), ['how', 'How everything works'],
+] as [string, string][]).filter(([k]) => !NATIVE_APP || k !== 'progress');
 
 function GuideBody({ g }: { g: GuideData }) {
   const c = g.config;
@@ -98,7 +101,7 @@ function GuideBody({ g }: { g: GuideData }) {
         <Tile k="Rent boost" v={`×${boost.mult}`} hint={`${fmt(boost.hours, 1)} free hours a day`} />
         <Tile k="Ink per minigame win" v={`${fmt(mg.perWin, 1)}`} hint={`levels 1–34 · ${fmt(mgLate.perWin, 1)} at levels 35–60`} />
         <Tile k="Rent → Ink" v={`$1 = ${fmt(inkPerUsd)} Ink`} hint={`$1 of rent buys ${fmt(inkPerUsd / price, 1)} plot${inkPerUsd / price === 1 ? '' : 's'}`} />
-        <Tile k="Cash-out" v={`$${num(c.rent?.cashout?.minimum_usd, 5)} min`} hint="When cash-out is open in your country" />
+        {!NATIVE_APP && <Tile k="Cash-out" v={`$${num(c.rent?.cashout?.minimum_usd, 5)} min`} hint="When cash-out is open in your country" />}
       </div>
 
       <Rates g={g} />
@@ -107,9 +110,9 @@ function GuideBody({ g }: { g: GuideData }) {
       <InkSources g={g} mg={mg} mgLate={mgLate} pv={pv} streak={streak} oc={oc} />
       <RealStats g={g} enough={enoughData} />
       <Grinders g={g} enough={enoughData} />
-      <Progression g={g} />
+      {!NATIVE_APP && <Progression g={g} />}
       <Calculator g={g} />
-      <Compare g={g} />
+      {!NATIVE_APP && <Compare g={g} />}
       <HowItWorks g={g} />
 
       <p className="mb-10 text-center text-[11px] leading-relaxed text-faint">

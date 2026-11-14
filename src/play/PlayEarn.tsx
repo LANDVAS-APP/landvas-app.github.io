@@ -19,12 +19,17 @@ import { shareDrawing } from '../creative/share';
 import { MinigameGrid } from './PlayHub';
 import { poll } from '../lib/poll';
 import { animateWhenVisible } from '../lib/inView';
+import { buzz, isNative } from '../native/native';
+import { Emblem, type DiscTone } from '../ui';
+
+const APP = isNative();
 
 type Tab = 'today' | 'games' | 'create' | 'friends' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'today', label: 'Today' }, { id: 'games', label: 'Games' }, { id: 'create', label: 'Create' }, { id: 'friends', label: 'Friends' }, { id: 'mine', label: 'My creations' },
 ];
 
+type Task = { label: string; done: boolean; icon: typeof Brush; tone: DiscTone; go(): void; reward: string };
 type Card = {
   key: string; icon: typeof Brush; color: string; title: string; text: string; reward?: string;
   status?: 'ready' | 'done' | null; today?: number; to?: string; onClick?(): void;
@@ -105,12 +110,18 @@ export default function PlayEarn() {
 
   // the daily checklist
   const checks = [
-    e?.wheel.enabled && { label: 'Spin the wheel', done: (e?.wheel.spins_left ?? 1) === 0 },
-    st?.enabled && { label: 'Paint on your plot', done: !!st?.today },
-    sk?.enabled && { label: 'Sketch the word', done: !!sk?.mine?.submitted },
-    { label: 'Win a minigame', done: sum('minigame') > 0 },
-    { label: 'Play a PvP match', done: sum('pvp') > 0 },
-  ].filter(Boolean) as { label: string; done: boolean }[];
+    e?.wheel.enabled && { label: 'Spin the wheel', done: (e?.wheel.spins_left ?? 1) === 0, icon: RotateCw, tone: 'gold', go: () => setWheel(true), reward: 'Ink, pigments & boosts' },
+    st?.enabled && { label: 'Paint on your plot', done: !!st?.today, icon: Paintbrush, tone: 'rose', go: () => nav('/canvases'), reward: `Craft bonus · +${st?.step_pct ?? 0}% streak` },
+    sk?.enabled && { label: `Sketch “${sk?.word}”`, done: !!sk?.mine?.submitted, icon: PenLine, tone: 'azure', go: () => nav('/sketch'), reward: `Up to ${fmt(sk?.prizes[0] ?? 0)} Ink` },
+    { label: 'Win a minigame', done: sum('minigame') > 0, icon: Gamepad2, tone: 'emerald', go: () => setTab('games'), reward: 'Ink per level' },
+    { label: 'Play a PvP match', done: sum('pvp') > 0, icon: Swords, tone: 'crimson', go: () => nav('/pvp'), reward: pvpWin ? `${fmt(pvpWin)} Ink a win` : 'Ink for wins' },
+  ].filter(Boolean) as Task[];
+
+  if (APP) return (
+    <AppEarn total={Number(today.data?.total ?? 0)} checks={checks} resets={today.data?.resets_at ?? e?.resets_at} streak={st?.days ?? 0}
+      tiers={tiers} plotPct={e?.craft.plot_bonus_pct ?? 0} streakPct={st?.step_pct ?? 0} cards={cards} tab={tab} setTab={setTab}
+      oldEnough={!!e?.old_enough} wheel={wheel} setWheel={setWheel} />
+  );
 
   return (
     <Page>
@@ -339,5 +350,156 @@ function Grid({ items, empty, to, cta }: { items: { id: string; view: React.Reac
         </motion.div>
       ))}
     </div>
+  );
+}
+
+// ---- the app: Play & Earn as a game screen -------------------------------------------------------------------
+const TONE_OF: Record<string, DiscTone> = { '#FFE14D': 'gold', '#34C3FF': 'azure', '#FF4D6D': 'crimson', '#3DDC97': 'emerald', '#FF9F1C': 'ember', '#7B5CFF': 'violet', '#FF4FD8': 'rose', '#FFB23F': 'gold' };
+const TAB_ICON: Record<Tab, typeof Brush> = { today: Flame, games: Gamepad2, create: Paintbrush, friends: Users, mine: Star };
+
+function AppEarn({ total, checks, resets, streak, tiers, plotPct, streakPct, cards, tab, setTab, oldEnough, wheel, setWheel }: {
+  total: number; checks: Task[]; resets?: string; streak: number; tiers: { min: number; ink: number }[]; plotPct: number; streakPct: number;
+  cards: Record<Exclude<Tab, 'mine'>, Card[]>; tab: Tab; setTab(t: Tab): void; oldEnough: boolean; wheel: boolean; setWheel(o: boolean): void;
+}) {
+  const nav = useNavigate();
+  const shown = useCountUp(total);
+  const done = checks.filter((c) => c.done).length;
+  const all = checks.length > 0 && done === checks.length;
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) setNow(Date.now()); }, 30_000); return () => clearInterval(t); }, []);
+  const left = resets ? Math.max(0, new Date(resets).getTime() - now) : 0;
+  const r = 40, circ = 2 * Math.PI * r;
+  return (
+    <Page>
+      <div className="lv-earn" data-testid="app-earn">
+        {/* today's Ink */}
+        <section className="lv-earnhero" data-testid="today-hero">
+          <span className="lv-earnhero-glow" aria-hidden />
+          <div className="relative flex items-center gap-4">
+            <div className="lv-earnring">
+              <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90" aria-hidden>
+                <circle cx="48" cy="48" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="9" />
+                <motion.circle cx="48" cy="48" r={r} fill="none" stroke="url(#ae-ring)" strokeWidth="9" strokeLinecap="round" strokeDasharray={circ}
+                  initial={{ strokeDashoffset: circ }} animate={{ strokeDashoffset: circ * (1 - done / Math.max(1, checks.length)) }} transition={{ duration: 1.3, ease: [0.2, 0.9, 0.3, 1] }} />
+                <defs><linearGradient id="ae-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3DDC97" /><stop offset="0.55" stopColor="#FFE14D" /><stop offset="1" stopColor="#FF9F1C" /></linearGradient></defs>
+              </svg>
+              <div className="absolute inset-0 grid place-items-center text-center">
+                <div><b className="tnum">{done}<span>/{checks.length}</span></b><small>{all ? 'all done' : 'tasks'}</small></div>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="lv-earnlabel">Ink earned today</div>
+              <div className="lv-earntotal tnum" data-testid="earned-today"><ResourceIcon r="ink" className="h-8 w-8" />{fmt(shown)}</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="lv-earnchip"><Clock className="h-3.5 w-3.5" />resets {Math.floor(left / 3600000)}h {Math.floor((left % 3600000) / 60000)}m</span>
+                {streak > 0 && <span className="lv-earnchip hot"><Flame className="h-3.5 w-3.5" />{streak}-day streak</span>}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* the daily tasks */}
+        <section className="lv-quests" data-testid="daily-tasks">
+          <div className="lv-quests-head">
+            <span className="font-display text-[17px] font-black">Daily tasks</span>
+            <span className="lv-questbar"><span style={{ width: `${(done / Math.max(1, checks.length)) * 100}%` }} /></span>
+            <span className="text-[12px] font-black text-white/60 tnum">{done}/{checks.length}</span>
+          </div>
+          <div className="grid gap-2">
+            {checks.map((c, i) => (
+              <motion.button key={c.label} className={cn('lv-quest', c.done && 'done')} onClick={() => { if (!c.done) { buzz('light'); c.go(); } }} disabled={c.done}
+                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 + i * 0.05, type: 'spring', stiffness: 380, damping: 30 }} whileTap={c.done ? undefined : { scale: 0.97 }}
+                data-testid={`task-${i}`}>
+                <Emblem tone={c.tone} size={40}><c.icon className="h-[18px] w-[18px]" /></Emblem>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate font-display text-[15px] font-black">{c.label}</span>
+                  <span className="flex items-center gap-1 text-[11.5px] font-bold text-white/55"><ResourceIcon r="ink" className="h-3 w-3" />{c.reward}</span>
+                </span>
+                {c.done ? <span className="lv-questcheck"><Check className="h-4 w-4" strokeWidth={3.2} /></span> : <span className="lv-questgo">Go</span>}
+              </motion.button>
+            ))}
+          </div>
+          {all && <div className="lv-quests-done">✨ Every task done today — the wheel, the word and the games reset in {Math.floor(left / 3600000)}h {Math.floor((left % 3600000) / 60000)}m.</div>}
+        </section>
+
+        {/* painting pays the most */}
+        <section className="lv-craft" data-testid="paint-earns">
+          <div className="flex items-start gap-3">
+            <div className="lv-craftart"><PaintAnim /></div>
+            <div className="min-w-0 flex-1">
+              <div className="lv-earnlabel !text-[#ffb3ea]">The big one</div>
+              <h2 className="font-display text-[20px] font-black leading-tight">Paint your plot,<br />earn Ink</h2>
+              <p className="mt-1 text-[12px] font-semibold text-white/60">The better and more original the art, the bigger the craft bonus.</p>
+            </div>
+          </div>
+          {tiers.length > 0 && (
+            <div className="lv-ladder" aria-label="Craft bonus by score">
+              {tiers.map((t, i) => (
+                <div key={t.min} className={cn('lv-rung', i === tiers.length - 1 && 'top')} style={{ ['--h' as string]: `${38 + (i / Math.max(1, tiers.length - 1)) * 62}%` }}>
+                  <span className="lv-rung-ink tnum"><ResourceIcon r="ink" className="h-3.5 w-3.5" />{fmt(t.ink)}</span>
+                  <span className="lv-rung-bar" />
+                  <span className="lv-rung-min tnum">{t.min}+</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {plotPct > 0 && <span className="lv-earnchip">+{plotPct}% per extra plot in a mural</span>}
+            {streakPct > 0 && <span className="lv-earnchip hot">+{streakPct}% per day in a row</span>}
+          </div>
+          <motion.button whileTap={{ scale: 0.97 }} onClick={() => { buzz('medium'); nav('/canvases'); }} className="lv-btn lv-rainbow mt-3 h-13 w-full text-[16px]" data-testid="paint-now"><Brush className="h-5 w-5" /> Paint my plot</motion.button>
+        </section>
+
+        {/* every way to earn */}
+        <div className="no-scrollbar -mx-4 mb-3 mt-1 overflow-x-auto px-4">
+          <div className="lv-seg2 lv-earntabs" role="tablist">
+            {TABS.map((t) => { const I = TAB_ICON[t.id]; return (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} className={cn(tab === t.id && 'on')} onClick={() => { buzz('light'); setTab(t.id); }} data-testid={`play-tab-${t.id}`}><I className="h-3.5 w-3.5" />{t.label}</button>
+            ); })}
+          </div>
+        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={tab} initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -18 }} transition={{ duration: 0.18 }}>
+            {tab === 'mine' ? <MyCreations /> : (
+              <>
+                <div className="grid grid-cols-2 gap-2.5" data-testid={`earn-cards-${tab}`}>
+                  {cards[tab].map((c, i) => <EarnTile key={c.key} c={c} i={i} />)}
+                </div>
+                {tab === 'games' && <div className="mt-5"><h2 className="mb-2 font-display text-[17px] font-black">Your plots’ minigames</h2><MinigameGrid /></div>}
+                {tab === 'today' && !oldEnough && <p className="mt-3 text-[11.5px] font-semibold text-white/45">Some rewards (check-ins, votes, Draw &amp; Guess, Duets, stamps) start paying after your account’s first day.</p>}
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      <DailyWheel open={wheel} onOpenChange={setWheel} />
+    </Page>
+  );
+}
+
+function EarnTile({ c, i }: { c: Card; i: number }) {
+  const tone = TONE_OF[c.color] ?? 'violet';
+  const body = (
+    <>
+      {c.status === 'ready' && <span className="lv-tile-ready" aria-hidden />}
+      <div className="flex items-start justify-between gap-1">
+        <Emblem tone={tone} size={42}><c.icon className="h-5 w-5" /></Emblem>
+        {c.status === 'ready' && <span className="lv-tag ready">Ready</span>}
+        {c.status === 'done' && <span className="lv-tag done"><Check className="h-3 w-3" strokeWidth={3} />Done</span>}
+      </div>
+      <div className="mt-2 font-display text-[14.5px] font-black leading-tight">{c.title}</div>
+      <p className="mt-0.5 line-clamp-2 text-[11.5px] font-semibold leading-snug text-white/55">{c.text}</p>
+      <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
+        {c.reward && <span className="lv-reward"><ResourceIcon r="ink" className="h-3 w-3" /><span className="truncate">{c.reward}</span></span>}
+        {!!c.today && <span className="lv-reward today tnum">+{fmt(c.today)} today</span>}
+      </div>
+    </>
+  );
+  const cls = cn('lv-earntile', `t-${tone}`);
+  return (
+    <motion.div initial={{ opacity: 0, y: 14, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: i * 0.035, type: 'spring', stiffness: 380, damping: 30 }} whileTap={{ scale: 0.96 }} className="flex">
+      {c.to ? <Link to={c.to} className={cls} onClick={() => buzz('light')} data-testid={`earn-${c.key}`}>{body}</Link>
+        : <button onClick={() => { buzz('light'); c.onClick?.(); }} className={cn(cls, 'text-left')} data-testid={`earn-${c.key}`}>{body}</button>}
+    </motion.div>
   );
 }

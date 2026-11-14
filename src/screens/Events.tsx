@@ -15,7 +15,7 @@ export default function Events() {
     <Page>
       <PageHeader eyebrow="World events" title="Events">Limited-time challenges for the whole map. Rewards are Pigments, XP and Gallery Tokens — never cash.</PageHeader>
       {q.isLoading ? <div className="flex justify-center py-16"><Spinner /></div> : !(q.data ?? []).length ? (
-        <Empty icon={<CalendarDays className="h-6 w-6" />} title="No events right now">The first world event is coming soon. Keep painting!</Empty>
+        <Empty icon={<CalendarDays className="h-6 w-6" />} title="No events right now">World events appear here when they’re on. Keep painting!</Empty>
       ) : (
         <div className="grid gap-4">
           {(q.data ?? []).map((e: any) => (

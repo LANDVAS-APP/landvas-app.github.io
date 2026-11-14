@@ -28,7 +28,7 @@ export function TermsUpdate() {
   };
   return (
     <Dialog open={open} locked onOpenChange={() => {}} title="📜 Updated Terms & Privacy Policy"
-      description="LANDVAS is getting ready for the App Store and Google Play, so our policies are now final.">
+      description="We’ve updated our Terms of Service and Privacy Policy. Please take a look and accept to keep playing.">
       <div className="grid gap-3 text-sm" data-testid="terms-update">
         <ul className="grid gap-1.5 text-muted [&_b]:text-fg">
           <li>• LANDVAS is run by <b>LANDVAS LLC</b> (Utah, USA). Contact: <b>contact@landvas.app</b>.</li>

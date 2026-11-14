@@ -1,5 +1,6 @@
 // The rarity guide: every rarity in plain words — what it earns, what makes it special, and how to get one.
 // Every rate, odd and ability number comes live from the game (game_guide), so the page never drifts from the game.
+import { NATIVE_APP } from '../app/buildFlags';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../backend/api';
@@ -78,7 +79,7 @@ export default function Legend() {
       <PageHeader eyebrow="The guide" title="📖 Rarities">Every plot you claim rolls a rarity the moment it’s yours. Here’s what each one does for you, and how to get it.</PageHeader>
 
       <Link to="/guide" className="glass mb-6 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold" data-testid="legend-to-guide">
-        <span>📘 The full guide<span className="block text-xs font-semibold text-muted">Live rates, Ink per activity, what players earn, and LANDVAS vs Atlas Earth & TerraMine</span></span><span className="text-muted">›</span>
+        <span>📘 The full guide<span className="block text-xs font-semibold text-muted">{NATIVE_APP ? 'Live rates, Ink per activity and what players earn' : 'Live rates, Ink per activity, what players earn, and LANDVAS vs Atlas Earth & TerraMine'}</span></span><span className="text-muted">›</span>
       </Link>
       <div className="-mt-3 mb-6 grid grid-cols-2 gap-2">
         <Link to="/rankings/rarities" className="glass rounded-2xl px-3 py-2.5 text-sm font-bold" data-testid="legend-to-rankings">🏆 Rarity rankings</Link>
