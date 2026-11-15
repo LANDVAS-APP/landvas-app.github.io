@@ -27,7 +27,8 @@ describe('USD rent and boost', () => {
   });
 
   it('publishes the Atlas Earth / TerraMine rate ladder plus Mythic', async () => {
-    const r = await db.sql(`select id, usd_per_second::float8 as v, weight from plot_rarities order by sort`);
+    // (the classic table; the Ultra Expansion's rarities sort after it and are checked in 210)
+    const r = await db.sql(`select id, usd_per_second::float8 as v, weight from plot_rarities where sort <= 30 order by sort`);
     expect(r.map((x: any) => x.id)).toEqual(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'solar', 'lunar', 'comet', 'ancient', 'prismatic', 'genesis', 'chaos', 'phoenix', 'crown',
       'mirror', 'singularity', 'crown_state', 'crown_country', 'kraken', 'gemini', 'enchanted']);
     for (const x of r) expect(x.v).toBeCloseTo(x.id === 'enchanted' ? RATES.common : RATES[x.id], 20);

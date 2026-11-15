@@ -201,7 +201,9 @@ describe('reversing what the Luck plots earned', () => {
     expect(r.owed).toBe(50);
     const c = await plot(C.gx, C.gy);
     expect(c.owner_id).toBeNull();
-    expect(c.rarity).not.toBe('epic'); // its Luck rarity went with it
+    // its Luck rarity went with it: back to the cell's own roll (which, 14% of the time, happens to be an Epic too)
+    const nat = (await db.sql(`select private.plot_rarity_for($1, $2) r`, [C.gx, C.gy]))[0].r;
+    expect(c.rarity).toBe(nat.startsWith('crown') ? 'common' : nat);
     const usd1 = Number((await db.sql(`select balance_usd from rent_accounts where player_id = $1`, [cheat]))[0].balance_usd);
     expect(usd1).toBeLessThan(usd0);
     expect(r.reversals).toHaveLength(1);

@@ -19,7 +19,7 @@ import { cn, fmt } from '../lib/utils';
 import { buzz, isNative } from '../native/native';
 import { RarityBadge } from '../plot/RarityBadge';
 import { cellCenter } from '../shared/grid';
-import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { RARITY_ORDER, isFusion, isPrimordial, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { CurrencyIcon, GameDisc, PlayerAvatar, ResourceIcon } from '../ui';
 import { mapHandle } from './mapHandle';
@@ -179,7 +179,7 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
             <button className="rounded-xl px-3 py-1.5 text-left text-xs font-bold text-white/70" onClick={() => setLegend((l) => !l)} aria-expanded={legend}>{legend ? 'Hide' : 'Show'} the legend</button>
             {legend && (
               <div className="grid gap-1.5 px-1 pb-1 text-[11px]">
-                {RARITY_ORDER.map((r) => <div key={r} className="flex items-center justify-between gap-2"><RarityBadge r={r} small /><span className="tnum text-white/60">{formatRate(rarityInfo(r).usd_per_second)}</span></div>)}
+                {RARITY_ORDER.filter((r) => !isFusion(r) && !isPrimordial(r)).map((r) => <div key={r} className="flex items-center justify-between gap-2"><RarityBadge r={r} small /><span className="tnum text-white/60">{formatRate(rarityInfo(r).usd_per_second)}</span></div>)}
                 {(Object.keys(PLOT_TYPES) as (keyof typeof PLOT_TYPES)[]).map((t) => (
                   <div key={t} className="flex items-center gap-2"><span className="h-3 w-3 rounded" style={{ background: `linear-gradient(135deg, ${PLOT_TYPES[t].a}, ${PLOT_TYPES[t].b})` }} /><b>{PLOT_TYPES[t].name}</b><span className="text-white/50">{PLOT_TYPES[t].game}</span></div>
                 ))}

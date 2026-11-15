@@ -291,6 +291,13 @@ function FeedRow({ e }: { e: FeedEvent }) {
         : <>{who} fought the <b className="text-[#C9A0FF]">🐉 Leviathan</b></>;
       break;
     }
+    case 'primordial': {
+      const d = e.data as Record<string, any>;
+      const i = rarityInfo(d.rarity);
+      icon = <span className="text-[12px] leading-none">🌌</span>;
+      body = <>{who} {d.how === 'fused' ? 'fused three ultras into' : d.how === 'hatched' ? 'watched a Chrysalis hatch into' : 'rolled'} a Primordial: <b style={{ color: i.glow }}>{i.emoji} {i.name}</b>{d.place ? <span className="text-muted"> in {d.place}</span> : null} 🌌</>;
+      break;
+    }
     case 'crown': {
       const d = e.data as Record<string, any>;
       const tier = d.tier === 'crown_country' ? 'Country' : d.tier === 'crown_state' ? 'State' : 'City';

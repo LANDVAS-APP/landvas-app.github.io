@@ -3,7 +3,7 @@
 // into the trace. It never draws: the roll on screen and its clip (draw.ts) both show whatever the trace says for any
 // time. Pure logic: the live roll drives it with the clock, and a past plot's roll can be re-created by driving it
 // with a pretend clock.
-import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
+import { ROLL_ORDER as RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
 import { PLOT_TYPES } from '../../map/plotStyle';
 import type { BurstOpts } from '../fx';
 import { celebrate } from '../celebrate';

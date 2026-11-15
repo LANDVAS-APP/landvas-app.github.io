@@ -5,7 +5,7 @@
 // the premium-reel days (no `look`) still play back their minigame strip and rarity materials.
 import { kindInfo } from '../../enchant/kinds';
 import { PLOT_TYPES } from '../../map/plotStyle';
-import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
+import { ROLL_ORDER as RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../../shared/rarity';
 import { Assets, BODY, DISPLAY, EMOJI_FONT, GAME_EMOJI } from './assets';
 import type { Layout } from './layout';
 import { bezier, clamp, clamp01, easeOut, easeOutCubic, frames, framesAt, inkEase, lerp, mix, mod, rgba, rng, shade, smooth, spring } from './math';

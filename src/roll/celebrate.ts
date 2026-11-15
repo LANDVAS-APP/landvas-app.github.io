@@ -3,7 +3,7 @@
 // screen and spits it back out… All of it is particles on the roll's stage (src/roll/stage), recorded with the roll so
 // a clip replays them exactly, plus, for a few, a screen effect (`overlay`) the roll shows behind them.
 import type { BurstOpts } from './fx';
-import type { RarityId } from '../shared/rarity';
+import { isPrimordial, rarityInfo, type RarityId } from '../shared/rarity';
 
 type At = { x: number; y: number; w: number };
 /** `w`, `h`: the stage's size; `later` runs a step that many ms after the reveal */
@@ -50,12 +50,27 @@ const SHOWS: Partial<Record<RarityId, { overlay?: Overlay; run(x: Ctx): void }>>
   } },
 };
 
+// the Ultra Expansion: a new ultra or a fusion bursts in its colours; a Primordial shakes the whole stage
+const expansion = (r: RarityId): { overlay?: Overlay; run(x: Ctx): void } | undefined => {
+  const i = rarityInfo(r);
+  if (i.id !== r || !(i.tier === 'ultra' || i.tier === 'fusion' || i.tier === 'primordial')) return undefined;
+  const em = i.emoji ?? '✦', cols = [i.color, i.glow, '#fff'];
+  if (isPrimordial(r)) return { overlay: 'void', run: (x) => {
+    ring(x, cols, 280, Math.max(x.w, x.h) * 0.75, 20);
+    x.later(350, () => ring(x, ['#fff', i.glow], 200, Math.max(x.w, x.h) * 0.5, 14));
+    x.later(700, () => { pop(x, [em, em, '✨', '🌌'], 34, 22); sparks(x, cols, 280, 26); });
+    x.later(1000, () => rain(x, [em, '✨', '⭐'], 60, 3.4, 2.4));
+    x.later(1400, () => { for (let k = 0; k < 6; k++) streaks(x, cols, 10, (k / 6) * Math.PI * 2, { x: x.c.x, y: x.c.y }, [10, 10], 20); });
+  } };
+  return { overlay: i.tier === 'fusion' ? 'night' : null, run: (x) => { pop(x, [em, em, '✨'], 16, 15); x.later(220, () => sparks(x, cols, 140, 18)); if (i.tier === 'fusion') x.later(450, () => ring(x, cols, 160, 280, 11)); } };
+};
+
 /** run a rarity's celebration (if it has one); returns the screen effect to show behind it */
 export function celebrate(r: RarityId, shiny: boolean, ctx: Ctx): Overlay {
-  const s = SHOWS[r];
+  const s = SHOWS[r] ?? expansion(r);
   s?.run(ctx);
   if (shiny) ctx.later(300, () => rain(ctx, ['✨', '💖', '✨'], 26, 3));
   return s?.overlay ?? null;
 }
 /** how long a rarity's celebration holds the stage before the buttons fade in (ms) */
-export const celebrateDelay = (r: RarityId) => (r === 'singularity' ? 900 : r === 'kraken' || r === 'genesis' ? 550 : SHOWS[r] ? 380 : 380);
+export const celebrateDelay = (r: RarityId) => (isPrimordial(r) ? 1500 : r === 'singularity' ? 900 : r === 'kraken' || r === 'genesis' ? 550 : SHOWS[r] ? 380 : 380);

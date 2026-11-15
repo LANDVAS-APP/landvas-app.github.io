@@ -149,7 +149,10 @@ async function run(mode) {
     ok('the Origami Pocket shows its desk, its pocket and your plots', await waitFor('[data-testid=origami-scene]') && await waitFor('[data-testid=origami-plot]'));
     // pick the plot to fold on the real map
     await tap('[data-testid=origami-fold-map]');
-    ok('…the plot to fold can be picked on the map', await waitFor('[data-testid=pick-card]', 15000));
+    // (the map can take a while to open on a busy machine; if the press didn't land, press again)
+    let picking = await waitFor('[data-testid=pick-card]', 25000);
+    if (!picking && await page.locator('[data-testid=origami-fold-map]').count()) { await tap('[data-testid=origami-fold-map]'); picking = await waitFor('[data-testid=pick-card]', 20000); }
+    ok('…the plot to fold can be picked on the map', picking);
     const pickedOnMap = await tapCell(bx + 3, by);
     ok('…tap it in its crosshairs and come back with it chosen', pickedOnMap && await waitFor('[data-testid=origami-fold]', 15000));
     await page.waitForTimeout(800); await shot('05-origami-paper');

@@ -185,7 +185,7 @@ const FEED_KEYS: { k: string; label: string; hint: string; acts: Act[] }[] = [
   { k: 'feed_account', label: 'Account', hint: 'Joining LANDVAS, inviting friends', acts: [
     { k: 'fa_join', label: 'Joining LANDVAS' }, { k: 'fa_referral', label: 'Inviting a friend' }] },
   { k: 'feed_claims', label: 'Plots & Crowns', hint: 'Plots you claim (and their rarity), Crowns, planet plots', acts: [
-    { k: 'fa_claim', label: 'Claiming a plot' }, { k: 'fa_shiny', label: 'Claiming a ✨ shiny plot' }, { k: 'fa_crown', label: 'Claiming a Crown' }, { k: 'fa_enchant', label: 'Enchantments (discoveries, hybrids, Hope…)' },
+    { k: 'fa_claim', label: 'Claiming a plot' }, { k: 'fa_shiny', label: 'Claiming a ✨ shiny plot' }, { k: 'fa_crown', label: 'Claiming a Crown' }, { k: 'fa_primordial', label: 'Getting a 🌌 Primordial' }, { k: 'fa_enchant', label: 'Enchantments (discoveries, hybrids, Hope…)' },
     { k: 'fa_planet_plot', label: 'Claiming a planet plot' }, { k: 'fa_core', label: 'Reaching a planet’s core' }] },
   { k: 'feed_badges', label: 'Badges', hint: 'Badges you earn', acts: [{ k: 'fa_achievement', label: 'Earning a badge' }] },
   { k: 'feed_games', label: 'Game wins', hint: 'Minigames, PvP, arcade, challenges, levels', acts: [

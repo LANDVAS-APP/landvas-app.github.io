@@ -3,7 +3,9 @@
 // iridescent crystal — and the ultras: a blazing sun, a crescent moon, a comet, a sandstone temple, prism facets and a
 // spiral galaxy. A shiny plot shimmers.
 import { useId } from 'react';
-import { rarityInfo, type RarityId } from '../shared/rarity';
+import { FUSIONS, NEW_ULTRAS, PRIMORDIALS, isPrimordial, rarityInfo, type RarityId } from '../shared/rarity';
+
+const EXPANSION = new Set<string>([...NEW_ULTRAS, ...FUSIONS, ...PRIMORDIALS]);
 import { animateWhenVisible } from '../lib/inView';
 
 const SLAB: Record<string, [string, string]> = {
@@ -19,7 +21,7 @@ const sparkle = (x: number, y: number, s: number) => `M${x} ${y - s} L${x + s * 
 export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: RarityId; shiny?: boolean; size?: number | string; className?: string }) {
   const id = useId().replace(/:/g, '');
   const info = rarityInfo(rarity);
-  const [a, b] = SLAB[rarity] ?? SLAB.common;
+  const [a, b] = SLAB[rarity] ?? (EXPANSION.has(rarity) ? [info.color, '#0B0A16'] as [string, string] : SLAB.common);
   const stake = ['common', 'uncommon', 'rare', 'epic', 'legendary'].includes(rarity);
   return (
     <svg ref={shiny ? animateWhenVisible : undefined} viewBox="0 0 100 100" width={size} height={size} className={className} aria-label={`${shiny ? 'Shiny ' : ''}${info.name} Base plot`} role="img">
@@ -115,6 +117,12 @@ export function BasePlotArt({ rarity, shiny, size = 40, className }: { rarity: R
           {[30, 50, 70].map((x, i) => <circle key={x} cx={x} cy="77" r="3.2" fill={['#22E3FF', '#FF3D7F', '#3DDC97'][i]} />)}
           {rarity === 'crown_country' ? <><circle cx="50" cy="14" r="6" fill="#FFD23F" stroke="#B8860B" strokeWidth="2" /><path d="M50 4 V10 M47 7 H53" stroke="#B8860B" strokeWidth="2.5" /></> : <circle cx="50" cy="18" r="4.5" fill="#F5D0FE" />}
           {[[14, 32], [42, 22], [58, 22], [86, 32]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r="3.2" fill="#fff" />)}
+        </>}
+        {EXPANSION.has(rarity) && <>
+          {isPrimordial(rarity) && Array.from({ length: 18 }, (_, i) => { const t = (i / 18) * Math.PI * 2; return <path key={i} d={`M50 50 L${50 + Math.cos(t) * 72} ${50 + Math.sin(t) * 72} L${50 + Math.cos(t + 0.09) * 72} ${50 + Math.sin(t + 0.09) * 72}Z`} fill={info.glow} opacity="0.28" />; })}
+          <circle cx="50" cy="50" r="33" fill="none" stroke={info.glow} strokeWidth="4" opacity="0.85" />
+          {(isPrimordial(rarity) || (FUSIONS as readonly string[]).includes(rarity)) && <circle cx="50" cy="50" r="41" fill="none" stroke={info.glow} strokeWidth="2" opacity="0.6" />}
+          <text x="50" y="52" fontSize="40" textAnchor="middle" dominantBaseline="middle">{info.emoji}</text>
         </>}
         {rarity === 'crown' && <>
           {Array.from({ length: 12 }, (_, i) => { const t = (i / 12) * Math.PI * 2; return <path key={i} d={`M50 52 L${50 + Math.cos(t) * 70} ${52 + Math.sin(t) * 70} L${50 + Math.cos(t + 0.12) * 70} ${52 + Math.sin(t + 0.12) * 70}Z`} fill="#FFD23F" opacity="0.18" />; })}

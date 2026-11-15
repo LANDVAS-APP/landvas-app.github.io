@@ -291,6 +291,8 @@ export function material(r: RarityId, col: string): { stops: [number, string][];
   if (r === 'prismatic' || r === 'genesis' || r === 'chaos') return { stops: rainbow, h: true };
   if (r === 'mythic') return { stops: [[0, '#FFE1F1'], [0.4, '#FF5FAE'], [0.7, '#E0218A'], [1, '#B66BFF']] };
   if (r === 'singularity') return { stops: [[0, '#F7FFE0'], [0.45, '#B4FF39'], [0.75, '#6BD400'], [1, '#FDE047']] };
+  // a Primordial: its glow, white-hot in the middle
+  if (tierOf(r) === 6) return { stops: [[0, '#FFFFFF'], [0.35, col], [0.65, shade(col, -0.3)], [1, '#FFFFFF']], h: true };
   if (r === 'crown_state') return { stops: [[0, '#FBE7FF'], [0.4, '#C084FC'], [0.7, '#9333EA'], [1, '#FFD23F']] };
   if (r === 'crown_country') return { stops: [[0, '#FFE4E6'], [0.4, '#F43F5E'], [0.7, '#BE123C'], [1, '#FFD23F']] };
   return { stops: [[0, shade(col, 0.62)], [0.45, shade(col, 0.12)], [0.7, col], [1, shade(col, -0.32)]] };

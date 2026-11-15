@@ -1,6 +1,6 @@
 // Ultra sets: every ultra rarity has its own explorer look (hat, outfit, held relic, aura, trail) and its own
 // Inkborn wear. Pieces are ids starting with "x" (xkraken, xcity…), unlocked by getting a plot of that rarity.
-import type { RarityId } from '../shared/rarity';
+import { isPrimordial, type RarityId } from '../shared/rarity';
 
 export type UltraTheme = { set: string; rarity: RarityId; name: string; emoji: string; a: string; b: string; c: string };
 
@@ -21,11 +21,22 @@ export const ULTRA_THEMES: UltraTheme[] = [
   T('xcountry', 'crown_country', 'Country Crown', '👑', '#F43F5E', '#7F1D1D', '#FFE4E6'),
   T('xgenesis', 'genesis', 'Genesis', '🌌', '#FFFFFF', '#4C1D95', '#FFD6FF'),
   T('xsingularity', 'singularity', 'Singularity', '🕳️', '#B4FF39', '#0A0A0A', '#F2FFD6'),
+  // the Ultra Expansion
+  T('xvolcano', 'volcano', 'Volcano', '🌋', '#F97316', '#7C2D12', '#FED7AA'),
+  T('xworld_tree', 'world_tree', 'World Tree', '🌳', '#22C55E', '#14532D', '#BBF7D0'),
+  T('xphantom', 'phantom', 'Phantom', '👻', '#A5B4FC', '#312E81', '#EEF2FF'),
+  T('xwanderer', 'wanderer', 'Wanderer', '🦄', '#F0ABFC', '#86198F', '#FAE8FF'),
+  T('xlodestone', 'lodestone', 'Lodestone', '🧲', '#EF4444', '#7F1D1D', '#FECACA'),
+  T('xleyline', 'leyline', 'Leyline', '⚡', '#38BDF8', '#0C4A6E', '#E0F2FE'),
+  T('xglacier', 'glacier', 'Glacier', '🧊', '#67E8F9', '#155E75', '#ECFEFF'),
+  T('xmycelium', 'mycelium', 'Mycelium', '🍄', '#A3E635', '#365314', '#ECFCCB'),
+  T('xhive', 'hive', 'Hive', '🐝', '#FACC15', '#713F12', '#FEF9C3'),
+  T('xprimordial', 'heart_world', 'Primordial', '🌌', '#FDE68A', '#1E1B4B', '#FFFFFF'),
 ];
 const BY_SET = Object.fromEntries(ULTRA_THEMES.map((t) => [t.set, t]));
 const BY_RARITY = Object.fromEntries(ULTRA_THEMES.map((t) => [t.rarity, t]));
 export const ultraTheme = (id: string | null | undefined): UltraTheme | undefined => (id ? BY_SET[id] : undefined);
-export const ultraOfRarity = (r: string | null | undefined): UltraTheme | undefined => (r ? BY_RARITY[r] : undefined);
+export const ultraOfRarity = (r: string | null | undefined): UltraTheme | undefined => (r ? BY_RARITY[r] ?? (isPrimordial(r) ? BY_SET.xprimordial : undefined) : undefined);
 
 const crownPath = (spikes: number, y0: number, top: number, w = 22, x0 = 12) => {
   // a crown band from x0 to x0+w at y0 with `spikes` points reaching `top`
@@ -59,6 +70,8 @@ export function ultraHat(id: string, k: string): { defs: string; svg: string } {
     case 'xcountry': return { defs: `${grad}<linearGradient id="${g}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4B8"/><stop offset="1" stop-color="#D99A0B"/></linearGradient>`, svg: glow(`<path d="M11.5 13 Q11 2 23 1 Q35 2 34.5 13Z" fill="url(#${g})"/><path d="M11.5 13 L11.5 6 Q17 -2 23 -4 Q29 -2 34.5 6 L34.5 13" fill="none" stroke="url(#${g}g)" stroke-width="1.6"/><path d="M23 -4 L23 13 M14 10 Q23 -6 32 10" fill="none" stroke="url(#${g}g)" stroke-width="1.2"/><rect x="11" y="10.8" width="24" height="2.6" rx="1" fill="url(#${g}g)"/><path d="M23 -10 L23 -4 M20.5 -7.5 L25.5 -7.5" stroke="url(#${g}g)" stroke-width="1.6" stroke-linecap="round"/>${[14, 18.5, 23, 27.5, 32].map((x, i) => `<circle cx="${x}" cy="12.1" r="0.8" fill="${['#22E3FF', '#3DDC97', '#fff', '#3DDC97', '#22E3FF'][i]}"/>`).join('')}`) };
     case 'xgenesis': return { defs: grad, svg: `<ellipse class="halo" cx="23" cy="1" rx="11" ry="3" fill="none" stroke="#fff" stroke-width="1.6" style="filter:drop-shadow(0 0 3px ${t.c})"/><g class="spin-slow" style="transform-origin:23px 1px">${[0, 120, 240].map((r, i) => `<circle cx="${23 + Math.cos((r * Math.PI) / 180) * 11}" cy="${1 + Math.sin((r * Math.PI) / 180) * 3}" r="${1.4 - i * 0.2}" fill="${['#FFD6FF', '#9EE7FF', '#FFE14D'][i]}"/>`).join('')}</g><circle cx="23" cy="-4" r="2" fill="#fff" style="filter:drop-shadow(0 0 3px #FFD6FF)"/>` };
     case 'xsingularity': return { defs: `<radialGradient id="${g}"><stop offset="0.45" stop-color="#000"/><stop offset="0.7" stop-color="${t.a}"/><stop offset="1" stop-color="${t.a}" stop-opacity="0"/></radialGradient>`, svg: `<g class="spin-slow" style="transform-origin:23px 0px"><ellipse cx="23" cy="0" rx="13" ry="3.2" fill="none" stroke="${t.a}" stroke-width="1.4" opacity="0.9"/><ellipse cx="23" cy="0" rx="9" ry="2.2" fill="none" stroke="${t.c}" stroke-width="0.7" opacity="0.8"/></g><circle cx="23" cy="0" r="5.4" fill="url(#${g})"/><circle cx="23" cy="0" r="3" fill="#000"/>` };
+    // the newer sets: a circlet in the set's colours, its emblem as a crest
+    default: return { defs: grad, svg: glow(`<path d="M12 13 Q23 6 34 13 L34 10.5 Q23 3.5 12 10.5Z" fill="url(#${g})" stroke="${t.b}" stroke-width="0.6"/><circle cx="23" cy="1.5" r="6.2" fill="${t.b}" opacity="0.55"/><text x="23" y="4.6" font-size="9" text-anchor="middle">${t.emoji}</text>`) };
   }
   return { defs: '', svg: '' };
 }

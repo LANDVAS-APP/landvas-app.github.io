@@ -20,7 +20,10 @@ import { formatRate } from '../shared/rent';
 import { LandMosaic } from '../land/LandMosaic';
 import { FriendButton } from '../social/FriendButton';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
-import { ultraOfRarity } from '../explorer/ultra';
+import { ULTRA_THEMES, ultraOfRarity } from '../explorer/ultra';
+
+/** every rarity with its own explorer set (the Primordials share one) */
+const SET_RARITIES = ULTRA_THEMES.map((t) => t.rarity);
 import { BadgeIcon, tierOf } from '../screens/BadgeIcon';
 import type { PlayerLand } from '../backend/types';
 import { ProfilePlaces } from './Places';
@@ -178,10 +181,10 @@ export default function ProfileScreen() {
       <section className="glass mt-3 rounded-3xl p-4" data-testid="profile-ultras">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="font-display text-base font-black">Ultra sets</h2>
-          <span className="text-xs text-muted tnum"><b className="text-fg">{sc.ultra_sets.length}</b> / {ULTRA.length}</span>
+          <span className="text-xs text-muted tnum"><b className="text-fg">{sc.ultra_sets.length}</b> / {SET_RARITIES.length}</span>
         </div>
         <div className="grid grid-cols-5 gap-2 sm:grid-cols-8">
-          {ULTRA.map((r, i) => { const t = ultraOfRarity(r)!; const has = sc.ultra_sets.includes(r); return (
+          {SET_RARITIES.map((r, i) => { const t = ultraOfRarity(r)!; const has = sc.ultra_sets.includes(r); return (
             <motion.div key={r} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25 + i * 0.025 }}
               title={has ? `${t.name} set` : `${t.name}: not rolled yet`} data-testid={`ultra-${r}`} data-has={has || undefined}
               className={cn('relative grid aspect-square place-items-center rounded-2xl text-xl', has ? 'lv-ultra-lit' : 'bg-bg-2/60 opacity-45 grayscale')}

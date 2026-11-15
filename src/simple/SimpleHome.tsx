@@ -21,7 +21,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { KIND_LABEL } from '../plot/mergeKind';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { BoostButton, LiveUsd, WalletDialog, useRaritySync, useRent } from '../rent/RentHud';
-import { RARITY_ORDER, isUltra, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
+import { RARITY_ORDER, isFusion, isPrimordial, isUltra, rarityInfo, rarityOdds, rarities, type RarityId } from '../shared/rarity';
 import { useQuickRoll } from './useQuickRoll';
 import { StreakChip, StreakDialog, useDaily, useStreakPrompt } from '../daily/Streak';
 import { CollectionCard, CollectionDialog } from '../daily/Collection';
@@ -126,7 +126,7 @@ export default function SimpleHome() {
 
       {/* what you can roll */}
       <div className="grid grid-cols-3 gap-1.5" aria-label="Rarities you can roll" data-testid="simple-odds">
-        {RARITY_ORDER.map((id) => {
+        {RARITY_ORDER.filter((id) => !isFusion(id) && !isPrimordial(id)).map((id) => {
           const r = rarityInfo(id);
           const ultra = isUltra(id);
           return (
@@ -136,6 +136,10 @@ export default function SimpleHome() {
             </div>
           );
         })}
+        <Link to="/primordials" className="col-span-3 rounded-2xl border border-[#FDE68A]/30 bg-[linear-gradient(120deg,rgba(253,230,138,0.12),rgba(164,92,255,0.12))] px-2 py-1.5 text-center" data-testid="simple-odds-primordials">
+          <div className="truncate text-[11px] font-black uppercase text-[#FDE68A]">🌌 Primordials — above every ultra</div>
+          <div className="text-[10px] font-semibold text-white/50 tnum">1 in {Math.round(1_000_000_000 / Math.max(1, rarities().reduce((s, x) => s + (Number(x.ppb) || 0), 0))).toLocaleString()} · 19 of them</div>
+        </Link>
       </div>
       <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link> · <Link to="/guide" className="font-bold text-white/70 underline" data-testid="simple-guide">The full guide →</Link></p>
 

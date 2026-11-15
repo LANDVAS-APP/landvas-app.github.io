@@ -37,6 +37,7 @@ import type { RarityId } from '../shared/rarity';
 import { PlotKindControl, PlotKindDialog } from '../inkborn/PlotKindPicker';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 import { PlotEnchant } from '../enchant/PlotEnchant';
+import { PlotPowerCard } from '../rarity/PlotPowerCard';
 import { buzz, isNative } from '../native/native';
 import { PlotWonders } from '../enchant/PlotWonders';
 const NATIVE = isNative();
@@ -109,6 +110,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
         </div>
       )}
       {d && d.rarity === 'enchanted' && <PlotEnchant gx={d.gx} gy={d.gy} />}
+      {d && d.rarity && d.rarity !== 'enchanted' && <PlotPowerCard gx={d.gx} gy={d.gy} rarity={d.rarity} mine={!!d.is_mine} />}
       {d && d.owned && NATIVE && <OwnedHero d={d} />}
       {d && (d.owned || d.owner) && <PlotWonders gx={d.gx} gy={d.gy} plotType={d.plot_type} />}
       {d && d.owned && (

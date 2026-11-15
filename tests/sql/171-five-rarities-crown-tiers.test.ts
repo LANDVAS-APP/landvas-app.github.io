@@ -23,9 +23,9 @@ describe('the rarity table', () => {
     const r = Object.fromEntries((await db.sql(`select id, ppm, name from plot_rarities`)).map((x: any) => [x.id, x]));
     expect(r.singularity.ppm).toBe(1);
     for (const id of ['phoenix', 'kraken', 'gemini', 'mirror']) expect(r[id].ppm).toBeGreaterThan(0);
-    expect(r.eclipse).toBeUndefined(); expect(r.vampire).toBeUndefined(); expect(r.dragon).toBeUndefined();
+    expect(r.eclipse?.ppm ?? 0).toBe(0); /* (the old Eclipse is gone; the name came back as a fusion that can't be rolled) */ expect(r.vampire).toBeUndefined(); expect(r.dragon).toBeUndefined();
     expect(r.crown.name).toBe('City Crown'); expect(r.crown_state.name).toBe('State Crown'); expect(r.crown_country.name).toBe('Country Crown');
-    expect(Object.keys(r).length).toBe(22); // + Enchanted (an enchantment in place of a rarity)
+    expect(Object.keys(r).length).toBe(22 + 9 + 9 + 19); // + Enchanted (an enchantment in place of a rarity), + the Ultra Expansion: 9 ultras, 9 fusions, 19 Primordials
   });
   it('the collection is an album now: owning every type adds nothing', async () => {
     const types = ['graphite', 'pigment', 'mosaic', 'prism', 'fresco', 'bloom', 'neon', 'ember'];

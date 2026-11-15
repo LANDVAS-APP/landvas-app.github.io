@@ -3,7 +3,7 @@ import { Director, recreate } from '../../src/roll/stage/director';
 import { layoutFor } from '../../src/roll/stage/layout';
 import { HOLD, PICK_MONTAGE, clipAt, clipTimeline, reelPos } from '../../src/roll/stage/trace';
 import { inkSplash } from '../../src/roll/stage/splash';
-import { RARITY_ORDER, type RarityId } from '../../src/shared/rarity';
+import { ROLL_ORDER as RARITY_ORDER, type RarityId } from '../../src/shared/rarity'; // (the reel spins through what can be rolled)
 
 const L = layoutFor(390, 844);
 const mod = (n: number, m: number) => ((n % m) + m) % m;

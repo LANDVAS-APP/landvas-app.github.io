@@ -235,7 +235,17 @@ const MESSAGES: Record<string, string> = {
   'not_friends:wish': 'Wishes can only be given to friends.',
   // 🥚🔭🦢🔥🎭🃏✍️ the six new enchantments
   hatch_first: 'Your Cuckoo Egg needs to hatch first — choose what it becomes in the Grimoire.', bad_kind: 'Pick one of the six.',
-  not_your_plot: 'That isn’t your plot.', plot_taken: 'Someone already owns that spot.', already_today: 'Already done today — come back tomorrow.',
+  not_your_plot: 'That isn’t your plot.',
+  // the Ultra Expansion
+  no_power: 'That plot has no power to use.', nothing_yet: 'Nothing gathered yet — come back later.', invalid_rarity: 'Pick a rarity it can show.',
+  already_this_week: 'Already done this week — it comes back next week.', already_month: 'Already done this month — it comes back next month.',
+  invalid_rule: 'Pick one of the rules.', gate_closed: 'The Void Gate is closed — it opens in the evening there.',
+  pick_five: 'Pick five different plots.', same_rarity: 'All five need to be the same rarity.', cannot_transmute: 'Only Common to Legendary plots can be transmuted.',
+  cannot_roll: 'Only Common to Legendary plots can be rolled.', invalid_tz: 'That time zone isn’t right.', tz_locked: 'Your time zone is set — it can change once a week.',
+  no_tz: 'Set your time zone first.', not_1111: 'It isn’t 11:11 for you — wishes only come at 11:11.', already_wished: 'You’ve made this 11:11’s wish.',
+  invalid_wish: 'Pick a wish.', gone: 'Too late — that star is gone.', caught_enough: 'You’ve caught all the stars you can from this shower.',
+  pick_two_or_three: 'Pick two ultras to fuse (or three for a Primordial).', not_an_ultra: 'Only ultras can be fused (not Crowns, fusions or Primordials).',
+  no_recipe: 'Those two don’t fuse — check the recipe book.', plot_taken: 'Someone already owns that spot.', already_today: 'Already done today — come back tomorrow.',
   no_looks: 'Your glass needs a rest — a look comes back every few hours.', already_sighted: 'You’ve already looked there — claim it before the reading fades.',
   out_of_range: 'Too far away — get closer, or look from near one of your plots.', already_second: 'You’ve already taken a second reading of that one.',
   no_folds: 'No folds left — one comes back each day.', pocket_full: 'Your pocket is full — unfold a plot first.', already_folded: 'That plot is already folded.',

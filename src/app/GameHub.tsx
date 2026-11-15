@@ -31,10 +31,11 @@ import { Z_PLOT, cellCenter } from '../shared/grid';
 import { UltraTracker } from '../ultra/UltraTracker';
 import { PlotWorlds } from '../play/PlotWorlds';
 import { activeBoost, fullClearInk } from '../play/rates';
-import { Clapperboard, Footprints } from 'lucide-react';
+import { Atom, Clapperboard, Footprints } from 'lucide-react';
 import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
 import { NATIVE_APP } from './buildFlags';
+import { FirstLightCard } from '../rarity/FirstLight';
 
 type Card = { to: string; title: string; sub: string; icon: LucideIcon; tone: DiscTone };
 const CARDS: Card[] = [
@@ -53,11 +54,11 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/inkborn': PawPrint, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen, '/space': Rocket, '/space/play/asteroids': Zap,
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/me': Smile, '/achievements': Award, '/explorer': Compass,
-  '/grimoire': BookOpen, '/clips': Clapperboard, '/royalty': Crown, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
+  '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
 };
 const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold' };
 const YOU = { to: '/me', label: 'You', pages: [
-  { to: '/me', label: 'Profile' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/grimoire', label: 'Grimoire' }, { to: '/clips', label: 'Clips' },
+  { to: '/me', label: 'Profile' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/grimoire', label: 'Grimoire' }, { to: '/primordials', label: 'Primordials' }, { to: '/fusion', label: 'Fusion Lab' }, { to: '/clips', label: 'Clips' },
   { to: '/royalty', label: 'Royalty' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
 ] };
 
@@ -170,6 +171,7 @@ export default function GameHub() {
         {/* your plot games: every plot type you own — play its game, or step into your best plot of it */}
         {me && <PlotGames />}
         {me && <PlotWorlds />}
+        {me && <FirstLightCard />}
         {me && <UltraTracker />}
 
         {/* everything, at a glance */}

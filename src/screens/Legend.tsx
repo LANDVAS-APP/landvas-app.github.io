@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../backend/api';
 import { Page, PageHeader } from '../app/Shell';
 import { BasePlotArt } from '../plot/BasePlotArt';
-import { RARITY_ORDER, ULTRA, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
+import { FUSIONS, PRIMORDIALS, RARITY_ORDER, ULTRA, isFusion, isPrimordial, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 
 type Detail = { what: string; get: string; tip: string };
@@ -119,7 +119,7 @@ export default function Legend() {
         <h2 className="eyebrow">Ultra rarities</h2>
         <p className="-mt-1 text-sm text-muted">Each has its own tiny roll on every claim, and its own way of earning.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {RARITY_ORDER.filter((r) => ULTRA.includes(r)).map((r) => {
+          {RARITY_ORDER.filter((r) => ULTRA.includes(r) && !isFusion(r) && !isPrimordial(r)).map((r) => {
             const i = rarityInfo(r);
             const d = DETAIL[r];
             return (
@@ -139,6 +139,41 @@ export default function Legend() {
             );
           })}
         </div>
+      </section>
+
+      <section className="mb-7 grid gap-3" data-testid="legend-fusions">
+        <h2 className="eyebrow">🧬 Ultra Fusions</h2>
+        <p className="-mt-1 text-sm text-muted">Never rolled: two of your ultras become one. The first plot keeps everything; the other goes back to the world. Three ultras together become a random Primordial.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {FUSIONS.filter((r) => r !== 'kaleidoscope' && r !== 'doppelganger').map((r) => {
+            const i = rarityInfo(r);
+            return (
+              <div key={r} className="glass flex items-center gap-3 rounded-2xl p-3" style={{ boxShadow: `inset 0 0 0 1.5px ${i.color}44` }} data-testid={`legend-${r}`}>
+                <BasePlotArt rarity={r} size={44} />
+                <div className="min-w-0 flex-1"><b style={{ color: i.color }}>{i.emoji} {i.name}</b><div className="text-xs text-muted">{i.ability}</div></div>
+              </div>
+            );
+          })}
+          <div className="glass flex items-center gap-3 rounded-2xl p-3 text-sm text-muted">❔ Two secret fusions — find them yourself.</div>
+        </div>
+        <Link to="/fusion" className="lv-gbtn justify-self-start px-4 py-2 text-sm" data-testid="legend-to-fusion">Open the Fusion Lab</Link>
+      </section>
+
+      <section className="mb-7 grid gap-3" data-testid="legend-primordials">
+        <h2 className="eyebrow">🌌 Primordials — above every ultra</h2>
+        <p className="-mt-1 text-sm text-muted">Each is rarer than any ultra (about {rarityOdds('loom')}), there's no limit to how many can be rolled, and each one changes the game around it. The moment someone rolls one, every map in the world feels it.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {PRIMORDIALS.map((r) => {
+            const i = rarityInfo(r);
+            return (
+              <div key={r} className="glass flex items-center gap-3 rounded-2xl p-3" style={{ boxShadow: `inset 0 0 0 1.5px ${i.color}55` }} data-testid={`legend-${r}`}>
+                <BasePlotArt rarity={r} size={44} />
+                <div className="min-w-0 flex-1"><b style={{ color: i.glow }}>{i.emoji} {i.name}</b><div className="text-xs text-muted">{i.ability}</div></div>
+              </div>
+            );
+          })}
+        </div>
+        <Link to="/primordials" className="lv-gbtn justify-self-start px-4 py-2 text-sm" data-testid="legend-to-primordials">See the Primordials</Link>
       </section>
 
       <section className="mb-7 grid gap-3" data-testid="legend-boosts">

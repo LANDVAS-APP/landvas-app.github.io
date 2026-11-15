@@ -13,7 +13,7 @@ import { config } from '../env';
 import type { PlotKind, PlotRow } from '../backend/types';
 import type { MapMode } from '../lib/store';
 import { GRID_LEVEL, GRID_SIZE, type PlotTypeId } from '../shared/grid';
-import { rarityInfo, rarityTier } from '../shared/rarity';
+import { FUSIONS, NEW_ULTRAS, PRIMORDIALS, isPrimordial, rarityInfo, rarityTier } from '../shared/rarity';
 import { PLOT_TYPES, drawPlotDesign } from './plotStyle';
 import { isPhone } from '../lib/gfx';
 
@@ -661,6 +661,36 @@ const BASE_SLAB: Record<string, [string, string]> = {
   kraken: ['#0F766E', '#042F2E'], gemini: ['#F472B6', '#7E22CE'], mirror: ['#BAE6FD', '#475569'],
   singularity: ['#111827', '#000000'], crown_state: ['#6D28D9', '#2E1065'], crown_country: ['#9F1239', '#3B0012'],
 };
+// ---- the Ultra Expansion: one emblem style for the new ultras, the fusions and the Primordials ---------------------------
+const EXPANSION = new Set<string>([...NEW_ULTRAS, ...FUSIONS, ...PRIMORDIALS]);
+const shade = (hex: string, k: number) => {
+  const n = parseInt(hex.slice(1), 16), f = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0')}`;
+};
+const slabOf = (rid: string): [string, string] => { const c = rarityInfo(rid).color; return [shade(c, 0.85), shade(c, 0.32)]; };
+/** a new ultra (a ring), a fusion (two rings) or a Primordial (a starburst halo) around its emoji */
+function expansionMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: number, w: number, h: number) {
+  const info = rarityInfo(rid), cx = x + w / 2, cy = y + h / 2, m = Math.min(w, h);
+  if (isPrimordial(rid)) {
+    ctx.globalAlpha = 0.28; ctx.fillStyle = info.glow;
+    for (let i = 0; i < 18; i++) { const t = (i / 18) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, m * 0.75, t, t + 0.09); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = info.glow; ctx.lineWidth = Math.max(1, m * 0.045);
+    ctx.beginPath(); ctx.arc(cx, cy, m * 0.36, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.6; ctx.lineWidth = Math.max(1, m * 0.02); ctx.beginPath(); ctx.arc(cx, cy, m * 0.44, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = info.glow; ctx.lineWidth = Math.max(1, m * 0.035);
+    ctx.beginPath(); ctx.arc(cx, cy, m * 0.33, 0, Math.PI * 2); ctx.stroke();
+    if ((FUSIONS as readonly string[]).includes(rid)) { ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(cx, cy, m * 0.41, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  const fs = Math.round(m * 0.42);
+  if (fs >= 6) {
+    ctx.font = `${fs}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(info.emoji ?? '✦', cx, cy + m * 0.02);
+  }
+}
+
 /** The ultra rarities' (and Uncommon's) emblem, drawn into a box. */
 function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: number, w: number, h: number, seed: number) {
   const cx = x + w / 2, cy = y + h / 2, m = Math.min(w, h);
@@ -751,6 +781,8 @@ function ultraMotif(ctx: CanvasRenderingContext2D, rid: string, x: number, y: nu
     ctx.lineTo(x + w * 0.64, y + h * 0.5); ctx.lineTo(x + w * 0.82, y + h * 0.34); ctx.lineTo(x + w * 0.78, y + h * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#E8B923'; ctx.fillRect(x + w * 0.22, y + h * 0.7, w * 0.56, h * 0.09);
     ctx.fillStyle = '#FF3D7F'; ctx.beginPath(); ctx.arc(cx, y + h * 0.56, m * 0.05, 0, Math.PI * 2); ctx.fill();
+  } else if (EXPANSION.has(rid)) {
+    expansionMotif(ctx, rid, x, y, w, h);
   } else if (rid === 'genesis') {
     ctx.fillStyle = '#fff'; for (let i = 0; i < 14; i++) { ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(x + w * hash(seed, i, 3), y + h * hash(seed, i, 4), m * 0.012, 0, Math.PI * 2); ctx.fill(); }
     ctx.translate(cx, cy); ctx.rotate(-0.45);
@@ -765,7 +797,7 @@ const ULTRA_IDS = new Set(['solar', 'lunar', 'comet', 'ancient', 'prismatic', 'g
 function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   const { px, py, cs, gx, gy, tier } = c;
   const rid = c.rid ?? 'common';
-  const [a, b] = BASE_SLAB[rid] ?? BASE_SLAB.common;
+  const [a, b] = BASE_SLAB[rid] ?? (EXPANSION.has(rid) ? slabOf(rid) : BASE_SLAB.common);
   const gr = ctx.createLinearGradient(px, py, px + cs, py + cs);
   gr.addColorStop(0, a); gr.addColorStop(1, b);
   if (rid === 'mythic') gr.addColorStop(0.5, '#3FE0FF');
@@ -777,7 +809,7 @@ function baseCell(ctx: CanvasRenderingContext2D, c: KCell) {
   ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(m.x0, m.y1 - cs * 0.05, m.x1 - m.x0, cs * 0.05);
   ctx.globalAlpha = 1;
   if (cs < 12) return;
-  if (ULTRA_IDS.has(rid) || rid === 'uncommon') ultraMotif(ctx, rid, px, py, cs, cs, gx * 31 + gy);
+  if (ULTRA_IDS.has(rid) || EXPANSION.has(rid) || rid === 'uncommon') ultraMotif(ctx, rid, px, py, cs, cs, gx * 31 + gy);
   if (rid === 'common') {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = Math.max(1, cs * 0.02);
     for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + cs * (i / 4), py + cs * 0.1); ctx.lineTo(px + cs * (i / 4 - 0.12), py + cs * 0.9); ctx.stroke(); }

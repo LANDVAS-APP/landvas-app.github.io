@@ -23,7 +23,7 @@ import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
 import { uiSound } from '../native/uiSound';
 import { BasePlotArt } from '../plot/BasePlotArt';
-import { RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
+import { ROLL_ORDER as RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { celebrateDelay, type Overlay } from './celebrate';

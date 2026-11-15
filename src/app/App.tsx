@@ -57,11 +57,15 @@ import { RestrictionNotice } from '../integrity/RestrictionNotice';
 import { TermsUpdate } from './TermsUpdate';
 import { LiveControl } from './LiveControl';
 import { NATIVE_APP } from './buildFlags';
+import { ElevenBanner } from '../rarity/ElevenBanner';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const ClipsScreen = lazy(() => import('../clips/ClipsScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
+const PowersScreen = lazy(() => import('../rarity/PowersScreen'));
+const FusionLab = lazy(() => import('../rarity/FusionLab'));
+const PrimordialsScreen = lazy(() => import('../rarity/PrimordialsScreen'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
 const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
 // the mobile apps never contain the admin tools (staff use the admin portal, admin.landvas.app): the native build has
@@ -212,7 +216,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
@@ -266,6 +270,9 @@ const routes: RouteObject[] = [
           { path: '/clips', element: player(<ClipsScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },
           { path: '/royalty', element: p(<RoyaltyScreen />) },
+          { path: '/powers/:cell', element: player(<PowersScreen />) },
+          { path: '/fusion', element: player(<FusionLab />) },
+          { path: '/primordials', element: p(<PrimordialsScreen />) },
           { path: '/rankings/rarities', element: p(<RarityRankingsScreen />) },
           { path: '/leaderboards', element: p(<LeaderboardsScreen />) },
           { path: '/inventory', element: player(<InventoryScreen />) },

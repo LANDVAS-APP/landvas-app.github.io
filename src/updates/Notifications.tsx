@@ -1,5 +1,7 @@
 // The bell (site-wide updates + support replies) and the "what's new" popup.
 import { ultraOfRarity } from '../explorer/ultra';
+import { rarityInfo } from '../shared/rarity';
+import { RULES } from '../rarity/powers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -214,6 +216,26 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
     }
   }, to: () => '/world' },
   ultra_set: { icon: Sparkles, color: '#FFD23F', text: (a) => <>{ultraOfRarity(a.data.rarity)?.emoji} Your <b>{ultraOfRarity(a.data.rarity)?.name ?? 'ultra'} set</b> is unlocked — a hat, outfit, relic, aura and trail for your explorer, and wear for your Inkborn</>, to: () => '/explorer' },
+  power: { icon: Sparkles, color: '#FDE68A', text: (a) => {
+    const d = a.data as Record<string, any>;
+    const R = (r: string) => <b>{rarityInfo(r).emoji} {rarityInfo(r).name}</b>;
+    switch (d.sub) {
+      case 'erupted': return <>🌋 Your {R(d.rarity)} erupted — <b>{d.n} obsidian spots</b> only you can claim for the next hour, each a tier higher</>;
+      case 'rooted': return <>🌳 Your {R(d.rarity)} rooted to another of your plots ({d.n} so far) — they pay more in minigames</>;
+      case 'whisper': return <>👻 Your Phantom whispers: a {R(d.rarity)} waits nearby — claim it within a day and it’s yours</>;
+      case 'galloped': return <>🦄 Your {R(d.rarity)} galloped to a new spot — its rainbow trail rolls a tier higher for an hour</>;
+      case 'pollinated': return <>sent their 🐝 bees to pollinate your plot — its minigames pay 10% more today</>;
+      case 'hatched': return <>🦋 <b>Your Chrysalis hatched</b> into {R(d.rarity)}!</>;
+      case 'midas': return <>🖐️ <b>Midas!</b> A win turned your {rarityInfo(d.from).name} plot into {R(d.rarity)}</>;
+      case 'gift': return <>gave you a 🌟 Golden Hour from their 🌍 Heart of the World</>;
+      case 'decree': return <>set a rule from their 📜 Throne of Ink for the land around you: <b>{RULES[d.rule]?.name ?? d.rule}</b></>;
+      case 'stars': return <>called down ⭐ shooting stars near your land — catch them on the map!</>;
+      case 'genesis': return <>raised 🌀 new land near you — claims there roll ultras 3× as often for two days</>;
+      case 'traveller': return <>stepped through your 🌑 Void Gate</>;
+      default: return <>✨ A rarity’s power stirred</>;
+    }
+  }, to: (a) => (['erupted', 'whisper', 'galloped', 'pollinated', 'stars', 'genesis'].includes(a.data?.sub) && a.data?.gx != null
+    ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
 

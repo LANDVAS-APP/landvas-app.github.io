@@ -77,11 +77,11 @@ try {
   // the collection album
   await page.click('[data-testid=collection-card]'); await page.waitForSelector('[data-testid=collection-dialog]', { timeout: 10000 });
   const nRar = await page.locator('[data-testid^=collect-rarity-]').count(), types = await page.locator('[data-testid^=collect-type-]').count();
-  check('the collection: every plot type and every rarity (21 + Enchanted)', nRar === 22 && types >= 8, `${types} types, ${nRar} rarities`);
+  check('the collection: every plot type and every rarity (21 + Enchanted + the Ultra Expansion’s 37)', nRar === 59 && types >= 8, `${types} types, ${nRar} rarities`);
   check('…and the Crowns of the world', (await page.locator('[data-testid=crowns]').count()) === 1);
   await shot('08-collection');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  check('the odds show all 21 rarities: ultras as "1 in …", the Crowns "1 per city/state/country"', (await page.locator('[data-testid=simple-odds] > div').count()) === 21 && (await page.locator('[data-testid=simple-odds] >> text=/1 in /').count()) === 12 && (await page.locator('[data-testid=simple-odds] >> text=/^1 per (city|state|country)$/').count()) === 3);
+  check('the odds show all 30 rollable rarities: ultras as "1 in …", the Crowns "1 per city/state/country" — and the Primordials as one', (await page.locator('[data-testid=simple-odds] > div').count()) === 30 && (await page.locator('[data-testid=simple-odds-primordials]').count()) === 1 && (await page.locator('[data-testid=simple-odds] > div >> text=/1 in /').count()) === 21 && (await page.locator('[data-testid=simple-odds] >> text=/^1 per (city|state|country)$/').count()) === 3);
 
   // the Play tab is just the plot minigames
   await page.locator('nav.lv-game a').filter({ hasText: 'Play' }).first().click();

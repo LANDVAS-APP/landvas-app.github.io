@@ -113,6 +113,24 @@ export type MinigameRecords = {
   resets_at: string;
 };
 
+// ---- the Ultra Expansion: a plot's power, the map's marks, the Primordials, the fusions ----
+export type RxAction = { id: string; label: string; ready: boolean; why?: string | null; needs?: 'rule' | 'spot' | 'plot' | 'cells5' | 'rarity' | 'tz' | 'wish'; visitor?: boolean };
+export type RxPower = {
+  gx: number; gy: number; rarity: string; tier: 'ultra' | 'fusion' | 'primordial'; family: string; name: string; emoji: string; color: string; glow: string; ability: string;
+  mine: boolean; owner_name: string | null; since: string; next_in: number | null; log: { k: string; at: string; [k: string]: any }[] | null; area_m: number; actions: RxAction[];
+  [k: string]: any;
+};
+export type RxMapMine = { gx: number; gy: number; rarity: string; family: string; roots?: [number, number][] | null; beams?: [number, number][] | null; bees?: [number, number][] | null;
+  zone?: { gx: number; gy: number } | null; rift?: { gx: number; gy: number; until: string } | null; from?: [number, number] | null; cells?: number | null; area_m?: number | null; m?: number | null; flip_until?: string | null };
+export type RxMap = { mine: RxMapMine[]; spots: { id: number; kind: 'obsidian' | 'trail' | 'mushroom' | 'glint'; gx: number; gy: number; rarity?: string | null; in: number }[];
+  stars: { id: number; gx: number; gy: number; in: number }[]; genesis: [number, number][] };
+export type RxWorldPlot = { gx: number; gy: number; rarity: string; owner_name: string | null; mine: boolean; open: boolean | null };
+export type RxMoment = { id: number; gx: number; gy: number; rarity: string; how: string; place: string | null; owner_name: string | null; mine: boolean; ago: number };
+export type RxTier = { tier_one_in: number; list: { id: string; name: string; emoji: string; color: string; glow: string; ability: string; one_in: number; world: number; mine: number }[];
+  recent: { rarity: string; how: string; place: string | null; owner_name: string | null; at: string }[] };
+export type RxFusionBook = { recipes: { a?: string; b?: string; to: string | null; secret: boolean; name?: string; emoji?: string; color?: string; glow?: string; ability?: string; made?: number }[];
+  ultras: { gx: number; gy: number; rarity: string; name: string | null; plot_type: string; shiny: boolean; why: string | null }[]; per_day: number };
+
 export const api = {
   worldConfig: () => rpc<WorldConfig>('world_config'),
   /** the live settings for the apps and the game's pages (versions, maintenance, pages switched off, links) */
@@ -205,6 +223,18 @@ export const api = {
   // the Leviathan
   leviathanState: () => rpc<LevState>('leviathan_state', { p_tick: true }),
   /** the Glyphcaster's Thunder Glyph: drawn — accuracy (0..1) sets the damage */
+  // ---- the Ultra Expansion ----
+  rarityPower: (gx: number, gy: number) => rpc<RxPower | null>('rarity_power', { p_gx: gx, p_gy: gy }),
+  rarityAct: (gx: number, gy: number, action: string, args: Record<string, unknown> = {}) => rpc<{ result: Record<string, any>; view: RxPower }>('rarity_act', { p_gx: gx, p_gy: gy, p_action: action, p_args: args }),
+  rarityCatch: (id: number) => rpc<{ ink?: number; luck?: number; golden?: boolean }>('rarity_catch', { p_id: id }),
+  myPowers: () => rpc<RxPower[]>('my_powers'),
+  rarityMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<RxMap>('rarity_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
+  primordialsWorld: () => rpc<{ plots: RxWorldPlot[]; last: number }>('primordials_world'),
+  rarityMoments: (since: number) => rpc<{ moments: RxMoment[]; last: number }>('rarity_moments', { p_since: since }),
+  primordialTier: () => rpc<RxTier>('primordial_tier'),
+  fusionBook: () => rpc<RxFusionBook>('fusion_book'),
+  ultraFuse: (cells: [number, number][]) => rpc<{ rarity: string; gx: number; gy: number; released: [number, number][]; triple: boolean; rarity_info: { name: string; emoji: string; color: string; glow: string; tier: string; ability: string } }>('ultra_fuse', { p_cells: cells }),
+  firstLight: () => rpc<{ gx: number; gy: number; owner_name: string; name: string | null; art_path: string | null; mine: boolean } | null>('first_light_for_me'),
   leviathanGlyph: (enchant: string, accuracy: number) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_glyph', { p_enchant: enchant, p_accuracy: accuracy }),
   leviathanHit: (move: 'bomb' | 'enchant', n = 1, enchant: string | null = null) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean; missed?: number }>('leviathan_hit', { p_move: move, p_n: n, p_enchant: enchant }),
   /** look at this part of the map for a hidden Leviathan */

@@ -12,7 +12,7 @@ import { cn, fmt } from '../lib/utils';
 import { NotificationBell } from '../updates/Notifications';
 import { GamePreview } from '../play/GamePreview';
 import { GAME_INFO, type GameId } from '../shared/minigames';
-import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
+import { RARITY_ORDER, isFusion, isPrimordial, rarityInfo } from '../shared/rarity';
 import { useAssetUrl } from '../gallery/GalleryScreen';
 import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
@@ -386,7 +386,7 @@ export function Earnings() {
         <div className="glass rounded-[32px] p-5 md:p-7">
           <div className="mb-4 flex items-center justify-between"><span className="font-display text-lg font-semibold">Rent per plot</span><span className="text-xs text-muted">per day · boosted</span></div>
           <div className="grid gap-2">
-            {RARITY_ORDER.map((id) => {
+            {RARITY_ORDER.filter((id) => !isFusion(id) && !isPrimordial(id)).map((id) => {
               const r = rents?.find((x) => x.id === id) ?? rarityInfo(id);
               const day = Number(r.usd_per_second) * 86400;
               return (
