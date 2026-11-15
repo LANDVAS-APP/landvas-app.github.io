@@ -178,8 +178,8 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'symbiote_gift': return <>’s Symbiote shared its meal with you <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'parasite_shaken': return <>shook your 🦠 Parasite off their plot</>;
       case 'parasite_shrunk': return <>zapped your 🦠 Parasite with a Size Ray — it shrank right off</>;
-      case 'cuckoo_egg': return <>A strange 🥚 egg appeared in your nest… throw it out in your Grimoire before it hatches</>;
-      case 'cuckoo_ejected': return <>found your 🪺 Cuckoo’s egg and threw it out</>;
+      case 'spy_refund': return <>claimed a plot your 🔭 Spyglass had sighted — your look came back</>;
+      case 'puppet_played': return <>played your plot’s game on 🎭 strings{d.ink ? ` — you were tipped ${d.ink} Ink` : ''}</>;
       case 'treasure_piece': return <>found a 🗺️ treasure map piece on your plot <span className="text-ok">· +{d.ink} Ink finder’s tip</span></>;
       case 'mirror_seen': return <>saw your ✨ enchantment in their 🪞 Mirror Shard and stepped through <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'spore': return <>A spore of Ink drifted onto you {d.kind === 'wormhole' ? 'out of a 🌀 wormhole' : 'from a Spreading splice'} <span className="text-ok">· +{d.ink} Ink</span></>;

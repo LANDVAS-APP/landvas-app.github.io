@@ -129,7 +129,7 @@ function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean 
     if (n >= 5) { setTaps({ ...taps, [v.id]: 0 }); void run(v, 'shake'); } else setTaps({ ...taps, [v.id]: n });
   };
   if (loading) return <div className="flex justify-center py-10"><Spinner /></div>;
-  if (!list.length) return <Empty icon={<span className="text-3xl">🌿</span>} title="Nothing on your land">When someone’s Parasite latches onto your plot, or a Cuckoo sneaks an egg into your nest, you’ll find it here — and you can deal with it (and get paid for it).</Empty>;
+  if (!list.length) return <Empty icon={<span className="text-3xl">🌿</span>} title="Nothing on your land">When someone’s Parasite latches onto your plot, you’ll find it here — and you can deal with it (and get paid for it).</Empty>;
   return (
     <div className="grid gap-3" data-testid="grimoire-visitors">
       {list.map((v) => {
@@ -432,6 +432,17 @@ const EV: Record<string, (d: any) => string> = {
   merged_away: (d) => `✨ Poured into ${kindInfo(d.into).name} #${d.serial}${d.same ? '' : ' as Essence'}`,
   star: (d) => `${'⭐'.repeat(d.stars)} Earned ★${d.stars}: ${d.power}`,
   gift: (d) => `🎁 Gave a wish to @${d.to}`, boon: () => '👑 The Master’s Boon: an Epic+ roll ticket', toll: (d) => `🔔 Rang the Toll of Hours — ${d.n} enchantments jumped 30 min ahead`,
+  hatched_into: (d) => `🥚 Hatched into a ${kindInfo(d.kind).name} (#${d.serial})`,
+  sighted: (d) => `🔭 Sighted a ${d.rarity === 'enchanted' ? 'plot that stirs ✨' : `${d.rarity} plot`}`, prospected: (d) => `🔭 Claimed a plot it sighted (${d.rarity})${d.ink ? ` +${d.ink} Ink` : ''}`,
+  second_sight: (d) => `👁️ Second Sight: ${d.was} → ${d.drew}${d.better ? ' (kept)' : ''}`,
+  folded: (d) => `🦢 Folded ${d.name ?? 'a plot'} (${d.rarity}) into the pocket`, unfolded: (d) => `🦢 Unfolded a ${d.rarity} plot ${d.km} km away`, smoothed: () => '🦢 Smoothed a plot out where it was',
+  creased: (d) => `🦢 Its clock folded ${d.hours} hours forward`,
+  melted: (d) => `🔥 Melted ${d.n} plot${d.n > 1 ? 's' : ''} into ${d.heat} Heat`, struck: (d) => (d.ok ? `⚒️ Forged a ${d.from} plot up to ${d.to}${d.master ? ' — a Masterwork' : ''}` : `⚒️ A strike missed (${Math.round(d.chance * 100)}%)`),
+  rune: (d) => `🪨 Made a ${d.rune} rune`, artifact: (d) => `⚒️ Forged a ${d.artifact}`, fused: (d) => `⚒️ Fused a ${d.artifact} up to level ${d.level}`, tended: (d) => `🧲 The horseshoes brought ${d.luck} Luck`,
+  inlaid: (d) => `◇ Inlaid ${d.metal} into a plot`, monument: (d) => `🏛️ ${d.name ?? 'A monument'} grew to ${d.points} points`,
+  strung: (d) => `🎭 Pulled the strings of @${d.owner}’s plot${d.grand ? ' — a Grand Show' : ''}`, show: (d) => `🎭 ${d.passed ? 'A show on strings' : 'A puppet run'} · level ${d.level}${d.ink ? ` · +${d.ink} Ink` : ''}`,
+  fate: (d) => `🃏 ${d.card}${d.up === false ? ' (reversed)' : ''}${d.held ? ', played from the hand' : ''}`, reborn: (d) => `🦋 Rebirth: a ${d.from} plot became ${d.to}`,
+  cast: (d) => `✍️ Cast ${(d.glyphs ?? []).join(' + ')}${d.found ? ` — and found ${d.found}` : ''}`, fizzled: () => '✍️ A glyph fizzled', studied: (d) => `📖 Studied the Spellbook${d.found ? ` — found ${d.found}` : ''}`,
 };
 function Chronicle({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['enchant-chronicle', id], queryFn: () => api.enchantChronicle(id), staleTime: 10_000 });

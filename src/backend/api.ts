@@ -43,6 +43,15 @@ export type MapWalker = { id: string; gx: number; gy: number; mine: boolean; own
 export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
   bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
 export type EnchantMap2 = { walkers: MapWalker[]; coils: { id: string; gx: number; gy: number; loops: number; status: string; mine: boolean }[]; storms: MapStorm[]; server_now: number };
+export type MapSighting = { id: number; gx: number; gy: number; rarity: string; kind: string | null; hot: boolean; second: boolean; at: string; expires_at: string; expires_in: number };
+export type EnchantMap3 = {
+  sightings: MapSighting[];
+  folds: { gx: number; gy: number; rarity: string; mine: boolean; owner_name: string | null; at: string }[];
+  monuments: { gx: number; gy: number; tier: number; points: number; name: string | null; owner_name: string | null; mine: boolean }[];
+  inlays: { gx: number; gy: number; metal: string }[];
+  creases?: { gx: number; gy: number; until: string; mine: boolean }[];
+  server_now: number;
+};
 export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null }[]; wormholes: MapWormhole[] };
 export type LevPos = { lng: number; lat: number; km: number; seg: number; heading: number; done: boolean; paused: boolean; haze?: boolean };
 export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number;
@@ -173,6 +182,9 @@ export const api = {
   seekChests: () => rpc<SeekChest[]>('seek_chests'),
   seekChestDig: (id: number) => rpc<{ ink: number; gx: number; gy: number; kind: string; chests: SeekChest[] }>('seek_chest_dig', { p_id: id }),
   enchantMap2: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap2>('enchant_map2', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
+  enchantMap3: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap3>('enchant_map3', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
+  /** 🎭 a Puppeteer's run on someone else's plot (a real minigame session) */
+  puppetStart: (id: string, gx: number, gy: number) => rpc<MinigameStart & { puppet: { id: string; owner: any; rarity: string; name: string | null; grand: boolean } }>('puppet_start', { p_id: id, p_gx: gx, p_gy: gy }),
   homunculusGreet: (id: string) => rpc<{ greeted: boolean; you: number; them: number }>('homunculus_greet', { p_id: id }),
   stormCatch: (id: string, i: number) => rpc<{ caught: boolean; ink: number }>('storm_catch', { p_id: id, p_i: i }),
   sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),

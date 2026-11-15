@@ -16,8 +16,9 @@ const results = []; const check = (n, ok, x = '') => { results.push(ok); console
 const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a), [f, a]);
 const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
 const nav = async (p) => { await page.evaluate((p) => window.__landvasNav(p), p); await page.waitForTimeout(900); };
-const KINDS = { goose: 'goose-scene', genie: 'genie-scene', map: 'map-scene', parasite: 'parasite-scene', cuckoo: 'cuckoo-scene', pandora: 'pandora-scene', splice: 'splice-scene', clockwork: 'clock-scene', sizeray: 'ray-scene', shard: 'shard-scene',
-  wormhole: 'wormhole-scene', oracle: 'oracle-scene', ouroboros: 'ouro-scene', homunculus: 'homu-scene', stormcoil: 'storm-scene' };
+const KINDS = { goose: 'goose-scene', genie: 'genie-scene', map: 'map-scene', parasite: 'parasite-scene', pandora: 'pandora-scene', splice: 'splice-scene', clockwork: 'clock-scene', sizeray: 'ray-scene', shard: 'shard-scene',
+  wormhole: 'wormhole-scene', oracle: 'oracle-scene', ouroboros: 'ouro-scene', homunculus: 'homu-scene', stormcoil: 'storm-scene',
+  spyglass: 'spyglass-scene', origami: 'origami-scene', crucible: 'crucible-scene', puppeteer: 'puppeteer-scene', deck: 'deck-scene', glyph: 'glyph-scene' };
 const N = Object.keys(KINDS).length;
 try {
   await page.addInitScript(() => { try { const s = JSON.parse(localStorage.getItem('landvas.settings') || '{}'); if (!('simpleMode' in s)) localStorage.setItem('landvas.settings', JSON.stringify({ ...s, simpleMode: true })); } catch {} });
@@ -155,7 +156,7 @@ try {
   check('the bestiary shows all ten kinds', /Golden Goose/.test(await page.textContent('[data-testid=grimoire-bestiary]')) && /Mirror Shard/.test(await page.textContent('[data-testid=grimoire-bestiary]')));
   await nav('/grimoire?tab=codex'); await page.waitForSelector('[data-testid=grimoire-codex]', { timeout: 15000 }); await page.waitForTimeout(800);
   await shot('21-codex');
-  check('the codex shows the Giant Goose, the rest still secret', /1\/91/.test(await page.textContent('[data-testid=grimoire-codex]')) && (await page.locator('[data-testid=grimoire-codex] [title="Giant Goose"]').count()) === 2 && (await page.locator('[data-testid=grimoire-codex] [title=Undiscovered]').count()) > 30);
+  check('the codex shows the Giant Goose, the rest still secret', /1\/171/.test(await page.textContent('[data-testid=grimoire-codex]')) && (await page.locator('[data-testid=grimoire-codex] [title="Giant Goose"]').count()) === 2 && (await page.locator('[data-testid=grimoire-codex] [title=Undiscovered]').count()) > 30);
   check('…and the Codex tab is the one lit', /Codex/.test(await page.textContent('[role=tab][data-state=active]')));
 
   // ---- the owner: the Enchantments card (Admin → Earnings) and “Give an enchantment” on a player ----
@@ -179,9 +180,9 @@ try {
   await page.waitForSelector('[data-testid=give-enchant]', { timeout: 20000 });
   await page.locator('[data-testid=give-enchant]').scrollIntoViewIfNeeded();
   await page.fill('[data-testid=plots-reason]', 'e2e event prize');
-  await page.selectOption('[data-testid=give-enchant-kind]', 'cuckoo');
+  await page.selectOption('[data-testid=give-enchant-kind]', 'spyglass');
   await page.click('[data-testid=give-enchant-go]'); await page.waitForTimeout(1500);
-  check('“Give an enchantment” mints the next serial for the player', Number((await sql(`select max(serial) n from enchantments where kind = 'cuckoo' and owner_id = '${me}'`))[0].n) === 2);
+  check('“Give an enchantment” mints the next serial for the player', Number((await sql(`select max(serial) n from enchantments where kind = 'spyglass' and owner_id = '${me}'`))[0].n) === 2);
   check('…audit-logged', Number((await sql(`select count(*) n from audit_logs where action = 'enchant.given'`))[0].n) >= 10);
   await shot('21c-admin-give-enchant');
 

@@ -1,6 +1,7 @@
 // Moments worth sharing beyond the roll: an enchantment shown off, a Splice fusing two enchantments into a hybrid, the
 // Forbidden Wish, Hope rising out of Pandora's Box, a Parasite evolving, a treasure chest dug up, a Platinum egg, a
-// shattered Mirror Shard, a PERFECT Size Ray zap, a Cuckoo chick with a lucky feather. Each is a short 9:16 cinematic
+// shattered Mirror Shard, a PERFECT Size Ray zap, a Legendary sighting, an unfolded crane, a forged plot, a puppet show, a
+// fated card, a glyph found. Each is a short 9:16 cinematic
 // drawn from the real thing (its sigil, serial, names and numbers) as a pure function of time — so it can be filmed,
 // scrubbed and snipped like a roll, and kept to clip again later.
 import { kindInfo } from '../enchant/kinds';
@@ -25,6 +26,8 @@ export type Moment = { id: string; at: number; user?: string | null } & (
   | { type: 'zap'; e: EnchantRef; grade: string; target?: string | null }
   | { type: 'chick'; e: EnchantRef; feather?: boolean; ink?: number | null }
   | { type: 'star'; e: EnchantRef; stars: number; power: string; text?: string | null; copy?: EnchantRef | null }
+  /** the six new kinds: a hero emoji that rises (then turns into the payoff), with its own kicker and headline */
+  | { type: 'craft'; e: EnchantRef; title: string; sub: string; emoji: string; payoff: string; color: string; kicker: string; head: string; lines: string[] }
 );
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /** a moment before it's stamped */
@@ -52,6 +55,7 @@ export function momentTitle(m: Moment): { title: string; sub: string; emoji: str
     case 'zap': return { title: `${m.grade} zap`, sub: `${m.target ? `${m.target} · ` : ''}${m.e.name}`, emoji: '📡', color: '#39FF14' };
     case 'chick': return { title: m.feather ? 'A lucky feather' : 'A chick raised', sub: `${m.ink ? `+${m.ink} Ink · ` : ''}${m.e.name}`, emoji: '🐣', color: '#4CC9F0' };
     case 'star': return { title: `${'★'.repeat(m.stars)} ${m.power}`, sub: `A new star · ${m.e.name}`, emoji: '⭐', color: '#FFD23F' };
+    case 'craft': return { title: m.title, sub: m.sub, emoji: m.emoji, color: m.color };
   }
 }
 
@@ -317,6 +321,19 @@ export function drawMoment(g: CanvasRenderingContext2D, L: Layout, A: Assets, m:
       }
       break;
     }
+    case 'craft': {
+      // the enchantment's own emoji rises in a ring of its colour, spins up, and turns into the payoff
+      const cp = spring((t - 300) / 1000, 120, 14);
+      circle(g, cx, cy, 300 * cp, t, m.color, clamp01(cp), m.e.sigil);
+      if (t > 1100 && t < PAYOFF + 300) beams(g, cx, cy, 300, t - 1100, PAYOFF - 1100);
+      const a = spring((t - 500) / 1000, 140, 12), b = spring(pay / 1000, 220, 11);
+      if (!paid) emoji(g, m.emoji, cx, cy + Math.sin(t / 300) * 12, 260 * clamp01(a), Math.sin(t / 420) * 0.15 + (t > 1800 ? (t - 1800) / 180 : 0), clamp01(a));
+      else {
+        emoji(g, m.payoff, cx, cy, 320 * b, Math.sin(pay / 500) * 0.06);
+        emoji(g, m.emoji, cx + 210, cy + 190, 130 * b, -0.25, clamp01(b));
+      }
+      break;
+    }
     case 'chick': {
       emoji(g, '🪺', cx, cy + 130, 330);
       const wob = Math.sin(t / 110) * clamp01((t - 800) / 1500) * 0.25;
@@ -365,10 +382,10 @@ function beams(g: CanvasRenderingContext2D, cx: number, cy: number, len: number,
 }
 
 function momentKicker(m: Moment) {
-  return ({ showcase: 'FROM MY GRIMOIRE', splice: 'A SPLICE', star: 'A NEW STAR', forbidden: 'THE FORBIDDEN WISH', hope: 'PANDORA’S BOX', evolve: 'AN EVOLUTION', chest: 'X MARKS THE SPOT', egg: 'THE GOLDEN GOOSE', shatter: 'THE MIRROR SHARD', zap: 'THE SIZE RAY', chick: 'THE CUCKOO' } as const)[m.type];
+  return (m.type === 'craft' ? kindInfo(m.e.kind).name.toUpperCase() : ({ showcase: 'FROM MY GRIMOIRE', splice: 'A SPLICE', star: 'A NEW STAR', forbidden: 'THE FORBIDDEN WISH', hope: 'PANDORA’S BOX', evolve: 'AN EVOLUTION', chest: 'X MARKS THE SPOT', egg: 'THE GOLDEN GOOSE', shatter: 'THE MIRROR SHARD', zap: 'THE SIZE RAY', chick: 'THE CUCKOO' } as const)[m.type as 'showcase']);
 }
 function buildLine(m: Moment) {
-  return ({ showcase: '…something stirs in the ink…', splice: 'Fusing…', star: 'Pouring it in…', forbidden: 'Rubbing the lamp…', hope: 'Lifting the lid…', evolve: 'It’s changing…', chest: 'Digging…', egg: 'Collecting the egg…', shatter: 'Crack… crack…', zap: 'Aiming…', chick: 'It’s hatching…' } as const)[m.type];
+  return ({ showcase: '…something stirs in the ink…', splice: 'Fusing…', star: 'Pouring it in…', forbidden: 'Rubbing the lamp…', hope: 'Lifting the lid…', evolve: 'It’s changing…', chest: 'Digging…', egg: 'Collecting the egg…', shatter: 'Crack… crack…', zap: 'Aiming…', chick: 'It’s hatching…' } as Record<string, string>)[m.type] ?? (m.type === 'craft' ? m.kicker : '…');
 }
 function headline(m: Moment) {
   switch (m.type) {
@@ -383,6 +400,7 @@ function headline(m: Moment) {
     case 'zap': return `${m.grade.toUpperCase()}!`;
     case 'chick': return m.feather ? 'LUCKY FEATHER!' : 'IT HATCHED!';
     case 'star': return `${'★'.repeat(m.stars)} STAR ${m.stars}!`;
+    case 'craft': return m.head;
   }
 }
 function captionLines(m: Moment): { t: string; big?: boolean; c?: string }[] {
@@ -400,5 +418,6 @@ function captionLines(m: Moment): { t: string; big?: boolean; c?: string }[] {
     case 'zap': return [{ t: id, c: k.a }, ...(m.target ? [{ t: m.target }] : [])];
     case 'chick': return [{ t: id, c: k.a }, ...(m.feather ? [{ t: '+20 Luck' }] : [])];
     case 'star': return [{ t: id, c: k.a }, { t: `New power: ${m.power}`, c: '#FFE8A3' }, ...(m.text ? [{ t: m.text }] : []), { t: `+${10 * m.stars}% Ink on everything it pays`, c: 'rgba(255,255,255,0.6)' }];
+    case 'craft': return [{ t: id, c: m.color }, ...m.lines.map((x) => ({ t: x }))];
   }
 }

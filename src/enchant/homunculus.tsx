@@ -6,9 +6,10 @@ import { kindInfo } from './kinds';
 export type HomuPart = { k: string; lv?: number; glow?: boolean; heir?: boolean; from?: string | null };
 
 const NAMES: Record<string, string> = {
-  goose: 'golden wings', genie: 'a smoke tail', map: 'map-patch skin', parasite: 'tendrils', cuckoo: 'a beak and crest', pandora: 'horns',
+  goose: 'golden wings', genie: 'a smoke tail', map: 'map-patch skin', parasite: 'tendrils', pandora: 'horns',
   clockwork: 'a clockwork gear', sizeray: 'an antenna', shard: 'a glass eye', wormhole: 'a swirling belly', oracle: 'a third eye',
   ouroboros: 'a serpent tail', stormcoil: 'crackling sparks',
+  spyglass: 'a brass monocle', origami: 'paper wings', crucible: 'an ember heart', puppeteer: 'strings', deck: 'a fan of cards', glyph: 'glowing runes',
 };
 /** what a part looks like, in words ("golden wings") */
 export const partName = (k: string) => NAMES[k] ?? `a ${kindInfo(k).name} part`;
@@ -21,7 +22,12 @@ function part(k: string, s: number, glow: boolean) {
     case 'genie': return sc(50, 84, `<path d="M44 78 Q36 92 50 95 Q64 98 58 88 Q54 84 60 82" fill="none" stroke="#A78BFA" stroke-width="7" stroke-linecap="round" opacity="0.9"/><circle cx="61" cy="81" r="3" fill="#22E3FF"/>`);
     case 'map': return sc(50, 62, `<rect x="40" y="55" width="9" height="8" rx="1" fill="#E9C46A" stroke="#8B5E34" stroke-dasharray="2 1.5"/><rect x="54" y="64" width="8" height="7" rx="1" fill="#E9C46A" stroke="#8B5E34" stroke-dasharray="2 1.5"/><path d="M57 66 l3 3 M60 66 l-3 3" stroke="#FF3B30" stroke-width="1.2"/>`);
     case 'parasite': return sc(50, 80, `<path class="tend" d="M40 76 Q36 86 41 92 Q45 97 40 100" fill="none" stroke="#7CFF6B" stroke-width="3.2" stroke-linecap="round"/><path class="tend" d="M50 80 Q54 90 49 96" fill="none" stroke="#B026FF" stroke-width="3.2" stroke-linecap="round"/><path class="tend" d="M60 76 Q65 86 60 92 Q56 97 61 100" fill="none" stroke="#7CFF6B" stroke-width="3.2" stroke-linecap="round"/>`);
-    case 'cuckoo': return sc(50, 36, `<path d="M46 43 L50 50 L54 43 Z" fill="#FF9F1C" stroke="#8A4B00" stroke-width="1"/><path d="M48 22 Q44 12 50 8 Q50 16 53 10 Q56 16 52 22" fill="#4CC9F0" stroke="#06222C" stroke-width="1"/>`);
+    case 'spyglass': return sc(57, 37, `<circle cx="57" cy="37" r="5.2" fill="none" stroke="#C8962E" stroke-width="2"/><circle cx="57" cy="37" r="3.6" fill="#8EC5FF" opacity="0.5"/><path d="M62 40 Q66 48 63 54" stroke="#C8962E" stroke-width="1" fill="none"/>`);
+    case 'origami': return sc(50, 52, `<path class="wing" d="M33 52 L10 40 L22 60 Z" fill="#FFF3E0" stroke="#C7608F" stroke-width="1.2"/><path class="wing r" d="M67 52 L90 40 L78 60 Z" fill="#FFF3E0" stroke="#C7608F" stroke-width="1.2"/><path d="M10 40 L22 52 M90 40 L78 52" stroke="#C7608F" stroke-width="0.8"/>`);
+    case 'crucible': return sc(50, 62, `<circle cx="50" cy="62" r="6" fill="#FF7A00" opacity="0.9"/><circle cx="50" cy="62" r="3" fill="#FFF3B0"/><circle cx="50" cy="62" r="9" fill="#FF7A00" opacity="0.25"/>`);
+    case 'puppeteer': return sc(50, 10, `<rect x="36" y="4" width="28" height="3" rx="1.5" fill="#A06B3C"/><line x1="38" y1="6" x2="36" y2="60" stroke="#FFE8A3" stroke-width="0.8"/><line x1="62" y1="6" x2="64" y2="60" stroke="#FFE8A3" stroke-width="0.8"/><line x1="50" y1="6" x2="50" y2="22" stroke="#FFE8A3" stroke-width="0.8"/>`);
+    case 'deck': return sc(66, 70, `<rect x="62" y="62" width="9" height="13" rx="1.5" fill="#3B1C6E" stroke="#FFD166" stroke-width="1" transform="rotate(-18 66 68)"/><rect x="65" y="63" width="9" height="13" rx="1.5" fill="#FFF8E7" stroke="#D4A84B" stroke-width="1" transform="rotate(8 69 69)"/>`);
+    case 'glyph': return sc(50, 62, `<path d="M44 56 L44 70 M44 56 L52 60 L44 63 L53 70" stroke="#9EF6FF" stroke-width="1.6" fill="none" stroke-linecap="round" class="spark"/><circle cx="58" cy="58" r="1.6" fill="#7C4DFF"/>`);
     case 'pandora': return sc(50, 26, `<path d="M38 28 Q30 16 36 8 Q38 18 43 24 Z" fill="#FF4D6D" stroke="#2A0A3D" stroke-width="1.2"/><path d="M62 28 Q70 16 64 8 Q62 18 57 24 Z" fill="#FF4D6D" stroke="#2A0A3D" stroke-width="1.2"/>`);
     case 'clockwork': {
       const pts = Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * Math.PI * 2, r = i % 2 ? 9 : 7; return `${(70 + Math.cos(a) * r).toFixed(1)},${(46 + Math.sin(a) * r).toFixed(1)}`; }).join(' ');
@@ -43,7 +49,7 @@ export function homuSvg(parts: HomuPart[] | null | undefined, opts: { asleep?: b
   const has = (k: string) => ps.some((p) => p.k === k);
   const id = opts.id ?? 'h';
   const glowAll = ps.some((p) => p.glow);
-  const back = ['goose', 'genie', 'parasite', 'ouroboros'], front = ['map', 'wormhole', 'cuckoo', 'pandora', 'clockwork', 'sizeray', 'shard', 'oracle', 'stormcoil'];
+  const back = ['goose', 'genie', 'parasite', 'ouroboros', 'origami', 'puppeteer'], front = ['map', 'wormhole', 'pandora', 'clockwork', 'sizeray', 'shard', 'oracle', 'stormcoil', 'spyglass', 'crucible', 'deck', 'glyph'];
   const draw = (list: string[]) => list.map((k) => { const p = ps.find((x) => x.k === k); return p ? part(k, 0.8 + 0.2 * Math.min(3, Math.max(1, p.lv ?? 1)), !!p.glow) : ''; }).join('');
   const eyes = opts.asleep
     ? `<path d="M40 38 q3 3 6 0 M54 38 q3 3 6 0" stroke="#22061A" stroke-width="1.8" fill="none" stroke-linecap="round"/>`
@@ -55,7 +61,7 @@ export function homuSvg(parts: HomuPart[] | null | undefined, opts: { asleep?: b
     + `<ellipse cx="50" cy="62" rx="19" ry="21" fill="url(#${id}b)" stroke="#5A1E4A" stroke-width="1.6"/>`
     + `<circle cx="50" cy="38" r="16" fill="url(#${id}b)" stroke="#5A1E4A" stroke-width="1.6"/>`
     + `<path d="M36 60 q-6 6 -4 12 M64 60 q6 6 4 12" stroke="#5A1E4A" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
-    + eyes + (has('cuckoo') ? '' : `<path d="M46 45 q4 3 8 0" stroke="#5A1E4A" stroke-width="1.6" fill="none" stroke-linecap="round"/>`)
+    + eyes + `<path d="M46 45 q4 3 8 0" stroke="#5A1E4A" stroke-width="1.6" fill="none" stroke-linecap="round"/>`
     + `<ellipse cx="44" cy="78" rx="4" ry="2.4" fill="#5A1E4A"/><ellipse cx="56" cy="78" rx="4" ry="2.4" fill="#5A1E4A"/>`
     + draw(front) + `</svg>`;
 }

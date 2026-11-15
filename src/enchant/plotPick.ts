@@ -16,6 +16,8 @@ export type PickSpec = {
   keep?: Record<string, unknown>;
   /** what to say when a plot that can't be picked is tapped */
   refuse?: string;
+  /** pick any spot on the map instead (an unclaimed one, for a Spyglass look or an Origami unfold): circles show how far */
+  free?: { anchors: [number, number][]; radiusM: number | null; use?: string };
 };
 export type PickDone = { id: string; slot: string; plot: PickPlot; keep?: Record<string, unknown> };
 

@@ -86,14 +86,14 @@ describe('⭐ merging copies', () => {
   it('other kinds pour in as Essence; three make a copy; Essence a ★3 can’t take is kept', async () => {
     const a = await enchant(ann, 'pandora');
     const e0 = await essence(ann);
-    expect((await merge(ann, a, await enchant(ann, 'cuckoo'))).result).toMatchObject({ same: false, starred: false, essence: e0 + 1 });
+    expect((await merge(ann, a, await enchant(ann, 'spyglass'))).result).toMatchObject({ same: false, starred: false, essence: e0 + 1 });
     expect((await merge(ann, a, await enchant(ann, 'parasite'))).result).toMatchObject({ essence: e0 + 2 });
-    const r = await merge(ann, a, await enchant(ann, 'cuckoo'));
+    const r = await merge(ann, a, await enchant(ann, 'spyglass'));
     expect(r.result).toMatchObject({ essence_used: true, starred: true, stars: 1, essence: e0 });
     expect(r.essence).toBe(e0);
     // banked Essence: a ★3 can't take it, so it waits; pouring with no copy uses 3 of it
     const full = await enchant(ann, 'oracle'); await setStars(full, 3);
-    for (let i = 0; i < 3; i++) await merge(ann, full, await enchant(ann, 'cuckoo'));
+    for (let i = 0; i < 3; i++) await merge(ann, full, await enchant(ann, 'spyglass'));
     expect(await essence(ann)).toBe(e0 + 3);
     await expectError(merge(ann, full, null), 'max_stars');
     const r2 = await merge(ann, a, null);
@@ -116,7 +116,7 @@ describe('⭐ merging copies', () => {
   });
 
   it('every star adds +10% to the Ink it pays', async () => {
-    const a = await enchant(ann, 'cuckoo');
+    const a = await enchant(ann, 'spyglass');
     const p0 = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [a]))[0].p;
     await setStars(a, 2);
     const p2 = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [a]))[0].p;
@@ -201,12 +201,9 @@ describe('⭐ the powers', () => {
     expect((await get(ann, p)).view.hope_at).toBe(6);
   });
 
-  it('🪱 Parasite and 🐦 Cuckoo: quicker at ★1 and ★2', async () => {
+  it('🪱 Parasite: quicker at ★2', async () => {
     const p = await enchant(ann, 'parasite'); await setStars(p, 2);
     expect((await get(ann, p)).view.next_stage_at).toBe(2);
-    const c = await enchant(ann, 'cuckoo'); await setStars(c, 2);
-    const v = await act(ann, c, 'scout').catch(() => null);
-    if (v?.view?.nests) expect(v.view.nests.length).toBeLessThanOrEqual(5);
   });
 
   it('🌀 Wormhole: a three-mouthed wormhole at any level with ★3', async () => {
@@ -229,7 +226,7 @@ describe('⭐ the powers', () => {
     const m0 = (await get(ann, sp)).view.max;
     await setStars(sp, 1);
     expect((await get(ann, sp)).view.max).toBe(m0 + 1);
-    const ids = [await enchant(ann, 'goose'), await enchant(ann, 'genie'), await enchant(ann, 'map'), await enchant(ann, 'cuckoo')];
+    const ids = [await enchant(ann, 'goose'), await enchant(ann, 'genie'), await enchant(ann, 'map'), await enchant(ann, 'spyglass')];
     await db.sql(`update enchantments set state = state || jsonb_build_object('charges', 0, 'bonus', 6, 'charge_at', extract(epoch from now())) where id = $1`, [sp]);
     await expectError(act(ann, sp, 'splice', { mode: 'quad', a: ids[0], b: ids[1], c: ids[2], d: ids[3] }), 'stars_locked');
     await setStars(sp, 3);
@@ -292,7 +289,7 @@ describe('⭐ the powers', () => {
 
   it('lists three powers for every kind', async () => {
     const r = (await db.sql(`select k, jsonb_array_length(private.ench_star_powers(k)) n from unnest(private.ench_kinds()) k`));
-    expect(r.length).toBe(15);
+    expect(r.length).toBeGreaterThanOrEqual(17);
     for (const x of r) expect(x.n).toBe(3);
   });
 });

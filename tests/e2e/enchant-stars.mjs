@@ -69,7 +69,7 @@ async function run(mode) {
     await sql(`update game_config set value = value || '{"splice": {"aberration": 0, "unstable": 0}}' where key = 'enchantments'`);
     const give = async (kind, i) => (await api('admin.giveEnchantment', me, kind, 'e2e: stars', { gx: bx + 1 + (i % 5) * 3, gy: by + 1 + Math.floor(i / 5) * 3 })).id;
     const ids = {};
-    const kinds = ['genie', 'genie2', 'goose', 'cuckoo', 'parasite', 'clockwork', 'splice', 'map', 'pandora', 'sizeray'];
+    const kinds = ['genie', 'genie2', 'goose', 'spyglass', 'parasite', 'clockwork', 'splice', 'map', 'pandora', 'sizeray'];
     for (const [i, k] of kinds.entries()) ids[k] = await give(k.replace(/\d$/, ''), i);
     ok('the owner gives the enchantments (two Genies)', kinds.every((k) => !!ids[k]));
 
@@ -122,7 +122,7 @@ async function run(mode) {
     await page.click('[data-testid=merge-go]');
     ok('another kind pours in as Essence', await waitFor('[data-testid=merge-essence-got]', 15000), await text('[data-testid=merge-essence-got]'));
     await page.click('[data-testid=merge-finish]');
-    await api('enchantMerge', ids.genie, ids.cuckoo);
+    await api('enchantMerge', ids.genie, ids.spyglass);
     const r2 = await api('enchantMerge', ids.genie, ids.parasite);
     ok('three Essence pour in as a copy: ★2', r2.result.essence_used && r2.result.stars === 2 && r2.result.power?.name === 'Gift of Wishes', JSON.stringify(r2.result).slice(0, 90));
     await refresh(); await page.waitForTimeout(1200);

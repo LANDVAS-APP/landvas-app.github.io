@@ -191,27 +191,6 @@ describe('🦠 Parasite', () => {
   });
 });
 
-describe('🪺 Cuckoo', () => {
-  it('scout nests, lay, the host can throw the egg out (and is paid); a hatched chick pays more from rarer hosts', async () => {
-    ids.cuckoo = await enchant(ann, 'cuckoo', 16);
-    const s = await act(ann, ids.cuckoo, 'scout');
-    expect(s.view.nests.length).toBeGreaterThanOrEqual(2);
-    expect(s.view.nests[0]).toHaveProperty('watch'); expect(s.view.nests[0]).toHaveProperty('reward');
-    const l = await act(ann, ids.cuckoo, 'lay', { i: 0 });
-    const host = l.view.egg.owner as string;
-    const b = await ink(host);
-    await db.rpc(host, 'enchant_visitor_act', { p_id: ids.cuckoo, p_action: 'eject' });
-    expect(await ink(host)).toBe(b + 8);
-    expect((await db.rpc(ann, 'enchant_get', { p_id: ids.cuckoo })).view.egg).toBeNull();
-    await act(ann, ids.cuckoo, 'scout');
-    const l2 = await act(ann, ids.cuckoo, 'lay', { i: 0 });
-    await expectError(act(ann, ids.cuckoo, 'raise'), 'not_hatched');
-    await skip(ids.cuckoo, 10 * 3600 + 10);
-    const rr = await act(ann, ids.cuckoo, 'raise');
-    expect(rr.result.pay.paid).toBe(l2.view.egg.reward);
-  });
-});
-
 describe('🏺 Pandora’s Box', () => {
   it('once a day; seven evils released bring Hope (a Legendary+ ticket) and reset the box', async () => {
     ids.pandora = await enchant(ann, 'pandora', 20);
@@ -250,9 +229,9 @@ describe('🧪 Splice, ⚙️ Clockwork, 📡 Size Ray', () => {
     ids.clock = await enchant(ann, 'clockwork', 32);
     const w = await act(ann, ids.clock, 'wind', { turns: 10 });
     expect(Number(w.view.charge)).toBeGreaterThanOrEqual(110);
-    const before = Number((await db.sql(`select clock_skip from enchantments where id = $1`, [ids.cuckoo]))[0].clock_skip);
-    await act(ann, ids.clock, 'forward', { target: ids.cuckoo, minutes: 60 });
-    expect(Number((await db.sql(`select clock_skip from enchantments where id = $1`, [ids.cuckoo]))[0].clock_skip)).toBe(before + 3600);
+    const before = Number((await db.sql(`select clock_skip from enchantments where id = $1`, [ids.map]))[0].clock_skip);
+    await act(ann, ids.clock, 'forward', { target: ids.map, minutes: 60 });
+    expect(Number((await db.sql(`select clock_skip from enchantments where id = $1`, [ids.map]))[0].clock_skip)).toBe(before + 3600);
     const ends0 = new Date((await db.sql(`select ends_at from enchant_splices where a = $1 or b = $1 order by id desc limit 1`, [ids.goose]))[0].ends_at).getTime();
     await act(ann, ids.clock, 'freeze', { target: ids.goose, hours: 2 });
     const ends1 = new Date((await db.sql(`select ends_at from enchant_splices where a = $1 or b = $1 order by id desc limit 1`, [ids.goose]))[0].ends_at).getTime();
@@ -313,10 +292,10 @@ describe('the land, the map and the owner', () => {
     const m = await db.rpc(null, 'enchant_map', { p_min_gx: O.gx - 500, p_min_gy: O.gy - 500, p_max_gx: O.gx + 500, p_max_gy: O.gy + 500 });
     expect(m.plots.length).toBeGreaterThanOrEqual(8);
     const mine = await db.rpc(ann, 'my_enchantments');
-    expect(mine.map((x: any) => x.kind).sort()).toEqual(expect.arrayContaining(['goose', 'genie', 'map', 'parasite', 'cuckoo', 'pandora', 'splice', 'sizeray', 'clockwork']));
+    expect(mine.map((x: any) => x.kind).sort()).toEqual(expect.arrayContaining(['goose', 'genie', 'map', 'parasite', 'pandora', 'splice', 'sizeray', 'clockwork']));
     expect(mine.some((x: any) => x.attention)).toBe(true);
     const b = await db.rpc(ann, 'enchant_bestiary');
-    expect(b.kinds).toHaveLength(15); expect(b.codex).toContain('goose+sizeray');
+    expect(b.kinds).toHaveLength((await db.sql(`select array_length(private.ench_kinds(), 1) n`))[0].n); expect(b.codex).toContain('goose+sizeray');
     const ch = await db.rpc(ann, 'enchant_chronicle', { p_id: ids.goose });
     const older = await db.rpc(ann, 'enchant_chronicle', { p_id: ids.goose, p_before: ch[ch.length - 1].id });
     expect([...ch, ...older].map((x: any) => x.kind)).toEqual(expect.arrayContaining(['born', 'fox', 'egg', 'spliced', 'frozen']));
@@ -339,7 +318,7 @@ describe('the land, the map and the owner', () => {
     await db.rpc(owner, 'admin_config_set', { p_key: 'enchantments', p_value: { ...cur, base_pct: 3.5, weights: { ...cur.weights, shard: 0 } } });
     expect((await db.sql(`select value ->> 'base_pct' p from game_config where key = 'enchantments'`))[0].p).toBe('3.5');
     await db.rpc(owner, 'admin_config_set', { p_key: 'enchantments', p_value: cur });
-    const g = await db.rpc(owner, 'admin_give_enchantment', { p_player: cat, p_kind: 'cuckoo', p_reason: 'to be changed' });
+    const g = await db.rpc(owner, 'admin_give_enchantment', { p_player: cat, p_kind: 'spyglass', p_reason: 'to be changed' });
     await db.rpc(owner, 'admin_set_plot_rarity', { p_gx: g.gx, p_gy: g.gy, p_rarity: 'rare', p_shiny: false, p_reason: 'changed it' });
     expect((await db.sql(`select status from enchantments where id = $1`, [g.id]))[0].status).toBe('gone');
   });

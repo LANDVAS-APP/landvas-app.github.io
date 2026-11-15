@@ -25,6 +25,8 @@ import { ParasiteWraps } from './ParasiteWraps';
 import { useDigChest } from './Chests';
 import { usePlotPick } from './plotPick';
 import { MapMarvels } from './MapMarvels';
+import { MapCraft } from './MapCraft';
+import './craft.css';
 import { useWarp } from './scenes/WormholeScene';
 import './enchant.css';
 
@@ -83,9 +85,11 @@ function creature(p: EnchantMap['plots'][number]) {
   const night = nightAt(lng), dusty = p.mine && !!p.updated_at && Date.now() - Date.parse(p.updated_at) > 3 * 86400_000;
   const fx: Record<string, string> = {
     goose: '<i class="egg"></i>', genie: '<i class="puff"></i><i class="puff"></i><i class="puff"></i>', map: '<i class="x">✕</i>', parasite: '<i class="drip"></i>',
-    cuckoo: '<i class="feather">🪶</i>', pandora: '<i class="glow"></i>', splice: '<i class="bub"></i><i class="bub"></i><i class="bub"></i>', clockwork: '<i class="gear">⚙</i>',
+    cuckoo: '<i class="lvx-crack"></i>', pandora: '<i class="glow"></i>', splice: '<i class="bub"></i><i class="bub"></i><i class="bub"></i>', clockwork: '<i class="gear">⚙</i>',
     sizeray: '<i class="wave"></i><i class="wave"></i>', shard: '<i class="glint"></i>', wormhole: '<i class="swirl"></i>', oracle: '<i class="lid"></i>',
     ouroboros: '<i class="ring"></i>', homunculus: '<i class="bub"></i><i class="bub"></i>', stormcoil: '<i class="zap">⚡</i>',
+    spyglass: '<i class="lvx-lens"></i>', origami: '<i class="lvx-fold"></i>', crucible: '<i class="lvx-ember"></i><i class="lvx-ember"></i><i class="lvx-ember"></i>',
+    puppeteer: '<i class="lvx-string"></i><i class="lvx-string"></i>', deck: '<i class="lvx-card"></i>', glyph: '<i class="lvx-rune">ᚱ</i>',
   };
   const st = Math.min(3, Math.max(0, p.stars ?? 0));
   return `<span class="lv-cr k-${p.reflect ?? p.kind} lvl${lvl}${st ? ` st${st}` : ''}${night ? ' night' : ''}${dusty ? ' dusty' : ''}" style="--a:${k.a};--b:${k.b};--r:${p.mine ? '#FFD23F' : k.a}">`
@@ -332,5 +336,6 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
   return <>
     <ParasiteWraps ready={ready} attached={(data?.attached ?? []).filter((a) => a.what === 'parasite')} />
     <MapMarvels ready={ready} />
+    <MapCraft ready={ready} />
   </>;
 }

@@ -41,6 +41,7 @@ export function useAct(id: string) {
       void qc.invalidateQueries({ queryKey: ['enchantments'] });
       void qc.invalidateQueries({ queryKey: ['enchant-chronicle', id] });
       void qc.invalidateQueries({ queryKey: ['enchant-map'] });
+      void qc.invalidateQueries({ queryKey: ['enchant-map3'] });
       invalidateGame(qc);
       const pay = r.result?.pay;
       if (pay && pay.paid > 0 && !opts.silent) efx.pay(pay, r.reflect_kind ?? r.kind, opts.at);

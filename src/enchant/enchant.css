@@ -485,3 +485,8 @@ html.reduce-motion .lv-storm-rain, html.reduce-motion .lv-ouro-spin, html.reduce
 .lv-cr.st3 { box-shadow: 0 0 0 3px #FFD23F, 0 0 30px 9px rgba(255, 179, 31, 0.75); }
 .lv-map-moving .lv-cr-stars { animation-play-state: paused !important; }
 html.reduce-motion .lv-staraura-ring, html.reduce-motion .lv-staraura-orbit, html.reduce-motion .lv-staraura-crown { animation: none !important; }
+
+/* the "sleeping / dusty" note says it once and gets out of the way of whatever the scene shows at the bottom */
+.lv-mood-tag { animation: lv-mood-tag-out 0.6s ease 5s both; }
+@keyframes lv-mood-tag-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lv-mood-tag { animation: none; } }

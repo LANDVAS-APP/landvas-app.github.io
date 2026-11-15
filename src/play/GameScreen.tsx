@@ -53,6 +53,9 @@ export default function GameScreen() {
   const qc = useQueryClient();
   const me = useOnboardedMe();
   const world = useWorld();
+  // 🎭 on strings: a Puppeteer playing someone else's plot
+  const puppet = sp.get('puppet');
+  const [strung, setStrung] = useState<{ owner: any; grand: boolean } | null>(null);
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
   const records = useQuery({ queryKey: qk.records, queryFn: api.myMinigameRecords, enabled: !!me });
   const plotProgress = useQuery({ queryKey: qk.plotProgress, queryFn: api.myPlotProgress, enabled: !!me });
@@ -112,7 +115,7 @@ export default function GameScreen() {
     if (!cell) return;
     setPhase({ k: 'starting' });
     try {
-      const s = await api.startMinigame(game, lv, cell.gx, cell.gy);
+      const s = puppet ? await api.puppetStart(puppet, cell.gx, cell.gy).then((x) => { setStrung({ owner: x.puppet.owner, grand: x.puppet.grand }); return x; }) : await api.startMinigame(game, lv, cell.gx, cell.gy);
       setPhase({ k: 'playing', s, t0: performance.now() });
     } catch (e) {
       toast.error(toGameError(e).message);
@@ -141,7 +144,7 @@ export default function GameScreen() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="eyebrow">{t.name} plot{plot ? ` · ${plotLabel(plot.gx, plot.gy)}` : ''}</div>
+          <div className="eyebrow">{puppet ? `🎭 On strings${strung?.owner?.username ? ` · @${strung.owner.username}’s plot` : ''}${strung?.grand ? ' · Grand Show ×3' : ''}` : `${t.name} plot${plot ? ` · ${plotLabel(plot.gx, plot.gy)}` : ''}`}</div>
           <h1 className="truncate font-display text-lg font-semibold">{info.name}{phase.k === 'playing' ? ` · Level ${phase.s.level}` : ''}</h1>
         </div>
         <div className="glass flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-bold" title="Wins that pay Ink today">
@@ -172,16 +175,17 @@ export default function GameScreen() {
             <ol className="lv-gintro-how">
               {info.howTo.map((h, i) => <li key={i}><b>{i + 1}</b><span>{h}</span></li>)}
             </ol>
-            {!candidates.length && !plots.isLoading && (
+            {!puppet && !candidates.length && !plots.isLoading && (
               <p className="mt-3 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">You need a {t.name} plot to play {info.name}. Plot types are revealed when you claim them — keep claiming to find one.</p>
             )}
-            {candidates.length > 0 && (
+            {!puppet && candidates.length > 0 && (
               <PlotPicker plots={candidates} progress={plotProgress.data} maxLevel={maxLevel} cell={cell} onPick={(c) => { buzz('light'); setCell(c); nav(`/play/${game}?gx=${c.gx}&gy=${c.gy}`, { replace: true }); }} />
             )}
-            {maxed && <p className="mt-2 text-center text-[12px] font-semibold text-[#3DDC97]" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels — pick another to keep earning.</p>}
+            {puppet && <p className="mt-2 rounded-2xl border border-[#FFB703]/40 bg-[#FFB703]/10 p-3 text-center text-[12.5px] font-semibold" data-testid="puppet-banner">🎭 On strings — someone else’s plot. You climb your own levels here; the owner is tipped.</p>}
+            {!puppet && maxed && <p className="mt-2 text-center text-[12px] font-semibold text-[#3DDC97]" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels — pick another to keep earning.</p>}
             <div className="lv-stickycta mt-3">
-              <button className="lv-btn lv-rainbow h-14 w-full text-[17px]" disabled={!cell || !candidates.length || maxed} onClick={() => { buzz('medium'); void start(lvl); }} data-testid="game-start">
-                <Sparkles className="h-5 w-5" /> {maxed ? 'Every level beaten' : `Play level ${lvl}`}
+              <button className="lv-btn lv-rainbow h-14 w-full text-[17px]" disabled={puppet ? !cell : (!cell || !candidates.length || maxed)} onClick={() => { buzz('medium'); void start(lvl); }} data-testid="game-start">
+                <Sparkles className="h-5 w-5" /> {puppet ? '🎭 Play it on strings' : maxed ? 'Every level beaten' : `Play level ${lvl}`}
               </button>
             </div>
           </div>
@@ -205,13 +209,14 @@ export default function GameScreen() {
             <ol className="mt-4 grid gap-2 text-sm text-muted">
               {info.howTo.map((h, i) => <li key={i} className="flex gap-2"><span className="font-bold text-fg">{i + 1}.</span>{h}</li>)}
             </ol>
-            {!candidates.length && !plots.isLoading && (
+            {!puppet && !candidates.length && !plots.isLoading && (
               <p className="mt-4 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">You need a {t.name} plot to play {info.name}. Plot types are revealed when you claim them — keep claiming to find one.</p>
             )}
-            {candidates.length > 0 && (
+            {!puppet && candidates.length > 0 && (
               <PlotPicker plots={candidates} progress={plotProgress.data} maxLevel={maxLevel} cell={cell} onPick={(c) => { setCell(c); nav(`/play/${game}?gx=${c.gx}&gy=${c.gy}`, { replace: true }); }} />
             )}
-            {maxed && (
+            {puppet && <p className="mt-4 rounded-2xl border border-[#FFB703]/40 bg-[#FFB703]/10 p-3 text-sm" data-testid="puppet-banner">🎭 <b>On strings</b> — someone else’s plot. You climb your own levels of {info.name} here, and the owner gets a tip from whatever you win.</p>}
+            {!puppet && maxed && (
               <p className="mt-4 rounded-2xl border border-ok/40 bg-ok/10 p-3 text-sm" data-testid="plot-maxed">This plot has beaten all {maxLevel} levels of {info.name}. Beaten levels can’t be replayed — pick another plot{candidates.length > 1 ? ' above' : ''} to keep earning.</p>
             )}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/50 p-3 text-sm">
@@ -226,8 +231,8 @@ export default function GameScreen() {
               )}
             </div>
             <p className="mt-2 text-xs text-faint tnum">This plot: {prog ? `level ${prog.highest_level} cleared · ${prog.wins} wins` : 'fresh — starts at level 1'} · max level {maxLevel}{rec ? ` · best ever ${fmt(rec.best_score)}` : ''}</p>
-            <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={!cell || !candidates.length || maxed} onClick={() => start(lvl)} data-testid="game-start">
-              <Sparkles className="h-4 w-4" /> {maxed ? 'Every level beaten' : `Play level ${lvl}`}
+            <Button variant="rainbow" size="lg" className="mt-4 w-full" disabled={puppet ? !cell : (!cell || !candidates.length || maxed)} onClick={() => start(lvl)} data-testid="game-start">
+              <Sparkles className="h-4 w-4" /> {puppet ? '🎭 Play it on strings' : maxed ? 'Every level beaten' : `Play level ${lvl}`}
             </Button>
           </div>
         )}

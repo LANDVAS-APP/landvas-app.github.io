@@ -30,7 +30,7 @@ beforeAll(async () => {
   await db.sql(`update game_config set value = value || '{"splice": {"aberration": 0, "unstable": 0}}' where key = 'enchantments'`);
   ids.splice = await enchant(ann, 'splice', 0);
   ids.goose = await enchant(ann, 'goose', 4); ids.map = await enchant(ann, 'map', 8); ids.genie = await enchant(ann, 'genie', 12);
-  ids.cuckoo = await enchant(ann, 'cuckoo', 16); ids.clock = await enchant(ann, 'clockwork', 20); ids.worm = await enchant(ann, 'wormhole', 24);
+  ids.cuckoo = await enchant(ann, 'crucible', 16); ids.clock = await enchant(ann, 'clockwork', 20); ids.worm = await enchant(ann, 'wormhole', 24);
 });
 afterAll(() => db.close());
 const end = () => act(ann, ids.splice, 'unsplice');
@@ -91,19 +91,19 @@ describe('🗺️ Seeking buries a real chest you can dig up', () => {
   });
 });
 
-describe('🧞🪺 Wishing and Trickster always do something', () => {
+describe('🧞🪺 Wishing and Tempered always do something', () => {
   it('Wishing on a Goose (no charges to keep): +50% Ink when grafted', async () => {
     await graft(ids.goose, ids.genie);
     const p = await pay(ids.goose);
     expect(p.mods.some((m: any) => m.label === 'Wishing +50%')).toBe(true);
     await end();
   });
-  it('Trickster on a Wormhole (no bad luck to dodge): +40% Ink when grafted; on a Goose it dodges foxes instead', async () => {
+  it('Tempered (the Crucible’s) on a Wormhole (no bad luck to dodge): +40% Ink when grafted; on a Goose it dodges foxes instead', async () => {
     await graft(ids.worm, ids.cuckoo);
-    expect((await pay(ids.worm)).mods.some((m: any) => m.label === 'Trickster +40%')).toBe(true);
+    expect((await pay(ids.worm)).mods.some((m: any) => m.label === 'Tempered +40%')).toBe(true);
     await end();
     await graft(ids.goose, ids.cuckoo);
-    expect((await pay(ids.goose)).mods.some((m: any) => /Trickster/.test(m.label))).toBe(false);
+    expect((await pay(ids.goose)).mods.some((m: any) => /Tempered/.test(m.label))).toBe(false);
     await end();
   });
 });

@@ -140,7 +140,7 @@ export function MoodVeil({ night, dusty }: { night: boolean; dusty: boolean }) {
     <div className="pointer-events-none absolute inset-0 z-[5]" aria-hidden>
       {night && <div className="lv-night absolute inset-0"><span className="lv-zzz">z</span><span className="lv-zzz" style={{ animationDelay: '0.9s' }}>z</span><span className="lv-zzz" style={{ animationDelay: '1.8s' }}>Z</span></div>}
       {dusty && <div className="lv-dust absolute inset-0" />}
-      <div className="absolute left-3 bottom-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-black text-white/80">{night ? '🌙 It’s night where it lives — it’s sleeping' : '🕸️ Dusty — it’s missed you'}</div>
+      <div className="lv-mood-tag absolute left-3 bottom-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-black text-white/80">{night ? '🌙 It’s night where it lives — it’s sleeping' : '🕸️ Dusty — it’s missed you'}</div>
     </div>
   );
 }
