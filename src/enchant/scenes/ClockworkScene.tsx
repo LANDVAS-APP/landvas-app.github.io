@@ -16,7 +16,12 @@ function Gear({ r, teeth, cls, x, y, c }: { r: number; teeth: number; cls: strin
   return <g className={cls}><polygon points={d} fill={c} stroke="#3A2A1A" strokeWidth="1.5" /><circle cx={x} cy={y} r={r * 0.35} fill="#3A2A1A" /><circle cx={x} cy={y} r={r * 0.15} fill="#D4A373" /></g>;
 }
 
-export function ClockworkScene({ v, view, act, busy }: SceneProps) {
+export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
+  const [tolled, setTolled] = useState<number | null>(null);
+  const toll = async () => {
+    const r = await act('toll');
+    if (r) { setTolled(Number(r.result.tolled)); efx.burst({ x: innerWidth / 2, y: innerHeight * 0.4, colors: ['#FFE8A3', '#D4A373', '#fff'], count: 140, speed: 11, kind: 'spark' }); }
+  };
   const mine = useMyEnchantments();
   const key = useRef<HTMLDivElement>(null);
   const face = useRef<HTMLDivElement>(null);
@@ -91,6 +96,12 @@ export function ClockworkScene({ v, view, act, busy }: SceneProps) {
           <span className="text-[10px] font-bold text-[#FFE8A3]" data-testid="clock-chime">{left ? `🔔 The day’s last turn chimes: +30–50 Ink` : '🔔 Chimed today — wind again tomorrow'}</span>
         </div>
       </div>
+      {!mirror && view.toll && (
+        <div className="grid gap-1 rounded-2xl border border-[#FFD23F]/30 bg-[#FFD23F]/[0.06] p-3" data-testid="clock-toll">
+          <Button variant="rainbow" disabled={!!busy || !!view.toll_used} onClick={() => void toll()} data-testid="clock-toll-go">🔔 {view.toll_used ? 'Rung today — again tomorrow' : 'Ring the Toll of Hours'}</Button>
+          <div className="text-center text-[11px] text-white/60">{tolled != null ? `The hour struck: ${tolled} enchantment${tolled === 1 ? '' : 's'} jumped 30 minutes ahead.` : '★3: once a day, every other enchantment you own jumps 30 minutes ahead.'}</div>
+        </div>
+      )}
       <div className="grid gap-1.5" data-testid="clock-targets">
         <div className="text-[12px] font-black uppercase tracking-wider text-white/60">Bend time for…</div>
         {targets.length ? targets.map((t) => {
@@ -108,7 +119,7 @@ export function ClockworkScene({ v, view, act, busy }: SceneProps) {
           );
         }) : <p className="text-[12px] text-white/55">Your other enchantments will appear here.</p>}
       </div>
-      <p className="text-center text-[11px] text-white/55">Fast-forward costs a minute of stored time per minute; freezing costs {view.freeze_cost} minutes an hour. Wound {v.stats?.winds ?? 0} turns in all.</p>
+      <p className="text-center text-[11px] text-white/55">Fast-forward costs a minute of stored time per minute{Number(view.skip_x ?? 1) > 1 ? ` (and gives ${view.skip_x}×)` : ''}; freezing costs {view.freeze_cost} minutes an hour. Wound {v.stats?.winds ?? 0} turns in all.</p>
     </div>
   );
 }

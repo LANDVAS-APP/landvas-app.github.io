@@ -26,6 +26,7 @@ import { newMoment } from '../clips/moments';
 import { SceneFor } from './scenes';
 import { WarpTunnel } from './scenes/WormholeScene';
 import { Sigil } from './Sigil';
+import { StarAura, StarPips, StarsPanel } from './Stars';
 import './enchant.css';
 
 export default function GrimoireScreen() {
@@ -90,10 +91,10 @@ function Card({ e, i }: { e: EnchantView; i: number }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
       <Link to={`/grimoire/${e.id}`} className={cn('lv-ench-card flex items-center gap-3 p-3', e.attention && 'lv-ench-attn')} style={{ ['--a' as string]: base.a }} data-testid="grimoire-card" data-kind={e.kind}>
-        <div className="relative shrink-0"><Sigil kind={e.kind} seed={e.sigil} size={74} level={e.level} />
+        <div className="relative shrink-0"><StarAura stars={e.stars ?? 0} size={74}><Sigil kind={e.kind} seed={e.sigil} size={74} level={e.level} /></StarAura>
           {e.reflect_kind && <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-[#C0F5FF] text-[14px] shadow">{k.emoji}</span>}</div>
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <div className="flex items-center gap-1.5"><span className="truncate font-display text-[17px] font-black">{enchantName(e)}</span>{e.level > 1 && <span className="rounded-full bg-[#FFD23F]/20 px-1.5 text-[10px] font-black text-[#FFD23F]">LV {e.level}</span>}</div>
+          <div className="flex items-center gap-1.5"><span className="truncate font-display text-[17px] font-black">{enchantName(e)}</span>{e.level > 1 && <span className="rounded-full bg-[#FFD23F]/20 px-1.5 text-[10px] font-black text-[#FFD23F]">LV {e.level}</span>}{(e.stars ?? 0) > 0 && <StarPips stars={e.stars ?? 0} className="text-[12px]" />}</div>
           <div className="text-[11px] text-white/60">{base.name} #{e.serial} of {fmt(e.minted)}{e.nickname ? '' : ''} · {e.born_place ?? 'somewhere'}</div>
           {e.partner && <div className="truncate text-[11px] font-black text-[#00F5D4]">🧬 {e.partner.hybrid}</div>}
           {e.clock?.frozen_until && <div className="text-[11px] font-black text-[#C0F5FF]">❄️ frozen</div>}
@@ -353,7 +354,7 @@ function Detail({ id }: { id: string }) {
       {/* the header: one of a kind */}
       <motion.section className="lv-ench-card mb-4 grid gap-3 p-4" style={{ ['--a' as string]: k.a }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} data-testid="ench-header">
         <div className="flex items-center gap-4">
-          <EvolveAura level={v.level} color={k.a} size={120}><Sigil kind={v.kind} seed={v.sigil} size={112} level={v.level} /></EvolveAura>
+          <StarAura stars={v.stars ?? 0} size={120}><EvolveAura level={v.level} color={k.a} size={120}><Sigil kind={v.kind} seed={v.sigil} size={112} level={v.level} /></EvolveAura></StarAura>
           <div className="grid min-w-0 flex-1 gap-1">
             {naming == null ? (
               <button className="text-left" onClick={() => mine && setNaming(v.nickname ?? '')} data-testid="ench-name"><span className="font-display text-[26px] font-black leading-tight">{enchantName(v)}</span>{mine && <span className="ml-1 text-xs text-white/40">✎</span>}</button>
@@ -367,6 +368,7 @@ function Detail({ id }: { id: string }) {
             <div className="text-[11px] text-white/55">Born {timeAgo(v.born_at)} in {v.born_place ?? 'an unmapped place'}{v.first_owner && v.owner && v.first_owner.id !== v.owner.id ? ` · first held by @${v.first_owner.username}` : ''}</div>
             <div className="mt-1 flex items-center gap-2">
               <span className="rounded-full bg-[#FFD23F]/20 px-2 py-0.5 text-[11px] font-black text-[#FFD23F]">LV {v.level}</span>
+              {(v.stars ?? 0) > 0 && <StarPips stars={v.stars ?? 0} className="text-[14px]" testId="ench-header-stars" />}
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,#FFD23F,#FF9F1C)]" style={{ width: `${xpPct}%` }} /></div>
               {v.level < 10 && <span className="text-[10px] text-white/45">+{Math.round((v.level - 1) * 6)}% Ink</span>}
             </div>
@@ -382,6 +384,7 @@ function Detail({ id }: { id: string }) {
         {!!v.clock?.skip_s && <div className="text-[11px] text-white/45">⏩ Its clock runs {dur(v.clock.skip_s)} ahead of the world.</div>}
         <div className="flex flex-wrap gap-3 text-[11px] text-white/55">{v.stats?.ink ? <span>💧 {fmt(v.stats.ink)} Ink earned</span> : null}{v.owner && <span>Held by @{v.owner.username}</span>}</div>
       </motion.section>
+      {mine && <StarsPanel v={v} />}
       {mine && (v.chests?.length ?? 0) > 0 && (
         <SeekChests className="mb-4" chests={v.chests!} title={v.kind === 'map' ? `Chests your Seeking Trait buried · ${v.chests!.length}` : `Its buried chests · ${v.chests!.length}`}
           hint={v.kind === 'map' ? 'This map lent its Seeking Trait in a splice: these chests are buried by the plots of the enchantments that wore it.' : 'Its Seeking Trait buried these right by its plot. Dig them up here or tap them on the map.'} />
@@ -425,6 +428,10 @@ const EV: Record<string, (d: any) => string> = {
   charge: (d) => `⚡ A spare charge — ${d.from === 'ink' ? `bought for ${d.ink} Ink` : d.from === 'egg' ? `cracked a ${d.egg} egg` : d.from === 'goose' ? 'a spark from a golden egg' : d.from === 'heart' ? 'from a Homunculus’s heart' : d.from}`,
   invited: (d) => `🤝 Asked @${d.to} to splice: ${d.hybrid}`, leviathan: (d) => `🐉 Struck the Leviathan with ${d.move} — ${Number(d.dmg).toLocaleString()}`, reflect: (d) => `🪞 Reflected ${d.owner ? `@${d.owner}’s ` : 'a dream of a '}${kindInfo(d.kind).name}`, shatter: () => '💥 Shattered — and mended',
   seek_chest: (d) => `🧰 Dug up a chest its Seeking Trait buried: +${d.ink} Ink`, chime: () => '🔔 The clock chimed',
+  merged: (d) => (d.kind === 'essence' ? '🔮 Three Essence poured in' : d.same ? `✨ A ${kindInfo(d.kind).name} #${d.serial} was poured in` : `🔮 A ${kindInfo(d.kind).name} #${d.serial} poured in as Essence`),
+  merged_away: (d) => `✨ Poured into ${kindInfo(d.into).name} #${d.serial}${d.same ? '' : ' as Essence'}`,
+  star: (d) => `${'⭐'.repeat(d.stars)} Earned ★${d.stars}: ${d.power}`,
+  gift: (d) => `🎁 Gave a wish to @${d.to}`, boon: () => '👑 The Master’s Boon: an Epic+ roll ticket', toll: (d) => `🔔 Rang the Toll of Hours — ${d.n} enchantments jumped 30 min ahead`,
 };
 function Chronicle({ id }: { id: string }) {
   const q = useQuery({ queryKey: ['enchant-chronicle', id], queryFn: () => api.enchantChronicle(id), staleTime: 10_000 });

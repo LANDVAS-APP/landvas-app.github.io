@@ -194,6 +194,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'coil_bitten': return <>🐍 Your Ouroboros <b>bit through its tail</b> on loop {d.loop} — {d.hybrid} snapped{Number(d.lost) ? ` and ${d.lost} banked Ink was lost` : ''}</>;
       case 'coil_closed': return <>⭕ <b>The circle closed!</b> Your Ouroboros held for seven loops — choose the Aberration {d.hybrid} becomes</>;
       case 'homu_greet': return <>waved hello to your 🧫 Homunculus <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;
       default: return <>did something with an enchantment</>;
     }
   }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },

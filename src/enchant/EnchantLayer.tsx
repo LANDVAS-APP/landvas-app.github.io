@@ -87,9 +87,10 @@ function creature(p: EnchantMap['plots'][number]) {
     sizeray: '<i class="wave"></i><i class="wave"></i>', shard: '<i class="glint"></i>', wormhole: '<i class="swirl"></i>', oracle: '<i class="lid"></i>',
     ouroboros: '<i class="ring"></i>', homunculus: '<i class="bub"></i><i class="bub"></i>', stormcoil: '<i class="zap">⚡</i>',
   };
-  return `<span class="lv-cr k-${p.reflect ?? p.kind} lvl${lvl}${night ? ' night' : ''}${dusty ? ' dusty' : ''}" style="--a:${k.a};--b:${k.b};--r:${p.mine ? '#FFD23F' : k.a}">`
+  const st = Math.min(3, Math.max(0, p.stars ?? 0));
+  return `<span class="lv-cr k-${p.reflect ?? p.kind} lvl${lvl}${st ? ` st${st}` : ''}${night ? ' night' : ''}${dusty ? ' dusty' : ''}" style="--a:${k.a};--b:${k.b};--r:${p.mine ? '#FFD23F' : k.a}">`
     + `<span class="lv-cr-ring"></span>${lvl >= 6 ? '<span class="lv-cr-crown">👑</span>' : ''}<span class="lv-cr-body">${k.emoji}</span>${fx[p.reflect ?? p.kind] ?? ''}`
-    + `${night ? '<span class="lv-cr-z">z</span>' : ''}${p.partner ? '<span class="lv-em-tag">🧬</span>' : ''}${p.frozen ? '<span class="lv-em-tag lv-em-tag-l">❄️</span>' : ''}</span>`;
+    + `${night ? '<span class="lv-cr-z">z</span>' : ''}${p.partner ? '<span class="lv-em-tag">🧬</span>' : ''}${p.frozen ? '<span class="lv-em-tag lv-em-tag-l">❄️</span>' : ''}${st ? `<span class="lv-cr-stars">${'★'.repeat(st)}</span>` : ''}</span>`;
 }
 
 function ensureLayers(map: maplibregl.Map) {

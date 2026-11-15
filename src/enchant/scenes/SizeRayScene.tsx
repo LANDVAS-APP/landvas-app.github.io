@@ -71,7 +71,7 @@ export function SizeRayScene({ v, view, act, busy, at }: SceneProps) {
             <rect x="20" y="40" width="110" height="26" rx="8" fill="#5B5F73" /><rect x="120" y="44" width="40" height="18" rx="4" fill="#8A8FA3" />
             <circle cx="170" cy="53" r="14" fill={shrinking ? '#FF00E5' : '#39FF14'} opacity={shot.aim ? 1 : 0.5} className={shot.aim ? 'lv-sigil-pulse' : ''} /><circle cx="170" cy="53" r="6" fill="#fff" />
             <path d="M40 66 L30 96 L56 96 L64 66Z" fill="#3A3E50" /><rect x="40" y="30" width="60" height="12" rx="4" fill="#FF00E5" />
-            {[0, 1, 2].map((i) => <rect key={i} x={46 + i * 18} y="32" width="12" height="8" rx="2" fill={i < Number(view.shots) ? '#39FF14' : '#1a1a1a'} />)}
+            {Array.from({ length: Number(view.max ?? 3) }, (_, i) => <rect key={i} x={46 + i * (54 / Number(view.max ?? 3))} y="32" width={Math.max(8, 54 / Number(view.max ?? 3) - 6)} height="8" rx="2" fill={i < Number(view.shots) ? '#39FF14' : '#1a1a1a'} />)}
           </svg>
         </div>
         <div className="absolute bottom-[20%] right-[8%] grid w-[34%] justify-items-center">

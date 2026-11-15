@@ -248,6 +248,8 @@ const PLOT_NOUN: Record<string, string> = { canvas: 'Canvas', habitat: 'Habitat'
   plane: 'Airfield', base: 'Plot', mine: 'Mine', sky: 'Sky Isle', workshop: 'Workshop', diner: 'Diner', dungeon: 'Dungeon', brawl: 'Arena' };
 export const plotHybridName = (kind: string, plotKind: string | null | undefined) => `${ADJ[kind]?.[0] ?? 'Spliced'} ${PLOT_NOUN[plotKind ?? 'canvas'] ?? 'Realm'}`;
 export const trinityName = (a: string, b: string, c: string) => { const k = [a, b, c].sort(); return `The ${ADJ[k[0]][0]} ${ADJ[k[1]][0]} ${ADJ[k[2]][1]}`; };
+/** a ★3 Splice's Quad: three adjectives and a noun */
+export const quadName = (a: string, b: string, c: string, d: string) => { const k = [a, b, c, d].sort(); return `The ${ADJ[k[0]][0]} ${ADJ[k[1]][0]} ${ADJ[k[2]][0]} ${ADJ[k[3]][1]}`; };
 export const ABERRATION_COUNT = 6;
 export const ABERRATIONS: Record<string, { emoji: string; secret: string }> = {
   'The Hollow King': { emoji: '👑', secret: 'Traits tripled, and triple XP' }, Glitchwing: { emoji: '🦋', secret: 'Traits tripled, and 1 in 10 rewards brings Enchanted Luck' },
@@ -260,6 +262,7 @@ export const SPLICE_MODES = {
   graft: { name: 'Graft', emoji: '🌿', hours: 12, cost: 1, text: 'One-way: the donor lends its Trait at double strength, and sleeps for 12 hours.' },
   chimera: { name: 'Chimera', emoji: '🐉', hours: 12, cost: 1, text: 'Both Traits doubled for 12 hours, and it roars every 3 hours. 1 in 8 is unstable and rejects early.' },
   trinity: { name: 'Trinity', emoji: '🔺', hours: 18, cost: 2, text: 'Three at once: each wears both other Traits for 18 hours. Costs both charges.' },
+  quad: { name: 'Quad', emoji: '✳️', hours: 18, cost: 3, text: '★3 Splice only: four at once — each wears all three other Traits for 18 hours. Costs 3 charges.' },
   friend: { name: 'With a friend', emoji: '🤝', hours: 24, cost: 1, text: 'One of yours + one of a friend’s. When they say yes, both wear each other’s Trait.' },
   plot: { name: 'With a plot', emoji: '🏞️', hours: 24, cost: 1, text: 'Splice an enchantment into one of your plots: the plot’s minigames wear its Trait, and it wears the plot’s.' },
 } as const;
@@ -306,6 +309,7 @@ export const EVILS: Record<string, { name: string; emoji: string; curse: string;
 export const EVIL_ORDER = ['plague', 'greed', 'strife', 'envy', 'despair', 'toil', 'sorrow'];
 
 export const TITLES: Record<string, string> = {
+  Starlit: 'Earned its first star', Starforged: 'Earned two stars', Supernova: 'Earned all three stars',
   Awakened: 'Reached level 5', Ascended: 'Reached level 10', 'Fox-Bane': 'Chased off 10 foxes', 'Golden Hen': 'Laid 25 eggs', Unbroken: 'A 7-egg golden streak',
   Platinum: 'Laid a Platinum egg', Forbidden: 'Made the Forbidden Wish', Wishmaster: 'Granted 30 wishes', Liberator: 'Set the Genie free',
   Cartographer: 'Dug up 5 treasure chests', Pathfinder: 'Found 40 map pieces', Symbiote: 'Evolved into a Symbiote', Devourer: 'Fed 25 times',

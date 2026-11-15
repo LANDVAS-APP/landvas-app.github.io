@@ -12,15 +12,22 @@ export type EstateTask = { done: number; need: number; today?: boolean; left_tod
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
 export type EnchantBrief = { id: string; kind: string; serial: number; sigil: number; nickname: string | null; level: number; gx: number; gy: number; titles: string[];
-  born_place: string | null; born_at: string; minted: number; population: number; name: string; emoji: string; gene?: string | null };
+  born_place: string | null; born_at: string; minted: number; population: number; name: string; emoji: string; gene?: string | null;
+  /** ⭐ stars (0–3) and the copies poured toward the next one */
+  stars?: number; star_fill?: number };
+export type MergeResult = { merged: boolean; same: boolean; essence_used: boolean; starred: boolean; stars: number; fill: number; need: number | null;
+  power: { name: string; emoji: string; text: string } | null; essence: number; copy: { kind: string; serial: number; gx: number; gy: number; rarity: string; xp: number } | null };
+export type StarPower = { star: number; name: string; emoji: string; text: string; on: boolean };
 export type EnchantPartner = { kind: string; id: string | null; gene: string; resonant: boolean; strength: number; perfect: boolean; hybrid: string; ends_at: string; started_at?: string;
-  mode: 'swap' | 'graft' | 'chimera' | 'trinity' | 'plot' | 'friend'; aberration: string | null; unstable: boolean; plot_kind: string | null; plot: [number, number] | null; friend: any };
+  mode: 'swap' | 'graft' | 'chimera' | 'trinity' | 'quad' | 'plot' | 'friend'; aberration: string | null; unstable: boolean; plot_kind: string | null; plot: [number, number] | null; friend: any };
 export type PlotSize = { mode: 'grow' | 'shrink'; mult: number; until: string; owner: string; linked: boolean; id: number; prank?: boolean; by_name?: string | null };
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
   clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
   view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean;
   /** chests its Seeking Trait buried (or, for a Treasure Map, that the Seeking it lent buried) */
-  chests?: SeekChest[] };
+  chests?: SeekChest[];
+  /** ⭐ (the owner's page): copies the next star takes, the Ink bonus, the three powers, the Essence banked, copies owned */
+  star_need?: number | null; star_ink?: number; powers?: StarPower[]; essence?: number; copies?: number };
 /** a chest a Seeking Trait buried by a plot: dig it up with a tap */
 export type SeekChest = { id: number; gx: number; gy: number; ink: number; kind: string; finder: string | null; serial: number | null; nickname: string | null; source: string | null; at: string; expires_at: string };
 export type EnchantVisitor = { id: string; kind: string; mirror: boolean; owner: any; serial: number; stage: number; feeds?: number; welcomed: boolean; gx: number; gy: number; at: number; hatch_at: number | null; what: 'parasite' | 'egg' };
@@ -28,7 +35,7 @@ export type MapSize = { gx: number; gy: number; mode: 'grow' | 'shrink'; mult: n
   /** 100 for a giant, 0.01 for a tiny plot; a prank is someone else's zap, just for show */
   scale?: number; prank?: boolean; by_name?: string | null; by_me?: boolean; plot_type?: string | null };
 export type MapWormhole = { id: string; mine: boolean; owner_name?: string | null; until?: number; ends: { gx: number; gy: number; home: boolean; name: string | null; rarity: string | null; place: string | null }[] };
-export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string }[];
+export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string; stars?: number }[];
   attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
   giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[]; chests?: { id: number; gx: number; gy: number; ink: number; kind: string }[] };
 export type MapWalker = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; serial: number; nickname: string | null; sigil: number; level: number;
@@ -154,6 +161,8 @@ export const api = {
   enchantGet: (id: string) => rpc<EnchantView>('enchant_get', { p_id: id }),
   enchantAt: (gx: number, gy: number) => rpc<(EnchantBrief & { owner: any; mine: boolean; partner: any; status: string }) | null>('enchant_at', { p_gx: gx, p_gy: gy }),
   enchantAct: (id: string, action: string, args: Record<string, unknown> = {}) => rpc<EnchantView & { result: any }>('enchant_act', { p_id: id, p_action: action, p_args: args }),
+  /** ⭐ pour a copy (or, with none, 3 banked Essence) into an enchantment */
+  enchantMerge: (target: string, copy: string | null) => rpc<EnchantView & { result: MergeResult }>('enchant_merge', { p_target: target, p_copy: copy }),
   enchantChronicle: (id: string, before: number | null = null) => rpc<{ id: number; kind: string; data: any; at: string }[]>('enchant_chronicle', { p_id: id, p_before: before }),
   enchantVisitors: () => rpc<EnchantVisitor[]>('enchant_visitors'),
   enchantVisitorAct: (id: string, action: 'shake' | 'welcome' | 'eject') => rpc<{ result: any; visitors: EnchantVisitor[] }>('enchant_visitor_act', { p_id: id, p_action: action }),

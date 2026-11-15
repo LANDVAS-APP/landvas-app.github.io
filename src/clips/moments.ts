@@ -24,6 +24,7 @@ export type Moment = { id: string; at: number; user?: string | null } & (
   | { type: 'shatter'; e: EnchantRef }
   | { type: 'zap'; e: EnchantRef; grade: string; target?: string | null }
   | { type: 'chick'; e: EnchantRef; feather?: boolean; ink?: number | null }
+  | { type: 'star'; e: EnchantRef; stars: number; power: string; text?: string | null; copy?: EnchantRef | null }
 );
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /** a moment before it's stamped */
@@ -50,6 +51,7 @@ export function momentTitle(m: Moment): { title: string; sub: string; emoji: str
     case 'shatter': return { title: 'The glass shattered', sub: `+20 Luck · ${m.e.name}`, emoji: '💥', color: '#C0F5FF' };
     case 'zap': return { title: `${m.grade} zap`, sub: `${m.target ? `${m.target} · ` : ''}${m.e.name}`, emoji: '📡', color: '#39FF14' };
     case 'chick': return { title: m.feather ? 'A lucky feather' : 'A chick raised', sub: `${m.ink ? `+${m.ink} Ink · ` : ''}${m.e.name}`, emoji: '🐣', color: '#4CC9F0' };
+    case 'star': return { title: `${'★'.repeat(m.stars)} ${m.power}`, sub: `A new star · ${m.e.name}`, emoji: '⭐', color: '#FFD23F' };
   }
 }
 
@@ -58,7 +60,7 @@ export function momentJob(m: Moment, user?: string | null): ClipJob {
   const L = layoutFor(W, H, { mode: 'clip' });
   const A = sharedAssets(1, true);
   const head = momentTitle(m);
-  const refs = 'e' in m ? [m.e] : [m.a, m.b];
+  const refs = m.type === 'star' && m.copy ? [m.e, m.copy] : 'e' in m ? [m.e] : [m.a, m.b];
   const bursts = burstsFor(m, L);
   return {
     w: W, h: H, total: TOTAL, poster: PAYOFF + 1100,
@@ -97,6 +99,7 @@ function burstsFor(m: Moment, L: Layout): Burst[] {
   if (m.type === 'shatter') { at(PAYOFF, { colors: ['#fff', '#BAE6FD', '#7DD3FC', '#E0F2FE'], count: 240, speed: 22, kind: 'glitter', gravity: 0.3, size: 3 }); rain(PAYOFF + 200, ['🍀', '✨', '🪞'], 18); }
   if (m.type === 'zap') at(2350, { x: 0.1, colors: ['#39FF14', '#B6FF3D', '#fff'], count: 120, speed: 14, kind: 'spark' });
   if (m.type === 'chick') rain(PAYOFF + 100, m.feather ? ['🪶', '🍀', '✨'] : ['🐣', '🪶', '✨'], 18);
+  if (m.type === 'star') { at(PAYOFF, { colors: ['#FFD23F', '#FFE8A3', '#fff', kindInfo(m.e.kind).a], count: 280, speed: 19, kind: 'spark' }); rain(PAYOFF + 100, ['⭐', '✨', '🌟'], 24); }
   if (m.type === 'evolve') at(PAYOFF, { colors: [m.color ?? '#7CFF6B', '#B026FF', '#fff'], count: 220, speed: 18, kind: 'spark' });
   void L;
   return out;
@@ -301,6 +304,19 @@ export function drawMoment(g: CanvasRenderingContext2D, L: Layout, A: Assets, m:
       if (t > 2350 && t < 3400) { const q = 1 - (t - 2350) / 1050; g.save(); g.globalAlpha = q; g.shadowColor = '#39FF14'; g.shadowBlur = 30; g.strokeStyle = '#B6FF3D'; g.lineWidth = 26 * q + 4; g.beginPath(); g.moveTo(cx - 120, cy + 90); g.lineTo(W + 40, cy - 120); g.stroke(); g.restore(); }
       break;
     }
+    case 'star': {
+      // the copy pours down into it, then its stars light one by one
+      const cp = spring((t - 300) / 1000, 120, 14);
+      circle(g, cx, cy, 300 * cp, t, '#FFD23F', clamp01(cp), m.e.sigil);
+      if (m.copy && !paid) { const p = easeOutCubic(clamp01((t - 700) / 1600)); sigil(g, A, m.copy, cx, lerp(cy - 460, cy, p), 210 * lerp(1, 0.25, p), p * 7, clamp01((t - 600) / 300) * (1 - p * 0.7)); }
+      const b = spring(pay / 1000, 160, 12);
+      sigil(g, A, m.e, cx, cy, 300 * (paid ? lerp(1.3, 1, b) : 0.82), 0, clamp01((t - 200) / 400));
+      for (let i = 0; i < m.stars; i++) {
+        const on = i < m.stars - 1 ? clamp01((t - 400) / 400) : paid ? spring((pay - 150) / 1000, 220, 10) : 0;
+        emoji(g, '⭐', cx + (i - (m.stars - 1) / 2) * 120, cy + 250, 100 * Math.max(0, on), Math.sin(t / 400 + i) * 0.1, clamp01(on * 2));
+      }
+      break;
+    }
     case 'chick': {
       emoji(g, '🪺', cx, cy + 130, 330);
       const wob = Math.sin(t / 110) * clamp01((t - 800) / 1500) * 0.25;
@@ -349,10 +365,10 @@ function beams(g: CanvasRenderingContext2D, cx: number, cy: number, len: number,
 }
 
 function momentKicker(m: Moment) {
-  return ({ showcase: 'FROM MY GRIMOIRE', splice: 'A SPLICE', forbidden: 'THE FORBIDDEN WISH', hope: 'PANDORA’S BOX', evolve: 'AN EVOLUTION', chest: 'X MARKS THE SPOT', egg: 'THE GOLDEN GOOSE', shatter: 'THE MIRROR SHARD', zap: 'THE SIZE RAY', chick: 'THE CUCKOO' } as const)[m.type];
+  return ({ showcase: 'FROM MY GRIMOIRE', splice: 'A SPLICE', star: 'A NEW STAR', forbidden: 'THE FORBIDDEN WISH', hope: 'PANDORA’S BOX', evolve: 'AN EVOLUTION', chest: 'X MARKS THE SPOT', egg: 'THE GOLDEN GOOSE', shatter: 'THE MIRROR SHARD', zap: 'THE SIZE RAY', chick: 'THE CUCKOO' } as const)[m.type];
 }
 function buildLine(m: Moment) {
-  return ({ showcase: '…something stirs in the ink…', splice: 'Fusing…', forbidden: 'Rubbing the lamp…', hope: 'Lifting the lid…', evolve: 'It’s changing…', chest: 'Digging…', egg: 'Collecting the egg…', shatter: 'Crack… crack…', zap: 'Aiming…', chick: 'It’s hatching…' } as const)[m.type];
+  return ({ showcase: '…something stirs in the ink…', splice: 'Fusing…', star: 'Pouring it in…', forbidden: 'Rubbing the lamp…', hope: 'Lifting the lid…', evolve: 'It’s changing…', chest: 'Digging…', egg: 'Collecting the egg…', shatter: 'Crack… crack…', zap: 'Aiming…', chick: 'It’s hatching…' } as const)[m.type];
 }
 function headline(m: Moment) {
   switch (m.type) {
@@ -366,6 +382,7 @@ function headline(m: Moment) {
     case 'shatter': return 'SHATTERED!';
     case 'zap': return `${m.grade.toUpperCase()}!`;
     case 'chick': return m.feather ? 'LUCKY FEATHER!' : 'IT HATCHED!';
+    case 'star': return `${'★'.repeat(m.stars)} STAR ${m.stars}!`;
   }
 }
 function captionLines(m: Moment): { t: string; big?: boolean; c?: string }[] {
@@ -382,5 +399,6 @@ function captionLines(m: Moment): { t: string; big?: boolean; c?: string }[] {
     case 'shatter': return [{ t: id, c: k.a }, { t: 'Seven cracks — +20 Luck and Enchanted Luck' }];
     case 'zap': return [{ t: id, c: k.a }, ...(m.target ? [{ t: m.target }] : [])];
     case 'chick': return [{ t: id, c: k.a }, ...(m.feather ? [{ t: '+20 Luck' }] : [])];
+    case 'star': return [{ t: id, c: k.a }, { t: `New power: ${m.power}`, c: '#FFE8A3' }, ...(m.text ? [{ t: m.text }] : []), { t: `+${10 * m.stars}% Ink on everything it pays`, c: 'rgba(255,255,255,0.6)' }];
   }
 }

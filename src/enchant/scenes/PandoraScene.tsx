@@ -14,7 +14,7 @@ import type { Moment } from '../../clips/moments';
 
 const NOTCH = 30;
 
-export function PandoraScene({ v, view, act, busy, at }: SceneProps) {
+export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const keep = useKeepMoment();
   const [moment, setMoment] = useState<Moment | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -71,13 +71,13 @@ export function PandoraScene({ v, view, act, busy, at }: SceneProps) {
             <rect x="10" y="0" width="180" height="110" rx="10" fill="#5A1530" stroke="#FFD23F" strokeWidth="3" />
             <rect x="24" y="14" width="152" height="82" rx="6" fill="none" stroke="#FFD23F" strokeOpacity="0.6" strokeWidth="1.5" />
             <path d="M100 30 L112 55 L100 80 L88 55Z" fill="#FFD23F" opacity="0.85" /><circle cx="100" cy="55" r="6" fill="#2A0A3D" />
-            {Array.from({ length: 7 }, (_, i) => <circle key={i} cx={34 + i * 22} cy="104" r="3" fill={evils.length > i ? '#FF4D6D' : '#FFD23F'} />)}
+            {Array.from({ length: Number(view.hope_at ?? 7) }, (_, i) => <circle key={i} cx={34 + i * 22} cy="104" r="3" fill={evils.length > i ? '#FF4D6D' : '#FFD23F'} />)}
           </svg>
         </div>
         <div className="absolute left-3 top-3 rounded-full bg-black/45 px-3 py-1 text-[12px] font-black text-white backdrop-blur" data-testid="pandora-status">
           {view.can_open ? (n ? `Lifting: ${n} notch${n > 1 ? 'es' : ''}…` : '👆 Drag the lid up') : (lockedIn ?? 0) > 0 ? `🥀 Sorrow: shut for ${dur(lockedIn)}` : `Shut until tomorrow · ${dur(nextIn)}`}
         </div>
-        <div className="absolute right-3 top-3 rounded-full bg-black/45 px-3 py-1 text-[12px] font-black text-[#FF9BB0]">{evils.length}/7 evils out{view.cycle ? ` · cycle ${view.cycle + 1}` : ''}</div>
+        <div className="absolute right-3 top-3 rounded-full bg-black/45 px-3 py-1 text-[12px] font-black text-[#FF9BB0]">{evils.length}/{view.hope_at ?? 7} evils out{view.cycle ? ` · cycle ${view.cycle + 1}` : ''}</div>
         {/* what came out */}
         <AnimatePresence>
           {out && (
@@ -100,7 +100,7 @@ export function PandoraScene({ v, view, act, busy, at }: SceneProps) {
             <motion.div key="h" role="button" onClick={() => setHope(false)} className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle,rgba(255,255,255,0.35),rgba(0,0,0,0.85))] text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="pandora-hope">
               <motion.div initial={{ y: 80, scale: 0.4 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 10 }} className="grid gap-1">
                 <span className="lv-ench-float text-8xl">🦋</span><span className="font-display text-4xl font-black text-white drop-shadow-[0_0_20px_#fff]">Hope</span>
-                <span className="text-sm font-bold text-white/85">A Legendary+ roll ticket and a fortune. The box closes again — richer.</span>
+                <span className="text-sm font-bold text-white/85">A {!mirror && (v.stars ?? 0) >= 3 ? 'Mythic' : 'Legendary'}+ roll ticket and a fortune. The box closes again — richer.</span>
                 {moment && <div className="mt-2"><ClipMomentButton moment={moment} /></div>}
               </motion.div>
             </motion.div>
@@ -117,7 +117,7 @@ export function PandoraScene({ v, view, act, busy, at }: SceneProps) {
       {(view.curses ?? []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">{view.curses.map((c: any, i: number) => { const e = EVILS[c.kind.replace('curse_', '')]; return <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px] font-black" style={{ background: `${e?.color}22`, color: e?.color }}>{e?.emoji} {e?.name} cursing you</span>; })}</div>
       )}
-      <p className="text-center text-[11px] text-white/55">Wider means bigger gifts — and likelier evils. Each evil escapes once; release all seven and Hope comes out. Opened {view.opens} time{view.opens === 1 ? '' : 's'}.</p>
+      <p className="text-center text-[11px] text-white/55">Wider means bigger gifts — and likelier evils. Each evil escapes once; release {Number(view.hope_at ?? 7) === 7 ? 'all seven' : `${view.hope_at}`} and Hope comes out. Opened {view.opens} time{view.opens === 1 ? '' : 's'}.</p>
     </div>
   );
 }

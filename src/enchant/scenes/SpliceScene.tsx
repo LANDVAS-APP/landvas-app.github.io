@@ -12,7 +12,7 @@ import { Button, PlayerAvatar } from '../../ui';
 import { Sigil } from '../Sigil';
 import { centerOf, efx, useLeft, useMyEnchantments, type SceneProps } from '../core';
 import { HybridCard, PlotHybridCard } from '../HybridCard';
-import { ABERRATIONS, HYBRID_COUNT, SPLICE_MODES, dur, enchantName, kindInfo, plotHybridName, traitText, trinityName, type EnchantKind, type SpliceMode } from '../kinds';
+import { ABERRATIONS, HYBRID_COUNT, SPLICE_MODES, dur, enchantName, kindInfo, plotHybridName, quadName, traitText, trinityName, type EnchantKind, type SpliceMode } from '../kinds';
 import { HybridSigil, feel } from '../living';
 import { Radar, plotLabel } from '../sizeray';
 import { pickedFor, usePlotPick } from '../plotPick';
@@ -56,6 +56,8 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
     else if (c.left < r.left) row.scrollLeft -= r.left - c.left + 8;
   }, [mode]);
   const [c, setC] = useState<any>(null);
+  const [d, setD] = useState<any>(null);
+  const quadOk = (v.stars ?? 0) >= 3;
   const [spin, setSpin] = useState(false);
   const [made, setMade] = useState<any>(null);
   const keep = useKeepMoment();
@@ -74,29 +76,31 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
     if (e) setA(e);
     setRestoreA(null);
   }, [restoreA, mine.data]);
-  const slots = mode === 'trinity' ? 3 : 2;
+  const slots = mode === 'quad' ? 4 : mode === 'trinity' ? 3 : 2;
   const cost = SPLICE_MODES[mode].cost;
-  const choose = (m: SpliceMode) => { feel('light'); setMode(m); setA(null); setB(null); setC(null); };
+  const choose = (m: SpliceMode) => { feel('light'); setMode(m); setA(null); setB(null); setC(null); setD(null); };
   const pick = (e: any) => {
     feel('light');
-    if (!a) setA(e); else if (mode !== 'friend' && mode !== 'plot' && !b && e.id !== a.id) setB(e); else if (mode === 'trinity' && !c && e.id !== a.id && e.id !== b?.id) setC(e);
+    if (!a) setA(e); else if (mode !== 'friend' && mode !== 'plot' && !b && e.id !== a.id) setB(e); else if (slots >= 3 && !c && e.id !== a.id && e.id !== b?.id) setC(e);
+    else if (slots === 4 && c && !d && ![a.id, b?.id, c.id].includes(e.id)) setD(e);
   };
-  const ready = !!a && !!b && (mode !== 'trinity' || !!c);
+  const ready = !!a && !!b && (slots < 3 || !!c) && (slots < 4 || !!d) && (mode !== 'quad' || quadOk);
   const splice = async () => {
     if (!ready) return;
     setSpin(true); feel('heavy');
     await new Promise((r) => setTimeout(r, 1500));
     const args: Record<string, unknown> = { mode, a: a.id };
     if (mode === 'plot') { args.gx = b.gx; args.gy = b.gy; } else args.b = b.id;
-    if (mode === 'trinity') args.c = c.id;
+    if (slots >= 3) args.c = c.id;
+    if (slots === 4) args.d = d.id;
     const r = await act('splice', args, { silent: true });
     setSpin(false);
     if (r) {
-      setMade({ ...r.result, seedA: a.sigil, seedB: b.sigil ?? 7, seedC: c?.sigil });
+      setMade({ ...r.result, seedA: a.sigil, seedB: b.sigil ?? 7, seedC: c?.sigil, seedD: d?.sigil });
       efx.burst({ ...centerOf(chamber.current), colors: [kindInfo(r.result.a).a, kindInfo(r.result.b ?? r.result.a).a, '#fff', '#00F5D4'], count: r.result.resonant || r.result.aberration ? 300 : 170, speed: 15, kind: 'spark' });
       feel('success');
       setMoment(!r.result.invited && mode !== 'plot' && b?.kind ? keep({ type: 'splice', a: enchantRef(a), b: enchantRef(b), hybrid: String(r.result.hybrid), resonant: !!(r.result.resonant || r.result.aberration), fresh: !!r.result.new }) : null);
-      setA(null); setB(null); setC(null);
+      setA(null); setB(null); setC(null); setD(null);
     }
   };
   const act0 = view.active;
@@ -107,9 +111,9 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
       {!act0 && !view.invite && (
         <div ref={modesRow} className="flex gap-1.5 overflow-x-auto pb-1" data-testid="splice-modes">
           {(Object.keys(SPLICE_MODES) as SpliceMode[]).map((m) => (
-            <button key={m} onClick={() => choose(m)} className={cn('shrink-0 rounded-2xl px-3 py-2 text-left text-[12px] font-black', mode === m ? 'bg-[linear-gradient(135deg,#00F5D4,#9B5DE5)] text-[#04211D]' : 'bg-white/[0.06] text-white/75')} data-testid={`splice-mode-${m}`}
+            <button key={m} onClick={() => choose(m)} className={cn('shrink-0 rounded-2xl px-3 py-2 text-left text-[12px] font-black', mode === m ? 'bg-[linear-gradient(135deg,#00F5D4,#9B5DE5)] text-[#04211D]' : 'bg-white/[0.06] text-white/75', m === 'quad' && !quadOk && 'opacity-50')} data-testid={`splice-mode-${m}`}
 >
-              {SPLICE_MODES[m].emoji} {SPLICE_MODES[m].name}{SPLICE_MODES[m].cost > 1 ? ' · 2⚡' : ''}
+              {SPLICE_MODES[m].emoji} {SPLICE_MODES[m].name}{SPLICE_MODES[m].cost > 1 ? ` · ${SPLICE_MODES[m].cost}⚡` : ''}{m === 'quad' && !quadOk ? ' · 🔒★3' : ''}
             </button>
           ))}
         </div>
@@ -125,7 +129,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
               </motion.div>
               <div className="font-display text-3xl font-black" style={{ color: '#00F5D4', textShadow: '0 0 18px #00F5D4' }}>{act0.hybrid}</div>
               <div className="flex flex-wrap justify-center gap-1">
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black">{SPLICE_MODES[act0.mode as SpliceMode]?.emoji} {SPLICE_MODES[act0.mode as SpliceMode]?.name}</span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black">{SPLICE_MODES[(act0.data?.quad ? 'quad' : act0.mode) as SpliceMode]?.emoji} {SPLICE_MODES[(act0.data?.quad ? 'quad' : act0.mode) as SpliceMode]?.name}</span>
                 {act0.perfect && <span className="lv-badge-perfect">✦ Perfect Match</span>}
                 {act0.data?.aberration && <span className="lv-badge-aberr">☣️ Aberration</span>}
                 {act0.data?.unstable && <span className="rounded-full bg-[#FF4D6D] px-2 py-0.5 text-[10px] font-black text-white">⚠️ UNSTABLE</span>}
@@ -147,9 +151,9 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
             </div>
           </div>
         ) : (
-          <div className={cn('grid h-full items-center gap-3', slots === 3 ? 'grid-cols-[1fr_1fr_1.3fr_1fr]' : 'grid-cols-[1fr_1.4fr_1fr]')}>
+          <div className={cn('grid h-full items-center', slots === 4 ? 'grid-cols-[1fr_1fr_1.2fr_1fr_1fr] gap-2' : slots === 3 ? 'grid-cols-[1fr_1fr_1.3fr_1fr] gap-3' : 'grid-cols-[1fr_1.4fr_1fr] gap-3')}>
             <Vial e={a} label={mode === 'graft' ? 'Host' : 'Vial A'} onClear={() => setA(null)} draining={spin} />
-            {slots === 3 && <Vial e={b} label="Vial B" onClear={() => setB(null)} draining={spin} />}
+            {slots >= 3 && <Vial e={b} label="Vial B" onClear={() => setB(null)} draining={spin} />}
             <div ref={chamber} className="relative grid aspect-square place-items-center rounded-full border-4 border-[#00F5D4]/40 bg-[radial-gradient(circle,#0F5F57,#06201E)]">
               <motion.svg viewBox="0 0 60 120" className="h-[78%]" animate={{ rotateY: spin ? 1800 : 360 }} transition={{ repeat: spin ? 0 : Infinity, duration: spin ? 1.5 : 6, ease: spin ? 'easeIn' : 'linear' }} aria-hidden>
                 {Array.from({ length: 12 }, (_, i) => { const y = 6 + i * 9.5, s = Math.sin(i * 0.8) * 20; return <g key={i}><line x1={30 - s} y1={y} x2={30 + s} y2={y} stroke="#9BF6E5" strokeWidth="2" /><circle cx={30 - s} cy={y} r="3.2" fill={a ? kindInfo(a.kind).a : '#00F5D4'} /><circle cx={30 + s} cy={y} r="3.2" fill={b?.kind ? kindInfo(b.kind).a : '#9B5DE5'} /></g>; })}
@@ -157,8 +161,9 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
               {mode === 'graft' && <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-black text-[#9BF6E5]">← donor lends</span>}
               {spin && <div className="absolute inset-0 rounded-full bg-white/70 lv-sigil-pulse" />}
             </div>
-            <Vial e={slots === 3 ? c : b} label={slots === 3 ? 'Vial C' : mode === 'graft' ? 'Donor' : mode === 'plot' ? 'Plot' : mode === 'friend' ? 'Friend’s' : 'Vial B'} onClear={() => (slots === 3 ? setC(null) : setB(null))} draining={spin}
+            <Vial e={slots >= 3 ? c : b} label={slots >= 3 ? 'Vial C' : mode === 'graft' ? 'Donor' : mode === 'plot' ? 'Plot' : mode === 'friend' ? 'Friend’s' : 'Vial B'} onClear={() => (slots >= 3 ? setC(null) : setB(null))} draining={spin}
               tone={mode === 'plot' && b ? 'linear-gradient(180deg,#3DDC97,#1E6F4C)' : undefined} />
+            {slots === 4 && <Vial e={d} label="Vial D" onClear={() => setD(null)} draining={spin} />}
           </div>
         )}
         <AnimatePresence>
@@ -184,7 +189,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
           {act0.mode === 'plot' && members[0] ? <PlotHybridCard kind={members[0].kind} plotKind={act0.data?.plot_kind ?? 'canvas'} name={act0.hybrid} />
             : act0.mode === 'trinity' ? (
               <div className="lv-hcard grid gap-1 rounded-2xl p-3" style={{ ['--a' as string]: '#00F5D4', ['--b' as string]: '#9B5DE5' }}>
-                <div className="font-display text-[17px] font-black">🔺 {act0.hybrid}</div>
+                <div className="font-display text-[17px] font-black">{act0.data?.quad ? '✳️' : '🔺'} {act0.hybrid}</div>
                 {members.map((m) => <div key={m.id} className="text-[12.5px] text-white/90">{kindInfo(m.kind).emoji} <b>Your {kindInfo(m.kind).name} gets</b>: {members.filter((o) => o.id !== m.id).map((o) => traitText(kindInfo(o.kind).gene)).filter(Boolean).join(' · ') || '—'}</div>)}
               </div>
             ) : members.length >= 2 && <HybridCard a={members[0].kind} b={members[1].kind} mode={act0.mode === 'friend' ? 'swap' : act0.mode} levels={[members[0].level, members[1].level]} aberration={act0.data?.aberration} />}
@@ -202,7 +207,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
           {(mode !== 'friend' && mode !== 'plot') || !a ? (
             <div className="flex gap-2 overflow-x-auto pb-1" data-testid="splice-pool">
               {pool.length ? pool.map((e) => (
-                <button key={e.id} onClick={() => pick(e)} disabled={[a?.id, b?.id, c?.id].includes(e.id)} data-testid={`splice-pick-${e.kind}`}
+                <button key={e.id} onClick={() => pick(e)} disabled={[a?.id, b?.id, c?.id, d?.id].includes(e.id)} data-testid={`splice-pick-${e.kind}`}
                   className="grid w-20 shrink-0 justify-items-center gap-0.5 rounded-2xl bg-white/[0.05] p-1.5 text-center disabled:opacity-30">
                   <Sigil kind={e.kind} seed={e.sigil} size={44} level={e.level} still />
                   <span className="w-full truncate text-[10px] font-black">{enchantName(e)}</span>
@@ -238,8 +243,15 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
               {b && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(b.rarity).color }}>{b.label}</div>}
             </div>
           )}
+          {mode === 'quad' && !quadOk && <p className="rounded-2xl bg-[#FFD23F]/10 px-3 py-2 text-center text-[12px] font-bold text-[#FFE8A3]" data-testid="splice-quad-locked">✳️ The Quad is the ★3 Splice’s power. Pour copies (or Essence) into this Splice to earn its stars.</p>}
           {ready && (mode === 'plot' ? <PlotHybridCard kind={a.kind} plotKind={b.plot_kind ?? kindAt(b.gx, b.gy)} name={plotHybridName(a.kind, b.plot_kind ?? kindAt(b.gx, b.gy))} />
-            : mode === 'trinity' ? (
+            : mode === 'quad' ? (
+              <div className="lv-hcard grid gap-1 rounded-2xl p-3" style={{ ['--a' as string]: '#FFD23F', ['--b' as string]: '#00F5D4' }} data-testid="hybrid-card">
+                <div className="font-display text-[17px] font-black">✳️ {quadName(a.kind, b.kind, c.kind, d.kind)}</div>
+                {[a, b, c, d].map((m) => <div key={m.id} className="text-[12.5px] text-white/90">{kindInfo(m.kind).emoji} <b>Your {kindInfo(m.kind).name} gets</b>: {[a, b, c, d].filter((o) => o.id !== m.id).map((o) => traitText(kindInfo(o.kind).gene)).filter(Boolean).join(' · ') || '—'}</div>)}
+                <div className="text-[11px] font-semibold text-white/55">⏱ {(v.stars ?? 0) >= 2 ? 27 : 18} hours · costs 3 charges</div>
+              </div>
+            ) : mode === 'trinity' ? (
               <div className="lv-hcard grid gap-1 rounded-2xl p-3" style={{ ['--a' as string]: '#00F5D4', ['--b' as string]: '#9B5DE5' }} data-testid="hybrid-card">
                 <div className="font-display text-[17px] font-black">🔺 {trinityName(a.kind, b.kind, c.kind)}</div>
                 {[a, b, c].map((m) => <div key={m.id} className="text-[12.5px] text-white/90">{kindInfo(m.kind).emoji} <b>Your {kindInfo(m.kind).name} gets</b>: {[a, b, c].filter((o) => o.id !== m.id).map((o) => traitText(kindInfo(o.kind).gene)).filter(Boolean).join(' · ') || '—'}</div>)}
@@ -254,7 +266,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
       <MoreCharges view={view} act={act} busy={busy} />
       <div className="flex items-center justify-between rounded-2xl border border-[#00F5D4]/25 bg-[#00F5D4]/[0.06] px-3 py-2 text-[12px]" data-testid="splice-codex">
         <span className="font-black text-[#9BF6E5]">🧬 Splice Codex</span>
-        <span className="font-bold text-white/70">{codexN}/{HYBRID_COUNT} hybrids · {(view.trinities ?? []).length} trinities · {(view.aberrations ?? []).length}/6 aberrations</span>
+        <span className="font-bold text-white/70">{codexN}/{HYBRID_COUNT} hybrids · {(view.trinities ?? []).length} trinities · {(view.quads ?? []).length ? `${view.quads.length} quad${view.quads.length > 1 ? 's' : ''} · ` : ''}{(view.aberrations ?? []).length}/6 aberrations</span>
       </div>
       <p className="text-center text-[11px] text-white/55">{view.made} splice{view.made === 1 ? '' : 's'} made. A Clockwork can freeze a hybrid to keep it fused longer; an Ouroboros can coil it into loops; a Storm Coil’s lightning mutates it.</p>
     </div>

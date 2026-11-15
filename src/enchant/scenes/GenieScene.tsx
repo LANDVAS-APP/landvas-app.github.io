@@ -2,7 +2,7 @@
 // Genie rises; pick a wish card. With three wishes stored, the Forbidden Wish glows red — and what comes back is drama.
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
-import { useConfirm } from '../../ui';
+import { Button, inputCls, useConfirm } from '../../ui';
 import { cn } from '../../lib/utils';
 import { buzz } from '../../native/native';
 import { useUi } from '../../lib/store';
@@ -18,7 +18,7 @@ const WISHES = [
   { id: 'golden', emoji: '⏳', name: 'Golden Hour', text: 'Your next 3 minigame wins pay ×2', c: '#FF9F1C' },
 ];
 
-export function GenieScene({ v, view, act, busy, at }: SceneProps) {
+export function GenieScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const keep = useKeepMoment();
   const [moment, setMoment] = useState<Moment | null>(null);
   const lamp = useRef<HTMLDivElement>(null);
@@ -155,7 +155,39 @@ export function GenieScene({ v, view, act, busy, at }: SceneProps) {
           </motion.div>
         )}
       </AnimatePresence>
+      {!mirror && (v.stars ?? 0) >= 2 && <GenieStars stars={v.stars ?? 0} view={view} act={act} busy={busy} at={at} wishes={wishes} freed={freed} />}
       {!awake && <p className="text-center text-[11px] text-white/55">{view.made} wish{view.made === 1 ? '' : 'es'} granted{view.forbidden ? ` · ${view.forbidden} forbidden` : ''}. {wishes < 3 && !freed && !cold && view.next_in != null ? `Next wish in ${dur(nextIn)}.` : ''}</p>}
+    </div>
+  );
+}
+
+/** ★2 Gift of Wishes and ★3 Master’s Boon */
+function GenieStars({ stars, view, act, busy, at, wishes, freed }: { stars: number; view: any; act: SceneProps['act']; busy: string | null; at: number; wishes: number; freed: boolean }) {
+  const [to, setTo] = useState('');
+  const [said, setSaid] = useState<string | null>(null);
+  const boonIn = useLeft(view.boon_in ?? null, at);
+  const gift = async () => {
+    const r = await act('gift', { username: to.trim() });
+    if (r) { setSaid(`🎁 @${r.result.to} got 30 Ink from your wish.`); setTo(''); efx.burst({ x: innerWidth / 2, y: innerHeight * 0.5, colors: ['#22E3FF', '#FFD23F', '#fff'], count: 90, speed: 9, kind: 'spark' }); }
+  };
+  const boon = async () => {
+    const r = await act('boon');
+    if (r) { setSaid('👑 The Genie bows: an Epic-or-better roll ticket is yours.'); efx.burst({ x: innerWidth / 2, y: innerHeight * 0.5, colors: ['#FFD23F', '#B26BFF', '#fff'], count: 160, speed: 12, kind: 'spark' }); }
+  };
+  return (
+    <div className="grid gap-2 rounded-2xl border border-[#FFD23F]/30 bg-[#FFD23F]/[0.06] p-3" data-testid="genie-stars">
+      <div className="text-[12px] font-black text-[#FFE8A3]">⭐ Star powers</div>
+      <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); if (to.trim()) void gift(); }}>
+        <input className={cn(inputCls, 'h-9 text-[13px]')} placeholder="A friend’s @username" value={to} onChange={(e) => setTo(e.target.value)} maxLength={30} data-testid="genie-gift-to" />
+        <Button size="sm" type="submit" disabled={!!busy || freed || wishes < 1 || !!view.gift_used || !to.trim()} data-testid="genie-gift">🎁 {view.gift_used ? 'Given today' : 'Give a wish'}</Button>
+      </form>
+      <div className="text-[11px] text-white/55">Gift of Wishes (★2): once a day, a wish for a friend — 30 Ink for them, 10 for you.</div>
+      {stars >= 3 && (
+        <Button size="sm" variant="rainbow" disabled={!!busy || freed || (boonIn ?? 0) > 0} onClick={() => void boon()} data-testid="genie-boon">
+          👑 {(boonIn ?? 0) > 0 ? `Master’s Boon in ${dur(boonIn)}` : 'Ask the Master’s Boon (Epic+ ticket)'}
+        </Button>
+      )}
+      {said && <div className="text-center text-[12px] font-bold text-white/85" data-testid="genie-star-said">{said}</div>}
     </div>
   );
 }
