@@ -98,40 +98,42 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     how: ['Three looks a day. Pick an unclaimed plot on the map within 1 km of your explorer or any of your plots, and the glass shows its rarity.',
       'Each reading is a roll made for you alone, kept on the server. Claim the plot within 24 hours and that reading is your roll.',
       'Anyone else who claims it gets their own roll — so a tip is worth nothing to them. If someone claims it first, your look comes back.',
-      'Crowns never show in the glass (a Crown stays a Crown). Claiming a plot you sighted pays the Spyglass.'],
-    gene: 'farsight', geneName: 'Farsight', geneText: 'earns 15% more Ink' },
+      'An Enchanted reading only says ✨ something stirs — what it is waits for the claim. Ultras show; once in a great while, so does a free Crown.',
+      'Claiming a plot you sighted pays the Spyglass.'],
+    gene: 'farsight', geneName: 'Farsight', geneText: 'reaches twice as far on the map (one that reaches for nothing scouts you a private reading a day)' },
   origami: { id: 'origami', name: 'Origami Pocket', emoji: '🦢', a: '#FFF3E0', b: '#FF6F91', ink: '#2A1420', noun: 'folded plots',
     tagline: 'Fold a plot into a paper crane. Unfold it anywhere you can stand.',
     how: ['Fold one of your plots: it folds itself up crease by crease and slips into your pocket. It stays yours and keeps earning rent.',
-      'Unfold it on any free spot you could claim. It brings its rarity, shine, type, level, game progress and name (its drawing stays in your Studio).',
+      'Unfold it on any free spot you could claim. It brings its rarity, shine, type, level, game progress, name — and its drawing.',
       'The spot it leaves takes the rarity the new spot would have had — folding never leaves a copy behind. A fresh crease pays +25% in its minigames for a day.',
       'One fold a day (two at level 5, three at level 10). Crowns and enchanted plots can’t be folded (until ★3).'],
-    gene: 'folded', geneName: 'Folded', geneText: 'earns 10% more Ink, and once a day its clock folds forward 4 hours' },
+    gene: 'folded', geneName: 'Folded', geneText: 'gets a fold once a day: tap it and its longest wait is cut in half' },
   crucible: { id: 'crucible', name: 'Crucible', emoji: '🔥', a: '#FF7A00', b: '#FFD23F', ink: '#2B0A00', noun: 'forged plots',
     tagline: 'Melt plots down. Strike one up a rarity.',
     how: ['Melt any of your plots — no limit. Each one becomes Heat (rarer plots, far more) and metal, and goes back to the world at its spot’s own roll.',
       'Strike one of your plots on the anvil: its chance to rise a tier grows with the Heat, a little at a time. Higher tiers need far more. A miss keeps half the Heat.',
-      'Only the normal ladder, up to Mythic — never ultras or Crowns. Pump the bellows for a little more.',
+      'Past Mythic it can strike an Ultra — and past an Ultra, a Crown (while that spot’s crown is free). Both are very, very hard. Pump the bellows for a little more.',
       'Metal makes temper runes, artifacts (a horseshoe, a bell, a lantern, an anchor), inlays for your plots and monuments everyone can see.'],
-    gene: 'trick', geneName: 'Tempered', geneText: 'dodges half its bad luck (one with no bad luck earns +20% Ink instead)' },
+    gene: 'trick', geneName: 'Tempered', geneText: 'dodges half its bad luck, and its plot is tempered: no tramples, no Parasites, no pranks' },
   puppeteer: { id: 'puppeteer', name: 'Puppeteer', emoji: '🎭', a: '#E63946', b: '#FFB703', ink: '#2A0509', noun: 'puppet shows',
     tagline: 'Pull the strings of someone else’s plot — and play its game.',
     how: ['Tie a string to another player’s plot within 5 km and play its minigame. A string comes back every hour; they bank (2, more as it levels).',
-      'The run pays like your own games. The owner gets a tip and a note. You climb your own levels on their plot — theirs never move.',
-      'Every kind of game you play goes into your repertoire.'],
-    gene: 'strings', geneName: 'Strings', geneText: 'earns 15% more Ink, and once a day a puppet plays a reward twice' },
+      'The run pays like your own games and plays the level their plot is on. The owner gets a tip and a note — and loses nothing: puppet runs never move their levels.',
+      'Your best score on every kind of game goes into your repertoire. Play them all for a title. ★3: a daily three-plot medley, each run ×3.'],
+    gene: 'strings', geneName: 'Strings', geneText: 'gets a puppet: once a day it does one of its chores for you (polishes the egg, winds the key…)' },
   deck: { id: 'deck', name: 'Fated Deck', emoji: '🃏', a: '#B388FF', b: '#FFD166', ink: '#14062A', noun: 'fortunes',
     tagline: 'Turn a card. Let it shape your day.',
     how: ['Once a day, three cards lie face down. Turn one of the 22 great cards: upright, or reversed — a bigger effect with a catch.',
       'Ink, Luck, wins that pay double, enchantments that glow, a Leviathan you hit harder, a plot reborn as another kind, a roll ticket.',
-      'Every card goes into your deck. Gilded ones are rare. Collect all 22 for an Epic-or-better ticket. From level 4 you turn two a day.'],
-    gene: 'fated', geneName: 'Fated', geneText: '1 in 10 of its rewards draws a card: ×2 to ×5' },
+      'Level 4: the table is a Past–Present–Future spread — turn all three, and each upright card strengthens the next. Level 8: a five-card Grand Spread once a week.',
+      'Every card goes into your deck. Gilded ones are rare. Collect all 22 for an Epic-or-better ticket and the title Fate-Weaver.'],
+    gene: 'fated', geneName: 'Fated', geneText: 'draws a card with 1 in 10 of its rewards — and the card comes true' },
   glyph: { id: 'glyph', name: 'Glyphcaster', emoji: '✍️', a: '#4DD0E1', b: '#7C4DFF', ink: '#04161C', noun: 'spells',
     tagline: 'Trace a glyph with your finger. Cast it.',
     how: ['Draw a glyph you know and it casts — the neater the drawing, the stronger the spell. Mana refills through the day.',
-      '24 glyphs, 4 of them secret. You start with three; the rest turn up as you cast and as you study the Spellbook.',
+      '24 glyphs, 4 of them secret. You start with three; the rest turn up as you cast and study — and in minigame wins, Leviathan loot, chests and rare plots.',
       'The Spellbook shows every glyph you’ve found: its shape, what it does, its cost, your best drawing and its mastery (10 casts and it costs less).'],
-    gene: 'inscribed', geneName: 'Inscribed', geneText: 'every 4th reward is inscribed: ×1.75' },
+    gene: 'inscribed', geneName: 'Inscribed', geneText: 'gets a rune: trace it once a day and it casts that glyph’s spell for free' },
 };
 export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle', 'ouroboros', 'homunculus', 'stormcoil',
   'spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph'];
@@ -225,12 +227,12 @@ export const TRAITS: Record<string, TraitInfo> = {
   spread: { name: 'Spreading', emoji: '🦠', text: (k) => `earns ${15 * k}% more Ink, and drops a gift on a random player`, mult: (k) => 1 + 0.15 * k },
   echo: { name: 'Echo', emoji: '🪞', text: (k) => `${[35, 60, 80][k - 1]}% of its rewards are paid twice` },
   wish: { name: 'Wishing', emoji: '🧞', text: (k) => `${[30, 55, 75][k - 1]}% of the time, using a charge doesn’t use it up (no charges: +${25 * k}% Ink)` },
-  trick: { name: 'Tempered', emoji: '🔥', text: (k) => `dodges ${[50, 75, 90][k - 1]}% of its bad luck (no bad luck: +${20 * k}% Ink)` },
-  farsight: { name: 'Farsight', emoji: '🔭', text: (k) => `earns ${15 * k}% more Ink`, mult: (k) => 1 + 0.15 * k },
-  folded: { name: 'Folded', emoji: '🦢', text: (k) => `earns ${10 * k}% more Ink, and once a day its clock folds ${2 + 2 * k} hours forward`, mult: (k) => 1 + 0.1 * k },
-  strings: { name: 'Strings', emoji: '🎭', text: (k) => `earns ${15 * k}% more Ink, and once a day a puppet plays a reward twice`, mult: (k) => 1 + 0.15 * k },
-  fated: { name: 'Fated', emoji: '🃏', text: (k) => `${[10, 18, 25][k - 1]}% of its rewards draw a card: ×2 to ×5` },
-  inscribed: { name: 'Inscribed', emoji: '✍️', text: (k) => `every 4th reward is inscribed: ×${[1.75, 2.5, 3][k - 1]}` },
+  trick: { name: 'Tempered', emoji: '🔥', text: (k) => `dodges ${[50, 75, 90][k - 1]}% of its bad luck, and its plot is tempered: the Leviathan can’t trample it, Parasites can’t latch on, pranks and scorches bounce off` },
+  farsight: { name: 'Farsight', emoji: '🔭', text: (k) => `reaches ${k + 1}× as far for anything it does on the map` },
+  folded: { name: 'Folded', emoji: '🦢', text: (k) => `${k === 1 ? 'once' : k === 2 ? 'twice' : 'three times'} a day, a tap folds its longest wait in half` },
+  strings: { name: 'Strings', emoji: '🎭', text: (k) => `${k === 1 ? 'once' : k === 2 ? 'twice' : 'three times'} a day a puppet does one of its chores for you` },
+  fated: { name: 'Fated', emoji: '🃏', text: (k) => `${[10, 18, 25][k - 1]}% of its rewards draw one of the 22 cards — and the card comes true` },
+  inscribed: { name: 'Inscribed', emoji: '✍️', text: (k) => `has a rune: trace it once a day and it casts that glyph for free${k > 1 ? ` (×${1 + 0.5 * (k - 1)} strength)` : ''}` },
   tempo: { name: 'Tempo', emoji: '⚙️', text: (k) => `its timers run ${k + 2}× as fast` },
   linked: { name: 'Linked', emoji: '🌀', text: (k) => `works as if on a second plot: +${40 * k}% Ink`, mult: (k) => 1 + 0.4 * k },
   foresight: { name: 'Foresight', emoji: '👁️', text: (k) => `earns ${20 * k}% more Ink and sees ${[35, 60, 80][k - 1]}% of bad luck coming`, mult: (k) => 1 + 0.2 * k },
@@ -257,6 +259,17 @@ export const PAYS_FROM: Record<EnchantKind, string> = {
   spyglass: 'the sighted plots you claim', origami: 'every plot it unfolds', crucible: 'every plot it forges up a tier', puppeteer: 'its puppet shows',
   deck: 'the cards that pay Ink', glyph: 'the glyphs that pay Ink',
 };
+/** what Farsight stretches on each kind that reaches for something on the map */
+const REACHES: Partial<Record<EnchantKind, string>> = {
+  map: 'it picks up pieces and digs from twice as far', wormhole: 'its far end can be twice as far away', puppeteer: 'its strings reach plots twice as far away',
+  spyglass: 'it looks twice as far', origami: 'it unfolds plots twice as far from you', stormcoil: 'its storms reach neighbours twice as far', glyph: 'its Vortex pulls chests in from twice as far',
+};
+/** the chores a Strings puppet does on each kind */
+const CHORES: Partial<Record<EnchantKind, string>> = {
+  goose: 'collects the egg when it’s ready, chases off the fox, or polishes the egg', clockwork: 'winds the key five turns', pandora: 'lifts the lid a notch',
+  parasite: 'harvests its feed', stormcoil: 'cranks the handle three turns', oracle: 'gazes at your next rolls', crucible: 'tends your horseshoes',
+  glyph: 'studies the Spellbook', spyglass: 'looks through the glass at a spot nearby', deck: 'turns a card and lets it come true',
+};
 /** what a kind's charge is called, where Wishing keeps one */
 const KEEPS: Partial<Record<EnchantKind, string>> = { genie: 'wish', sizeray: 'shot', oracle: 'gaze' };
 /** the bad luck a kind can dodge, where Trickster and Foresight dodge it */
@@ -267,7 +280,7 @@ const DODGES: Partial<Record<EnchantKind, (pct: number) => string>> = {
   ouroboros: (p) => `${p}% of the time a loop that would bite through holds instead`,
   stormcoil: (p) => `${p}% of the plots a missed bolt would scorch are spared`,
 };
-const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'endless', 'charged', 'patchwork', 'farsight', 'folded', 'strings', 'fated', 'inscribed', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
+const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'endless', 'charged', 'patchwork', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
 /** what a reward's chip says when a Trait worked (mirrors the labels private.ench_pay writes) */
 export const TRAIT_CHIP: Record<string, string> = {
   golden: 'Golden', grow: 'Giant', chaos: 'Chaos', seek: 'Seeking', spread: 'Spreading', echo: 'Echo', linked: 'Linked', foresight: 'Foresight',
@@ -290,9 +303,15 @@ export function traitHere(gene: string | null | undefined, k: number, kind: stri
   }
   if (gene === 'trick') {
     const d = DODGES[me];
-    if (d) text = d(pct);
-    else { text = `earns ${20 * s}% more Ink (it has no bad luck to dodge)`; on = PAYS_FROM[me] ?? null; }
+    text = `${d ? `${d(pct)}, and its` : 'its'} plot is tempered: the Leviathan can’t trample it, Parasites can’t latch on, pranks and storm scorches bounce off`;
   }
+  if (gene === 'farsight') {
+    const r = REACHES[me];
+    text = r ? `reaches ${s + 1}× as far: ${r}` : `it reaches for nothing on the map, so it scouts: ${s === 1 ? 'a private Spyglass reading' : `${s} private Spyglass readings`} of unclaimed plots near it every day`;
+  }
+  if (gene === 'folded') { text = `${['once', 'twice', 'three times'][s - 1]} a day, fold its longest wait in half (with nothing to wait for, the fold goes to your enchantment that waits longest)`; you = 'Tap “Fold its wait” below'; }
+  if (gene === 'strings') text = `${['once', 'twice', 'three times'][s - 1]} a day a puppet does a chore for you: ${CHORES[me] ?? 'one of your other enchantments’ chores (it has none of its own)'}`;
+  if (gene === 'inscribed') { text = `its rune is a glyph: trace it once a day and it casts that spell for free, as strong as you drew it${s > 1 ? ` (×${1 + 0.5 * (s - 1)})` : ''}`; you = 'Trace its rune below, once a day'; }
   if (gene === 'foresight') {
     const extra = me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'pandora' || me === 'ouroboros' || me === 'stormcoil' ? `, and ${[35, 60, 80][s - 1]}% of its bad luck is seen coming and dodged` : '';
     text = `earns ${20 * s}% more Ink${extra}`;
@@ -391,15 +410,15 @@ export const TITLES: Record<string, string> = {
   Timekeeper: 'Wound the key 100 times', Stopwatch: 'Froze time 10 times', Sharpshooter: '10 PERFECT zaps',
   'Big Bang': 'Fired 50 times', Colossus: 'Made 10 plots giant', 'Ant-Maker': 'Made 10 plots tiny', Prankster: 'Pranked 10 players', 'Seven Years': 'Shattered the glass', 'Many Faces': 'Made 20 reflections',
   Gatekeeper: 'Opened the wormhole 5 times', Worldwalker: 'Linked plots 1,000 km apart', Constellation: 'Reached level 10',
-  Seer: '10 prophecies came true', 'Fate-Weaver': 'Rewrote fate 10 times',
+  Seer: '10 prophecies came true', 'Fate-Weaver': 'Rewrote fate 10 times (an Oracle), or collected all 22 cards (a Fated Deck)',
   'Codex Complete': 'Discovered all 171 hybrids', Eternal: 'Closed the circle (7 loops)', 'Tail-Catcher': '10 clean catches', Snakeskin: 'Bitten through 3 times',
   Alchemist: 'Woke a Homunculus', Generations: 'Three hearts', 'Many Limbs': 'Grew 7 parts', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
   Galvanist: 'Made an Aberration with lightning',
   'Eagle-Eye': 'Took 50 looks', Prospector: 'Claimed 10 plots it sighted', 'Far-Seer': 'Sighted a Legendary or better',
   'Paper Crane': 'Unfolded 10 plots', 'Thousand Cranes': 'Unfolded 100 plots', 'Far-Folder': 'Unfolded a plot 100 km away',
   Smelter: 'Melted 25 plots', Forgemaster: 'Forged 5 plots up a tier', 'Monument Maker': 'Raised a gold monument',
-  Marionettist: 'Put on 10 shows', 'Grand Puppeteer': 'Won 50 puppet runs', Repertoire: 'Played 6 kinds of game on strings',
-  'Card Sharp': 'Turned 30 cards', 'Gilded Hand': 'Turned 3 gilded cards', 'Arcana Complete': 'Collected all 22 cards',
+  Marionettist: 'Put on 10 shows', 'Grand Puppeteer': 'Won 50 puppet runs', Repertoire: 'Played every kind of game on strings',
+  'Card Sharp': 'Turned 30 cards', 'Gilded Hand': 'Turned 3 gilded cards',
   Scribe: 'Cast 25 glyphs', Spellwright: 'Found 20 glyphs', 'Keeper of Secrets': 'Found a secret glyph',
 };
 

@@ -490,3 +490,16 @@ html.reduce-motion .lv-staraura-ring, html.reduce-motion .lv-staraura-orbit, htm
 .lv-mood-tag { animation: lv-mood-tag-out 0.6s ease 5s both; }
 @keyframes lv-mood-tag-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lv-mood-tag { animation: none; } }
+
+/* ---- the Grimoire, organised: ready chips, kind groups, rows, the page's jump bar ---- */
+.lv-ready-chip { display: flex; align-items: center; gap: 8px; min-width: 200px; max-width: 260px; padding: 8px 12px 8px 8px; border-radius: 20px;
+  background: #1d0b33; box-shadow: inset 0 0 0 1.5px rgba(255, 210, 63, 0.5);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--a) 26%, #12041F), #12041F 80%); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--a) 70%, transparent), 0 8px 22px -12px var(--a); }
+.lv-kind-group { border-radius: 24px; background: #140726; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--a) 14%, #140726), #0C0418 70%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a) 30%, transparent); }
+.lv-ench-row { padding: 8px 10px; border-radius: 18px; background: rgba(255, 255, 255, 0.035); transition: background 0.15s ease; }
+.lv-ench-row:hover { background: rgba(255, 255, 255, 0.07); }
+.lv-ench-row.ready { background: linear-gradient(90deg, rgba(255, 210, 63, 0.14), rgba(255, 255, 255, 0.03)); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.45); }
+.lv-ench-nav { background: linear-gradient(180deg, #12041F 70%, rgba(18, 4, 31, 0)); scrollbar-width: none; }
+.lv-ench-nav::-webkit-scrollbar { display: none; }

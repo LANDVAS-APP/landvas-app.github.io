@@ -180,6 +180,8 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'parasite_shrunk': return <>zapped your 🦠 Parasite with a Size Ray — it shrank right off</>;
       case 'spy_refund': return <>claimed a plot your 🔭 Spyglass had sighted — your look came back</>;
       case 'puppet_played': return <>played your plot’s game on 🎭 strings{d.ink ? ` — you were tipped ${d.ink} Ink` : ''}</>;
+      case 'far_sighted': return <>🔭 <b>Farsight:</b> one of your enchantments spotted {d.n > 1 ? `${d.n} unclaimed plots` : 'an unclaimed plot'} nearby — the best reads <b>{d.rarity === 'enchanted' ? '✨ something stirs' : String(d.rarity ?? '').replace('_', ' ')}</b>. Only you can see it; claim it within a day</>;
+      case 'glyph_found': return <>📜 A page fluttered out {d.source === 'minigame' ? 'of a minigame win' : d.source === 'leviathan' ? 'of the Leviathan’s loot' : d.source === 'chest' ? 'of a chest' : d.source === 'treasure' ? 'of a treasure chest' : d.source === 'plot' ? 'of a rare plot' : 'somewhere'}: your ✍️ Glyphcaster found <b>{d.name}</b></>;
       case 'treasure_piece': return <>found a 🗺️ treasure map piece on your plot <span className="text-ok">· +{d.ink} Ink finder’s tip</span></>;
       case 'mirror_seen': return <>saw your ✨ enchantment in their 🪞 Mirror Shard and stepped through <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'spore': return <>A spore of Ink drifted onto you {d.kind === 'wormhole' ? 'out of a 🌀 wormhole' : 'from a Spreading splice'} <span className="text-ok">· +{d.ink} Ink</span></>;
@@ -197,7 +199,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;
       default: return <>did something with an enchantment</>;
     }
-  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
+  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.sub === 'far_sighted' ? '/world' : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet', 'glyph_found'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
   leviathan: { icon: Sparkles, color: '#FF5CDB', text: (a) => {
     const d = a.data as Record<string, any>;
     switch (d.sub) {

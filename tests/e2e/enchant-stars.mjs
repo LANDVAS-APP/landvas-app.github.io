@@ -99,7 +99,12 @@ async function run(mode) {
     await page.click('[data-testid=clip-snip]');
     const snipOk = await waitFor('[data-testid=clip-snip-canvas]', 15000);
     if (snipOk) { await page.evaluate(() => { const r = document.querySelector('[data-testid=clip-snip-scrub]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(r, '3597'); r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); }); await page.waitForTimeout(800); }
-    const lit = snipOk && await page.evaluate(() => { const c = document.querySelector('[data-testid=clip-snip-canvas]'); const d = c.getContext('2d').getImageData(c.width / 2 - 40, c.height / 2 - 40, 80, 80).data; let n = 0; for (let i = 0; i < d.length; i += 4) n += d[i] + d[i + 1] + d[i + 2]; return n > 0; });
+    // the frame draws once the clip's art has loaded (slower on a busy machine): look again for up to 10 s
+    let lit = false;
+    for (let t = 0; snipOk && !lit && t < 40; t++) {
+      lit = await page.evaluate(() => { const c = document.querySelector('[data-testid=clip-snip-canvas]'); if (!c) return false; const d = c.getContext('2d').getImageData(c.width / 2 - 40, c.height / 2 - 40, 80, 80).data; let n = 0; for (let i = 0; i < d.length; i += 4) n += d[i] + d[i + 1] + d[i + 2]; return n > 0; });
+      if (!lit) await page.waitForTimeout(250);
+    }
     ok('…the star moment draws a frame', !!lit);
     await shot('03b-star-moment');
     await page.mouse.click(4, 4); await page.waitForTimeout(500);

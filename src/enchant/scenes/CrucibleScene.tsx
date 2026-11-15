@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils';
 import { centerOf, efx, type SceneProps } from '../core';
 import { PlotRow, plotName, sleep, useCraftClip, type PlotLite } from '../craft';
 import { feel } from '../living';
+import { MapPickButton, useMapPick, usePlotChoice } from '../pickers';
 
 const METALS: Record<string, { name: string; c: string; hi: string; lo: string; from: string }> = {
   iron: { name: 'Iron', c: '#8A8F98', hi: '#D5D9E0', lo: '#4A4E55', from: 'Common' }, copper: { name: 'Copper', c: '#C46A35', hi: '#F3B08A', lo: '#6E3418', from: 'Uncommon' },
@@ -116,7 +117,14 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
   const meltable: (PlotLite & { heat: number; metal: string })[] = view.meltable ?? [];
   const strikeable: (PlotLite & { to: string; chance: number })[] = view.strikeable ?? [];
   const arts: any[] = view.artifacts ?? [];
+  // past Mythic: an Ultra, then a Crown (the ladder's last two steps, very hard)
+  const tier = (r: string) => (r === 'ultra' ? { name: 'Ultra ✦', color: '#FF5CDB' } : r === 'crown' ? { name: 'Crown 👑', color: '#FFD23F' } : rarityInfo(r));
+  const meltPick = usePlotChoice(v, 'melt', meltable, (p) => setPick((cur) => { const n = new Set(cur); const k = `${p.gx},${p.gy}`; if (!n.has(k) && n.size < 25) n.add(k); return n; }),
+    { title: 'Melt a plot', emoji: '🔥', color: '#FF7A00', hint: 'Tap a plot in crosshairs to throw it in (tap again on the map for more)' });
+  const strikePick = usePlotChoice(v, 'strike', strikeable, (p) => setTarget(p), { title: 'Choose a plot for the anvil', emoji: '⚒️', color: '#FFD23F', hint: 'Tap one of your plots in crosshairs', note: (p) => `→ ${tier(p.to).name} · ${Math.round(p.chance * 1000) / 10}%` });
   const allPlots: PlotLite[] = useMemo(() => { const m = new Map<string, PlotLite>(); for (const p of [...strikeable, ...meltable]) m.set(`${p.gx},${p.gy}`, p); return [...m.values()]; }, [strikeable, meltable]);
+  const markPick = usePlotChoice(v, 'mark', allPlots, (p) => setMark((m) => ({ ...m, p })), { title: 'Choose a plot to mark', emoji: '🏛️', color: '#E8B530', hint: 'Tap one of your plots for an inlay or a monument' });
+  const mountPick = useMapPick(v.id, 'mount', (p, keep) => { if (keep?.id) void act('mount', { id: keep.id, gx: p.gx, gy: p.gy }); });
   const picked = meltable.filter((p) => pick.has(`${p.gx},${p.gy}`));
   const gain = picked.reduce((a, p) => a + Number(p.heat), 0);
   const sparks = useMemo(() => Array.from({ length: 14 }, (_, i) => ({ l: 28 + ((i * 41) % 44), d: (i * 0.37) % 2.4 })), []);
@@ -212,6 +220,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
       {tab === 'melt' && (
         <div className="grid gap-2">
           <div className="text-[12px] text-white/70">Melt any of your plots — no limit. Rarer plots give far more Heat. They go back to the world at their spot’s own roll (plots must be yours for {view.melt_min_h} hours; starter plots can’t melt).</div>
+          {meltPick.canMap && <MapPickButton className="w-fit" onClick={meltPick.toMap} testId="crucible-melt-map" label="Pick plots on the map" />}
           <div className="grid max-h-[280px] gap-1.5 overflow-y-auto pr-1" data-testid="crucible-meltable">
             {meltable.length ? meltable.slice(0, 60).map((p) => {
               const k = `${p.gx},${p.gy}`;
@@ -225,16 +234,17 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
 
       {tab === 'strike' && (
         <div className="grid gap-2">
-          <div className="grid grid-cols-5 gap-1 text-center" data-testid="crucible-chances">
-            {(['uncommon', 'rare', 'epic', 'legendary', 'mythic'] as const).map((r) => (
-              <div key={r} className="rounded-xl bg-white/5 p-1.5"><div className="text-[10px] font-black" style={{ color: rarityInfo(r).color }}>→ {rarityInfo(r).name}</div><div className="text-[13px] font-black text-white">{pct(view.chances?.[r] ?? 0)}</div></div>
+          <div className="grid grid-cols-4 gap-1 text-center sm:grid-cols-7" data-testid="crucible-chances">
+            {(['uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ultra', 'crown'] as const).map((r) => (
+              <div key={r} className={cn('rounded-xl p-1.5', r === 'ultra' || r === 'crown' ? 'bg-[linear-gradient(135deg,#FF5CDB22,#FFD23F22)] ring-1 ring-[#FFD23F]/30' : 'bg-white/5')}><div className="text-[10px] font-black" style={{ color: tier(r).color }}>→ {tier(r).name}</div><div className="text-[13px] font-black text-white">{pct(view.chances?.[r] ?? 0)}</div></div>
             ))}
           </div>
           {bellows === 'on' ? <Bellows onDone={(s) => { setBellows(s); void strike(s); }} /> : (
             <>
+              {strikePick.canMap && <MapPickButton className="w-fit" onClick={strikePick.toMap} testId="crucible-strike-map" label="Pick the plot on the map" />}
               <div className="grid max-h-[220px] gap-1.5 overflow-y-auto pr-1" data-testid="crucible-strikeable">
                 {strikeable.slice(0, 60).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={target?.gx === p.gx && target?.gy === p.gy} onClick={() => setTarget(p)} testId="crucible-target"
-                  right={<span className="text-right text-[11px] font-black leading-tight"><span style={{ color: rarityInfo(p.to).color }}>→ {rarityInfo(p.to).name}</span><br /><span className="text-white/70">{pct(p.chance)}</span></span>} />)}
+                  right={<span className="text-right text-[11px] font-black leading-tight"><span style={{ color: tier(p.to).color }}>→ {tier(p.to).name}</span><br /><span className="text-white/70">{pct(p.chance)}</span></span>} />)}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <span className="lvx-label w-full">Temper rune{view.free_rune ? ' · ★2: free every strike' : ''}</span>
@@ -285,6 +295,9 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
                       {info.carry ? <button className="font-black text-white/80" onClick={() => void act('mount', { id: a.id })} disabled={!!busy} data-testid="crucible-carry">{a.carried ? 'Put away' : 'Carry'}</button>
                         : <select className="rounded bg-white/10 px-1 py-0.5 text-[11px] text-white" value={a.gx != null ? `${a.gx},${a.gy}` : ''} onChange={(e) => { const [gx, gy] = e.target.value.split(',').map(Number); void act('mount', e.target.value ? { id: a.id, gx, gy } : { id: a.id }); }}>
                             <option value="">Not placed</option>{allPlots.slice(0, 80).map((p) => <option key={`${p.gx},${p.gy}`} value={`${p.gx},${p.gy}`}>{plotName(p)}</option>)}</select>}
+                      {!info.carry && !mountPick.simple && allPlots.length > 0 && <button className="text-[13px]" title="Place it on the map" aria-label="Place it on the map" data-testid="crucible-mount-map"
+                        onClick={() => mountPick.open({ title: `Place the ${info.name}`, emoji: info.emoji, color: '#FFD27A', hint: 'Tap the plot to set it on', keep: { id: a.id },
+                          allowed: allPlots.map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name ?? null, plot_type: p.plot_type })) })}>🗺️</button>}
                     </div>
                   );
                 })}
@@ -297,6 +310,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
       {tab === 'mark' && (
         <div className="grid gap-2">
           <div className="text-[12px] text-white/70">Set metal into one of your plots (an inlay: a little more minigame Ink) — or pour it into a monument everyone sees on the map.</div>
+          {markPick.canMap && <MapPickButton className="w-fit" onClick={markPick.toMap} testId="crucible-mark-map" label="Pick the plot on the map" />}
           <div className="grid max-h-[180px] gap-1.5 overflow-y-auto pr-1">
             {allPlots.slice(0, 60).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={mark.p?.gx === p.gx && mark.p?.gy === p.gy} onClick={() => setMark({ ...mark, p })} testId="crucible-mark-plot" />)}
           </div>
@@ -321,7 +335,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
           {(view.inlays ?? []).length > 0 && <div className="text-[11px] text-white/60">{view.inlays.length} plot{view.inlays.length > 1 ? 's' : ''} inlaid</div>}
         </div>
       )}
-      <p className="text-center text-[11px] text-white/55">Strikes only climb the normal ladder, up to Mythic — never ultras or Crowns. Artifacts, inlays and monuments are Ink and perks only; rent never changes except by rarity.</p>
+      <p className="text-center text-[11px] text-white/55">Strikes climb the ladder to Mythic — then, very rarely, to an Ultra, and past an Ultra to a Crown (only while that spot’s crown is free). Artifacts, inlays and monuments are Ink and perks only; rent never changes except by rarity.</p>
     </div>
   );
 }

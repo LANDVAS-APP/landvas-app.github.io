@@ -19,7 +19,8 @@ const act = (uid: string, id: string, action: string, args: Record<string, unkno
 const skip = (id: string, secs: number) => db.sql(`update enchantments set clock_skip = clock_skip + $2 where id = $1`, [id, secs]);
 const ink = async (uid: string) => Number((await db.sql(`select amount from resource_balances where player_id = $1 and resource = 'ink'`, [uid]))[0].amount);
 const mult = async (uid: string, gx: number, gy: number) => Number((await db.sql(`select private.ench_minigame_mult($1, $2, $3) m`, [uid, gx, gy]))[0].m);
-const charges = (id: string, n: number) => db.sql(`update enchantments set state = state || jsonb_build_object('charges', $2::int, 'charge_at', extract(epoch from now())) where id = $1`, [id, n]);
+// also clears spare charges (a golden egg's spark lands one 20% of the time)
+const charges = (id: string, n: number) => db.sql(`update enchantments set state = state || jsonb_build_object('charges', $2::int, 'bonus', 0, 'charge_at', extract(epoch from now())) where id = $1`, [id, n]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // fire at the needle's peak (0.82 s after the aim, by the server's clock — allowing for the round trip)
 const peak = async (uid: string, id: string, target: Record<string, unknown>) => {

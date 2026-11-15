@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 
 export type FoldShape = 'crane' | 'boat' | 'frog' | 'lotus';
-export type FoldOpts = { canvas: HTMLCanvasElement; color: string; color2: string; label: string; emoji: string; shape: FoldShape; shiny?: boolean; reduceMotion?: boolean };
+export type FoldOpts = { canvas: HTMLCanvasElement; color: string; color2: string; label: string; emoji: string; shape: FoldShape; shiny?: boolean; reduceMotion?: boolean;
+  /** the plot's real drawing, printed on the paper when it loads */ image?: string | null; onImage?: () => void };
 export type FoldScene = {
   /** flat → folded (resolves when the figure is made) */
   fold(): Promise<void>;
@@ -79,6 +80,24 @@ function paperTexture(o: FoldOpts, back: boolean) {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  // the plot's own drawing, printed on the front (a frame of paper round it, its name under it)
+  if (!back && o.image) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const m = 44;
+        g.save(); g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 14; g.fillStyle = '#fff'; g.fillRect(m - 6, m - 6, S - 2 * m + 12, S - 2 * m + 12); g.restore();
+        g.imageSmoothingEnabled = false;
+        g.drawImage(img, m, m, S - 2 * m, S - 2 * m);
+        g.font = '900 34px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.shadowColor = 'rgba(0,0,0,0.7)'; g.shadowBlur = 10;
+        g.fillText(o.label.slice(0, 22), S / 2, S - 70); g.shadowBlur = 0;
+        t.needsUpdate = true;
+        o.onImage?.();
+      } catch { /* a drawing that can't be read stays plain paper */ }
+    };
+    img.src = o.image;
+  }
   t.anisotropy = 4;
   return t;
 }
@@ -102,7 +121,7 @@ export function createFold(o: FoldOpts): FoldScene {
   const geo = paperGeometry(N);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const base = Float32Array.from(pos.array as Float32Array);
-  const front = paperTexture(o, false), backTex = paperTexture(o, true);
+  const front = paperTexture({ ...o, onImage: () => { if (alive) renderOnce(); } }, false), backTex = paperTexture(o, true);
   const mFront = new THREE.MeshStandardMaterial({ map: front, roughness: 0.82, metalness: 0.02, side: THREE.FrontSide });
   const mBack = new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.9, metalness: 0, side: THREE.BackSide });
   const group = new THREE.Group();

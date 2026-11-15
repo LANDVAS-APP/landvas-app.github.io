@@ -329,10 +329,29 @@ describe('🔥 Crucible', () => {
     expect(r.result.pay.paid).toBeGreaterThan(0);
     expect((await plot(mine[2].gx, mine[2].gy)).rarity).toBe('uncommon');
     await expectError(act(ann, cru, 'strike', { gx: mine[2].gx, gy: mine[2].gy }), 'no_heat');
-    // a Mythic can't be struck higher, and nothing becomes an ultra
+    // past Mythic: an Ultra (very hard), then a Crown (harder still) — never past a Crown, never an Enchanted plot
     await db.sql(`update enchantments set state = state || '{"heat": 999}'::jsonb where id = $1`, [cru]);
     await db.sql(`update world_plots set rarity = 'mythic' where gx = $1 and gy = $2`, [mine[3].gx, mine[3].gy]);
-    await expectError(act(ann, cru, 'strike', { gx: mine[3].gx, gy: mine[3].gy }), 'cannot_forge');
+    const v0 = await get(ann, cru);
+    expect(Number(v0.view.chances.ultra)).toBeLessThan(0.06);
+    expect(Number(v0.view.chances.crown)).toBeLessThanOrEqual(0.002);
+    expect(v0.view.strikeable.find((p: any) => p.gx === mine[3].gx && p.gy === mine[3].gy)?.to).toBe('ultra');
+    await cfg({ crucible: { need_ultra: 0.0001, cap_ultra: 1, need_crown: 0.0001, cap_crown: 1 } });
+    const u = await act(ann, cru, 'strike', { gx: mine[3].gx, gy: mine[3].gy });
+    expect(u.result.ok).toBe(true);
+    const ultra = (await db.sql(`select w.rarity, r.ppm from world_plots w join plot_rarities r on r.id = w.rarity where gx = $1 and gy = $2`, [mine[3].gx, mine[3].gy]))[0];
+    expect(Number(ultra.ppm)).toBeGreaterThan(0);
+    await db.sql(`update enchantments set state = state || '{"heat": 999}'::jsonb where id = $1`, [cru]);
+    const free = (await db.sql(`select private.crown_free_at($1, $2) c`, [mine[3].gx, mine[3].gy]))[0].c;
+    if (free) {
+      const c = await act(ann, cru, 'strike', { gx: mine[3].gx, gy: mine[3].gy });
+      expect(c.result.ok).toBe(true);
+      expect((await db.sql(`select rarity from world_plots where gx = $1 and gy = $2`, [mine[3].gx, mine[3].gy]))[0].rarity).toMatch(/^crown/);
+      await db.sql(`update enchantments set state = state || '{"heat": 999}'::jsonb where id = $1`, [cru]);
+      await expectError(act(ann, cru, 'strike', { gx: mine[3].gx, gy: mine[3].gy }), 'top_tier');
+    } else {
+      await expectError(act(ann, cru, 'strike', { gx: mine[3].gx, gy: mine[3].gy }), 'crowns_taken');
+    }
     await cfg({ crucible: {} });
   });
 
@@ -406,25 +425,41 @@ describe('🔥 Crucible', () => {
 });
 
 describe('the new Traits', () => {
-  it('Farsight and Folded pay on any kind; Folded folds the partner’s clock forward once a day', async () => {
+  it('Farsight: the partner reaches twice as far; one that reaches for nothing scouts a private reading a day', async () => {
     const sp = await enchant(cat, 'splice');
     const glass = await enchant(cat, 'spyglass');
+    const g = await enchant(cat, 'goose');
+    await act(cat, sp, 'splice', { mode: 'swap', a: glass, b: g });
+    expect(Number((await db.sql(`select private.ench_reach($1) r`, [g]))[0].r)).toBe(2);
+    // a goose reaches for nothing on the map: it scouts
+    const r = (await db.sql(`select private.trait_farsight_run($1) r`, [g]))[0].r;
+    expect(r).toHaveLength(1);
+    const s = (await db.sql(`select * from private.spy_sightings where enchant_id = $1`, [g]))[0];
+    expect(s).toMatchObject({ player_id: cat, gx: r[0].gx, gy: r[0].gy });
+    expect((await db.sql(`select private.trait_farsight_run($1) r`, [g]))[0].r).toBeNull();
+    expect((await get(cat, g)).traits.farsight).toMatchObject({ k: 1, reach: 2, reaches: false, scouted: 1, today: true });
+    expect((await db.sql(`select count(*)::int n from player_notifications where player_id = $1 and data ->> 'sub' = 'far_sighted'`, [cat]))[0].n).toBe(1);
+    // no Ink from it
+    const pay = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [g]))[0].p;
+    expect(pay.mods.map((m: any) => m.label).join(' ')).not.toMatch(/Farsight/);
+    await db.sql(`update enchant_splices set ends_at = now() where splice_id = $1`, [sp]);
+  });
+
+  it('Folded: a tap folds the partner’s longest wait in half, once a day', async () => {
+    const sp = await enchant(cat, 'splice');
     const ori = await enchant(cat, 'origami');
     const g = await enchant(cat, 'goose');
-    const r = await act(cat, sp, 'splice', { mode: 'swap', a: glass, b: g });
-    expect(r.result).toBeTruthy();
-    const pay = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [g]))[0].p;
-    expect(pay.mods.map((m: any) => m.label)).toEqual(expect.arrayContaining(['Farsight +15%']));
-    await act(cat, sp, 'separate').catch(() => {});
-    await act(cat, g, 'separate').catch(() => {});
-    await db.sql(`update enchant_splices set ends_at = now() where splice_id = $1`, [sp]);
-    await db.sql(`update enchantments set state = state || '{"charges": 2}'::jsonb where id = $1`, [sp]);
     await act(cat, sp, 'splice', { mode: 'swap', a: ori, b: g });
+    const v = await get(cat, g);
+    expect(v.traits.fold).toMatchObject({ k: 1, left: 1 });
+    const wait = Number(v.traits.fold.wait.s);
+    expect(wait).toBeGreaterThan(60);
     const skip0 = Number((await row(g)).clock_skip);
-    await act(cat, g, 'polish').catch(() => {});
-    await act(cat, g, 'polish').catch(() => {});
-    const e = await row(g);
-    expect(Number(e.clock_skip) - skip0).toBeGreaterThanOrEqual(4 * 3600);
-    expect(Number(e.clock_skip) - skip0).toBeLessThan(5 * 3600);
+    const r = await act(cat, g, 'trait_fold');
+    expect(r.result).toMatchObject({ key: v.traits.fold.wait.key, other: false });
+    expect(Math.abs(Number(r.result.folded) - wait / 2)).toBeLessThan(5);
+    expect(Number((await row(g)).clock_skip) - skip0).toBeGreaterThanOrEqual(Number(r.result.folded) - 1);
+    await expectError(act(cat, g, 'trait_fold'), 'already_today');
+    await expectError(act(cat, ori, 'trait_fold'), 'no_trait');
   });
 });

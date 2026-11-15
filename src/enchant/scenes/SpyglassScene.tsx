@@ -18,7 +18,12 @@ import { feel } from '../living';
 const STARS = Array.from({ length: 46 }, (_, i) => ({ x: (i * 37.7) % 100, y: (i * 61.3) % 62, d: (i % 7) * 0.4, s: i % 5 === 0 ? 3 : 2 }));
 
 function readingColor(r: string) { return r === 'enchanted' ? '#B79CFF' : rarityInfo(r).color; }
-function readingName(r: string, kind?: string | null) { return r === 'enchanted' ? `Enchanted${kind ? ` · ${kindInfo(kind).name}` : ''}` : rarityInfo(r).name; }
+/** an Enchanted reading only stirs (what it is waits for the claim); a Crown reading is the rarest sight there is */
+function readingName(r: string, kind?: string | null) {
+  if (r === 'enchanted') return kind ? `Enchanted · ${kindInfo(kind).name}` : '✨ Something stirs';
+  if (r.startsWith('crown')) return `👑 ${rarityInfo(r).name}`;
+  return rarityInfo(r).name;
+}
 
 function Telescope({ out, aim }: { out: number; aim: number }) {
   // three brass tubes that rack out as it looks

@@ -35,6 +35,8 @@ async function run(mode) {
   page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL|net::/.test(m.text())) errors.push(m.text()); });
   const ok = (n, v, x) => check(`${mode}: ${n}`, v, x);
   const shot = (n) => (process.env.E2E_NOSHOTS ? Promise.resolve() : page.screenshot({ path: `${OUT}/${mode}-${n}.png`, timeout: 60000 }).catch(() => console.log('skip', n)));
+  // E2E_SCENES=dir: also snap each new scene on its own (for previews)
+  const scene = async (n, id) => { if (!process.env.E2E_SCENES) return; fs.mkdirSync(process.env.E2E_SCENES, { recursive: true }); await page.locator(`[data-testid=${id}]`).first().screenshot({ path: `${process.env.E2E_SCENES}/${mode}-${n}.png`, timeout: 30000 }).catch((e) => console.log('scene skip', n, e.message.split('\n')[0])); };
   const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
   const api = (f, ...a) => page.evaluate(([f, a]) => { const p = f.split('.'); let o = window.__landvasApi; for (const k of p.slice(0, -1)) o = o[k]; return o[p.at(-1)](...a); }, [f, a]);
   const as = (uid, fn, args = {}) => page.evaluate(async ([uid, fn, args]) => {
@@ -54,15 +56,26 @@ async function run(mode) {
   const tapCell = async (gx, gy) => {
     await page.waitForFunction(() => !!window.__landvasMap, null, { timeout: 30000 });
     const [lng, lat] = cellCenter(gx, gy);
-    await page.evaluate(([lng, lat]) => window.__landvasMap.jumpTo({ center: [lng, lat], zoom: 20.5 }), [lng, lat]);
-    await page.waitForTimeout(1400);
-    const pt = await page.evaluate(([lng, lat]) => { const m = window.__landvasMap; const p = m.project([lng, lat]); const r = m.getCanvas().getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; }, [lng, lat]);
-    await page.mouse.click(pt.x, pt.y);
-    await page.waitForTimeout(700);
-    if (!(await waitFor('[data-testid=pick-use]', 8000))) { console.log('  (no pick-use after tapping', gx, gy, 'at', JSON.stringify(pt), 'url', page.url(), ')'); await shot(`tap-${gx}-${gy}`); return false; }
-    await page.click('[data-testid=pick-use]', { force: true });
-    await page.waitForTimeout(1500);
-    return true;
+    // (the map may still be flying to the picker's spot: stop it, jump, and tap — and once more if the tap didn't land)
+    for (let i = 0; i < 3; i++) {
+      await page.waitForTimeout(1200);
+      await page.evaluate(([lng, lat]) => { const m = window.__landvasMap; m.stop(); m.jumpTo({ center: [lng, lat], zoom: 20.5 }); }, [lng, lat]);
+      await page.waitForTimeout(900);
+      const pt = await page.evaluate(([lng, lat]) => { const m = window.__landvasMap; const p = m.project([lng, lat]); const r = m.getCanvas().getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; }, [lng, lat]);
+      await page.mouse.click(pt.x, pt.y);
+      if (await waitFor('[data-testid=pick-use]', 5000)) {
+        // (the sheet slides up as it appears: let it settle, and press again if the first press missed)
+        await page.waitForTimeout(500);
+        for (let k = 0; k < 3; k++) {
+          await page.click('[data-testid=pick-use]', { force: true }).catch(() => {});
+          if (await page.waitForSelector('[data-testid=pick-card]', { state: 'detached', timeout: 3000 }).then(() => true, () => false)) break;
+        }
+        await page.waitForTimeout(1200);
+        return true;
+      }
+    }
+    console.log('  (no pick-use after tapping', gx, gy, ')');
+    return false;
   };
   /** look at a cell on the map and wait for a marker there (the map may still be flying somewhere when we arrive: look twice) */
   const seeOnMap = async (gx, gy, sel, zoom = 18.5) => {
@@ -110,7 +123,7 @@ async function run(mode) {
     const egg = (await sql(`select (private.ench_create('cuckoo', '${me}', ${ex}, ${ey})).id`))[0].id;
     await nav(`/grimoire/${egg}`);
     ok('a Cuckoo Egg shows the six to choose from', await waitFor('[data-testid=egg-choices]') && (await page.locator('[data-testid^=egg-pick-]').count()) === 6);
-    await shot('01-egg');
+    await shot('01-egg'); await tap('[data-testid=egg-pick-crucible]').catch(() => {}); await page.waitForTimeout(600); await scene('egg', 'egg-scene');
     await tap('[data-testid=egg-pick-glyph]'); await tap('[data-testid=egg-hatch]');
     ok('…it cracks, and a Glyphcaster hatches', await waitFor('[data-testid=egg-born]', 12000) && (await sql(`select kind from enchantments where id = '${egg}'`))[0].kind === 'glyph');
     await page.waitForTimeout(900); await shot('02-hatched');
@@ -126,7 +139,7 @@ async function run(mode) {
     const lookOk = await tapCell(bx + 7, by + 5);
     ok('…tap an unclaimed spot and come back', lookOk && await waitFor('[data-testid=spyglass-scene]', 15000));
     ok('…the lens clears on the reading', await waitFor('[data-testid=spyglass-reading]', 15000), await text('[data-testid=spyglass-reading]'));
-    await page.waitForTimeout(800); await shot('04-spyglass-reading');
+    await page.waitForTimeout(800); await shot('04-spyglass-reading'); await scene('spyglass', 'spyglass-scene');
     ok('…and it’s listed as yours alone', await waitFor('[data-testid=spyglass-sightings]', 8000) && Number((await sql(`select count(*) n from private.spy_sightings where player_id = '${me}'`))[0].n) === 1);
     }
 
@@ -134,17 +147,23 @@ async function run(mode) {
     if (part('origami')) {
     await nav(`/grimoire/${ids.origami}`);
     ok('the Origami Pocket shows its desk, its pocket and your plots', await waitFor('[data-testid=origami-scene]') && await waitFor('[data-testid=origami-plot]'));
-    await tap('[data-testid=origami-plot]');
+    // pick the plot to fold on the real map
+    await tap('[data-testid=origami-fold-map]');
+    ok('…the plot to fold can be picked on the map', await waitFor('[data-testid=pick-card]', 15000));
+    const pickedOnMap = await tapCell(bx + 3, by);
+    ok('…tap it in its crosshairs and come back with it chosen', pickedOnMap && await waitFor('[data-testid=origami-fold]', 15000));
     await page.waitForTimeout(800); await shot('05-origami-paper');
     await tap('[data-testid=origami-fold]');
-    await page.waitForTimeout(1300); await shot('06-origami-folding');
+    await page.waitForTimeout(900); await scene('origami', 'origami-scene'); await shot('06-origami-folding');
     ok('…the plot folds into the pocket', await waitFor('[data-testid=origami-pocket-list]', 15000));
     const folded = (await sql(`select gx, gy, rarity from world_plots where folded_by = '${ids.origami}'`))[0];
     ok('…still yours, folded', !!folded);
     await page.waitForTimeout(1500); await shot('07-origami-pocket');
     await page.waitForSelector('[data-testid=origami-unfold]:not([disabled])', { timeout: 15000 }).catch(() => {});
     await tap('[data-testid=origami-unfold]');
-    ok('…unfolding picks a free spot on the map', await waitFor('[data-testid=pick-card]', 15000));
+    const unfoldPick = await waitFor('[data-testid=pick-card]', 15000);
+    ok('…unfolding picks a free spot on the map', unfoldPick, unfoldPick ? '' : await page.evaluate(() => location.pathname + ' ' + (document.querySelector('[data-testid=origami-unfold]')?.outerHTML.slice(0, 160) ?? 'no button')));
+    if (!unfoldPick) await page.screenshot({ path: `${OUT}/${mode}-07x-no-unfold-pick.png` }).catch(() => {});
     const paper = await seeOnMap(folded.gx, folded.gy, '[data-testid=map-fold]');
     ok('…a folded plot is paper on the map', paper, paper ? '' : JSON.stringify(await page.evaluate(() => ({ z: window.__landvasMap?.getZoom(), path: location.pathname, folds: document.querySelectorAll('.lvx-paper').length }))));
     if (!paper) await page.screenshot({ path: `${OUT}/${mode}-07c-no-paper.png` }).catch(() => {});
@@ -175,7 +194,7 @@ async function run(mode) {
     ok('…the bellows come up', await waitFor('[data-testid=crucible-bellows]', 6000));
     for (let i = 0; i < 3; i++) { await page.click('[data-testid=crucible-pump]', { force: true }); await page.waitForTimeout(350); }
     ok('…the hammer falls and the plot is forged up a tier', await waitFor('[data-testid=crucible-verdict]', 12000) && /→/.test((await text('[data-testid=crucible-verdict]')) ?? ''), await text('[data-testid=crucible-verdict]'));
-    await page.waitForTimeout(600); await shot('10-crucible-forged');
+    await page.waitForTimeout(600); await shot('10-crucible-forged'); await scene('crucible', 'crucible-scene');
     await tap('[data-testid=crucible-tab-craft]');
     await tap('[data-testid=crucible-forge-horseshoe]');
     ok('…metal forges an artifact', await waitFor('[data-testid=crucible-artifacts]', 8000));
@@ -186,7 +205,7 @@ async function run(mode) {
     if (part('puppet')) {
     await nav(`/grimoire/${ids.puppeteer}`);
     ok('the Puppeteer’s curtains part on someone else’s plot nearby', await waitFor('[data-testid=puppeteer-scene]') && await waitFor('[data-testid=puppeteer-plot]', 10000));
-    await page.waitForTimeout(1300); await shot('12-puppeteer');
+    await page.waitForTimeout(1300); await shot('12-puppeteer'); await scene('puppeteer', 'puppeteer-scene');
     await tap('[data-testid=puppeteer-plot]'); await tap('[data-testid=puppeteer-pull]');
     const strung = await waitFor('[data-testid=puppet-banner]', 15000);
     ok('…pulling the strings opens their plot’s game, on strings', strung);
@@ -204,10 +223,16 @@ async function run(mode) {
     await page.waitForTimeout(900);
     await tap('[data-testid=deck-card-1]');
     ok('…a card turns over', await waitFor('[data-testid=deck-pending]', 10000), await text('[data-testid=deck-pending]'));
-    await page.waitForTimeout(1000); await shot('14-deck-turned');
+    await page.waitForTimeout(1000); await shot('14-deck-turned'); await scene('deck', 'deck-scene');
     await tap('[data-testid=deck-accept]');
     ok('…and comes true', await waitFor('[data-testid=deck-result]', 10000), await text('[data-testid=deck-result]'));
     await shot('15-deck-result');
+    await sql(`update enchantments set level = 8 where id = '${ids.deck}'`);
+    await nav(`/grimoire/${ids.deck}`);
+    await waitFor('[data-testid=deck-grand]', 10000);
+    await tap('[data-testid=deck-grand]');
+    ok('…at level 8 the Grand Spread turns five cards at once', await waitFor('[data-testid=deck-grand-result]', 10000) && (await page.locator('[data-testid=deck-grand-result] .lvx-card').count()) === 5);
+    await page.waitForTimeout(1500); await shot('15b-grand-spread');
     }
 
     // ---- ✍️ Glyphcaster ----
@@ -223,7 +248,7 @@ async function run(mode) {
     for (const [x, y] of pts) await page.mouse.move(ox + x * S, oy + y * S, { steps: 2 });
     await page.mouse.up();
     ok('…a spiral drawn on the circle is read and cast', await waitFor('[data-testid=glyph-result]', 12000) && /Vortex|Ink/.test((await text('[data-testid=glyph-result]')) ?? ''), await text('[data-testid=glyph-result]'));
-    await page.waitForTimeout(700); await shot('16-glyph-cast');
+    await page.waitForTimeout(250); await scene('glyph', 'glyph-scene'); await shot('16-glyph-cast');
     await tap('[data-testid=glyph-tab-book]');
     ok('…the Spellbook shows 24 pages, the found ones readable', (await page.locator('[data-testid^=glyph-page-]').count()) === 24);
     await shot('17-glyph-book');
@@ -242,7 +267,61 @@ async function run(mode) {
     await page.waitForTimeout(1200); await shot('18-map');
     }
 
-        const wide = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
+        // ---- the Grimoire, organised ----
+    if (part('grimoire')) {
+    const second = await give('spyglass', 9);
+    await nav('/grimoire');
+    await page.evaluate(() => window.__landvasQc?.invalidateQueries({ queryKey: ['enchantments'] }));
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid=grimoire-group][data-kind=spyglass] [data-testid=grimoire-card]').length === 2, null, { timeout: 15000 }).catch(() => {});
+    ok('the Grimoire leads with what’s ready now', await waitFor('[data-testid=grimoire-ready]'));
+    ok('…and groups copies of a kind together', (await page.locator('[data-testid=grimoire-group][data-kind=spyglass] [data-testid=grimoire-card]').count()) === 2);
+    ok('…every enchantment still has its card', (await page.locator('[data-testid=grimoire-card]').count()) >= 7);
+    await tap('[data-testid=grimoire-filter-spliced]');
+    await page.waitForTimeout(400);
+    ok('…a filter narrows it (nothing spliced yet)', (await page.locator('[data-testid=grimoire-card]').count()) === 0);
+    await tap('[data-testid=grimoire-filter-all]');
+    await shot('19-grimoire');
+    await nav(`/grimoire/${second}`);
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid=ench-copy]').length === 2, null, { timeout: 15000 }).catch(() => {});
+    ok('an enchantment’s page: its status, what it works on, and a jump bar', await waitFor('[data-testid=ench-status]') && await waitFor('[data-testid=ench-works-on]') && await waitFor('[data-testid=ench-nav]'));
+    ok('…and a switcher between your copies', (await page.locator('[data-testid=ench-copy]').count()) === 2);
+    await page.locator('[data-testid=ench-copy]').first().click({ force: true });
+    await page.waitForTimeout(900);
+    ok('…that steps to the other one', await waitFor('[data-testid=spyglass-scene]'));
+    await shot('20-ench-page');
+    }
+
+    // ---- Traits you use: fold a wait (Folded), trace a rune (Inscribed) ----
+    if (part('traits')) {
+    const sp = await give('splice', 10);
+    const goose = await give('goose', 11);
+    const deck2 = await give('deck', 12);
+    await sql(`update enchantments set state = state || '{"charges": 4}'::jsonb where id = '${sp}'`);
+    await as(me, 'enchant_act', { p_id: sp, p_action: 'splice', p_args: { mode: 'swap', a: ids.origami, b: goose } });
+    const sp2 = await give('splice', 13);
+    await sql(`update enchantments set state = state || '{"charges": 4}'::jsonb where id = '${sp2}'`);
+    await as(me, 'enchant_act', { p_id: sp2, p_action: 'splice', p_args: { mode: 'swap', a: ids.glyph, b: deck2 } });
+    await nav(`/grimoire/${goose}`);
+    ok('a Folded partner offers to fold its longest wait', await waitFor('[data-testid=ench-fold]', 15000));
+    await tap('[data-testid=ench-fold-go]');
+    ok('…a tap folds it in half', await waitFor('[data-testid=ench-fold] >> text=Folded!', 10000), await text('[data-testid=ench-fold]'));
+    await shot('21-trait-fold');
+    await nav(`/grimoire/${deck2}`);
+    ok('an Inscribed partner shows its rune to trace', await waitFor('[data-testid=ench-rune-canvas]', 15000));
+    const rb = await (async () => { await page.locator('[data-testid=ench-rune-canvas]').scrollIntoViewIfNeeded(); await page.waitForTimeout(300); return page.locator('[data-testid=ench-rune-canvas]').boundingBox(); })();
+    const star = [[0.5, 0.05], [0.78, 0.92], [0.05, 0.38], [0.95, 0.38], [0.22, 0.92], [0.5, 0.05]];
+    const S = Math.min(rb.width, rb.height) * 0.9, ox = rb.x + (rb.width - S) / 2, oy = rb.y + (rb.height - S) / 2;
+    await page.mouse.move(ox + star[0][0] * S, oy + star[0][1] * S); await page.mouse.down();
+    for (let i = 1; i < star.length; i++) for (let t = 1; t <= 8; t++) {
+      const [x0, y0] = star[i - 1], [x1, y1] = star[i];
+      await page.mouse.move(ox + (x0 + ((x1 - x0) * t) / 8) * S, oy + (y0 + ((y1 - y0) * t) / 8) * S);
+    }
+    await page.mouse.up();
+    ok('…traced, it casts its glyph for free', await waitFor('[data-testid=ench-rune-result]', 12000) && /Wish|Luck/.test((await text('[data-testid=ench-rune-result]')) ?? ''), await text('[data-testid=ench-rune-result]'));
+    await shot('22-trait-rune');
+    }
+
+    const wide = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
     ok('nothing wider than the screen', wide <= 0, `${wide}px`);
     if (app) ok('the app wears its own skin (html.native)', await page.evaluate(() => document.documentElement.classList.contains('native')));
     ok('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));

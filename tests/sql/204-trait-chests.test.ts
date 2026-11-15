@@ -98,9 +98,11 @@ describe('🧞🪺 Wishing and Tempered always do something', () => {
     expect(p.mods.some((m: any) => m.label === 'Wishing +50%')).toBe(true);
     await end();
   });
-  it('Tempered (the Crucible’s) on a Wormhole (no bad luck to dodge): +40% Ink when grafted; on a Goose it dodges foxes instead', async () => {
+  it('Tempered (the Crucible’s) never pays Ink: on a Wormhole it tempers the plot; on a Goose it dodges foxes too', async () => {
     await graft(ids.worm, ids.cuckoo);
-    expect((await pay(ids.worm)).mods.some((m: any) => m.label === 'Tempered +40%')).toBe(true);
+    expect((await pay(ids.worm)).mods.some((m: any) => /Tempered/.test(m.label))).toBe(false);
+    const w = (await db.sql(`select gx, gy from enchantments where id = $1`, [ids.worm]))[0];
+    expect((await db.sql(`select private.ench_tempered_at($1, $2) t`, [w.gx, w.gy]))[0].t).toBe(true);
     await end();
     await graft(ids.goose, ids.cuckoo);
     expect((await pay(ids.goose)).mods.some((m: any) => /Tempered/.test(m.label))).toBe(false);

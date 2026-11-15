@@ -15,6 +15,8 @@ import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { PlotRow, RarityChip, plotName, sleep, useCraftClip, useSpotPick, type PlotLite } from '../craft';
 import { dur } from '../kinds';
+import { MapPickButton, usePlotChoice } from '../pickers';
+import { getBackend } from '../../backend/backend';
 import { feel } from '../living';
 import type { FoldScene, FoldShape } from '../origami3d';
 
@@ -44,6 +46,7 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const pocket: PlotLite[] = view.pocket_plots ?? [];
   const plots: PlotLite[] = view.plots ?? [];
   const folds = Number(view.folds ?? 0);
+  const foldPick = usePlotChoice(v, 'fold', plots, (p) => setSel(p), { title: 'Fold a plot', emoji: '🦢', color: '#FF6F91', hint: 'Tap one of your plots in crosshairs to fold it' });
 
   // the paper, made for a plot
   const paper = async (p: PlotLite) => {
@@ -51,7 +54,9 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
     const { createFold } = await import('../origami3d');
     if (!cv.current) return null;
     const [c1, c2] = colorsOf(p);
-    eng.current = createFold({ canvas: cv.current, color: c1, color2: c2, label: plotName(p), emoji: p.kind ? '🔮' : '▦', shape, shiny: p.shiny, reduceMotion: reduce });
+    const art = (p as any).art_path ? await getBackend().publicAssetUrl((p as any).art_path).catch(() => null) : null;
+    if (!cv.current) return null;
+    eng.current = createFold({ canvas: cv.current, color: c1, color2: c2, label: plotName(p), emoji: p.kind ? '🔮' : '▦', shape, shiny: p.shiny, reduceMotion: reduce, image: art });
     return eng.current;
   };
   useEffect(() => () => { eng.current?.destroy(); eng.current = null; }, []);
@@ -132,7 +137,8 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
           </div>
         )}
         {/* the pocket, with what's in it peeking out */}
-        <div ref={pocketRef} className="lvx-pocket" data-testid="origami-pocket">
+        <motion.div ref={pocketRef} className="lvx-pocket" data-testid="origami-pocket" key={`pocket-${pocket.length}`}
+          initial={reduce ? false : { scaleX: 1.14, scaleY: 0.9 }} animate={{ scaleX: 1, scaleY: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 9 }}>
           <div className="lvx-pocket-back" />
           {pocket.map((p, i) => (
             <motion.div key={`${p.gx},${p.gy}`} className="lvx-crane-slot text-[26px]" style={{ left: `${18 + i * 26}%` }} initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1, rotate: [-6, 6][i % 2] }}>
@@ -140,7 +146,7 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
             </motion.div>
           ))}
           <div className="lvx-pocket-front grid place-items-center"><span className="mt-[18%] text-[11px] font-black text-[#FFD1DC]">{pocket.length}/{view.pocket_max} folded</span></div>
-        </div>
+        </motion.div>
         <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[12px] font-black text-[#FFD1DC]" data-testid="origami-folds">
           🦢 {folds}/{view.max} folds{folds < Number(view.max) && nextIn != null ? ` · +1 in ${dur(nextIn)}` : ''}
         </div>
@@ -173,7 +179,7 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
       )}
 
       <div className="grid gap-2">
-        <div className="flex items-center justify-between"><div className="lvx-label">Fold one of your plots</div>{sel && <button className="text-[11px] font-bold text-white/60" onClick={() => { setSel(null); eng.current?.destroy(); eng.current = null; }}>clear</button>}</div>
+        <div className="flex items-center justify-between"><div className="lvx-label">Fold one of your plots</div>{foldPick.canMap && !sel && <MapPickButton onClick={foldPick.toMap} testId="origami-fold-map" label="Pick it on the map" />}{sel && <button className="text-[11px] font-bold text-white/60" onClick={() => { setSel(null); eng.current?.destroy(); eng.current = null; }}>clear</button>}</div>
         {sel ? (
           <Button variant="rainbow" size="lg" onClick={() => void doFold()} disabled={!!busy || busyAnim || folds < 1 || Number(view.pocket) >= Number(view.pocket_max)} data-testid="origami-fold">
             {Number(view.pocket) >= Number(view.pocket_max) ? 'Your pocket is full' : folds < 1 ? `No folds · +1 in ${dur(nextIn)}` : `🦢 Fold ${plotName(sel)}`}
@@ -185,7 +191,7 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
           )) : <p className="text-[12px] text-white/60">None of your plots can be folded right now (Crowns, merged canvases and enchanted plots can’t — until ★3).</p>}
         </div>
       </div>
-      <p className="text-center text-[11px] text-white/55">It keeps its rarity, shine, type, level, game progress and name; its drawing stays in your Studio. The spot it leaves takes the roll the new spot would have had.</p>
+      <p className="text-center text-[11px] text-white/55">It keeps its rarity, shine, type, level, game progress, name and drawing. The spot it leaves takes the roll the new spot would have had.</p>
     </div>
   );
 }

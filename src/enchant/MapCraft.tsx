@@ -61,7 +61,7 @@ export function MapCraft({ ready }: { ready: boolean }) {
     }
     for (const s of data.sightings) {
       const c = s.rarity === 'enchanted' ? '#B79CFF' : rarityInfo(s.rarity).color;
-      const name = s.rarity === 'enchanted' ? `Enchanted${s.kind ? ` ${kindInfo(s.kind).emoji}` : ''}` : rarityInfo(s.rarity).name;
+      const name = s.rarity === 'enchanted' ? (s.kind ? `Enchanted ${kindInfo(s.kind).emoji}` : '✨ Something stirs') : s.rarity.startsWith('crown') ? `👑 ${rarityInfo(s.rarity).name}` : rarityInfo(s.rarity).name;
       const el = node(`<b>🔭</b><em>${esc(name)} · ${dur(s.expires_in)}</em>`, 'lvx-sight', () => select(s.gx, s.gy));
       (el.firstChild as HTMLElement).style.setProperty('--c', c);
       (el.firstChild as HTMLElement).dataset.testid = 'map-sighting';

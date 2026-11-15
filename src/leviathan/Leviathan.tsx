@@ -31,7 +31,8 @@ export const useLevUi = create<{ fight: boolean; bones: LevState['bones'][number
 // (automated browser tests open the fight directly)
 if (typeof window !== 'undefined' && config.e2e) (window as any).__landvasLevOpen = () => useLevUi.getState().open(); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const EFFECT: Record<string, string> = { reveal: 'Foretold where it hides — everyone can see it now!', grow: 'Blew it back up to size — it can be hit again!', shrink: 'Shrunk! Everyone hits ×1.5 for 10 min', freeze: 'Frozen in time for 10 min', foretell: 'Its weak spot is foretold: ×1.25 for 10 min', decoy: 'Distracted by a decoy egg for 5 min', pull: 'Pulled through a wormhole: stalled 5 min' };
+const EFFECT: Record<string, string> = { reveal: 'Foretold where it hides — everyone can see it now!', grow: 'Blew it back up to size — it can be hit again!', shrink: 'Shrunk! Everyone hits ×1.5 for 10 min', freeze: 'Frozen in time for 10 min', foretell: 'Its weak spot is foretold: ×1.25 for 10 min', decoy: 'Distracted by a decoy egg for 5 min', pull: 'Pulled through a wormhole: stalled 5 min',
+  weakspot: 'WEAK SPOT! Everyone hits ×2 for 10 seconds — throw everything!', shield: 'Paper Shield: your plots folded out of its path for 6 h', tangle: 'Tangled in the strings: held back 10 min', glyph: 'Thunder Glyph: your drawing struck it' };
 
 function HpBar({ l, big }: { l: Lev; big?: boolean }) {
   const pct = Math.max(0, Math.min(100, (Number(l.hp) / Math.max(1, Number(l.hp_max))) * 100));
@@ -171,10 +172,11 @@ function Fight() {
     setFlies((f) => [...f.slice(-14), { id: Math.random(), x: e.clientX, y: e.clientY }]);
     efx.burst({ x: e.clientX, y: e.clientY, colors: ['#2A1260', '#B026FF', '#FF5CDB'], count: 18, speed: 8, kind: 'drop' });
   };
-  const move = async (id: string) => {
+  const [drawFor, setDrawFor] = useState<string | null>(null);
+  const move = async (id: string, accuracy?: number) => {
     feel('heavy');
     try {
-      const r = await api.leviathanHit('enchant', 1, id);
+      const r = accuracy != null ? await api.leviathanGlyph(id, accuracy) : await api.leviathanHit('enchant', 1, id);
       apply(r); setHit((h) => h + 1);
       const c = centerOf(beast.current);
       efx.burst({ ...c, colors: ['#FFD23F', '#FF5CDB', '#22E3FF', '#fff'], count: 160, speed: 15, kind: 'spark' });
@@ -206,6 +208,7 @@ function Fight() {
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">📍 {l.status === 'warning' ? l.origin : l.place}</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">⚔️ {l.fighters} fighting</span>
             {levMult(l) > 1 && <span className="rounded-full bg-[#FF5CDB] px-2.5 py-1 text-white">💥 hits ×{levMult(l)}</span>}
+            {l.weakspot_until && Date.parse(l.weakspot_until) > serverNow() && <span className="rounded-full bg-[#F4C95D] px-2.5 py-1 text-[#1B1405]" data-testid="lev-weakspot">🔭 WEAK SPOT ×2 · <Countdown to={l.weakspot_until} /></span>}
             {l.target?.owner_name && <span className="rounded-full bg-[#FF2D55] px-2.5 py-1 text-white">🎯 heading for @{l.target.owner_name}{l.target.player ? '' : `’s ${l.target.giant ? 'giant ' : ''}plot`}</span>}
             {levRampage(l) && <span className="rounded-full bg-[#FF9F1C] px-2.5 py-1 text-[#2A0D00]" data-testid="lev-rampage">⚡ RAMPAGE · <Countdown to={l.rampage_until!} /></span>}
             {levTiny(l) && <span className="rounded-full bg-[#22E3FF] px-2.5 py-1 text-[#06222C]" data-testid="lev-tiny">🔬 TINY — half your bombs miss · <Countdown to={l.tiny_until!} /></span>}
@@ -243,7 +246,7 @@ function Fight() {
               <div className="grid grid-cols-1 gap-1.5" data-testid="lev-moves">
                 <div className="text-[11px] font-black uppercase tracking-wider text-white/60">Your enchantments’ moves (each every 3 hours)</div>
                 {st.me.moves.length ? st.me.moves.map((m) => (
-                  <button key={m.id} disabled={m.ready_in > 0} onClick={() => void move(m.id)} className={cn('lv-lev-move flex items-center gap-2.5 rounded-2xl p-2 text-left', m.ready_in > 0 && 'opacity-45')} style={{ ['--a' as string]: kindInfo(m.kind).a }} data-testid="lev-move">
+                  <button key={m.id} disabled={m.ready_in > 0} onClick={() => (m.kind === 'glyph' ? setDrawFor(m.id) : void move(m.id))} className={cn('lv-lev-move flex items-center gap-2.5 rounded-2xl p-2 text-left', m.ready_in > 0 && 'opacity-45')} style={{ ['--a' as string]: kindInfo(m.kind).a }} data-testid="lev-move">
                     <Sigil kind={m.kind} seed={m.sigil} size={40} still />
                     <span className="min-w-0 flex-1 leading-tight"><b className="block truncate text-[13px] text-white">{m.move}</b><i className="block truncate text-[11px] not-italic text-white/60">{m.name} · ~{fmtDmg(m.dmg)}{m.effect ? ` · ${EFFECT[m.effect]?.split(':')[0].split('!')[0]}` : ''}</i></span>
                     <span className="shrink-0 rounded-full bg-black/30 px-2 py-1 text-[11px] font-black text-white">{m.ready_in > 0 ? dur(m.ready_in) : 'READY'}</span>
@@ -252,6 +255,7 @@ function Fight() {
               </div>
             </>
           )}
+          <AnimatePresence>{drawFor && <ThunderPad onCancel={() => setDrawFor(null)} onDrawn={(acc) => { const id = drawFor; setDrawFor(null); void move(id, acc); }} />}</AnimatePresence>
           <div className="grid grid-cols-1 gap-1" data-testid="lev-feed">
             <div className="text-[11px] font-black uppercase tracking-wider text-white/60">Live</div>
             <AnimatePresence initial={false}>
@@ -409,4 +413,48 @@ async function scheduleRise(l: Lev) {
     if (at.getTime() < Date.now() + 30_000) return;
     await LN.schedule({ notifications: [{ id: 7300 + (l.gen % 100), title: '🐉 The Leviathan has risen', body: `It came ashore ${l.origin}. Every player can fight it — open LANDVAS.`, schedule: { at, allowWhileIdle: true }, extra: { to: '/world' } }] });
   } catch { /* not allowed: the in-game warning still shows */ }
+}
+
+/** ✍️ the Thunder Glyph: draw the bolt — how well you draw it sets the damage */
+function ThunderPad({ onDrawn, onCancel }: { onDrawn(acc: number): void; onCancel(): void }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const pts = useRef<{ x: number; y: number }[]>([]);
+  const [score, setScore] = useState<number | null>(null);
+  const paint = () => {
+    const c = cv.current, g = c?.getContext('2d'); if (!c || !g) return;
+    const r = c.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1);
+    if (c.width !== Math.round(r.width * d)) { c.width = Math.round(r.width * d); c.height = Math.round(r.height * d); }
+    g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, r.width, r.height);
+    g.globalAlpha = 0.18; g.strokeStyle = '#9EF6FF'; g.lineWidth = 10; g.lineCap = 'round'; g.lineJoin = 'round';
+    const guide = [[0.62, 0.04], [0.28, 0.52], [0.66, 0.5], [0.34, 0.96]];
+    g.beginPath(); guide.forEach(([x, y], i) => (i ? g.lineTo(x * r.width, y * r.height) : g.moveTo(x * r.width, y * r.height))); g.stroke();
+    g.globalAlpha = 1;
+    for (const [w, col] of [[12, '#7C4DFF55'], [6, '#9EF6FF'], [2.5, '#fff']] as const) {
+      g.strokeStyle = col; g.lineWidth = w; g.beginPath();
+      pts.current.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
+    }
+  };
+  useEffect(() => { paint(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const at = (e: React.PointerEvent) => { const r = cv.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const done = async () => {
+    const { recognise } = await import('../enchant/glyphs');
+    const r = recognise(pts.current, ['bolt']);
+    const acc = r ? r.accuracy : 0;
+    setScore(acc); feel(acc > 0.7 ? 'heavy' : 'medium');
+    setTimeout(() => onDrawn(acc), 650);
+  };
+  return (
+    <motion.div className="fixed inset-0 z-[160] grid place-items-center bg-black/70 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="lev-thunder">
+      <div className="grid w-[min(360px,100%)] gap-2 rounded-3xl border border-[#4DD0E1]/50 bg-[#04161C] p-3 text-center">
+        <div className="font-display text-[18px] font-black text-white">✍️ Draw the Thunder Glyph</div>
+        <div className="text-[12px] text-white/65">Trace the bolt in one stroke — the neater, the harder it strikes.</div>
+        <canvas ref={cv} className="aspect-square w-full touch-none rounded-2xl bg-[radial-gradient(circle,#0B3340,#04161C_70%)]" data-testid="lev-thunder-canvas"
+          onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); pts.current = [at(e)]; paint(); }}
+          onPointerMove={(e) => { if (e.buttons === 0 || !pts.current.length) return; pts.current.push(at(e)); paint(); }}
+          onPointerUp={() => void done()} />
+        {score != null ? <div className="font-display text-[20px] font-black text-[#9EF6FF]" data-testid="lev-thunder-score">⚡ {Math.round(score * 100)}%</div>
+          : <button className="text-[12px] font-bold text-white/60" onClick={onCancel}>Not now</button>}
+      </div>
+    </motion.div>
+  );
 }

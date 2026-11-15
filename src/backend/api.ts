@@ -21,9 +21,19 @@ export type StarPower = { star: number; name: string; emoji: string; text: strin
 export type EnchantPartner = { kind: string; id: string | null; gene: string; resonant: boolean; strength: number; perfect: boolean; hybrid: string; ends_at: string; started_at?: string;
   mode: 'swap' | 'graft' | 'chimera' | 'trinity' | 'quad' | 'plot' | 'friend'; aberration: string | null; unstable: boolean; plot_kind: string | null; plot: [number, number] | null; friend: any };
 export type PlotSize = { mode: 'grow' | 'shrink'; mult: number; until: string; owner: string; linked: boolean; id: number; prank?: boolean; by_name?: string | null };
+export type TraitsNow = {
+  fold?: { k: number; left: number; wait: { key: string; s: number } | null; saved: number };
+  rune?: { k: number; glyph: string; name: string; text: string; ready: boolean; best: number | null; runes: number };
+  strings?: { k: number; done: number; last: { label: string; kind: string; id: string; at: string } | null; chores: number; own: boolean };
+  farsight?: { k: number; reach: number; reaches: boolean; scouted: number; last: { gx: number; gy: number; rarity: string }[] | null; today: boolean };
+  tempered?: { k: number; dodged: number };
+  fated?: { k: number; cards: number; last: { card: string; name: string; fx: string; at: string } | null };
+};
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
   clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
   view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean;
+  /** what the Traits it wears can do right now (Folded's fold, Inscribed's rune, Strings' chores, Farsight's reach…) */
+  traits?: TraitsNow;
   /** chests its Seeking Trait buried (or, for a Treasure Map, that the Seeking it lent buried) */
   chests?: SeekChest[];
   /** ⭐ (the owner's page): copies the next star takes, the Ink bonus, the three powers, the Essence banked, copies owned */
@@ -57,7 +67,7 @@ export type LevPos = { lng: number; lat: number; km: number; seg: number; headin
 export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number;
   /** null while it's hidden (and you haven't found it): then pos is only the middle of a hazy area */
   path: [number, number][] | null; path_km: number; speed_kmh: number; base_kmh: number;
-  tiny_until: string | null; hidden_until: string | null; rampage_until: string | null; hidden: boolean; haze: { lng: number; lat: number; km: number; place: string | null } | null;
+  tiny_until: string | null; hidden_until: string | null; rampage_until: string | null; hidden: boolean; weakspot_until?: string | null; haze: { lng: number; lat: number; km: number; place: string | null } | null;
   roam: boolean; retreat: boolean; targets: [number, number][] | null;
   /** (the owner's view only) */ next_power_at?: string | null; true_place?: string | null;
   walk_s: number; walk_at: string; pause_until: string | null; rise_at: string; spawned_at: string; origin: string; exit_sea: string | null; place: string | null; trail: [number, number][];
@@ -194,6 +204,8 @@ export const api = {
   spliceInviteRespond: (id: number, accept: boolean) => rpc<{ accepted?: boolean; declined?: boolean; hybrid?: string; invites: SpliceInvite[] }>('splice_invite_respond', { p_id: id, p_accept: accept }),
   // the Leviathan
   leviathanState: () => rpc<LevState>('leviathan_state', { p_tick: true }),
+  /** the Glyphcaster's Thunder Glyph: drawn — accuracy (0..1) sets the damage */
+  leviathanGlyph: (enchant: string, accuracy: number) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_glyph', { p_enchant: enchant, p_accuracy: accuracy }),
   leviathanHit: (move: 'bomb' | 'enchant', n = 1, enchant: string | null = null) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean; missed?: number }>('leviathan_hit', { p_move: move, p_n: n, p_enchant: enchant }),
   /** look at this part of the map for a hidden Leviathan */
   leviathanSeek: (w: number, s: number, e: number, n: number) => rpc<{ none?: boolean; hidden?: boolean; too_wide?: boolean; max_km?: number; found?: boolean; spotted?: boolean; first?: boolean; ink?: number; hint?: 'hot' | 'warm' | 'cold' }>('leviathan_seek', { p_west: w, p_south: s, p_east: e, p_north: n }),

@@ -9,6 +9,7 @@ import { centerOf, efx, type SceneProps } from '../core';
 import { PlotRow, sleep, useCraftClip, type PlotLite } from '../craft';
 import { feel } from '../living';
 import { useMyPlotsLite } from '../myPlots';
+import { MapPickButton, usePlotChoice } from '../pickers';
 
 type Card = { id: string; n: number; name: string; up: any[]; rev: any[] };
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI'];
@@ -39,6 +40,7 @@ function says(x: any): string {
     case 'ticket': return x.p ? `a ${Math.round(x.p * 100)}% chance at a ${x.r}+ ticket (else ${x.lo})` : `a ${x.r}-or-better roll ticket`;
     case 'cointicket': return `a ${Math.round(x.p * 100)}% chance at a ${x.r}+ ticket`;
     case 'rebirth': return 'Rebirth: turn one of your plots into another kind';
+    case 'reroll': return `${x.v} free reroll${x.v > 1 ? 's' : ''} on your next plot roll`;
     default: return '';
   }
 }
@@ -53,6 +55,7 @@ function result(x: any): string {
     case 'lev': return `Leviathan hits ×${x.m} for ${x.h} h`;
     case 'ticket': return x.won === false ? 'No ticket this time' : `A ${x.r}+ roll ticket!`;
     case 'rebirth': return 'Rebirth is in your hand';
+    case 'reroll': return `${x.v} free reroll${x.v > 1 ? 's' : ''} armed for your next roll`;
     default: return '';
   }
 }
@@ -83,6 +86,9 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
   const [shown, setShown] = useState<any>(null);
   const [tab, setTab] = useState<'table' | 'deck'>('table');
   const [reborn, setReborn] = useState<{ p: PlotLite | null; t: string | null }>({ p: null, t: null });
+  const [grandShown, setGrandShown] = useState<any[] | null>(null);
+  const spread = !!view.spread;
+  const POS = ['Past', 'Present', 'Future'];
   const n = Number(view.cards ?? 3);
   const flipped: any[] = view.flipped ?? [];
   const pending = view.pending, hand = view.hand;
@@ -114,6 +120,17 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
         lines: (r.result.effects as any[]).map(result).filter(Boolean).slice(0, 2), text: `🃏 ${r.result.card.name} — clip your fate?` });
     }
   };
+  // level 8, once a week: the Grand Spread — five cards at once, chained
+  const grandSpread = async () => {
+    feel('heavy');
+    const r = await act('grand', {}, { silent: true });
+    if (!r?.result?.grand) return;
+    setGrandShown(r.result.grand);
+    efx.burst({ ...centerOf(table.current), colors: ['#FFD166', '#B388FF', '#fff'], count: 260, speed: 14, kind: 'spark' });
+    const best = (r.result.grand as any[]).find((c) => ['world', 'sun', 'star', 'tower', 'moon'].includes(c.card.id) || c.foil);
+    if (best) clip({ title: 'The Grand Spread', sub: v.nickname || 'Fated Deck', emoji: '🃏', payoff: CARD_ART[best.card.id]?.e ?? '🌌', color: '#FFD166', kicker: 'Five cards at once…', head: 'THE GRAND SPREAD',
+      lines: (r.result.grand as any[]).slice(0, 3).map((c) => `${c.card.name}${c.up ? '' : ' (reversed)'}`), text: '🌌 The Grand Spread — clip it?' });
+  };
   const play = async () => { const r = await act('play', {}, { silent: true }); if (r?.result) { setShown(r.result); if (r.result.pay?.paid) efx.pay(r.result.pay, 'deck', centerOf(table.current)); } };
 
   const pendCard = pending ? byId.get(pending.card) : null;
@@ -134,11 +151,13 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
                   <div className="lvx-card-face lvx-card-back" />
                   {c && <CardFace card={c} up={!!f.up} foil={!!f.foil} />}
                 </div>
+                {spread && f?.pos && <div className="absolute -bottom-5 inset-x-0 text-center text-[10px] font-black uppercase tracking-wider text-[#FFD166]">{f.pos}</div>}
               </motion.div>
             );
           })}
         </div>
-        <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[12px] font-black text-[#FFD166]" data-testid="deck-left">🃏 {left > 0 ? `${left} to turn today` : 'All turned today'}</div>
+        <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[12px] font-black text-[#FFD166]" data-testid="deck-left">🃏 {left > 0 ? (spread ? `${POS[Math.min(2, 3 - left)]} — ${left} to turn` : `${left} to turn today`) : 'All turned today'}</div>
+        {spread && Number(view.chain ?? 0) > 0 && <div className="absolute right-3 top-3 rounded-full bg-[#FFD166] px-2.5 py-1 text-[12px] font-black text-[#14062A]" data-testid="deck-chain">⛓️ Chain ×{Number(view.chain_mult ?? 1)}</div>}
         <AnimatePresence>
           {pending && pendCard && (
             <motion.div className="absolute inset-x-3 bottom-3 grid gap-1.5 rounded-2xl bg-[#05140F]/92 p-3" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} data-testid="deck-pending">
@@ -153,7 +172,7 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
           )}
           {!pending && shown && (
             <motion.div className="absolute inset-x-3 bottom-3 grid gap-1 rounded-2xl bg-[#05140F]/92 p-3" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShown(null)} data-testid="deck-result">
-              <div className="font-display text-[16px] font-black text-[#FFD166]">{shown.card.name}{shown.righted ? ' · turned upright' : ''}</div>
+              <div className="font-display text-[16px] font-black text-[#FFD166]">{shown.pos ? `${shown.pos}: ` : ''}{shown.card.name}{shown.righted ? ' · turned upright' : ''}{Number(shown.mult ?? 1) > 1 ? ` · chained ×${Number(shown.mult)}` : ''}</div>
               {(shown.effects as any[]).map((x, i) => <motion.div key={i} className="text-[13px] font-bold text-white" initial={{ x: -12, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.15 + i * 0.15 }}>✦ {result(x)}</motion.div>)}
             </motion.div>
           )}
@@ -174,19 +193,35 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
               <Button size="sm" variant="rainbow" onClick={() => void play()} disabled={!!busy} data-testid="deck-play">Play it</Button>
             </div>
           )}
-          {left < 1 && view.grand_ready && !pending && <Button onClick={() => { const i = Array.from({ length: n }, (_, k) => k).find((k) => !flipped.some((x) => Number(x.i) === k)); if (i != null) void flip(i, true); }} disabled={!!busy} data-testid="deck-grand">🌌 The Grand Spread — turn one more (once a week)</Button>}
+          {view.grand_ready && !pending && <Button variant="rainbow" onClick={() => void grandSpread()} disabled={!!busy || !!mirror} data-testid="deck-grand">🌌 Lay the Grand Spread — five cards at once (once a week)</Button>}
+          <AnimatePresence>
+            {grandShown && (
+              <motion.div className="grid gap-2 rounded-2xl border border-[#FFD166]/50 bg-[#14062A] p-3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} data-testid="deck-grand-result">
+                <div className="flex items-center justify-between"><span className="font-display text-[16px] font-black text-[#FFD166]">🌌 The Grand Spread</span><button className="lv-x" onClick={() => setGrandShown(null)} aria-label="Close">×</button></div>
+                <div className="grid grid-cols-5 gap-1.5" style={{ perspective: 900 }}>
+                  {grandShown.map((g, i) => (
+                    <motion.div key={i} className="lvx-card w-full flipped" initial={{ rotateY: 180, y: -40, opacity: 0 }} animate={{ rotateY: 0, y: 0, opacity: 1 }} transition={{ delay: 0.15 + i * 0.22, type: 'spring', stiffness: 140, damping: 14 }}>
+                      <div className="lvx-card-in"><div className="lvx-card-face lvx-card-back" /><CardFace card={g.card} up={!!g.up} foil={!!g.foil} /></div>
+                    </motion.div>
+                  ))}
+                </div>
+                {grandShown.map((g, i) => <motion.div key={i} className="text-[12px] font-bold text-white/85" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 + i * 0.22 }}>
+                  ✦ {g.card.name}{g.up ? '' : ' (reversed)'}{Number(g.mult) > 1 ? ` · ×${Number(g.mult)}` : ''}: {g.text || '—'}</motion.div>)}
+              </motion.div>
+            )}
+          </AnimatePresence>
           {Number(view.rebirth ?? 0) > 0 && (
             <div className="grid gap-1.5 rounded-2xl bg-white/5 p-2.5" data-testid="deck-rebirth">
               <div className="lvx-label">🦋 Rebirth · turn a plot into another kind</div>
               <div className="flex flex-wrap gap-1">{(view.types ?? []).map((t: any) => <button key={t.id} className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', reborn.t === t.id ? 'bg-white text-black' : 'bg-white/10 text-white/80')} onClick={() => setReborn({ ...reborn, t: t.id })}>{t.name}</button>)}</div>
-              <RebirthPlots onPick={(p) => setReborn({ ...reborn, p })} sel={reborn.p} />
+              <RebirthPlots self={v} onPick={(p) => setReborn({ ...reborn, p })} sel={reborn.p} />
               <Button size="sm" variant="rainbow" disabled={!!busy || !reborn.p || !reborn.t} onClick={() => reborn.p && void act('rebirth', { gx: reborn.p.gx, gy: reborn.p.gy, type: reborn.t }).then((r) => r && setReborn({ p: null, t: null }))}>Reborn</Button>
             </div>
           )}
           {(view.glows ?? []).length > 0 && (
             <div className="flex flex-wrap gap-1.5">{(view.glows as any[]).map((g, i) => <span key={i} className="rounded-full bg-[#B388FF]/15 px-2.5 py-1 text-[11px] font-bold text-[#E0D1FF]">✨ {g.card ? byId.get(g.card)?.name : 'a card'}: {g.kind === 'golden_hour' ? `wins ×${Number(g.mult)} (${g.uses} left)` : g.kind === 'fate_tower' ? `Leviathan ×${Number(g.mult)}` : `×${Number(g.mult)}`}</span>)}</div>
           )}
-          <p className="text-center text-[11px] text-white/55">Reversed cards ({Math.round(Number(view.reversed_pct ?? 0.3) * 100)}% of draws) are a twist: a bigger effect with a catch. Gilded cards pay ×1.5.{Number(v.level) < 4 ? ' From level 4 you turn two a day.' : ''}</p>
+          <p className="text-center text-[11px] text-white/55">Reversed cards ({Math.round(Number(view.reversed_pct ?? 0.3) * 100)}% of draws) are a twist: a bigger effect with a catch. Gilded cards pay ×1.5.{Number(v.level) < 4 ? ' Level 4: a Past–Present–Future spread — each upright card strengthens the next.' : ' Each upright card that comes true strengthens the next; a reversed one breaks the chain.'}{Number(v.level) < 8 ? ' Level 8: a weekly five-card Grand Spread.' : ''}</p>
         </div>
       )}
       {tab === 'deck' && (
@@ -203,8 +238,14 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
   );
 }
 
-function RebirthPlots({ onPick, sel }: { onPick: (p: PlotLite) => void; sel: PlotLite | null }) {
-  // your plots, from the cache the map and the Grimoire share
+function RebirthPlots({ onPick, sel, self }: { onPick: (p: PlotLite) => void; sel: PlotLite | null; self: { id: string } }) {
+  // your plots, from the cache the map and the Grimoire share — or tap one on the map
   const plots = useMyPlotsLite();
-  return <div className="grid max-h-[160px] gap-1 overflow-y-auto">{plots.slice(0, 40).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={sel?.gx === p.gx && sel?.gy === p.gy} onClick={() => onPick(p)} testId="deck-rebirth-plot" />)}</div>;
+  const map = usePlotChoice(self, 'rebirth', plots, onPick, { title: 'Rebirth: which plot?', emoji: '🌱', color: '#B388FF', hint: 'Tap the plot to be reborn as another kind' });
+  return (
+    <div className="grid gap-1.5">
+      {map.canMap && <MapPickButton className="w-fit" onClick={map.toMap} testId="deck-rebirth-map" label="Pick the plot on the map" />}
+      <div className="grid max-h-[160px] gap-1 overflow-y-auto">{plots.slice(0, 40).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={sel?.gx === p.gx && sel?.gy === p.gy} onClick={() => onPick(p)} testId="deck-rebirth-plot" />)}</div>
+    </div>
+  );
 }

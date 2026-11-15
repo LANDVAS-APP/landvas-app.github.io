@@ -81,9 +81,15 @@ describe('🎭 Puppeteer', () => {
     expect(Number(e.stats.ink)).toBeGreaterThan(e0);
     expect(e.stats.shows).toBeGreaterThanOrEqual(1);
     expect(e.stats.repertoire).toHaveProperty('sculptor');
-    // Ann climbs her own track on Bob's plot; Bob's is untouched
+    // a puppet run plays the level their plot is on and climbs nothing: Bob's track is untouched, and Ann has none there
     expect((await db.sql(`select coalesce(max(highest_level), 0) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [theirs.gx, theirs.gy, bob]))[0].n).toBe(0);
-    expect((await db.sql(`select max(highest_level) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [theirs.gx, theirs.gy, ann]))[0].n).toBe(1);
+    expect((await db.sql(`select max(highest_level) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [theirs.gx, theirs.gy, ann]))[0].n).toBeNull();
+    // the level their plot is on: when Bob has climbed to 3 there, a puppet plays level 4
+    await db.sql(`insert into plot_game_progress (gx, gy, player_id, game, highest_level, best_score, plays, wins) values ($1, $2, $3, 'sculptor', 3, 100, 3, 3)`, [theirs.gx, theirs.gy, bob]);
+    await db.sql(`update enchantments set state = state || '{"strings": 2}'::jsonb where id = $1`, [pup]);
+    const s4 = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
+    expect(s4.level).toBe(4);
+    await db.sql(`update enchantments set state = state || '{"strings": 0}'::jsonb where id = $1`, [pup]);
     expect((await db.sql(`select count(*)::int n from player_notifications where player_id = $1 and data ->> 'sub' = 'puppet_played'`, [bob]))[0].n).toBe(1);
   });
 
@@ -102,10 +108,17 @@ describe('🎭 Puppeteer', () => {
     await db.sql(`update enchantments set state = state || '{"strings": 2}'::jsonb where id = $1`, [pup]);
     const far = (await db.sql(`select gx, gy from world_plots where owner_id = $1 order by gx desc limit 1`, [bob]))[0];
     await db.sql(`update world_plots set plot_type = 'clay' where gx = $1 and gy = $2`, [far.gx, far.gy]);
+    // ★3 Grand Show: a three-plot medley, each run ×3 and free of strings
     const s = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: far.gx, p_gy: far.gy });
-    expect(s.puppet.grand).toBe(true);
-    const plain = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
-    expect(plain.puppet.grand).toBe(false);
+    expect(s.puppet).toMatchObject({ grand: true, medley_left: 2 });
+    const second = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
+    expect(second.puppet).toMatchObject({ grand: true, medley_left: 1 });
+    expect((await get(ann, pup)).view.strings).toBe(2);
+    // the same plot again isn't part of the medley: it uses a string
+    const again = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
+    expect(again.puppet.grand).toBe(false);
+    expect((await get(ann, pup)).view.strings).toBe(1);
+    expect((await db.sql(`select count(*)::int n from enchant_buffs where player_id = $1 and kind = 'grand_show'`, [ann]))[0].n).toBeGreaterThanOrEqual(2);
     await setStars(pup, 0);
   });
 });
@@ -158,11 +171,11 @@ describe('🃏 Fated Deck', () => {
     await expectError(act(ann, deck, 'rebirth', { gx: p.gx, gy: p.gy, type: p.plot_type }), 'no_card');
   });
 
-  it('★1 a fourth card, ★2 hold one for later, ★3 turn a reversed card upright; level 4 turns two a day', async () => {
+  it('★1 a fourth card, ★2 hold one for later, ★3 turn a reversed card upright; level 4 lays a Past–Present–Future spread', async () => {
     await setStars(deck, 3);
     await db.sql(`update enchantments set level = 4, state = state || jsonb_build_object('day', 'x') where id = $1`, [deck]);
     const v = await get(ann, deck);
-    expect(v.view).toMatchObject({ cards: 4, picks: 2, picked: 0, hold_ready: true, right_ready: true });
+    expect(v.view).toMatchObject({ cards: 4, picks: 3, picked: 0, spread: true, chain: 0, hold_ready: true, right_ready: true });
     await act(ann, deck, 'flip', { i: 3 });
     await db.sql(`update enchantments set state = jsonb_set(state, '{pending,up}', 'false') where id = $1`, [deck]);
     const h = await act(ann, deck, 'accept', { upright: true, hold: true });
@@ -238,23 +251,60 @@ describe('✍️ Glyphcaster', () => {
 });
 
 describe('the last three Traits', () => {
-  it('Strings, Fated and Inscribed pay on any kind', async () => {
+  it('Strings: a puppet does one of the partner’s chores (or another enchantment’s) once a day', async () => {
     const sp = await enchant(bob, 'splice');
     const pup = await enchant(bob, 'puppeteer');
-    const gl = await enchant(bob, 'glyph');
     const g = await enchant(bob, 'goose');
-    const m = await enchant(bob, 'map');
     await db.sql(`update enchantments set state = state || '{"charges": 3}'::jsonb where id = $1`, [sp]);
     await act(bob, sp, 'splice', { mode: 'swap', a: pup, b: g });
-    const p1 = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [g]))[0].p;
-    expect(p1.mods.map((x: any) => x.label)).toEqual(expect.arrayContaining(['Strings +15%', 'Strings: a puppet played it twice']));
-    const p2 = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [g]))[0].p;
-    expect(p2.mods.map((x: any) => x.label)).not.toContain('Strings: a puppet played it twice');
-    await db.sql(`update enchant_splices set ends_at = now() where splice_id = $1`, [sp]);
+    // (the goose's partner wears Strings now — run the daily Traits by hand)
+    const r = (await db.sql(`select private.trait_strings_run($1) r`, [g]))[0].r;
+    expect(r).toMatchObject({ kind: 'goose' });
+    expect(['polished its egg', 'collected its golden egg', 'chased the fox off its egg']).toContain(r.label);
+    expect((await db.sql(`select private.trait_strings_run($1) r`, [g]))[0].r).toBeNull();
+    const v = await get(bob, g);
+    expect(v.traits.strings).toMatchObject({ k: 1, done: 1, own: true });
+    expect(v.traits.strings.last.label).toBe(r.label);
+    // no Ink from it any more
+    const p = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [g]))[0].p;
+    expect(p.mods.map((x: any) => x.label).join(' ')).not.toMatch(/Strings/);
+  });
+
+  it('Fated: a partner’s reward sometimes draws a card — and the card comes true', async () => {
+    const sp = await enchant(bob, 'splice');
+    const deck = await enchant(bob, 'deck');
+    const g = await enchant(bob, 'goose');
+    await db.sql(`update enchantments set state = state || '{"charges": 3}'::jsonb where id = $1`, [sp]);
+    await act(bob, sp, 'splice', { mode: 'swap', a: deck, b: g });
+    let hit: any = null;
+    for (let i = 0; i < 120 && !hit; i++) {
+      const p = (await db.sql(`select private.ench_pay($1, 10, 'test') p`, [g]))[0].p;
+      hit = p.mods.find((m: any) => String(m.label).startsWith('Fated: '));
+    }
+    expect(hit.label).toMatch(/^Fated: .+ came true — /);
+    expect(hit.card).toBeTruthy();
+    const e = await row(g);
+    expect(e.stats.fated_n).toBeGreaterThanOrEqual(1);
+    expect(e.stats.fated_last.card).toBe(hit.card);
+  });
+
+  it('Inscribed: trace the partner’s rune once a day — it casts that glyph for free, as strong as it was drawn', async () => {
+    const sp = await enchant(bob, 'splice');
+    const gl = await enchant(bob, 'glyph');
+    const m = await enchant(bob, 'map');
     await db.sql(`update enchantments set state = state || '{"charges": 3}'::jsonb where id = $1`, [sp]);
     await act(bob, sp, 'splice', { mode: 'swap', a: gl, b: m });
-    const labels: string[] = [];
-    for (let i = 0; i < 4; i++) labels.push(...(await db.sql(`select private.ench_pay($1, 100, 'test') p`, [m]))[0].p.mods.map((x: any) => x.label));
-    expect(labels).toContain('Inscribed ×1.75');
+    const v = await get(bob, m);
+    expect(v.traits.rune).toMatchObject({ k: 1, glyph: 'anchor', name: 'Steady', ready: true });
+    const f = await act(bob, m, 'trait_rune', { accuracy: 0.1 });
+    expect(f.result).toMatchObject({ fizzled: true });
+    const l0 = await luck(bob);
+    const r = await act(bob, m, 'trait_rune', { accuracy: 1 });
+    expect(r.result).toMatchObject({ glyph: 'anchor', name: 'Steady', accuracy: 1 });
+    expect(await luck(bob)).toBe(l0 + 8);
+    expect(r.traits.rune.ready).toBe(false);
+    await expectError(act(bob, m, 'trait_rune', { accuracy: 1 }), 'already_today');
+    // a kind without the Trait can't
+    await expectError(act(bob, gl, 'trait_rune', { accuracy: 1 }), 'no_trait');
   });
 });

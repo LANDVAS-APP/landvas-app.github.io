@@ -56,7 +56,7 @@ export function pathAhead(l: Leviathan, pos = levPos(l)): [number, number][] {
   return [[pos.lng, pos.lat], ...l.path.slice(pos.seg + 1).map((x) => [Number(x[0]), Number(x[1])] as [number, number])];
 }
 
-export const levMult = (l: Leviathan) => (l.shrunk_until && Date.parse(l.shrunk_until) > serverNow() ? 1.5 : 1) * (l.foretold_until && Date.parse(l.foretold_until) > serverNow() ? 1.25 : 1);
+export const levMult = (l: Leviathan) => (l.shrunk_until && Date.parse(l.shrunk_until) > serverNow() ? 1.5 : 1) * (l.foretold_until && Date.parse(l.foretold_until) > serverNow() ? 1.25 : 1) * (l.weakspot_until && Date.parse(l.weakspot_until) > serverNow() ? 2 : 1);
 export const fmtDmg = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : Math.round(n).toLocaleString());
 const until = (t: string | null | undefined) => !!t && Date.parse(t) > serverNow();
 /** its powers right now (and the owner's rampage) */

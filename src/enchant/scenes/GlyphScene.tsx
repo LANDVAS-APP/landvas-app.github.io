@@ -9,6 +9,7 @@ import { Button } from '../../ui';
 import { centerOf, efx, useLeft, useMyEnchantments, type SceneProps } from '../core';
 import { PlotRow, sleep, useCraftClip, type PlotLite } from '../craft';
 import { glyphPath, recognise, type Pt } from '../glyphs';
+import { EnchantPicker, MapPickButton, useMapPick } from '../pickers';
 import { dur, enchantName, kindInfo } from '../kinds';
 import { feel } from '../living';
 import { useMyPlotsLite } from '../myPlots';
@@ -16,11 +17,12 @@ import { useMyPlotsLite } from '../myPlots';
 type G = { id: string; name: string; cost: number; text: string; a?: 'plot' | 'enchant'; secret?: boolean; start?: boolean };
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-function said(x: any) {
+export function said(x: any) {
   switch (x.t) {
     case 'ink': return `+${x.v} Ink`; case 'luck': return `+${x.v} Luck`; case 'eluck': return `+${x.v} Enchanted Luck`;
     case 'ward': return `Plot shielded for ${Math.round(x.min / 60 * 10) / 10} h`; case 'leaf': return `That plot’s next win ×${x.m}`;
-    case 'bolt': return `Leviathan hits ×${x.m} for ${x.min} min`; case 'key': return `${Math.round(x.s / 60)} minutes cut off its wait`;
+    case 'bolt': return `Leviathan hits ×${x.m} for ${x.min} min`; case 'strike': return `⚡ It struck the Leviathan: ${Number(x.dmg).toLocaleString()} damage${x.fell ? ' — and it fell!' : ''}`;
+    case 'pull': return `🌀 Pulled in ${x.n} buried chest${x.n > 1 ? 's' : ''}: +${x.ink} Ink`; case 'key': return `${Math.round(x.s / 60)} minutes cut off its wait`;
     case 'xp': return `+${x.v} XP`; case 'glow': return `Enchantments ×${x.m} for ${x.h} h`; case 'wins': return `Next ${x.u} win${x.u > 1 ? 's' : ''} ×${x.m}`;
     case 'cleanse': return x.v ? `${x.v} curse${x.v > 1 ? 's' : ''} washed away` : 'No curses on you'; case 'ticket': return `A ${x.r}+ roll ticket!`;
     default: return '';
@@ -113,6 +115,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
     if (needs) { setNeed({ ids, accuracy: acc, kind: needs }); return; }
     await cast(ids, acc, {});
   };
+  const plotTarget = useMapPick(v.id, 'glyph-plot', (p, k) => { if (k?.ids) void cast(k.ids as string[], Number(k.accuracy), { gx: p.gx, gy: p.gy }); });
   const cast = async (ids: string[], accuracy: number, target: Record<string, unknown>) => {
     setNeed(null);
     const r = await act('cast', { ...(ids.length > 1 ? { glyphs: ids } : { glyph: ids[0] }), accuracy, arch, ...target }, { silent: true });
@@ -180,12 +183,19 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
       {need && (
         <div className="grid gap-1.5 rounded-2xl border border-[#4DD0E1]/40 bg-[#4DD0E1]/10 p-2.5" data-testid="glyph-target">
           <div className="text-[13px] font-black text-white">{need.kind === 'plot' ? 'Which plot?' : 'Which enchantment?'}</div>
-          <div className="grid max-h-[180px] gap-1 overflow-y-auto">
-            {need.kind === 'plot' ? plots.slice(0, 40).map((p: PlotLite) => <PlotRow key={`${p.gx},${p.gy}`} p={p} onClick={() => void cast(need.ids, need.accuracy, { gx: p.gx, gy: p.gy })} testId="glyph-target-plot" />)
-              : (mine.data ?? []).filter((e) => e.id !== v.id).map((e) => (
-                <button key={e.id} className="lvx-row" onClick={() => void cast(need.ids, need.accuracy, { target: e.id })} data-testid="glyph-target-enchant"><span className="text-xl">{kindInfo(e.kind).emoji}</span><span className="text-[13px] font-black text-white">{enchantName(e)}</span></button>
-              ))}
-          </div>
+          {need.kind === 'plot' ? (
+            <>
+              {!plotTarget.simple && plots.length > 0 && <MapPickButton className="w-fit" testId="glyph-target-map" label="Pick the plot on the map"
+                onClick={() => plotTarget.open({ title: `Cast ${need.ids.map((id) => def(id)?.name).join(' + ')}`, emoji: '✍️', color: '#4DD0E1', hint: 'Tap one of your plots for the spell', keep: { ids: need.ids, accuracy: need.accuracy },
+                  allowed: plots.map((p: PlotLite) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name ?? null, plot_type: p.plot_type })) })} />}
+              <div className="grid max-h-[180px] gap-1 overflow-y-auto">
+                {plots.slice(0, 40).map((p: PlotLite) => <PlotRow key={`${p.gx},${p.gy}`} p={p} onClick={() => void cast(need.ids, need.accuracy, { gx: p.gx, gy: p.gy })} testId="glyph-target-plot" />)}
+              </div>
+            </>
+          ) : (
+            <EnchantPicker self={v} slot="glyph-enchant" title="Cast it on…" chipTestId="glyph-target-enchant" keep={{ ids: need.ids, accuracy: need.accuracy }}
+              onPick={(e, k) => void cast((k?.ids as string[]) ?? need.ids, Number(k?.accuracy ?? need.accuracy), { target: e.id })} />
+          )}
           <button className="text-[11px] font-bold text-white/60" onClick={() => { setNeed(null); setChainFirst(null); clear(); setRead(null); }}>never mind</button>
         </div>
       )}
@@ -233,12 +243,13 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
                 <button key={g.id} className={cn('lvx-page grid justify-items-center gap-1 p-2', !on && 'smudged')} onClick={() => on && setPage(g.id)} data-testid={`glyph-page-${g.id}`}>
                   <GlyphMark id={g.id} size={46} color={on ? '#1A5F7A' : '#999'} />
                   <span className="text-[11px] font-black leading-tight">{on ? g.name : g.secret ? '? ? ?' : 'An unread page'}</span>
-                  {on && <span className="text-[10px] font-bold opacity-70">{costOf(g.id)} mana · {Math.min(10, mast[g.id] ?? 0)}/10</span>}
+                  {on ? <span className="text-[10px] font-bold opacity-70">{costOf(g.id)} mana · {Math.min(10, mast[g.id] ?? 0)}/10</span>
+                    : (g as any).hint && <span className="text-[9.5px] font-semibold italic leading-tight opacity-70" data-testid="glyph-hint">“{(g as any).hint}”</span>}
                 </button>
               );
             })}
           </div>
-          <p className="text-center text-[11px] text-white/55">New pages turn up as you cast and as you study. The four secret glyphs only show once you’ve found the other twenty.</p>
+          <p className="text-center text-[11px] text-white/55">New pages turn up as you cast and study — and in minigame wins, Leviathan loot, chests and rare plots. Each smudged page keeps a hint. The four secret glyphs show themselves once you’ve found twenty.</p>
         </div>
       )}
     </div>

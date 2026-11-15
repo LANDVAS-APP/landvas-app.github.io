@@ -214,6 +214,8 @@ describe('🧪 Splice, ⚙️ Clockwork, 📡 Size Ray', () => {
   it('splice two enchantments into a hybrid: resonant genes are doubled; the Codex remembers', async () => {
     ids.splice = await enchant(ann, 'splice', 24);
     ids.sizeray = await enchant(ann, 'sizeray', 28);
+    // no random Aberration (5%) — this test checks the named hybrid
+    await db.sql(`update game_config set value = value || jsonb_build_object('splice', coalesce(value -> 'splice', '{}') || '{"aberration": 0}') where key = 'enchantments'`);
     const s = await act(ann, ids.splice, 'splice', { a: ids.goose, b: ids.sizeray });
     expect(s.result).toMatchObject({ hybrid: 'Giant Goose', resonant: true, new: true });
     expect(s.view.codex).toContain('goose+sizeray');

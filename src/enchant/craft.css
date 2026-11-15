@@ -149,3 +149,8 @@
 @media (prefers-reduced-motion: reduce) {
   .lvx-sweep, .lvx-foil, .lvx-circle-ring.spin, .lvx-circle-ring.spin2, .lvx-spark, .lvx-forge-glow, .lvx-lens-fog { animation: none; }
 }
+
+/* an enchantment to pick: its sigil, its name, whether it's ready */
+.lvx-ench-chip { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px 6px 6px; border-radius: 16px; background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.lvx-ench-chip.on { background: color-mix(in srgb, var(--a) 22%, transparent); box-shadow: inset 0 0 0 2px var(--a); }

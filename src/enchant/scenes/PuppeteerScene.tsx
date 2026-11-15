@@ -67,7 +67,7 @@ export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = async () => {
-    if (!sel || mirror) return;
+    if (!sel) return;
     setPull(1); feel('heavy');
     await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
     nav(`/play/${sel.game}?gx=${sel.gx}&gy=${sel.gy}&puppet=${v.id}`);
@@ -102,11 +102,16 @@ export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
         <div className="lvx-grain" />
       </div>
 
+      {(view.medley || view.grand_ready) && (
+        <div className="rounded-2xl border border-[#FFB703]/50 bg-[linear-gradient(90deg,#E6394622,#FFB70322)] px-3 py-2 text-[12.5px] font-black text-[#FFE8A3]" data-testid="puppeteer-grand">
+          🎪 {view.medley ? `The Grand Show is on: ${view.medley.left} more act${view.medley.left === 1 ? '' : 's'} — each on a different plot, ×3, no strings` : 'Grand Show ready: today’s first pull starts a three-plot medley — every act ×3, no strings'}
+        </div>
+      )}
       <div className="flex gap-2">
-        <Button variant="rainbow" size="lg" className="flex-1" onClick={() => void go()} disabled={!!busy || !sel || strings < 1 || !!mirror} data-testid="puppeteer-pull">
-          {strings < 1 ? `No strings · +1 in ${dur(nextIn)}` : sel ? '🎭 Pull the strings' : 'Pick a plot to play'}
+        <Button variant="rainbow" size="lg" className="flex-1" onClick={() => void go()} disabled={!!busy || !sel || (strings < 1 && !view.grand_ready && !view.medley)} data-testid="puppeteer-pull">
+          {strings < 1 && !view.medley && !view.grand_ready ? `No strings · +1 in ${dur(nextIn)}` : sel ? (view.medley || view.grand_ready ? '🎪 Start the act' : '🎭 Pull the strings') : 'Pick a plot to play'}
         </Button>
-        <Button size="lg" variant="ghost" onClick={onMap} disabled={!near.length || !!mirror} data-testid="puppeteer-map">🗺️ Map</Button>
+        <Button size="lg" variant="ghost" onClick={onMap} disabled={!near.length} data-testid="puppeteer-map">🗺️ Pick on the map</Button>
       </div>
 
       <div className="grid gap-1.5">

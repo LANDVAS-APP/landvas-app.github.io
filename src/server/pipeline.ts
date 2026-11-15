@@ -100,6 +100,9 @@ export async function runJob(deps: PipelineDeps, job: Job, meter: Meter = { used
       case 'clear_cells':
         await clearCells(d, job.payload.cells, progress, checkpoint);
         break;
+      case 'move_art':
+        await moveArt(d, job.payload, progress, checkpoint);
+        break;
       default:
         throw new Error(`unknown job kind ${job.kind}`);
     }
@@ -330,6 +333,32 @@ export async function clearCells(deps: PipelineDeps, cells: CellTuple[], saved?:
     if (!saved) await deps.db.call('svc_set_art_tiles', { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
     await pyramidSteps(deps, cells, saved?.pyramid ?? null, (py, need) => checkpoint({ stage: 'pyramid', pyramid: py }, need));
     await deps.db.call('svc_cells_cleared', { p_cells: cells });
+  });
+}
+
+// ---- move (an Origami Pocket unfolded a plot somewhere new: its drawing goes with it) ----------------
+
+type MoveProgress = { stage: 'pyramid'; rev: number | null; pyramid?: PyramidProgress };
+export type MoveArt = { from: CellTuple; to: CellTuple; rev: number; publication_id: string };
+
+export async function moveArt(deps: PipelineDeps, p: MoveArt, saved?: MoveProgress | null, checkpoint: Checkpoint = () => {}) {
+  const lock = deps.withPyramidLock ?? ((fn) => fn());
+  await lock(async () => {
+    let pr: MoveProgress;
+    if (saved?.stage) pr = { ...saved };
+    else {
+      // the drawing's tile, copied under the new cell with a fresh revision
+      const bytes = await deps.store.get(BUCKETS.public, tilePath(GRID_LEVEL, p.from[0], p.from[1], p.rev));
+      let rev: number | null = null;
+      if (bytes) {
+        [rev] = (await deps.db.call<number[]>('svc_reserve_revs', { p_count: 1 })).map(Number);
+        await deps.store.put(BUCKETS.public, tilePath(GRID_LEVEL, p.to[0], p.to[1], rev), bytes, 'image/png');
+        await deps.db.call('svc_set_art_tiles', { p_tiles: [[GRID_LEVEL, p.to[0], p.to[1], rev, bytes.byteLength]] });
+      }
+      pr = { stage: 'pyramid', rev };
+    }
+    if (pr.rev != null) await pyramidSteps(deps, [p.to], pr.pyramid ?? null, (py, need) => { pr.pyramid = py; checkpoint(pr, need); });
+    await deps.db.call('svc_art_moved', { p_to: p.to, p_rev: pr.rev, p_publication_id: p.publication_id });
   });
 }
 

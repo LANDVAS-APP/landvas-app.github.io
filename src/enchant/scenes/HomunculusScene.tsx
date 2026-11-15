@@ -16,6 +16,7 @@ import { HomunculusFigure, partName } from '../homunculus';
 import { dur, kindInfo } from '../kinds';
 import { feel } from '../living';
 import { Radar } from '../sizeray';
+import { MapPickButton, usePlotChoice } from '../pickers';
 
 const HOLD_MS = 1600;
 const FLASK = 'M48 6 h24 v34 Q112 64 104 112 Q96 152 60 154 Q24 152 16 112 Q8 64 48 40 Z';
@@ -31,7 +32,7 @@ export function HomunculusScene({ v, view, act, busy, at }: SceneProps) {
   const aw = view.awake as any;
   const left = useLeft(aw?.left ?? null, at);
   const moveIn = useLeft(aw?.next_move_in ?? null, at);
-  const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: leading });
+  const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots });
   const parts: any[] = view.parts ?? [];
   const melted = !!aw?.melted;
   const fill = Math.min(1, Number(view.weight) / Math.max(1, Number(view.need)));
@@ -66,6 +67,7 @@ export function HomunculusScene({ v, view, act, busy, at }: SceneProps) {
     }
     setTimeout(() => setCracked(false), 900);
   };
+  const leadMap = usePlotChoice(v, 'lead', ((plots.data ?? []) as any[]), (p) => void lead(p), { title: 'Lead your Homunculus', emoji: '🧫', color: '#7CFF6B', hint: 'Tap the plot it should walk to (it stays 6 hours)' });
   const lead = async (p: { gx: number; gy: number }) => {
     const r = await act('lead', { gx: p.gx, gy: p.gy });
     if (r) { setLeading(false); feel('success'); }
@@ -180,6 +182,7 @@ export function HomunculusScene({ v, view, act, busy, at }: SceneProps) {
             {leading && (
               <motion.div className="grid gap-2" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                 <p className="text-[12px] text-white/65">Pick one of your plots — it walks there and stays 6 hours (lead it to the plot whose games you’ll play).</p>
+                {leadMap.canMap && <MapPickButton className="w-fit" onClick={leadMap.toMap} testId="homu-lead-map" label="Lead it on the map" />}
                 <Radar plots={(plots.data ?? []) as any[]} picked={aw.pos ? { gx: aw.pos[0], gy: aw.pos[1] } : null} onPick={(p) => void lead(p)} />
               </motion.div>
             )}

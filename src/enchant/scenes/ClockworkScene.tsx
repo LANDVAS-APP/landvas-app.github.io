@@ -9,7 +9,8 @@ import { buzz } from '../../native/native';
 import { Button } from '../../ui';
 import { Sigil } from '../Sigil';
 import { centerOf, efx, useMyEnchantments, type SceneProps } from '../core';
-import { dur, enchantName } from '../kinds';
+import { dur, enchantName, kindInfo } from '../kinds';
+import { MapPickButton, useMapPick } from '../pickers';
 
 function Gear({ r, teeth, cls, x, y, c }: { r: number; teeth: number; cls: string; x: number; y: number; c: string }) {
   const d = Array.from({ length: teeth * 2 }, (_, i) => { const a = (i / (teeth * 2)) * Math.PI * 2, rr = i % 2 ? r : r * 0.82; return `${(x + Math.cos(a) * rr).toFixed(1)},${(y + Math.sin(a) * rr).toFixed(1)}`; }).join(' ');
@@ -61,7 +62,10 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
     const r = await act('freeze', { target: id, hours });
     if (r) efx.burst({ ...centerOf(face.current), colors: ['#C0F5FF', '#fff', '#7DD3FC'], count: 80, speed: 8, kind: 'glitter' });
   };
-  const targets = (mine.data ?? []).filter((x) => x.id !== v.id);
+  const [focus, setFocus] = useState<string | null>(null);
+  const targets = (mine.data ?? []).filter((x) => x.id !== v.id).sort((a, b) => Number(b.id === focus) - Number(a.id === focus));
+  // pick the one to bend on the map: it comes to the top, lit
+  const mapPick = useMapPick(v.id, 'bend', (p) => { const t = (mine.data ?? []).find((x) => x.gx === p.gx && x.gy === p.gy && x.id !== v.id); if (t) setFocus(t.id); });
   const charge = Number(view.charge);
   return (
     <div className="grid gap-3">
@@ -103,11 +107,13 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
         </div>
       )}
       <div className="grid gap-1.5" data-testid="clock-targets">
-        <div className="text-[12px] font-black uppercase tracking-wider text-white/60">Bend time for…</div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-[12px] font-black uppercase tracking-wider text-white/60">Bend time for…</div>
+          {!mapPick.simple && targets.length > 0 && <MapPickButton testId="clock-map" label="Pick it on the map" onClick={() => mapPick.open({ title: 'Bend time for…', emoji: '⚙️', color: '#D4A373', hint: 'Tap the plot one of your enchantments lives on',
+            allowed: targets.map((t) => ({ gx: t.gx, gy: t.gy, rarity: 'enchanted', name: enchantName(t), note: `${kindInfo(t.kind).emoji} ${kindInfo(t.kind).name}` })) })} />}</div>
         {targets.length ? targets.map((t) => {
           const frozen = !!t.clock?.frozen_until;
           return (
-            <div key={t.id} className={cn('flex flex-wrap items-center gap-2 rounded-2xl p-2', frozen ? 'bg-[#C0F5FF]/10 ring-1 ring-[#C0F5FF]/40' : 'bg-white/[0.04]')}>
+            <div key={t.id} className={cn('flex flex-wrap items-center gap-2 rounded-2xl p-2', frozen ? 'bg-[#C0F5FF]/10 ring-1 ring-[#C0F5FF]/40' : 'bg-white/[0.04]', focus === t.id && 'ring-2 ring-[#FFD23F]')} data-testid={focus === t.id ? 'clock-focus' : undefined}>
               <Sigil kind={t.kind} seed={t.sigil} size={36} still />
               <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black">{enchantName(t)}</span>
                 <span className="text-[10px] text-white/55">{frozen ? `❄️ frozen for ${dur((Date.parse(t.clock!.frozen_until!) - Date.now()) / 1000)}` : t.attention ?? 'ticking along'}{t.partner ? ` · 🧬 ${t.partner.hybrid}` : ''}</span></span>

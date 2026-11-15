@@ -6451,6 +6451,9 @@ async function runJob(deps2, job, meter = { used: 0, limit: deps2.budgetMs ?? In
       case "clear_cells":
         await clearCells(d, job.payload.cells, progress, checkpoint);
         break;
+      case "move_art":
+        await moveArt(d, job.payload, progress, checkpoint);
+        break;
       default:
         throw new Error(`unknown job kind ${job.kind}`);
     }
@@ -6663,6 +6666,29 @@ async function clearCells(deps2, cells, saved, checkpoint = () => {
     if (!saved) await deps2.db.call("svc_set_art_tiles", { p_tiles: cells.map(([gx, gy]) => [GRID_LEVEL, gx, gy, null]) });
     await pyramidSteps(deps2, cells, saved?.pyramid ?? null, (py, need) => checkpoint({ stage: "pyramid", pyramid: py }, need));
     await deps2.db.call("svc_cells_cleared", { p_cells: cells });
+  });
+}
+async function moveArt(deps2, p, saved, checkpoint = () => {
+}) {
+  const lock = deps2.withPyramidLock ?? ((fn) => fn());
+  await lock(async () => {
+    let pr;
+    if (saved?.stage) pr = { ...saved };
+    else {
+      const bytes = await deps2.store.get(BUCKETS.public, tilePath(GRID_LEVEL, p.from[0], p.from[1], p.rev));
+      let rev = null;
+      if (bytes) {
+        [rev] = (await deps2.db.call("svc_reserve_revs", { p_count: 1 })).map(Number);
+        await deps2.store.put(BUCKETS.public, tilePath(GRID_LEVEL, p.to[0], p.to[1], rev), bytes, "image/png");
+        await deps2.db.call("svc_set_art_tiles", { p_tiles: [[GRID_LEVEL, p.to[0], p.to[1], rev, bytes.byteLength]] });
+      }
+      pr = { stage: "pyramid", rev };
+    }
+    if (pr.rev != null) await pyramidSteps(deps2, [p.to], pr.pyramid ?? null, (py, need) => {
+      pr.pyramid = py;
+      checkpoint(pr, need);
+    });
+    await deps2.db.call("svc_art_moved", { p_to: p.to, p_rev: pr.rev, p_publication_id: p.publication_id });
   });
 }
 async function pyramidSteps(deps2, cells, saved, checkpoint) {
