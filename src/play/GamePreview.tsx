@@ -16,7 +16,7 @@ export function GamePreview({ game, size, className }: { game: GameId; size?: nu
   if (game === 'colorburst') return <ColorBurstPreview {...common} id={id} still={still} />;
   if (game === 'paintpop') return <PaintPopPreview {...common} id={id} still={still} />;
   if (game === 'memorymural') return <MemoryMuralPreview {...common} id={id} still={still} />;
-  if (game === 'sculptor') return <SculptorPreview {...common} id={id} still={still} />;
+  if (game === 'blocksplash') return <BlockSplashPreview {...common} id={id} still={still} />;
   if (game === 'rollermural') return <RollerMuralPreview {...common} id={id} still={still} />;
   if (game === 'mirrorline') return <MirrorlinePreview {...common} id={id} still={still} />;
   return <LightLinesPreview {...common} id={id} still={still} />;
@@ -160,27 +160,43 @@ function MemoryMuralPreview({ id, still, ...svg }: P) {
   );
 }
 
-function SculptorPreview({ id, still, ...svg }: P) {
-  // a scrambled face: the nose and an eye get pulled back into place
-  const skin = '#F6C9A8', shade = '#D9987A';
-  const mv = (from: string, to: string) => (still ? undefined : <animateTransform attributeName="transform" type="translate" values={`${from};${to};${to};${from}`} keyTimes="0;0.55;0.9;1" dur="4s" repeatCount="indefinite" />);
+function BlockSplashPreview({ id, still, ...svg }: P) {
+  // a nearly full row; an L stencil drops in and the row splashes away
+  const C = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#22C7FF', '#7B5CFF', '#FF4FD8'];
+  const g = 15, x0 = 15, y0 = 12;
+  const at = (x: number, y: number) => ({ x: x0 + x * (g + 1), y: y0 + y * (g + 1) });
+  const filled: [number, number, number][] = [[0, 3, 0], [1, 3, 4], [2, 3, 2], [3, 3, 5], [5, 3, 6], [0, 4, 3], [1, 4, 1], [4, 4, 0], [5, 4, 4], [2, 2, 3], [4, 1, 1]];
+  const row = (y: number) => filled.filter((f) => f[1] === y);
+  const dur = '3.6s';
   return (
-    <svg {...svg} aria-label="Sculptor: stretch the scrambled clay face back to match the portrait">
-      <defs>
-        <radialGradient id={`${id}bg`} cx="0.5" cy="0.4" r="0.8"><stop offset="0" stopColor="#3a2a20" /><stop offset="1" stopColor="#120c08" /></radialGradient>
-        <radialGradient id={`${id}sk`} cx="0.45" cy="0.38" r="0.7"><stop offset="0" stopColor={skin} /><stop offset="1" stopColor={shade} /></radialGradient>
-      </defs>
+    <svg {...svg} aria-label="Block Splash: drag paint stencils onto the canvas — full rows and columns splash away">
+      <defs><radialGradient id={`${id}bg`} cx="0.5" cy="0.35" r="0.8"><stop offset="0" stopColor="#2a1240" /><stop offset="1" stopColor="#0d0619" /></radialGradient></defs>
       <rect width="120" height="120" fill={`url(#${id}bg)`} />
-      <ellipse cx="60" cy="60" rx="32" ry="38" fill={`url(#${id}sk)`} stroke="rgba(60,30,15,0.5)" />
-      <path d="M30 46 Q32 14 60 16 Q88 14 90 46 Q60 30 30 46Z" fill="#5A3A22" />
-      <g transform={still ? undefined : 'translate(-9 8)'}>{mv('-9 8', '0 0')}<ellipse cx="48" cy="56" rx="6" ry="4.6" fill="#fff" /><circle cx="48" cy="56" r="2.8" fill="#2E6BD6" /></g>
-      <g><ellipse cx="72" cy="56" rx="6" ry="4.6" fill="#fff" /><circle cx="72" cy="56" r="2.8" fill="#2E6BD6" /></g>
-      <g transform={still ? undefined : 'translate(12 -6)'}>{mv('12 -6', '0 0')}<path d="M60 62 Q55 72 60 73 Q64 73 63 70" fill={shade} stroke="rgba(60,30,15,0.5)" /></g>
-      <g transform={still ? undefined : 'translate(-6 9)'}>{mv('-6 9', '0 0')}<path d="M50 82 Q60 90 70 82 Q60 85 50 82Z" fill="#8E2A3A" /></g>
-      {!still && <circle r="4" fill="#fff" opacity="0.9"><animateMotion dur="4s" repeatCount="indefinite" path="M51 64 L60 56 L72 66 L60 67 L54 91 L60 82" /></circle>}
-      <rect x="86" y="6" width="28" height="28" rx="6" fill="#f4e8d8" stroke="#FFE14D" strokeWidth="1.5" />
-      <ellipse cx="100" cy="21" rx="8" ry="10" fill={skin} /><circle cx="97" cy="19" r="1.3" fill="#2E6BD6" /><circle cx="103" cy="19" r="1.3" fill="#2E6BD6" /><path d="M97 25 Q100 27 103 25" stroke="#8E2A3A" fill="none" />
-      <text x="60" y="114" textAnchor="middle" fontSize="8" fontWeight="800" fill="#F2C49B" letterSpacing="1.5">MATCH · 94%</text>
+      {Array.from({ length: 36 }, (_, k) => { const p = at(k % 6, Math.floor(k / 6)); return <rect key={k} x={p.x} y={p.y} width={g} height={g} rx="3.5" fill="#ffffff" fillOpacity="0.06" />; })}
+      {filled.map(([x, y, c], k) => {
+        const p = at(x, y), inRow = y === 3;
+        return (
+          <rect key={`f${k}`} x={p.x} y={p.y} width={g} height={g} rx="3.5" fill={C[c]}>
+            {!still && inRow && <animate attributeName="opacity" values="1;1;1;0;0;1" keyTimes="0;0.5;0.55;0.62;0.92;1" dur={dur} repeatCount="indefinite" />}
+          </rect>
+        );
+      })}
+      {/* the falling stencil: an L that completes row 3 */}
+      <g opacity={still ? 1 : undefined}>
+        {!still && <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.55;0.62;0.95;1" dur={dur} repeatCount="indefinite" />}
+        <g>
+          {!still && <animateTransform attributeName="transform" type="translate" values="0 52;0 52;0 0;0 0;0 52" keyTimes="0;0.15;0.45;0.95;1" dur={dur} repeatCount="indefinite" />}
+          {[[4, 2], [4, 3]].map(([x, y], k) => { const p = at(x, y); return <rect key={k} x={p.x} y={p.y} width={g} height={g} rx="3.5" fill="#FF4FD8" stroke="#fff" strokeOpacity="0.5" />; })}
+        </g>
+      </g>
+      {/* the splash */}
+      {!still && row(3).length > 0 && [0, 1, 2, 3, 4, 5].map((x) => { const p = at(x, 3); return (
+        <circle key={`s${x}`} cx={p.x + g / 2} cy={p.y + g / 2} r="2" fill={C[x % 7]} opacity="0">
+          <animate attributeName="r" values="2;2;14;14" keyTimes="0;0.55;0.68;1" dur={dur} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0;0;0.9;0;0" keyTimes="0;0.54;0.58;0.7;1" dur={dur} repeatCount="indefinite" />
+        </circle>
+      ); })}
+      <text x="60" y="114" textAnchor="middle" fontSize="8" fontWeight="800" fill="#FFB0F0" letterSpacing="1.5">FIT · SPLASH · COMBO</text>
     </svg>
   );
 }

@@ -10,6 +10,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { cn, timeAgo } from '../lib/utils';
 import { Button, Switch, inputCls } from '../ui';
+import { specText } from './PlayerGifts';
 
 function GrantList({ rows, onCancel, showPlayer }: { rows: any[]; onCancel(id: number): void; showPlayer?: boolean }) {
   if (!rows.length) return <p className="text-xs text-muted">No event rolls lined up.</p>;
@@ -18,6 +19,8 @@ function GrantList({ rows, onCancel, showPlayer }: { rows: any[]; onCancel(id: n
       {rows.map((g) => (
         <div key={g.id} className={cn('flex flex-wrap items-center gap-2', (g.used_at || g.cancelled_at) && 'opacity-50')}>
           <RarityBadge r={g.rarity} small />{g.shiny && <span>✨</span>}
+          {g.rarity === 'enchanted' && <span className="font-bold">{specText(g.enchant)}</span>}
+          {g.ticket_id && <span className="text-muted">🎟️ from a ticket</span>}
           {showPlayer && <b>@{g.player.username}</b>}
           <span className="text-muted">{g.used_at ? `landed ${timeAgo(g.used_at)}` : g.cancelled_at ? 'cancelled' : g.mode === 'luck' ? `next Luck claim · ${g.slot ? `roll ${g.slot} of the rerolls` : 'every roll'}` : g.in === 1 ? 'their next claim' : `in ${g.in} claims`}</span>
           {g.plot_type && <span className="text-muted">· {PLOT_TYPES[g.plot_type as keyof typeof PLOT_TYPES]?.name ?? g.plot_type}</span>}

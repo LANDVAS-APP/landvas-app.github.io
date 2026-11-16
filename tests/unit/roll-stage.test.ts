@@ -35,7 +35,7 @@ describe('the roll director', () => {
   });
 
   it('the drum moves smoothly into its landing (no jumps)', () => {
-    const tr = recreate({ rarity: 'mythic', type: 'clay', usd: 1e-9, first: false }, L, { seed: 7 });
+    const tr = recreate({ rarity: 'mythic', type: 'stencil', usd: 1e-9, first: false }, L, { seed: 7 });
     const r = tr.steps[0].rReel!, l = r.lands[0];
     expect(Math.abs(reelPos(r, l.t - 0.01) - reelPos(r, l.t + 0.01))).toBeLessThan(0.05);
     const end = l.t + l.D;
@@ -46,13 +46,13 @@ describe('the roll director', () => {
     const choices: RarityId[] = ['rare', 'epic', 'kraken', 'legendary'];
     const locks: number[] = [];
     const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 3, hooks: { lock: (i) => locks.push(i) } });
-    d.setResult({ rarity: 'kraken', type: 'pigment', usd: 1e-9, first: false, choices, choiceTypes: ['pigment', 'mosaic', 'lumina', 'clay'], choiceShiny: [false, true, true, false] });
+    d.setResult({ rarity: 'kraken', type: 'pigment', usd: 1e-9, first: false, choices, choiceTypes: ['pigment', 'mosaic', 'lumina', 'stencil'], choiceShiny: [false, true, true, false] });
     let t = 0;
     for (; t < 60_000 && d.phase !== 'pick'; t += 1000 / 60) d.tick(t);
     d.pick(2);
     const tr = d.trace;
     expect(tr.steps.map((s) => s.rarity)).toEqual(choices);
-    expect(tr.steps.map((s) => s.type)).toEqual(['pigment', 'mosaic', 'lumina', 'clay']);
+    expect(tr.steps.map((s) => s.type)).toEqual(['pigment', 'mosaic', 'lumina', 'stencil']);
     expect(locks).toEqual([0, 1, 2, 3]);
     // each reroll carries on from where the drum stopped
     expect(Math.abs(tr.steps[1].rReel!.p0 - reelPos(tr.steps[0].rReel!, tr.steps[1].rStart!))).toBeLessThan(1e-6);
@@ -103,7 +103,7 @@ describe('a clip of the roll', () => {
     const d = new Director(L, { reduce: false, quickRerolls: () => true, seed: 2 });
     let t = 0;
     for (; t < 4000; t += 16) d.tick(t); // the server takes ages
-    d.setResult({ rarity: 'rare', type: 'pigment', usd: 0, first: false, choices: ['rare', 'epic'], choiceTypes: ['pigment', 'clay'] });
+    d.setResult({ rarity: 'rare', type: 'pigment', usd: 0, first: false, choices: ['rare', 'epic'], choiceTypes: ['pigment', 'stencil'] });
     for (; t < 30_000 && d.phase !== 'pick'; t += 16) d.tick(t);
     const pickAt = t;
     for (; t < pickAt + 9000; t += 16) d.tick(t); // the player thinks it over

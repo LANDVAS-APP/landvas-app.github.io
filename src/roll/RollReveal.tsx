@@ -46,7 +46,9 @@ export type RollResult = { rarity: RarityId; usd: number; type: string; first: b
   /** Luck's rerolls: every roll (the first is the plot's own); the player keeps one */ choices?: RarityId[] | null;
   /** each roll's minigame type and shine */ choiceTypes?: string[] | null; choiceShiny?: boolean[] | null;
   /** the roll came out Enchanted: the enchantment born on it */ enchant?: EnchantBrief | null;
-  /** 🪄 what a tuned Dowsing Rod did to this roll */ dowsed?: { result: string; name: string; depth: number; need: number; t: string }[] | null };
+  /** 🪄 what a tuned Dowsing Rod did to this roll */ dowsed?: { result: string; name: string; depth: number; need: number; t: string }[] | null;
+  /** ⚡ a Godroll: every roll an ultra (Echo: the same one, each a different minigame; Pantheon: a different one each) */ godroll?: 'echo' | 'pantheon' | null;
+  /** an enchantment recipe on a roll of the rerolls (staff gifts) */ choiceEnchants?: ({ kind?: string; stars?: number; level?: number } | null)[] | null };
 
 const INK = '#1B1240';
 const N = RARITY_ORDER.length;
@@ -99,10 +101,14 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   const [picked, setPicked] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const choices = result?.choices && result.choices.length > 1 ? result.choices : null;
+  const god = choices ? result?.godroll ?? null : null;
   const onRevealedRef = useRef(onRevealed);
   onRevealedRef.current = onRevealed;
   const layRef = useRef<Layout>(layoutFor(innerWidth, innerHeight));
   const dirRef = useRef<Director | null>(null);
+  const lastFrame = useRef(performance.now());
+  const kick = useRef<() => void>(() => {});
+  const resultAt = useRef<number | null>(null);
   if (!dirRef.current) {
     dirRef.current = new Director(layRef.current, {
       reduce, quickRerolls: () => rerollSpeed() === 'quick', user: me ? { username: me.profile.username, accent: me.profile.accent_color ?? undefined } : undefined,
@@ -123,6 +129,22 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
 
   // the result (the server's answer can arrive mid-spin)
   useEffect(() => { if (result) d.setResult({ ...result, name }); }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a roll never hangs: if the drum has stopped moving mid-roll (a stray right-click or long-press, a phone that
+  // paused the page…) it starts again, and once the answer is in, a roll that still hasn't landed after a while lands
+  useEffect(() => {
+    if (result && resultAt.current == null) resultAt.current = performance.now();
+    let sig = '', since = performance.now();
+    const t = setInterval(() => {
+      if (!presentRef.current || !d.busy) return;
+      if (performance.now() - lastFrame.current > 1200) kick.current();
+      // no progress at all (same phase, same roll, not locked) for 10 s with the answer in: land it
+      const st = d.trace.steps[d.trace.steps.length - 1];
+      const now = `${d.phase}:${d.trace.steps.length}:${st?.rLock ?? ''}:${st?.rReel?.lands.length ?? 0}`;
+      if (now !== sig) { sig = now; since = performance.now(); }
+      else if (resultAt.current != null && (d.phase === 'spin' || d.phase === 'drop') && performance.now() - since > 10_000) d.skip();
+    }, 1000);
+    return () => clearInterval(t);
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** the ink's colour (and its glow): on the room, and straight on the card and its halo — not only inherited through
    *  the card, whose animations can leave it holding an old colour (Chromium keeps an animating element's style) */
@@ -154,7 +176,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     const t0 = performance.now();
     // (at most 60 frames a second, whatever the screen's refresh rate)
     const pace = framePacer();
-    let raf = 0, centerK = NaN, charged = false, drawn = false;
+    let raf = 0, centerK = NaN, charged = false, drawn = false, running = true;
     const paint = (pos: number) => {
       const base = Math.floor(pos);
       for (let i = 0; i < SLOTS; i++) {
@@ -180,7 +202,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
       }
     };
     const frame = (now: number) => {
-      if (!presentRef.current) return; // closing: the last frame fades out as it is
+      lastFrame.current = performance.now();
+      if (!presentRef.current) { running = false; return; } // closing: the last frame fades out as it is
       // (a clip being cut on top: rest, so it gets the whole phone)
       if (clipping.open > 0 || !pace.ready(now)) { raf = requestAnimationFrame(frame); return; }
       const t = now - t0;
@@ -203,10 +226,12 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
         drawn = live;
       }
       // (all over: rest until the roll closes)
-      if (!d.busy && !ahead) return;
+      if (!d.busy && !ahead) { running = false; return; }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
+    // the watchdog can start the loop again if anything ever stopped it mid-roll
+    kick.current = () => { if (!running && presentRef.current && d.busy) { running = true; raf = requestAnimationFrame(frame); } };
     return () => { cancelAnimationFrame(raf); removeEventListener('resize', size); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -295,7 +320,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     <motion.div ref={rootRef} className="lv-rr fixed inset-0 z-[200] grid touch-none select-none place-items-center overflow-hidden" data-testid={testId} data-phase={phase}
       style={{ ['--c' as string]: INK, ['--g' as string]: '#2A1F5C', pointerEvents: present ? undefined : 'none' }}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }} transition={{ duration: 0.22 }}
-      onPointerDown={() => { if (phase !== 'reveal' && phase !== 'pick' && phase !== 'enchant') d.skip(); }}>
+      onContextMenu={(e) => e.preventDefault()}
+      onPointerDown={(e) => { if (e.pointerType === 'mouse' && e.button !== 0) return; if (phase !== 'reveal' && phase !== 'pick' && phase !== 'enchant') d.skip(); }}>
       {/* the room */}
       <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_50%_42%,#2A1F5C_0%,#0B0820_62%,#05040F_100%)]" />
       <div className="lv-rr-room absolute inset-0" style={{ opacity: phase === 'drop' ? 0 : revealed ? 1 : 0.55 }} />
@@ -426,9 +452,15 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
       {/* Luck's rerolls: the meter and the rolls so far */}
       {choices && phase !== 'reveal' && phase !== 'pick' && (
         <div className="pointer-events-none absolute inset-x-0 top-[max(18px,env(safe-area-inset-top,0px))] grid justify-items-center gap-1.5" data-testid="roll-luck">
-          <div className="flex items-center gap-2 rounded-full bg-[#3DDC97]/15 px-3 py-1 text-[13px] font-black text-[#8CF5C6]">
-            🍀 {rollIdx === 0 ? `Luck ${luck}: ${choices.length} rolls!` : `Lucky reroll ${rollIdx} of ${choices.length - 1}`}
-            <span className="flex gap-0.5">{choices.slice(1).map((_, i) => <motion.span key={i} className="h-2 w-4 rounded-full" animate={{ backgroundColor: i < rollIdx ? 'rgba(255,255,255,0.15)' : '#3DDC97', scale: i === rollIdx - 1 ? [1, 1.5, 1] : 1 }} transition={{ duration: 0.4 }} />)}</span>
+          {god && (
+            <motion.div className="lv-godroll-banner rounded-full px-4 py-1.5 font-display text-[15px] font-black uppercase tracking-[0.08em]" data-testid="roll-godroll"
+              initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 18 }}>
+              ⚡ Godroll · {god === 'echo' ? 'Echo' : 'Pantheon'} ⚡
+            </motion.div>
+          )}
+          <div className={cn('flex items-center gap-2 rounded-full px-3 py-1 text-[13px] font-black', god ? 'bg-[#FFD23F]/15 text-[#FFE89A]' : 'bg-[#3DDC97]/15 text-[#8CF5C6]')}>
+            {god ? (rollIdx === 0 ? `⚡ ${choices.length} rolls — every one an ultra` : `⚡ Godroll ${rollIdx + 1} of ${choices.length}`) : <>🍀 {rollIdx === 0 ? `Luck ${luck}: ${choices.length} rolls!` : `Lucky reroll ${rollIdx} of ${choices.length - 1}`}</>}
+            <span className="flex gap-0.5">{choices.slice(1).map((_, i) => <motion.span key={i} className="h-2 w-4 rounded-full" animate={{ backgroundColor: i < rollIdx ? 'rgba(255,255,255,0.15)' : god ? '#FFD23F' : '#3DDC97', scale: i === rollIdx - 1 ? [1, 1.5, 1] : 1 }} transition={{ duration: 0.4 }} />)}</span>
           </div>
           <button className="pointer-events-auto rounded-full bg-[#1B1640] px-3 py-1 text-[11px] font-black text-white/80 active:scale-95" data-testid="roll-speed"
             onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setSpeed(speed === 'quick' ? 'normal' : 'quick'); }}>
@@ -458,8 +490,13 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           <motion.div className="absolute inset-0 z-10 grid place-items-center bg-[#05040F]/95 px-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid="roll-pick">
             <div className="grid w-full max-w-[380px] gap-4 text-center">
               <div>
+                {god ? <>
+                  <div className="lv-godroll-title font-display text-[28px] font-black" data-testid="roll-godroll-pick">⚡ {god === 'echo' ? 'Echo' : 'Pantheon'} Godroll</div>
+                  <div className="text-[13px] font-semibold text-white/70">{god === 'echo' ? `The same ultra, ${choices.length} times — each with a different minigame. Keep the one you want.` : `${choices.length} different ultras. Keep the one you want.`}</div>
+                </> : <>
                 <div className="font-display text-[26px] font-black text-white">🍀 Pick your plot</div>
                 <div className="text-[13px] font-semibold text-white/60">Luck rolled it {choices.length} times — keep the one you want.</div>
+                </>}
               </div>
               <div className="grid grid-cols-3 gap-2.5">
                 {choices.map((r, i) => {
@@ -473,6 +510,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
                       <span className="max-w-full truncate px-1 text-[11px] font-black uppercase" style={{ color: ri.color }}>{ri.emoji ? `${ri.emoji} ` : ''}{ri.name}</span>
                       {sh && <span className="rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-1.5 text-[9px] font-black text-[#1a0b2e]" data-testid={`roll-choice-shiny-${i}`}>✨ SHINY ×5</span>}
                       {ty && <span className="max-w-full truncate rounded-full px-1.5 text-[9px] font-black" style={{ background: `${ty.a}26`, color: ty.a }} data-testid={`roll-choice-type-${i}`}>{GAME_EMOJI[tyId] ?? ''} {ty.game} · {ty.name}</span>}
+                      {r === 'enchanted' && result?.choiceEnchants?.[i]?.kind && <span className="max-w-full truncate text-[9px] font-black text-[#E6C8FF]" data-testid={`roll-choice-ench-${i}`}>{kindInfo(result.choiceEnchants[i]!.kind!).emoji} {kindInfo(result.choiceEnchants[i]!.kind!).name}{result.choiceEnchants[i]!.stars ? ` ${'★'.repeat(result.choiceEnchants[i]!.stars!)}` : ''}</span>}
                       <span className="text-[9px] font-bold text-white/50 tnum">{formatRate(ri.usd_per_second * (sh ? 5 : 1))}</span>
                       {i === bestIdx(choices, result?.choiceShiny) && <span className="absolute -right-1 -top-2 rounded-full bg-[#FFE14D] px-1.5 text-[9px] font-black text-[#1a0b2e]">BEST</span>}
                     </motion.button>

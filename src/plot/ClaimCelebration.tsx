@@ -1,6 +1,7 @@
 // The claim moment, full screen: the same ink roll as simple mode (src/roll/RollReveal.tsx) — the drop, the drum
 // of rarities, the near miss, the flood and the storm — then what to do with your new plot. The map keeps the plot
 // neutral until the roll lands, so nothing gives the rarity away.
+import { AscendOffer, useAscend } from '../roll/Ascend';
 import { AnimatePresence } from 'motion/react';
 import { Brush, TreePine, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,9 @@ export type Celebration = {
   enchant?: import('../enchant/EnchantTransform').EnchantBrief | null;
   /** 🪄 what a tuned Dowsing Rod did to this roll */
   dowsed?: { result: string; name: string; depth: number; need: number; t: string }[] | null;
+  /** ⚡ a Godroll, and staff-gifted enchantments on the rerolls */
+  godroll?: 'echo' | 'pantheon' | null;
+  choiceEnchants?: ({ kind?: string; stars?: number; level?: number } | null)[] | null;
 };
 
 /** `hidden`: the plot whose rarity is still rolling — the map keeps it neutral until the reveal. */
@@ -72,11 +76,12 @@ function Show({ c }: { c: Celebration }) {
   );
   return (
     <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close}
-      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices, choiceTypes: c.choiceTypes, choiceShiny: c.choiceShiny, enchant: c.enchant ?? null, dowsed: c.dowsed ?? null }}
+      result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices, choiceTypes: c.choiceTypes, choiceShiny: c.choiceShiny, enchant: c.enchant ?? null, dowsed: c.dowsed ?? null, godroll: c.godroll ?? null, choiceEnchants: c.choiceEnchants ?? null }}
       luck={(qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck}
-      onPick={async (i) => { const p = await api.luckPick(c.gx, c.gy, i); celebrate(p.achievements); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.myPlots }); }}
+      onPick={async (i) => { const p = await api.luckPick(c.gx, c.gy, i); celebrate(p.achievements); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.myPlots }); void qc.invalidateQueries({ queryKey: ['ascend'] }); }}
       onRevealed={() => useCelebration.getState().reveal()}
       actions={<>
+        <AscendOffer gx={c.gx} gy={c.gy} className="mb-2.5" onOpen={() => { const { gx, gy } = c; close(); setTimeout(() => useAscend.getState().open(gx, gy), 180); }} />
         {actions}
         <button className="mt-3 text-xs font-bold text-white/60 hover:text-white" onClick={close} data-testid="celebration-close">{c.again ? 'Done' : 'Keep exploring'}</button>
       </>} />

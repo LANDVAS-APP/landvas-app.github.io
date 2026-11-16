@@ -2,6 +2,7 @@
 // creature's energy; the server sets the layout (seed), checks the round ran its full time and
 // pays Ink for the score, under the shared Inkborn daily cap.
 import { IfCapped } from '../../ui/IfCapped';
+import { backTo } from '../../app/backTo';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw, Zap } from 'lucide-react';
@@ -117,7 +118,7 @@ function InkbornGame() {
               {phase.capped && <p className="text-xs text-white/70">You’ve hit today’s Inkborn Ink limit — it resets this evening.</p>}
               <div className="flex gap-2">
                 <Button variant="rainbow" onClick={() => setPhase({ k: 'intro' })}><RotateCcw className="h-4 w-4" /> Again</Button>
-                <Button variant="secondary" onClick={() => nav(c.habitat_id ? `/habitat/${c.habitat_id}` : '/inkborn')}>Back to {c.name}’s home</Button>
+                <Button variant="secondary" onClick={() => backTo(nav, c.habitat_id ? `/habitat/${c.habitat_id}` : '/inkborn')}>Back to {c.name}’s home</Button>
               </div>
             </motion.div>
           )}

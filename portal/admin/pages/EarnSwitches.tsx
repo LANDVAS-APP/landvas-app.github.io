@@ -12,6 +12,8 @@ import { cn } from '../../../src/lib/utils';
 import { portal, type EarnSwitches } from '../../shared/api';
 import { ago, int } from '../../shared/format';
 import { Badge, PageHeader, Panel, Q, useDebounced } from '../../shared/ui';
+import { Link } from 'react-router-dom';
+import { api } from '../../../src/backend/api';
 
 type Row = { key: string; label: string; emoji?: string; sub?: string; ink?: number };
 type Group = { id: string; title: string; sub: string; rows: Row[] };
@@ -141,6 +143,7 @@ export default function EarnSwitchesPage() {
                 </div>
               ) : <p className="text-sm text-muted">Everything is earning normally.</p>}
             </Panel>
+            <PlayerModes />
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative min-w-[240px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
@@ -162,5 +165,27 @@ export default function EarnSwitchesPage() {
         );
       }}</Q>
     </>
+  );
+}
+
+/** players whose Ink earnings the owner set by hand (off, dynamic or classic) — change them on the player → Gifts */
+function PlayerModes() {
+  const q = useQuery({ queryKey: ['admin', 'ink-modes'], queryFn: api.admin.inkModes, refetchInterval: 60_000 });
+  const rows = q.data ?? [];
+  if (!rows.length) return null;
+  const label = { off: 'Ink off', dynamic: 'Dynamic', classic: 'Classic', default: 'Default' } as const;
+  return (
+    <Panel title={`Players with their own Ink earnings (${rows.length})`}>
+      <div className="grid gap-1.5" data-testid="ink-modes">
+        {rows.map((m) => (
+          <div key={m.player_id} className={cn('flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs', m.mode === 'off' ? 'border-bad/50 bg-bad/10' : 'border-line')}>
+            <Badge tone={m.mode === 'off' ? 'bad' : 'accent'}>{label[m.mode]}</Badge>
+            <Link to={`/players/${m.player_id}/gifts`} className="font-bold hover:underline">@{m.player?.username}</Link>
+            <span className="text-muted">{m.set_at ? ago(m.set_at) : ''}{m.by ? ` by @${m.by}` : ''}{m.note ? ` — ${m.note}` : ''}</span>
+            {m.held > 0 && <span className="text-warn">held back {int(m.held)} Ink ({int(m.held_n)} rewards)</span>}
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }

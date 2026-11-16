@@ -185,7 +185,7 @@ export const api = {
   acquirePlot: (gx: number, gy: number, name?: string) =>
     rpc<ClaimResult & { cost: { ink: number } }>('acquire_plot', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('acquire'), ...(name?.trim() ? { p_name: name.trim() } : {}) }),
   /** simple mode: buy a plot from the home screen; the server picks where (and so its rarity) */
-  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; choice_types?: string[] | null; choice_shiny?: boolean[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
+  quickBuyPlot: (opts: { ticket?: string; hot?: boolean } = {}) => rpc<ClaimResult & { starter: boolean; shiny?: boolean; hot_zone?: boolean; lucky?: boolean; choices?: RarityId[] | null; choice_types?: string[] | null; choice_shiny?: boolean[] | null; godroll?: 'echo' | 'pantheon' | null; choice_enchants?: ({ kind?: string; stars?: number; level?: number } | null)[] | null; cost: { ink: number }; next_cost: { ink: number; free_left: number } }>('quick_buy_plot', { p_idempotency_key: idemKey('quickbuy'), p_ticket: opts.ticket ?? null, p_hot: !!opts.hot }),
   /** the daily streak: status, and today's check-in */
   dailyStatus: () => rpc<import('./types').DailyStatus>('daily_status'),
   /** every Ultra plot you own and where it stands today */
@@ -193,6 +193,15 @@ export const api = {
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
   /** today's Hot Zone (a real city with boosted rarities) and tomorrow's */
   hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),
+  /** what's coming up (energy full, crops ready, expeditions home…) for the optional reminders */
+  myTimers: () => rpc<import('../native/notify').Timer[]>('my_timers'),
+  /** your rentals: today's checklist done? all set for the 1st? */
+  myLandlordStatus: () => rpc<import('./types').LandlordStatus[]>('my_landlord_status'),
+  /** your open roll tickets (with everything on each) */
+  myRollTickets: () => rpc<import('./types').RollTicket[]>('my_roll_tickets'),
+  /** ⬆️ Ascend: what a try on this plot costs and its odds; one try */
+  ascendQuote: (gx: number, gy: number) => rpc<import('./types').AscendQuote>('ascend_quote', { p_gx: gx, p_gy: gy }),
+  ascendRoll: (gx: number, gy: number) => rpc<import('./types').AscendResult>('ascend_roll', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('ascend') }),
   hotZoneCrowd: () => rpc<{ now: number; today: number }>('hot_zone_crowd'),
   /** your plot-type album and the rarities you've found */
   myCollection: () => rpc<import('./types').Collection>('my_collection'),
@@ -806,6 +815,22 @@ export const api = {
     grantRoll: (player: string, rarity: string, after: number, count: number, shiny: boolean, note: string | null, mode: 'claim' | 'luck' = 'claim', slot: number | null = null, plotType: string | null = null) =>
       rpc<any[]>('admin_grant_roll', { p_player: player, p_rarity: rarity, p_after: after, p_count: count, p_shiny: shiny, p_note: note, p_mode: mode, p_slot: slot, p_plot_type: plotType }),
     cancelRollGrant: (id: number) => rpc<any[]>('admin_cancel_roll_grant', { p_id: id }),
+    /** tickets of every kind, enchantments on the next rolls, Godrolls lined up, a player's own Ink mode */
+    rollTickets: (player: string) => rpc<any[]>('admin_roll_tickets', { p_player: player }),
+    grantTicket: (player: string, spec: Record<string, unknown>, count = 1) => rpc<any[]>('admin_grant_ticket', { p_player: player, p_spec: spec, p_count: count }),
+    cancelTicket: (id: string) => rpc<any[]>('admin_cancel_ticket', { p_id: id }),
+    grantEnchantRoll: (player: string, spec: Record<string, unknown>, mode: 'claim' | 'luck', after: number, slot: number | null, count: number, plotType: string | null, shiny: boolean, note: string | null) =>
+      rpc<any[]>('admin_grant_enchant_roll', { p_player: player, p_spec: spec, p_mode: mode, p_after: after, p_slot: slot, p_count: count, p_plot_type: plotType, p_shiny: shiny, p_note: note }),
+    godrollQueue: (player: string | null) => rpc<any[]>('admin_godroll_queue', { p_player: player }),
+    grantGodroll: (player: string, kind: 'echo' | 'pantheon', rolls: number | null, rarity: string | null, shiny: boolean, note: string | null) =>
+      rpc<any[]>('admin_grant_godroll', { p_player: player, p_kind: kind, p_rolls: rolls, p_rarity: rarity, p_shiny: shiny, p_note: note }),
+    cancelGodroll: (id: number) => rpc<any[]>('admin_cancel_godroll', { p_id: id }),
+    rollSettings: () => rpc<any>('admin_roll_settings'),
+    setRollSettings: (key: 'godrolls' | 'ascend', value: Record<string, unknown>) => rpc<any>('admin_set_roll_settings', { p_key: key, p_value: value }),
+    playerInkMode: (player: string) => rpc<import('./types').PlayerInkMode>('admin_player_ink_mode', { p_player: player }),
+    setPlayerInkMode: (player: string, mode: 'default' | 'off' | 'dynamic' | 'classic', note: string | null) =>
+      rpc<import('./types').PlayerInkMode>('admin_set_player_ink_mode', { p_player: player, p_mode: mode, p_note: note }),
+    inkModes: () => rpc<(import('./types').PlayerInkMode & { player: any })[]>('admin_ink_modes'),
     inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
     setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
     leviathan: (action: 'summon' | 'dismiss' | 'status' | 'speed' | 'heal' | 'retreat' | 'stay' | 'roam' | 'target' | 'rampage' | 'tiny' | 'hide', args: Record<string, unknown> = {}) => rpc<LevState & { cfg: any; history: any[] }>('admin_leviathan', { p_action: action, p_args: args }),

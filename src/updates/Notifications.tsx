@@ -246,9 +246,10 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
           ? <>🌌 <b>Your fused ultras are back</b> — Primordial refunds now give back exactly what went in instead of picks: the {names} from your {R(d.rarity)}.{later}</>
           : <>🌌 <b>Your ultras are back</b> — the {names} you fused into your {R(d.rarity)}{d.claims > 0 ? '' : ', each on its own spot'}.{later}</>;
       }
+      case 'ticket': return <>🎟️ <b>The LANDVAS team sent you {d.n > 1 ? `${d.n} roll tickets` : 'a roll ticket'}</b>{d.label ? <> — “{d.label}”</> : null}: {d.godroll ? <>a ⚡ {d.godroll === 'echo' ? 'Echo' : 'Pantheon'} Godroll</> : d.rarity === 'enchanted' ? <>an 🔮 Enchanted plot</> : <>{d.exact ? '' : 'at least '}{R(d.rarity)}</>}. Tap to roll it!</>;
       default: return <>✨ A rarity’s power stirred</>;
     }
-  }, to: (a) => (['erupted', 'whisper', 'galloped', 'pollinated', 'stars', 'genesis'].includes(a.data?.sub) && a.data?.gx != null
+  }, to: (a) => a.data?.sub === 'ticket' ? '/world?tickets=1' : (['erupted', 'whisper', 'galloped', 'pollinated', 'stars', 'genesis'].includes(a.data?.sub) && a.data?.gx != null
     ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : (a.data?.sub === 'refund' || a.data?.sub === 'refund_back') && a.data?.gx != null ? `/world?fly=${a.data.gx},${a.data.gy}&z=18` : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };

@@ -50,6 +50,6 @@ export const isStrain = (e: { code?: string; message?: string; status?: number }
 export const timedFetch: typeof fetch = (input, init) => {
   if (init?.signal || typeof AbortController === 'undefined') return fetch(input, init);
   const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 15_000);
+  const t = setTimeout(() => c.abort(typeof DOMException !== 'undefined' ? new DOMException('The server took too long to answer', 'TimeoutError') : undefined), 15_000);
   return fetch(input, { ...init, signal: c.signal }).finally(() => clearTimeout(t));
 };

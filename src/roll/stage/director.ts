@@ -193,7 +193,7 @@ export class Director {
     const r = s.rReel!, reduce = this.o.reduce;
     const f = s.rarity, tr = rarityTier(f);
     const quick = quickIn || !!s.quick;
-    const fi = Math.max(0, RARITY_ORDER.indexOf(f));
+    const fi = Math.max(0, RARITY_ORDER.indexOf(f === 'enchanted' ? 'mythic' : f)); // (an enchanted reroll lands at the top of the everyday ladder)
     const pos = reelPos(r, t);
     const dist = NR + (quick ? 0 : tr * 3); // always through every rarity at least once
     let pT = Math.ceil((pos + dist - fi) / NR) * NR + fi;

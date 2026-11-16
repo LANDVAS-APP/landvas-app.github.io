@@ -177,7 +177,7 @@ describe('minigame performance bonuses', () => {
   let p: string;
   const G = { gx: 2_200_000, gy: 1_500_000 };
   let level = 0;
-  const start = () => db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: ++level, p_gx: G.gx, p_gy: G.gy });
+  const start = () => db.rpc(p, 'start_minigame', { p_game: 'blocksplash', p_level: ++level, p_gx: G.gx, p_gy: G.gy });
   const result = (quality: number[], mask?: boolean[]) => ({
     valid: true, passed: (mask ?? quality.map(() => true)).every(Boolean), score: 500, stars: 3, flags: [], suspicious: false, min_duration_ms: 12000,
     rounds_passed: (mask ?? quality.map(() => true)).filter(Boolean).length, rounds_total: quality.length, rounds_mask: mask ?? quality.map(() => true), rounds_quality: quality,
@@ -186,10 +186,10 @@ describe('minigame performance bonuses', () => {
   beforeAll(async () => {
     p = await db.newPlayer('bonus_painter');
     await db.rpc(p, 'claim_starter_plot', { p_gx: G.gx, p_gy: G.gy });
-    await db.sql(`update world_plots set plot_type = 'clay', rarity = 'common', level = 1 where gx = $1 and gy = $2`, [G.gx, G.gy]);
+    await db.sql(`update world_plots set plot_type = 'stencil', rarity = 'common', level = 1 where gx = $1 and gy = $2`, [G.gx, G.gy]);
     const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
-    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, limit_paid_runs: false, ink_multiplier: 1, games: { ...cfg.games, sculptor: {
-      ...cfg.games.sculptor, rounds: 3, level_ink: [10], round_ink: [0, 0, 0], plot_level_bonus: 0, ink_multiplier: 1, boost: null,
+    await db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, limit_paid_runs: false, ink_multiplier: 1, games: { ...cfg.games, blocksplash: {
+      ...cfg.games.blocksplash, rounds: 3, level_ink: [10], round_ink: [0, 0, 0], plot_level_bonus: 0, ink_multiplier: 1, boost: null,
       bonuses: [
         { type: 'round', min_pct: 75, ink: 1 }, { type: 'round', min_pct: 90, ink: 3 },
         { type: 'all', min_pct: 90, ink: 5 }, { type: 'count', count: 2, min_pct: 95, ink: 2 }, { type: 'average', min_pct: 85, ink: 4 },
@@ -220,7 +220,7 @@ describe('minigame performance bonuses', () => {
 
   it('rejects broken bonus rules', async () => {
     const cfg = (await db.rpc(owner, 'admin_config_get')).config.minigames.value;
-    const bad = (rule: unknown) => db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, sculptor: { ...cfg.games.sculptor, bonuses: [rule] } } } });
+    const bad = (rule: unknown) => db.rpc(owner, 'admin_config_set', { p_key: 'minigames', p_value: { ...cfg, games: { ...cfg.games, blocksplash: { ...cfg.games.blocksplash, bonuses: [rule] } } } });
     await expectError(bad({ type: 'round', min_pct: 120, ink: 1 }), 'invalid_bonus_rules');
     await expectError(bad({ type: 'magic', min_pct: 50, ink: 1 }), 'invalid_bonus_rules');
     await expectError(bad({ type: 'count', min_pct: 50, ink: 1 }), 'invalid_bonus_rules');
@@ -230,12 +230,12 @@ describe('minigame performance bonuses', () => {
     const feed = await db.rpc(a, 'feed_recent', { p_limit: 100 });
     const mg = feed.filter((e: any) => e.kind === 'minigame' && e.player.username === 'bonus_painter');
     expect(mg).toHaveLength(1);
-    expect(mg[0].data.game).toBe('sculptor');
+    expect(mg[0].data.game).toBe('blocksplash');
   });
 
   it('staff see exactly how a player earns', async () => {
     const st = await db.rpc(owner, 'admin_player_minigames', { p_player_id: p });
-    const sc = st.games.find((g: any) => g.game === 'sculptor');
+    const sc = st.games.find((g: any) => g.game === 'blocksplash');
     expect(sc.plays).toBe(3);
     expect(sc.levels_cleared).toBe(2);
     expect(Number(sc.avg_clear_ms)).toBe(12000);
@@ -245,7 +245,7 @@ describe('minigame performance bonuses', () => {
     expect(last.quality).toEqual([99, 99, 40]);
     expect(last.breakdown.bonuses.length).toBe(0); // a failed run earns no bonuses
     expect(st.ink_sources.find((x: any) => x.reason === 'minigame').total).toBeGreaterThan(0);
-    expect(st.plots[0].game).toBe('sculptor');
+    expect(st.plots[0].game).toBe('blocksplash');
     const pv = await db.rpc(owner, 'admin_player_minigames', { p_player_id: a });
     expect(pv.pvp.record.matches).toBeGreaterThan(2);
     expect(pv.pvp.rivals.length).toBeGreaterThan(0);

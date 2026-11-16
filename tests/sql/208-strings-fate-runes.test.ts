@@ -56,15 +56,15 @@ describe('🎭 Puppeteer', () => {
     pup = await enchant(ann, 'puppeteer');
     const r = await claim(bob, 30, 3);
     theirs = { gx: r.gx, gy: r.gy };
-    await db.sql(`update world_plots set plot_type = 'clay', rarity = 'common' where gx = $1 and gy = $2`, [theirs.gx, theirs.gy]);
+    await db.sql(`update world_plots set plot_type = 'stencil', rarity = 'common' where gx = $1 and gy = $2`, [theirs.gx, theirs.gy]);
   });
 
   it('lists other players’ plots nearby, and plays one of them on strings — a real session', async () => {
     const v = await get(ann, pup);
     expect(v.view).toMatchObject({ strings: 2, max: 2, range_m: 5000 });
-    expect(v.view.nearby.some((p: any) => p.gx === theirs.gx && p.gy === theirs.gy && p.game === 'sculptor')).toBe(true);
+    expect(v.view.nearby.some((p: any) => p.gx === theirs.gx && p.gy === theirs.gy && p.game === 'blocksplash')).toBe(true);
     const s = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
-    expect(s).toMatchObject({ game: 'sculptor', level: 1, puppet: { id: pup } });
+    expect(s).toMatchObject({ game: 'blocksplash', level: 1, puppet: { id: pup } });
     expect((await get(ann, pup)).view.strings).toBe(1);
     const sess = (await db.sql(`select * from minigame_sessions where id = $1`, [s.session_id]))[0];
     expect(sess).toMatchObject({ player_id: ann, puppet_id: pup, gx: theirs.gx, gy: theirs.gy });
@@ -80,12 +80,12 @@ describe('🎭 Puppeteer', () => {
     const e = await row(pup);
     expect(Number(e.stats.ink)).toBeGreaterThan(e0);
     expect(e.stats.shows).toBeGreaterThanOrEqual(1);
-    expect(e.stats.repertoire).toHaveProperty('sculptor');
+    expect(e.stats.repertoire).toHaveProperty('blocksplash');
     // a puppet run plays the level their plot is on and climbs nothing: Bob's track is untouched, and Ann has none there
     expect((await db.sql(`select coalesce(max(highest_level), 0) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [theirs.gx, theirs.gy, bob]))[0].n).toBe(0);
     expect((await db.sql(`select max(highest_level) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [theirs.gx, theirs.gy, ann]))[0].n).toBeNull();
     // the level their plot is on: when Bob has climbed to 3 there, a puppet plays level 4
-    await db.sql(`insert into plot_game_progress (gx, gy, player_id, game, highest_level, best_score, plays, wins) values ($1, $2, $3, 'sculptor', 3, 100, 3, 3)`, [theirs.gx, theirs.gy, bob]);
+    await db.sql(`insert into plot_game_progress (gx, gy, player_id, game, highest_level, best_score, plays, wins) values ($1, $2, $3, 'blocksplash', 3, 100, 3, 3)`, [theirs.gx, theirs.gy, bob]);
     await db.sql(`update enchantments set state = state || '{"strings": 2}'::jsonb where id = $1`, [pup]);
     const s4 = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
     expect(s4.level).toBe(4);
@@ -107,7 +107,7 @@ describe('🎭 Puppeteer', () => {
     await setStars(pup, 3);
     await db.sql(`update enchantments set state = state || '{"strings": 2}'::jsonb where id = $1`, [pup]);
     const far = (await db.sql(`select gx, gy from world_plots where owner_id = $1 order by gx desc limit 1`, [bob]))[0];
-    await db.sql(`update world_plots set plot_type = 'clay' where gx = $1 and gy = $2`, [far.gx, far.gy]);
+    await db.sql(`update world_plots set plot_type = 'stencil' where gx = $1 and gy = $2`, [far.gx, far.gy]);
     // ★3 Grand Show: a three-plot medley, each run ×3 and free of strings
     const s = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: far.gx, p_gy: far.gy });
     expect(s.puppet).toMatchObject({ grand: true, medley_left: 2 });

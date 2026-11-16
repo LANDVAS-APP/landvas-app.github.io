@@ -408,6 +408,13 @@ const MESSAGES: Record<string, string> = {
   bed_taken: 'Something’s already growing in that bed.',
   not_done_yet: 'Not quite done yet — keep going!',
   already_done: 'Already ticked off today.',
+  ascend_disabled: 'Ascend is switched off right now.',
+  ascend_not_on_ladder: 'This rarity can’t Ascend — only plots on the normal rarity ladder can.',
+  ascend_top: 'This plot is already as high as Ascend goes.',
+  ascend_too_old: 'Ascend only works on plots you claimed recently.',
+  ascend_max_tries: 'This plot has used all its Ascend tries.',
+  ascend_locked: 'This plot can’t Ascend any more.',
+  ascend_not_owned: 'You can only Ascend your own plots.',
   not_connected: 'Those canvases do not touch — plots must share an edge.',
   canvas_too_large: 'That canvas would exceed the current size limit.',
   need_two_groups: 'Pick at least two canvases to connect.',
@@ -490,6 +497,13 @@ export function tooFast(detail: unknown) {
 export function toGameError(e: unknown): GameError {
   if (e instanceof GameError) return e;
   const msg = String((e as any)?.message ?? e ?? 'error');
+  // a call the server took too long to answer (or the connection dropped): never show the browser's raw words
+  if ((e as any)?.name === 'AbortError' || (e as any)?.name === 'TimeoutError' || /signal is aborted|aborted without reason|the operation was aborted|timed? ?out/i.test(msg)) {
+    return new GameError('server_slow', 'The server took too long to answer — please try again in a moment.');
+  }
+  if (/failed to fetch|network ?error|load failed|networkerror/i.test(msg)) return new GameError('network', 'Couldn’t reach LANDVAS — check your connection and try again.');
+  // the same one-time action twice (a double tap, or a retry that already went through)
+  if (/idem(potency)?[ _]?(key|idx)|already exists|duplicate key/i.test(msg)) return new GameError('already_done', 'That already went through — refreshing.');
   const detail = (e as any)?.detail ?? (e as any)?.details;
   const code = /^[a-z_]+$/.test(msg) ? msg : msg.match(/\b([a-z]+(?:_[a-z]+)+)\b/)?.[1] ?? 'unknown_error';
   if (code === 'rate_limited') return new GameError(code, tooFast(detail), detail);

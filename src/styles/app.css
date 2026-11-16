@@ -1881,6 +1881,8 @@ html.reduce-motion .lv-hero .pin::after, html.reduce-motion .lv-disc.glow .face,
 .lv-back:active { transform: scale(0.9); }
 .lv-tabbar { transition: transform 0.28s cubic-bezier(0.3, 0.9, 0.3, 1), opacity 0.2s; }
 .lv-tabbar.away { transform: translateY(calc(100% + 40px)); opacity: 0; pointer-events: none; }
+/* a full-screen panel inside a tab's own screen (a planet's base builder…) covers the tab bar too */
+html.lv-cover .lv-tabbar { transform: translateY(calc(100% + 40px)); opacity: 0; pointer-events: none; }
 .lv-tb-center.holding .orb { transform: scale(0.92); transition: transform 0.38s; }
 
 /* ---- the app's map ----------------------------------------------------------------------------------------- */
@@ -2632,6 +2634,31 @@ html.reduce-motion .lv-grim-aurora::before, html.reduce-motion .lv-grim-aurora i
 .lv-live-card { display: grid; justify-items: center; gap: 2px; width: 104px; flex-shrink: 0; padding: 10px 6px 8px; border-radius: 18px; text-align: center;
   background: color-mix(in srgb, #ff3d6e 7%, var(--surface-2, rgba(255, 255, 255, 0.05))); box-shadow: inset 0 0 0 1px color-mix(in srgb, #ff3d6e 30%, transparent); }
 .lv-live-ring { position: absolute; inset: -3px; border-radius: 999px; box-shadow: 0 0 0 2px #ff3d6e; }
+/* ---- Block Splash (one-off animations only: transform and opacity) ---- */
+@keyframes lvbs-shake { 0%, 100% { transform: translate3d(0, 0, 0); } 20% { transform: translate3d(-3px, 1px, 0); } 45% { transform: translate3d(3px, -1px, 0); } 70% { transform: translate3d(-2px, 0, 0); } }
+.lvbs-shake { animation: lvbs-shake 0.28s ease-out both; }
+@keyframes lvbs-splash { 0% { transform: scale(0.3); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(2.1); opacity: 0; } }
+.lvbs-splash { animation: lvbs-splash 0.6s ease-out both; }
+@keyframes lvbs-pop { 0% { transform: translate(-50%, -30%) scale(0.6); opacity: 0; } 18% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(-50%, -120%) scale(1); opacity: 0; } }
+.lvbs-pop { animation: lvbs-pop 1.25s ease-out both; }
+@keyframes lvbs-end { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.lvbs-end { animation: lvbs-end 0.3s ease-out both; }
+/* Paint Pop's combo: pops in, holds a moment, fades away */
+@keyframes lvpp-combo { 0% { transform: scale(0.7); opacity: 0; } 15% { transform: scale(1.08); opacity: 1; } 25% { transform: scale(1); } 75% { opacity: 1; } 100% { transform: scale(1) translateY(-14px); opacity: 0; } }
+.lvpp-combo { animation: lvpp-combo 1.4s ease-out both; }
+/* ⚡ Godrolls and ⬆️ Ascend */
+.lv-godroll-banner { position: relative; overflow: hidden; color: #2a1600; background: linear-gradient(100deg, #FFB31F, #FFF3A8 45%, #FFD23F 55%, #FF8A1F); box-shadow: 0 0 28px -4px #FFD23F, 0 0 0 2px rgba(255,255,255,.55) inset; }
+.lv-godroll-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); transform: translateX(-120%); animation: lvgod-sheen 1.8s ease-in-out infinite; }
+@keyframes lvgod-sheen { 0% { transform: translateX(-120%); } 60%, 100% { transform: translateX(120%); } }
+.lv-godroll-title { background: linear-gradient(100deg, #FFB31F, #FFF3A8, #FFD23F, #FF8A1F); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 14px rgba(255,210,63,.55)); }
+.lv-godroll-card { box-shadow: 0 0 24px -6px #FFD23F; }
+.lv-ascend-offer { background: linear-gradient(135deg, rgba(122,92,255,.38), rgba(61,220,151,.28)); border: 1.5px solid rgba(160,140,255,.55); }
+.lv-ascend-offer:active { transform: scale(.98); }
+.lv-ascend-go { background: linear-gradient(135deg, #7A5CFF, #3DDC97); box-shadow: 0 5px 0 #2f4d8a; }
+.lv-ascend-go:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 #2f4d8a; }
+.lv-ascend-up { background: linear-gradient(100deg, #FFB31F, #FFF3A8 50%, #3DDC97); }
+/* a 🔥 Hot Zone badge on the plot card */
+.lv-hotbadge { background: linear-gradient(135deg, #FF6A1F, #FF2D6F); color: #fff; }
 
 /* ===== phones: a screen you're just looking at should not redraw itself every frame ===============================
    An animation that moves a background, grows a shadow, changes a filter or turns a gradient can't be done by the GPU

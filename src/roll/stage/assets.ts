@@ -15,7 +15,7 @@ export const BODY = '"Manrope Variable", "Manrope", ui-sans-serif, system-ui, -a
 export const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui';
 
 /** each minigame's glyph */
-export const GAME_EMOJI: Record<string, string> = { graphite: '✏️', pigment: '🎨', mosaic: '🧩', lumina: '💡', fresco: '🧠', clay: '🏺', prism: '🖌️', glass: '🪞' };
+export const GAME_EMOJI: Record<string, string> = { graphite: '✏️', pigment: '🎨', mosaic: '🧩', lumina: '💡', fresco: '🧠', stencil: '🧱', prism: '🖌️', glass: '🪞' };
 
 let fontsReady: Promise<void> | null = null;
 export function loadFonts() {

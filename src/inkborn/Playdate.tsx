@@ -2,6 +2,7 @@
 // of Picnic Party; you both earn a little Ink and bond, and a great round lays an egg for each of you
 // (never the same kind).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { backTo } from '../app/backTo';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -41,7 +42,7 @@ function Playdate() {
   const [busy, setBusy] = useState(false);
   const mine = sanct.data?.creatures ?? [];
   useEffect(() => { if (!pick && mine.length) setPick([...mine].sort((a, b) => b.bond - a.bond)[0].id); }, [mine.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const back = () => (friend?.back ? nav(friend.back) : nav(-1));
+  const back = () => (friend?.back ? backTo(nav, friend.back) : nav(-1));
 
   const start = async () => {
     if (!pick) return;

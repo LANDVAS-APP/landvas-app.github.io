@@ -1,4 +1,6 @@
 import { fresh } from '../lib/poll';
+import { HistoryTracker } from './backTo';
+import { UpdateCountdown } from './UpdateCountdown';
 import { useUi as __ui } from '../lib/store';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 'react';
@@ -226,7 +228,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

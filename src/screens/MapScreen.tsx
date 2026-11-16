@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { TicketsButton } from '../daily/Tickets';
 import { AnimatePresence, motion } from 'motion/react';
 import { Box, Check, ChevronRight, Combine, Crosshair, Gamepad, LayoutGrid, Plus, Rocket, Satellite, Sparkles, X } from 'lucide-react';
 import { CurrencyPills, DayNight, ModeButton, PlayerBadge, takeReturn } from '../map/Hud';
@@ -138,6 +139,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           <div className="lv-maprow flex items-center justify-center gap-3.5 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-1 [&>*]:pointer-events-auto" data-testid="map-row">
             {me && <HotZoneDisc />}
             {me && <LuckDisc />}
+            {me && <TicketsButton disc onRoll={(o) => void quick.roll(o)} />}
             {me && <GrimoireButton rail />}
             <LeviathanDisc />
             <ModeButton rail />
@@ -175,6 +177,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           <div className="lv-maprow flex items-center justify-center gap-2.5 [&>*]:pointer-events-auto" data-testid="map-row">
             {me && <HotZoneDisc />}
             {me && <LuckDisc />}
+            {me && <TicketsButton disc onRoll={(o) => void quick.roll(o)} />}
             {me && <GrimoireButton rail />}
             {me && <StreakChip disc onOpen={() => setStreak(true)} />}
             {me && <DailyChip disc />}
@@ -191,7 +194,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           )}
           {me && !away && !joystick && !card && <div className="flex"><JoystickSpot /></div>}
         </>) : (<>
-          {me && <div className="flex flex-wrap items-center gap-2 self-start"><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip className="!h-9 !py-0.5" /></div>}
+          {me && <div className="flex flex-wrap items-center gap-2 self-start"><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip className="!h-9 !py-0.5" /><TicketsButton onRoll={(o) => void quick.roll(o)} /></div>}
           {me && !away && !joystick && <JoystickSpot />}
           <div className="flex flex-col items-start gap-2.5">
             {me && <GrimoireButton />}
@@ -650,6 +653,16 @@ function Checklist() {
     { label: 'Paint & publish your plot', reward: 'On the map', done: p.some((x) => ['published', 'pending_review', 'approved', 'processing', 'superseded'].includes(x.status)) },
     { label: 'Connect plots into a mural', reward: 'Mural', done: g.some((x) => x.plot_count >= 2) },
   ] : [];
+  // a step stays done once it's been done (some can't be seen again later: today's rent boost, a published piece
+  // replaced by plot type changes…) — so all seven always add up and the list goes away
+  if (me) {
+    const key = `landvas.checklist.done.${me.profile.id}`;
+    let sticky = safeStorage<string[]>(key, []);
+    for (const st of steps) {
+      if (st.done && !sticky.includes(st.label)) { sticky = [...sticky, st.label]; saveStorage(key, sticky); }
+      else if (!st.done && sticky.includes(st.label)) st.done = true;
+    }
+  }
   const doneCount = steps.filter((s) => s.done).length;
   // a step just got done: celebrate it (only once the data has settled, not on first load)
   const seen = useRef<number | null>(null);
@@ -714,6 +727,8 @@ function Checklist() {
         {(nextIdx === 0 || nextIdx === 2 || nextIdx >= 5) && (
           <button onClick={go} className="lv-gbtn go shrink-0 px-3 text-[13px]" data-testid="quest-go">GO<ChevronRight className="h-4 w-4" /></button>
         )}
+        <button onClick={() => { setHidden(true); saveStorage('landvas.checklist.hidden', true); }} aria-label="Hide the getting-started list" title="Hide this list"
+          className="lv-hud !h-auto shrink-0 !rounded-2xl !px-2 text-[16px] font-black text-white/60" data-testid="quest-hide">×</button>
       </div>
     </div>
   );

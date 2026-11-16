@@ -38,7 +38,10 @@ export function useTicker(ms = 250) {
 /** Size of a square board that fits the viewport (phones first). */
 export function useBoardSize(max = 560, reserve = 300) {
   // the visible screen (not the area behind the browser's toolbars), minus the game's header
-  // and, on phones, the tab bar; never wider than the screen
+  // and, on phones, the tab bar; never wider than the screen. "Bigger boards" (Settings → Minigames) lets the board
+  // take more of the screen (the page scrolls a little more instead).
+  const big = useUi((s) => !!s.settings.bigBoards);
+  if (big) { max = Math.round(max * 1.3); reserve = Math.round(reserve * 0.6); }
   const calc = () => {
     const vh = window.visualViewport?.height ?? window.innerHeight;
     const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
@@ -46,6 +49,7 @@ export function useBoardSize(max = 560, reserve = 300) {
     return Math.max(180, Math.min(max, vw - 32, vh - reserve - chrome));
   };
   const [size, setSize] = useState(calc);
+  useEffect(() => { setSize(calc()); }, [big]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const on = () => setSize(calc());
     window.addEventListener('resize', on);

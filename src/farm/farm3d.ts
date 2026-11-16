@@ -71,10 +71,18 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
   const pathMat = mat('#CDB98A');
   let beds: { box: THREE.Mesh; plants: THREE.Group; key: string; pos: THREE.Vector3; sparkle: THREE.Sprite | null; bed: FarmBed | null }[] = [];
   let bedCount = 0, sel: number | null = null;
+  // a tidy field: as many columns as fill every row (64 beds = 8 × 8, no gap at the end); when nothing divides evenly,
+  // the last row is centred
+  const colsFor = (n: number) => {
+    if (n <= COLS) return Math.max(1, n);
+    for (const c of [8, 6, 7, 9, 5, 10]) if (n % c === 0 && n / c <= c + 3) return c;
+    return COLS;
+  };
   const bedPos = (i: number, n: number) => {
-    const cols = Math.min(COLS, n), rows = Math.ceil(n / COLS);
-    const c = i % COLS, r = Math.floor(i / COLS);
-    return new THREE.Vector3((c - (cols - 1) / 2) * (BED + GAP), 0.17, (r - (rows - 1) / 2) * (BED + GAP) + 2);
+    const cols = colsFor(n), rows = Math.ceil(n / cols);
+    const r = Math.floor(i / cols), inRow = r === rows - 1 ? n - r * cols : cols;
+    const c = i % cols;
+    return new THREE.Vector3((c - (inRow - 1) / 2) * (BED + GAP), 0.17, (r - (rows - 1) / 2) * (BED + GAP) + 2);
   };
   let fieldW = 10, fieldD = 10;
   const extras = new THREE.Group(); scene.add(extras);
@@ -90,7 +98,7 @@ export function createFarm(o: FarmSceneOpts): FarmScene {
       field.add(box, plants);
       beds.push({ box, plants, key: '', pos: box.position.clone(), sparkle: null, bed: null });
     }
-    const cols = Math.min(COLS, n), rows = Math.ceil(n / COLS);
+    const cols = colsFor(n), rows = Math.ceil(n / cols);
     fieldW = cols * (BED + GAP) + 2; fieldD = rows * (BED + GAP) + 2;
     // a path round the field
     const path = new THREE.Mesh(T(new THREE.PlaneGeometry(fieldW + 2, fieldD + 2)), pathMat); path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, 2); path.receiveShadow = true; extras.add(path);

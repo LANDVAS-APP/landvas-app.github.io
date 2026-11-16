@@ -1,7 +1,7 @@
 // The four PvP minigames. Each round takes its own board seed, records a move log and
 // hands it back; the server replays every round to score the run.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MURAL_COLORS } from '../shared/minigames/memorymural';
+import { useMuralColors } from '../play/palette';
 import { copyCloseness, copyFill, generateClash, generateCopycat, generateForgery, generateRecall, generateTurf, solveTurf, turfNeighbors, type PvpGame } from '../shared/pvp';
 import { cn, sleep } from '../lib/utils';
 import { Button } from '../ui';
@@ -114,6 +114,7 @@ function PaletteClash({ seed, now, onDone, registerSolver }: PvpBoardProps) {
 
 // --------------------------------------------------------- Spot the Forgery
 function Forgery({ seed, now, onDone, registerSolver }: PvpBoardProps) {
+  const MURAL_COLORS = useMuralColors();
   const L = useMemo(() => generateForgery(seed), [seed]);
   const [hits, setHits] = useState<number[]>([]);
   const [misses, setMisses] = useState<number[]>([]);
@@ -185,6 +186,7 @@ function PixelRecall({ seed, now, onDone, registerSolver }: PvpBoardProps) {
 
 // ----------------------------------------------------------------- Copy Cat
 function CopyCat({ seed, now, onDone, registerSolver }: PvpBoardProps) {
+  const MURAL_COLORS = useMuralColors();
   const L = useMemo(() => generateCopycat(seed), [seed]);
   const [grid, setGrid] = useState<number[]>(() => new Array(L.n * L.n).fill(0));
   const ref = useLatest(grid);

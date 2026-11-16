@@ -152,6 +152,9 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
           <div className="mt-3 grid gap-3">
             <Field label="Title"><input className="p-input w-full" value={m.title ?? ''} onChange={(e) => set({ maintenance: { ...m, title: e.target.value } })} /></Field>
             <Field label="Message"><textarea className="p-input h-20 w-full py-2" value={m.message ?? ''} onChange={(e) => set({ maintenance: { ...m, message: e.target.value } })} /></Field>
+            <Field label="Website updates wait (minutes)" hint="When a new build goes live, players on the website get a countdown in the corner before the page reloads, so they can finish a drawing or a round. 0 reloads straight away. Default 30.">
+              <input className="p-input w-full" type="number" min={0} max={240} value={v.update_grace_minutes ?? 30} onChange={(e) => set({ update_grace_minutes: Math.max(0, Math.min(240, Number(e.target.value) || 0)) })} data-testid="live-grace" />
+            </Field>
             <Field label="Back around (optional)" hint="Shown to players in their own time zone.">
               <input className="p-input w-full" type="datetime-local" value={untilLocal} onChange={(e) => set({ maintenance: { ...m, until: e.target.value ? new Date(e.target.value).toISOString() : null } })} />
             </Field>

@@ -39,7 +39,12 @@ export function PlaceAccessCard({ group }: { group: CanvasGroup }) {
   const all = a.open >= a.total;
   return (
     <div className="rounded-2xl border border-line bg-surface/50 p-3" data-testid="place-access" data-open={a.open} data-total={a.total}>
-      <div className="flex items-center gap-2 text-xs font-bold"><Gamepad2 className="h-4 w-4 text-accent" /> {all ? `All ${a.total} games open` : `${a.open} of ${a.total} games open`}</div>
+      <div className="flex items-center gap-2 text-xs font-bold"><Gamepad2 className="h-4 w-4 text-accent" /> {pl.kind === 'arcade' && a.unlocked != null
+        ? (all ? `Land: all ${a.total} games allowed` : `Land: ${a.open} of ${a.total} games allowed`)
+        : (all ? `All ${a.total} games open` : `${a.open} of ${a.total} games open`)}</div>
+      {pl.kind === 'arcade' && a.unlocked != null && (
+        <div className="mt-1 text-[11px] text-muted" data-testid="place-unlocked">🕹️ {a.unlocked} of {a.total} cabinets unlocked{a.unlocked < Math.min(a.open, a.total) ? ' — unlock the rest inside the arcade with tickets' : ''}</div>
+      )}
       <div className="mt-2 flex flex-wrap gap-1" aria-hidden>
         {a.games.map((g, i) => <span key={g} className={i < a.open ? 'h-2.5 w-2.5 rounded-full bg-accent' : i < (a.next?.open ?? 0) ? 'h-2.5 w-2.5 rounded-full border border-accent/70' : 'h-2.5 w-2.5 rounded-full border border-line-strong'} />)}
       </div>

@@ -1,5 +1,6 @@
 // A farm game: the intro, a 3-2-1, the game, then your score, Ink and basket of produce.
 import { IfCapped } from '../ui/IfCapped';
+import { backTo } from '../app/backTo';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
@@ -31,7 +32,7 @@ export default function FarmGame() {
   useEffect(() => { setPhase({ k: 'intro' }); }, [game]);
   const info = f.data?.config.games[game!];
   const Arena = FARM_ARENAS[game!];
-  const back = () => nav(`/farm/${id}`);
+  const back = () => backTo(nav, `/farm/${id}`);
   const start = async () => {
     setBusy(true);
     try { const r = await api.farmGameStart(id!, game!); setPhase({ k: 'count', n: 3, session: r.session, seed: r.seed, seconds: r.seconds }); }

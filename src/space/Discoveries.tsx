@@ -26,7 +26,9 @@ export function useDiscoveries(world: string, ready: boolean, scene: React.RefOb
   useEffect(() => {
     if (!d?.enabled) return;
     const at = new Date(d.weather.active ? d.weather.ends : d.weather.starts).getTime() - Date.now();
-    if (at <= 0 || at > 3_600_000) return;
+    // already past (the storm blew over while we weren't looking): ask again now
+    if (at <= 0) { const t = setTimeout(() => void q.refetch(), 1500); return () => clearTimeout(t); }
+    if (at > 3_600_000) return;
     const t = setTimeout(() => void q.refetch(), at + 800);
     return () => clearTimeout(t);
   }, [d?.weather.active, d?.weather.starts, d?.weather.ends]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,11 +83,14 @@ export function StormChip({ d, onOpen }: { d: Discoveries | undefined; onOpen():
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   if (!d?.enabled) return null;
   const w = d.weather;
-  const left = Math.max(0, (new Date(w.active ? w.ends : w.starts).getTime() - now) / 1000);
+  // (a storm that has blown over while this was on screen: count down to the next one)
+  const target = w.active ? new Date(w.ends).getTime() : new Date(w.starts).getTime() > now ? new Date(w.starts).getTime() : new Date((w as { next?: string }).next ?? w.starts).getTime();
+  const blowing = w.active && new Date(w.ends).getTime() > now;
+  const left = Math.max(0, (target - now) / 1000);
   const shards = w.shards.filter((s) => !s.taken).length;
   return (
-    <button onClick={onOpen} className={cn('pointer-events-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', w.active ? 'animate-pulse bg-[#5C6BFF]/85' : 'bg-black/50')} data-testid="storm-chip">
-      {w.emoji} {w.active ? `${w.name}${shards ? ` · ${shards} shards` : ''} · ${mmss(left)}` : `${w.name} in ${left > 3600 ? '1h+' : mmss(left)}`}
+    <button onClick={onOpen} className={cn('pointer-events-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]', blowing ? 'animate-pulse bg-[#5C6BFF]/85' : 'bg-black/50')} data-testid="storm-chip">
+      {w.emoji} {blowing ? `${w.name}${shards ? ` · ${shards} shards` : ''} · ${mmss(left)}` : `${w.name} in ${left > 3600 ? '1h+' : mmss(left)}`}
     </button>
   );
 }

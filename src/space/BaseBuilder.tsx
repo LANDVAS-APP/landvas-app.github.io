@@ -15,7 +15,7 @@ import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { BaseCatalog, BaseModDef, BaseModule, BaseState, PlanetPlot } from '../backend/types';
 import { invalidateGame } from '../lib/queries';
-import { cn } from '../lib/utils';
+import { cn, coverTabBar } from '../lib/utils';
 import { Button, PlayerAvatar, ResourceIcon, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
 import { createBaseScene, type BaseScene } from './base3d';
@@ -143,6 +143,8 @@ function ColourRow({ label, value, onChange, testid }: { label: string; value: s
 
 export function BaseBuilder({ world, plot, mine, onClose, onSaved }: { world: string; plot: PlanetPlot; mine: PlanetPlot[]; onClose(): void; onSaved(): void }) {
   const qc = useQueryClient();
+  // (full screen: the app's tab bar would sit on top of the module shelf)
+  useEffect(() => { coverTabBar(true); return () => coverTabBar(false); }, []);
   const cat = useQuery({ queryKey: ['base-catalog'], queryFn: api.baseCatalog });
   const [layout, setLayoutRaw] = useState<BaseModule[]>(() => (plot.base?.layout ?? []).map((m) => ({ ...m })));
   const [rev, setRev] = useState(plot.base?.rev ?? 0);
@@ -550,6 +552,7 @@ function Research({ cat }: { cat: BaseCatalog }) {
 /** Looking round someone's base, in 3D (they hear you dropped by). */
 export function BaseVisit({ world, gx, gy, onClose }: { world: string; gx: number; gy: number; onClose(): void }) {
   const q = useQuery({ queryKey: ['base-view', world, gx, gy], queryFn: () => api.baseView(world, gx, gy) });
+  useEffect(() => { coverTabBar(true); return () => coverTabBar(false); }, []);
   const v = q.data;
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 flex flex-col bg-[#0B0E24] text-white" data-testid="base-visit">

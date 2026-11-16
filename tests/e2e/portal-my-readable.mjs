@@ -50,8 +50,8 @@ try {
   await as(id, 'complete_onboarding', { p_username: 'maya_plots', p_accept_terms_version: terms });
   // plots of three types (one shiny), the collection bonus switched on, an enchantment with stats, an egg
   await c.query(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at, shiny) values
-    (793536, 1576240, 'clay', 'common', $1, now(), false), (793537, 1576240, 'fresco', 'rare', $1, now(), true),
-    (793538, 1576240, 'graphite', 'common', $1, now(), false), (793539, 1576240, 'clay', 'epic', $1, now(), false)`, [id]);
+    (793536, 1576240, 'stencil', 'common', $1, now(), false), (793537, 1576240, 'fresco', 'rare', $1, now(), true),
+    (793538, 1576240, 'graphite', 'common', $1, now(), false), (793539, 1576240, 'stencil', 'epic', $1, now(), false)`, [id]);
   await c.query(`update world_plots set shiny = true where gx = 793537 and gy = 1576240`); // claims roll their own shine
   await c.query(`update game_config set value = value || '{"enabled": true, "tiers": [{"types": 3, "pct": 5}, {"types": 8, "pct": 25}]}'::jsonb where key = 'collection'`);
   await c.query(`insert into enchantments (gx, gy, owner_id, kind, serial, sigil, nickname, level, xp, state, stats, titles, born_place, first_owner)
@@ -92,7 +92,7 @@ try {
     const col = await page.locator('section', { has: page.locator('[data-testid=plot-type-album]') }).innerText();
     await page.waitForSelector('text=Achievements', { timeout: 30000 }); await page.waitForTimeout(800);
     check(`${label}: collection bonuses show the tiers in words`, /Collection bonuses/.test(col) && /\+5% on all your rent/.test(col) && /Own 3 different plot types/.test(col) && /unlocked/.test(col), col.slice(0, 200).replace(/\n/g, ' | '));
-    check(`${label}: the album shows owned plot types`, /2 owned/.test(await page.locator('[data-testid=plot-type-clay]').innerText()) && /Not yet/.test(await page.locator('[data-testid=plot-type-glass]').innerText().catch(() => 'Not yet')));
+    check(`${label}: the album shows owned plot types`, /2 owned/.test(await page.locator('[data-testid=plot-type-stencil]').innerText()) && /Not yet/.test(await page.locator('[data-testid=plot-type-glass]').innerText().catch(() => 'Not yet')));
     check(`${label}: rarity cards count shiny plots`, /1 shiny/.test(await main()));
     await noCode('Collection');
     await shot('01-collection');

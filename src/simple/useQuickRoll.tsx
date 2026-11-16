@@ -1,5 +1,6 @@
 // Roll a plot from anywhere (simple mode's big button, a streak ticket, a Hot Zone roll): the full-screen ink roll
 // starts at once, the server picks the plot, and the roll lands on what it rolled.
+import { AscendOffer, useAscend } from '../roll/Ascend';
 import { kindInfo } from '../enchant/kinds';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -44,9 +45,9 @@ export function useQuickRoll() {
     setState({ open: true, result: null, opts, luck: luckBefore, n });
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
-      setState({ open: true, opts, luck: luckBefore, n, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null } });
+      setState({ open: true, opts, luck: luckBefore, n, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: r.godroll ?? null, choiceEnchants: r.choice_enchants ?? null } });
       // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
-      settle.current = () => { celebrate(r.achievements); refresh(); };
+      settle.current = () => { celebrate(r.achievements); refresh(); if (opts.ticket) void qc.invalidateQueries({ queryKey: ['my-roll-tickets'] }); };
     } catch (e) {
       setState({ open: false, result: null, opts: {} });
       toast.error(toGameError(e).message);
@@ -54,19 +55,20 @@ export function useQuickRoll() {
   };
 
   // (tests and dev: show the roll for any rarity, without buying anything)
-  if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false, choices: RarityId[] | null = null, choiceTypes: string[] | null = null, choiceShiny: boolean[] | null = null, enchant: string | null = null) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (config.e2e || import.meta.env.DEV) (window as any).__landvasRollDemo = (rarity: RarityId, shiny = false, choices: RarityId[] | null = null, choiceTypes: string[] | null = null, choiceShiny: boolean[] | null = null, enchant: string | null = null, godroll: 'echo' | 'pantheon' | null = null) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const n = ++rollNo.current;
     setState({ open: true, result: null, opts: {}, n });
     // (an enchant kind turns the demo into an Enchanted roll: the drum changes mid-spin)
     const e = enchant ? { id: 'demo', kind: enchant, serial: 7, sigil: 424242, nickname: null, level: 1, gx: 0, gy: 0, titles: [], born_place: 'Salt Lake City', born_at: new Date().toISOString(), minted: 7, population: 7, name: kindInfo(enchant).name, emoji: kindInfo(enchant).emoji } : undefined;
-    setTimeout(() => setState({ open: true, opts: {}, n, result: { rarity: e ? 'enchanted' : rarity, usd: 0.00000001, type: 'pigment', first: false, shiny: e ? false : shiny, choices, choiceTypes, choiceShiny, enchant: e } }), 300);
+    setTimeout(() => setState({ open: true, opts: {}, n, result: { rarity: e ? 'enchanted' : rarity, usd: 0.00000001, type: 'pigment', first: false, shiny: e ? false : shiny, choices, choiceTypes, choiceShiny, enchant: e, godroll } }), 300);
   };
   const element = (
     <InkRoll open={state.open} rollKey={state.n ?? 0} result={state.result} onClose={() => { settleNow(); setState({ open: false, result: null, opts: {} }); }}
       onRevealed={() => setTimeout(settleNow, 1600)}
       luck={state.luck}
-      onPick={state.at ? async (i) => { const p = await api.luckPick(state.at!.gx, state.at!.gy, i); celebrate(p.achievements); } : undefined}
+      onPick={state.at ? async (i) => { const p = await api.luckPick(state.at!.gx, state.at!.gy, i); celebrate(p.achievements); void qc.invalidateQueries({ queryKey: ['ascend'] }); } : undefined}
       onAgain={() => { const hot = state.opts.hot; settleNow(); setState({ open: false, result: null, opts: {} }); setTimeout(() => void roll({ hot }), 260); }}
+      extra={state.at && state.result ? <AscendOffer gx={state.at.gx} gy={state.at.gy} className="mb-2.5" onOpen={() => { const at = state.at!; settleNow(); setState({ open: false, result: null, opts: {} }); setTimeout(() => useAscend.getState().open(at.gx, at.gy), 200); }} /> : null}
       canAgain={state.opts.hot ? free || ink >= 150 : canBuy} againLabel={free ? 'Roll again · free' : `Roll again · ${fmt(state.opts.hot ? 150 : cost)} Ink`} />
   );
   return { roll, element, canBuy, cost, free, quote };

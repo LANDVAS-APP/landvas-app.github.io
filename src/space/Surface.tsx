@@ -122,7 +122,9 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   // build the world once, when its map size is known — nothing else rebuilds it
   const rows = map.data?.rows;
   const canBuild = canPlots ? rows != null || map.isError : true;
-  const builtRows = rows ?? 16;
+  // (an uncharted world has no map to ask for: it's drawn at a far-off world's real size — 900 rows, as the server
+  // makes it once it's settled — not as a 16-row pebble 300 m round, where everything on it was giant)
+  const builtRows = rows ?? 900;
   const latest = useRef({ taken, collect, grab: (_i: number) => {}, find: (_k: FindKind, _i: number) => {} }); latest.current = { taken, collect, grab: (i: number) => void grab(i), find: latest.current.find };
   useEffect(() => {
     if (!canBuild || !cv.current) return;

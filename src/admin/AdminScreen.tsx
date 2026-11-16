@@ -18,6 +18,7 @@ import { GAME_IDS } from '../shared/minigames/types';
 import { SupportAdmin, UpdatesAdmin } from './UpdatesSupportAdmin';
 import { IntegrityAdmin } from './IntegrityAdmin';
 import { AllRollGrants, RollGrants } from './RollGrants';
+import { PlayerGifts } from './PlayerGifts';
 import { PlayerPlots } from './PlayerPlots';
 import { InkPacing } from './InkPacing';
 import { BonusRulesEditor, PlayerMinigameStats, PvpSettings } from './PvpAdmin';
@@ -386,6 +387,7 @@ export function PlayerDetail({ id }: { id: string }) {
             <Button size="sm" disabled={!Number(adj.delta)} onClick={() => run(() => adj.resource === 'usd' ? api.admin.adjustRent(id, Number(adj.delta), adj.reason) : api.admin.adjustBalance(id, adj.resource, Math.trunc(Number(adj.delta)), adj.reason), 'Balance adjusted', () => { setAdj({ ...adj, delta: '' }); refetch(); })}>Apply</Button>
           </div>
           <RollGrants playerId={id} />
+          <PlayerGifts playerId={id} />
           <PlayerPlots playerId={id} username={pr.username} />
           <input className={cn(inputCls, 'mt-1 h-9 border-[#FF3D6E]/60')} maxLength={240} placeholder="Why (shown to them, on the live feed and under Social → Banned) — e.g. self-referring with alt accounts" value={announce} onChange={(e) => setAnnounce(e.target.value)} data-testid="player-announce" />
           <div className="mt-1 flex flex-wrap gap-2">

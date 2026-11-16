@@ -16,7 +16,7 @@ import { Button, Dialog, GameDisc } from '../ui';
 import { useFly } from '../travel/Fly';
 import { cn } from '../lib/utils';
 import { GRID_SIZE } from '../shared/grid';
-import { endsIn, hotCenter, useHotZone } from './HotZone';
+import { HotZoneTrivia, endsIn, hotCenter, useHotZone, useInHotZone } from './HotZone';
 
 const SRC = 'lv-hot';
 function circle(z: { gx: number; gy: number; radius: number }): GeoJSON.Feature {
@@ -89,13 +89,16 @@ export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(
   const q = useHotZone();
   const [open, setOpen] = useState(false);
   const fly = useFly();
+  const inside = useInHotZone();
   const z = q.data?.today;
   if (!z) return null;
   return (
     <>
-      <button className={cn('pointer-events-auto lv-hud !h-9 gap-1.5 !rounded-full !px-3 text-[12px] font-extrabold', className)} data-testid="hot-zone-chip"
-        onClick={() => setOpen(true)} title={`Today’s Hot Zone: better rarities in ${z.name}`}>
-        <span className="animate-pulse">🔥</span><span className="max-w-[110px] truncate">{z.name}</span><span className="text-white/50">· {endsIn(q.data!.ends_at)}</span>
+      <button className={cn('pointer-events-auto lv-hud !h-9 gap-1.5 !rounded-full !px-3 text-[12px] font-extrabold', inside && 'lv-hotbadge', className)} data-testid="hot-zone-chip"
+        onClick={() => setOpen(true)} title={inside ? `You’re in today’s Hot Zone (${z.name}) — plots here roll better` : `Today’s Hot Zone: better rarities in ${z.name}`}>
+        <span className="animate-pulse">🔥</span>
+        {inside && <span className="rounded-full bg-white/25 px-1.5 text-[10px] font-black" data-testid="hot-zone-inside">YOU’RE IN</span>}
+        <span className="max-w-[110px] truncate">{z.name}</span><span className={inside ? 'text-white/80' : 'text-white/50'}>· {endsIn(q.data!.ends_at)}</span>
       </button>
       <Dialog open={open} onOpenChange={setOpen} title={`🔥 Hot Zone: ${z.name}`} description={`Today only — ${endsIn(q.data!.ends_at)} left. Plots claimed here roll better.`}>
         <div className="grid gap-3" data-testid="hot-zone-sheet">
@@ -113,6 +116,8 @@ export function HotZoneChip({ className, onRoll }: { className?: string; onRoll(
             </div>
             <p className="text-[11px] text-muted">✈️ Flying uses 1 of your 2 trips today; once you land, claim any plot around you at the normal price. 🎲 A roll drops you a random plot in the zone for {q.data!.roll_ink ?? 150} Ink — no trip needed.</p>
           </div>
+          {inside && <p className="rounded-xl bg-[#FF6A1F]/15 px-3 py-2 text-xs font-bold text-[#FFB27A]" data-testid="hot-zone-inside-note">🔥 You’re standing in the Hot Zone — every plot you claim around you gets the boost.</p>}
+          <HotZoneTrivia />
           {q.data!.tomorrow && <p className="text-xs text-muted">Tomorrow’s Hot Zone: {q.data!.tomorrow.name}</p>}
         </div>
       </Dialog>
@@ -126,12 +131,16 @@ export function HotZoneDisc() {
   const open = useHudCard((s) => s.card === 'hot');
   const toggle = useHudCard((s) => s.toggle);
   const onToggle = () => toggle('hot');
+  const inside = useInHotZone();
   if (!q.data?.today) return null;
   return (
-    <GameDisc tone="ember" size={44} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
-      aria-label={`Hot Zone: ${q.data.today.name}`} data-testid="hot-zone-chip">
-      <OrbGlyph kind="flame" on={open} size={21} />
-    </GameDisc>
+    <span className="relative inline-flex">
+      <GameDisc tone="ember" size={44} on={open} onClick={() => { buzz('light'); onToggle(); }} aria-expanded={open}
+        aria-label={inside ? `You’re in the Hot Zone: ${q.data.today.name}` : `Hot Zone: ${q.data.today.name}`} data-testid="hot-zone-chip">
+        <OrbGlyph kind="flame" on={open} size={21} />
+      </GameDisc>
+      {inside && <span className="lv-hotbadge pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 text-[9px] font-black leading-[14px]" data-testid="hot-zone-inside">IN</span>}
+    </span>
   );
 }
 
@@ -140,6 +149,7 @@ export function HotZonePanel({ onClose, onRoll }: { onClose(): void; onRoll(): v
   const open = true;
   const q = useHotZone();
   const fly = useFly();
+  const inside = useInHotZone();
   const crowd = useQuery({ queryKey: ['hot-zone-crowd'], queryFn: api.hotZoneCrowd, enabled: open && !!q.data?.today, refetchInterval: open ? 60_000 : false, staleTime: 30_000 });
   const z = q.data?.today;
   return (
@@ -172,6 +182,8 @@ export function HotZonePanel({ onClose, onRoll }: { onClose(): void; onRoll(): v
               <button className="lv-mcta" onClick={() => { onClose(); flyToHotZone(z); }} data-testid="hot-zone-look">👀 Look</button>
             </div>
           </div>
+          {inside && <div className="mt-2.5 rounded-xl bg-[#FF6A1F]/20 px-3 py-1.5 text-[11px] font-black text-[#FFB27A]" data-testid="hot-zone-inside-note">🔥 You’re in the zone — claim around you for the boost</div>}
+          <HotZoneTrivia compact />
           {q.data!.tomorrow && <div className="mt-2.5 text-[11px] font-semibold text-white/50">Tomorrow: {q.data!.tomorrow.name}</div>}
         </motion.div>
       )}

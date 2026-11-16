@@ -62,10 +62,14 @@ function BusinessView({ b }: { b: Business }) {
   const reduce = useUi((s) => s.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);
   const street = useRef<StreetScene | null>(null);
+  // (the street is made after the panels below first run their effects — this tells them it's there, so every venture
+  // you own is put on it straight away, not only after the next purchase)
+  const [scene, setScene] = useState(0);
   useEffect(() => {
     const c = cv.current; if (!c) return;
     const sc = createStreet({ canvas: c, seed: b.seed, reduceMotion: reduce });
     street.current = sc;
+    setScene((n) => n + 1);
     if (import.meta.env.DEV || config.e2e) (window as any).__landvasStreet = sc;
     return () => { sc.dispose(); street.current = null; };
   }, [b.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,7 +85,7 @@ function BusinessView({ b }: { b: Business }) {
           </div>
         )}
       </div>
-      {b.mine && b.state ? <Tycoon b={b} street={street} /> : <Visitor b={b} street={street} />}
+      {b.mine && b.state ? <Tycoon b={b} street={street} scene={scene} /> : <Visitor b={b} street={street} scene={scene} />}
     </div>
   );
 }
@@ -89,7 +93,7 @@ function BusinessView({ b }: { b: Business }) {
 // ======================================================================================================
 // The owner's tycoon
 // ======================================================================================================
-function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<StreetScene | null> }) {
+function Tycoon({ b, street, scene }: { b: Business; street: React.MutableRefObject<StreetScene | null>; scene: number }) {
   // a business on more merged plots has more of its games open
   const access = usePlaceAccess('business', b.id).data;
   const qc = useQueryClient();
@@ -119,8 +123,8 @@ function Tycoon({ b, street }: { b: Business; street: React.MutableRefObject<Str
     setS(r);
     qc.setQueryData(bizKey(b.id), (old: Business | undefined) => old && { ...old, state: r, away: null });
   }, [b.id, qc]);
-  useEffect(() => { street.current?.setVentures(Object.fromEntries(s.ventures.map((v) => [v.key, v.owned])), s.income); }, [s.ventures, s.income, street]);
-  useEffect(() => { street.current?.setFrenzy(!!buffOn && buffOn.kind === 'frenzy'); }, [buffOn, street]);
+  useEffect(() => { street.current?.setVentures(Object.fromEntries(s.ventures.map((v) => [v.key, v.owned])), s.income); }, [s.ventures, s.income, street, scene]);
+  useEffect(() => { street.current?.setFrenzy(!!buffOn && buffOn.kind === 'frenzy'); }, [buffOn, street, scene]);
   useEffect(() => { if (away && away.earned > 0) confettiCannons(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // bank taps every couple of seconds (and check in now and then anyway)
@@ -412,13 +416,13 @@ function LiveCash({ calc, ...rest }: { calc(): number; 'data-testid'?: string })
 // ======================================================================================================
 // Visiting someone's business
 // ======================================================================================================
-function Visitor({ b, street }: { b: Business; street: React.MutableRefObject<StreetScene | null> }) {
+function Visitor({ b, street, scene }: { b: Business; street: React.MutableRefObject<StreetScene | null>; scene: number }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [tipped, setTipped] = useState(!!b.tipped_today);
   const p = b.public!;
   const rank = rankOf(p.alltime);
-  useEffect(() => { street.current?.setVentures(p.ventures, p.income); }, [p, street]);
+  useEffect(() => { street.current?.setVentures(p.ventures, p.income); }, [p, street, scene]);
   const tip = async () => {
     setBusy(true);
     try { const r = await api.bizTip(b.id); setTipped(true); confettiCannons(); street.current?.tap(); toast.success(`🍋 Bought a lemonade! +${r.paid} Ink`, { description: `@${b.owner.username} gets a rush of ${money(r.owner_cash)}.` }); invalidateGame(qc); }

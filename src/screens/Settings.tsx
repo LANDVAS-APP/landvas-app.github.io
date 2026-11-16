@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Satellite, Shield, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -17,6 +17,9 @@ import { replayTour } from '../tour/Tour';
 import { NavCustomizer } from '../app/NavCustomizer';
 import { isNative } from '../native/native';
 import { remindersOn, remindersSupported, setReminders } from '../native/reminders';
+import { NOTIFY_KINDS, kindOn, notifyOn, notifyPermission, notifySupported, setNotify } from '../native/notify';
+import { BOLD_COLORS, COLOR_SYMBOLS } from '../play/palette';
+import { MURAL_COLORS } from '../shared/minigames/memorymural';
 import { NATIVE_APP } from '../app/buildFlags';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -59,6 +62,28 @@ export default function Settings() {
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />
           <Switch id="haptics" label="Haptic feedback" hint="Vibration on supported phones" checked={settings.haptics} onCheckedChange={(v) => update({ haptics: v })} />
         </Section>
+
+        <Section title="Minigames">
+          <Switch id="bold-colors" label="Bold, easy-to-tell-apart colours" hint="Paint colours that stand apart — red and pink, orange and yellow look nothing alike. Off: the classic softer colours."
+            checked={settings.boldColors !== false} onCheckedChange={(v) => update({ boldColors: v })} />
+          <div className="flex flex-wrap gap-1.5" aria-hidden data-testid="color-sample">
+            {(settings.boldColors !== false ? BOLD_COLORS : MURAL_COLORS).slice(1, 8).map((c, i) => (
+              <span key={c} className="grid h-8 w-8 place-items-center rounded-lg text-sm font-black" style={{ background: c, color: i === 2 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)' }}>{settings.colorSymbols ? COLOR_SYMBOLS[i + 1] : null}</span>
+            ))}
+          </div>
+          <Switch id="color-symbols" label="A symbol on every colour" hint="● ▲ ■ ◆ ✚ ★ ♥ — tell colours apart by shape too (great for colour blindness)."
+            checked={!!settings.colorSymbols} onCheckedChange={(v) => update({ colorSymbols: v })} />
+          <Switch id="big-boards" label="Bigger game boards" hint="Boards fill more of the screen (you may scroll a little more)."
+            checked={!!settings.bigBoards} onCheckedChange={(v) => update({ bigBoards: v })} />
+          <Switch id="glossy" label="Shiny paint blobs" hint="Glossy, reflective blobs in Paint Pop and Block Splash. Off: calmer, matte paint."
+            checked={!!settings.glossyBlobs} onCheckedChange={(v) => update({ glossyBlobs: v })} />
+        </Section>
+
+        {me && notifySupported() && (
+          <Section title="Notifications">
+            <NotifySettings />
+          </Section>
+        )}
 
         <Section title="Phone navigation">
           <NavCustomizer />
@@ -264,4 +289,28 @@ function RemindersSwitch() {
   const [on, setOn] = useState(remindersOn());
   return <Switch id="reminders" label="Streak reminders" hint="One nudge a day when your next daily reward is ready — never after you’ve claimed it."
     checked={on} onCheckedChange={async (v) => setOn(await setReminders(v))} />;
+}
+
+/** the reminders: one switch to allow them, then one per kind */
+function NotifySettings() {
+  const settings = useUi((s) => s.settings);
+  const update = useUi((s) => s.updateSettings);
+  const [on, setOn] = useState(notifyOn());
+  const [perm, setPerm] = useState<string>('prompt');
+  useEffect(() => { void notifyPermission().then(setPerm); }, [on]);
+  return (
+    <>
+      <Switch id="notify" label="Reminders"
+        hint={isNative() ? 'Your phone tells you when things are ready — even with LANDVAS closed.' : perm === 'denied' ? 'Your browser blocks notifications for LANDVAS — you’ll get pop-ups here while it’s open. Allow them in the site settings for system notifications.' : 'While LANDVAS is open in a tab (even in the background), you get a notification when things are ready.'}
+        checked={on} onCheckedChange={async (v) => setOn(await setNotify(v))} />
+      {on && (
+        <div className="grid gap-3 border-l-2 border-line pl-3" data-testid="notify-kinds">
+          {NOTIFY_KINDS.map((k) => (
+            <Switch key={k.id} id={`notify-${k.id}`} label={k.label} hint={k.hint} checked={kindOn(k.id)}
+              onCheckedChange={(v) => update({ notify: { ...(settings.notify ?? {}), [k.id]: v } })} />
+          ))}
+        </div>
+      )}
+    </>
+  );
 }

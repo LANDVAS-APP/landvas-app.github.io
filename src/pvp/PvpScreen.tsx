@@ -154,7 +154,9 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
         {(c.bonuses ?? []).map((b, i) => <span key={i} className="rounded-full bg-gold/15 px-2 py-0.5 text-gold">{bonusText(b)}</span>)}
         {c.waiting > 0
           ? <span className="flex items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-ok"><Users className="h-3 w-3" /> {c.waiting === 1 ? 'a rival is' : `${fmt(c.waiting)} rivals are`} waiting</span>
-          : <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">be the first — a rival takes you on later</span>}
+          : (c.waiting_all ?? 0) > 0
+            ? <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted" title="You can’t face the same rival twice in a day">{fmt(c.waiting_all!)} waiting are rivals you already played today — start a match and a new rival takes you on</span>
+            : <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">be the first — a rival takes you on later</span>}
       </div>
       {APP ? (
         <details className="lv-howto">

@@ -89,10 +89,10 @@ describe('Ink Flow', () => {
   });
   it('a paced minigame win shows exactly what landed in the balance (uncapped: no paid-run limit)', async () => {
     await db.rpc(p, 'claim_starter_plot', { p_gx: A.gx, p_gy: A.gy });
-    await db.sql(`update world_plots set plot_type = 'clay', rarity = 'common', level = 1 where gx = $1 and gy = $2`, [A.gx, A.gy]);
+    await db.sql(`update world_plots set plot_type = 'stencil', rarity = 'common', level = 1 where gx = $1 and gy = $2`, [A.gx, A.gy]);
     await reset(p, { heat: 400 });
     const b = await bal(p);
-    const s = await db.rpc(p, 'start_minigame', { p_game: 'sculptor', p_level: 1, p_gx: A.gx, p_gy: A.gy });
+    const s = await db.rpc(p, 'start_minigame', { p_game: 'blocksplash', p_level: 1, p_gx: A.gx, p_gy: A.gy });
     const res = await db.rpc({ role: 'service_role' }, 'svc_finish_minigame', { p_session_id: s.session_id,
       p_result: { valid: true, passed: true, score: 400, stars: 3, flags: [], suspicious: false, min_duration_ms: 0, rounds_passed: s.rounds, rounds_total: s.rounds } });
     expect(res.passed).toBe(true); expect(res.rewards.unlimited).toBe(true); expect(res.rewards.rewarded_left).toBeNull();

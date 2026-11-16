@@ -1,5 +1,6 @@
 // A business game: the intro, a 3-2-1, the game, then your score, Ink and the cash it made.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { backTo } from '../app/backTo';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -30,7 +31,7 @@ export default function BusinessGame() {
   useEffect(() => { setPhase({ k: 'intro' }); }, [game]);
   const info = f.data?.games[game!];
   const Arena = BIZ_ARENAS[game!];
-  const back = () => nav(`/business/${id}`);
+  const back = () => backTo(nav, `/business/${id}`);
   const start = async () => {
     setBusy(true);
     try { const r = await api.bizGameStart(id!, game!); setPhase({ k: 'count', n: 3, session: r.session, seed: r.seed, seconds: r.seconds }); }

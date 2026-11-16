@@ -35,3 +35,10 @@ export async function sha256Hex(bytes: ArrayBuffer) {
   const d = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+/** while `on`, full-screen panels hide the app's tab bar (counted, so nested panels don't show it too early) */
+let coverN = 0;
+export function coverTabBar(on: boolean) {
+  coverN = Math.max(0, coverN + (on ? 1 : -1));
+  document.documentElement.classList.toggle('lv-cover', coverN > 0);
+}

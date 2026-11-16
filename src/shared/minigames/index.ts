@@ -5,7 +5,7 @@ import { validateLightLines, type LightLinesLog } from './lightlines';
 import { validateMemoryMural } from './memorymural';
 import { validateMirrorline } from './mirrorline';
 import { validatePaintPop, type PaintPopLog } from './paintpop';
-import { validateSculptor } from './sculptor';
+import { validateBlockSplash } from './blocksplash';
 import { validateTraceCraft, type TraceCraftLog } from './tracecraft';
 import { invalid, type GameId, type ValidationResult } from './types';
 
@@ -14,10 +14,10 @@ export * from './types';
 export type AnyLog = TraceCraftLog | ColorBurstLog | PaintPopLog | LightLinesLog | BoardsLog;
 
 /** Games whose level is a sequence of independent boards (one per round). */
-export const BOARD_GAMES: GameId[] = ['paintpop', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
+export const BOARD_GAMES: GameId[] = ['paintpop', 'lightlines', 'memorymural', 'blocksplash', 'rollermural', 'mirrorline'];
 const ONE: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
   paintpop: validatePaintPop, lightlines: validateLightLines, memorymural: validateMemoryMural,
-  sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
+  blocksplash: validateBlockSplash, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 
 /**
@@ -84,12 +84,12 @@ export const GAME_INFO: Record<GameId, { name: string; plotType: string; tagline
       'Get close enough to the original to clear the round. A perfect copy earns three stars.',
     ],
   },
-  sculptor: {
-    name: 'Sculptor', plotType: 'clay', tagline: 'Stretch the funny face back into shape.',
+  blocksplash: {
+    name: 'Block Splash', plotType: 'stencil', tagline: 'Fit the stencils. Splash the lines.',
     howTo: [
-      'A clay face has been squashed out of shape. Its portrait is in the gold frame.',
-      'Grab an eye, the nose, the mouth, the chin or an ear and pull it back where it belongs. On later levels the clay is stretchy — nearby features get dragged along too.',
-      'Press Done when it matches. The closer every feature is to the portrait, the higher the score.',
+      'Drag a paint stencil from the tray onto the canvas (or tap a stencil, then tap where it goes).',
+      'Fill a whole row or column and it splashes away. Two lines at once pays double, and splashing again within three drops builds a combo.',
+      'Clear the round’s lines before the stencils stop fitting or the clock runs out. Gold paint pays a bonus when its line splashes.',
     ],
   },
   rollermural: {

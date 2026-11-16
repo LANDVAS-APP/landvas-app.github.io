@@ -1,4 +1,6 @@
 import { getBackend } from '../backend/backend';
+import { AscendHost } from '../roll/Ascend';
+import { useTimerNotifications } from '../native/notify';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile, PartyPopper } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -150,6 +152,8 @@ export function Shell() {
   useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // the app: the daily streak reminder stays in step with the streak (only if the player turned reminders on)
   useStreakReminder(!!me);
+  // optional reminders: energy full, crops ready, expeditions home… (Settings → Notifications)
+  useTimerNotifications(!!me);
   const online = useOnline();
   // a tab lights up for its own page, or for its section unless another tab is that page
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));
@@ -207,6 +211,7 @@ export function Shell() {
         )}
       </main>
       <AnnouncementPopup />
+      <AscendHost />
       {NATIVE && me && <MergeStudio />}
       <Tour />
       {NATIVE ? <GameTabBar away={deep && !isMap} tabs={gameTabs} simple={simple} active={(to) => (simple ? under(loc.pathname, to) : hubActive(to))} badge={badge} meActive={sec?.to === '/me'} /> : <nav className="lv-game fixed inset-x-0 bottom-0 z-40 flex justify-around rounded-t-[26px] border-t-[1.5px] border-white/15 bg-[linear-gradient(180deg,rgba(24,30,78,0.97),rgba(10,13,38,0.98))] px-1 pb-[env(safe-area-inset-bottom,0px)] pt-1 text-white shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.8)] md:hidden" aria-label="Main">

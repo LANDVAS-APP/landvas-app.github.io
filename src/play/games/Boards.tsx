@@ -9,14 +9,14 @@ import { validateLightLines } from '../../shared/minigames/lightlines';
 import { validateMemoryMural } from '../../shared/minigames/memorymural';
 import { validateMirrorline } from '../../shared/minigames/mirrorline';
 import { validatePaintPop } from '../../shared/minigames/paintpop';
-import { validateSculptor } from '../../shared/minigames/sculptor';
+import { validateBlockSplash } from '../../shared/minigames/blocksplash';
 import { roundsToPass, type GameId, type ValidationResult } from '../../shared/minigames/types';
 import { cn, sleep } from '../../lib/utils';
 import type { GameProps } from '../common';
 
 const CHECK: Partial<Record<GameId, (seed: number, level: number, log: any) => ValidationResult>> = {
   paintpop: validatePaintPop, lightlines: validateLightLines, memorymural: validateMemoryMural,
-  sculptor: validateSculptor, rollermural: validateRollerMural, mirrorline: validateMirrorline,
+  blocksplash: validateBlockSplash, rollermural: validateRollerMural, mirrorline: validateMirrorline,
 };
 
 export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement | null) {

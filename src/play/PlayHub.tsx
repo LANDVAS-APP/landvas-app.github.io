@@ -15,7 +15,7 @@ import { activeBoost, bonusText, boostLeft, fullClearInk } from './rates';
 import { Zap } from 'lucide-react';
 
 export const ORDER: { game: GameId; type: keyof typeof PLOT_TYPES }[] = (
-  ['lightlines', 'paintpop', 'colorburst', 'tracecraft', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'] as GameId[]
+  ['lightlines', 'paintpop', 'colorburst', 'tracecraft', 'memorymural', 'blocksplash', 'rollermural', 'mirrorline'] as GameId[]
 ).map((game) => ({ game, type: GAME_INFO[game].plotType as keyof typeof PLOT_TYPES }));
 
 /** Your plots' minigames: one card per game, boosted ones first. */

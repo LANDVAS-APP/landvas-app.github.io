@@ -1,4 +1,6 @@
 import { plotBlocks } from '../map/WorldMap';
+import { HotZoneBadge, HotZoneBuyNote } from '../daily/HotZone';
+import { AscendOffer } from '../roll/Ascend';
 import { TravelPlotCard, useTravelUi } from '../travel/Travel';
 import { HouseCard, LandlordCard } from '../residential/ResidentialCard';
 import { WalletDialog } from '../rent/RentHud';
@@ -85,6 +87,7 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
         <div className="min-w-0 flex-1">
           <div className={cn('flex flex-wrap items-center gap-2', NATIVE && d?.owned && 'hidden')}>
             {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
+            {d && !d.owned && <HotZoneBadge gx={selected.gx} gy={selected.gy} />}
             {(d?.owned || d?.type_info) && <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>}
           </div>
           <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || (d && !d.owned ? 'Unclaimed land' : <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>)}</h2>
@@ -278,7 +281,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         const hab = await becomeHabitat(r.group_id);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
@@ -288,7 +291,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null,
+          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null,
           onDone: mineAdjacent.length && !NATIVE ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }
@@ -341,6 +344,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const label = SUBS[kind] ? `${opt.title} · ${SUBS[kind]!.title}` : opt.title;
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3" data-testid="plot-buy">
+      {!unavailable && <HotZoneBuyNote gx={d.gx} gy={d.gy} />}
       {affordable && !unavailable && <TypePicker opts={KIND_OPTS} subs={SUBS} kind={kind} onPick={pickKind} />}
       {affordable && !unavailable && naming && (
         <input autoFocus className="lv-cpv-name" maxLength={32} placeholder="Plot name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
@@ -533,6 +537,7 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const [typing, setTyping] = useState(false);
   return (
     <div className="grid gap-3">
+      <AscendOffer gx={d.gx} gy={d.gy} />
       {wallet && <WalletDialog open onOpenChange={setWallet} />}
       {typing && d.group && <PlotKindDialog g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: 'base' }} open onOpenChange={setTyping} />}
       {myGroup && k === 'home' && <HouseCard group={myGroup} />}

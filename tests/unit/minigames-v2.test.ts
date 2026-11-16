@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { roundSeed, type BoardsLog } from '../../src/shared/minigames/boards';
 import { validateMinigame } from '../../src/shared/minigames';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
-import { closeness, generateSculptor, sculpt } from '../../src/shared/minigames/sculptor';
+import { generateBlockSplash, solveBlockSplash, fits, initialState } from '../../src/shared/minigames/blocksplash';
 import { generateRollerMural, rollGrid, solveRoller } from '../../src/shared/minigames/rollermural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
 import { solvePaintPop } from '../../src/shared/minigames/paintpop';
@@ -18,12 +18,10 @@ function muralLog(seed: number, level: number, correct = true) {
   const paints = L.target.map((c, i) => ({ t: (t += 120), i, c: correct ? c : L.colors[(L.colors.indexOf(c) + 1) % L.colors.length] }));
   return { paints, done_t: t + 300 };
 }
-function sculptLog(seed: number, level: number) {
-  const L = generateSculptor(seed, level);
-  let r = L.start, t = 0;
-  const moves: { t: number; v: number; x: number; y: number }[] = [];
-  for (let pass = 0; pass < 8; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.weights, v, L.target[v][0], L.target[v][1]); moves.push({ t: (t += 60), v, x: L.target[v][0], y: L.target[v][1] }); }
-  return { log: { moves, done_t: t + 200 }, match: closeness(r, L.target) };
+function splashLog(seed: number, level: number) {
+  const L = generateBlockSplash(seed, level);
+  let t = 0;
+  return { moves: solveBlockSplash(L).map((m) => ({ ...m, t: (t += 420) })), done_t: t + 300 };
 }
 function rollerLog(seed: number, level: number) {
   const L = generateRollerMural(seed, level);
@@ -55,15 +53,32 @@ describe('art minigames', () => {
     expect(validateMinigame('memorymural', SEED, 1, cheat, 5).reason).toBe('painted_during_preview');
   });
 
-  it('Sculptor: pulling the clay to the target outline passes', () => {
-    for (const level of [1, 8, 18]) {
-      const one = sculptLog(roundSeed(SEED, 0), level);
-      expect(one.match).toBeGreaterThan(0.95);
-      const v = validateMinigame('sculptor', SEED, level, boards(5, (s) => sculptLog(s, level).log), 5);
+  it('Block Splash: every round has a winning line; a stencil dropped where it can\'t fit is illegal; giving up fails', () => {
+    for (const level of [1, 4, 9, 18, 33, 60]) {
+      for (let k = 0; k < 8; k++) {
+        const L = generateBlockSplash(SEED + k * 97, level);
+        expect(L.pieces.length).toBeGreaterThanOrEqual(30);
+        // the starting canvas never has a full row or column, and every stencil is inside the board
+        for (let r = 0; r < L.n; r++) expect(L.start.slice(r * L.n, r * L.n + L.n).every((c) => c >= 0)).toBe(false);
+        expect(solveBlockSplash(L).length).toBeGreaterThan(0);
+      }
+      const v = validateMinigame('blocksplash', SEED, level, boards(5, (s) => splashLog(s, level)), 5);
       expect(v.valid && v.passed).toBe(true);
+      expect(v.stars).toBeGreaterThanOrEqual(1);
     }
-    const idle = validateMinigame('sculptor', SEED, 12, boards(5, () => ({ moves: [], done_t: 900 })), 5);
-    expect(idle.passed).toBe(false);
+    // overlapping a filled cell (or off the board) is refused
+    const L = generateBlockSplash(roundSeed(SEED, 0), 6);
+    const st = initialState(L);
+    const s0 = L.pieces[0];
+    let bad: { x: number; y: number } | null = null;
+    for (let y = 0; y < L.n && !bad; y++) for (let x = 0; x < L.n && !bad; x++) if (!fits(st.board, s0, x, y)) bad = { x, y };
+    const ill = boards(5, (s) => (s === roundSeed(SEED, 0) ? { moves: [{ t: 500, p: 0, ...(bad ?? { x: 9, y: 9 }) }], done_t: 900 } : splashLog(s, 6)));
+    expect(validateMinigame('blocksplash', SEED, 6, ill, 5).reason).toBe('illegal_move');
+    const idle = validateMinigame('blocksplash', SEED, 12, boards(5, () => ({ moves: [], done_t: 900 })), 5);
+    expect(idle.valid).toBe(true); expect(idle.passed).toBe(false);
+    // too fast to be a person
+    const fast = boards(5, (s) => { const L2 = generateBlockSplash(s, 3); let t = 0; return { moves: solveBlockSplash(L2).map((m) => ({ ...m, t: (t += 40) })), done_t: t + 50 }; });
+    expect(validateMinigame('blocksplash', SEED, 3, fast, 5).flags).toContain('superhuman_speed');
   });
 
   it('Roller Mural: every mural can be peeled back into strokes; a wrong colour is illegal', () => {

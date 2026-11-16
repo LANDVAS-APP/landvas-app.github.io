@@ -41,7 +41,7 @@ try {
     }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-type', 'data-phase'] });
   });
   const t0 = Date.now();
-  await page.evaluate(() => window.__landvasRollDemo('kraken', true, ['rare', 'epic', 'kraken', 'legendary'], ['pigment', 'mosaic', 'lumina', 'clay'], [false, true, true, false]));
+  await page.evaluate(() => window.__landvasRollDemo('kraken', true, ['rare', 'epic', 'kraken', 'legendary'], ['pigment', 'mosaic', 'lumina', 'stencil'], [false, true, true, false]));
   await page.waitForSelector('[data-testid=ink-roll][data-phase=spin] .lv-rr-slot', { timeout: 15000 });
   check('the classic rarity drum spins', (await page.locator('.lv-rr-slot').count()) === 7);
   await page.waitForTimeout(500); await shot('00a-drum');
@@ -50,7 +50,7 @@ try {
   await page.waitForSelector('[data-testid=roll-pick]', { timeout: 30000 });
   const quickMs = Date.now() - t0;
   await page.waitForTimeout(900); await shot('00-pick');
-  check('each roll lands with its own minigame', JSON.stringify(await page.evaluate(() => window.__tags)) === JSON.stringify(['pigment', 'mosaic', 'lumina', 'clay']), JSON.stringify(await page.evaluate(() => window.__tags)));
+  check('each roll lands with its own minigame', JSON.stringify(await page.evaluate(() => window.__tags)) === JSON.stringify(['pigment', 'mosaic', 'lumina', 'stencil']), JSON.stringify(await page.evaluate(() => window.__tags)));
   check('rerolls show their minigame', /Lumina/.test(await page.textContent('[data-testid=roll-choice-type-2]')) && /Mosaic/.test(await page.textContent('[data-testid=roll-choice-type-1]')));
   check('…and which are shiny', (await page.locator('[data-testid^=roll-choice-shiny-]').count()) === 2 && (await page.locator('[data-testid=roll-choice-shiny-1]').count()) === 1);
   check('the best suggestion is the shiny Kraken', /BEST/.test(await page.textContent('[data-testid=roll-choice-2]')));

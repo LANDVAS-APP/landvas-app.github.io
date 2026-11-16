@@ -27,7 +27,7 @@ const signedIn = () => !!getBackend().session();
 const playHref = () => (signedIn() ? '/world' : '/welcome');
 
 export { DISCORD, REDDIT };
-const GAMES: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
+const GAMES: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'blocksplash', 'rollermural', 'mirrorline'];
 const FALLBACK = ['#FF4D6D', '#FF9F1C', '#FFE14D', '#3DDC97', '#34C3FF', '#7B5CFF', '#FF4FD8', '#22C7B5'];
 
 export default function HomePage() {

@@ -323,7 +323,8 @@ export function Pinball({ seed, onEnd, haptics, mode }: ArenaProps) {
                 }
               }
               for (const f of flip) {
-                const a = f.a * f.side, ex = Math.cos(a) * FL * f.side, ey = Math.sin(a) * FL;
+                // (the right flipper mirrors the left: x flips, y doesn't — so its tip is at (−cos a, sin a), not sin(−a))
+                const ex = Math.cos(f.a) * FL * f.side, ey = Math.sin(f.a) * FL;
                 const seg: Seg = { ax: f.px, ay: f.py, bx: f.px + ex, by: f.py + ey };
                 collideSeg(b, seg, 0.3, (x, y) => { const rx = x - f.px, ry = y - f.py, w = f.w * f.side; return [-w * ry, w * rx]; });
               }
@@ -341,7 +342,7 @@ export function Pinball({ seed, onEnd, haptics, mode }: ArenaProps) {
         g.shadowBlur = 0;
         for (const b of bumpers) { b.flash = Math.max(0, b.flash - dt); glowCircle(g, b.x, b.y, b.r, b.flash > 0 ? '#FFFFFF' : multi ? '#FFD84D' : '#FF3D9A', 14); g.fillStyle = '#1A0B30'; g.beginPath(); g.arc(b.x, b.y, b.r * 0.55, 0, Math.PI * 2); g.fill(); }
         for (const tg of targets) { tg.flash = Math.max(0, tg.flash - dt); g.fillStyle = tg.lit ? '#FFE14D' : '#3A2A10'; g.shadowColor = '#FFE14D'; g.shadowBlur = tg.lit ? 14 : 0; g.fillRect(tg.x - 0.04, tg.y - 0.012, 0.08, 0.024); g.shadowBlur = 0; }
-        for (const f of flip) { const a = f.a * f.side; g.strokeStyle = '#FFE14D'; g.lineWidth = 0.03; g.shadowColor = '#FFB13D'; g.shadowBlur = 10; g.beginPath(); g.moveTo(f.px, f.py); g.lineTo(f.px + Math.cos(a) * FL * f.side, f.py + Math.sin(a) * FL); g.stroke(); g.shadowBlur = 0; }
+        for (const f of flip) { g.strokeStyle = '#FFE14D'; g.lineWidth = 0.03; g.shadowColor = '#FFB13D'; g.shadowBlur = 10; g.beginPath(); g.moveTo(f.px, f.py); g.lineTo(f.px + Math.cos(f.a) * FL * f.side, f.py + Math.sin(f.a) * FL); g.stroke(); g.shadowBlur = 0; }
         for (const b of balls) { const gr = g.createRadialGradient(b.x - BR * 0.4, b.y - BR * 0.4, BR * 0.1, b.x, b.y, BR); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#8D97B5'); g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, BR, 0, Math.PI * 2); g.fill(); }
         g.restore();
         g.font = `900 ${Math.round(scale * 0.04)}px ui-rounded, system-ui`; g.textAlign = 'center'; g.fillStyle = multi ? '#FF3D9A' : 'rgba(255,255,255,0.35)'; g.fillText(multi ? `MULTIBALL ${Math.ceil(multi)}` : 'LIGHT ALL 3 FOR MULTIBALL', ox + 0.5 * scale, oy + 0.3 * scale);

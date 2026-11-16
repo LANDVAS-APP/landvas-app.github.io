@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { useUi } from '../../lib/store';
 import { buzz } from '../../native/native';
-import { Button } from '../../ui';
+import { Button, useConfirm } from '../../ui';
 import { Sigil } from '../Sigil';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
@@ -18,6 +18,7 @@ export function ShardScene(p: SceneProps) {
   const { v, view, act, busy, at } = p;
   const glass = useRef<HTMLDivElement>(null);
   const keep = useKeepMoment();
+  const confirm = useConfirm();
   const [shatter, setShatter] = useState(false);
   const gazeIn = useLeft(view.gaze_in, at);
   const reflect = view.reflect;
@@ -40,7 +41,12 @@ export function ShardScene(p: SceneProps) {
         <div className="flex items-center gap-2.5 rounded-2xl border border-[#C0F5FF]/40 bg-[linear-gradient(90deg,rgba(192,245,255,0.15),rgba(125,211,252,0.05))] p-2.5" data-testid="shard-reflecting">
           <span className="text-2xl">🪞</span>
           <span className="grid flex-1 leading-tight"><span className="text-[13px] font-black text-[#C0F5FF]">Reflecting {reflect.owner_name ? `@${reflect.owner_name}’s` : 'a dream of a'} {k.name}</span><span className="text-[11px] text-white/60">for {dur(leftR)} · crack {view.cracks}/7</span></span>
-          <Button size="sm" variant="ghost" onClick={() => void act('release')} disabled={!!busy}>Step back</Button>
+          <Button size="sm" variant="ghost" disabled={!!busy} data-testid="shard-step-back"
+            onClick={async () => {
+              // stepping back can't be undone: the glass clouds over again before it can show another reflection
+              if (await confirm({ title: `Step back from ${reflect.owner_name ? `@${reflect.owner_name}’s` : 'this'} ${k.name}?`, danger: true, confirm: 'Step back',
+                body: <>You’ll leave this reflection now, with {dur(leftR)} of it left. The glass clouds over again and you’ll have to wait before you can step into another one.</> })) void act('release');
+            }}>Step back</Button>
         </div>
         <div className="relative rounded-[30px] p-[3px]" style={{ background: 'linear-gradient(135deg,#C0F5FF,#7DD3FC 40%,#fff 60%,#7DD3FC)' }}>
           <div className="relative overflow-hidden rounded-[28px]">

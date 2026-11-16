@@ -1,5 +1,6 @@
 // Simple mode: LANDVAS on one screen. No map (it isn't even downloaded), no plot types to learn — buy a plot, watch its
 // rarity roll, and watch your rent tick up. Earn Ink in the minigames to buy more. The full game is one tap away.
+import { TicketsDialog, ticketTitle, useMyTickets } from '../daily/Tickets';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { ChevronRight, Gamepad2, Map as MapIcon } from 'lucide-react';
@@ -22,7 +23,7 @@ import { KIND_LABEL } from '../plot/mergeKind';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { BoostButton, LiveUsd, WalletDialog, useRaritySync, useRent } from '../rent/RentHud';
 import { RARITY_ORDER, isFusion, isPrimordial, isUltra, rarityInfo, rarityOdds, rarities, type RarityId } from '../shared/rarity';
-import { useQuickRoll } from './useQuickRoll';
+import { useQuickRoll, type RollOpts } from './useQuickRoll';
 import { StreakChip, StreakDialog, useDaily, useStreakPrompt } from '../daily/Streak';
 import { CollectionCard, CollectionDialog } from '../daily/Collection';
 import { currentRate, formatRate } from '../shared/rent';
@@ -98,6 +99,7 @@ export default function SimpleHome() {
 
       {/* today: the streak */}
       <StreakStrip onOpen={() => setStreak(true)} />
+      <SimpleTickets onRoll={(o) => void quick.roll(o)} />
 
       {/* the one big button */}
       <motion.button whileTap={{ scale: 0.96 }} onClick={buy} disabled={busy || !quote.data} data-testid="simple-buy"
@@ -195,6 +197,25 @@ export default function SimpleHome() {
       <StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} />
       <CollectionDialog open={album} onOpenChange={setAlbum} />
     </div>
+  );
+}
+
+/** roll tickets from events or the LANDVAS team (shown when the streak card doesn't already list them) */
+function SimpleTickets({ onRoll }: { onRoll(o: RollOpts): void }) {
+  const d = useDaily().data;
+  const t = useMyTickets().data ?? [];
+  const [open, setOpen] = useState(false);
+  if (!t.length || (d?.enabled && t.length === d.tickets.length && !t.some((x) => x.special))) return null;
+  return (
+    <>
+      <button onClick={() => setOpen(true)} data-testid="tickets-chip"
+        className="flex items-center gap-3 rounded-[22px] border-[1.5px] border-[#FFD23F]/50 bg-[linear-gradient(135deg,#FFD23F22,#7A5CFF22)] px-3.5 py-2.5 text-left">
+        <span className="text-[26px] leading-none">🎟️</span>
+        <span className="grid min-w-0 flex-1 leading-tight"><span className="text-[14px] font-black">{t.length} roll ticket{t.length === 1 ? '' : 's'} waiting</span><span className="truncate text-[11px] font-semibold text-white/60">{ticketTitle(t[0])}{t.length > 1 ? ` + ${t.length - 1} more` : ''}</span></span>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#14103a]">Roll!</span>
+      </button>
+      <TicketsDialog open={open} onOpenChange={setOpen} onRoll={onRoll} />
+    </>
   );
 }
 

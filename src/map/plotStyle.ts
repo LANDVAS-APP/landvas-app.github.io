@@ -8,7 +8,7 @@ export const PLOT_TYPES: Record<PlotTypeId, { name: string; game: string; a: str
   mosaic: { name: 'Mosaic', game: 'Paint Pop', a: '#22C7B5', b: '#FFD43B', base: '#10343A', blurb: 'Geometric tiles and bright patterns' },
   lumina: { name: 'Lumina', game: 'LightLines', a: '#8B5CFF', b: '#22E3FF', base: '#170F3D', blurb: 'Neon light and glowing gradients' },
   fresco: { name: 'Fresco', game: 'Memory Mural', a: '#FF8A5B', b: '#FFD6A5', base: '#3A2219', blurb: 'Plaster walls that remember every stroke' },
-  clay: { name: 'Clay', game: 'Sculptor', a: '#C8794A', b: '#F2C49B', base: '#2E1B12', blurb: 'Soft earth waiting to be shaped' },
+  stencil: { name: 'Stencil', game: 'Block Splash', a: '#FF4FD8', b: '#7CF56B', base: '#1E0B2E', blurb: 'Cut shapes, ready to spray' },
   prism: { name: 'Prism', game: 'Roller Mural', a: '#5EE6C7', b: '#B49BFF', base: '#14253A', blurb: 'Light split into every shade' },
   glass: { name: 'Glass', game: 'Mirrorline', a: '#8FD8FF', b: '#E3F6FF', base: '#102838', blurb: 'Mirrored panes and perfect reflections' },
 };
@@ -98,16 +98,18 @@ export function drawPlotDesign(ctx: CanvasRenderingContext2D | OffscreenCanvasRe
       for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 18 * s; y += (r() - 0.5) * 18 * s; ctx.lineTo(x, y); }
       ctx.stroke();
     }
-  } else if (type === 'clay') {
-    // thumb-pressed ridges
-    for (let i = 0; i < 7; i++) {
-      ctx.globalAlpha = alpha * (0.35 + r() * 0.4);
-      ctx.strokeStyle = i % 2 ? t.a : t.b;
-      ctx.lineWidth = (3 + r() * 3) * s;
-      ctx.beginPath();
-      ctx.ellipse(size / 2, size / 2, (8 + i * 4.5) * s, (6 + i * 3.6) * s, r() * 0.6, 0, Math.PI * 2);
-      ctx.stroke();
+  } else if (type === 'stencil') {
+    // spray-painted stencil blocks on a dark wall
+    const n = 4, c = size / n;
+    for (let i = 0; i < 9; i++) {
+      const x = Math.floor(r() * n), y = Math.floor(r() * n);
+      ctx.globalAlpha = alpha * (0.55 + r() * 0.4);
+      ctx.fillStyle = i % 3 === 0 ? t.b : i % 3 === 1 ? t.a : '#22E3FF';
+      ctx.fillRect(x * c + c * 0.08, y * c + c * 0.08, c * 0.84, c * 0.84);
     }
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.fillStyle = '#FFFFFF';
+    for (let i = 0; i < 18; i++) { ctx.beginPath(); ctx.arc(r() * size, r() * size, (0.6 + r() * 1.4) * s, 0, Math.PI * 2); ctx.fill(); }
   } else if (type === 'prism') {
     const n = 4, c = size / n;
     for (let y = 0; y < n; y++)

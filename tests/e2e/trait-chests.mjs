@@ -37,7 +37,7 @@ try {
   const home = (await sql(`select gx, gy from enchantments where id = '${ids.goose}'`))[0];
   for (const k of ['map', 'splice', 'clockwork', 'wormhole']) ids[k] = (await give(me, k, { gx: home.gx, gy: home.gy })).id;
   // a few plain plots of yours nearby (to pick on the map)
-  for (let i = 1; i <= 4; i++) await sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values (${home.gx + 6 + i * 2}, ${home.gy + 3}, 'clay', 'rare', '${me}', now()) on conflict (gx, gy) do update set owner_id = excluded.owner_id, rarity = 'rare', claimed_at = now()`);
+  for (let i = 1; i <= 4; i++) await sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values (${home.gx + 6 + i * 2}, ${home.gy + 3}, 'stencil', 'rare', '${me}', now()) on conflict (gx, gy) do update set owner_id = excluded.owner_id, rarity = 'rare', claimed_at = now()`);
 
   // ---- 🗺️ Seeking: a Goose wearing the Map's Trait buries real chests ----
   await sql(`update enchantments set state = state || jsonb_build_object('charges', 2, 'charge_at', extract(epoch from now())) where id = '${ids.splice}'`);

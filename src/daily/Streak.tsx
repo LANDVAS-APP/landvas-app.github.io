@@ -14,6 +14,7 @@ import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { buzz, isNative } from '../native/native';
 import { offerReminders } from '../native/reminders';
 import { rarityInfo } from '../shared/rarity';
+import { ticketExtras, ticketTitle } from './Tickets';
 import { Dialog, GameDisc, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import type { RollOpts } from '../simple/useQuickRoll';
@@ -114,8 +115,11 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
                 return (
                   <button key={t.id} onClick={() => { onOpenChange(false); setTimeout(() => onRoll({ ticket: t.id, ticketRarity: t.min_rarity }), 200); }}
                     className="flex items-center gap-3 rounded-2xl border-2 px-3 py-2.5 text-left" style={{ borderColor: r.color, background: `${r.color}22` }} data-testid="use-ticket">
-                    <span className="text-2xl">{t.min_rarity === 'legendary' ? '👑' : '🎟️'}</span>
-                    <span className="grid flex-1 leading-tight"><span className="text-sm font-black">{r.name} or better</span><span className="text-[11px] text-white/60">A free plot, guaranteed — could even be an ultra</span></span>
+                    <span className="text-2xl">{t.godroll ? '⚡' : t.min_rarity === 'enchanted' ? '🔮' : t.min_rarity === 'legendary' ? '👑' : '🎟️'}</span>
+                    <span className="grid flex-1 leading-tight">
+                      <span className="text-sm font-black">{ticketTitle({ label: t.label ?? null, godroll: t.godroll ?? null, enchant: t.enchant ?? null, exact: !!t.exact, min_rarity: t.min_rarity })}</span>
+                      <span className="text-[11px] text-white/60">{ticketExtras(t) || (t.exact ? 'A free plot of exactly this rarity' : 'A free plot, guaranteed — could even be an ultra')}</span>
+                    </span>
                     <span className="rounded-full bg-white px-3 py-1 text-[12px] font-black text-[#14103a]">Roll!</span>
                   </button>
                 );

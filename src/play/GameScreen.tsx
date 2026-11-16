@@ -24,7 +24,7 @@ import { boardsGame } from './games/Boards';
 import { RollerMuralBoard } from './games/RollerMural';
 import { MemoryMuralBoard } from './games/MemoryMural';
 import { MirrorlineBoard } from './games/Mirrorline';
-import { SculptorBoard } from './games/Sculptor';
+import { BlockSplashBoard } from './games/BlockSplash';
 import type { GameProps } from './common';
 import { RarityBadge } from '../plot/RarityBadge';
 import { buzz, isNative } from '../native/native';
@@ -37,7 +37,7 @@ const GAMES: Record<GameId, (p: GameProps) => React.ReactElement | null> = {
   colorburst: ColorBurstGame,
   tracecraft: TraceCraftGame,
   memorymural: boardsGame('memorymural', MemoryMuralBoard),
-  sculptor: boardsGame('sculptor', SculptorBoard),
+  blocksplash: boardsGame('blocksplash', BlockSplashBoard),
   rollermural: boardsGame('rollermural', RollerMuralBoard),
   mirrorline: boardsGame('mirrorline', MirrorlineBoard),
 };

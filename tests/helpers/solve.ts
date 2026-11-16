@@ -6,7 +6,7 @@ import { generateLightLines } from '../../src/shared/minigames/lightlines';
 import { generateMemoryMural } from '../../src/shared/minigames/memorymural';
 import { generateMirrorline } from '../../src/shared/minigames/mirrorline';
 import { solvePaintPop } from '../../src/shared/minigames/paintpop';
-import { generateSculptor, sculpt } from '../../src/shared/minigames/sculptor';
+import { generateBlockSplash, solveBlockSplash } from '../../src/shared/minigames/blocksplash';
 import { generateTraceCraft, resample } from '../../src/shared/minigames/tracecraft';
 
 function board(game: string, seed: number, level: number): { done_t: number } & Record<string, unknown> {
@@ -32,12 +32,8 @@ function board(game: string, seed: number, level: number): { done_t: number } & 
     const L = generateRollerMural(seed, level);
     return { strokes: solveRoller(L.n, L.base, L.target).map((x) => ({ ...x, t: (t += 300) })), done_t: t + 100 };
   }
-  if (game === 'sculptor') {
-    const L = generateSculptor(seed, level);
-    let r = L.start;
-    const moves: { t: number; v: number; x: number; y: number }[] = [];
-    for (let pass = 0; pass < 8; pass++) for (let v = 0; v < L.v; v++) { r = sculpt(r, L.weights, v, L.target[v][0], L.target[v][1]); moves.push({ t: (t += 45 + ((v * 7) % 13)), v, x: L.target[v][0], y: L.target[v][1] }); }
-    return { moves, done_t: t + 100 };
+  if (game === 'blocksplash') {
+    return { moves: solveBlockSplash(generateBlockSplash(seed, level)).map((m, k) => ({ ...m, t: (t += 380 + ((k * 7) % 90)) })), done_t: t + 100 };
   }
   throw new Error(`no board solver for ${game}`);
 }

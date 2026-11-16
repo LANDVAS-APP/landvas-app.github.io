@@ -56,7 +56,7 @@ export function KeeperNews() {
 function newsToast(k: Keeper, e: KeeperEvent) {
   const d = e.data;
   const gains = [d.glimmer ? `+${d.glimmer} ✨` : '', ...Object.entries((d.materials ?? {}) as Record<string, number>).map(([m, n]) => `+${n} ${k.config.materials[m]?.emoji ?? m}`), d.xp ? `+${Math.round(d.xp)} XP` : ''].filter(Boolean).join('  ');
-  if (d.level_up) { confettiCannons(); toast.success(`🌟 Keeper level ${d.level}!`, { description: d.level_glimmer ? `+${d.level_glimmer} Glimmer — new things may have unlocked in the Lodge.` : undefined }); }
+  if (d.level_up) { confettiCannons(); toast.success(Number.isFinite(Number(d.level)) ? `🌟 Keeper level ${d.level}!` : `🌟 Keeper level ${k.level}!`, { description: d.level_glimmer ? `+${d.level_glimmer} Glimmer — new things may have unlocked in the Lodge.` : undefined }); }
   switch (e.kind) {
     case 'job': toast(`${JOB_WISH[d.job]?.[1] ?? '🎒'} ${d.name} brought things home`, { description: gains }); break;
     case 'game': toast(`${GAMES[d.game as GameId]?.emoji ?? '🎮'} ${GAMES[d.game as GameId]?.name ?? 'Game'} haul`, { description: gains }); break;

@@ -29,12 +29,14 @@ import { PlacesSheet } from '../space/Places';
 import { isRealm, REALM_META, realmRoute } from '../realms/kinds';
 import { buzz, isNative } from '../native/native';
 import { useMergeStudio } from '../plot/MergeStudio';
+import { KIND_LABEL } from '../plot/mergeKind';
+import type { LandlordStatus } from '../backend/types';
 
 const APP = isNative();
 
 type Row = { gx: number; gy: number; plot_type: PlotTypeId; rarity: string; level: number; claimed_at: string; group_id: string | null; has_art: boolean; name: string | null; usd_per_second: number };
 type Sort = 'newest' | 'oldest' | 'rarity' | 'rent' | 'level' | 'nearest' | 'name' | 'type';
-type Filter = 'all' | 'base' | 'canvas' | 'habitat' | 'art' | 'blank';
+type Filter = 'all' | 'base' | 'canvas' | 'habitat' | 'art' | 'blank' | `kind:${string}` | 'todo';
 const SORTS: { id: Sort; label: string }[] = [
   { id: 'rarity', label: 'Rarity' }, { id: 'rent', label: 'Rent' }, { id: 'level', label: 'Level' }, { id: 'nearest', label: 'Nearest' },
   { id: 'newest', label: 'Newest' }, { id: 'oldest', label: 'Oldest' }, { id: 'name', label: 'Name' }, { id: 'type', label: 'Type' },
@@ -57,20 +59,28 @@ export default function PlotsScreen() {
   const [open, setOpen] = useState<Row | null>(null);
   const [limit, setLimit] = useState(120);
   const byGroup = useMemo(() => new Map((groups.data ?? []).map((g) => [g.id, g])), [groups.data]);
+  const hasLandlord = (groups.data ?? []).some((g) => g.kind === 'landlord' && g.status === 'active');
+  const landlord = useQuery({ queryKey: ['my-landlord-status'], queryFn: api.myLandlordStatus, enabled: !!me && hasLandlord, staleTime: 60_000, refetchOnWindowFocus: true });
+  const llBy = useMemo(() => new Map((landlord.data ?? []).map((l) => [l.group_id, l])), [landlord.data]);
   const here = useMemo(() => { const p = explorerNow(ex.state, ex.offset); return p ? lngLatToCell(p.lng, p.lat) : null; }, [ex.state?.lng, ex.state?.lat]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = (plots.data ?? []) as Row[];
   const kindOf = (r: Row) => (r.group_id ? byGroup.get(r.group_id)?.kind ?? 'base' : 'base');
   const list = useMemo(() => {
-    const s = q.trim().toLowerCase();
+    // every word has to match something about the plot: its name, number, rarity, plot type, minigame, what it's
+    // built into (farm, landlord / rental, arcade, …) or, for landlords, "todo" / "ready"
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
     let out = rows.filter((r) => {
+      const k = kindOf(r);
+      if (filter.startsWith('kind:') && k !== filter.slice(5)) return false;
+      if (filter === 'todo') { const l = r.group_id ? llBy.get(r.group_id) : null; if (!l || (l.today_done && l.ready)) return false; }
       if (filter === 'base' && kindOf(r) !== 'base') return false;
       if (filter === 'canvas' && kindFamily(kindOf(r)) !== 'canvas') return false;
       if (filter === 'habitat' && kindOf(r) !== 'habitat') return false;
       if (filter === 'art' && !r.has_art) return false;
       if (filter === 'blank' && (r.has_art || kindFamily(kindOf(r)) !== 'canvas')) return false;
-      if (!s) return true;
-      const g = r.group_id ? byGroup.get(r.group_id) : null;
-      return plotTitle(r).toLowerCase().includes(s) || `${r.gx} ${r.gy}`.includes(s) || r.plot_type.includes(s) || r.rarity.includes(s) || (g?.name ?? '').toLowerCase().includes(s);
+      if (!words.length) return true;
+      const hay = searchText(r, k, r.group_id ? byGroup.get(r.group_id)?.name ?? null : null, r.group_id ? llBy.get(r.group_id) ?? null : null);
+      return words.every((w) => hay.includes(w));
     });
     const rank = (r: Row) => RARITY_ORDER.indexOf(r.rarity as never);
     const dist = (r: Row) => (here ? cellDistance(here, { gx: r.gx, gy: r.gy }) : 0);
@@ -86,7 +96,14 @@ export default function PlotsScreen() {
     };
     out = [...out].sort(cmp[sort]);
     return out;
-  }, [rows, filter, q, sort, byGroup, here]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, filter, q, sort, byGroup, here, llBy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a chip for each kind of place you own (farms, rentals, arcades, …), after the usual ones
+  const kindChips = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const r of rows) { const k = kindOf(r); if (k !== 'base' && k !== 'canvas' && k !== 'habitat') n.set(k, (n.get(k) ?? 0) + 1); }
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => ({ id: `kind:${k}` as Filter, label: kindLabel(k) }));
+  }, [rows, byGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todo = (landlord.data ?? []).filter((l) => !l.today_done || !l.ready).length;
 
   const total = rows.reduce((n, r) => n + r.usd_per_second, 0);
   const counts = RARITY_ORDER.map((r) => [r, rows.filter((x) => x.rarity === r).length] as const).filter(([, n]) => n > 0);
@@ -139,11 +156,13 @@ export default function PlotsScreen() {
           <div className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 p-3', APP ? 'lv-icard' : 'lv-card')}>
             <label className={cn('flex h-11 items-center gap-2 rounded-2xl px-3', APP ? 'bg-black/30' : 'bg-surface-2/70')}>
               <Search className="h-4 w-4 text-muted" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a plot by name, type, rarity or number" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint" data-testid="plots-search" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search: name, rarity, type, game, landlord, farm…" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint" data-testid="plots-search" />
               {q && <button onClick={() => setQ('')} aria-label="Clear"><X className="h-4 w-4 text-muted" /></button>}
             </label>
             <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
               {FILTERS.map((f) => <Chip key={f.id} on={filter === f.id} onClick={() => setFilter(f.id)} testid={`filter-${f.id}`}>{f.label}</Chip>)}
+              {kindChips.map((f) => <Chip key={f.id} on={filter === f.id} onClick={() => setFilter(filter === f.id ? 'all' : f.id)} testid={`filter-${f.id.replace(':', '-')}`}>{f.label}</Chip>)}
+              {hasLandlord && <Chip on={filter === 'todo'} onClick={() => setFilter(filter === 'todo' ? 'all' : 'todo')} testid="filter-todo">📋 Landlord to-do{todo ? ` · ${todo}` : ''}</Chip>}
             </div>
             <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto">
               <ArrowDownUp className="h-4 w-4 shrink-0 text-muted" />
@@ -169,6 +188,7 @@ export default function PlotsScreen() {
                       {g && g.plot_count > 1 && <span>part of {g.plot_count}</span>}
                       {d !== null && <span>{d <= 1 ? 'right here' : `${d} plots away`}</span>}
                     </div>
+                    {kind === 'landlord' && g && <LandlordFlags l={llBy.get(g.id)} loading={landlord.isLoading} />}
                   </div>
                   <div className="text-right">
                     <div className="tnum text-xs font-bold text-ok">{formatUsd(r.usd_per_second * DAY, 6)}</div>
@@ -184,6 +204,42 @@ export default function PlotsScreen() {
       )}
       <AnimatePresence>{open && <PlotSheet key={`${open.gx}_${open.gy}`} r={open} group={open.group_id ? byGroup.get(open.group_id) ?? null : null} onClose={() => setOpen(null)} />}</AnimatePresence>
     </Page>
+  );
+}
+
+/** the kind's name in the list and chips: "🏘️ Landlord", "🌾 Farm", … */
+function kindLabel(k: string) {
+  if (k === 'landlord') return '🏘️ Landlord';
+  if (isRealm(k as never)) return `${REALM_META[k as keyof typeof REALM_META].emoji} ${REALM_META[k as keyof typeof REALM_META].name}`;
+  const l = KIND_LABEL[k as keyof typeof KIND_LABEL];
+  return l ? `${l.emoji} ${l.one[0].toUpperCase()}${l.one.slice(1)}` : k;
+}
+/** everything a search can match on a plot, lower-cased */
+function searchText(r: Row, kind: string, group: string | null, ll: LandlordStatus | null) {
+  const t = PLOT_TYPES[r.plot_type];
+  const ri = rarityInfo(r.rarity);
+  const kl = KIND_LABEL[kind as keyof typeof KIND_LABEL];
+  const realm = isRealm(kind as never) ? REALM_META[kind as keyof typeof REALM_META] : null;
+  const parts = [
+    plotTitle(r), `${r.gx} ${r.gy}`, `${r.gx},${r.gy}`, r.plot_type, t?.name, t?.game, r.rarity, ri.name, `lv ${r.level}`, `level ${r.level}`,
+    kind, kl?.one, kl?.many, realm?.name, group,
+    kind === 'landlord' ? 'landlord rental rentals residential houses tenants' : null,
+    kind === 'home' ? 'residential house' : null,
+    kind === 'train' || kind === 'plane' ? 'travel' : null,
+    kindFamily(kind as never) === 'canvas' ? (r.has_art ? 'art painted' : 'blank empty canvas') : null,
+    ll ? (ll.today_done ? 'done checklist done' : 'todo to-do checklist') : null,
+    ll ? (ll.ready ? 'ready set all set for the 1st' : 'not ready') : null,
+  ];
+  return parts.filter(Boolean).join(' · ').toLowerCase();
+}
+/** a landlord's two flags: today's checklist, and whether it's all set for rent day (the 1st) */
+function LandlordFlags({ l, loading }: { l: LandlordStatus | undefined; loading: boolean }) {
+  if (!l) return loading ? <div className="mt-1 h-4 w-40 animate-pulse rounded bg-white/10" /> : null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-1 text-[10.5px] font-bold" data-testid="landlord-flags">
+      <span className={cn('rounded-full px-2 py-0.5', l.today_done ? 'bg-ok/15 text-ok' : 'bg-[#FFB020]/15 text-[#FFB020]')} data-testid="landlord-today">{l.today_done ? '✅ Daily checklist done' : '📋 Daily checklist to do'}</span>
+      <span className={cn('rounded-full px-2 py-0.5', l.ready ? 'bg-ok/15 text-ok' : 'bg-white/10 text-white/60')} data-testid="landlord-ready">{l.ready ? '🗓️ All set for the 1st' : '🗓️ Not set for the 1st yet'}</span>
+    </div>
   );
 }
 

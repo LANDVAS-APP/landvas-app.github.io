@@ -41,6 +41,8 @@ export type ShopItem = { key: string; name: string; kind: string; group?: string
 
 /** game_config 'app': live control of the apps and the game's pages (admin portal → Live control) */
 export type AppConfig = {
+  /** minutes a found website update waits (a countdown in the corner) before it reloads the page; 0 = at once */
+  update_grace_minutes?: number;
   min_version?: string;
   latest_version?: string;
   update?: { title?: string; message?: string; soft_title?: string; soft_message?: string };
@@ -445,7 +447,7 @@ export type PvpMatch = {
 };
 export type PvpStart = { match_id: string; game: import('../shared/pvp').PvpGame; seed: number; rounds: number; started_at: string; expires_at: string; round_seconds: number; matched: boolean; server_time: string };
 export type PvpFinish = PvpMatch & { balances: Balances };
-export type PvpGameConfig = { enabled: boolean; rounds: number; win_ink: number; draw_ink: number; round_win_ink: number[]; bonuses: BonusRule[]; waiting: number };
+export type PvpGameConfig = { enabled: boolean; rounds: number; win_ink: number; draw_ink: number; round_win_ink: number[]; bonuses: BonusRule[]; waiting: number; /** waiting, including rivals you played today (they can't be matched with you again yet) */ waiting_all?: number };
 export type PvpLobby = {
   config: { enabled: boolean; round_seconds: number; daily_rewarded_matches: number; min_quality_pct: number; min_account_hours: number; games: Record<string, PvpGameConfig> };
   matches: PvpMatch[]; record: { won: number; lost: number; draws: number; ink: number; paid_today: number } | null; resets_at: string;
@@ -472,7 +474,7 @@ export type ChallengesNow = { enabled: boolean; votes_per_player: number; active
 
 // ---- creative games ----
 import type { Stroke } from '../shared/strokes';
-export type Streak = { enabled: boolean; days: number; today: boolean; bonus_pct: number; step_pct: number; max_pct: number; resets_at: string };
+export type Streak = { enabled: boolean; days: number; today: boolean; bonus_pct: number; step_pct: number; max_pct: number; resets_at: string; /** painting so far today, and how much counts */ minutes_today?: number; need_minutes?: number };
 export type SketchEntry = { id: string; word: string; strokes: Stroke[]; votes: number | null; place: number | null; prize: number; mine: boolean; voted: boolean; artist: Profile | null };
 export type SketchToday = {
   enabled: boolean; word: string; day: string; ends_at: string; minutes: number; prizes: number[]; votes_per_player: number; votes_left: number;
@@ -837,7 +839,7 @@ export type ClanKeep = {
 };
 
 /** Which of a place's games are open: a quarter on one plot, half on two or three, all on four or more. */
-export type PlaceAccess = { plots: number; total: number; open: number; games: string[]; allowed: string[]; next: { plots: number; open: number } | null };
+export type PlaceAccess = { plots: number; total: number; open: number; games: string[]; allowed: string[]; next: { plots: number; open: number } | null; /** arcades: how many cabinets are unlocked (with tickets, inside) */ unlocked?: number };
 
 // ---- Travel (v0.9.7) ----------------------------------------------------------------------------
 export type TravelMode = 'train' | 'plane';
@@ -936,9 +938,10 @@ export type GroupPhoto = { id: string; taken_at: string; stop: TravelStop | null
 // ---- v1.1: the daily loop ---------------------------------------------------------------------------------------
 export type StreakReward = { day: number; ink: number; ticket: RarityId | null };
 export type DailyStatus = { enabled: boolean; streak: number; claimed_today: boolean; best: number; next: StreakReward; calendar: StreakReward[];
-  tickets: { id: string; min_rarity: RarityId; source: string }[]; resets_at: string };
+  tickets: ({ id: string; min_rarity: RarityId; source: string } & Partial<Omit<RollTicket, 'id' | 'min_rarity' | 'source'>>)[]; resets_at: string };
 export type HotZone = { name: string; gx: number; gy: number; radius: number; day: string };
-export type HotZoneInfo = { today: HotZone | null; tomorrow: HotZone | null; ends_at: string; ultra_mult: number; shiny_mult: number; crown_free?: boolean; roll_ink?: number };
+export type HotZoneInfo = { today: HotZone | null; tomorrow: HotZone | null; ends_at: string; ultra_mult: number; shiny_mult: number; crown_free?: boolean; roll_ink?: number;
+  /** about the city (for the trivia card) */ about?: { pop: number; state: string | null; country: string; country_name: string | null; plots: number; crown_holder: string | null; /** within its country */ pop_rank: number } | null };
 export type Collection = { types: { id: PlotTypeId; name: string; owned: number }[]; rarities: { id: RarityId; owned: number; shiny: number }[];
   tiers: { types: number; pct: number }[]; pct: number; multiplier: number };
 
@@ -947,3 +950,12 @@ export type UltraPlot = { gx: number; gy: number; rarity: string; plot_type: str
   window: { start: number | string; len: number | string; mult: number | string; open: boolean } | null };
 export type MyUltras = { day: string; resets_at: string; streak: number; checked_in: boolean;
   phoenix: { per_day: number; max_days: number; now: number | string; next: number | string }; chaos_values: (number | string)[]; plots: UltraPlot[] };
+
+// ---- rolls: tickets, Godrolls, Ascend ----------------------------------------------------------------------------
+export type RollTicket = { id: string; min_rarity: RarityId; source: string; exact: boolean; special: boolean; plot_type: string | null; shiny: boolean; rerolls: number;
+  godroll: 'echo' | 'pantheon' | null; label: string | null; enchant: { kind: string; stars?: number; level?: number } | null; created_at: string };
+export type AscendQuote = { ok: boolean; why: 'disabled' | 'not_on_ladder' | 'top' | 'too_old' | 'max_tries' | 'locked' | 'not_owned' | null; gx: number; gy: number; rarity: RarityId; cost: number;
+  tries: number; max_tries: number; chance_up: number; odds: { rarity: RarityId; pct: number }[]; ultra_pct: number; cap: RarityId; window_hours: number; ends_at: string | null; spent: number; from: RarityId | null };
+export type AscendResult = { up: boolean; from: RarityId; to: RarityId; cost: number; try: number; quote: AscendQuote; balances: Balances; usd_per_second: number; replayed?: boolean };
+export type LandlordStatus = { group_id: string; name: string; houses: number; ready: boolean; rent_day: boolean; next_rent_day: string; inspected_today: boolean; today_done: boolean; tasks: Record<string, any> };
+export type PlayerInkMode = { player_id: string; mode: 'default' | 'off' | 'dynamic' | 'classic'; note: string | null; set_at: string | null; by: string | null; held: number; held_n: number; held_at: string | null; game_flow_on: boolean; today: number };

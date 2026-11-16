@@ -6,6 +6,8 @@ import { ArrowLeft, Database, ExternalLink } from 'lucide-react';
 import { api } from '../../../src/backend/api';
 import { Button, PlayerAvatar, Tabs } from '../../../src/ui';
 import { PlayerDetail } from '../../../src/admin/AdminScreen';
+import { RollGrants } from '../../../src/admin/RollGrants';
+import { PlayerGifts } from '../../../src/admin/PlayerGifts';
 import { PlayerMinigameStats } from '../../../src/admin/PvpAdmin';
 import { PlayerPlots } from '../../../src/admin/PlayerPlots';
 import { rarityInfo } from '../../../src/shared/rarity';
@@ -18,7 +20,7 @@ import { ago, compact, date, dateTime, duration, int, perDay, perMonth, plotLabe
 import { Badge, Cell, CopyText, Empty, ErrorBox, Json, KV, Loading, Panel, Q, Rarity, Seg, Stat, statusTone, useTicker } from '../../shared/ui';
 
 const TABS = [
-  { value: 'overview', label: 'Overview' }, { value: 'manage', label: 'Manage' }, { value: 'plots', label: 'Plots' }, { value: 'ledger', label: 'Ink ledger' },
+  { value: 'overview', label: 'Overview' }, { value: 'manage', label: 'Manage' }, { value: 'gifts', label: 'Gifts' }, { value: 'plots', label: 'Plots' }, { value: 'ledger', label: 'Ink ledger' },
   { value: 'usd', label: 'USD ledger' }, { value: 'games', label: 'Minigames' }, { value: 'fairplay', label: 'Fair play' }, { value: 'data', label: 'All data' }, { value: 'audit', label: 'History' },
 ];
 
@@ -35,6 +37,7 @@ export default function Player() {
           <Tabs value={tab} onValueChange={(t) => nav(`/players/${id}/${t}`, { replace: true })} className="mb-4 mt-5" items={TABS} />
           {tab === 'overview' && <Overview d={d} id={id} />}
           {tab === 'manage' && <div className="max-w-5xl"><PlayerDetail id={id} /></div>}
+          {tab === 'gifts' && <div className="grid max-w-5xl gap-2"><RollGrants playerId={id} /><PlayerGifts playerId={id} /></div>}
           {tab === 'plots' && <Plots id={id} username={d.profile.username} />}
           {tab === 'ledger' && <InkLedger id={id} totals={d.ledger_totals} />}
           {tab === 'usd' && <UsdLedger id={id} d={d} />}
