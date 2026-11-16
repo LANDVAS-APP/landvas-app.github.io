@@ -3,6 +3,7 @@
 // multiplier for rent switches). For a bug or exploit found after an update: switch it off here, fix it, switch it on.
 // Server side: supabase/migrations/20261119000220_earn_switches.sql (private.earn_switches, private.grant).
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Power, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -76,7 +77,8 @@ function groups(d: EarnSwitches): Group[] {
 export default function EarnSwitchesPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'earn-switches'], queryFn: portal.earnSwitches, refetchInterval: 30_000 });
-  const [find, setFind] = useState('');
+  const [sp] = useSearchParams();
+  const [find, setFind] = useState(sp.get('find') ?? ''); // (the Fair play radar links here with a switch already found)
   const [note, setNote] = useState('');
   const [custom, setCustom] = useState('');
   const f = useDebounced(find.trim().toLowerCase(), 150);

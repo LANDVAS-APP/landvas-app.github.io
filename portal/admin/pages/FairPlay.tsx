@@ -1,4 +1,8 @@
-// Admin → Fair play. Three scanners on one page:
+// Admin → Fair play. Five scanners on one page:
+//   Radar: what's going wrong in the whole game right now — sources paying far more than usual (and who takes most of each,
+//     with the Earning switch that stops it), payouts paid twice, balances out of step with the ledger, actions spiking,
+//     arcade scores sent above what's possible, and the riskiest players.
+//   Referral fraud: every inviter, worst first, with each invited account's evidence (email, link, play, what it paid).
 //   Risk scores: the integrity scanner (src/admin/IntegrityAdmin).
 //   Egg loop: players who sacrificed Inkborn they never had (hatch an egg, sacrifice the Inkborn, the egg came back),
 //     the plots they rolled with that Luck, and the fixes: put a plot back to a lower tier, take it away, and take back
@@ -15,7 +19,7 @@ import { toGameError } from '../../../src/backend/backend';
 import { Button, PlayerAvatar, useConfirm } from '../../../src/ui';
 import { cn } from '../../../src/lib/utils';
 import { rarityInfo } from '../../../src/shared/rarity';
-import { portal, type EggLoopPlayer as EggData, type EggLoopPlot, type UltraRow } from '../../shared/api';
+import { portal, type EggLoopPlayer as EggData, type EggLoopPlot, type Families, type Referee, type UltraRow } from '../../shared/api';
 import { TimeChart } from '../../shared/charts';
 import { DataTable } from '../../shared/table';
 import { date, dateTime, int, pct, plotLabel, usd } from '../../shared/format';
@@ -24,20 +28,191 @@ import { Badge, Empty, KV, Panel, Q, Rarity, Seg, Stat, statusTone, useDebounced
 const err = (e: unknown) => toast.error(toGameError(e).message);
 const key = (p: { gx: number; gy: number }) => `${p.gx}_${p.gy}`;
 const REASON = 'Egg loop: Luck from duplicated Inkborn';
-type View = 'risk' | 'eggloop' | 'ultras';
+type View = 'radar' | 'referrals' | 'risk' | 'eggloop' | 'ultras';
 
 export default function FairPlayPage() {
   const [sp, setSp] = useSearchParams();
-  const view = (['eggloop', 'ultras'].includes(sp.get('view') ?? '') ? sp.get('view') : 'risk') as View;
+  const view = (['radar', 'referrals', 'eggloop', 'ultras'].includes(sp.get('view') ?? '') ? sp.get('view') : 'risk') as View;
   const set = (v: View) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('player'); if (v === 'risk') n.delete('view'); else n.set('view', v); return n; }, { replace: true });
   return (
     <div className="grid gap-4" data-testid="fair-play">
       <Seg value={view} onChange={set} label="Scanner" options={[
-        { value: 'risk', label: '🛡️ Risk scores' }, { value: 'eggloop', label: '🥚 Egg loop' }, { value: 'ultras', label: '🌈 Ultras & rent' },
+        { value: 'risk', label: '🛡️ Risk scores' }, { value: 'radar', label: '📡 Exploit radar' }, { value: 'referrals', label: '🎯 Referral fraud' },
+        { value: 'eggloop', label: '🥚 Egg loop' }, { value: 'ultras', label: '🌈 Ultras & rent' },
       ]} />
+      {view === 'radar' && <ExploitRadar />}
+      {view === 'referrals' && <ReferralFraud />}
       {view === 'risk' && <IntegrityAdmin />}
       {view === 'eggloop' && <EggLoopScanner />}
       {view === 'ultras' && <UltraScanner />}
+    </div>
+  );
+}
+
+// ---- the radar ------------------------------------------------------------------------------------------------------
+const FAMILY: Record<string, string> = { referral: 'Referral', multi_account: 'Alt accounts', ink_ring: 'Ink ring', automation: 'Bot / script', speed: 'Speed', exploit: 'Exploit', location: 'Location' };
+export function FamilyChips({ f, proof }: { f: Families; proof?: boolean }) {
+  const list = Object.entries(f ?? {}).filter(([, v]) => Number(v) >= 0.1).sort((a, b) => Number(b[1]) - Number(a[1]));
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {proof && <Badge tone="bad">proof</Badge>}
+      {list.map(([k, v]) => <Badge key={k} tone={Number(v) >= 0.6 ? 'bad' : Number(v) >= 0.35 ? 'warn' : 'muted'}>{FAMILY[k] ?? k} {Math.round(Number(v) * 100)}%</Badge>)}
+    </span>
+  );
+}
+
+function ExploitRadar() {
+  const qc = useQueryClient();
+  const nav = useNavigate();
+  const confirm = useConfirm();
+  const q = useQuery({ queryKey: ['admin', 'radar'], queryFn: portal.exploitRadar, refetchInterval: 60_000 });
+  const stop = async (key: string, label: string) => {
+    const ok = await confirm({ title: `Stop ${label} now?`, body: <>Everyone keeps playing; <b>{label}</b> pays nothing until you switch it back on (Earning switches).</>, confirm: 'Stop it', danger: true });
+    if (!ok) return;
+    try { await portal.earnSwitch(key, true, 'Stopped from the Fair play radar'); toast.success(`Stopped: ${key}`); void qc.invalidateQueries({ queryKey: ['admin'] }); } catch (e) { err(e); }
+  };
+  return (
+    <div className="grid gap-3" data-testid="exploit-radar">
+      <Panel title="📡 Exploit radar">
+        <p className="text-sm text-muted">
+          The whole game in the last 24 hours against its usual day (the 7 days before). A source paying far more than usual, or mostly to one player, is the
+          first sign of a bug being farmed. Stop any of them on the spot: the game keeps playing and that source pays nothing until you switch it back on.
+        </p>
+      </Panel>
+      <Q q={q} label="Sweeping the game…">{(d) => {
+        const off = new Set(d.switches_off);
+        return (
+          <>
+            <Panel pad={false} title="Where Ink comes from today">
+              <DataTable rows={d.sources} rowKey={(r) => r.source} dense cols={[
+                { key: 'source', label: 'Source', render: (r) => <span data-testid={`radar-src-${r.source}`}><b>{r.source.replace(/_/g, ' ')}</b>{off.has(r.key) && <Badge tone="bad" className="ml-1.5">stopped</Badge>}</span> },
+                { key: 'today', label: 'Today', num: true, sort: true, render: (r) => int(r.today) },
+                { key: 'usual', label: 'Usual day', num: true, sort: true, render: (r) => <span className="text-muted">{int(r.usual)}</span> },
+                { key: 'spike', label: 'vs usual', num: true, sort: (r) => r.spike ?? 999, render: (r) => r.spike == null ? <Badge tone="accent">new</Badge>
+                  : <b className={r.spike >= 3 ? 'text-bad' : r.spike >= 1.5 ? 'text-gold' : 'text-muted'}>×{r.spike.toFixed(2)}</b> },
+                { key: 'players', label: 'Players', num: true, sort: true, render: (r) => int(r.players) },
+                { key: 'top', label: 'Top earner', sort: (r) => r.top?.share ?? 0, render: (r) => r.top ? (
+                  <Link to={`/players/${r.top.player.id}`} className="flex items-center gap-1.5 hover:underline">
+                    <PlayerAvatar p={r.top.player} size={20} />@{r.top.player.username}
+                    <span className={cn('tnum', r.top.share >= 0.5 && r.players > 3 ? 'font-bold text-bad' : 'text-muted')}>{pct(r.top.share, 0)}</span>
+                  </Link>) : '—' },
+                { key: 'act', label: '', render: (r) => off.has(r.key) ? <Button size="sm" variant="ghost" onClick={() => nav(`/earning?find=${encodeURIComponent(r.key)}`)}>Switches</Button>
+                  : <Button size="sm" variant="ghost" onClick={() => void stop(r.key, r.source.replace(/_/g, ' '))} data-testid={`radar-stop-${r.source}`}>Stop</Button> },
+              ]} />
+            </Panel>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Panel title="💸 Payouts paid more than once (7 days)">
+                {d.double_paid.length ? (
+                  <div className="grid gap-1.5 text-sm" data-testid="radar-double">
+                    {d.double_paid.map((x) => <div key={x.ref_type} className="flex flex-wrap items-center gap-2"><b>{x.ref_type.replace(/_/g, ' ')}</b>
+                      <span className="text-muted">{int(x.groups)} payouts · {int(x.players)} players</span><b className="ml-auto text-bad">+{int(x.extra_ink)} Ink</b></div>)}
+                    <p className="text-xs text-faint">The same game, match or find paid twice: a bug, and whoever repeats it on purpose is farming it.</p>
+                  </div>) : <p className="text-sm text-muted">None — every payout was paid once.</p>}
+              </Panel>
+              <Panel title="⚖️ Balances out of step with the ledger">
+                {d.mismatched.length ? (
+                  <div className="grid gap-1.5 text-sm" data-testid="radar-mismatch">
+                    {d.mismatched.map((x) => <Link key={x.player.id} to={`/players/${x.player.id}`} className="flex items-center gap-2 hover:underline">
+                      <PlayerAvatar p={x.player} size={22} />@{x.player.username}<span className="ml-auto tnum text-muted">{int(x.balance)} vs ledger {int(x.ledger)}</span>
+                      <b className={cn('tnum', x.balance > x.ledger ? 'text-bad' : 'text-muted')}>{x.balance > x.ledger ? '+' : ''}{int(x.balance - x.ledger)}</b></Link>)}
+                    <p className="text-xs text-faint">Ink that changed outside the game’s own payouts (or by hand in the database).</p>
+                  </div>) : <p className="text-sm text-muted">Every active player’s Ink matches the ledger.</p>}
+              </Panel>
+              <Panel title="🔁 Game actions today vs usual">
+                {d.actions.length ? (
+                  <div className="grid gap-1 text-sm">
+                    {d.actions.slice(0, 12).map((x) => <div key={x.action} className="flex items-center gap-2"><b>{x.action.replace(/_/g, ' ')}</b>
+                      <span className="text-muted">{int(x.today)} by {int(x.players)}</span>
+                      <span className={cn('ml-auto tnum', (x.spike ?? 0) >= 3 ? 'font-bold text-bad' : 'text-muted')}>{x.spike == null ? 'new' : `×${x.spike.toFixed(2)}`}</span></div>)}
+                  </div>) : <p className="text-sm text-muted">No game actions logged today.</p>}
+              </Panel>
+              <Panel title="🕹️ Arcade scores above what’s possible (7 days)">
+                {d.arcade_tamper.length ? (
+                  <div className="grid gap-1 text-sm">{d.arcade_tamper.map((x) => <div key={x.game} className="flex gap-2"><b>{x.game}</b><span className="ml-auto text-muted">{int(x.plays)} runs · {int(x.players)} players</span></div>)}
+                    <p className="text-xs text-faint">The score sent was more than anyone could reach in the time played: kept at the most possible, and a sign of a modified game.</p></div>
+                ) : <p className="text-sm text-muted">None.</p>}
+              </Panel>
+            </div>
+            <Panel pad={false} title="Riskiest players right now">
+              {d.top.length ? (
+                <DataTable rows={d.top} rowKey={(r) => r.player.id} onRow={(r) => nav(`/tools/integrity?player=${r.player.id}`)} cols={[
+                  { key: 'player', label: 'Player', render: (r) => <span className="flex items-center gap-2"><PlayerAvatar p={r.player} size={24} /><b>@{r.player.username}</b></span> },
+                  { key: 'score', label: 'Risk', num: true, sort: true, render: (r) => <b className={r.level === 'severe' ? 'text-bad' : 'text-gold'}>{r.score} {r.level}</b> },
+                  { key: 'families', label: 'Evidence', render: (r) => <FamilyChips f={r.families} proof={r.proof} /> },
+                  { key: 'impact', label: 'Ink involved', num: true, sort: true, render: (r) => r.impact ? int(r.impact) : '—' },
+                  { key: 'top', label: 'Strongest sign', render: (r) => <span className="text-muted">{r.top ?? ''}</span> },
+                ]} />) : <div className="p-4"><Empty title="Nobody high or severe">Run “Scan everyone” under Risk scores, or wait for the hourly scan.</Empty></div>}
+            </Panel>
+          </>
+        );
+      }}</Q>
+    </div>
+  );
+}
+
+// ---- referral fraud ---------------------------------------------------------------------------------------------------
+function ReferralFraud() {
+  const [min, setMin] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const q = useQuery({ queryKey: ['admin', 'referral-fraud', min], queryFn: () => portal.referralFraud(min) });
+  return (
+    <div className="grid gap-3" data-testid="referral-fraud">
+      <Panel title="🎯 Referral fraud" actions={<Seg value={min} onChange={setMin} label="Fake invited accounts" options={[{ value: 0, label: 'All inviters' }, { value: 1, label: '1+' }, { value: 3, label: '3+' }, { value: 10, label: '10+' }]} />}>
+        <p className="text-sm text-muted">
+          Every invited account is scored on its own: did it confirm its email, did it ever really play (and how — far faster than anyone, or only in the gaps
+          between the inviter’s own games, like one person switching accounts), is its email temporary, random letters, or a near-copy of the inviter’s or the
+          other invited accounts’, is it on the inviter’s own device, and did it stop the moment the bonus paid. An account at 60%+ counts as fake.
+          {q.data?.scanned_at ? ` Last scan ${dateTime(q.data.scanned_at)}.` : ''}
+        </p>
+      </Panel>
+      <Q q={q} label="Checking every invite…">{(d) => d.rows.length ? (
+        <Panel pad={false} title={`${int(d.rows.length)} inviter${d.rows.length === 1 ? '' : 's'}`}>
+          <div className="divide-y divide-line">
+            {d.rows.map((r) => (
+              <div key={r.player.id} data-testid={`ref-row-${r.player.username}`}>
+                <button className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-left hover:bg-surface-2/40" onClick={() => setOpen(open === r.player.id ? null : r.player.id)}>
+                  <PlayerAvatar p={r.player} size={30} />
+                  <span className="min-w-0"><b>@{r.player.username}</b>{r.status !== 'active' && <Badge tone={statusTone(r.status)} className="ml-1.5">{r.status}</Badge>}
+                    <span className="block truncate text-xs text-faint">{r.email}</span></span>
+                  <span className="ml-auto flex flex-wrap items-center gap-1.5 text-xs">
+                    <Badge tone={r.fake ? 'bad' : 'muted'}>{int(r.fake)} of {int(r.invited)} fake</Badge>
+                    {r.unverified > 0 && <Badge tone="warn">{int(r.unverified)} unconfirmed</Badge>}
+                    {r.never_played > 0 && <Badge tone="warn">{int(r.never_played)} never played</Badge>}
+                    {r.temp > 0 && <Badge tone="warn">{int(r.temp)} throwaway</Badge>}
+                    <span className="tnum text-muted">{int(r.paid_fake)} of {int(r.paid)} invite Ink from fakes</span>
+                    <b className={cn('tnum', r.referral >= 0.6 ? 'text-bad' : r.referral >= 0.35 ? 'text-gold' : 'text-muted')}>{Math.round(r.referral * 100)}%</b>
+                  </span>
+                </button>
+                {open === r.player.id && (
+                  <div className="grid gap-2 bg-surface-2/30 p-3" data-testid={`ref-detail-${r.player.username}`}>
+                    {r.referees.map((x) => <RefereeCard key={x.id} r={x} />)}
+                    <Link className="text-sm font-bold text-accent-2 hover:underline" to={`/tools/integrity?player=${r.player.id}`}>Open @{r.player.username} in Risk scores to act →</Link>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : <Empty title="Nothing found">No inviter has invited accounts that look fake. Scans run every hour on their own.</Empty>}</Q>
+    </div>
+  );
+}
+
+function RefereeCard({ r }: { r: Referee }) {
+  const c = r.suspicion >= 60 ? '#FF3D6E' : r.suspicion >= 35 ? '#FF8A3D' : '#3DDC97';
+  return (
+    <div className="rounded-xl bg-surface p-2.5 text-xs" style={{ boxShadow: `inset 3px 0 0 ${c}` }} data-testid={`referee-card-${r.username}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to={`/players/${r.id}`} className="font-bold text-accent-2 hover:underline">@{r.username}</Link>
+        <span className="min-w-0 break-all text-muted">{r.email}</span>
+        {r.verified ? <Badge tone="ok">email confirmed</Badge> : <Badge tone="warn">not confirmed</Badge>}
+        {r.disposable && <Badge tone="bad">throwaway</Badge>}{r.gibberish >= 0.5 && <Badge tone="warn">random letters</Badge>}
+        {r.lookalike && <Badge tone="bad">copy of inviter’s</Badge>}{r.linked_via && <Badge tone="bad">same {r.linked_via.replace(/\+/g, ', ')}</Badge>}
+        {r.switching && <Badge tone="bad">switching accounts</Badge>}
+        <b className="ml-auto tnum" style={{ color: c }}>{r.suspicion}%</b>
+      </div>
+      <div className="mt-1 text-faint">joined {date(r.joined)} · {int(r.plays + r.arcade)} games · {int(r.ink_earned)} Ink earned · {int(r.plots)} plots · {int(r.active_days)} active days · paid the inviter {int(r.paid_inviter)}</div>
+      {r.reasons.length > 0 && <div className="mt-1 text-muted">{r.reasons.join(' · ')}</div>}
     </div>
   );
 }

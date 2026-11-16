@@ -46,16 +46,16 @@ try {
   await buy(cheat, 3, 'loop'); await buy(fair, 2, 'fair');
   const [A, B, C] = (await c.query(`select w.gx, w.gy from world_plots w join plot_ownership o on o.gx = w.gx and o.gy = w.gy and o.player_id = w.owner_id and o.released_at is null
                                     where w.owner_id = $1 order by (o.method = 'starter') desc, o.acquired_at, o.gx`, [cheat])).rows;
-  // the loop: one Inkborn made, one egg, twelve sacrificed
+  // the loop: one Inkborn made, one egg, twelve sacrificed (before the loop was closed: dated from egg_fix_at, not from today)
   await c.query(`insert into inkborn_keepers (owner_id, made) values ($1, 1) on conflict (owner_id) do update set made = 1`, [cheat]);
   await c.query(`insert into inkborn (owner_id, client_key, name, source, genome, personality) values ($1, 'loop-keep-0001', 'Keeper', 'random', '{}', 'playful')`, [cheat]);
   await c.query(`insert into inkborn_eggs (owner_id, kind, shell, genome, parents, hatch_at) values ($1, 'speckled', '{}', '{}', '[]', now())`, [cheat]);
-  for (let i = 0; i < 12; i++) await c.query(`insert into feed_events (kind, player_id, data, created_at) values ('luck', $1, '{"sub": "sacrifice", "what": "inkborn", "gained": 12, "name": "Blob"}', now() - make_interval(hours => 3, mins => $2::int))`, [cheat, 60 - i]);
+  for (let i = 0; i < 12; i++) await c.query(`insert into feed_events (kind, player_id, data, created_at) values ('luck', $1, '{"sub": "sacrifice", "what": "inkborn", "gained": 12, "name": "Blob"}', private.egg_fix_at() - make_interval(hours => 3, mins => $2::int))`, [cheat, 60 - i]);
   await c.query(`insert into player_luck (player_id, luck, sacrificed) values ($1, 0, 12) on conflict (player_id) do update set sacrificed = 12`, [cheat]);
   await c.query(`insert into luck_choices (player_id, gx, gy, options, shinies, best, created_at) values
-    ($1, $2, $3, '["common", "legendary", "solar"]', '[false, false, true]', 2, now() - interval '2 hours'),
-    ($1, $4, $5, '["rare", "mythic"]', '[false, false]', 1, now() - interval '110 minutes'),
-    ($1, $6, $7, '["common", "epic"]', '[false, false]', 1, now() - interval '20 days')`, [cheat, A.gx, A.gy, B.gx, B.gy, C.gx, C.gy]);
+    ($1, $2, $3, '["common", "legendary", "solar"]', '[false, false, true]', 2, private.egg_fix_at() - interval '2 hours'),
+    ($1, $4, $5, '["rare", "mythic"]', '[false, false]', 1, private.egg_fix_at() - interval '110 minutes'),
+    ($1, $6, $7, '["common", "epic"]', '[false, false]', 1, private.egg_fix_at() - interval '20 days')`, [cheat, A.gx, A.gy, B.gx, B.gy, C.gx, C.gy]);
   await c.query(`update world_plots set rarity = 'solar', shiny = true where gx = $1 and gy = $2`, [A.gx, A.gy]);
   await c.query(`update world_plots set rarity = 'mythic' where gx = $1 and gy = $2`, [B.gx, B.gy]);
   await c.query(`update world_plots set rarity = 'epic' where gx = $1 and gy = $2`, [C.gx, C.gy]);

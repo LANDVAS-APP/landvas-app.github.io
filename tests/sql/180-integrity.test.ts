@@ -58,7 +58,8 @@ describe('signals', () => {
 describe('the scanner', () => {
   it('catches a self-referrer: shared device, look-alike and throwaway emails, alts that stopped playing', async () => {
     const r = await scan(alpha);
-    expect(keys(r)).toEqual(expect.arrayContaining(['shared_device', 'self_referral_device', 'self_referral_email', 'disposable_referrals']));
+    // (v2: each invited account's evidence — look-alike and throwaway emails, never played — adds up into fake_referrals)
+    expect(keys(r)).toEqual(expect.arrayContaining(['shared_device', 'self_referral_device', 'fake_referrals']));
     expect(['high', 'severe']).toContain(r.level);
     expect(r.score).toBeGreaterThanOrEqual(45);
     const linked = r.linked.map((x: any) => x.username).sort();
@@ -73,17 +74,18 @@ describe('the scanner', () => {
     expect(a1.linked_via).toContain('device');
     expect(a1.email_flags.join(' ')).toMatch(/\+tag alias/);
     expect(a1.suspicion).toBeGreaterThanOrEqual(50);
-    expect(a1.reasons.join(' ')).toMatch(/same device as the inviter/);
+    expect(a1.reasons.join(' ')).toMatch(/inviter's own device/);
     const a2 = r.referrals.find((x: any) => x.username === 'alt_two');
     expect(a2.email_flags.join(' ')).toMatch(/throwaway/);
-    expect(keys(r)).toContain('suspicious_referral_tree');
+    expect(a2.disposable).toBe(true); expect(a2.reasons.join(' ')).toMatch(/throwaway/);
     expect(r.signals.find((x: any) => x.key === 'self_referral_device').points).toBeGreaterThanOrEqual(60);
   });
   it('alts that vote for the inviter’s Sketch of the Day win, inspire and stamp their art', async () => {
     const sk = (await db.sql(`insert into sketches (player_id, day, word, submitted_at, votes, place, prize) values ($1, date_trunc('day', now()) - interval '2 days', 'dragon', now() - interval '2 days', 3, 1, 100) returning id`, [alpha]))[0].id;
     await db.sql(`insert into sketch_votes (sketch_id, voter_id, day) values ($1, $2, now() - interval '2 days'), ($1, $3, now() - interval '2 days'), ($1, $4, now() - interval '2 days')`, [sk, alt1, alt2, honest]);
     const r = await scan(alpha);
-    expect(keys(r)).toEqual(expect.arrayContaining(['propped_wins', 'referrals_boost_referrer']));
+    expect(keys(r)).toEqual(expect.arrayContaining(['propped_wins']));
+    expect(r.referrals.find((x: any) => x.username === 'alt_one').reasons.join(' ')).toMatch(/helped the inviter/);
     const w = r.signals.find((x: any) => x.key === 'propped_wins').evidence[0];
     expect(w).toMatchObject({ kind: 'Sketch of the Day', place: 1, votes: 3, from_own: 2 });
     expect(r.referrals.find((x: any) => x.username === 'alt_one').help['sketch votes']).toBe(1);
@@ -116,7 +118,11 @@ describe('the scanner', () => {
   });
   it('machine-steady timing between plays looks like a script', async () => {
     botty = await db.newPlayer('botty_bo');
-    await db.sql(`insert into arcade_plays (player_id, game, seed, started_at) select $1, 'snake', k, now() - interval '3 hours' + k * interval '30 seconds' from generate_series(1, 60) k`, [botty]);
+    // rounds of different lengths, each next one started exactly 2 s after the last ended (a script); v2 looks at the gap after a game
+    // ends, not start to start (fixed-length rounds replayed back to back are steady start-to-start for anyone)
+    await db.sql(`insert into arcade_plays (player_id, game, seed, started_at, finished_at)
+      select $1, 'snake', k, t0, t0 + (20 + k % 5) * interval '1 second' from (
+        select k, now() - interval '3 hours' + (sum(22 + k % 5) over (order by k) - (22 + k % 5)) * interval '1 second' t0 from generate_series(1, 70) k) z`, [botty]);
     await ping(botty, '198.51.100.99', { device_id: 'dev-bot', automation: true, reasons: ['navigator.webdriver'] });
     const r = await scan(botty);
     expect(keys(r)).toEqual(expect.arrayContaining(['steady_timing', 'automation']));

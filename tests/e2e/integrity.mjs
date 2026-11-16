@@ -65,7 +65,8 @@ try {
   await page.click('[data-testid=integrity-row-cheat_cara]');
   await page.waitForSelector('[data-testid=integrity-player]', { timeout: 20000 }); await page.waitForTimeout(500);
   check('evidence: shared device and self-referral', (await page.locator('[data-testid=signal-shared_device]').count()) === 1 && (await page.locator('[data-testid=signal-self_referral_device]').count()) === 1);
-  check('evidence: look-alike email', (await page.locator('[data-testid=signal-self_referral_email]').count()) === 1);
+  check('evidence: the invited account looks fake — its email a near-copy of hers', (await page.locator('[data-testid=signal-fake_referrals]').count()) === 1
+    && /near-copy of the inviter/.test(await page.locator('[data-testid=integrity-referrals]').innerText()));
   check('the invite shows the alt’s email', /amy\.jones\+alt@gmail\.com/.test(await page.locator('[data-testid=integrity-player]').innerText()));
   const over = await page.evaluate(() => { const d = document.querySelector('[data-testid=integrity-player]'); return d ? d.scrollWidth - d.clientWidth : -1; });
   check('the player panel fits the phone', over <= 1, `${over}px`);
@@ -73,7 +74,7 @@ try {
   await page.click('[data-testid=signal-self_referral_device] input');
   await page.selectOption('[data-testid=preset]', 'self_referral');
   check('preset fills the reason', /invited accounts you control/.test(await page.inputValue('[data-testid=reason]')));
-  check('ticked pattern fills the proof', /invited account uses their own device/.test(await page.inputValue('[data-testid=proof]')));
+  check('ticked pattern fills the proof', /invited account on their own app install/.test(await page.inputValue('[data-testid=proof]')));
   await page.click('#sc-ref');
   await page.click('[data-testid=preview]'); await page.waitForSelector('[data-testid=preview-result]');
   check('preview: 500 Ink to take', /500 Ink to take/.test(await page.locator('[data-testid=preview-result]').innerText()));
@@ -111,7 +112,7 @@ try {
   await signIn('amyjones@gmail.com');
   await page.waitForSelector('[data-testid=restriction-notice]', { timeout: 20000 });
   const t = await page.locator('[data-testid=restriction-notice]').innerText();
-  check('the notice says suspended, until when, why and the proof — and no email', /suspended/i.test(t) && /until/.test(t) && /invited accounts you control/.test(t) && /own device/.test(t) && !/@landvas\.app/.test(t), t.slice(0, 200));
+  check('the notice says suspended, until when, why and the proof — and no email', /suspended/i.test(t) && /until/.test(t) && /invited accounts you control/.test(t) && /own app install/.test(t) && !/@landvas\.app/.test(t), t.slice(0, 200));
   check('it says what was taken back', /500 Ink/.test(t));
   await page.fill('[data-testid=appeal-text]', 'Amy is my sister, she plays on my phone sometimes.');
   await page.click('[data-testid=appeal-send]');

@@ -67,6 +67,8 @@ export const portal = {
   // fair play: the egg loop (moderators look, economy staff fix) and ultras & rent
   earnSwitches: () => rpc<EarnSwitches>('admin_earn_switches'),
   earnSwitch: (key: string, off: boolean, note: string | null) => rpc<EarnSwitches>('admin_earn_switch', { p_key: key, p_off: off, p_note: note }),
+  exploitRadar: () => rpc<ExploitRadar>('admin_exploit_radar'),
+  referralFraud: (min = 0, limit = 100) => rpc<ReferralFraud>('admin_referral_fraud', { p_min: min, p_limit: limit }),
   eggLoopScan: (min = 1) => rpc<EggLoopScan>('admin_egg_loop_scan', { p_min: min }),
   eggLoopPlayer: (id: string) => rpc<EggLoopPlayer>('admin_egg_loop_player', { p_player: id }),
   eggLoopFix: (id: string, plots: { gx: number; gy: number; action: 'downgrade' | 'take'; rarity?: string | null }[], reason: string) =>
@@ -111,6 +113,23 @@ export type SecretsAdmin = { secrets: SecretRow[]; cabinets: HallCabinet[] };
 
 export type EggLoopStats = { sacrificed: number; luck_from_inkborn: number; luck_total: number; first_at: string | null; last_at: string | null; peak_day: number;
   made: number; alive: number; eggs: number; after_fix: number; could_have: number; excess: number };
+// the integrity engine: what's going wrong in the whole game right now, and referral fraud inviter by inviter
+export type Families = Partial<Record<'multi_account' | 'referral' | 'ink_ring' | 'automation' | 'speed' | 'exploit' | 'location', number>>;
+export type ExploitRadar = {
+  at: string;
+  sources: { source: string; key: string; today: number; players: number; usual: number; spike: number | null; top: { player: any; ink: number; share: number } | null }[];
+  double_paid: { ref_type: string; groups: number; players: number; extra_ink: number }[];
+  mismatched: { player: any; balance: number; ledger: number }[];
+  actions: { action: string; today: number; usual: number; players: number; spike: number | null }[];
+  arcade_tamper: { game: string; plays: number; players: number }[];
+  top: { player: any; score: number; level: string; families: Families; impact: number; proof: boolean; top: string | null }[];
+  switches_off: string[];
+};
+export type Referee = { id: string; username: string; email: string; email_flags: string[]; disposable: boolean; gibberish: number; verified: boolean; lookalike: boolean;
+  linked_via: string | null; status: string; account: string; rewarded: boolean; paid_inviter: number; joined: string; plays: number; arcade: number; wins: number;
+  ink_earned: number; plots: number; active_days: number; last_active: string | null; dormant: boolean; switching: boolean; boosts: number; suspicion: number; reasons: string[] };
+export type ReferralFraud = { scanned_at: string | null; rows: { player: any; email: string | null; status: string; score: number; level: string; referral: number; invited: number;
+  fake: number; unverified: number; never_played: number; temp: number; paid: number; paid_fake: number; referees: Referee[]; scanned_at: string }[] };
 export type EggLoopScan = { fixed_at: string; rows: { player: any; email: string | null; status: string; stats: EggLoopStats;
   rolls: { n: number; improved: number; ultras: number; open: number; fixed: number } }[] };
 export type EggLoopPlot = { gx: number; gy: number; rolled_at: string; options: string[]; shinies: boolean[] | null; kept: number; kept_rarity: string; own: string; own_shiny: boolean;

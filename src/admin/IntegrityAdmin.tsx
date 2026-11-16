@@ -2,8 +2,11 @@
 // player (linked accounts, invites with their emails and play, who helped them earn, devices, networks); and actions:
 // warn, suspend or ban with a preset or custom reason and proof, taking back the Ink gained by abuse and the plots bought
 // with it — for one player or a whole linked group. Every action can be undone.
+// v2 engine: every pattern has a kind of evidence (alt accounts, referral, Ink ring, bot/script, speed, exploit, location)
+// and a strength; Severe needs proof (or two strong, independent kinds) — a pile of weak hints never makes anyone severe.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -14,6 +17,19 @@ const LEVEL: Record<string, { label: string; color: string }> = {
   severe: { label: 'Severe', color: '#FF3D6E' }, high: { label: 'High', color: '#FF8A3D' }, watch: { label: 'Watch', color: '#FFD84D' }, low: { label: 'Low', color: '#3DDC97' },
 };
 const SEV: Record<string, string> = { severe: '#FF3D6E', high: '#FF8A3D', watch: '#FFD84D' };
+const FAMILY: Record<string, string> = { referral: 'Referral', multi_account: 'Alt accounts', ink_ring: 'Ink ring', automation: 'Bot / script', speed: 'Speed', exploit: 'Exploit', location: 'Location' };
+function Families({ f, proof, impact }: { f?: Record<string, number>; proof?: boolean; impact?: number }) {
+  const list = Object.entries(f ?? {}).filter(([, v]) => Number(v) >= 0.1).sort((a, b) => Number(b[1]) - Number(a[1]));
+  if (!list.length && !proof && !impact) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="families">
+      {proof && <span className="rounded-full bg-hot px-2 py-0.5 text-[10px] font-black uppercase text-white">proof</span>}
+      {list.map(([k, v]) => { const c = Number(v) >= 0.6 ? SEV.severe : Number(v) >= 0.35 ? SEV.high : '#9AA0B4';
+        return <span key={k} className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ boxShadow: `inset 0 0 0 1px ${c}88`, color: c }}>{FAMILY[k] ?? k} {Math.round(Number(v) * 100)}%</span>; })}
+      {!!impact && <span className="text-[10.5px] text-faint">· {fmt(impact)} Ink involved</span>}
+    </div>
+  );
+}
 const err = (e: unknown) => toast.error(toGameError(e).message);
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }) : '—');
 
@@ -34,7 +50,8 @@ export function IntegrityAdmin() {
   const qc = useQueryClient();
   const [level, setLevel] = useState<string | null>('flagged');
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState<string | null>(null);
+  const [sp] = useSearchParams();
+  const [open, setOpen] = useState<string | null>(sp.get('player')); // (the radar and referral list link straight to a player)
   const [scan, setScan] = useState<{ done: number; total: number } | null>(null);
   const [settings, setSettings] = useState(false);
   const list = useQuery({ queryKey: ['admin', 'integrity', level, q], queryFn: () => api.admin.integrityList(level, q) });
@@ -58,7 +75,7 @@ export function IntegrityAdmin() {
           <Button size="sm" variant="secondary" onClick={() => setSettings(true)} data-testid="integrity-settings">Reason presets</Button>
           <Button size="sm" loading={!!scan} onClick={() => void scanAll()} data-testid="integrity-scan">{scan ? `Scanning ${fmt(scan.done)}/${fmt(scan.total)}…` : 'Scan everyone'}</Button>
         </div>
-        <p className="text-xs text-muted">Players are rescanned as they play (hourly at most). Scores add up the patterns found; nothing is ever done automatically. Open a player to see the evidence and act.</p>
+        <p className="text-xs text-muted">Everyone active is rescanned on their own every hour. Each pattern counts as one kind of evidence; a shared café or carrier address, identical phones, a family at home, a VPN or rent paying all night no longer count against anyone. <b>Severe</b> needs proof (a duplicated payout, a balance changed outside the game, a bot, accounts on their own app install collecting invite bonuses…) or two strong, independent kinds of evidence. Nothing is ever done automatically: open a player to see the evidence and act.</p>
         <div className="flex flex-wrap gap-1.5">
           {[['flagged', 'Flagged', (counts.watch ?? 0) + (counts.high ?? 0) + (counts.severe ?? 0)], ['severe', 'Severe', counts.severe], ['high', 'High', counts.high], ['watch', 'Watch', counts.watch], ['low', 'Low', counts.low], [null, 'Everyone', null]].map(([k, l, n]) => (
             <button key={String(k)} onClick={() => setLevel(k as string | null)} className={cn('rounded-full px-3 py-1.5 text-xs font-bold', level === k ? 'bg-accent text-white' : 'bg-surface-2')} data-testid={`integrity-filter-${k ?? 'all'}`}>
@@ -80,6 +97,7 @@ export function IntegrityAdmin() {
                 <div className="flex flex-wrap items-center gap-1.5"><b className="truncate">@{r.player.username}</b><Status s={r.status} />{r.linked > 0 && <span className="text-[11px] text-muted">· {r.linked} linked</span>}</div>
                 <div className="truncate text-[11px] text-faint">{r.email} · joined {day(r.joined)} · active {timeAgo(r.last_active)}</div>
                 <div className="mt-1 flex flex-wrap gap-1">{r.top.map((s: any) => <span key={s.key} className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: `${SEV[s.severity] ?? '#888'}22`, color: SEV[s.severity] ?? '#bbb' }}>{s.label}</span>)}</div>
+                <Families f={r.families} proof={r.proof} impact={r.impact} />
               </div>
             </button>
           ))}
@@ -181,11 +199,13 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
           <Section title="Patterns found" n={d.signals.length}>
             {!d.signals.length ? <p className="text-muted">Nothing suspicious.</p> : (
               <div className="grid gap-2">
+                <Families f={d.families} proof={d.proof} impact={d.impact} />
                 {d.signals.map((s: any) => (
                   <label key={s.key} className="flex cursor-pointer gap-2 rounded-xl p-2 hover:bg-surface-2/40" style={{ boxShadow: `inset 3px 0 0 ${SEV[s.severity] ?? '#888'}` }} data-testid={`signal-${s.key}`}>
                     <input type="checkbox" checked={proofKeys.has(s.key)} onChange={() => toggle(proofKeys, setProofKeys, s.key)} className="mt-1" aria-label="Use as proof" />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-2"><b className="min-w-0 break-words">{s.label}</b><span className="shrink-0 text-xs font-bold tnum" style={{ color: SEV[s.severity] }}>+{s.points} · {s.severity}</span></div>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2"><b className="min-w-0 break-words">{s.proof && <span className="mr-1 rounded bg-hot px-1 text-[9.5px] font-black uppercase text-white">proof</span>}{s.label}</b>
+                        <span className="shrink-0 text-xs font-bold tnum" style={{ color: SEV[s.severity] }}>{s.family ? `${FAMILY[s.family] ?? s.family} · ` : ''}{s.points}% · {s.severity}{s.impact ? ` · ${fmt(s.impact)} Ink` : ''}</span></div>
                       <Evidence e={s.evidence} />
                     </div>
                   </label>
@@ -230,6 +250,8 @@ function PlayerIntegrity({ id, onClose, onOpen }: { id: string; onClose(): void;
                       <span>{r.plots} plots · {r.active_days} active days</span>
                       <span>active {timeAgo(r.last_active)}</span><span>invite: {r.status}{r.reward_ink ? ` (${r.reward_ink} Ink)` : ''}</span>
                       {r.linked_via && <b className="text-hot">same {r.linked_via.replace(/\+/g, ', ')}</b>}{r.dormant && <b className="text-[#FF8A3D]">stopped after the bonus</b>}
+                      {r.verified === false && <b className="text-[#FF8A3D]">email not confirmed</b>}{r.disposable && <b className="text-hot">throwaway email</b>}
+                      {r.switching && <b className="text-hot">switching accounts</b>}
                     </div>
                     {r.email_flags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{r.email_flags.map((f: string) => <span key={f} className="rounded bg-[#FF8A3D]/15 px-1.5 text-[10.5px] font-bold text-[#FF8A3D]">✉️ {f}</span>)}</div>}
                     {help.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{help.map(([k, n]) => <span key={k} className="rounded bg-hot/15 px-1.5 text-[10.5px] font-bold text-hot">→ inviter: {String(n)} {k}</span>)}</div>}
