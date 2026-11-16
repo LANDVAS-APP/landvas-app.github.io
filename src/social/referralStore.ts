@@ -14,9 +14,22 @@ export function captureReferral() {
     const code = normalizeCode(raw);
     if (code.length >= 3) localStorage.setItem(KEY, JSON.stringify({ code, at: Date.now() }));
     url.searchParams.delete('ref');
+    // a plain invite link (landvas.app/?ref=CODE) opens the inviter's own page, like landvas.app/i/CODE
+    const sub = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+    if (code.length >= 3 && (url.pathname === `${sub}/` || url.pathname === sub || url.pathname === `${sub}/welcome`)) url.pathname = `${sub}/i/${code}`;
     history.replaceState(history.state, '', url.pathname + url.search + url.hash);
   } catch {
     /* storage or history blocked */
+  }
+}
+
+/** keep an invite code on this device until the new player signs up (the invite landing page) */
+export function rememberReferral(raw: string) {
+  try {
+    const code = normalizeCode(raw);
+    if (code.length >= 3) localStorage.setItem(KEY, JSON.stringify({ code, at: Date.now() }));
+  } catch {
+    /* storage blocked */
   }
 }
 

@@ -304,6 +304,22 @@ export type ReferralPerks = { enabled: boolean; switch_days: number; bonus_after
   /** what every real friend pays now: the unlocked tiers' picks added together (null below Tier I) */
   stack: (ReferralBundle & { ink: number; share_pct: number; tier: number; parts: { tier: number; pick: string | null; grand?: boolean }[]; tickets: { min: string; n: number }[] }) | null };
 
+/** how a player's invite link looks: the preview chats show for it and the page a friend lands on */
+export type InviteCard = {
+  saved: boolean; theme: string; emoji: string | null; headline: string | null; message: string | null; showcase: 'plots' | 'art' | 'none';
+  art: { id: string; title: string; preview_path: string | null; thumb_path: string | null; plot_count: number } | null;
+  stats: { plots: number; best: { id: string; name: string; color: string } | null; art: number; crew: number };
+  image_path: string | null;
+};
+export type MyInviteCard = InviteCard & { page_codes: string[]; updated_at: string | null; themes: string[]; emojis: string[];
+  arts: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] };
+/** what a friend sees at landvas.app/i/CODE (anyone, signed out too) */
+export type InviteLandingData = {
+  code: string; enabled: boolean; referee_reward_ink: number; is_me: boolean;
+  player: Pick<Profile, 'username' | 'display_name' | 'avatar_seed' | 'avatar_style' | 'accent_color' | 'avatar_path' | 'explorer_style'>;
+  card: InviteCard;
+};
+
 export type GroupCell = [number, number, PlotTypeId, number, boolean];
 export type CanvasGroup = {
   id: string;

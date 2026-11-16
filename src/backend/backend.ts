@@ -48,6 +48,10 @@ export interface Backend {
   uploadAvatar(ownerId: string, name: string, image: Blob): Promise<void>;
   /** URL for a profile picture path (profiles.avatar_path). */
   avatarUrl(path: string | null | undefined): Promise<string | null>;
+  /** Store an invite card picture (drawn by the app, 1200x630) at invite-cards/<owner>/<name>. */
+  uploadInviteCard?(ownerId: string, name: string, image: Blob): Promise<void>;
+  /** URL for an invite card picture path (invite_cards.image_path). */
+  inviteCardUrl?(path: string | null | undefined): Promise<string | null>;
   /** Encoded PNG bytes of a published map art tile. */
   artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal): Promise<ArrayBuffer | null>;
   finishMinigame(sessionId: string, log: unknown): Promise<MinigameFinish>;
@@ -479,6 +483,15 @@ const MESSAGES: Record<string, string> = {
   unknown_tier: 'That referral tier doesn’t exist.',
   package_locked: 'Each tier’s pick can change once a month — not yet.',
   referral_packages_off: 'Referral bonus packages are paused right now.',
+  invite_cards_off: 'Invite cards are switched off right now.',
+  invite_card_theme: 'That theme isn’t available.',
+  invite_card_text: 'That has characters (or an emoji) that can’t be used on your card.',
+  invite_card_links: 'No links on your card — your invite link is already on it.',
+  invite_card_language: 'Please keep your card friendly — that wording isn’t allowed.',
+  invite_card_too_long: 'That’s a bit long — the headline fits 60 characters, the message 180.',
+  invite_card_art: 'Pick one of your own published artworks.',
+  invite_card_showcase: 'Pick what to show off: your plots, an artwork or nothing.',
+  invite_card_image: 'Couldn’t save your card’s picture — try again.',
   code_taken: 'That code is taken. Try another.',
   // USD -> Ink
   conversion_disabled: 'Converting USD to Ink is switched off right now.',

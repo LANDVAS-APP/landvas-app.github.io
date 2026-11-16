@@ -113,6 +113,7 @@ const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
 const RealmScreen = lazy(() => import('../realms/RealmScreen'));
 const ClansScreen = lazy(() => import('../clans/ClansScreen'));
 const PartyScreen = lazy(() => import('../party/PartyScreen'));
+const InviteLanding = lazy(() => import('../social/InviteLanding'));
 const ClanHall = lazy(() => import('../clans/ClanHall'));
 const BusinessGame = lazy(() => import('../business/BusinessGame'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
@@ -176,7 +177,7 @@ function OnboardingGate() {
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/handbook/, 'The LANDVAS Handbook — every feature, explained'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
-  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
+  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/i\//, 'You’re invited'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -231,6 +232,7 @@ const routes: RouteObject[] = [
     element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
+      { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)
       { path: '/reset-password', element: <ResetPassword /> },
       { path: '/auth/confirm', element: <AuthConfirm /> },
       { path: '/onboarding', element: <Onboarding /> },

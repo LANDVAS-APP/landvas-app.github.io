@@ -91,9 +91,31 @@ try {
   console.log(`share previews: could not read the gallery (${e.message}) — skipped`);
 }
 
+// invite links: landvas.app/i/CODE for every saved invite card, with the player's own words and picture (the words
+// match src/social/inviteCard.ts previewText). Not in the sitemap: these are for chats, not search. The codes go to
+// invite-pages.json; after the site is published, scripts/invite-pages.mjs tells the game they have a page.
+const inviteCodes = [];
+try {
+  const cards = await rpc('invite_cards_for_pages', {});
+  for (const c of Array.isArray(cards) ? cards : []) {
+    const who = c.display_name ? `${c.display_name} (@${c.username})` : `@${c.username}`;
+    const title = c.headline ? `${c.emoji ? `${c.emoji} ` : ''}${c.headline}` : `${who} invited you to LANDVAS`;
+    const description = `${c.message ?? 'Claim a free plot on the live world map and play with me.'} — ${who} on LANDVAS`;
+    const image = c.image_path ? `${url}/storage/v1/object/public/invite-cards/${c.image_path}` : asset(c.art_path);
+    for (const code of c.codes ?? []) {
+      if (!/^[A-Z0-9_]{3,20}$/.test(code)) continue;
+      page({ route: `/i/${code}`, title, description, image, alt: title, type: 'website' });
+      inviteCodes.push(code);
+    }
+  }
+  fs.writeFileSync(path.resolve('invite-pages.json'), JSON.stringify(inviteCodes));
+} catch (e) {
+  console.log(`share previews: could not read invite cards (${e.message}) — skipped`);
+}
+
 const sm = path.join(dist, 'sitemap.xml');
 if (urls.length && fs.existsSync(sm)) {
   const extra = urls.map((u) => `  <url><loc>${esc(u)}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>`).join('\n');
   fs.writeFileSync(sm, fs.readFileSync(sm, 'utf8').replace('</urlset>', `${extra}\n</urlset>`));
 }
-console.log(`share previews: ${urls.length} pages (${artists.size} artists)`);
+console.log(`share previews: ${urls.length} pages (${artists.size} artists), ${inviteCodes.length} invite links`);

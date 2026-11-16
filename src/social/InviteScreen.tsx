@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { Referrals } from '../backend/types';
+import type { MyInviteCard, Referrals } from '../backend/types';
 import { Page } from '../app/Shell';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn, fmt, safeStorage, saveStorage, timeAgo } from '../lib/utils';
@@ -21,6 +21,7 @@ import { confetti, confettiCannons } from '../ui/confetti';
 import { clearPendingReferral } from './referralStore';
 import { poll } from '../lib/poll';
 import { ReferralPackages, bundleLines, stackInk, tierName } from './ReferralPackages';
+import { InviteCardEditor } from './InviteCardEditor';
 
 type Stack = NonNullable<Referrals['perks']>['stack'];
 
@@ -41,9 +42,12 @@ const RANKS = [
   { at: 100, name: 'Legend', icon: Crown, color: '#FF4D6D' },
 ];
 
-export function inviteLink(code: string) {
-  const base = location.origin + (import.meta.env.BASE_URL || '/');
-  return `${base.replace(/\/$/, '')}/?ref=${encodeURIComponent(code)}`;
+/** the invite link: landvas.app/i/CODE once the site has built the code's own page (its own link preview), the plain
+ *  landvas.app/?ref=CODE until then (it opens the same invite page) */
+export function inviteLink(code: string, ownPage = false) {
+  const web = /^https?:$/.test(location.protocol) && !isNative();
+  const base = (web ? location.origin + (import.meta.env.BASE_URL || '/') : 'https://landvas.app/').replace(/\/$/, '');
+  return ownPage ? `${base}/i/${encodeURIComponent(code)}` : `${base}/?ref=${encodeURIComponent(code)}`;
 }
 
 function useCountUp(target: number, ms = 1300) {
@@ -66,6 +70,7 @@ function useCountUp(target: number, ms = 1300) {
 export default function InviteScreen() {
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['referrals'], queryFn: api.myReferrals, enabled: !!me, refetchInterval: poll(300_000) });
+  const card = useQuery({ queryKey: ['invite-card'], queryFn: api.myInviteCard, enabled: !!me }).data;
   const r = q.data;
   const total = r ? r.stats.earned_ink + (r.stats.share_ink ?? 0) + (r.stats.bonus_ink ?? 0) : 0;
   // celebrate new invite Ink since the last visit
@@ -81,6 +86,7 @@ export default function InviteScreen() {
   if (!me || q.isLoading) return <Page><div className="flex justify-center py-20"><Spinner /></div></Page>;
   if (!r) return <Page><Empty title="Invites are unavailable">{q.error ? toGameError(q.error).message : 'Try again in a moment.'}</Empty></Page>;
   const code = r.custom_code ?? r.default_code;
+  const link = inviteLink(code, !!card?.page_codes.includes(code));
   const share = r.share?.enabled ? r.share : null;
   const stack = r.perks?.enabled ? r.perks.stack : null;
   // (a stack's share is in the stack's Ink; otherwise the base share, when it's on)
@@ -90,9 +96,10 @@ export default function InviteScreen() {
       <Hero r={r} total={total} perFriend={perFriend} share={share} stack={stack} />
       {!r.enabled && <p className="mb-4 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">Invite rewards are paused right now. Your codes still work and will count when they’re back on.</p>}
       <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-        <ShareCard code={code} r={r} perFriend={perFriend} />
+        <ShareCard code={code} r={r} perFriend={perFriend} link={link} card={card ?? null} />
         <HowYouEarn r={r} share={share} stack={stack} />
       </div>
+      {me && <InviteCardEditor r={r} code={code} profile={me.profile} link={link} />}
       <ReferralPackages r={r} />
       <Ladder count={r.stats.total} />
       <section className="mt-6">
@@ -147,10 +154,11 @@ function Hero({ r, total, perFriend, share, stack }: { r: Referrals; total: numb
   );
 }
 
-function ShareCard({ code, r, perFriend }: { code: string; r: Referrals; perFriend: number }) {
-  const link = inviteLink(code);
+function ShareCard({ code, r, perFriend, link, card }: { code: string; r: Referrals; perFriend: number; link: string; card: MyInviteCard | null }) {
   const [copied, setCopied] = useState<string | null>(null);
-  const text = `I'm painting the real world on LANDVAS — claim a free plot next to mine! Use my code ${code}:`;
+  const text = card?.saved && (card.headline || card.message)
+    ? `${card.emoji ? `${card.emoji} ` : ''}${card.headline ?? card.message} — use my code ${code} on LANDVAS:`
+    : `I'm painting the real world on LANDVAS — claim a free plot next to mine! Use my code ${code}:`;
   const copy = async (what: string, label: string, e?: React.MouseEvent) => {
     try {
       await navigator.clipboard.writeText(what);

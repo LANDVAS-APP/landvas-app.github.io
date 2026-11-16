@@ -241,6 +241,12 @@ export class LocalBackend implements Backend {
   async avatarUrl(path: string | null | undefined) {
     return path ? this.objectUrl(`avatars/${path}`) : null;
   }
+  async uploadInviteCard(ownerId: string, name: string, image: Blob) {
+    await this.blobs.put(`invite-cards/${ownerId}/${name}`, new Uint8Array(await image.arrayBuffer()));
+  }
+  async inviteCardUrl(path: string | null | undefined) {
+    return path ? this.objectUrl(`invite-cards/${path}`) : null;
+  }
   private async objectUrl(key: string) {
     if (this.urlCache.has(key)) return this.urlCache.get(key)!;
     const bytes = await this.blobs.get(key);

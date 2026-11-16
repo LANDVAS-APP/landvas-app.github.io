@@ -1,7 +1,7 @@
 // Typed RPC wrappers. Every write is authorised and validated in SQL.
 import { getBackend } from './backend';
 import type {
-  Achievement, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
+  Achievement, InviteLandingData, MyInviteCard, ArtworkCard, ArtworkDetail, CanvasGroup, Manifest, MinigameFinish, MinigameStart, MyState, PlotDetails,
   PlotRow, ProjectBundle, Publication, VersionInfo, WorldConfig, Balances, Profile, NewAchievement, ExplorerState, CashoutStatus,
   DirectoryPlayer, PlayerLand, Notifications, Announcement, SupportTicket, SupportMessage, PvpLobby, PvpStart, EarnOverview, WheelStatus, WheelSlice, RoomStatus, ChallengesNow, Challenge, ExplorerStyle, FriendStatus, FriendsList, ChatMessage, FeedEvent, Referrals, PlotTypeInfo, AppConfig, EmailStatus, OtaManifest } from './types';
 import type { RarityInfo } from '../shared/rarity';
@@ -399,6 +399,12 @@ export const api = {
   myReferrals: () => rpc<Referrals>('my_referrals'),
   createReferralCode: (code: string) => rpc<Referrals>('create_referral_code', { p_code: code }),
   redeemReferral: (code: string) => rpc<Referrals>('redeem_referral', { p_code: code }),
+  myInviteCard: () => rpc<MyInviteCard>('my_invite_card'),
+  inviteCardSet: (c: { theme: string; emoji: string | null; headline: string | null; message: string | null; showcase: string; art_id: string | null }) =>
+    rpc<MyInviteCard>('invite_card_set', { p_theme: c.theme, p_emoji: c.emoji, p_headline: c.headline, p_message: c.message, p_showcase: c.showcase, p_art_id: c.art_id }),
+  inviteCardImage: (path: string | null) => rpc<MyInviteCard>('invite_card_image', { p_path: path }),
+  /** the landing page of an invite code (anyone, signed out too); null for a code that doesn't exist */
+  inviteCard: (code: string) => rpc<InviteLandingData | null>('invite_card', { p_code: code }),
   referralPick: (tier: number, pick: string) => rpc<Referrals>('referral_pick', { p_tier: tier, p_pick: pick }),
   // email confirmation (every player confirms their email before playing)
   myEmailStatus: () => rpc<EmailStatus>('my_email_status'),

@@ -14,3 +14,4 @@ test-results
 tsconfig.tsbuildinfo
 .wrangler/
 ota-pending/
+invite-pages.json

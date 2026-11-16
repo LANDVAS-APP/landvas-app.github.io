@@ -184,6 +184,14 @@ jobs:
           if [ -f deploy/CNAME ]; then export SITE_URL="https://$(tr -d ' \r\n' < deploy/CNAME)"; else export SITE_URL="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"; fi
           export EXTRA_ORIGINS="https://${GITHUB_REPOSITORY_OWNER,,}.github.io,https://landvas.app,https://www.landvas.app,https://admin.landvas.app,https://my.landvas.app"
           node scripts/configure-auth.mjs || echo "::warning::could not update auth settings"
+      # invite links whose page was just built (scripts/prerender-share.mjs) start being shared as landvas.app/i/CODE
+      - name: Mark invite links that have their own page
+        continue-on-error: true
+        timeout-minutes: 6
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          INVITE_PAGES_WAIT_S: 60
+        run: node scripts/invite-pages.mjs invite-pages.json
       - name: Draft the "What's new" update (waits for approval in Admin → Updates)
         continue-on-error: true
         env:

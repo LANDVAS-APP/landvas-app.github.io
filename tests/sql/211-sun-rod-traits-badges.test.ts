@@ -7,7 +7,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb, expectError } from '../helpers/db';
 
 
-const LATER = fs.readdirSync(path.resolve(__dirname, '../../supabase/migrations')).filter((f) => f.endsWith('.sql') && f >= '20261119000290').sort();
+const LATER = fs.readdirSync(path.resolve(__dirname, '../../supabase/migrations')).filter((f) => f.endsWith('.sql') && f >= '20261119000290')
+  .filter((f) => !fs.readFileSync(path.resolve(__dirname, '../../supabase/migrations', f), 'utf8').startsWith('-- @supabase-only')).sort();
 const db = new TestDb();
 let ann: string, bob: string, cat: string;
 const O = { gx: 812_400, gy: 1_544_300 };
