@@ -2,7 +2,7 @@
 // and a "+N Ink" burst that shows why it paid: level, genes, echoes, size-rayed rewards).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { create } from 'zustand';
@@ -63,10 +63,17 @@ export function useTick(ms = 1000) {
   useEffect(() => { const t = setInterval(() => set((x) => x + 1), ms); return () => clearInterval(t); }, [ms]);
 }
 /** seconds left of a server countdown, counting down since the data arrived */
+/** how fast the enchantment on screen runs (its clock's rate: ×3 with a Clockwork spliced in, 0 frozen) — its timers tick at it */
+export const ClockRate = createContext(1);
+export const useClockRate = () => useContext(ClockRate);
+/** the speed an enchantment's clock runs at right now (1 if it doesn't say) */
+export const rateOf = (e: { clock?: { rate?: number } | null } | null | undefined) => (e?.clock?.rate == null ? 1 : Math.max(0, Number(e.clock.rate)));
+
 export function useLeft(sec: number | null | undefined, at: number) {
   useTick(1000);
+  const rate = useClockRate();
   if (sec == null) return null;
-  return Math.max(0, sec - (Date.now() - at) / 1000);
+  return Math.max(0, sec - ((Date.now() - at) / 1000) * rate);
 }
 
 // ---- the effects layer ---------------------------------------------------------------------------------------------

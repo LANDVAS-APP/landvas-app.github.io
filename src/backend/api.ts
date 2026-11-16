@@ -30,7 +30,7 @@ export type TraitsNow = {
   fated?: { k: number; cards: number; last: { card: string; name: string; fx: string; at: string } | null };
 };
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
-  clock?: { now: string; skip_s: number; frozen_until: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
+  clock?: { now: string; skip_s: number; frozen_until: string | null; /** seconds its clock moves per real second right now (a Clockwork splice ×3, a tiny plot +1, frozen 0) */ rate?: number; rate_until?: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
   view: any; reflected: any; reflect_kind: string | null; attention: string | null; server_time: string; mine?: boolean;
   /** what the Traits it wears can do right now (Folded's fold, Inscribed's rune, Strings' chores, Farsight's reach…) */
   traits?: TraitsNow;

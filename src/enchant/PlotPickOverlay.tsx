@@ -2,7 +2,7 @@
 // dims), tap one, then "Use this plot" takes you back to the enchantment with it chosen.
 import type * as maplibregl from 'maplibre-gl';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useUi } from '../lib/store';
@@ -53,32 +53,45 @@ function Picking({ spec }: { spec: PickSpec }) {
     if (first && !inView) { const [lng, lat] = cellCenter(first.gx, first.gy); flyAway({ lng, lat, zoom: spec.free ? 17.2 : 18.4 }); }
     return () => document.documentElement.classList.remove('lv-targeting');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // crosshairs on the plots you can pick
+  // crosshairs on the plots you can pick. They're only rebuilt when the plots on screen change — not on every little
+  // move of the map, which on a phone often happens in the middle of a tap and swallowed it — and the tapped one lights
+  // up in place.
+  const visible = useMemo(() => (bbox ? list.filter((p) => p.gx >= bbox.min_gx - 40 && p.gx <= bbox.max_gx + 40 && p.gy >= bbox.min_gy - 40 && p.gy <= bbox.max_gy + 40).slice(0, 120) : []), [bbox, list]);
+  const visibleKey = visible.map((p) => `${p.gx},${p.gy}`).join('|');
+  const els = useRef(new Map<string, HTMLButtonElement>());
   useEffect(() => {
     const map = mapHandle.current;
     if (!map || !bbox) return;
     const src = 'lv-pick-targets';
-    const visible = list.filter((p) => p.gx >= bbox.min_gx - 40 && p.gx <= bbox.max_gx + 40 && p.gy >= bbox.min_gy - 40 && p.gy <= bbox.max_gy + 40).slice(0, 120);
     const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: visible.map((p) => ({ type: 'Feature', properties: { on: tapped?.gx === p.gx && tapped?.gy === p.gy ? 1 : 0 }, geometry: { type: 'Polygon', coordinates: [cellPolygon(p.gx, p.gy)] } })) };
     if (!map.getSource(src)) {
       map.addSource(src, { type: 'geojson', data });
       map.addLayer({ id: 'lv-pick-glow', type: 'line', source: src, paint: { 'line-color': spec.color, 'line-width': 9, 'line-blur': 6, 'line-opacity': 0.75 } });
       map.addLayer({ id: 'lv-pick-line', type: 'line', source: src, paint: { 'line-color': ['case', ['==', ['get', 'on'], 1], '#ffffff', spec.color], 'line-width': ['case', ['==', ['get', 'on'], 1], 4, 2] } });
     } else (map.getSource(src) as maplibregl.GeoJSONSource).setData(data);
-    for (const m of markers.current) m.remove();
+  }, [visibleKey, tapped]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const map = mapHandle.current;
+    if (!map) return;
+    els.current = new Map();
     markers.current = visible.slice(0, 60).map((p) => {
       const el = document.createElement('button');
-      const on = tapped?.gx === p.gx && tapped?.gy === p.gy;
-      el.className = `lv-crosshair${on ? ' on' : ''}`; el.style.setProperty('--c', spec.color);
+      el.type = 'button';
+      el.className = 'lv-crosshair'; el.style.setProperty('--c', spec.color);
       el.dataset.testid = 'pick-crosshair';
       el.innerHTML = '<i></i><i></i><i></i><i></i><b></b>';
-      el.addEventListener('click', (ev) => { ev.stopPropagation(); feel('medium'); usePlotPick.getState().tap({ gx: p.gx, gy: p.gy }); });
+      const pick = (ev: Event) => { ev.stopPropagation(); feel('medium'); usePlotPick.getState().tap({ gx: p.gx, gy: p.gy }); };
+      el.addEventListener('click', pick);
+      els.current.set(`${p.gx},${p.gy}`, el);
       // (above the creatures and chests on the plots, so the tap is the pick)
       const holder = document.createElement('div'); holder.style.zIndex = '30'; holder.appendChild(el);
       return newMarker({ element: holder }).setLngLat(cellCenter(p.gx, p.gy)).addTo(map);
     });
-    return () => { for (const m of markers.current) m.remove(); markers.current = []; };
-  }, [bbox, tapped, list.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { for (const m of markers.current) m.remove(); markers.current = []; els.current = new Map(); };
+  }, [visibleKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    for (const [k, el] of els.current) el.classList.toggle('on', !!tapped && k === `${tapped.gx},${tapped.gy}`);
+  }, [tapped, visibleKey]);
   // a free pick: how far it reaches (a ring round each anchor) and the spot you tapped
   useEffect(() => {
     const map = mapHandle.current;

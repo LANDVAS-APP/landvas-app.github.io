@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRef } from 'react';
 import { cn, fmt } from '../../lib/utils';
 import { Button } from '../../ui';
-import { centerOf, efx, useLeft, type SceneProps } from '../core';
+import { centerOf, efx, useClockRate, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
 import { useHeartbeat, usePoke, useRub } from '../living';
 import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
@@ -20,7 +20,15 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
   const lurkLeft = useLeft(view.lurk_end != null ? view.lurk_end - eNow(v) : null, frozen ? Date.now() : at);
   const polishIn = useLeft(view.polish_ready_in, at);
   const collectIn = useLeft(view.collect_in, at);
-  const scale = 0.5 + 0.65 * (Number(view.grow) / 100);
+  // the egg grows live, at the speed its clock runs (×3 with a Clockwork spliced in): the curve comes with the view
+  const rate = useClockRate();
+  const el = Math.max(0, (Date.now() - at) / 1000) * (frozen ? 0 : rate);
+  const tau = Number(view.tau_h ?? 0), eggMax = Number(view.max ?? 140), eggMin = Number(view.min ?? 6), polishN = Number(view.polish ?? 0);
+  const grow = tau > 0 ? Math.min(100, (1 - Math.exp(-((Number(view.age_s ?? 0) + el) / 3600) / tau)) * 100) : Number(view.grow);
+  const base0 = eggMin + (eggMax - eggMin) * (Number(view.grow) / 100) + polishN;
+  const value = tau > 0 && base0 > 0 ? (eggMin + (eggMax - eggMin) * (grow / 100) + polishN) * (Number(view.value) / base0) : Number(view.value);
+  const fast = rate > 1 && !frozen;
+  const scale = 0.5 + 0.65 * (grow / 100);
   const plat = !!view.platinum;
   const lurking = view.lurking != null && (lurkLeft ?? 0) > 0;
   const small = (view.visits ?? []).some((x: any) => x.state === 'lurking_small');
@@ -50,7 +58,7 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
         <svg viewBox="0 0 400 300" className="absolute inset-0 h-full w-full" preserveAspectRatio="none" aria-hidden>
           <path d="M0 190 Q90 150 180 180 T400 170 V300 H0Z" fill="#7DBE5C" />
           <path d="M0 225 Q120 195 230 220 T400 215 V300 H0Z" fill="#5A9C43" />
-          {Array.from({ length: 26 }, (_, i) => <path key={i} d={`M${i * 16 + 4} 300 q3 -16 6 0`} stroke="#3F7A2E" strokeWidth="2" fill="none" className="lv-sway" style={{ animationDelay: `${(i % 7) * 0.3}s` }} />)}
+          {Array.from({ length: 26 }, (_, i) => <path key={i} d={`M${i * 16 + 4} 300 q3 -16 6 0`} stroke="#3F7A2E" strokeWidth="2" fill="none" className="lv-sway" style={{ animationDelay: `${(i % 7) * 0.3}s`, animationDuration: fast ? `${4 / rate}s` : undefined }} />)}
         </svg>
         {/* the bush the fox hides in */}
         <div className={cn('absolute bottom-[14%] left-[3%] w-[34%]', view.rustle && !lurking && 'lv-rustle')} style={{ transformOrigin: '50% 100%' }}>
@@ -88,7 +96,7 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
               className="relative mb-[-14%] aspect-[4/5] w-[62%] origin-bottom" animate={{ scale }} whileTap={{ scale: scale * 0.94 }} transition={{ type: 'spring', stiffness: 120, damping: 12 }} aria-label="Rub the egg to polish it">
               <div className="absolute inset-0 overflow-hidden rounded-[50%_50%_46%_46%/60%_60%_40%_40%]" style={{
                 background: plat ? 'radial-gradient(circle at 35% 28%,#FFFFFF,#E3EAF3 35%,#A9B7CB 75%,#7D8BA3)' : 'radial-gradient(circle at 35% 28%,#FFF6C8,#FFD23F 38%,#E9A100 78%,#9C6400)',
-                boxShadow: `0 0 ${20 + view.grow / 2}px ${plat ? '#E6F0FF' : '#FFD23F'}` }}>
+                boxShadow: `0 0 ${20 + grow / 2}px ${plat ? '#E6F0FF' : '#FFD23F'}` }}>
                 <div className="lv-shine absolute -inset-y-4 left-0 w-1/3 bg-white/50 blur-[2px]" />
                 {rub.at && <span className="pointer-events-none absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80 blur-md" style={{ left: rub.at.x, top: rub.at.y }} />}
                 {rub.progress > 0 && rub.progress < 1 && <span className="pointer-events-none absolute inset-x-[18%] bottom-[12%] h-1.5 overflow-hidden rounded-full bg-black/25"><span className="block h-full bg-white" style={{ width: `${rub.progress * 100}%` }} /></span>}
@@ -101,10 +109,22 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
             <svg viewBox="0 0 160 50" className="relative w-full" aria-hidden><ellipse cx="80" cy="30" rx="76" ry="18" fill="#8B5A2B" />{Array.from({ length: 18 }, (_, i) => <path key={i} d={`M${8 + i * 8} ${24 + (i % 3) * 4} q20 -${6 + (i % 4) * 2} 40 0`} stroke="#C08A4A" strokeWidth="2" fill="none" />)}</svg>
           </div>
         </div>
+        {/* a Clockwork at work: gears turning over the meadow, as fast as its time runs */}
+        {fast && (
+          <div className="pointer-events-none absolute right-3 top-3 grid justify-items-end gap-1" data-testid="goose-tempo">
+            <svg viewBox="0 0 80 50" className="h-12 w-20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" aria-hidden>
+              {[[24, 26, 18, 10, ''], [52, 18, 12, 8, 'r'], [60, 40, 9, 7, '']].map(([x, y, r, t, dir], i) => {
+                const n = Number(t) * 2; const pts = Array.from({ length: n }, (_, j) => { const a = (j / n) * Math.PI * 2, rr = j % 2 ? Number(r) : Number(r) * 0.8; return `${(Number(x) + Math.cos(a) * rr).toFixed(1)},${(Number(y) + Math.sin(a) * rr).toFixed(1)}`; }).join(' ');
+                return <g key={i} className={dir ? 'lv-gear-r' : 'lv-gear'} style={{ animationDuration: `${Math.max(0.5, (dir ? 6 : 9) / rate)}s` }}><polygon points={pts} fill={['#C9A25E', '#E3C27F', '#B88B5A'][i]} stroke="#3A2A1A" strokeWidth="1.2" /><circle cx={Number(x)} cy={Number(y)} r={Number(r) * 0.3} fill="#3A2A1A" /></g>;
+              })}
+            </svg>
+            <span className="rounded-full bg-[#2B1D0E]/80 px-2.5 py-0.5 text-[11px] font-black text-[#FFE8A3]">⏩ Time ×{Number.isInteger(rate) ? rate : rate.toFixed(1)} — the egg grows {Number.isInteger(rate) ? rate : rate.toFixed(1)}× as fast</span>
+          </div>
+        )}
         {/* readout */}
         <div className="absolute left-3 top-3 grid gap-1">
-          <span className="rounded-full bg-black/35 px-3 py-1 font-display text-[18px] font-black text-white backdrop-blur" data-testid="goose-value">{plat ? '✨ Platinum egg' : '🥚 Golden egg'} · ≈{fmt(view.value)} Ink</span>
-          <span className="w-fit rounded-full bg-black/25 px-2.5 py-0.5 text-[11px] font-bold text-white/90">{Math.round(view.grow)}% grown{view.bites ? ` · 🦊 bitten ×${view.bites}` : ''}{view.streak ? ` · 🔥 streak ${view.streak}` : ''}</span>
+          <span className="rounded-full bg-black/35 px-3 py-1 font-display text-[18px] font-black text-white backdrop-blur" data-testid="goose-value">{plat ? '✨ Platinum egg' : '🥚 Golden egg'} · ≈{fast ? value.toFixed(1) : fmt(Math.round(value))} Ink</span>
+          <span className="w-fit rounded-full bg-black/25 px-2.5 py-0.5 text-[11px] font-bold text-white/90" data-testid="goose-grow">{fast ? grow.toFixed(2) : Math.round(grow)}% grown{view.bites ? ` · 🦊 bitten ×${view.bites}` : ''}{view.streak ? ` · 🔥 streak ${view.streak}` : ''}</span>
         </div>
         {view.rustle && !lurking && <div className="absolute bottom-[42%] left-[6%] rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-bold text-white">…something stirs in the bush</div>}
       </div>
@@ -113,7 +133,7 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
           ✨ Polish {view.polish >= view.polish_max ? '(max)' : (polishIn ?? 0) > 0 ? `· ${dur(polishIn)}` : `+3 (${view.polish}/${view.polish_max})`}
         </Button>
         <Button variant="rainbow" onClick={() => void collect()} disabled={!!busy || (collectIn ?? 0) > 0} loading={busy === 'collect'} data-testid="goose-collect">
-          {(collectIn ?? 0) > 0 ? `Ready in ${dur(collectIn)}` : `🥚 Collect ≈${fmt(view.value)}`}
+          {(collectIn ?? 0) > 0 ? `Ready in ${dur(collectIn)}` : `🥚 Collect ≈${fmt(Math.round(value))}`}
         </Button>
       </div>
       <p className="text-center text-[11px] text-white/55">Rub the egg to polish it · hold it to feel it beat. Wait longer for a bigger egg — but every fox that slips past takes a bite. {view.eggs} egg{view.eggs === 1 ? '' : 's'} laid.</p>

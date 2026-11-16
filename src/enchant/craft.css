@@ -99,7 +99,10 @@
 .lvx-ingot { position: relative; display: grid; justify-items: center; gap: 2px; min-width: 56px; }
 .lvx-ingot i { width: 46px; height: 20px; clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%); background: linear-gradient(180deg, var(--hi), var(--c) 55%, var(--lo)); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35); }
 .lvx-hammer { transform-origin: 85% 85%; }
-.lvx-bellows-ring { position: absolute; inset: 0; border-radius: 999px; border: 4px solid rgba(255, 210, 122, 0.85); }
+/* the bellows: the bright circle to hit, and a ring closing on it (transform and opacity only) */
+.lvx-bellows-target { position: absolute; inset: 0; border-radius: 999px; border: 4px solid #FFF3D6; box-shadow: 0 0 18px rgba(255, 210, 122, 0.8), inset 0 0 12px rgba(255, 210, 122, 0.5); }
+.lvx-bellows-ring { position: absolute; inset: 0; border-radius: 999px; border: 4px solid rgba(255, 140, 0, 0.95); animation: lvx-bellows-close 1300ms linear infinite; }
+@keyframes lvx-bellows-close { from { transform: scale(2.4); opacity: 0.45; } to { transform: scale(0.35); opacity: 1; } }
 
 /* 🎭 Puppeteer */
 .lvx-theatre { position: absolute; inset: 0; background: radial-gradient(70% 60% at 50% 45%, #3A0A12 0%, #18040A 65%, #090205 100%); }

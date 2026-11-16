@@ -5,7 +5,8 @@
 import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rarityInfo } from '../../shared/rarity';
-import { Button } from '../../ui';
+import { Button, useConfirm } from '../../ui';
+import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 import { centerOf, efx, type SceneProps } from '../core';
 import { PlotRow, plotName, sleep, useCraftClip, type PlotLite } from '../craft';
@@ -67,32 +68,43 @@ function Count({ n }: { n: number }) {
   return <motion.span>{t}</motion.span>;
 }
 
-/** the bellows: a ring closes on the target three times — press as it touches */
+/** the bellows: a ring closes on the bright circle three times — tap anywhere on the pad as it touches the circle.
+ *  (The closing ring is a CSS animation, so phones don't repaint it from script; the tap reads where it was.) */
+const PERIOD = 1300, FROM = 2.4, TO = 0.35;
 function Bellows({ onDone }: { onDone: (score: number) => void }) {
-  const [round, setRound] = useState(0);
   const [hits, setHits] = useState<number[]>([]);
+  const [say, setSay] = useState<{ t: string; c: string; k: number } | null>(null);
   const t0 = useRef(performance.now());
-  const [now, setNow] = useState(performance.now());
-  useEffect(() => { let raf = 0; const f = () => { setNow(performance.now()); raf = requestAnimationFrame(f); }; raf = requestAnimationFrame(f); return () => cancelAnimationFrame(raf); }, []);
-  const period = 1100;
-  const phase = ((now - t0.current) % period) / period;
-  const scale = 2.2 - phase * 1.6;
-  const press = () => {
+  const done = useRef(false);
+  const press = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (done.current) return;
+    const phase = ((performance.now() - t0.current) % PERIOD) / PERIOD;
+    const scale = FROM - phase * (FROM - TO);
     const off = Math.abs(scale - 1);
-    const q = Math.max(0, 1 - off / 0.55);
-    feel(q > 0.75 ? 'success' : 'light');
-    const h = [...hits, q]; setHits(h); setRound(round + 1); t0.current = performance.now();
-    if (h.length >= 3) onDone(h.reduce((a, b) => a + b, 0) / h.length);
+    const q = Math.max(0, 1 - off / 0.5);
+    feel(q > 0.75 ? 'success' : q > 0.35 ? 'medium' : 'light');
+    setSay({ t: q > 0.75 ? 'PERFECT!' : q > 0.35 ? 'Good' : scale > 1 ? 'Too early' : 'Too late', c: q > 0.75 ? '#FFD27A' : q > 0.35 ? '#FF8C00' : '#FF6B6B', k: hits.length });
+    const h = [...hits, q]; setHits(h); t0.current = performance.now();
+    if (h.length >= 3) { done.current = true; setTimeout(() => onDone(h.reduce((a, b) => a + b, 0) / h.length), 350); }
   };
   return (
     <div className="grid justify-items-center gap-2" data-testid="crucible-bellows">
-      <button className="relative grid h-28 w-28 place-items-center rounded-full bg-[#3A1606] text-[34px] shadow-[inset_0_0_30px_#000]" onPointerDown={press} data-testid="crucible-pump">
-        <span className="lvx-bellows-ring" style={{ transform: `scale(${scale})`, opacity: 1 - phase * 0.4 }} />
-        <span className="absolute inset-[30%] rounded-full border-2 border-dashed border-[#FFD27A]/70" />
-        <motion.span animate={{ scaleY: [1, 0.8, 1] }} transition={{ duration: 0.3 }} key={round}>🌬️</motion.span>
+      <button type="button" className="relative grid h-44 w-full max-w-[340px] touch-manipulation select-none place-items-center overflow-hidden rounded-3xl bg-[radial-gradient(circle,#4A1C08,#1E0903_75%)] shadow-[inset_0_0_40px_#000]"
+        onPointerDown={press} data-testid="crucible-pump" aria-label="Pump the bellows">
+        {/* the circle to hit, and the ring closing on it */}
+        <span className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2">
+          <span className="lvx-bellows-target" />
+          {hits.length < 3 && <span key={hits.length} className="lvx-bellows-ring lv-keep-moving" style={{ animationDuration: `${PERIOD}ms` }} />}
+        </span>
+        <span className="pointer-events-none relative text-[30px]">🌬️</span>
+        <AnimatePresence>{say && <motion.span key={say.k} className="pointer-events-none absolute top-3 font-display text-[18px] font-black" style={{ color: say.c, textShadow: '0 2px 8px #000' }}
+          initial={{ y: 8, opacity: 0, scale: 0.8 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>{say.t}</motion.span>}</AnimatePresence>
+        <span className="pointer-events-none absolute bottom-2 text-[11px] font-bold text-white/60">Tap anywhere here as the ring meets the bright circle</span>
       </button>
       <div className="flex gap-1.5">{[0, 1, 2].map((i) => <span key={i} className="h-2.5 w-8 rounded-full" style={{ background: hits[i] == null ? 'rgba(255,255,255,0.12)' : hits[i] > 0.75 ? '#FFD27A' : hits[i] > 0.35 ? '#FF8C00' : '#7A2A00' }} />)}</div>
-      <div className="text-[11px] font-bold text-white/60">Press as the ring meets the circle — three pumps</div>
+      <div className="text-center text-[11px] font-bold text-white/60">Three pumps · good pumps add up to 10% more Heat to this strike</div>
+      <button type="button" className="text-[11px] font-black text-white/50 underline" onClick={() => { if (!done.current) { done.current = true; onDone(0); } }} data-testid="crucible-skip-pump">Strike without pumping</button>
     </div>
   );
 }
@@ -129,8 +141,12 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
   const gain = picked.reduce((a, p) => a + Number(p.heat), 0);
   const sparks = useMemo(() => Array.from({ length: 14 }, (_, i) => ({ l: 28 + ((i * 41) % 44), d: (i * 0.37) % 2.4 })), []);
 
+  const confirm = useConfirm();
   const melt = async () => {
     if (!picked.length || mirror) return;
+    // melting is for good: say so once when something rare is going in
+    const rare = picked.filter((p) => ['epic', 'legendary', 'mythic', 'ultra', 'crown'].includes(p.rarity));
+    if (rare.length && !(await confirm({ title: `Melt ${picked.length} plot${picked.length > 1 ? 's' : ''}?`, body: `${rare.length} of them ${rare.length === 1 ? 'is' : 'are'} ${rarityInfo(rare[0].rarity).name} or rarer. Melted plots go back to the world for good — their Heat is yours to strike with.`, confirm: 'Melt them', danger: true }))) return;
     const cells = picked.map((p) => [p.gx, p.gy]);
     setFlying(picked); feel('medium');
     await sleep(700);
@@ -140,6 +156,9 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
     setSplash((x) => x + 1); setPick(new Set());
     feel('heavy');
     efx.burst({ ...centerOf(pot.current), colors: ['#FFB000', '#FF5A00', '#FFF3B0'], count: 120 + picked.length * 20, speed: 12, kind: 'spark' });
+    // the Heat is in: on to the anvil
+    setTimeout(() => setTab('strike'), 900);
+    toast.success(`+${Math.round(gain * 100) / 100} Heat — now pick a plot for the anvil`, { description: 'The chance on every plot below grows with the Heat.' });
   };
   const strike = async (pump: number) => {
     if (!target || mirror) return;
@@ -243,6 +262,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
             <>
               {strikePick.canMap && <MapPickButton className="w-fit" onClick={strikePick.toMap} testId="crucible-strike-map" label="Pick the plot on the map" />}
               <div className="grid max-h-[220px] gap-1.5 overflow-y-auto pr-1" data-testid="crucible-strikeable">
+                {!strikeable.length && <p className="rounded-xl bg-white/5 p-2.5 text-[12px] text-white/70" data-testid="crucible-none">None of your plots can go on the anvil right now (locked, folded, enchanted and Crown plots can’t). Claim or roll more plots and they’ll show up here.</p>}
                 {strikeable.slice(0, 60).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={target?.gx === p.gx && target?.gy === p.gy} onClick={() => setTarget(p)} testId="crucible-target"
                   right={<span className="text-right text-[11px] font-black leading-tight"><span style={{ color: tier(p.to).color }}>→ {tier(p.to).name}</span><br /><span className="text-white/70">{pct(p.chance)}</span></span>} />)}
               </div>

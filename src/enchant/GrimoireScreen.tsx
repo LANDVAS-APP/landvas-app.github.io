@@ -15,7 +15,8 @@ import { cn, fmt, timeAgo } from '../lib/utils';
 import { buzz } from '../native/native';
 import { cellCenter } from '../shared/grid';
 import { Button, Empty, Spinner, Tabs, inputCls } from '../ui';
-import { EnchantFxLayer, centerOf, efx, useAct, useEnchant, useMyEnchantments, useVisitors } from './core';
+import { ClockRate, EnchantFxLayer, centerOf, efx, rateOf, useAct, useEnchant, useMyEnchantments, useTick, useVisitors } from './core';
+import { TempoBadge, UseOnThis } from './UseOnThis';
 import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, TRAIT_CHIP, dur, enchantName, hybridCard, hybridKey, kindInfo, traitHere, type EnchantKind, type SpliceMode } from './kinds';
 import { SeekChests, useSeekChests } from './Chests';
 import { HybridCard } from './HybridCard';
@@ -64,7 +65,7 @@ function Home() {
     const order = [...KIND_ORDER, 'cuckoo'] as string[];
     return [...m.entries()].sort((a, b) => Number(b[1].some((x) => x.attention)) - Number(a[1].some((x) => x.attention)) || order.indexOf(a[0]) - order.indexOf(b[0]));
   }, [shown]);
-  const soonest = useMemo(() => list.filter((e) => !e.attention).map((e) => ({ e, s: nextIn(e, elapsed) })).filter((x) => x.s != null).sort((a, b) => a.s! - b.s!)[0], [list, elapsed]);
+  const soonest = useMemo(() => list.filter((e) => !e.attention).map((e) => ({ e, s: nextIn(e, elapsed * rateOf(e)) })).filter((x) => x.s != null).sort((a, b) => a.s! - b.s!)[0], [list, elapsed]);
   if (!me) return <Page><Empty title="Sign in to open your Grimoire" /></Page>;
   return (
     <Page>
@@ -148,7 +149,7 @@ function KindGroup({ kind, copies, i, elapsed }: { kind: string; copies: Enchant
 
 function EnchantRow({ e, elapsed }: { e: EnchantView; elapsed: number }) {
   const k = kindInfo(e.reflect_kind ?? e.kind);
-  const n = e.attention ? null : nextIn(e, elapsed);
+  const n = e.attention ? null : nextIn(e, elapsed * rateOf(e));
   return (
     <Link to={`/grimoire/${e.id}`} className={cn('lv-ench-row flex items-center gap-3', e.attention && 'ready')} data-testid="grimoire-card" data-kind={e.kind}>
       <div className="relative shrink-0"><StarAura stars={e.stars ?? 0} size={52}><Sigil kind={e.kind} seed={e.sigil} size={52} level={e.level} /></StarAura>
@@ -160,6 +161,7 @@ function EnchantRow({ e, elapsed }: { e: EnchantView; elapsed: number }) {
           <span className={cn('rounded-full px-2 py-[1px] font-black', e.attention ? 'bg-[#FFD23F] text-[#1a0b2e]' : 'bg-white/[0.08] text-white/60')} data-testid="grimoire-status">
             {e.attention ? `✦ ${e.attention}` : e.clock?.frozen_until ? '❄️ frozen' : n != null ? `⏳ ${dur(n)}` : 'resting'}</span>
           {e.partner && <span className="truncate rounded-full bg-[#00F5D4]/15 px-2 py-[1px] font-black text-[#00F5D4]">🧬 {e.partner.hybrid}</span>}
+          <TempoBadge e={e} compact />
         </div>
       </div>
       <span className="shrink-0 text-white/30" aria-hidden>›</span>
@@ -478,6 +480,13 @@ function TraceRune({ rune, act, busy }: { rune: NonNullable<NonNullable<EnchantV
   );
 }
 
+/** "⏳ Next in …", ticking at the speed its clock runs */
+function NextInLive({ v, at }: { v: EnchantView; at: number }) {
+  useTick(1000);
+  const n = nextIn(v, (at ? (Date.now() - at) / 1000 : 0) * rateOf(v));
+  return <>⏳ Next in {dur(n)}</>;
+}
+
 function SceneMood({ v }: { v: EnchantView }) {
   const m = useMood(v);
   return <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[4/3] overflow-hidden rounded-[28px]"><MoodVeil {...m} /></div>;
@@ -510,7 +519,7 @@ function Detail({ id }: { id: string }) {
   // your other copies of this kind: step between them
   const copies = (mineList.data ?? []).filter((e) => e.kind === v.kind);
   const at = copies.findIndex((e) => e.id === v.id);
-  const wait = v.attention ? null : nextIn(v, q.dataUpdatedAt ? (Date.now() - q.dataUpdatedAt) / 1000 : 0);
+  const wait = v.attention ? null : nextIn(v, (q.dataUpdatedAt ? (Date.now() - q.dataUpdatedAt) / 1000 : 0) * rateOf(v));
   const partners = v.partners ?? (v.partner ? [v.partner] : []);
   const traitNeeds = !!(v.traits?.fold && v.traits.fold.left > 0) || !!(v.traits?.rune && v.traits.rune.ready);
   const jump = (s: string) => document.getElementById(`ench-${s}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -559,7 +568,8 @@ function Detail({ id }: { id: string }) {
         {/* what it's doing right now, and what it works on */}
         {mine && (
           <div className={cn('flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-black', v.attention ? 'bg-[#FFD23F] text-[#1a0b2e]' : 'bg-white/[0.06] text-white/75')} data-testid="ench-status">
-            {v.attention ? <>✦ {v.attention}</> : v.clock?.frozen_until ? <>❄️ Frozen for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)}</> : wait != null ? <>⏳ Next in {dur(wait)}</> : <>💤 Resting — nothing waiting</>}
+            {v.attention ? <>✦ {v.attention}</> : v.clock?.frozen_until ? <>❄️ Frozen for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)}</> : wait != null ? <NextInLive v={v} at={q.dataUpdatedAt} /> : <>💤 Resting — nothing waiting</>}
+            <TempoBadge e={v} className="ml-auto" />
             {v.attention && <button className="ml-auto rounded-full bg-[#1a0b2e] px-2.5 py-0.5 text-[11px] text-[#FFE8A3]" onClick={() => jump('play')}>Go ↓</button>}
           </div>
         )}
@@ -588,8 +598,10 @@ function Detail({ id }: { id: string }) {
       )}
       {/* the scene */}
       <section id="ench-play" className="scroll-mt-14">
-        {mine ? <div className="relative mx-auto w-full max-w-[680px]"><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /><SceneMood v={v} /></div> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
+        {mine ? <div className="relative mx-auto w-full max-w-[680px]"><ClockRate.Provider value={rateOf(v)}><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /></ClockRate.Provider><SceneMood v={v} /></div> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
       </section>
+      {/* your other enchantments that can work on this one, right here */}
+      {mine && <UseOnThis v={v} />}
       {mine && (v.chests?.length ?? 0) > 0 && (
         <SeekChests className="mt-4" chests={v.chests!} title={v.kind === 'map' ? `Chests your Seeking Trait buried · ${v.chests!.length}` : `Its buried chests · ${v.chests!.length}`}
           hint={v.kind === 'map' ? 'This map lent its Seeking Trait in a splice: these chests are buried by the plots of the enchantments that wore it.' : 'Its Seeking Trait buried these right by its plot. Dig them up here or tap them on the map.'} />
