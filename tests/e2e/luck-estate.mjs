@@ -79,18 +79,21 @@ try {
   const g = (await api('myGroups'))[0];
   await api('setGroupKind', g.id, 'landlord');
   await page.evaluate((id) => window.__landvasNav(`/landlord/${id}?e2e=1`), g.id);
-  await page.waitForSelector('[data-testid=estate-checklist]', { timeout: 20000 }); await page.waitForTimeout(2500);
-  check('the estate opens in 3D, and walking in counts as today’s inspection', /1\/3/.test(await page.textContent('[data-testid=estate-task-inspect]')));
+  await page.waitForSelector('[data-testid=estate-checklist]', { timeout: 20000 });
+  check('the estate opens in 3D; just walking in isn’t an inspection yet', /0\/3/.test(await page.textContent('[data-testid=estate-task-inspect]')));
+  check('a moment in the estate counts as today’s inspection', await page.waitForFunction(() => /1\/3/.test(document.querySelector('[data-testid=estate-task-inspect]')?.textContent ?? ''), null, { timeout: 8000 }).then(() => true, () => false));
   await shot('03-estate');
-  // tap the 3D bits (through the scene's action hook: the pins move)
-  for (const i of [0, 1, 2]) { await page.evaluate((i) => window.__landvasEstate.act({ kind: 'repair', idx: i }), i); await page.waitForTimeout(700); }
-  check('three repairs done', /3\/6/.test(await page.textContent('[data-testid=estate-task-repairs]')));
+  // tap the 3D bits (through the scene's action hook: the pins move) — quickly: the taps queue and go one at a time
+  for (const i of [0, 1, 2]) { await page.evaluate((i) => window.__landvasEstate.act({ kind: 'repair', idx: i }), i); await page.waitForTimeout(150); }
+  const until = (sel, re) => page.waitForFunction(([sel, re]) => new RegExp(re).test(document.querySelector(sel)?.textContent ?? ''), [sel, re], { timeout: 15000 }).then(() => true, () => false);
+  check('three repairs done (one at a time, no errors)', await until('[data-testid=estate-task-repairs]', '3/6')
+    && (await page.locator('[data-sonner-toast][data-type=error]').count()) === 0);
   await page.evaluate(() => window.__landvasEstate.act({ kind: 'mailbox' })); await page.waitForSelector('[data-testid=estate-request]', { timeout: 5000 });
   await shot('04-tenant-letter');
-  await page.click('[data-testid=estate-help]'); await page.waitForTimeout(900);
-  check('a tenant helped', /1\/3/.test(await page.textContent('[data-testid=estate-task-requests]')));
-  await page.evaluate(() => window.__landvasEstate.act({ kind: 'garden' })); await page.waitForTimeout(1000);
-  check('the garden watered', /1\/2/.test(await page.textContent('[data-testid=estate-task-garden]')));
+  await page.click('[data-testid=estate-help]');
+  check('a tenant helped', await until('[data-testid=estate-task-requests]', '1/3'));
+  await page.evaluate(() => window.__landvasEstate.act({ kind: 'garden' }));
+  check('the garden watered', await until('[data-testid=estate-task-garden]', '1/2'));
   check('not eligible yet (it takes the month)', /done|Rent day in/.test(await page.textContent('[data-testid=estate-status]')));
   await shot('05-estate-progress');
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));

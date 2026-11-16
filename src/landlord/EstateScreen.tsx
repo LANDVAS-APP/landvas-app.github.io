@@ -1,6 +1,8 @@
 // Your Landlord estate, in 3D, with this month's checklist. Rent day (50× USD rent on the 1st) only pays estates
 // whose checklist is done: inspect on 3 days, fix 6 broken things, answer 3 tenants, water the garden on 2 days.
-// Walking in counts as today's inspection.
+// Spending a moment in the estate counts as today's inspection. Each estate's checklist is done in that estate, one task at a time (the
+// server checks you're in it, and paces tasks about a second apart): taps here queue up and go one by one, so a quick
+// tapper never sees an error.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -27,7 +29,7 @@ const REQUESTS = [
   { who: 'Mr. & Mrs. Brown', ask: 'A family of birds moved into our gutter!', help: '🐦 Gently rehome them', ignore: 'Free rent for birds' },
 ];
 const TASKS: { key: keyof EstateState['tasks']; emoji: string; name: string; how: string }[] = [
-  { key: 'inspect', emoji: '🔍', name: 'Inspect', how: 'Visit your estate on different days' },
+  { key: 'inspect', emoji: '🔍', name: 'Inspect', how: 'Spend a moment in your estate, on different days' },
   { key: 'repairs', emoji: '🔧', name: 'Repairs', how: 'Tap the broken things over the houses — new ones break every day' },
   { key: 'requests', emoji: '📬', name: 'Tenants', how: 'Open the mailbox and help your tenants (2 requests a day)' },
   { key: 'garden', emoji: '🌷', name: 'Garden', how: 'Water the community garden (once a day)' },
@@ -69,13 +71,44 @@ export default function EstateScreen() {
     void qc.invalidateQueries({ queryKey: ['estates'] });
     invalidateGame(qc);
   };
+  // one task at a time: each waits for the one before it and goes at least a second later (the server's pace); if the
+  // estate visit lapsed (a long break), walk back in and try once more
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const lastAt = useRef(0);
+  const enteredAt = useRef(Date.now());
+  const paced = <T,>(f: () => Promise<T>): Promise<T> => {
+    const run = async () => {
+      const wait = Math.max(0, 1150 - (Date.now() - lastAt.current), 2200 - (Date.now() - enteredAt.current));
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      try { return await f(); }
+      catch (e) {
+        const code = toGameError(e).code;
+        if (code === 'enter_estate_first') { await api.estateVisit(id); enteredAt.current = Date.now(); await new Promise((r) => setTimeout(r, 2200)); return await f(); }
+        if (code === 'estate_too_fast') { await new Promise((r) => setTimeout(r, 1300)); return await f(); }
+        throw e;
+      } finally { lastAt.current = Date.now(); }
+    };
+    const p = chain.current.then(run, run);
+    chain.current = p.catch(() => {});
+    return p;
+  };
+  useEffect(() => { enteredAt.current = Date.now(); }, [id]);
+  // today's inspection counts once you've been here a moment: look again after a couple of seconds
+  const inspected = !!st?.tasks.inspect.today;
+  useEffect(() => {
+    if (!st || inspected) return undefined;
+    const t = setTimeout(() => {
+      void api.estateVisit(id).then((s) => { setSt(s); qc.setQueryData(['estate', id], s); scene.current?.update(view(s)); void qc.invalidateQueries({ queryKey: ['estates'] }); }).catch(() => {});
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [id, !!st, inspected]); // eslint-disable-line react-hooks/exhaustive-deps
   const onAction = useRef<(a: EstateAction) => void>(() => {});
   onAction.current = async (a: EstateAction) => {
     if (!st) return;
     if (haptics) buzz('light');
     try {
-      if (a.kind === 'repair') apply(await api.estateRepair(id, a.idx), a, ['🔧', '✨', '✅', '🔨']);
-      else if (a.kind === 'garden') apply(await api.estateGarden(id), a, ['💧', '🌷', '🌼', '💧', '🌸']);
+      if (a.kind === 'repair') apply(await paced(() => api.estateRepair(id, a.idx)), a, ['🔧', '✨', '✅', '🔨']);
+      else if (a.kind === 'garden') apply(await paced(() => api.estateGarden(id)), a, ['💧', '🌷', '🌼', '💧', '🌸']);
       else if (a.kind === 'mailbox') {
         if (!st.tasks.requests.left_today) { toast('No more mail today', { description: 'Your tenants will write again tomorrow.' }); return; }
         setReq(REQUESTS[Math.floor(Math.random() * REQUESTS.length)]);
@@ -84,7 +117,7 @@ export default function EstateScreen() {
   };
   const answer = async (help: boolean) => {
     setReq(null);
-    try { apply(await api.estateRequest(id, help), { kind: 'mailbox' }, help ? ['💌', '😊', '⭐'] : ['😐']); if (!help) toast('Your tenant isn’t impressed', { description: 'Only helping counts towards the checklist.' }); }
+    try { apply(await paced(() => api.estateRequest(id, help)), { kind: 'mailbox' }, help ? ['💌', '😊', '⭐'] : ['😐']); if (!help) toast('Your tenant isn’t impressed', { description: 'Only helping counts towards the checklist.' }); }
     catch (e) { toast.error(toGameError(e).message); }
   };
 

@@ -194,6 +194,8 @@ const MESSAGES: Record<string, string> = {
   invalid_spot: 'Nothing to fix there.',
   no_requests_today: 'No more tenant requests today — come back tomorrow.',
   already_watered: 'The garden’s already watered today.',
+  enter_estate_first: 'Walk into this estate to do its checklist — each estate’s tasks are done there, one at a time.',
+  estate_too_fast: 'One task at a time — give it a second.',
   last_inkborn: 'You can’t sacrifice your last Inkborn.',
   nothing_to_pick: 'That roll’s already been decided.',
   crown_taken: 'Someone already holds that Crown — pick another roll.',
