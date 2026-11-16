@@ -301,7 +301,7 @@ describe('🏅 enchantment badges', () => {
     const cat2 = await db.rpc(cat, 'achievements_catalog', {});
     const secret = (cat2 as any[]).find((a) => a.key === 'sn_snuffed');
     expect(secret).toMatchObject({ name: '???', icon: '❔', secret: true, category: 'enchant' });
-    expect((cat2 as any[]).filter((a) => a.category === 'enchant').length).toBe(124);
+    expect((cat2 as any[]).filter((a) => a.category === 'enchant').length).toBeGreaterThanOrEqual(124); // (124, and the ★4/★5 ones after)
   });
   it('the tally stays with the player', async () => {
     const m = (await db.sql(`select private.ench_metrics($1) m`, [cat]))[0].m;

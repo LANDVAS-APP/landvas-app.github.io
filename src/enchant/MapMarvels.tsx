@@ -26,7 +26,7 @@ function sunGeo(list: EnchantMap2['suns']) {
     const dLat = m / 111_320, dLng = m / (111_320 * Math.cos((lat * Math.PI) / 180));
     return Array.from({ length: 49 }, (_, i) => { const a = (i / 48) * Math.PI * 2; return [lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat]; });
   };
-  return { type: 'FeatureCollection', features: list.map((z) => ({ type: 'Feature', properties: { c: z.tier === 'white' ? '#BDE6FF' : z.tier === 'hot' ? '#FF5E3A' : '#FFB703', flare: !!z.flare },
+  return { type: 'FeatureCollection', features: list.map((z) => ({ type: 'Feature', properties: { c: z.tier === 'nova' ? '#FF5CDB' : z.tier === 'white' ? '#BDE6FF' : z.tier === 'hot' ? '#FF5E3A' : '#FFB703', flare: !!z.flare },
     geometry: { type: 'Polygon', coordinates: [ring(Number(z.gx), Number(z.gy), Number(z.r_m))] } })) };
 }
 const esc = (s: string | null | undefined) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -67,7 +67,7 @@ export function MapMarvels({ ready }: { ready: boolean }) {
     // ☀️ suns: the disc and its corona, the zone as a ring, the sunspots inside (yours only)
     const suns: { s: (typeof data.suns)[number] }[] = [];
     for (const z of data.suns ?? []) {
-      const tag = z.mine ? `${z.mode === 'orbit' ? '🪐 In orbit' : '☀️ Your sun'}` : `🤝 @${esc(z.owner_name)}’s sun`;
+      const tag = z.tier === 'nova' ? `💥 SUPERNOVA ×${Number(z.mult ?? 6)}` : z.mine ? `${z.mode === 'orbit' ? '🪐 In orbit' : '☀️ Your sun'}` : `🤝 @${esc(z.owner_name)}’s sun`;
       const node = wrap(`<span class="lv-sun-mk ${z.tier}${z.flare ? ' flare' : ''}"><i class="corona"></i><i class="disc"></i><b class="tag">${tag}</b></span>`, 'lv-em-sun', () => {
         if (z.mine && !z.reflected) nav(`/grimoire/${z.id}`);
       });

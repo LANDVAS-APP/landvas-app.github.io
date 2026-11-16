@@ -100,6 +100,13 @@ export function OracleScene({ view, act, busy, at, v }: SceneProps) {
     }, 900);
   };
   const endHold = () => { if (holdT.current) clearTimeout(holdT.current); holdT.current = null; };
+  // ★5 Weaver of Fates: pick a roll card and weave it into an Enchanted roll (once a week)
+  const [weaving, setWeaving] = useState(false);
+  const weave = async (i: number) => {
+    setWeaving(false); feel('heavy');
+    const r = await act('weave', { i }, { silent: true });
+    if (r) { setFlipped((f) => ({ ...f, [i]: true })); efx.burst({ ...centerOf(scene.current), colors: ['#B26BFF', '#FF5CDB', '#FFE8A3', '#fff'], count: 220, speed: 14, kind: 'glitter' }); feel('success'); }
+  };
   const lvl = v.level;
   const unlocks = view.unlocks ?? { roll: 1, reward: 3, pandora: 5, egg: 5 };
   const needT = what === 'pandora' || what === 'egg';
@@ -117,7 +124,7 @@ export function OracleScene({ view, act, busy, at, v }: SceneProps) {
               const f = cardFace(cards.what, c), open = flipped[i] || c.done;
               return (
                 <button key={i} className={cn('lv-tarot relative', open && 'open', swapA === i && 'pick', c.done && 'done')} style={{ ['--c' as string]: f.color, width: `${Math.min(22, 92 / list.length)}%` }}
-                  onClick={() => void tapCard(i)} onPointerDown={() => open && startHold(i)} onPointerUp={endHold} onPointerLeave={endHold} data-testid="oracle-card">
+                  onClick={() => void (weaving && !c.done && c.rarity !== 'enchanted' ? weave(i) : tapCard(i))} onPointerDown={() => open && startHold(i)} onPointerUp={endHold} onPointerLeave={endHold} data-testid="oracle-card">
                   <span className="lv-tarot-back">👁️</span>
                   <span className="lv-tarot-face"><b className="text-[20px] leading-none">{f.big}</b><i>{f.label}</i><small>{f.sub}</small>{c.done && <em>✓ came true</em>}{c.burned && !c.done && <em>🔥 redrawn</em>}</span>
                   {burning === i && <span className="lv-burn" />}
@@ -134,6 +141,13 @@ export function OracleScene({ view, act, busy, at, v }: SceneProps) {
           {(cards.rewrites ?? 0) > 0 ? (cards.what === 'pandora' ? 'Hold a card to burn it and draw again (it may come out worse).' : 'Tap two turned cards to swap them, or hold one to burn it and draw again.') : 'Fate is set — the cards will come true in this order.'}
           {(cards.rewrites ?? 0) > 0 && ` · ${cards.rewrites} rewrite${cards.rewrites === 1 ? '' : 's'} left`}
         </p>
+      )}
+      {cards?.what === 'roll' && view.weave_ready && (
+        <div className="grid gap-1 rounded-2xl border border-[#B26BFF]/40 bg-[#B26BFF]/10 p-2.5 text-center" data-testid="oracle-weave">
+          <Button variant={weaving ? 'secondary' : 'rainbow'} disabled={!!busy} onClick={() => { setWeaving((w) => !w); feel('light'); }} data-testid="oracle-weave-go">
+            {weaving ? 'Tap the card to weave — or tap here to stop' : '🕸️ Weave a fate (★5)'}</Button>
+          <span className="text-[11px] text-white/65">Once a week: one roll card becomes an Enchanted roll — your next claims follow the cards in order.</span>
+        </div>
       )}
       <div className="grid gap-2 rounded-2xl bg-white/[0.04] p-2.5">
         <div className="flex items-center justify-between text-[12px]"><span className="font-black uppercase tracking-wider text-white/60">Gaze into…</span>

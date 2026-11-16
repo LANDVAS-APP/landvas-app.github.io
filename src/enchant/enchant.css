@@ -440,8 +440,33 @@ html.reduce-motion .lv-storm-rain { animation: none !important; }
   text-shadow: 0 0 4px #000, 0 0 6px #FFB31F; white-space: nowrap; z-index: 3; }
 .lv-cr.st1, .lv-cr.st2 { box-shadow: 0 0 0 2px #FFD23F, 0 0 18px 4px rgba(255, 179, 31, 0.55); }
 .lv-cr.st3 { box-shadow: 0 0 0 3px #FFD23F, 0 0 30px 9px rgba(255, 179, 31, 0.75); }
+/* ★4: a comet-blue halo; ★5: blue and gold, wider */
+.lv-cr.st4 { box-shadow: 0 0 0 3px #9FE8FF, 0 0 0 5px rgba(255, 210, 63, 0.7), 0 0 32px 10px rgba(92, 200, 255, 0.6); }
+.lv-cr.st5 { box-shadow: 0 0 0 3px #FFE8A3, 0 0 0 6px #9FE8FF, 0 0 44px 14px rgba(92, 200, 255, 0.7), 0 0 70px 22px rgba(255, 179, 31, 0.35); }
+.lv-cr-stars b { color: #9FE8FF; font-weight: inherit; text-shadow: 0 0 4px #000, 0 0 6px #5CC8FF; }
+/* ★4: a comet circles the sigil (transform only) */
+@keyframes lv-staraura-comet-spin { to { transform: rotate(360deg); } }
+.lv-staraura-comet { position: absolute; inset: 0; display: grid; place-items: center; animation: lv-staraura-comet-spin 3.2s linear infinite; z-index: 3; pointer-events: none; }
+.lv-staraura-comet i { position: absolute; width: 9px; height: 9px; border-radius: 999px; background: #fff; transform: translateY(calc(-1 * var(--r)));
+  box-shadow: 0 0 8px 3px #9FE8FF, 0 0 16px 6px rgba(92, 200, 255, 0.5); }
+.lv-staraura-comet i::after { content: ''; position: absolute; right: 6px; top: 2px; width: 34px; height: 5px; border-radius: 999px;
+  background: linear-gradient(270deg, rgba(159, 232, 255, 0.9), transparent); transform-origin: right center; }
+.lv-staraura.s4 .lv-staraura-ring, .lv-staraura.s5 .lv-staraura-ring { border-style: solid; border-width: 3px; border-color: #9FE8FF;
+  box-shadow: 0 0 26px 6px rgba(92, 200, 255, 0.55), 0 0 0 3px rgba(255, 210, 63, 0.55), inset 0 0 18px rgba(159, 232, 255, 0.35); }
+/* ★5: its constellation wheels slowly behind it */
+@keyframes lv-staraura-const-turn { to { transform: rotate(360deg); } }
+.lv-staraura-const { position: absolute; left: 50%; top: 50%; margin-left: -95%; margin-top: -95%; animation: lv-staraura-const-turn 60s linear infinite; pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(159, 232, 255, 0.6)); }
+/* the ascension */
+.lv-ascend-sky { background: radial-gradient(ellipse at 50% 40%, rgba(92, 200, 255, 0.22), transparent 55%), radial-gradient(circle at 20% 15%, rgba(255, 232, 163, 0.12), transparent 30%),
+  radial-gradient(circle at 80% 70%, rgba(178, 107, 255, 0.16), transparent 40%); }
+.lv-ascend-comet { width: 16px; height: 16px; border-radius: 999px; background: #fff; box-shadow: 0 0 16px 6px #9FE8FF, 0 0 40px 14px rgba(92, 200, 255, 0.6); }
+.lv-ascend-comet::after { content: ''; position: absolute; right: 10px; top: 4px; width: 160px; height: 8px; border-radius: 999px; transform: rotate(33deg); transform-origin: right center;
+  background: linear-gradient(270deg, rgba(159, 232, 255, 0.95), transparent); }
+@media (pointer: coarse) { .lv-staraura-const { filter: none; } }
 .lv-map-moving .lv-cr-stars { animation-play-state: paused !important; }
-html.reduce-motion .lv-staraura-ring, html.reduce-motion .lv-staraura-orbit, html.reduce-motion .lv-staraura-crown { animation: none !important; }
+html.reduce-motion .lv-staraura-ring, html.reduce-motion .lv-staraura-orbit, html.reduce-motion .lv-staraura-crown,
+html.reduce-motion .lv-staraura-comet, html.reduce-motion .lv-staraura-const { animation: none !important; }
 
 /* the "sleeping / dusty" note says it once and gets out of the way of whatever the scene shows at the bottom */
 .lv-mood-tag { animation: lv-mood-tag-out 0.6s ease 5s both; }
@@ -465,3 +490,13 @@ html.reduce-motion .lv-staraura-ring, html.reduce-motion .lv-staraura-orbit, htm
 .lv-gold-egg { width: 34px; height: 44px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: radial-gradient(circle at 36% 30%, #FFF8D6, #FFD23F 38%, #D4930A 80%);
   box-shadow: 0 0 16px rgba(255, 210, 63, 0.75), inset -4px -6px 10px rgba(120, 70, 0, 0.35); }
 .lv-gold-crack { position: absolute; inset: 0; background: linear-gradient(115deg, transparent 44%, rgba(80, 40, 0, 0.9) 46%, transparent 48%), linear-gradient(60deg, transparent 50%, rgba(80, 40, 0, 0.8) 52%, transparent 54%); }
+
+/* ---- ⏪ the Clockwork's Rewind ------------------------------------------------------------------------------------ */
+.lv-tape { background: linear-gradient(160deg, rgba(0, 229, 255, 0.07), rgba(255, 45, 85, 0.05) 60%, rgba(0, 0, 0, 0.25)); border: 1px solid rgba(0, 229, 255, 0.22); }
+.lv-tape-reel { max-height: 320px; overflow-y: auto; }
+.lv-vhs { background: rgba(10, 6, 30, 0.35); mix-blend-mode: normal; }
+.lv-vhs-lines { background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 3px); }
+.lv-vhs-track { background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.35) 40%, rgba(0, 229, 255, 0.25) 55%, transparent); opacity: 0.8; }
+@keyframes lv-clock-back-shake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-3px, 1px); } 40% { transform: translate(3px, -1px); } 60% { transform: translate(-2px, 0); } 80% { transform: translate(2px, 1px); } }
+.lv-clock-back { animation: lv-clock-back-shake 0.18s linear 10; }
+html.reduce-motion .lv-clock-back { animation: none; }

@@ -48,10 +48,11 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const drawing = useRef(false);
   const lift = useRef<number | null>(null);
   const [read, setRead] = useState<{ id: string; accuracy: number } | null>(null);
-  const [chainFirst, setChainFirst] = useState<{ id: string; accuracy: number } | null>(null);
+  // (Chain Cast: the glyphs drawn so far, waiting for the rest — two, or three with ★5 Triple Cast)
+  const [queue, setQueue] = useState<{ id: string; accuracy: number }[]>([]);
   const [need, setNeed] = useState<{ ids: string[]; accuracy: number; kind: 'plot' | 'enchant' } | null>(null);
   const [shown, setShown] = useState<any>(null);
-  const [chain, setChain] = useState(false);
+  const [chain, setChain] = useState<0 | 2 | 3>(0);
   const [arch, setArch] = useState(false);
   const [tab, setTab] = useState<'cast' | 'book'>('cast');
   const [page, setPage] = useState<string | null>(null);
@@ -108,9 +109,10 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
     const r = recognise(all, known);
     if (!r) { feel('light'); efx.burst({ ...centerOf(box.current), colors: ['#4A5A60'], count: 24, speed: 4, kind: 'glitter' }); await sleep(250); clear(); setShown({ fizzled: true, none: true }); return; }
     setRead(r); feel('medium');
-    if (chain && !chainFirst) { setChainFirst(r); await sleep(500); clear(); setRead(null); return; }
-    const ids = chainFirst ? [chainFirst.id, r.id] : [r.id];
-    const acc = chainFirst ? (chainFirst.accuracy + r.accuracy) / 2 : r.accuracy;
+    if (chain && queue.length + 1 < chain) { setQueue((q) => [...q, r]); await sleep(500); clear(); setRead(null); return; }
+    const drawn = [...queue, r];
+    const ids = drawn.map((x) => x.id);
+    const acc = drawn.reduce((t, x) => t + x.accuracy, 0) / drawn.length;
     const needs = ids.map((id) => def(id)?.a).find(Boolean) as 'plot' | 'enchant' | undefined;
     if (needs) { setNeed({ ids, accuracy: acc, kind: needs }); return; }
     await cast(ids, acc, {});
@@ -119,7 +121,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const cast = async (ids: string[], accuracy: number, target: Record<string, unknown>) => {
     setNeed(null);
     const r = await act('cast', { ...(ids.length > 1 ? { glyphs: ids } : { glyph: ids[0] }), accuracy, arch, ...target }, { silent: true });
-    setChainFirst(null); setArch(false);
+    setQueue([]); setArch(false);
     await sleep(300); clear(); setRead(null);
     if (!r?.result) return;
     setShown(r.result);
@@ -159,7 +161,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
           {Array.from({ length: max }, (_, i) => <motion.span key={i} className={cn('lvx-mana', i >= mana && 'empty')} animate={{ scale: i < mana ? 1 : 0.8 }} />)}
           {mana < max && nextIn != null && <span className="ml-1 rounded-full bg-black/50 px-1.5 text-[10px] font-bold text-white/70">+1 in {dur(nextIn)}</span>}
         </div>
-        {chainFirst && <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1 rounded-full bg-[#7C4DFF]/40 px-2 py-1 text-[11px] font-black text-white">⛓️ <GlyphMark id={chainFirst.id} size={20} /> + …</div>}
+        {queue.length > 0 && <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1 rounded-full bg-[#7C4DFF]/40 px-2 py-1 text-[11px] font-black text-white" data-testid="glyph-queue">{chain === 3 ? '🔯' : '⛓️'} {queue.map((x, i) => <GlyphMark key={i} id={x.id} size={20} />)} + …</div>}
         {!read && !strokes.current.length && !shown && (
           <div className="pointer-events-none absolute inset-x-0 bottom-[10%] text-center text-[12px] font-bold text-white/60">Draw a glyph you know — {known.length} found</div>
         )}
@@ -171,7 +173,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
                 : shown.studied ? <div className="text-[13px] font-bold text-white">{shown.found ? `📜 A page: ${shown.found.name}!` : `You turn the pages… ${shown.hint ? `“${shown.hint}”` : 'nothing new today.'}`}</div>
                 : <>
                     <div className="flex items-center gap-2 font-display text-[16px] font-black text-[#9EF6FF]">{(shown.glyphs as string[]).map((id) => <GlyphMark key={id} id={id} size={26} />)}{(shown.glyphs as string[]).map((id) => def(id)?.name).join(' + ')}
-                      <span className="ml-auto text-[11px] font-black text-white/70">drawn {pct(shown.accuracy)}{shown.chain ? ' · chained ×1.5' : ''}{shown.arch ? ' · Archmage' : ''}</span></div>
+                      <span className="ml-auto text-[11px] font-black text-white/70">drawn {pct(shown.accuracy)}{shown.chain ? ((shown.glyphs as string[]).length >= 3 ? ' · TRIPLE ×2' : ' · chained ×1.5') : ''}{shown.arch ? ' · Archmage' : ''}</span></div>
                     {(shown.effects as any[]).map((x, i) => <motion.div key={i} className="text-[13px] font-bold text-white" initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 + i * 0.12 }}>✦ {said(x)}</motion.div>)}
                     {shown.found && <div className="text-[12px] font-black text-[#FFE8A3]">📜 A page fluttered out: {shown.found.name}</div>}
                   </>}
@@ -196,7 +198,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
             <EnchantPicker self={v} slot="glyph-enchant" title="Cast it on…" chipTestId="glyph-target-enchant" keep={{ ids: need.ids, accuracy: need.accuracy }}
               onPick={(e, k) => void cast((k?.ids as string[]) ?? need.ids, Number(k?.accuracy ?? need.accuracy), { target: e.id })} />
           )}
-          <button className="text-[11px] font-bold text-white/60" onClick={() => { setNeed(null); setChainFirst(null); clear(); setRead(null); }}>never mind</button>
+          <button className="text-[11px] font-bold text-white/60" onClick={() => { setNeed(null); setQueue([]); clear(); setRead(null); }}>never mind</button>
         </div>
       )}
 
@@ -207,9 +209,10 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
       {tab === 'cast' && (
         <div className="grid gap-2">
           <div className="flex flex-wrap gap-1.5">
-            {view.chain && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', chain ? 'border-[#7C4DFF] bg-[#7C4DFF]/30 text-white' : 'border-white/15 text-white/70')} onClick={() => { setChain(!chain); setChainFirst(null); }} data-testid="glyph-chain">⛓️ Chain Cast</button>}
+            {view.chain && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', chain === 2 ? 'border-[#7C4DFF] bg-[#7C4DFF]/30 text-white' : 'border-white/15 text-white/70')} onClick={() => { setChain(chain === 2 ? 0 : 2); setQueue([]); }} data-testid="glyph-chain">⛓️ Chain Cast</button>}
+            {view.triple && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', chain === 3 ? 'border-[#FFD23F] bg-[#FFD23F]/25 text-white' : 'border-white/15 text-white/70')} onClick={() => { setChain(chain === 3 ? 0 : 3); setQueue([]); }} data-testid="glyph-triple">🔯 Triple Cast</button>}
             {view.arch_ready && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', arch ? 'border-[#FFE8A3] bg-[#FFE8A3]/20 text-white' : 'border-white/15 text-white/70')} onClick={() => setArch(!arch)} data-testid="glyph-arch">🧙 Archmage</button>}
-            <Button size="sm" variant="ghost" onClick={() => { clear(); setRead(null); setChainFirst(null); setShown(null); }}>Wipe</Button>
+            <Button size="sm" variant="ghost" onClick={() => { clear(); setRead(null); setQueue([]); setShown(null); }}>Wipe</Button>
             {view.study_ready && <Button size="sm" variant="rainbow" onClick={() => void study()} disabled={!!busy || !!mirror} data-testid="glyph-study">📖 Study today’s pages</Button>}
           </div>
           <div className="flex flex-wrap gap-1.5" data-testid="glyph-known">

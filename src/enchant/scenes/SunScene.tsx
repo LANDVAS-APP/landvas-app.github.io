@@ -14,19 +14,20 @@ import { dur } from '../kinds';
 import { feel } from '../living';
 import './sunrod.css';
 
-type Zone = { i: number; gx: number; gy: number; r_m: number; tier: 'warm' | 'hot' | 'white'; heat_now: number; mult: number; mode: 'claim' | 'orbit'; party?: boolean;
+type Zone = { i: number; gx: number; gy: number; r_m: number; tier: 'warm' | 'hot' | 'white' | 'nova'; heat_now: number; mult: number; mode: 'claim' | 'orbit'; party?: boolean;
   until: number; left_s: number; flare: boolean; flare_until?: number; spots: [number, number][]; claims?: number };
 const TIER: Record<string, { name: string; core: string; glow: string; rim: string }> = {
   warm: { name: 'Warm', core: '#FFE08A', glow: '#FFB703', rim: '#FF8A00' },
   hot: { name: 'Hot', core: '#FFD0A0', glow: '#FF5E3A', rim: '#D7263D' },
   white: { name: 'White-hot', core: '#FFFFFF', glow: '#BDE6FF', rim: '#7FB8FF' },
+  nova: { name: 'SUPERNOVA', core: '#FFFFFF', glow: '#FF5CDB', rim: '#9FE8FF' },
 };
 const heatTier = (h: number) => (h >= 90 ? 'white' : h >= 50 ? 'hot' : 'warm');
 const RAYS = Array.from({ length: 14 }, (_, i) => i);
 const MOTES = Array.from({ length: 22 }, (_, i) => ({ x: (i * 47.3) % 100, y: 30 + ((i * 29.1) % 60), d: (i % 6) * 0.5 }));
 
-function Orb({ heat, lit, shake, rubbing }: { heat: number; lit: boolean; shake: boolean; rubbing: number }) {
-  const t = TIER[heatTier(heat)];
+function Orb({ heat, lit, shake, rubbing, nova }: { heat: number; lit: boolean; shake: boolean; rubbing: number; nova?: boolean }) {
+  const t = TIER[nova ? 'nova' : heatTier(heat)];
   const glow = lit ? 0.55 + Math.min(1, heat / 100) * 0.45 : 0.25;
   return (
     <div className={`lv-sun-orb ${shake ? 'lv-sun-shake' : ''}`} style={{ ['--core' as any]: t.core, ['--glow' as any]: t.glow, ['--rim' as any]: t.rim }}>
@@ -161,14 +162,15 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
   };
   const ringScale = ring ? Math.max(0.35, 3.2 - (2.85 * (performance.now() - ring.t0)) / Math.max(1, ring.at - ring.t0)) : 0;
 
-  const t = TIER[heatTier(heat)];
+  const isNova = z?.tier === 'nova';
+  const t = TIER[isNova ? 'nova' : heatTier(heat)];
   const left = z ? Math.max(0, Number(z.until) - Date.now() / 1000) : 0;
   const flareLeft = z?.flare_until ? Math.max(0, Number(z.flare_until) - Date.now() / 1000) : 0;
   const showOnMap = (zz: Zone) => { const [lng, lat] = cellCenter(zz.gx, zz.gy); toMap(nav, { lng, lat, zoom: 16.4 }); };
 
   return (
     <div className="grid gap-3">
-      <div ref={stage} className={`lvx-stage lv-scene lv-sun-stage aspect-[4/3] w-full tier-${z ? heatTier(heat) : 'off'}`} data-testid="sun-scene"
+      <div ref={stage} className={`lvx-stage lv-scene lv-sun-stage aspect-[4/3] w-full tier-${z ? (isNova ? 'nova' : heatTier(heat)) : 'off'}`} data-testid="sun-scene"
         style={{ ['--glow' as any]: t.glow }}>
         <div className="lv-sun-sky" />
         {MOTES.map((m, i) => <span key={i} className="lv-sun-mote" style={{ left: `${m.x}%`, top: `${m.y}%`, animationDelay: `${m.d}s` }} />)}
@@ -181,7 +183,8 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => void onUp()} onPointerCancel={() => void onUp()} onClick={phase === 'aim' ? () => void fire() : undefined}
           animate={phase === 'launch' ? { y: -420, scale: 0.4, opacity: 0 } : phase === 'snuffed' ? { scale: 0.86, filter: 'grayscale(1) brightness(0.5)' } : { y: 0, scale: 1, opacity: 1, filter: 'none' }}
           transition={phase === 'launch' ? { duration: 0.7, ease: [0.4, 0, 0.9, 0.5] } : { type: 'spring', stiffness: 160, damping: 16 }}>
-          <Orb heat={heat} lit={!!z} shake={!!z && heat >= 90} rubbing={rub} />
+          <Orb heat={heat} lit={!!z} shake={!!z && heat >= 90} rubbing={rub} nova={isNova} />
+          {isNova && <><span className="lv-sun-nova" /><span className="lv-sun-nova b" /></>}
           {phase === 'launch' && <span className="lv-sun-tail" />}
         </motion.div>
         {/* the flare's ring, closing in on the server's clock */}
@@ -213,6 +216,12 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
           <div className="absolute bottom-3 left-3 right-3 z-10 grid gap-1" data-testid="sun-heat">
             <div className="flex items-center justify-between text-[11px] font-black text-white/85"><span>🔥 {t.name} · ultras ×{z.mult}</span><span>{Math.round(heat)}°</span></div>
             <div className="lv-sun-heatbar"><span style={{ transform: `scaleX(${Math.min(1, heat / 100)})` }} /><i style={{ left: '50%' }} /><i style={{ left: '90%' }} /></div>
+          </div>
+        )}
+        {isNova && (
+          <div className="absolute inset-x-0 top-[12%] z-20 grid justify-items-center text-center" data-testid="sun-nova">
+            <span className="lv-sun-grade" style={{ color: '#FFE8FF' }}>💥 SUPERNOVA</span>
+            <span className="text-[12px] font-black text-white drop-shadow">×{z?.mult} over {Math.round(Number(z?.r_m))} m · {dur(left)} left</span>
           </div>
         )}
         <div className="absolute left-3 top-3 z-10 rounded-full bg-black/50 px-2.5 py-1 text-[12px] font-black text-[#FFE08A]" data-testid="sun-status">

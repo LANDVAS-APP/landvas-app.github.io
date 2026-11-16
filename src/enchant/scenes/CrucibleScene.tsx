@@ -325,7 +325,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
             <motion.div className="absolute inset-x-4 bottom-4 rounded-2xl p-3 text-center shadow-2xl" style={{ background: verdict.ok ? `linear-gradient(135deg, ${rarityInfo(verdict.to).color}, #2B0A00)` : 'linear-gradient(135deg,#3A3F48,#111)' }}
               initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 16 }} data-testid="crucible-verdict" onClick={() => setVerdict(null)}>
               <div className="font-display text-[20px] font-black text-white">{verdict.ok ? `${rarityInfo(verdict.from).name} → ${rarityInfo(verdict.to).name}!` : 'The metal cooled…'}</div>
-              <div className="text-[12px] font-bold text-white/80">{verdict.ok ? `${verdict.masterwork ? 'A Masterwork — two tiers! ' : ''}A ${pct(verdict.chance)} strike.` : `A ${pct(verdict.chance)} chance. ${verdict.kept ? `${pct(verdict.kept)} of the Heat is kept.` : 'Fury burned all the Heat.'}`}</div>
+              <div className="text-[12px] font-bold text-white/80">{verdict.ok ? `${verdict.starforged ? '🌠 Starforged — the stars held it! ' : ''}${verdict.masterwork ? 'A Masterwork — two tiers! ' : ''}A ${pct(verdict.chance)} strike.` : `A ${pct(verdict.chance)} chance. ${verdict.kept ? `${pct(verdict.kept)} of the Heat is kept.` : 'Fury burned all the Heat.'}`}</div>
             </motion.div>
           )}
         </AnimatePresence>

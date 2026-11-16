@@ -254,7 +254,7 @@ function Targeting({ id }: { id: string }) {
     if (map) setTimeout(() => {
       const [lng, lat] = cellCenter(at.gx, at.gy);
       const dim = Math.min(map.getContainer().clientWidth, map.getContainer().clientHeight);
-      const zoom = r.mode === 'grow' ? 22 + Math.log2((0.72 * dim) / (100 * 512)) : map.getMaxZoom() - 0.2;
+      const zoom = r.mode === 'grow' ? 22 + Math.log2((0.72 * dim) / ((r.mega ? 1000 : 100) * 512)) : map.getMaxZoom() - 0.2;
       flyAway({ lng, lat, zoom });
     }, 900);
     void qc.invalidateQueries({ queryKey: ['enchant-map'] }); void qc.invalidateQueries({ queryKey: ['enchant-world'] });
@@ -299,7 +299,7 @@ function Targeting({ id }: { id: string }) {
           <motion.button key="res" className="fixed inset-0 z-[170] grid place-items-center bg-black/55 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => { setResult(null); pick(null); }} data-testid="ray-grade">
             <motion.div initial={{ scale: 2.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
-              <div className="font-display text-6xl font-black" style={{ color: GRADE_C[result.grade], textShadow: '0 0 24px currentColor' }}>{result.grade}!</div>
+              <div className="font-display text-6xl font-black" style={{ color: GRADE_C[result.grade], textShadow: '0 0 24px currentColor' }}>{result.mega ? 'MEGA!' : `${result.grade}!`}</div>
               <div className="mt-2 text-[15px] font-black text-white">{gradeLine(result)}</div>
               <div className="mt-1 text-[12px] font-semibold text-white/65">{result.prank ? `@${result.owner_name ?? '?'} has been told it was you.` : result.mode === 'shrink' && !result.backfire ? 'Three micro-gems are hiding in it — tap the speck to search.' : 'Everyone on the map can see it now.'} Tap to carry on.</div>
             </motion.div>
@@ -315,7 +315,9 @@ export function gradeLine(r: any) {
   if (r.bounced) return `Backfire! It bounced straight back — YOUR plot went ${big} for 30 minutes.`;
   if (r.backfire) return `Backfire! It went ${big} instead — for 30 minutes.`;
   if (r.prank) return `Pranked @${r.owner_name ?? '?'}! Their plot is ${big} — 100× ${r.mode === 'grow' ? 'bigger' : 'smaller'} — for ${r.hours} h`;
-  return r.mode === 'grow' ? `100× GIANT for ${r.hours} hours — its minigames pay ×${r.mult}` : `100× smaller for ${r.hours} hours — hidden, and its time runs fast`;
+  const back = r.refunded ? ' · the shot came back' : '';
+  if (r.mega) return `🗼 MEGA! 1,000× across the map for ${r.hours} hours — its minigames pay ×${r.mult}${back}`;
+  return (r.mode === 'grow' ? `100× GIANT for ${r.hours} hours — its minigames pay ×${r.mult}` : `100× smaller for ${r.hours} hours — hidden, and its time runs fast`) + back;
 }
 
 /** /world?fly=gx,gy[&z=zoom]: open the map on a plot (from an alert, say: "your plot was pranked — see it") */

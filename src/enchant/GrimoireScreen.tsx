@@ -379,7 +379,7 @@ function TraitsAtWork({ v, mine, onSeparate, act, busy }: { v: EnchantView; mine
           : t?.on ? (paid.length ? `Worked on ${hits} of ${paid.length} reward${paid.length === 1 ? '' : 's'} since the splice` : `No reward since the splice yet — it works on ${t.on}`) : null;
         return (
           <div key={(p as any).row ?? p.id} className="grid gap-1.5 rounded-2xl bg-[#00F5D4]/10 px-3 py-2.5 text-[12px]" data-testid="ench-partner">
-            <div className="flex items-center gap-2"><span className="text-lg">🧬</span><b className="flex-1 text-[#00F5D4]">{p.hybrid}{p.perfect ? ' ✦' : ''}{p.aberration ? ' ☣️' : ''}</b><span className="text-white/50">{dur((Date.parse(p.ends_at) - Date.now()) / 1000)} left</span></div>
+            <div className="flex items-center gap-2"><span className="text-lg">🧬</span><b className="flex-1 text-[#00F5D4]">{p.hybrid}{p.perfect ? ' ✦' : ''}{p.aberration ? ' ☣️' : ''}</b><span className="text-white/50">{Date.parse(p.ends_at) - Date.now() > 50 * 365 * 86400e3 ? '♾️ forever' : `${dur((Date.parse(p.ends_at) - Date.now()) / 1000)} left`}</span></div>
             <div className="text-white/70">{p.kind === 'plot' ? `Spliced into your ${p.plot_kind ?? 'canvas'} plot` : `${SPLICE_MODES[(p.mode === 'friend' ? 'friend' : p.mode) as SpliceMode]?.name ?? 'Spliced'} with ${p.friend ? `@${p.friend.username}’s ` : 'a '}${kindInfo(p.kind).name}`}. It wears this Trait:</div>
             {t ? (
               <div className="grid gap-1 rounded-xl bg-black/25 px-2.5 py-2" data-testid="ench-trait" data-gene={p.gene}>
@@ -673,6 +673,10 @@ const EV: Record<string, (d: any) => string> = {
   echoed: (d) => `🪞 An echo: ${d.action === 'reward' ? 'its last reward paid again' : `${d.action} again, by itself`}${d.ink ? ` (+${d.ink} Ink)` : ''}`, echo_faded: () => '🪞 An echo faded (nothing to repeat)',
   arced: (d) => `⚡ Static arced to ${d.plots} plot${d.plots === 1 ? '' : 's'} (×1.25 for an hour)`, linked_plot: () => '🌀 Linked a second plot', divined: (d) => `🪄 Divined ${d.key === 'platinum' ? 'a Platinum egg' : d.key === 'aberration' ? 'an Aberration' : d.key === 'strike' ? 'a strike that lands' : d.key === 'world' ? 'The World' : 'a Splice spark'}!`,
   divine_slip: () => '🫗 Divining held back a natural hit — a little deeper',
+  rewound: (d) => `⏪ Rewound: ${d.title} (${Math.max(1, Math.round(Number(d.ago) / 60))} min back, ${d.cost} min of time)`,
+  rerolled: (d) => (d.kept ? `♾️ Paradox: rolled ${d.was} again — drew ${d.drew}, kept the better timeline` : `🦋 Rolled a ${d.was} plot again: ${d.drew === 'enchanted' ? `🔮 Enchanted (${kindInfo(d.kind).name})` : d.drew}`),
+  unbitten: () => '⏪ A fox bite was rewound — it never bit', unhappened: (d) => `⏪ Rewound by a Clockwork: ${d.title ?? 'it never happened'}`,
+  woven: (d) => `🕸️ Wove a fate: an Enchanted roll (${kindInfo(d.kind).name})`, nova: (d) => `💥 Went supernova — ×6 over ${d.r} m`,
   gift: (d) => `🎁 Gave a wish to @${d.to}`, boon: () => '👑 The Master’s Boon: an Epic+ roll ticket', toll: (d) => `🔔 Rang the Toll of Hours — ${d.n} enchantments jumped 30 min ahead`,
   hatched_into: (d) => `🥚 Hatched into a ${kindInfo(d.kind).name} (#${d.serial})`,
   sighted: (d) => `🔭 Sighted a ${d.rarity === 'enchanted' ? 'plot that stirs ✨' : `${d.rarity} plot`}`, prospected: (d) => `🔭 Claimed a plot it sighted (${d.rarity})${d.ink ? ` +${d.ink} Ink` : ''}`,

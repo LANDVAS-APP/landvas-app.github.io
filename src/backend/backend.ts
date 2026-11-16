@@ -234,7 +234,8 @@ const MESSAGES: Record<string, string> = {
   max_stars: 'It already has all three stars — pour other kinds in as Essence for your next one.',
   copy_busy: 'That one’s busy (spliced or mid-storm) — try again when it’s done.',
   not_enough_essence: 'Three Essence pour in as one copy — pour in more enchantments of other kinds first.',
-  'stars_locked:1': 'That takes ★1.', 'stars_locked:2': 'That takes ★2 — pour in another copy.', 'stars_locked:3': 'That takes ★3 — pour in more copies.', stars_locked: 'That takes more stars.',
+  'stars_locked:1': 'That takes ★1.', 'stars_locked:2': 'That takes ★2 — pour in another copy.', 'stars_locked:3': 'That takes ★3 — pour in more copies.', 'stars_locked:4': 'That takes ★4 — three more copies.', 'stars_locked:5': 'That takes ★5 — the fifth star.', stars_locked: 'That takes more stars.',
+  sun_nova: 'It’s a supernova — nothing more can be added to it.', already_enchanted: 'That card is already an Enchanted roll.',
   'not_friends:wish': 'Wishes can only be given to friends.',
   // 🥚🔭🦢🔥🎭🃏✍️ the six new enchantments
   hatch_first: 'Your Cuckoo Egg needs to hatch first — choose what it becomes in the Grimoire.', bad_kind: 'Pick one of the six.',

@@ -76,7 +76,8 @@ export function MapScene({ v, view, act, busy, at }: SceneProps) {
               <motion.div className="grid justify-items-center gap-2" initial={{ y: 60, scale: 0.4 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 12 }}>
                 <span className="text-7xl">🧰</span>
                 <span className="font-display text-2xl font-black text-[#FFD23F]">Treasure!</span>
-                <span className="text-sm font-bold text-white/85">+{fmt(opened.pay?.paid ?? 0)} Ink{opened.ticket ? ` · a ${rarityInfo(opened.ticket).name}+ roll ticket!` : ''}</span>
+                {opened.eldorado && <span className="font-display text-[20px] font-black text-[#FFD23F] drop-shadow-[0_0_12px_#FFB31F]" data-testid="map-eldorado">🏛️ EL DORADO!</span>}
+                <span className="text-sm font-bold text-white/85">+{fmt(opened.pay?.paid ?? 0)} Ink{opened.ticket ? ` · a ${rarityInfo(opened.ticket).name}+ roll ticket!` : ''}{opened.eldorado ? ' · the next map is ready now' : ''}</span>
                 {moment && <ClipMomentButton moment={moment} />}
               </motion.div>
             </motion.div>

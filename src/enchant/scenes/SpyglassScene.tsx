@@ -60,6 +60,7 @@ export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const spot = useSpotPick(v, 'look');
   const [phase, setPhase] = useState<'idle' | 'racking' | 'clearing' | 'shown'>('idle');
   const [shown, setShown] = useState<any>(null);
+  const [pano, setPano] = useState<any[]>([]);
   const nextIn = useLeft(view.next_in, at);
   const sightings: any[] = view.sightings ?? [];
   const looks = Number(view.looks ?? 0), max = Number(view.max ?? 3);
@@ -79,7 +80,7 @@ export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
     setPhase('clearing');
     await sleep(900);
     const s = r.result.sighting;
-    setShown(s); setPhase('shown');
+    setShown(s); setPhase('shown'); setPano(r.result.panorama ?? []);
     const c = readingColor(s.rarity), at2 = centerOf(lens.current);
     feel(grand(s.rarity) ? 'heavy' : 'success');
     efx.burst({ ...at2, colors: [c, '#fff', '#FFE8A3'], count: grand(s.rarity) ? 260 : 90, speed: grand(s.rarity) ? 16 : 9, kind: 'spark' });
@@ -140,6 +141,17 @@ export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
           </AnimatePresence>
           <div className="lvx-lens-glare" />
         </div>
+        {/* ★4 Panorama: the plots around it, read in the same look */}
+        {phase === 'shown' && pano.length > 0 && (
+          <div className="absolute bottom-3 left-3 z-10 grid grid-cols-3 gap-0.5 rounded-lg bg-black/55 p-1" data-testid="spyglass-panorama">
+            {[-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => {
+              const hit = dx === 0 && dy === 0 ? shown : pano.find((p) => p.gx - shown.gx === dx && p.gy - shown.gy === dy);
+              return <motion.span key={`${dx}${dy}`} className="h-4 w-4 rounded-sm" style={{ background: hit ? readingColor(hit.rarity) : 'rgba(255,255,255,0.08)', boxShadow: hit && grand(hit.rarity) ? `0 0 6px ${readingColor(hit.rarity)}` : undefined }}
+                initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.1 + ((dx + 1) + (dy + 1) * 3) * 0.06 }} title={hit ? readingName(hit.rarity, hit.kind) : 'taken'} />;
+            }))}
+            <span className="col-span-3 text-center text-[9px] font-black text-white/70">🖼️ +{pano.length}</span>
+          </div>
+        )}
         <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1" data-testid="spyglass-looks">
           {Array.from({ length: max }, (_, i) => <motion.span key={i} className="text-[14px]" animate={{ opacity: i < looks ? 1 : 0.25, scale: i < looks ? 1 : 0.8 }}>🔭</motion.span>)}
           {looks < max && nextIn != null && <span className="ml-1 text-[10px] font-bold text-white/70">+1 in {dur(nextIn)}</span>}

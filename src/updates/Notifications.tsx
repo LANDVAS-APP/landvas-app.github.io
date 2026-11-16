@@ -19,6 +19,7 @@ import { cn, timeAgo } from '../lib/utils';
 import { Button, Dialog, PlayerAvatar } from '../ui';
 import { poll } from '../lib/poll';
 import { NATIVE_APP } from '../app/buildFlags';
+import { kindInfo } from '../enchant/kinds';
 
 export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sparkles; color: string }> = {
   update: { label: 'Update', icon: Sparkles, color: '#22E3FF' },
@@ -198,6 +199,8 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'prophecy_true': return <>’s next roll came out just as your 👁️ Oracle foretold <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'prophecy_true_you': return <>’s sealed 👁️ prophecy came true on your roll <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'became': return <>{d.from === 'ouroboros' ? <>🐍 Your Ouroboros straightened into a <b>🪄 Dowsing Rod</b></> : <>🧫 Your Homunculus’s heart lit up into a <b>☀️ Pocket Sun</b></>} — it kept its level, stars and name</>;
+      case 'ascended': return <>{Number(d.stars) >= 5 ? <>🌌 Your <b>{kindInfo(d.kind).name} #{d.serial}</b> is <b>Ascendant</b> — all five stars</> : <>☄️ Your <b>{kindInfo(d.kind).name} #{d.serial}</b> is <b>Comet-Crowned</b> — ★4</>}</>;
+      case 'sun_nova': return <>💥 Your <b>☀️ Pocket Sun</b> went <b>supernova</b> — ×6 over twice the ground for 15 minutes. Claim inside it now!</>;
       case 'sun_party_claim': return <>claimed a plot in your shared ☀️ Pocket Sun <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'spore_landed': return <>🦠 sent a <b>spore</b> onto your plot — your wins there pay you +10% for a day (and feed them a little)</>;
       case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;

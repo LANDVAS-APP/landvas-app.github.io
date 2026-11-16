@@ -1,6 +1,6 @@
 // ⭐ Stars: pour a copy of an enchantment into another of the same kind (or three of other kinds, as Essence) and it
-// earns a star — +10% Ink a star and a new power at each. Here: the stars it wears (an aura on its sigil), its three
-// powers, and the pouring ritual itself.
+// earns a star — +10% Ink a star and a new power at each, up to five. Here: the stars it wears (an aura on its sigil),
+// its five powers, the pouring ritual itself, and the ascension when a fourth or fifth star lights.
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -10,7 +10,7 @@ import { api, type EnchantView, type MergeResult } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../clips/ClipMoment';
 import type { Moment } from '../clips/moments';
-import { invalidateGame } from '../lib/queries';
+import { celebrate, invalidateGame } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
@@ -21,31 +21,48 @@ import { Sigil } from './Sigil';
 import './enchant.css';
 
 /** ★★☆ */
-export function StarPips({ stars, of = 3, className, testId }: { stars: number; of?: number; className?: string; testId?: string }) {
+export const MAX_STARS = 5;
+
+export function StarPips({ stars, of = MAX_STARS, className, testId }: { stars: number; of?: number; className?: string; testId?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-[1px] leading-none', className)} aria-label={`${stars} of ${of} stars`} data-testid={testId} data-stars={stars}>
-      {Array.from({ length: of }, (_, i) => <span key={i} className={i < stars ? 'text-[#FFD23F] drop-shadow-[0_0_4px_#FFB31F]' : 'text-white/20'}>★</span>)}
+      {Array.from({ length: of }, (_, i) => <span key={i} className={i < stars ? (i >= 3 ? 'text-[#9FE8FF] drop-shadow-[0_0_5px_#5CC8FF]' : 'text-[#FFD23F] drop-shadow-[0_0_4px_#FFB31F]') : 'text-white/20'}>★</span>)}
     </span>
   );
 }
 
-/** the stars it wears: a golden ring (★1), runes in orbit (★2), a crown of stars (★3) */
+/** the stars it wears: a golden ring (★1), runes in orbit (★2), a crown of stars (★3), a comet circling it (★4), a
+ *  constellation of its own wheeling behind it (★5) */
 export function StarAura({ stars, size, children }: { stars: number; size: number; children: ReactNode }) {
   if (!stars) return <>{children}</>;
   return (
     <div className={`lv-staraura s${stars} relative grid place-items-center`} style={{ width: size, height: size }} data-testid="star-aura" data-stars={stars}>
+      {stars >= 5 && <Constellation size={size} />}
       <span className="lv-staraura-ring" />
       {stars >= 2 && <span className="lv-staraura-orbit">{Array.from({ length: 6 }, (_, i) => <i key={i} style={{ transform: `rotate(${i * 60}deg) translateY(-${size * 0.56}px)` }}>✦</i>)}</span>}
       {stars >= 3 && <span className="lv-staraura-crown">{['⭐', '🌟', '⭐'].map((s, i) => <i key={i} style={{ transform: `rotate(${(i - 1) * 26}deg) translateY(-${size * 0.6}px)` }}>{s}</i>)}</span>}
+      {stars >= 4 && <span className="lv-staraura-comet" style={{ ['--r' as string]: `${size * 0.62}px` }}><i /></span>}
       <div className="relative">{children}</div>
     </div>
+  );
+}
+
+/** ★5: its own constellation — seven stars and the lines between them, turning slowly behind the sigil */
+function Constellation({ size }: { size: number }) {
+  const pts = [[50, 8], [78, 22], [92, 52], [72, 84], [36, 90], [10, 62], [20, 26]];
+  return (
+    <svg className="lv-staraura-const" viewBox="0 0 100 100" width={size * 1.9} height={size * 1.9} aria-hidden>
+      <polyline points={[...pts, pts[0]].map((p) => p.join(',')).join(' ')} fill="none" stroke="#9FE8FF" strokeOpacity="0.35" strokeWidth="0.6" />
+      <polyline points={`${pts[0].join(',')} ${pts[3].join(',')} ${pts[5].join(',')} ${pts[1].join(',')}`} fill="none" stroke="#FFE8A3" strokeOpacity="0.25" strokeWidth="0.5" />
+      {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i % 3 ? 1.3 : 2} fill={i % 2 ? '#FFE8A3' : '#BDF2FF'} />)}
+    </svg>
   );
 }
 
 const busyOf = (x: EnchantView) =>
   !!x.partner || (x.partners ?? []).length > 0 || (x.kind === 'splice' && !!x.view?.active) || (x.kind === 'stormcoil' && !!x.view?.storm);
 
-/** its stars, its three powers, and the way to earn the next one */
+/** its stars, its five powers, and the way to earn the next one */
 export function StarsPanel({ v }: { v: EnchantView }) {
   const [open, setOpen] = useState(false);
   const stars = v.stars ?? 0, need = v.star_need ?? null, fill = v.star_fill ?? 0, ess = v.essence ?? 0;
@@ -61,25 +78,25 @@ export function StarsPanel({ v }: { v: EnchantView }) {
       {need != null && (
         <div className="flex items-center gap-2 text-[11px] font-bold text-white/65" data-testid="ench-star-progress">
           <span>Next star (★{stars + 1}):</span>
-          {Array.from({ length: need }, (_, i) => <span key={i} className={cn('h-2.5 w-6 rounded-full', i < fill ? 'bg-[linear-gradient(90deg,#FFD23F,#FF9F1C)]' : 'bg-white/10')} />)}
+          {Array.from({ length: need }, (_, i) => <span key={i} className={cn('h-2.5 rounded-full', need > 3 ? 'w-4' : 'w-6', i < fill ? (stars >= 3 ? 'bg-[linear-gradient(90deg,#9FE8FF,#5CC8FF)]' : 'bg-[linear-gradient(90deg,#FFD23F,#FF9F1C)]') : 'bg-white/10')} />)}
           <span>{fill}/{need} cop{need === 1 ? 'y' : 'ies'}</span>
         </div>
       )}
       <div className="grid gap-1.5" data-testid="ench-powers">
         {(v.powers ?? []).map((p) => (
-          <div key={p.star} className={cn('flex items-start gap-2.5 rounded-2xl px-2.5 py-2', p.on ? 'bg-[linear-gradient(90deg,#FFD23F22,transparent)] ring-1 ring-[#FFD23F]/40' : 'bg-white/[0.03] opacity-70')} data-testid={`ench-power-${p.star}`} data-on={p.on}>
+          <div key={p.star} className={cn('flex items-start gap-2.5 rounded-2xl px-2.5 py-2', p.on ? (p.star >= 4 ? 'bg-[linear-gradient(90deg,#5CC8FF26,transparent)] ring-1 ring-[#9FE8FF]/50' : 'bg-[linear-gradient(90deg,#FFD23F22,transparent)] ring-1 ring-[#FFD23F]/40') : 'bg-white/[0.03] opacity-70')} data-testid={`ench-power-${p.star}`} data-on={p.on}>
             <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full text-[17px]', p.on ? 'bg-[#FFD23F]/20' : 'bg-white/5 grayscale')}>{p.on ? p.emoji : '🔒'}</span>
             <span className="grid min-w-0 leading-tight">
-              <span className="text-[13px] font-black"><span className="text-[#FFD23F]">{'★'.repeat(p.star)}</span> {p.name}</span>
+              <span className="text-[13px] font-black"><span className={p.star >= 4 ? 'text-[#9FE8FF]' : 'text-[#FFD23F]'}>{'★'.repeat(p.star)}</span> {p.name}{p.star === 4 && <span className="ml-1 text-[10px] font-bold text-[#9FE8FF]/70">☄️ Comet</span>}{p.star === 5 && <span className="ml-1 text-[10px] font-bold text-[#9FE8FF]/70">🌌 Ascended</span>}</span>
               <span className="text-[11.5px] text-white/70">{p.text}</span>
             </span>
           </div>
         ))}
       </div>
-      <Button variant={stars < 3 ? 'rainbow' : 'secondary'} onClick={() => setOpen(true)} data-testid="ench-merge-open">
-        {stars < 3 ? `✨ Pour in a copy${(v.copies ?? 0) > 0 ? ` (${v.copies} ${k.name}${v.copies === 1 ? '' : 's'} to pour)` : ''}` : '🔮 Pour others in as Essence'}
+      <Button variant={stars < MAX_STARS ? 'rainbow' : 'secondary'} onClick={() => setOpen(true)} data-testid="ench-merge-open">
+        {stars < MAX_STARS ? `✨ Pour in a copy${(v.copies ?? 0) > 0 ? ` (${v.copies} ${k.name}${v.copies === 1 ? '' : 's'} to pour)` : ''}` : '🔮 Pour others in as Essence'}
       </Button>
-      <p className="text-center text-[11px] text-white/50">Another {k.name} fills its next star. Any other enchantment becomes Essence — 3 Essence pour in as one copy. Levels and XP carry over; the copy’s plot stays yours and takes its own roll.</p>
+      <p className="text-center text-[11px] text-white/50">Another {k.name} fills its next star (★4 takes 3, ★5 takes 5). Any other enchantment becomes Essence — 3 Essence pour in as one copy. Levels and XP carry over; the copy’s plot stays yours and takes its own roll.</p>
       {open && <MergeRitual v={v} onClose={() => setOpen(false)} />}
     </section>
   );
@@ -98,6 +115,7 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
   const haptics = useUi((s) => !!s.settings.haptics);
   const [ph, setPh] = useState<Phase>({ at: 'pick' });
   const [moment, setMoment] = useState<Moment | null>(null);
+  const [ascend, setAscend] = useState<{ stars: number; power: MergeResult['power'] | null } | null>(null);
   const k = kindInfo(v.kind);
   const stars = v.stars ?? 0, ess = v.essence ?? 0;
   const list = useMemo(() => (mine.data ?? []).filter((x) => x.id !== v.id), [mine.data, v.id]);
@@ -107,7 +125,7 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
     if (haptics) buzz('heavy');
     try {
       const [r] = await Promise.all([api.enchantMerge(v.id, copy?.id ?? null), new Promise((res) => setTimeout(res, reduce ? 300 : 1700))]);
-      const { result, ...view } = r;
+      const { result, achievements, ...view } = r as typeof r & { achievements?: Parameters<typeof celebrate>[0] };
       qc.setQueryData(['enchant', v.id], view);
       if (copy) qc.removeQueries({ queryKey: ['enchant', copy.id] });
       void qc.invalidateQueries({ queryKey: ['enchantments'] });
@@ -115,6 +133,8 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
       void qc.invalidateQueries({ queryKey: ['enchant-map'] });
       invalidateGame(qc);
       setPh({ at: 'done', copy, r: result, v: view as EnchantView });
+      if (result.starred && result.stars >= 4) setAscend({ stars: result.stars, power: result.power ?? null });
+      if (achievements?.length) setTimeout(() => celebrate(achievements), result.starred && result.stars >= 4 ? 6000 : 600);
       const c = { x: innerWidth / 2, y: innerHeight * 0.42 };
       efx.burst({ ...c, colors: [k.a, '#FFD23F', '#FFE8A3', '#fff'], count: result.starred ? 320 : 140, speed: result.starred ? 18 : 11, kind: 'spark' });
       if (result.starred) efx.burst({ ...c, colors: ['#FFD23F', '#fff'], count: 30, speed: 9, kind: 'emoji', emojis: ['⭐', '🌟', '✨'], life: 1.5 });
@@ -162,7 +182,7 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
           </motion.div>
           {ph.at === 'done' && ph.r.starred && (
             <motion.div className="absolute inset-x-0 top-3 text-center" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 14 }}>
-              <span className="font-display text-[30px] font-black text-[#FFD23F] drop-shadow-[0_0_16px_#FFB31F]">{'★'.repeat(ph.r.stars)}</span>
+              <span className="font-display text-[30px] font-black text-[#FFD23F] drop-shadow-[0_0_16px_#FFB31F]">{'★'.repeat(Math.min(3, ph.r.stars))}<span className="text-[#9FE8FF] drop-shadow-[0_0_16px_#5CC8FF]">{'★'.repeat(Math.max(0, ph.r.stars - 3))}</span></span>
             </motion.div>
           )}
         </div>
@@ -170,9 +190,9 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
           <div className="grid gap-2" data-testid="merge-pick">
             <div className="text-center text-[13px] font-bold text-white/80">Pour into <b style={{ color: k.a }}>{enchantName(v)}</b> <StarPips stars={stars} /></div>
             {(mine.isLoading || mine.isFetching) && !list.length && <div className="text-center text-[12px] text-white/50">Gathering your enchantments…</div>}
-            {stars < 3 && ess >= 3 && <Button variant="rainbow" onClick={() => setPh({ at: 'confirm', copy: null })} data-testid="merge-essence">🔮 Pour 3 Essence in as a copy ({ess} banked)</Button>}
+            {stars < MAX_STARS && ess >= 3 && <Button variant="rainbow" onClick={() => setPh({ at: 'confirm', copy: null })} data-testid="merge-essence">🔮 Pour 3 Essence in as a copy ({ess} banked)</Button>}
             <div className="text-[11px] font-black uppercase tracking-wider text-[#FFE8A3]">Another {k.name} — a copy</div>
-            {same.length ? same.map((x) => <Item key={x.id} x={x} note={`fills its next star${(x.stars ?? 0) > 0 ? ' (and brings its own stars)' : ''}`} off={stars >= 3 ? 'it already has all three stars' : busyOf(x) ? 'busy right now' : null} />)
+            {same.length ? same.map((x) => <Item key={x.id} x={x} note={`fills its next star${(x.stars ?? 0) > 0 ? ' (and brings its own stars)' : ''}`} off={stars >= MAX_STARS ? 'it already has all five stars' : busyOf(x) ? 'busy right now' : null} />)
               : !mine.isFetching && <p className="text-[12px] text-white/50">No other {k.name} yet — every new plot has a 2% chance of being enchanted. Or pour in other kinds as Essence.</p>}
             <div className="mt-1 text-[11px] font-black uppercase tracking-wider text-[#C9B8FF]">Other kinds — Essence ({ess}/3)</div>
             {other.length ? other.map((x) => <Item key={x.id} x={x} note="becomes 1 Essence" off={busyOf(x) ? 'busy right now' : null} />)
@@ -185,7 +205,7 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
               <>
                 <div className="text-[14px] font-bold">Pour <b style={{ color: kindInfo(ph.copy.kind).a }}>{enchantName(ph.copy)}</b> into <b style={{ color: k.a }}>{enchantName(v)}</b>?</div>
                 <div className="text-[12px] text-white/65">
-                  {ph.copy.kind === v.kind ? `It fills ${enchantName(v)}’s next star.` : `It becomes 1 Essence${stars < 3 && ess + 1 >= 3 ? ' — that’s 3: they pour in as a copy' : ` (${Math.min(3, ess + 1)}/3)`}.`}
+                  {ph.copy.kind === v.kind ? `It fills ${enchantName(v)}’s next star.` : `It becomes 1 Essence${stars < MAX_STARS && ess + 1 >= 3 ? ' — that’s 3: they pour in as a copy' : ` (${Math.min(3, ess + 1)}/3)`}.`}
                   {' '}Its {ph.copy.xp} XP pours in too. It’s gone for good — its plot stays yours and takes its own roll.
                 </div>
               </>
@@ -213,12 +233,64 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
             {ph.r.copy && <div className="text-[11px] text-white/50">{kindInfo(ph.r.copy.kind).name} #{ph.r.copy.serial}’s plot stays yours — rolled {ph.r.copy.rarity}.</div>}
             <div className="flex flex-wrap justify-center gap-2">
               {moment && <ClipMomentButton moment={moment} testId="merge-clip" />}
-              {ph.r.stars < 3 && <Button variant="secondary" onClick={() => setPh({ at: 'pick' })} data-testid="merge-again">Pour another</Button>}
+              {ph.r.stars < MAX_STARS && <Button variant="secondary" onClick={() => setPh({ at: 'pick' })} data-testid="merge-again">Pour another</Button>}
               <Button variant="primary" onClick={onClose} data-testid="merge-finish">Done</Button>
             </div>
           </div>
         )}
       </div>
+      {ascend && <Ascension v={ph.at === 'done' ? ph.v : v} stars={ascend.stars} power={ascend.power} onDone={() => setAscend(null)} />}
     </div>,
     document.body);
+}
+
+/** ★4 and ★5: the sky opens. A comet streaks across and circles the sigil (★4); for ★5 the stars of its constellation
+ *  light one by one, the lines draw between them, and it rises — Ascendant. Tap to skip. */
+function Ascension({ v, stars, power, onDone }: { v: EnchantView; stars: number; power: MergeResult['power'] | null; onDone(): void }) {
+  const reduce = useUi((s) => !!s.settings.reduceMotion);
+  const haptics = useUi((s) => !!s.settings.haptics);
+  const k = kindInfo(v.kind);
+  const five = stars >= 5;
+  const pts = [[50, 12], [76, 24], [88, 50], [70, 80], [38, 86], [14, 60], [22, 28]];
+  useEffect(() => {
+    if (haptics) buzz('heavy');
+    const c = { x: innerWidth / 2, y: innerHeight * 0.42 };
+    const t1 = setTimeout(() => {
+      efx.burst({ ...c, colors: five ? ['#9FE8FF', '#FFE8A3', '#fff', k.a] : ['#9FE8FF', '#5CC8FF', '#fff'], count: five ? 420 : 260, speed: five ? 20 : 15, kind: 'spark' });
+      efx.burst({ ...c, colors: ['#fff'], count: 24, speed: 10, kind: 'emoji', emojis: five ? ['🌌', '✨', '⭐', '🌟'] : ['☄️', '✨', '⭐'], life: 1.8 });
+      if (haptics) buzz('success');
+    }, reduce ? 50 : five ? 2300 : 1300);
+    const t2 = setTimeout(onDone, reduce ? 2600 : five ? 9000 : 6800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <motion.button type="button" className="fixed inset-0 z-[150] grid place-items-center overflow-hidden bg-[#030111]/90" onClick={onDone} data-testid="ascension" data-stars={stars}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="lv-ascend-sky pointer-events-none absolute inset-0" />
+      {!reduce && <motion.span className="lv-ascend-comet absolute" initial={{ x: '-60vw', y: '-40vh', opacity: 0 }} animate={{ x: ['-60vw', '0vw'], y: ['-40vh', '0vh'], opacity: [0, 1, 1, 0] }} transition={{ duration: 1.3, ease: 'easeIn' }} />}
+      <div className="relative grid place-items-center">
+        {five && (
+          <svg viewBox="0 0 100 100" className="absolute h-[360px] w-[360px]" aria-hidden>
+            <motion.polyline points={[...pts, pts[0]].map((p) => p.join(',')).join(' ')} fill="none" stroke="#9FE8FF" strokeWidth="0.7" strokeOpacity="0.8"
+              initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: reduce ? 0 : 1.1, duration: reduce ? 0.1 : 1.3, ease: 'easeInOut' }} />
+            {pts.map(([x, y], i) => (
+              <motion.circle key={i} cx={x} cy={y} r={2.2} fill={i % 2 ? '#FFE8A3' : '#BDF2FF'} initial={{ scale: 0, opacity: 0 }} animate={{ scale: [0, 1.8, 1], opacity: 1 }}
+                transition={{ delay: reduce ? 0 : 0.2 + i * 0.14, duration: 0.4 }} style={{ transformOrigin: `${x}px ${y}px` }} />
+            ))}
+          </svg>
+        )}
+        <motion.div initial={{ scale: 0.4, opacity: 0, y: 40 }} animate={{ scale: [0.4, 1.15, 1], opacity: 1, y: five ? [40, 0, -14] : [40, 0, 0] }}
+          transition={{ delay: reduce ? 0 : five ? 1.9 : 1.0, duration: 0.9 }}>
+          <StarAura stars={stars} size={150}><Sigil kind={v.kind} seed={v.sigil} size={140} level={v.level} /></StarAura>
+        </motion.div>
+      </div>
+      <motion.div className="absolute inset-x-4 bottom-[14%] grid justify-items-center gap-1.5 text-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduce ? 0 : five ? 2.6 : 1.6 }}>
+        <span className="font-display text-[15px] font-black uppercase tracking-[0.3em] text-[#9FE8FF]">{five ? '🌌 Ascendant' : '☄️ Comet-Crowned'}</span>
+        <span className="font-display text-[40px] font-black leading-none text-[#FFD23F] drop-shadow-[0_0_20px_#FFB31F]">{'★'.repeat(3)}<span className="text-[#9FE8FF] drop-shadow-[0_0_20px_#5CC8FF]">{'★'.repeat(stars - 3)}</span></span>
+        <span className="text-[15px] font-black text-white">{enchantName(v)}</span>
+        {power && <span className="max-w-[340px] text-[13px] text-white/80"><b style={{ color: k.a }}>{power.emoji} {power.name}</b> — {power.text}</span>}
+        <span className="mt-2 text-[11px] text-white/40">tap to continue</span>
+      </motion.div>
+    </motion.button>
+  );
 }

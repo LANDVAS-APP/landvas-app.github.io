@@ -44,7 +44,7 @@ describe('⭐ merging copies', () => {
     expect(r.result).toMatchObject({ merged: true, same: true, starred: true, stars: 1, fill: 0, need: 1 });
     expect(r.result.power).toMatchObject({ name: 'Gilded Nest' });
     expect(r.stars).toBe(1);
-    expect(r.powers).toHaveLength(3);
+    expect(r.powers).toHaveLength(5);
     expect(r.powers[0]).toMatchObject({ star: 1, on: true, name: 'Gilded Nest' });
     expect(r.powers[1]).toMatchObject({ star: 2, on: false });
     expect(r.titles).toContain('Starlit');
@@ -63,16 +63,16 @@ describe('⭐ merging copies', () => {
     expect((await db.sql(`select count(*)::int n from enchant_events where enchant_id = $1 and kind = 'merged_away'`, [b]))[0].n).toBe(1);
   });
 
-  it('★2 takes one more copy, ★3 two more; then no more', async () => {
+  it('★2 takes one more copy, ★3 two more, and the next copies go toward ★4', async () => {
     const a = await enchant(ann, 'genie');
     const c = [await enchant(ann, 'genie'), await enchant(ann, 'genie'), await enchant(ann, 'genie'), await enchant(ann, 'genie'), await enchant(ann, 'genie')];
     expect((await merge(ann, a, c[0])).result).toMatchObject({ stars: 1 });
     expect((await merge(ann, a, c[1])).result).toMatchObject({ stars: 2, need: 2 });
     expect((await merge(ann, a, c[2])).result).toMatchObject({ starred: false, stars: 2, fill: 1, need: 2 });
     const r = await merge(ann, a, c[3]);
-    expect(r.result).toMatchObject({ starred: true, stars: 3, need: null });
+    expect(r.result).toMatchObject({ starred: true, stars: 3, need: 3 });
     expect(r.titles).toEqual(expect.arrayContaining(['Starlit', 'Starforged', 'Supernova']));
-    await expectError(merge(ann, a, c[4]), 'max_stars');
+    expect((await merge(ann, a, c[4])).result).toMatchObject({ starred: false, stars: 3, fill: 1, need: 3 });
     expect((await db.sql(`select count(*)::int n from feed_events where player_id = $1 and data ->> 'sub' = 'starred' and data ->> 'kind' = 'genie'`, [ann]))[0].n).toBe(3);
   });
 
@@ -83,7 +83,7 @@ describe('⭐ merging copies', () => {
     expect(r.result).toMatchObject({ stars: 2, fill: 1, need: 2 });
   });
 
-  it('other kinds pour in as Essence; three make a copy; Essence a ★3 can’t take is kept', async () => {
+  it('other kinds pour in as Essence; three make a copy; Essence a ★5 can’t take is kept', async () => {
     const a = await enchant(ann, 'pandora');
     const e0 = await essence(ann);
     expect((await merge(ann, a, await enchant(ann, 'spyglass'))).result).toMatchObject({ same: false, starred: false, essence: e0 + 1 });
@@ -91,8 +91,8 @@ describe('⭐ merging copies', () => {
     const r = await merge(ann, a, await enchant(ann, 'spyglass'));
     expect(r.result).toMatchObject({ essence_used: true, starred: true, stars: 1, essence: e0 });
     expect(r.essence).toBe(e0);
-    // banked Essence: a ★3 can't take it, so it waits; pouring with no copy uses 3 of it
-    const full = await enchant(ann, 'oracle'); await setStars(full, 3);
+    // banked Essence: a ★5 can't take it, so it waits; pouring with no copy uses 3 of it
+    const full = await enchant(ann, 'oracle'); await setStars(full, 5);
     for (let i = 0; i < 3; i++) await merge(ann, full, await enchant(ann, 'spyglass'));
     expect(await essence(ann)).toBe(e0 + 3);
     await expectError(merge(ann, full, null), 'max_stars');
@@ -262,9 +262,9 @@ describe('⭐ the powers', () => {
     expect((await get(ann, s)).view.per_day).toBe(p0 + 1);
   });
 
-  it('lists three powers for every kind', async () => {
+  it('lists five powers for every kind', async () => {
     const r = (await db.sql(`select k, jsonb_array_length(private.ench_star_powers(k)) n from unnest(private.ench_kinds()) k`));
     expect(r.length).toBeGreaterThanOrEqual(17);
-    for (const x of r) expect(x.n).toBe(3);
+    for (const x of r) expect(x.n).toBe(5);
   });
 });

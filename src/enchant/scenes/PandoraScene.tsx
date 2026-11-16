@@ -35,8 +35,9 @@ export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
     if (!r) return;
     setOut(r.result.out);
     r.result.out.forEach((o: any, i: number) => setTimeout(() => {
-      if (useUi.getState().settings.haptics) buzz(o.type === 'evil' ? 'heavy' : 'success');
-      efx.burst({ ...centerOf(box.current), colors: o.type === 'evil' ? ['#2A0A3D', '#5A1A6E', '#FF4D6D'] : ['#FFD23F', '#FFE8A3', '#fff'], count: 50, speed: 10, kind: o.type === 'evil' ? 'drop' : 'spark', up: 1 });
+      const bad = o.type === 'evil' && !o.blessed;
+      if (useUi.getState().settings.haptics) buzz(bad ? 'heavy' : 'success');
+      efx.burst({ ...centerOf(box.current), colors: bad ? ['#2A0A3D', '#5A1A6E', '#FF4D6D'] : o.blessed ? ['#fff', '#FFE8A3', '#BDF2FF'] : ['#FFD23F', '#FFE8A3', '#fff'], count: o.blessed ? 90 : 50, speed: 10, kind: bad ? 'drop' : 'spark', up: 1 });
       if (o.type === 'ink' && o.pay) efx.pay(o.pay, 'pandora', centerOf(box.current));
     }, 450 + i * 650));
     if (r.result.hope) setTimeout(() => { setHope(true); setMoment(keep({ type: 'hope', e: enchantRef(v) })); efx.burst({ ...centerOf(box.current), colors: ['#fff', '#FFE8A3', '#A6FFD6', '#C9B8FF'], count: 260, speed: 16, kind: 'spark' }); }, 450 + r.result.out.length * 650);
@@ -84,7 +85,8 @@ export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
             <motion.button key="o" onClick={() => setOut(null)} className="absolute inset-x-3 bottom-3 grid gap-1 rounded-2xl bg-black/70 p-2 text-left backdrop-blur" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} data-testid="pandora-out">
               {out.map((o, i) => (
                 <motion.div key={i} className="flex items-center gap-2 text-[12px] font-bold" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.45 + i * 0.65 }}>
-                  {o.type === 'evil' ? <><span className="text-lg">{EVILS[o.evil]?.emoji}</span><span style={{ color: EVILS[o.evil]?.color }}>{EVILS[o.evil]?.name} escaped!</span><span className="text-white/60">{o.dodged ? 'You slipped its curse.' : EVILS[o.evil]?.curse}</span></>
+                  {o.type === 'evil' && o.blessed ? <><span className="text-lg">😇</span><span className="text-[#FFE8A3]">{EVILS[o.evil]?.name} turned into its blessing!</span><span className="text-white/60">No curse — +{o.luck ?? 15} Luck instead.</span></>
+                    : o.type === 'evil' ? <><span className="text-lg">{EVILS[o.evil]?.emoji}</span><span style={{ color: EVILS[o.evil]?.color }}>{EVILS[o.evil]?.name} escaped!</span><span className="text-white/60">{o.dodged ? 'You slipped its curse.' : EVILS[o.evil]?.curse}</span></>
                     : o.type === 'ink' ? <><span className="text-lg">💰</span><span className="text-[#FFD23F]">+{fmt(o.pay?.paid ?? 0)} Ink</span></>
                     : o.type === 'luck' ? <><span className="text-lg">🍀</span><span className="text-[#3DDC97]">+{o.luck} Luck</span></>
                     : o.type === 'enchant' ? <><span className="text-lg">✨</span><span className="text-[#C9A0FF]">+1 Enchanted Luck</span></>

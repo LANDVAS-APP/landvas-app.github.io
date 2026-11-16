@@ -59,7 +59,7 @@ export type MapWormhole = { id: string; mine: boolean; owner_name?: string | nul
 export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string; stars?: number }[];
   attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
   giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[]; chests?: { id: number; gx: number; gy: number; ink: number; kind: string }[] };
-export type MapSun = { id: string; i: number; gx: number; gy: number; r_m: number; tier: 'warm' | 'hot' | 'white'; heat: number; mode: 'claim' | 'orbit'; flare: boolean;
+export type MapSun = { id: string; i: number; gx: number; gy: number; r_m: number; tier: 'warm' | 'hot' | 'white' | 'nova'; mult?: number; heat: number; mode: 'claim' | 'orbit'; flare: boolean;
   flare_until: number | null; until: number; party: boolean; mine: boolean; owner_name: string | null; spots: [number, number][]; reflected: boolean };
 export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
   bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
@@ -73,7 +73,7 @@ export type EnchantMap3 = {
   creases?: { gx: number; gy: number; until: string; mine: boolean }[];
   server_now: number;
 };
-export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null }[]; wormholes: MapWormhole[] };
+export type EnchantWorld = { giants: { gx: number; gy: number; mult: number; until: string; rarity: string | null; owner_name: string | null; mine: boolean; prank?: boolean; by_name?: string | null; scale?: number }[]; wormholes: MapWormhole[] };
 export type LevPos = { lng: number; lat: number; km: number; seg: number; heading: number; done: boolean; paused: boolean; haze?: boolean };
 export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking' | 'enraged' | 'fleeing'; strength: number; hp: number; hp_max: number;
   /** null while it's hidden (and you haven't found it): then pos is only the middle of a hazy area */

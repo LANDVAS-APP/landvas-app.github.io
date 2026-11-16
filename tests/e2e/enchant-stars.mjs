@@ -75,8 +75,8 @@ async function run(mode) {
 
     // ---- the Stars panel: no stars yet, three powers to earn ----
     await nav(`/grimoire/${ids.genie}`);
-    ok('an enchantment’s page shows its Stars and three powers', await waitFor('[data-testid=ench-stars]'), (await text('[data-testid=ench-powers]'))?.slice(0, 80));
-    ok('…all three still locked', (await page.locator('[data-testid^=ench-power-][data-on=false]').count()) === 3);
+    ok('an enchantment’s page shows its Stars and five powers', await waitFor('[data-testid=ench-stars]'), (await text('[data-testid=ench-powers]'))?.slice(0, 80));
+    ok('…all five still locked', (await page.locator('[data-testid^=ench-power-][data-on=false]').count()) === 5);
     ok('…and it counts the copy you could pour', /1 Genie/.test((await text('[data-testid=ench-merge-open]')) ?? ''), await text('[data-testid=ench-merge-open]'));
     await page.locator('[data-testid=ench-stars]').scrollIntoViewIfNeeded();
     await shot('01-stars-panel');
@@ -168,6 +168,90 @@ async function run(mode) {
     const bonds = await sql(`select count(*)::int n from enchant_splices where splice_id = '${ids.splice}' and ends_at > now()`);
     ok('…six bonds, one group', bonds[0].n === 6);
     await page.waitForTimeout(900); await shot('07-quad-made');
+
+    // ---- ★4 and ★5: the ascension ----
+    const star = await give('wormhole', 10), cp1 = await give('wormhole', 11), cp2 = await give('wormhole', 12);
+    await sql(`update enchantments set stars = 3, star_fill = 2 where id = '${star}'`);
+    await nav(`/grimoire/${star}`);
+    ok('★3: two powers still to earn — the fourth and fifth stars', await waitFor('[data-testid=ench-power-4][data-on=false]') && (await page.locator('[data-testid^=ench-power-][data-on=false]').count()) === 2);
+    await page.click('[data-testid=ench-merge-open]');
+    await waitFor('[data-testid=merge-pick]');
+    await page.locator('[data-testid=merge-pick-wormhole]').first().click();
+    await waitFor('[data-testid=merge-confirm]');
+    await page.click('[data-testid=merge-go]');
+    ok('★4 opens the sky: the ascension', await waitFor('[data-testid=ascension][data-stars="4"]', 15000));
+    const asc4 = (await text('[data-testid=ascension]')) ?? '';
+    ok('…Comet-Crowned, with its power', /Comet-Crowned/.test(asc4) && /Gravity Well/.test(asc4), asc4.slice(0, 80));
+    await page.waitForTimeout(2200); await shot('10-ascend-4');
+    if (await page.locator('[data-testid=ascension]').count()) await page.click('[data-testid=ascension]');
+    await page.waitForTimeout(500);
+    ok('…a comet circles the sigil', (await page.locator('.lv-staraura-comet').count()) >= 1);
+    await page.click('[data-testid=merge-finish]').catch(() => {}); await page.waitForTimeout(400);
+    await sql(`update enchantments set star_fill = 4 where id = '${star}'`);
+    await refresh(); await page.waitForTimeout(900);
+    await page.click('[data-testid=ench-merge-open]');
+    await waitFor('[data-testid=merge-pick]');
+    await page.locator('[data-testid=merge-pick-wormhole]').first().click();
+    await waitFor('[data-testid=merge-confirm]');
+    await page.click('[data-testid=merge-go]');
+    ok('★5: Ascendant — the constellation wakes', await waitFor('[data-testid=ascension][data-stars="5"]', 15000) && /Ascendant/.test((await text('[data-testid=ascension]')) ?? ''));
+    await page.waitForTimeout(3200); await shot('11-ascend-5');
+    if (await page.locator('[data-testid=ascension]').count()) await page.click('[data-testid=ascension]');
+    await page.waitForTimeout(500);
+    ok('…its own constellation turns behind it', (await page.locator('.lv-staraura-const').count()) >= 1);
+    ok('…all five powers lit, +50%', (await page.locator('[data-testid^=ench-power-][data-on=true]').count()) === 5 && (await sql(`select stars from enchantments where id = '${star}'`))[0].stars === 5);
+    await page.click('[data-testid=merge-finish]').catch(() => {}); await page.waitForTimeout(400);
+    void cp1; void cp2;
+
+    // ---- ⏪ the Clockwork's Rewind ----
+    await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
+    await sql(`select private.ench_event(e.id, 'evil', private.pandora_curse(e, 'envy')) from enchantments e where e.id = '${ids.pandora}'`);
+    await sql(`update enchantments set state = state || jsonb_build_object('charge', 200, 'tick_at', extract(epoch from now())) where id = '${ids.clockwork}'`);
+    await nav(`/grimoire/${ids.clockwork}`);
+    ok('the Clockwork’s tape shows what went wrong', await waitFor('[data-testid=clock-moment][data-type=curse]', 15000), await text('[data-testid=clock-moment]'));
+    await page.locator('[data-testid=clock-rewind]').scrollIntoViewIfNeeded(); await shot('12-rewind-tape');
+    await page.locator('[data-testid=clock-moment][data-type=curse] [data-testid=clock-rewind-go]').click();
+    ok('…◀◀ the tape runs back over the clock', await waitFor('[data-testid=clock-rewinding]', 8000));
+    await page.locator('[data-testid=clock-scene]').scrollIntoViewIfNeeded(); await page.waitForTimeout(700); await shot('13-rewinding');
+    ok('…and it never happened', await waitFor('[data-testid=clock-undone]', 10000), await text('[data-testid=clock-undone]'));
+    const rw = await sql(`select count(*)::int n from enchant_events where enchant_id = '${ids.pandora}' and kind = 'evil' and (data ->> 'rewound')::boolean`);
+    ok('…the curse is marked rewound on the server', rw[0].n === 1);
+    const claimedNow = await as(me, 'acquire_plot', { p_gx: bx + 60, p_gy: by + 60, p_idempotency_key: `e2e-rw-${mode}-00000001` });
+    await refresh(); await page.waitForTimeout(1200);
+    ok('a plot you just claimed can roll again', await waitFor('[data-testid=clock-roll]', 10000) && !!claimedNow?.rarity);
+    await page.locator('[data-testid=clock-rolls]').scrollIntoViewIfNeeded();
+    await page.click('[data-testid=clock-roll-go]');
+    ok('…the tape runs back, and the new roll shows', await waitFor('[data-testid=clock-rolled]', 12000), await text('[data-testid=clock-rolled]'));
+    await page.waitForTimeout(500); await shot('14-rolled-again');
+
+    // ---- ★5 Oracle: weave a fate ----
+    const eye = await give('oracle', 13);
+    await sql(`update enchantments set stars = 5, state = state || jsonb_build_object('charges', 2, 'charge_at', extract(epoch from now())) where id = '${eye}'`);
+    await sql(`delete from private.oracle_fates where player_id = '${me}'`);
+    await nav(`/grimoire/${eye}`);
+    await page.click('[data-testid=oracle-gaze]');
+    ok('★5 Oracle: a prophecy, and a fate to weave', await waitFor('[data-testid=oracle-weave-go]', 10000));
+    await page.click('[data-testid=oracle-weave-go]');
+    await page.locator('[data-testid=oracle-card]').first().click();
+    await page.waitForTimeout(1500);
+    const woven = await sql(`select count(*)::int n from private.oracle_fates where player_id = '${me}' and outcome ->> 'rarity' = 'enchanted'`);
+    ok('…a roll card woven into an Enchanted roll', woven[0].n >= 1 && /ENCHANTED/.test((await text('[data-testid=oracle-cards]')) ?? ''), await text('[data-testid=oracle-cards]'));
+    await shot('15-oracle-weave');
+    await sql(`delete from private.oracle_fates where player_id = '${me}'`);
+
+    // ---- ★5 Glyphcaster and Pocket Sun ----
+    const gl = await give('glyph', 14);
+    await sql(`update enchantments set stars = 5 where id = '${gl}'`);
+    await nav(`/grimoire/${gl}`);
+    ok('★5 Glyphcaster: Triple Cast', await waitFor('[data-testid=glyph-triple]', 10000));
+    const sun = await give('sun', 15);
+    const sz = (await sql(`select gx, gy from enchantments where id = '${sun}'`))[0];
+    await sql(`update enchantments set stars = 5, state = state || jsonb_build_object('zones', jsonb_build_array(jsonb_build_object('i', 1, 'gx', ${sz.gx} + 20, 'gy', ${sz.gy}, 'r0', 200,
+      'lit_at', extract(epoch from now()) - 7200, 'fuel', 30, 'fuel_at', extract(epoch from now()) - 60, 'heat', 100, 'heat_at', extract(epoch from now()) - 60, 'mode', 'claim',
+      'party', false, 'spots', '[]'::jsonb, 'claims', 0, 'warm_at', extract(epoch from now()) - 60, 'steady', true, 'full_party', true, 'nova', true))) where id = '${sun}'`);
+    await nav(`/grimoire/${sun}`);
+    ok('★5 Pocket Sun: a supernova', await waitFor('[data-testid=sun-nova]', 10000), await text('[data-testid=sun-nova]'));
+    await page.waitForTimeout(800); await shot('16-supernova');
 
     // ---- the stars on the Grimoire and the map ----
     await nav('/grimoire');

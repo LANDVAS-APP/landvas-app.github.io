@@ -79,3 +79,13 @@
 
 html.reduce-motion .lv-sun-rays, html.reduce-motion .lv-sun-gran, html.reduce-motion .lv-sun-mote, html.reduce-motion .lv-sun-shake, html.reduce-motion .lv-rod-drop,
 html.reduce-motion .lv-rod-veinglow, html.reduce-motion .lv-rod-bead, html.reduce-motion .lv-sun-mk .corona, html.reduce-motion .lv-sun-spot { animation: none !important; }
+
+/* ---- ★5: a supernova (transform and opacity only) ---- */
+.lv-sun-stage.tier-nova .lv-sun-sky { background: radial-gradient(120% 90% at 50% 42%, rgba(255, 255, 255, 0.55), rgba(255, 92, 219, 0.35) 30%, rgba(92, 200, 255, 0.25) 55%, transparent 75%),
+  linear-gradient(180deg, #2A0B3E 0%, #5B1A5F 46%, #1A0830 100%); }
+@keyframes lv-sun-nova-wave { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.85; } 100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; } }
+.lv-sun-nova { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; border-radius: 999px; border: 3px solid rgba(255, 232, 255, 0.9);
+  box-shadow: 0 0 24px 6px rgba(255, 92, 219, 0.6), inset 0 0 24px rgba(159, 232, 255, 0.5); animation: lv-sun-nova-wave 1.6s ease-out infinite; pointer-events: none; }
+.lv-sun-nova.b { animation-delay: 0.8s; border-color: rgba(159, 232, 255, 0.9); }
+.lv-sun-mk.nova .corona { border-color: #FF5CDB; }
+html.reduce-motion .lv-sun-nova { animation: none !important; opacity: 0.5; }

@@ -137,6 +137,11 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
         </Button>
       </div>
       <p className="text-center text-[11px] text-white/55">Rub the egg to polish it · hold it to feel it beat. Wait longer for a bigger egg — but every fox that slips past takes a bite. {view.eggs} egg{view.eggs === 1 ? '' : 's'} laid.</p>
+      {view.watch && (
+        <p className="text-center text-[11px] font-bold text-[#9FE8FF]" data-testid="goose-watch">
+          🪿 Watch Goose: half the foxes that slip past, it hisses off itself{Number(v.stats?.scared ?? 0) > 0 ? ` — ${v.stats?.scared} so far` : ''}{(view.visits ?? []).some((x: any) => x.state === 'dodged') ? ' · it scared one off this egg' : ''}.
+        </p>
+      )}
     </div>
   );
 }

@@ -67,6 +67,8 @@ function corners(gx: number, gy: number, n: number): [[number, number], [number,
   return [[xToLng(x0), yToLat(y0)], [xToLng(x1), yToLat(y0)], [xToLng(x1), yToLat(y1)], [xToLng(x0), yToLat(y1)]];
 }
 const GIANT = 100;
+/** how many plots across a giant is drawn: 100, or 1,000 for a ★4 MEGA */
+const across = (s: { scale?: number }) => (Number(s.scale) >= 1000 ? 1000 : GIANT);
 /** a giant fades as you zoom right in, so the plots underneath can still be seen (and claimed) */
 const GIANT_OPACITY: maplibregl.ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 12, 1, 17, 0.95, 19, 0.6, 21, 0.3];
 /** a wormhole's arc: bowed to one side, like space folding */
@@ -91,10 +93,10 @@ function creature(p: EnchantMap['plots'][number]) {
     spyglass: '<i class="lvx-lens"></i>', origami: '<i class="lvx-fold"></i>', crucible: '<i class="lvx-ember"></i><i class="lvx-ember"></i><i class="lvx-ember"></i>',
     puppeteer: '<i class="lvx-string"></i><i class="lvx-string"></i>', deck: '<i class="lvx-card"></i>', glyph: '<i class="lvx-rune">ᚱ</i>',
   };
-  const st = Math.min(3, Math.max(0, p.stars ?? 0));
+  const st = Math.min(5, Math.max(0, p.stars ?? 0));
   return `<span class="lv-cr k-${p.reflect ?? p.kind} lvl${lvl}${st ? ` st${st}` : ''}${night ? ' night' : ''}${dusty ? ' dusty' : ''}" style="--a:${k.a};--b:${k.b};--r:${p.mine ? '#FFD23F' : k.a}">`
     + `<span class="lv-cr-ring"></span>${lvl >= 6 ? '<span class="lv-cr-crown">👑</span>' : ''}<span class="lv-cr-body">${k.emoji}</span>${fx[p.reflect ?? p.kind] ?? ''}`
-    + `${night ? '<span class="lv-cr-z">z</span>' : ''}${p.partner ? '<span class="lv-em-tag">🧬</span>' : ''}${p.frozen ? '<span class="lv-em-tag lv-em-tag-l">❄️</span>' : ''}${st ? `<span class="lv-cr-stars">${'★'.repeat(st)}</span>` : ''}</span>`;
+    + `${night ? '<span class="lv-cr-z">z</span>' : ''}${p.partner ? '<span class="lv-em-tag">🧬</span>' : ''}${p.frozen ? '<span class="lv-em-tag lv-em-tag-l">❄️</span>' : ''}${st ? `<span class="lv-cr-stars">${'★'.repeat(Math.min(3, st))}${st > 3 ? `<b>${'★'.repeat(st - 3)}</b>` : ''}</span>` : ''}</span>`;
 }
 
 function ensureLayers(map: maplibregl.Map) {
@@ -172,9 +174,9 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
       if (ms <= 0) continue;
       if (s.mode === 'grow') {
         // its label floats at the top edge of the giant
-        const [lng] = cellCenter(s.gx, s.gy), lat = yToLat((s.gy + 0.5 - GIANT / 2) / GRID_SIZE);
+        const [lng] = cellCenter(s.gx, s.gy), lat = yToLat((s.gy + 0.5 - across(s) / 2) / GRID_SIZE);
         const total = Math.max(1, Date.parse(s.until) - Date.parse(s.from));
-        const what = s.prank ? `🤡 GIANT · ${s.by_me ? 'your prank' : `@${s.by_name ?? '?'}’s prank`}` : `GIANT ×${Number(s.mult).toFixed(1)}`;
+        const what = s.prank ? `🤡 GIANT · ${s.by_me ? 'your prank' : `@${s.by_name ?? '?'}’s prank`}` : `${across(s) > GIANT ? '🗼 MEGA' : 'GIANT'} ×${Number(s.mult).toFixed(1)}`;
         const html = `<span class="lv-giant-tag${s.prank ? ' prank' : ''}"><span class="lv-ring sm" style="--p:${(ms / total).toFixed(3)};--c:${s.prank ? '#FF5CDB' : '#39FF14'}">📡</span><b>${what}</b><i>${dur(ms / 1000)}</i>`
           + `${!s.mine && !s.visited && !s.by_me ? '<u data-visit="1">Visit · tip +2</u>' : ''}${s.owner_name && !s.mine ? `<em>@${s.owner_name}</em>` : ''}</span>`;
         const node = el(html, 'lv-em-giant-wrap', async () => {
@@ -255,8 +257,8 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
       for (const s of data?.sizes ?? []) {
         if (left(s.until) <= 0) continue;
         if (s.mode === 'grow') {
-          feats.push({ type: 'Feature', properties: { t: 'shadow' }, geometry: square(s.gx, s.gy, GIANT, 4, 4) });
-          feats.push({ type: 'Feature', properties: { t: 'giant', c: s.prank ? '#FF5CDB' : rarityInfo(s.rarity ?? 'common').color }, geometry: square(s.gx, s.gy, GIANT) });
+          feats.push({ type: 'Feature', properties: { t: 'shadow' }, geometry: square(s.gx, s.gy, across(s), 4, 4) });
+          feats.push({ type: 'Feature', properties: { t: 'giant', c: s.prank ? '#FF5CDB' : rarityInfo(s.rarity ?? 'common').color }, geometry: square(s.gx, s.gy, across(s)) });
         } else {
           feats.push({ type: 'Feature', properties: { t: 'tiny' }, geometry: square(s.gx, s.gy, 1) });
         }
@@ -280,7 +282,7 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
     if (!ready || !map || !w) return;
     const markers = w.giants.filter((g) => left(g.until) > 0).slice(0, 200).map((g) => {
       const c = rarityInfo(g.rarity ?? 'common').color;
-      const node = el(`<span class="lv-beacon" style="--c:${c}"><i></i>${g.prank ? '🤡' : '📡'}<b>${g.prank ? `GIANT · @${g.by_name ?? '?'}’s prank` : `GIANT${g.owner_name ? ` · @${g.owner_name}` : ''}`}</b></span>`, 'lv-em', () => { const [lng, lat] = cellCenter(g.gx, g.gy); flyAway({ lng, lat, zoom: 15.6 }); });
+      const node = el(`<span class="lv-beacon" style="--c:${c}"><i></i>${g.prank ? '🤡' : '📡'}<b>${g.prank ? `GIANT · @${g.by_name ?? '?'}’s prank` : `${across(g) > GIANT ? '🗼 MEGA' : 'GIANT'}${g.owner_name ? ` · @${g.owner_name}` : ''}`}</b></span>`, 'lv-em', () => { const [lng, lat] = cellCenter(g.gx, g.gy); flyAway({ lng, lat, zoom: 15.6 }); });
       node.title = `A giant plot${g.owner_name ? ` · @${g.owner_name}` : ''}${g.prank ? ` · @${g.by_name ?? '?'}’s prank` : ` · ×${Number(g.mult).toFixed(1)}`}`;
       node.dataset.testid = 'map-beacon';
       return newMarker({ element: node, anchor: 'bottom' }).setLngLat(cellCenter(g.gx, g.gy)).addTo(map);
@@ -302,11 +304,11 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
     const want = new Map<string, { gx: number; gy: number; n: number; before: string }>();
     const b = useUi.getState().bbox;
     const cx = b ? (b.min_gx + b.max_gx) / 2 : 0, cy = b ? (b.min_gy + b.max_gy) / 2 : 0;
-    const near = (gx: number, gy: number) => !b || (gx >= b.min_gx - GIANT && gx <= b.max_gx + GIANT && gy >= b.min_gy - GIANT && gy <= b.max_gy + GIANT);
+    const near = (gx: number, gy: number) => !b || (gx >= b.min_gx - 1000 && gx <= b.max_gx + 1000 && gy >= b.min_gy - 1000 && gy <= b.max_gy + 1000);
     const giants = [...(w?.giants ?? []), ...(data?.sizes ?? []).filter((s) => s.mode === 'grow')]
       .filter((g) => left(g.until) > 0 && near(g.gx, g.gy))
       .sort((p, q) => Math.hypot(p.gx - cx, p.gy - cy) - Math.hypot(q.gx - cx, q.gy - cy));
-    for (const g of giants) { if (want.size >= 12) break; want.set(`${g.gx}_${g.gy}_g`, { gx: g.gx, gy: g.gy, n: GIANT, before: 'lv-size-glow' }); }
+    for (const g of giants) { if (want.size >= 12) break; want.set(`${g.gx}_${g.gy}_g`, { gx: g.gx, gy: g.gy, n: across(g as { scale?: number }), before: 'lv-size-glow' }); }
     const sync = () => {
       if (!map.getStyle()) return;
       ensureLayers(map);

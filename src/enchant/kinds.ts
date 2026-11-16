@@ -416,7 +416,7 @@ export const EVILS: Record<string, { name: string; emoji: string; curse: string;
 export const EVIL_ORDER = ['plague', 'greed', 'strife', 'envy', 'despair', 'toil', 'sorrow'];
 
 export const TITLES: Record<string, string> = {
-  Starlit: 'Earned its first star', Starforged: 'Earned two stars', Supernova: 'Earned all three stars',
+  Starlit: 'Earned its first star', Starforged: 'Earned two stars', Supernova: 'Earned three stars', 'Comet-Crowned': 'Earned a fourth star', Ascendant: 'Earned all five stars',
   Awakened: 'Reached level 5', Ascended: 'Reached level 10', 'Fox-Bane': 'Chased off 10 foxes', 'Golden Hen': 'Laid 25 eggs', Unbroken: 'A 7-egg golden streak',
   Platinum: 'Laid a Platinum egg', Forbidden: 'Made the Forbidden Wish', Wishmaster: 'Granted 30 wishes', Liberator: 'Set the Genie free',
   Cartographer: 'Dug up 5 treasure chests', Pathfinder: 'Found 40 map pieces', Symbiote: 'Evolved into a Symbiote', Devourer: 'Fed 25 times',
@@ -442,6 +442,8 @@ export const TITLES: Record<string, string> = {
 export function dur(s: number | null | undefined) {
   if (s == null) return '';
   const v = Math.max(0, Math.round(s));
+  // (♾️ an Eternal Bond's hundred years)
+  if (v > 50 * 365 * 86400) return '∞';
   const d = Math.floor(v / 86400), h = Math.floor((v % 86400) / 3600), m = Math.floor((v % 3600) / 60), sec = v % 60;
   if (d) return `${d}d ${h}h`;
   if (h) return `${h}h ${m}m`;

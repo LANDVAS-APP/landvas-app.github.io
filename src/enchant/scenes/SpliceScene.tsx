@@ -138,7 +138,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
                 {Number(act0.data?.renewed ?? 0) > 0 && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-black">♾️ renewed ×{act0.data.renewed}</span>}
               </div>
               <div className="text-[12px] text-white/70">{members.map((m) => m.name).join(act0.mode === 'graft' ? ' ← ' : ' + ')}{act0.mode === 'plot' ? ' + your plot' : ''}</div>
-              <div className="mt-1 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black text-white">{act0.data?.coil_by ? 'Loops again in ' : act0.data?.unstable ? 'Rejects in ' : 'Fused for '}{dur(endsIn)}</div>
+              <div className="mt-1 rounded-full bg-black/40 px-3 py-1 text-[12px] font-black text-white">{act0.data?.eternal ? '♾️ Fused forever — until your next splice' : <>{act0.data?.coil_by ? 'Loops again in ' : act0.data?.unstable ? 'Rejects in ' : 'Fused for '}{dur(endsIn)}</>}</div>
             </div>
           </div>
         ) : view.invite ? (
@@ -176,7 +176,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
                 {made.aberration && <span className="lv-badge-aberr">☣️ IT MUTATED — A SECRET ABERRATION</span>}
                 <span className="font-display text-3xl font-black text-[#00F5D4]">{made.hybrid}</span>
                 {made.invited ? <span className="text-[12px] text-white/75">Invitation sent — when your friend says yes, you’re both spliced.</span>
-                  : <span className="text-[12px] text-white/70">{made.unstable ? `⚠️ Unstable — it will reject in ${made.hours} h` : `Fused for ${made.hours} hours`}{made.resonant && !made.aberration ? ' · ✦ Perfect Match' : ''}</span>}
+                  : <span className="text-[12px] text-white/70">{made.eternal ? '♾️ Eternal Bond — fused until your next splice' : made.unstable ? `⚠️ Unstable — it will reject in ${made.hours} h` : `Fused for ${made.hours} hours`}{made.resonant && !made.aberration ? ' · ✦ Perfect Match' : ''}</span>}
                 {made.aberration && <span className="max-w-[260px] text-[11px] font-bold text-[#FFB3C7]">{ABERRATIONS[made.aberration]?.secret}</span>}
                 {moment && <ClipMomentButton moment={moment} />}
               </motion.div>

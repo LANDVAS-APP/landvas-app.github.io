@@ -280,7 +280,11 @@ function FeedRow({ e }: { e: FeedEvent }) {
         : d.sub === 'shatter' ? <>{who}’s <b style={{ color: k?.a }}>🪞 Mirror Shard</b> shattered after seven reflections</>
         : d.sub === 'became' ? <>{who}’s {d.from === 'ouroboros' ? '🐍 Ouroboros straightened into a' : '🧫 Homunculus lit up into a'} <b style={{ color: k?.a }}>{k?.emoji} {k?.name}</b></>
         : d.sub === 'storm' ? <>{who} called a <b style={{ color: k?.a }}>⛈️ lightning storm</b> down on their plots{d.hybrids ? <> — {d.hybrids} hybrid{d.hybrids > 1 ? 's' : ''} under it</> : null}</>
-        : d.sub === 'starred' ? <>{who}’s <b style={{ color: k?.a }}>{k?.emoji} {k?.name} #{d.serial}</b> earned <b className="text-gold">{'★'.repeat(Number(d.stars) || 1)} star {d.stars}</b> — and a new power</>
+        : d.sub === 'starred' ? <>{who}’s <b style={{ color: k?.a }}>{k?.emoji} {k?.name} #{d.serial}</b> {Number(d.stars) >= 5 ? <>became <b className="text-[#9FE8FF]">🌌 Ascendant — ★★★★★</b></> : Number(d.stars) === 4 ? <>was <b className="text-[#9FE8FF]">☄️ Comet-Crowned — ★★★★</b></> : <>earned <b className="text-gold">{'★'.repeat(Number(d.stars) || 1)} star {d.stars}</b></>} — and a new power</>
+        : d.sub === 'el_dorado' ? <>{who}’s <b style={{ color: k?.a }}>🗺️ Treasure Map</b> found <b className="text-gold">🏛️ El Dorado</b> — a Mythic roll ticket</>
+        : d.sub === 'mega' ? <>{who} fired a <b style={{ color: k?.a }}>📡 Megaray</b>: a plot is <b className="text-[#39FF14]">🗼 1,000× across the map</b></>
+        : d.sub === 'supernova' ? <>{who}’s <b style={{ color: k?.a }}>☀️ Pocket Sun</b> went <b className="text-[#FF5CDB]">💥 supernova</b> — ×6 for 15 minutes</>
+        : d.sub === 'rerolled' ? <>{who} rewound time with a <b style={{ color: k?.a }}>⚙️ Clockwork</b> — the roll came out <b className="text-[#C9A0FF]">{d.ench ? `🔮 Enchanted (${ENCH[d.ench as keyof typeof ENCH]?.name ?? d.ench})` : String(d.rarity)}</b></>
         : <>{who} did something enchanted</>;
       break;
     }

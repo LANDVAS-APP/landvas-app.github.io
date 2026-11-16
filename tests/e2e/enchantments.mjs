@@ -197,6 +197,8 @@ try {
   check('…with a count or a “needs you” badge', /\d/.test(await page.textContent('[data-testid=grimoire-button]')));
   await shot('22-map-grimoire');
   await page.click('[data-testid=grimoire-button]');
+  // (the button opens a card first: what needs you, and “Open the Grimoire”)
+  if (await page.waitForSelector('[data-testid=grimoire-open]', { timeout: 8000 }).then(() => true, () => false)) await page.click('[data-testid=grimoire-open]');
   check('…and opens the Grimoire', await page.waitForSelector('[data-testid=grimoire-list]', { timeout: 20000 }).then(() => true, () => false));
 
   // ---- the demo transformation (any kind) ----
