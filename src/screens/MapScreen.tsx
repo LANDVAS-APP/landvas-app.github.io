@@ -111,6 +111,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const travel = useTravel();
   const travelling = !!me && !!travel.data?.away;
   const questShown = useQuest((q) => q.shown);
+  // (phones on the website get the app's tidy row of round buttons)
+  const narrow = useNarrow();
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className={cn('absolute inset-0', away && 'lv-away')}>
@@ -167,17 +169,39 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         </div>
         {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
-        {me && <div className="flex flex-wrap items-center gap-2 self-start"><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip className="!h-9 !py-0.5" /></div>}
-        {me && !away && !joystick && <JoystickSpot />}
-        <div className="flex flex-col items-start gap-2.5">
-          {me && <GrimoireButton />}
-          <ModeButton />
-          {me && <StreakChip onOpen={() => setStreak(true)} />}
-          {me && <DailyChip />}
-        </div>
+        {narrow ? (<>
+          {/* phones: one tidy row of round buttons (as in the app); whichever is open shows as a card right under it */}
+          <div className="lv-maprow flex items-center justify-center gap-2.5 [&>*]:pointer-events-auto" data-testid="map-row">
+            {me && <HotZoneDisc />}
+            {me && <LuckDisc />}
+            {me && <GrimoireButton rail />}
+            {me && <StreakChip disc onOpen={() => setStreak(true)} />}
+            {me && <DailyChip disc />}
+            <LeviathanDisc />
+            <ModeButton rail />
+          </div>
+          {me && (
+            <AnimatePresence mode="wait">
+              {card === 'hot' && <HotZonePanel key="hot" onClose={closeCard} onRoll={() => void quick.roll({ hot: true })} />}
+              {card === 'luck' && <LuckCard key="luck" onClose={closeCard} />}
+              {card === 'grim' && <GrimoireCard key="grim" onClose={closeCard} />}
+              {card === 'lev' && <LeviathanCard key="lev" onClose={closeCard} />}
+            </AnimatePresence>
+          )}
+          {me && !away && !joystick && !card && <div className="flex"><JoystickSpot /></div>}
+        </>) : (<>
+          {me && <div className="flex flex-wrap items-center gap-2 self-start"><HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip className="!h-9 !py-0.5" /></div>}
+          {me && !away && !joystick && <JoystickSpot />}
+          <div className="flex flex-col items-start gap-2.5">
+            {me && <GrimoireButton />}
+            <ModeButton />
+            {me && <StreakChip onOpen={() => setStreak(true)} />}
+            {me && <DailyChip />}
+          </div>
+        </>)}
       </div>
       )}
-      {!travelling && <ZoomHint zoom={view.zoom} />}
+      {!travelling && <ZoomHint zoom={view.zoom} raised={questShown} />}
       {me && !away && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
       {away && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-8">
@@ -216,7 +240,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       {me && !away && <PlacementPrompt />}
       <ClaimCelebration />
       <PinFlight />
-      {APP && me && <GrimoireSheet />}
+      {(APP || narrow) && me && <GrimoireSheet />}
       <RayTargeting />
       <PlotPickOverlay />
       <FlyParam />
@@ -289,6 +313,8 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const nav = useNavigate();
   const [more, setMore] = useState(false);
   const tap = () => { if (haptics) buzz('light'); };
+  const narrow = useNarrow();
+  const flyOn = useFlyUi((f) => f.pinMode);
   // a live trip, flight or group comes out of the tray onto the rail by itself
   const trip = travel.data?.trip;
   const tripLive = !!travel.data?.away || (!!trip && !trip.arrived);
@@ -320,6 +346,11 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const tray: { key: string; node: ReactNode; label: string }[] = [
     { key: 'plots', label: 'My plots', node: <Link to="/plots" className="lv-gbtn round" aria-label="My plots" data-testid="hud-plots" onClick={() => { tap(); setMore(false); }}><LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span></Link> },
     ...(has && !tripLive ? [{ key: 'travel', label: 'Trains & planes', node: <TravelButton /> }] : []),
+    // (phones on the website: Fly lives here, out of the way of the map)
+    ...(has && narrow ? [{ key: 'fly', label: flyOn ? 'Cancel flight' : 'Fly to a pin', node: (
+      <button className={cn('lv-gbtn round', flyOn && 'on')} onClick={() => { tap(); setMore(false); useFlyUi.getState().setPinMode(!flyOn); }} data-testid="fly-chip">
+        <span className="text-[19px] leading-none">✈️</span><span className="lbl">{flyOn ? 'Cancel' : 'Fly'}</span>
+      </button>) }] : []),
     ...(has && !groupLive && group.data?.group ? [{ key: 'group', label: 'Your party', node: <GroupButton /> }] : []),
     ...(!flying ? [{ key: 'space', label: 'Your rocket', node: spaceBtn }] : []),
     ...((canMerge || APP) && !merging ? [{ key: 'merge', label: 'Merge plots', node: (
@@ -557,10 +588,10 @@ function SignInChip() {
   );
 }
 
-function ZoomHint({ zoom }: { zoom: number }) {
+function ZoomHint({ zoom, raised }: { zoom: number; /** the quest bar is showing: sit above it */ raised?: boolean }) {
   if (zoom >= Z_STREET - 1) return null;
   return (
-    <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center md:bottom-6', APP ? 'bottom-[calc(172px+env(safe-area-inset-bottom,0px))] px-6' : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))]')}>
+    <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center md:bottom-6', APP ? 'bottom-[calc(172px+env(safe-area-inset-bottom,0px))] px-6' : raised ? 'bottom-[calc(172px+env(safe-area-inset-bottom,0px))] px-20 md:px-0' : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))] px-20 md:px-0')}>
       <div className="glass rounded-full px-4 py-2 text-center text-[12.5px] font-semibold text-muted">
         {APP ? (zoom < Z_TOWN - 1 ? 'Zoom in to see plots' : 'Zoom in to your street') : zoom < Z_TOWN - 1 ? 'Zoom in to see plots — or tap 🎯 to jump to your explorer' : 'Keep zooming in to your street — tap the map to dive in'}
       </div>
@@ -691,3 +722,16 @@ export function MeChip() {
 }
 
 export { getBackend };
+
+/** a phone-width screen (the website on a phone): follows the window as it resizes */
+function useNarrow() {
+  const q = '(max-width: 767px)';
+  const [n, setN] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches);
+  useEffect(() => {
+    const m = matchMedia(q);
+    const on = () => setN(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return n;
+}

@@ -8,8 +8,9 @@ import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
 import { DailyWheel } from './DailyWheel';
+import { GameDisc } from '../ui';
 
-export function DailyChip() {
+export function DailyChip({ disc }: { /** the round map button */ disc?: boolean } = {}) {
   const me = useOnboardedMe();
   const [open, setOpen] = useState(false);
   const reduce = useUi((s) => s.settings.reduceMotion);
@@ -17,7 +18,13 @@ export function DailyChip() {
   const n = st.data?.enabled ? st.data.spins_left : 0;
   return (
     <>
-      {n > 0 && (
+      {n > 0 && disc && (
+        <GameDisc tone="rose" size={44} badge={n > 1 ? n : undefined} data-testid="hud-daily" aria-label={`Daily spin — ${n} left`}
+          onClick={() => { if (useUi.getState().settings.haptics) buzz('light'); setOpen(true); }}>
+          <span className="text-[21px] leading-none">🎡</span>
+        </GameDisc>
+      )}
+      {n > 0 && !disc && (
         <motion.button className="pointer-events-auto lv-gbtn round hot" data-testid="hud-daily" aria-label={`Daily spin — ${n} left`}
           initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
           onClick={() => { if (useUi.getState().settings.haptics) buzz('light'); setOpen(true); }}>

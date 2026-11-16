@@ -1,0 +1,136 @@
+// Real-browser test of the Worlds button and the tidier map (local-mode build, a phone):
+//  - the website's map on a phone: one row of round buttons (cards open under it), Fly in the + tray
+//  - the Worlds button floats on every screen: the map, home and your places (here an arcade) are one tap away
+//  - drag it into the edge to tuck it away (a tab stays); tap the tab to bring it back; in games it starts tucked
+//  - the app has it too
+// Run: npm run build:artifact && node tests/e2e/worlds.mjs
+import { serve, launch } from './browser.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const OUT = process.env.E2E_OUT || path.resolve('test-results/e2e-worlds'); fs.mkdirSync(OUT, { recursive: true });
+const PORT = 4235, G = 4194304;
+const results = [];
+const check = (name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? ' — ' + extra : ''}`); };
+const START = { gx: 12398 * 64 + 20, gy: 24628 * 64 + 44 };
+const ll = (gx, gy) => { const n = Math.PI * (1 - (2 * (gy + 0.5)) / G); return { longitude: ((gx + 0.5) / G) * 360 - 180, latitude: (180 / Math.PI) * Math.atan(Math.sinh(n)) }; };
+const server = await serve(process.env.E2E_DIST || 'dist-artifact', process.argv[2] === 'app' ? PORT + 1 : PORT);
+const PORT_ = process.argv[2] === 'app' ? PORT + 1 : PORT;
+
+async function run(app) {
+  const browser = await launch();
+  const ctx = await browser.newContext({ viewport: { width: 430, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', geolocation: { ...ll(START.gx, START.gy), accuracy: 8 }, permissions: ['geolocation'] });
+  if (app) await ctx.addInitScript(() => { window.CapacitorCustomPlatform = { name: 'ios', plugins: {} }; });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL|net::/.test(m.text())) errors.push(m.text()); });
+  const tag = app ? 'app' : 'web';
+  const shot = (n) => page.screenshot({ path: path.join(OUT, `${tag}-${n}.png`), timeout: 45000 }).catch(() => {});
+  const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a), [f, a]);
+  const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
+  const nav = (p) => page.evaluate((p) => window.__landvasNav(p), p);
+  const tid = (id) => page.locator(`[data-testid=${id}]:visible`);
+  const waitFor = (sel, timeout = 20000) => page.waitForSelector(sel, { timeout }).then(() => true, () => false);
+  try {
+    await page.goto(`http://localhost:${PORT_}/?e2e=1`, { waitUntil: 'load' });
+    await page.waitForSelector('[data-testid=title-play], #email', { timeout: 90000 });
+    if (await page.locator('[data-testid=title-play]').count()) await page.click('[data-testid=title-play]', { force: true });
+    await page.waitForSelector('#email', { timeout: 30000 });
+    await page.fill('#email', `worlds_${tag}@example.test`); await page.fill('#password', 'paint-the-world'); await page.click('button[type=submit]');
+    await page.waitForSelector('#username', { timeout: 30000 }); await page.fill('#username', `worlds_${tag}`); await page.check('input[type=checkbox]'); await page.click('button[type=submit]');
+    await page.waitForTimeout(2500);
+    await page.evaluate(() => window.__landvasUi.getState().updateSettings({ simpleMode: false }));
+    const p0 = ll(START.gx, START.gy);
+    const r0 = await api('reportPosition', p0.longitude, p0.latitude, 8).catch(() => null);
+    if (r0) await page.evaluate((r) => window.__landvasExplorer?.getState().set(r), r0);
+    await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
+    await api('claimStarter', START.gx, START.gy, 'Neon Alley').catch((e) => console.log('note  claim:', String(e?.message ?? e)));
+    const g = (await api('myGroups'))[0];
+    const arc = g ? (await api('setGroupKind', g.id, 'arcade')).arcade_id : null;
+    await page.evaluate(() => window.__landvasQc.invalidateQueries());
+    await nav('/world'); await page.waitForTimeout(3000);
+    await page.evaluate((h) => window.__landvasUi.getState().requestFly({ lng: h.longitude, lat: h.latitude, zoom: 16.5 }), p0);
+    await page.waitForTimeout(3500);
+
+    if (!app) {
+      // ---- the tidier map ----
+      check('web map: one row of round buttons under the HUD', (await page.locator('[data-testid=map-row] [data-testid=mode-button]').count()) === 1
+        && (await page.locator('[data-testid=map-row] [data-testid=grimoire-button]').count()) === 1);
+      const tops = await page.locator('[data-testid=map-row] > *').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top)));
+      check('…all on one line', tops.length >= 3 && new Set(tops).size === 1, JSON.stringify(tops));
+      await shot('01-map');
+      if (await page.locator('[data-testid=map-row] [data-testid=hot-zone-chip]').count()) {
+        await page.click('[data-testid=map-row] [data-testid=hot-zone-chip]');
+        check('…a button opens its card right under the row', await waitFor('[data-testid=hot-zone-sheet]', 8000));
+        await page.click('[data-testid=map-row] [data-testid=hot-zone-chip]'); await page.waitForTimeout(500);
+      }
+      await tid('hud-more').first().click(); await page.waitForTimeout(600);
+      check('Fly lives in the + tray', (await page.locator('[data-testid=hud-tray] [data-testid=fly-chip]').count()) === 1);
+      await page.click('[data-testid=hud-tray] [data-testid=fly-chip]');
+      check('…and drops a pin (with a Cancel)', await waitFor('[data-testid=pin-catcher]', 5000) && await waitFor('[data-testid=pin-cancel]', 3000));
+      await page.click('[data-testid=pin-cancel]'); await page.waitForTimeout(500);
+      check('…Cancel ends it', (await page.locator('[data-testid=pin-catcher]').count()) === 0);
+    }
+
+    // ---- the Worlds button ----
+    check(`${tag}: the Worlds button is on the map`, await waitFor('[data-testid=worlds-button]', 10000));
+    await tid('worlds-button').first().click();
+    check('…a tap opens Worlds', await waitFor('[data-testid=worlds-sheet]', 8000));
+    await page.waitForSelector('[data-testid=worlds-places]', { timeout: 10000 }).catch(() => {});
+    check('…with your places (your arcade)', !!arc && (await page.locator(`[data-testid=world-go][data-route="/arcade/${arc}"]`).count()) === 1);
+    await shot('02-sheet');
+    await page.click(`[data-testid=world-go][data-route="/arcade/${arc}"]`);
+    await page.waitForTimeout(3500);
+    check('the Worlds button is in the arcade too', await waitFor('[data-testid=worlds-button]', 25000));
+    await shot('03-arcade');
+    await tid('worlds-button').first().click();
+    await waitFor('[data-testid=worlds-sheet]', 8000);
+    check('…which takes you there (and it knows you’re there)', /You’re here/.test(await page.locator(`[data-testid=world-go][data-route="/arcade/${arc}"]`).textContent().catch(() => '')));
+    await page.click('[data-testid=world-go][data-route="/home"]');
+    await page.waitForTimeout(3500);
+    await shot('04-home');
+    await tid('worlds-button').first().click();
+    await waitFor('[data-testid=worlds-sheet]', 8000);
+    check('Home is one tap away', /You’re here/.test(await page.locator('[data-testid=world-go][data-route="/home"]').textContent().catch(() => '')));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+
+    // tuck it away by dragging it into the edge, then bring it back
+    const b = await tid('worlds-button').first().boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 25, b.y + b.height / 2 - 10, { steps: 4 });
+    await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2 - 20, { steps: 4 });
+    await page.mouse.up(); await page.waitForTimeout(600);
+    check('dragging it into the edge tucks it away', (await page.locator('[data-testid=worlds-button]').count()) === 0 && await waitFor('[data-testid=worlds-tab]', 3000));
+    await shot('05-tucked');
+    await tid('worlds-tab').first().click(); await page.waitForTimeout(500);
+    check('…tapping the tab brings it back', (await page.locator('[data-testid=worlds-button]').count()) === 1);
+    check('…and it remembers', (await page.evaluate(() => JSON.parse(localStorage.getItem('landvas.worlds') || '{}').tucked)) === false);
+
+    // in a game it starts tucked
+    await nav('/play/tracecraft'); await page.waitForTimeout(3000);
+    check('in a game it starts tucked (a tab only)', (await page.locator('[data-testid=worlds-button]').count()) === 0 && (await page.locator('[data-testid=worlds-tab]').count()) === 1);
+    await nav('/world'); await page.waitForTimeout(1500);
+    check('…and is back on the map', (await page.locator('[data-testid=worlds-button]').count()) === 1);
+  } catch (e) {
+    check(`${tag}: no crash`, false, String(e?.stack ?? e).slice(0, 400));
+    await shot('zz-crash');
+  }
+  check(`${tag}: no page errors`, errors.length === 0, errors.slice(0, 3).join(' | ').slice(0, 300));
+  await browser.close();
+}
+
+// (one browser per process: the web pass, then the app pass)
+if (process.argv[2]) {
+  await run(process.argv[2] === 'app');
+  server.close();
+  const failed = results.filter((r) => !r).length;
+  console.log(`\n${results.length - failed}/${results.length} passed (${process.argv[2]})`);
+  process.exit(failed ? 1 : 0);
+}
+server.close();
+let bad = 0;
+for (const m of ['web', 'app']) bad += spawnSync(process.execPath, [fileURLToPath(import.meta.url), m], { stdio: 'inherit' }).status ? 1 : 0;
+process.exit(bad ? 1 : 0);

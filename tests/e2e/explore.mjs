@@ -225,7 +225,9 @@ try {
   check('…and lands in the zone, ready to claim plots there', landed.away && Math.abs(landed.explorer.lng - hc.longitude) < 0.01 && Math.abs(landed.explorer.lat - hc.latitude) < 0.01, `${landed.explorer.lng},${landed.explorer.lat}`);
   await shot('06d-in-the-hot-zone');
   // a pin anywhere: no trips left → refill 2 for 100 Ink, then fly
-  await page.click('[data-testid=fly-chip]'); await page.waitForSelector('[data-testid=pin-catcher]');
+  // (on a phone, Fly lives in the + tray)
+  if (!(await page.locator('[data-testid=fly-chip]:visible').count())) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(500); }
+  await page.click('[data-testid=fly-chip]:visible'); await page.waitForSelector('[data-testid=pin-catcher]');
   await page.mouse.click(200, 520); await page.waitForSelector('[data-testid=pin-sheet]');
   await shot('06e-pin');
   await page.click('[data-testid=pin-fly]'); await page.waitForSelector('[data-testid=refill-dialog]', { timeout: 8000 });

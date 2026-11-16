@@ -90,7 +90,8 @@ export function PinFlight() {
       {/* a sheet over the map that catches the tap (pan and zoom still work with two fingers / the wheel) */}
       {!pin && <div className="absolute inset-0 z-[25] cursor-crosshair" onPointerUp={tap} data-testid="pin-catcher" />}
       <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+150px)] z-[26] flex justify-center px-4">
-        {!pin && <div className="rounded-2xl bg-[#2F7BFF] px-4 py-2 text-[13px] font-extrabold text-white shadow-xl">📍 Tap anywhere on the map to drop a pin</div>}
+        {!pin && <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#2F7BFF] py-2 pl-4 pr-2 text-[13px] font-extrabold text-white shadow-xl">📍 Tap anywhere on the map to drop a pin
+          <button className="rounded-xl bg-black/25 px-2.5 py-1 text-[12px]" onClick={() => set(false)} data-testid="pin-cancel">Cancel</button></div>}
       </div>
       {pin && <div className="pointer-events-none absolute z-[26] -translate-x-1/2 -translate-y-full text-[34px] drop-shadow-lg" style={{ left: pin.x, top: pin.y }}>📍</div>}
       <AnimatePresence>

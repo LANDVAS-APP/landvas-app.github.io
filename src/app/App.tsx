@@ -30,6 +30,7 @@ function WorldRoute() {
   const simple = __ui((s) => !!s.settings.simpleMode);
   return <Suspense fallback={<div className="absolute inset-0 bg-bg" />}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
 }
+import { WorldsButton } from './WorldsButton';
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
 import { AuthConfirm } from '../screens/AuthConfirm';
@@ -219,7 +220,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><ElevenBanner /><PrimordialRefundGlobal /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WorldsButton /><ElevenBanner /><PrimordialRefundGlobal /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

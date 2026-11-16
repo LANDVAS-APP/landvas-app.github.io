@@ -14,7 +14,7 @@ import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
 import { buzz, isNative } from '../native/native';
 import { offerReminders } from '../native/reminders';
 import { rarityInfo } from '../shared/rarity';
-import { Dialog, ResourceIcon } from '../ui';
+import { Dialog, GameDisc, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import type { RollOpts } from '../simple/useQuickRoll';
 import { UltraStrip, ultrasKey } from '../ultra/UltraTracker';
@@ -129,11 +129,16 @@ export function StreakDialog({ open, onOpenChange, onRoll }: { open: boolean; on
 }
 
 /** a compact streak button: 🔥 N, pulsing while today's check-in is waiting */
-export function StreakChip({ onOpen, className }: { onOpen(): void; className?: string }) {
+export function StreakChip({ onOpen, className, disc }: { onOpen(): void; className?: string; /** the round map button */ disc?: boolean }) {
   const q = useDaily();
   const d = q.data as DailyStatus | undefined;
   if (!d?.enabled) return null;
   const waiting = !d.claimed_today || d.tickets.length > 0;
+  if (disc) return (
+    <GameDisc tone="crimson" size={44} dot={waiting} onClick={onOpen} className={className} data-testid="streak-chip" aria-label={`Daily streak: ${d.streak} days`}>
+      <span className="grid justify-items-center leading-none"><span className="text-[17px]">🔥</span><b className="-mt-0.5 font-display text-[10.5px] font-black tnum">{d.streak}</b></span>
+    </GameDisc>
+  );
   return (
     <button onClick={onOpen} className={cn('pointer-events-auto lv-gbtn round relative', waiting && 'hot', className)} data-testid="streak-chip" aria-label={`Daily streak: ${d.streak} days`}>
       <span className="text-[20px] leading-none">🔥</span><span className="lbl tnum">{d.streak}</span>
