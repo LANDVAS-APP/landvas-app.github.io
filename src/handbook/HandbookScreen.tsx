@@ -7,6 +7,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Page } from '../app/Shell';
 import { CHAPTERS } from './chapters';
 import { useHandbook, type Ctx } from './live';
+import { HandbookUpdates } from './Updates';
 import type { Chapter, Topic } from './types';
 import './handbook.css';
 
@@ -70,6 +71,8 @@ function HandbookIndex({ c }: { c: Ctx }) {
   return (
     <Page>
       <div ref={root} className="mx-auto max-w-3xl" data-testid="handbook">
+        {/* right at the top: what's changed in the game lately */}
+        <HandbookUpdates />
         <section className="hb-hero hb-rise">
           <div className="flex items-center gap-3"><img src="/brand/landvas-mark.svg" width={44} height={44} alt="" className="h-11 w-11" /><span className="kick">📖 The handbook</span></div>
           <h1 className="mt-4">Everything in LANDVAS, explained.</h1>
