@@ -1,6 +1,13 @@
-// Royalty: every Crown held right now — Country monarchs, State rulers, City crowns — with the kingdom, the reign, how
-// strong each Crown is, and the royal court of players with the most Crowns. Kingdom names only, never where a plot is.
-import { useQuery } from '@tanstack/react-query';
+// Royalty: every Crown held right now — Country monarchs, State rulers, City crowns — with the kingdom, the reign, and
+// the royal court of players with the most Crowns. Kingdom names only, never where a plot is. A holder picks each
+// Crown's share of its kingdom here: 1% of the Ink everyone else there earns, or 1% of their rent (locked for a month).
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { type CrownShare } from '../backend/api';
+import { toGameError } from '../backend/backend';
+import { invalidateGame } from '../lib/queries';
+import { buzz } from '../native/native';
 import { Link } from 'react-router-dom';
 import { Page, PageHeader } from '../app/Shell';
 import { api } from '../backend/api';
@@ -11,8 +18,8 @@ import { CrownCelebrations } from '../royalty/CrownCelebrations';
 
 type Crown = {
   tier: 'crown' | 'crown_state' | 'crown_country'; city: string | null; state: string | null; country: string; country_name: string; kingdom: string;
-  claimed_at: string; reign_days: number; shiny: boolean; rivals: number; need: number; strength: number; pct: number; boost: number; full_boost: number;
-  is_me: boolean; holder: { id: string; username: string; display_name?: string | null } | null;
+  claimed_at: string; reign_days: number; shiny: boolean; rivals: number; need: number;
+  is_me: boolean; share?: 'ink' | 'rent' | null; holder: { id: string; username: string; display_name?: string | null } | null;
 };
 const TIERS = {
   crown_country: { title: 'Country Monarchs', one: 'Country Crown', emoji: '👑', color: '#FFD84D', glow: 'rgba(255,216,77,0.35)', blurb: 'One per country. The highest throne in LANDVAS.' },
@@ -47,10 +54,9 @@ function CrownCard({ c }: { c: Crown }) {
         {c.holder ? <Link to={`/u/${c.holder.username}`} className="font-bold hover:underline">{c.is_me ? 'You' : c.holder.display_name || `@${c.holder.username}`}</Link> : <span className="font-bold text-muted">A secret monarch</span>}
         <span className="text-xs text-muted">since {date(c.claimed_at)} · {reign(c.reign_days)}</span>
       </div>
-      <div className="grid gap-1">
-        <div className="flex justify-between text-[11px] text-muted"><span>Kingdom strength · {fmt(c.rivals)}/{fmt(c.need)} other landholders</span><b className="tnum" style={{ color: t.color }}>×{c.boost.toFixed(2)} rent</b></div>
-        <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full" style={{ width: `${Math.max(3, c.strength * 100)}%`, background: `linear-gradient(90deg, ${t.color}99, ${t.color})` }} /></div>
-        {c.strength < 1 && <div className="text-[11px] text-faint">Full strength (×{c.full_boost.toFixed(2)} on all their rent) once {fmt(c.need - c.rivals)} more {c.need - c.rivals === 1 ? 'player claims' : 'players claim'} land here.</div>}
+      <div className="flex items-center justify-between gap-2 rounded-2xl bg-black/20 px-3 py-2 text-[12px]">
+        <span className="text-muted">{fmt(c.rivals)} other landholder{c.rivals === 1 ? '' : 's'} in the kingdom</span>
+        <b className="shrink-0" style={{ color: t.color }}>{c.share === 'ink' ? '1% of their Ink' : c.share === 'rent' ? '1% of their rent' : 'a 1% share'}</b>
       </div>
     </article>
   );
@@ -71,7 +77,7 @@ export default function Royalty() {
         style={{ background: 'radial-gradient(120% 90% at 50% 0%, rgba(255,216,77,0.22), transparent 60%), radial-gradient(80% 80% at 100% 100%, rgba(182,156,255,0.18), transparent 60%)', boxShadow: 'inset 0 0 0 1.5px rgba(255,216,77,0.25)' }}>
         <div className="mb-1 text-5xl drop-shadow-[0_6px_18px_rgba(255,216,77,0.5)]">👑</div>
         <h1 className="bg-[linear-gradient(90deg,#FFE9A3,#FFD84D,#FFB13D)] bg-clip-text font-display text-4xl font-black text-transparent">Royalty</h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted">Every city, state and country in the world has exactly one Crown. These are the players who hold them.</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted">Every city, state and country in the world has exactly one Crown. Its holder earns a share of the whole kingdom: <b className="text-fg">1% of all the Ink</b> everyone else there earns, or <b className="text-fg">1% of all their rent</b>.</p>
         <div className="mx-auto mt-4 grid max-w-md grid-cols-3 gap-2" data-testid="royalty-totals">
           {(['crown_country', 'crown_state', 'crown'] as const).map((k) => (
             <div key={k} className="rounded-2xl bg-black/20 p-2.5">
@@ -87,6 +93,8 @@ export default function Royalty() {
         </div>
       </section>
 
+      <MyCrowns />
+
       <div className="mb-8"><CrownCelebrations variant="royalty" /></div>
 
       {court.length > 0 && (
@@ -100,7 +108,7 @@ export default function Royalty() {
                 <PlayerAvatar p={m.player} size={38} frame={i < 3 ? 'gold' : null} />
                 <Link to={`/u/${m.player.username}`} className="min-w-0 flex-1">
                   <div className="truncate font-bold">{m.player.display_name || m.player.username}</div>
-                  <div className="truncate text-xs text-muted">{[m.countries && `${m.countries} country`, m.states && `${m.states} state`, m.cities && `${m.cities} city`].filter(Boolean).join(' · ')} · ×{Number(m.rent_boost).toFixed(2)} rent</div>
+                  <div className="truncate text-xs text-muted">{[m.countries && `${m.countries} country`, m.states && `${m.states} state`, m.cities && `${m.cities} city`].filter(Boolean).join(' · ')}</div>
                 </Link>
                 <span className="font-display text-lg font-black tnum">{m.crowns}<span className="ml-0.5 text-xs">👑</span></span>
               </li>
@@ -128,5 +136,69 @@ export default function Royalty() {
       })}
       <p className="mb-10 text-center text-[11px] text-faint">Places are shown by kingdom name only, never where the plot is. Players can keep themselves off this page in Settings → Privacy.</p>
     </Page>
+  );
+}
+
+/** a small dollar amount, readable: $1.25 · $0.0042 · $0.0000057 */
+const money = (n: number) => (!(n > 0) ? '$0' : n >= 0.01 ? `$${n.toFixed(2)}` : n >= 0.0001 ? `$${n.toFixed(4)}` : `$${new Intl.NumberFormat('en-US', { maximumSignificantDigits: 2, notation: 'standard', maximumFractionDigits: 12 }).format(n)}`);
+const until = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+
+/** your Crowns: pick each one's share of its kingdom (Ink or rent), locked for a month once picked */
+function MyCrowns() {
+  const q = useQuery({ queryKey: ['crown-shares'], queryFn: api.crownSharesMine, staleTime: 30_000, retry: false });
+  if (!q.data?.length) return null;
+  return (
+    <section className="mb-8 grid gap-3" data-testid="my-crowns">
+      <h2 className="font-display text-xl font-black">👑 Your Crowns</h2>
+      <p className="-mt-2 text-sm text-muted">Each Crown earns you a share of its kingdom. Pick Ink or rent — a pick is locked for a month, then you can switch every month.</p>
+      <div className="grid gap-3 sm:grid-cols-2">{q.data.map((c) => <ShareCard key={`${c.gx}_${c.gy}`} c={c} />)}</div>
+    </section>
+  );
+}
+
+function ShareCard({ c }: { c: CrownShare }) {
+  const qc = useQueryClient();
+  const t = TIERS[c.tier];
+  const [busy, setBusy] = useState<'ink' | 'rent' | null>(null);
+  const pick = async (choice: 'ink' | 'rent') => {
+    if (choice === c.choice && c.picked) return;
+    if (!c.can_switch) { toast(`Locked until ${until(c.locked_until)}`, { description: 'A Crown’s share can be switched once a month.' }); return; }
+    setBusy(choice);
+    try {
+      const r = await api.crownShareChoose(c.gx, c.gy, choice);
+      buzz('success');
+      qc.setQueryData<CrownShare[]>(['crown-shares'], (old) => (old ?? []).map((x) => (x.gx === c.gx && x.gy === c.gy ? r : x)));
+      void qc.invalidateQueries({ queryKey: ['royalty'] }); invalidateGame(qc);
+      toast.success(choice === 'ink' ? `👑 ${c.kingdom}: Ink share` : `👑 ${c.kingdom}: Rent share`, { description: `Locked until ${until(r.locked_until)}.` });
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+  };
+  const opt = (k: 'ink' | 'rent') => {
+    const on = c.choice === k && c.picked, cur = c.choice === k;
+    return (
+      <button key={k} type="button" onClick={() => void pick(k)} disabled={!!busy} data-testid={`crown-share-${k}`} aria-pressed={cur}
+        className={cn('grid gap-0.5 rounded-2xl border-2 p-3 text-left transition', cur ? 'bg-white/10' : 'border-transparent bg-black/20 hover:bg-black/30', !c.can_switch && !cur && 'opacity-50')}
+        style={cur ? { borderColor: t.color } : undefined}>
+        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: cur ? t.color : undefined }}>{k === 'ink' ? '🖌️ Ink share' : '💵 Rent share'}{on ? ' · picked' : cur ? ' · now' : ''}</span>
+        <b className="break-all font-display text-[17px] leading-tight tnum">{k === 'ink' ? `≈${fmt(c.ink_day)} Ink/day` : `≈${money(c.rent_day)}/day`}</b>
+        <span className="text-[11px] text-muted">{k === 'ink' ? `${c.ink_pct}% of the Ink everyone else in ${c.kingdom} earns` : `${c.rent_pct}% of the rent everyone else’s land in ${c.kingdom} earns`}</span>
+        {busy === k && <span className="text-[11px] font-bold">…</span>}
+      </button>
+    );
+  };
+  return (
+    <article className="glass grid gap-3 rounded-3xl p-4" style={{ boxShadow: `inset 0 0 0 1.5px ${t.color}55` }} data-testid={`crown-share-card-${c.tier}`}>
+      <header className="flex items-center gap-3">
+        <BasePlotArt rarity={c.tier} size={44} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: t.color }}>{t.one}</div>
+          <div className="truncate font-display text-lg font-black">{flag(c.country)} {c.kingdom}</div>
+          <div className="text-[11px] text-muted">{fmt(c.members)} other landholder{c.members === 1 ? '' : 's'}{c.ink_total > 0 ? ` · ${fmt(c.ink_total)} Ink paid so far` : ''}</div>
+        </div>
+      </header>
+      <div className="grid grid-cols-2 gap-2">{opt('ink')}{opt('rent')}</div>
+      <div className="text-center text-[11px] text-muted" data-testid="crown-share-lock">
+        {!c.picked ? 'Not picked yet — it pays the Rent share until you do. Your first pick is free.' : c.can_switch ? 'You can switch now (it locks for a month).' : `Locked until ${until(c.locked_until)} — then you can switch.`}
+      </div>
+    </article>
   );
 }

@@ -60,7 +60,7 @@ export function celebrate(crown: RoyalCrown & { holder: CrownHolder }, rank: num
     title: `${t.title} ${crown.kingdom}`,
     where: where.toUpperCase(),
     claimed: `CROWNED ${fmtDate(crown.claimed_at)}`,
-    boost: `×${Number(crown.boost || 1).toFixed(2)} KINGDOM RENT`,
+    boost: 'A 1% SHARE OF THE KINGDOM',
     left: leftOf(crown.tier, totals),
     fresh: now - ms(crown.claimed_at) < 48 * 3600_000,
   };

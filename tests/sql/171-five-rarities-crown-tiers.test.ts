@@ -104,7 +104,7 @@ describe('Crowns in three tiers', () => {
     expect(['crown_state', 'crown_country']).not.toContain(r3.rarity);
     await cfg({ crown_country: { ppm: 5, pct: 900, need: 100 }, crown_state: { ppm: 50, pct: 400, need: 25 } });
   });
-  it('a Crown is only as strong as its kingdom: no other players there, no boost', async () => {
+  it('a Crown pays a 1% share of its kingdom (no rent multiplier any more)', async () => {
     const pct = Number((await db.sql(`select private.crown_pct($1) p`, [c]))[0].p);
     expect(pct).toBe(0);
     // 25 others in Colorado (Denver): the State Crown is full (×5) and the Country Crown at 25/100 (+225%)
@@ -112,6 +112,11 @@ describe('Crowns in three tiers', () => {
     const held = (await db.rpc(c, 'crowns')).held;
     expect(held.find((h: any) => h.tier === 'crown_state')).toMatchObject({ city: 'Colorado', strength: 1, rivals: 25, mine: true });
     expect(held.find((h: any) => h.tier === 'crown_country')).toMatchObject({ city: 'United States of America', rivals: 25, need: 100 });
-    expect(Number((await db.sql(`select private.crown_pct($1) p`, [c]))[0].p)).toBeCloseTo(400 + 900 * 0.25 + (held.some((h: any) => h.tier === 'crown') ? 50 : 0), 6);
+    expect(Number((await db.sql(`select private.crown_pct($1) p`, [c]))[0].p)).toBe(0);
+    // until its holder picks, each Crown pays the Rent share: 1% of the rent of everyone else's land in the kingdom
+    const [x] = await db.sql(`select private.crown_rent_rate($1) got,
+      0.01 * (select coalesce(sum(private.kingdom_rent_rate(p.rarity, p.city_id, $1)), 0) from world_plots p where p.owner_id = $1 and p.rarity like 'crown%') want`, [c]);
+    expect(Number(x.got)).toBeGreaterThan(0);
+    expect(Number(x.got)).toBeCloseTo(Number(x.want), 15);
   });
 });

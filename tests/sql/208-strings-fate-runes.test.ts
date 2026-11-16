@@ -156,8 +156,11 @@ describe('🃏 Fated Deck', () => {
     const l0 = await luck(ann);
     await fx('star');
     expect(await luck(ann)).toBe(l0 + 15);
+    // (the card turned in the first test is random: it may have been The Moon already)
+    const tickets = async () => (await db.sql(`select count(*)::int n from roll_tickets where player_id = $1 and source = 'deck'`, [ann]))[0].n;
+    const t0 = await tickets();
     await fx('moon');
-    expect((await db.sql(`select count(*)::int n from roll_tickets where player_id = $1 and source = 'deck'`, [ann]))[0].n).toBe(1);
+    expect(await tickets()).toBe(t0 + 1);
     void e;
   });
 
@@ -194,7 +197,11 @@ describe('🃏 Fated Deck', () => {
 
 describe('✍️ Glyphcaster', () => {
   let gl: string;
-  beforeAll(async () => { gl = await enchant(ann, 'glyph'); });
+  beforeAll(async () => {
+    gl = await enchant(ann, 'glyph');
+    // (claiming a plot can turn up a glyph by chance — the claim that made this one sometimes did: start from the three)
+    await db.sql(`update enchantments set state = state || '{"known": ["spiral", "star", "triangle"]}'::jsonb where id = $1`, [gl]);
+  });
 
   it('starts with three glyphs and 5 mana; a neat Vortex pays, a scrawl fizzles', async () => {
     const v = await get(ann, gl);

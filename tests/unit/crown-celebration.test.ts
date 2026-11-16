@@ -31,7 +31,7 @@ describe('crown celebrations', () => {
     expect(g.handle).toBe('@gravitysnap');
     expect(g.title).toBe('Sovereign of Ironville');
     expect(g.where).toBe('KENTUCKY · UNITED STATES OF AMERICA');
-    expect(g.boost).toBe('×1.50 KINGDOM RENT');
+    expect(g.boost).toBe('A 1% SHARE OF THE KINGDOM');
     expect(g.claimed).toBe('CROWNED NOV 11, 2026');
     expect(g.left).toBe(2929);
     expect(g.fresh).toBe(true);

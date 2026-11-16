@@ -45,7 +45,7 @@ function Crowns() {
   return (
     <section className="grid gap-2" data-testid="crowns">
       <div className="flex items-baseline justify-between"><h3 className="text-[12px] font-black uppercase tracking-wider text-white/60">👑 Crowns of the world</h3><span className="text-[12px] font-bold tnum">{held.length} claimed</span></div>
-      <p className="-mt-1 text-[11px] text-white/45">{total.toLocaleString()} City Crowns (×1.5), {states.toLocaleString()} State Crowns (×5) and {countries} Country Crowns (×10). A Crown only reaches full strength when enough other players own land in its kingdom.</p>
+      <p className="-mt-1 text-[11px] text-white/45">{total.toLocaleString()} City Crowns, {states.toLocaleString()} State Crowns and {countries} Country Crowns. Each pays its holder a 1% share of its kingdom — Ink or rent, their pick.</p>
       {held.length ? (
         <div className="grid gap-1.5">
           {held.slice(0, 60).map((c) => {

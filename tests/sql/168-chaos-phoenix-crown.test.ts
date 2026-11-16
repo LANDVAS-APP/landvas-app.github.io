@@ -1,5 +1,5 @@
 // v1.2: Chaos (a new multiplier every day), Phoenix (lit on days you check in, fading when you don't, reborn ×10 when
-// you're back) and the Crown (one per city, 2× rent on everything). Prismatic is now 1 in 100,000.
+// you're back) and the Crown (one per city; now a 1% share of the city). Prismatic is now 1 in 100,000.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb } from '../helpers/db';
 import { liveRent } from '../../src/shared/rent';
@@ -91,12 +91,14 @@ describe('the Crown', () => {
     expect((await db.sql(`select private.plot_rarity_for(5, 5) r`))[0].r).not.toBe('crown');
     await cfg({ crown: { ppm: 1000, pct: 50, need: 5 } });
   });
-  it('its holder earns ×1.5 on all their rent once the city has 5 other players — and the city lists them', async () => {
-    // one other player in Tokyo (lee): the Crown is at 1/5 strength
-    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(1.1, 6);
+  it('its holder earns a 1% share of the city (not a rent multiplier) — and the city lists them', async () => {
+    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBe(1);
+    const r0 = Number((await db.sql(`select private.crown_rent_rate($1) r`, [kim]))[0].r);
     const [t] = await db.sql(`select gx, gy from world_cities where name = 'Tokyo'`);
     for (let i = 0; i < 5; i++) { const u = await db.newPlayer(`tokyo_${i}`); await own(u, t.gx + 50 + i, t.gy + 50, 'common'); }
-    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBeCloseTo(1.5, 6);
+    expect(Number((await db.sql(`select private.rent_mult($1) m`, [kim]))[0].m)).toBe(1);
+    // five more common plots in the city: 1% of their rent more
+    expect(Number((await db.sql(`select private.crown_rent_rate($1) r`, [kim]))[0].r) - r0).toBeCloseTo(0.01 * 5 * (await base('common')), 18);
     const crowns = await db.rpc(kim, 'crowns');
     expect(crowns.total).toBeGreaterThan(2500);
     expect(crowns.held).toEqual([expect.objectContaining({ tier: 'crown', city: 'Tokyo', country: 'JP', holder: 'kim_crown', strength: 1, rivals: 6, need: 5 })]);

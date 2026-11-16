@@ -29,7 +29,7 @@ describe('royalty', () => {
     const top = r.crowns[0];
     expect(top.holder.username).toBe('king_kai'); expect(top.kingdom).toBeTruthy();
     expect(top.reign_days).toBe(3); expect(top.rivals).toBeGreaterThanOrEqual(1);
-    expect(Number(top.strength)).toBeGreaterThan(0); expect(Number(top.boost)).toBeGreaterThan(1);
+    expect(Number(top.strength)).toBeGreaterThan(0); expect(Number(top.boost)).toBe(1); // (Crowns no longer multiply rent: they take a 1% share of the kingdom instead)
     expect(JSON.stringify(r)).not.toMatch(/"gx"|"gy"/); // never where the plot is
     expect(r.totals).toMatchObject({ country: 1, state: 1, city: 2, monarchs: 3 });
     expect(r.court[0].player.username).toBe('king_kai'); expect(r.court[0].crowns).toBe(2);
