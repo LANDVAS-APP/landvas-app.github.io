@@ -14,6 +14,8 @@ import { cn } from '../../lib/utils';
 import { useUi } from '../../lib/store';
 import { Button } from '../../ui';
 import { PartyResults, seatsOf } from '../party/PartyGame';
+import { isBot, simBots } from '../party/bots';
+import { useTuckWorlds } from '../../app/WorldsButton';
 import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type In3, type LavaW, type P3, type PaintW, type RLW, type SnowW, type SumoW, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
 import { framePacer } from '../../lib/gfx';
@@ -42,6 +44,7 @@ function blend(a: W3, b: W3, k: number): W3 {
 const quant = (i: In3): In3 => { const l = Math.min(1, Math.hypot(i.x, i.y)); if (l < 0.2) return { x: 0, y: 0, b: i.b }; const a = Math.round(Math.atan2(i.y, i.x) / (Math.PI / 8)) * (Math.PI / 8), m = l > 0.75 ? 1 : 0.55; return { x: Math.round(Math.cos(a) * m * 100) / 100, y: Math.round(Math.sin(a) * m * 100) / 100, b: i.b }; };
 
 export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
+  useTuckWorlds(true);
   const sim = SIMS3[game.game];
   const reduce = useUi((s) => s.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -77,6 +80,7 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
     let lastSnap = performance.now() + Math.max(0, startAt - Date.now()), lastSent = 0, seq = 0, ended: Record<string, number> | null = null, stop = false;
     let waiting = false, acc = 0, accG = 0, hostLast = performance.now(), last = performance.now(), raf = 0, hudAt = 0, tryAt = 0, trying = false;
     const inputs: Record<string, In3> = {}, heard: Record<string, number> = {}, dropped = new Set<string>();
+    const botIds = ids.filter(isBot), runBots = simBots(game.game, game.seed ?? 1);
     for (const id of ids) heard[id] = lastSnap;
     const finish = () => {
       setPhase('end'); sfx.jackpot?.();
@@ -142,6 +146,8 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       if (since < 0) return;
       acc += dt;
       inputs[myId] = input.current; heard[myId] = now;
+      // the bots: the host plays them
+      if (botIds.length) { Object.assign(inputs, runBots(w, botIds)); for (const id of botIds) heard[id] = now; }
       // anyone we haven't heard from in a while has gone: they stand still (or, in a knock-out game, they're out)
       for (const id of ids) if (id !== myId && now - (heard[id] ?? 0) > DROP_MS && !dropped.has(id)) {
         dropped.add(id); inputs[id] = { x: 0, y: 0, b: false };

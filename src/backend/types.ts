@@ -237,8 +237,9 @@ export type HomeData = {
 };
 export type HomeGame = {
   id: string; game: string; status: 'lobby' | 'playing' | 'done' | 'cancelled'; host: string; home: string; seed: number | null;
-  result: { places?: Record<string, number>; players?: number; boost?: number } | null;
+  result: { places?: Record<string, number>; players?: number; bots?: number; boost?: number } | null;
   created_at: string; started_at: string | null; server_time: string;
+  /** AI players filling empty seats (played by the host's device) */ bots?: number;
   players: (Profile & { slot: number | null; place: number | null; ink: number })[];
 };
 export type HomeLive = { shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_home: number; tables: HomeGame[]; game: HomeGame | null };

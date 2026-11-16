@@ -90,7 +90,7 @@ type Link = { by: string; t?: string; d?: Strokes };
 type SC = { ids: string[]; step: number; steps: number; phase: 'write' | 'draw' | 'guess' | 'show' | 'vote' | 'done'; ends: number; chains: Link[][]; show: number;
   votes: Record<string, string>; pts: Record<string, number>; seed: number };
 const SC_T = { write: 35_000, draw: 75_000, guess: 35_000, show: 11_000, vote: 30_000 };
-const PROMPTS = ['a cat riding a skateboard', 'a pizza in space', 'a dragon at the dentist', 'a snowman on holiday', 'a robot walking a dog', 'a haunted sandwich', 'a giraffe in a tiny car',
+export const PROMPTS = ['a cat riding a skateboard', 'a pizza in space', 'a dragon at the dentist', 'a snowman on holiday', 'a robot walking a dog', 'a haunted sandwich', 'a giraffe in a tiny car',
   'a wizard making pancakes', 'a shark at a birthday party', 'a cow on the moon', 'a ghost learning to swim', 'a penguin selling ice cream', 'a cactus giving a hug', 'a superhero doing laundry',
   'a dinosaur playing piano', 'a banana in a tuxedo', 'an octopus juggling', 'a castle made of cake', 'a sleepy volcano', 'a bee driving a bus'];
 /** who holds chain c at step k */
@@ -210,7 +210,7 @@ export const chain: PartyDef<SC, { k: 'text'; t: string } | { k: 'draw'; d: Stro
 // Word Spy: everyone gets the same word — except the spy, who gets a close one (and doesn't know they're the spy).
 // Give one-word clues in turn, then vote for who you think the spy is.
 // ======================================================================================================================
-const PAIRS = [['cat', 'dog'], ['coffee', 'tea'], ['piano', 'guitar'], ['beach', 'desert'], ['pizza', 'burger'], ['moon', 'sun'], ['rain', 'snow'], ['train', 'bus'], ['apple', 'pear'],
+export const PAIRS = [['cat', 'dog'], ['coffee', 'tea'], ['piano', 'guitar'], ['beach', 'desert'], ['pizza', 'burger'], ['moon', 'sun'], ['rain', 'snow'], ['train', 'bus'], ['apple', 'pear'],
   ['football', 'basketball'], ['castle', 'palace'], ['ghost', 'zombie'], ['shark', 'dolphin'], ['cake', 'pie'], ['library', 'museum'], ['pirate', 'ninja'], ['volcano', 'mountain'],
   ['candle', 'torch'], ['bee', 'butterfly'], ['wizard', 'witch'], ['rocket', 'airplane'], ['popcorn', 'crisps'], ['penguin', 'owl'], ['forest', 'jungle'], ['violin', 'trumpet'],
   ['skateboard', 'bicycle'], ['hospital', 'school'], ['milk', 'juice'], ['crown', 'hat'], ['robot', 'alien']];
@@ -311,7 +311,7 @@ export const spy: PartyDef<WS, { k: 'clue'; t: string } | { k: 'vote'; who: stri
 // ======================================================================================================================
 // Same Brain: everyone answers the same question; you score for every other player who said the same thing.
 // ======================================================================================================================
-const QUESTIONS = ['Name a pizza topping', 'Name a pet', 'Something you find at the beach', 'A colour of the rainbow', 'Something that’s always cold', 'A famous monster', 'A breakfast food',
+export const QUESTIONS = ['Name a pizza topping', 'Name a pet', 'Something you find at the beach', 'A colour of the rainbow', 'Something that’s always cold', 'A famous monster', 'A breakfast food',
   'Something you do in the morning', 'An animal with stripes', 'Something you take on a picnic', 'A word that rhymes with “cat”', 'A sport with a ball', 'Something in a toolbox',
   'A fruit that’s yellow', 'Something you see in the sky', 'A musical instrument', 'Something with wheels', 'A planet', 'A superpower', 'Something you put on a sandwich',
   'A board game piece', 'An ice cream flavour', 'Something spooky', 'A shape', 'Something you’d find in a castle', 'A farm animal', 'A dessert', 'Something that buzzes',
@@ -382,7 +382,7 @@ export const samebrain: PartyDef<SB, { k: 'say'; t: string }> = {
 // Bluff Buffet: a true fact with a blank. Everyone writes a fake answer; then everyone tries to pick the real one.
 // Points for finding the truth, and for every player your fake fooled.
 // ======================================================================================================================
-const FACTS: [string, string][] = [
+export const FACTS: [string, string][] = [
   ['A group of flamingos is called a ____.', 'flamboyance'], ['The national animal of Scotland is the ____.', 'unicorn'], ['A baby kangaroo is called a ____.', 'joey'],
   ['An octopus has ____ hearts.', 'three'], ['The dot over a lowercase “i” is called a ____.', 'tittle'], ['A group of crows is called a ____.', 'murder'],
   ['Wombat poop is shaped like ____.', 'cubes'], ['A group of owls is called a ____.', 'parliament'], ['The plastic tip of a shoelace is called an ____.', 'aglet'],

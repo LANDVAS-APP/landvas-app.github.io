@@ -13,10 +13,16 @@ import { sfx } from '../../arcade/sfx';
 import { PARTY } from './index';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
 import { useTuckWorlds } from '../../app/WorldsButton';
+import { botProfiles, isBot, partyBots } from './bots';
 
 type Msg = { t: 'gs'; k: number; s: unknown; now: number } | { t: 'gm'; id: string; m: unknown } | { t: 'end'; r: Places };
 
-export const seatsOf = (g: HomeGame): Seat[] => [...g.players].sort((a, b) => (a.slot ?? 9) - (b.slot ?? 9)).map((p, i) => ({ id: p.id, slot: p.slot ?? i, name: `@${p.username}`, color: SEAT_COLORS[(p.slot ?? i) % SEAT_COLORS.length], p }));
+export const seatsOf = (g: HomeGame): Seat[] => {
+  const people = [...g.players].sort((a, b) => (a.slot ?? 9) - (b.slot ?? 9)).map((p, i) => ({ id: p.id, slot: p.slot ?? i, name: `@${p.username}`, color: SEAT_COLORS[(p.slot ?? i) % SEAT_COLORS.length], p }));
+  // the bots sit in the seats after everyone else
+  const bots = botProfiles(g.id, g.bots ?? 0).map((p, i) => { const slot = people.length + i; return { id: p.id, slot, name: p.username, color: SEAT_COLORS[slot % SEAT_COLORS.length], p }; });
+  return [...people, ...bots];
+};
 
 export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
   useTuckWorlds(true);
@@ -66,12 +72,15 @@ export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: strin
     };
     const ch = backend.liveChannel?.(`hg:${game.id}`, onMsg) ?? { send() {}, close() {} };
     sendRef.current = host ? (m) => apply(myId, m) : (m) => ch.send({ t: 'gm', id: myId, m });
+    // the bots at the table: the host plays them
+    const botIds = seats.filter((x) => isBot(x.id)).map((x) => x.id), runBots = partyBots(game.game, game.seed ?? 1);
     const iv = setInterval(() => {
       if (stop) return;
       const now = nowMs();
       if (now < 0) { setCount(Math.ceil(-now / 1000)); return; }
       if (phaseRef.current === 'count') { phaseRef.current = 'play'; setPhase('play'); sfx.coin(); if (host) dirty = true; }
       if (host && !ended) {
+        if (botIds.length) for (const mv of runBots(state, botIds, now)) apply(mv.by, mv.m);
         if (def.tick?.(state, now)) dirty = true;
         if (dirty || performance.now() - lastSent > 1500) { dirty = false; broadcast(); show(); }
         const r = def.result(state);
@@ -130,23 +139,27 @@ export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: strin
 export function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: string; onClose(): void }) {
   if (!g) return <div className="absolute inset-0 grid place-items-center bg-black/50"><div className="lv-arc-marquee text-3xl">GAME OVER!</div></div>;
   if (g.status === 'cancelled') return <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center"><div className="grid gap-3"><b>That game didn’t count</b><Button variant="rainbow" onClick={onClose}>Back to the party</Button></div></div>;
-  const rows = [...g.players].sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
+  // the bots too (their places come from the result; they don't win anything)
+  const places = g.result?.places ?? {};
+  const bots = botProfiles(g.id, g.bots ?? 0).map((p) => ({ ...p, slot: null, place: places[p.id] ?? null, ink: 0, bot: true }));
+  const rows = [...g.players, ...bots].sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
   const me = rows.find((p) => p.id === myId);
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 grid place-items-center bg-black/80 p-6" data-testid="party-results">
       <div className="grid w-full max-w-sm justify-items-center gap-3">
-        <motion.div initial={{ scale: 0.5, rotate: -6 }} animate={{ scale: 1, rotate: 0 }} className="font-display text-3xl font-black">{me?.place === 1 ? '🏆 You win!' : `🏆 @${rows[0]?.username} wins!`}</motion.div>
+        <motion.div initial={{ scale: 0.5, rotate: -6 }} animate={{ scale: 1, rotate: 0 }} className="font-display text-3xl font-black">{me?.place === 1 ? '🏆 You win!' : `🏆 ${rows[0] && 'bot' in rows[0] ? rows[0].username : `@${rows[0]?.username}`} wins!`}</motion.div>
         <div className="grid w-full gap-1.5">
           {rows.map((p) => (
             <div key={p.id} className={cn('flex items-center gap-2 rounded-xl px-2 py-2 text-sm', p.id === myId ? 'bg-white/20' : 'bg-white/10')}>
               <b className="w-6 text-center">{p.place === 1 ? '👑' : p.place}</b><PlayerAvatar p={p} size={24} />
-              <span className="min-w-0 flex-1 truncate font-bold">{p.id === myId ? 'You' : `@${p.username}`}</span>
-              <span className="flex items-center gap-1 text-sm font-black text-[#7DFFB2]" data-testid="party-ink"><ResourceIcon r="ink" className="h-4 w-4" />+{p.ink}</span>
+              <span className="min-w-0 flex-1 truncate font-bold">{p.id === myId ? 'You' : 'bot' in p ? p.username : `@${p.username}`}</span>
+              {'bot' in p ? <span className="text-[11px] text-white/50">bot</span> : <span className="flex items-center gap-1 text-sm font-black text-[#7DFFB2]" data-testid="party-ink"><ResourceIcon r="ink" className="h-4 w-4" />+{p.ink}</span>}
             </div>
           ))}
         </div>
         {(g.result?.boost ?? 1) > 1 && <p className="text-xs text-[#7DFFB2]">🎉 Party of {g.result?.players}: +{Math.round(((g.result?.boost ?? 1) - 1) * 100)}% Ink</p>}
         {me && !me.ink && <p className="max-w-xs text-center text-[11px] text-white/60">House games pay up to 500 Ink a day, to accounts at least a day old that own land.</p>}
+        {(g.bots ?? 0) > 0 && <p className="max-w-xs text-center text-[11px] text-white/60">🤖 Played with bots: half the Ink of a game with people.</p>}
         <Button variant="rainbow" onClick={onClose} data-testid="party-close">Back to the party</Button>
       </div>
     </motion.div>

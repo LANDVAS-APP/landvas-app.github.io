@@ -521,6 +521,7 @@ export const api = {
   homeGameJoin: (id: string) => rpc<import('./types').HomeGame>('home_game_join', { p_game: id }),
   homeGameLeave: (id: string) => rpc<void>('home_game_leave', { p_game: id }),
   homeGameStart: (id: string) => rpc<import('./types').HomeGame>('home_game_start', { p_game: id }),
+  homeGameBots: (id: string, n: number) => rpc<import('./types').HomeGame>('home_game_bots', { p_game: id, p_n: n }),
   homeGameReport: (id: string, places: Record<string, number>) => rpc<import('./types').HomeGame>('home_game_report', { p_game: id, p_places: places }),
   homeChatSend: (home: string, body: string) => rpc<import('./types').PlanetChatMsg>('home_chat_send', { p_home: home, p_body: body }),
   homeChatList: (home: string, after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; shard: number | null }>('home_chat_list', { p_home: home, p_after: after }),

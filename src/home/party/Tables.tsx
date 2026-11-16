@@ -13,6 +13,7 @@ import { Button, PlayerAvatar } from '../../ui';
 import { sfx } from '../../arcade/sfx';
 import { GAME_META, PARTY_ORDER } from './index';
 import { SEAT_COLORS } from './kit';
+import { botProfiles, isBot } from './bots';
 
 export function GamePicker({ home, here, onClose, onMade }: { home: string; here: number; onClose(): void; onMade(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
     <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
       <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-[#1C1512] p-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] text-white shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()} data-testid="party-picker">
         <div className="mb-1 flex items-center gap-2"><span className="text-2xl">🎲</span><b className="flex-1 font-display text-xl">Party games</b><button onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button></div>
-        <p className="mb-3 text-xs text-white/70">Pick a game — everyone in the house gets an invite. {here > 1 ? `${here} people are here.` : 'Nobody else is here yet: invite some friends over!'}</p>
+        <p className="mb-3 text-xs text-white/70">Pick a game — everyone in the house gets an invite. {here > 1 ? `${here} people are here.` : 'Nobody else is here yet: play with 🤖 AI players, or invite some friends over!'}</p>
         {(['3d', 'party', 'board'] as const).map((kind) => (
           <div key={kind} className="mb-3">
             <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/50">{kind === '3d' ? '🌍 Live 3D games — off somewhere new' : kind === 'party' ? 'Party games' : 'Board games'}</div>
@@ -66,25 +67,41 @@ export function TableInvite({ t, onJoined }: { t: HomeGame; onJoined(): void }) 
 export function TableLobby({ t, myId, onChange }: { t: HomeGame; myId: string; onChange(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const d = GAME_META[t.game]; if (!d) return null;
-  const host = t.host === myId, ready = t.players.length >= d.min;
+  // the bots fill seats after the people
+  const bots = botProfiles(t.id, t.bots ?? 0), seated: (HomeGame['players'][number] | (typeof bots)[number])[] = [...t.players, ...bots];
+  const host = t.host === myId, ready = seated.length >= d.min, short = Math.max(0, d.min - t.players.length);
+  const setBots = (n: number) => run('bots', () => api.homeGameBots(t.id, n));
   const run = async (k: string, f: () => Promise<unknown>) => { setBusy(k); try { await f(); onChange(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); } };
   return (
     <div className="pointer-events-auto w-full max-w-md rounded-3xl bg-black/80 p-4 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 30px ${d.color}55, inset 0 0 0 2px ${d.color}` }} data-testid="party-lobby">
       <div className="flex items-center gap-2"><span className="text-3xl">{d.emoji}</span><div className="min-w-0 flex-1"><div className="font-display text-lg font-black">{d.name}</div><div className="text-[11px] text-white/70">{d.how}</div></div></div>
       <div className={cn('mt-3 grid gap-2', d.max <= 2 ? 'grid-cols-2' : 'grid-cols-4')}>
         {Array.from({ length: d.max }, (_, i) => {
-          const p = t.players[i];
+          const p = seated[i], bot = !!p && isBot(p.id);
           return (
-            <div key={i} className={cn('grid justify-items-center gap-1 rounded-2xl p-2 text-center', p ? 'bg-white/10' : 'border border-dashed border-white/20')}>
-              {p ? <><span className="rounded-full p-0.5" style={{ background: SEAT_COLORS[i % SEAT_COLORS.length] }}><PlayerAvatar p={p} size={32} /></span><span className="w-full truncate text-[10px] font-bold">{p.id === myId ? 'You' : `@${p.username}`}{p.id === t.host ? ' 👑' : ''}</span></>
+            <div key={i} className={cn('grid justify-items-center gap-1 rounded-2xl p-2 text-center', p ? (bot ? 'bg-white/[0.06]' : 'bg-white/10') : 'border border-dashed border-white/20')} data-testid={bot ? 'party-bot-seat' : undefined}>
+              {p ? <><span className="relative rounded-full p-0.5" style={{ background: SEAT_COLORS[i % SEAT_COLORS.length] }}><PlayerAvatar p={p} size={32} />{bot && <span className="absolute -bottom-1 -right-1 text-sm">🤖</span>}</span><span className="w-full truncate text-[10px] font-bold">{p.id === myId ? 'You' : bot ? p.username.replace(' 🤖', '') : `@${p.username}`}{p.id === t.host ? ' 👑' : ''}</span></>
                 : <span className="py-3 text-[10px] text-white/40">{i < d.min ? 'needed' : 'open'}</span>}
             </div>
           );
         })}
       </div>
+      {/* bots: play on your own, or fill the empty seats (people can still take a bot's seat) */}
+      {host && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-2xl bg-white/[0.06] px-3 py-1.5" data-testid="party-bots">
+          <span className="text-xs font-bold">🤖 AI players <span className="font-normal text-white/60">· they play fair</span></span>
+          <div className="flex items-center gap-1.5">
+            <button className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-sm font-black disabled:opacity-40" disabled={!!busy || (t.bots ?? 0) <= 0} onClick={() => void setBots((t.bots ?? 0) - 1)} aria-label="One bot fewer" data-testid="party-bot-minus">−</button>
+            <b className="w-4 text-center tabular-nums" data-testid="party-bot-count">{t.bots ?? 0}</b>
+            <button className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-sm font-black disabled:opacity-40" disabled={!!busy || seated.length >= d.max} onClick={() => void setBots((t.bots ?? 0) + 1)} aria-label="One more bot" data-testid="party-bot-plus">+</button>
+          </div>
+        </div>
+      )}
       <div className="mt-3 flex gap-2">
         <Button variant="ghost" size="sm" className="!text-white" loading={busy === 'leave'} onClick={() => run('leave', () => api.homeGameLeave(t.id))} data-testid="party-leave-table">Leave</Button>
-        {host ? <Button variant="rainbow" size="sm" className="ml-auto" disabled={!ready} loading={busy === 'start'} onClick={() => run('start', () => api.homeGameStart(t.id))} data-testid="party-start">{ready ? `▶ Start (${t.players.length})` : `Waiting for ${d.min - t.players.length} more…`}</Button>
+        {host ? (ready
+          ? <Button variant="rainbow" size="sm" className="ml-auto" loading={busy === 'start'} onClick={() => run('start', () => api.homeGameStart(t.id))} data-testid="party-start">▶ Start ({seated.length})</Button>
+          : <Button variant="rainbow" size="sm" className="ml-auto" loading={busy === 'bots'} onClick={() => void setBots(Math.max(t.bots ?? 0, short))} data-testid="party-fill-bots">🤖 Fill {d.min - seated.length} seat{d.min - seated.length === 1 ? '' : 's'} with bots</Button>)
           : <span className="ml-auto self-center text-xs text-white/70">Waiting for the host…</span>}
       </div>
     </div>
