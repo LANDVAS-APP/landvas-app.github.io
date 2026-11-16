@@ -475,6 +475,10 @@ const MESSAGES: Record<string, string> = {
   referral_code_unavailable: 'That invite code can’t be used.',
   cannot_refer_self: 'You can’t use your own invite code.',
   custom_code_exists: 'You already made your custom code — each account gets one.',
+  unknown_package: 'That bonus isn’t available any more.',
+  unknown_tier: 'That referral tier doesn’t exist.',
+  package_locked: 'Each tier’s pick can change once a month — not yet.',
+  referral_packages_off: 'Referral bonus packages are paused right now.',
   code_taken: 'That code is taken. Try another.',
   // USD -> Ink
   conversion_disabled: 'Converting USD to Ink is switched off right now.',

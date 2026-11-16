@@ -278,13 +278,31 @@ export type Referrals = {
   daily_cap: number;
   default_code: string;
   custom_code: string | null;
-  share?: { enabled: boolean; pct: number; cap_ink: number };
-  stats: { total: number; pending: number; awaiting_email?: number; rewarded: number; earned_ink: number; share_ink?: number; share_today?: number };
-  recent: { player: Profile; status: string; reward_ink: number; share_ink?: number; email_confirmed?: boolean; created_at: string; qualified_at: string | null }[];
+  /** the share of each friend's Ink this player gets now (their stacked tiers', if they pay one) */
+  share?: { enabled: boolean; pct: number; cap_ink: number; days?: number; tier?: number };
+  perks?: ReferralPerks;
+  stats: { total: number; pending: number; awaiting_email?: number; rewarded: number; earned_ink: number; share_ink?: number; share_today?: number; bonus_ink?: number; real?: number };
+  recent: { player: Profile; status: string; reward_ink: number; share_ink?: number; email_confirmed?: boolean; created_at: string; qualified_at: string | null;
+    real?: boolean; bonus_status?: 'none' | 'paid' | 'void'; bonus?: (ReferralBundle & { tier: number; tickets: string[] }) | null }[];
   resets_at?: string;
   referred_by: { player: Profile; status: string; code: string } | null;
   can_redeem: boolean;
 };
+
+/** what a referral tier pays per real friend (tiers' picks add up) */
+export type ReferralBundle = { ink?: number; share_pct?: number; share_days?: number; share_cap?: number; luck_refill?: boolean; enchanted_luck?: number;
+  tickets?: { min: string; n: number }[] };
+/** one of the bonuses a player picks at Tiers I–III: a bundle per tier, each better than the last */
+export type ReferralOption = { id: string; name: string; emoji: string; color: string; tagline: string; tiers: ReferralBundle[] };
+/** what the Grand Package can be boosted with */
+export type ReferralBoost = { id: string; name: string; emoji: string; add: ReferralBundle };
+export type ReferralPerks = { enabled: boolean; switch_days: number; bonus_after_days: number; share_enabled: boolean; max_share_pct: number; default_pick: string;
+  tiers: { n: number; name: string }[]; options: ReferralOption[]; grand: ReferralBundle; boosts: ReferralBoost[];
+  /** real friends so far, and the tier they reach (0 below Tier I) */
+  real: number; tier: number;
+  picks: { tier: number; pick: string; chosen_at: string; can_change_at: string }[];
+  /** what every real friend pays now: the unlocked tiers' picks added together (null below Tier I) */
+  stack: (ReferralBundle & { ink: number; share_pct: number; tier: number; parts: { tier: number; pick: string | null; grand?: boolean }[]; tickets: { min: string; n: number }[] }) | null };
 
 export type GroupCell = [number, number, PlotTypeId, number, boolean];
 export type CanvasGroup = {

@@ -399,6 +399,7 @@ export const api = {
   myReferrals: () => rpc<Referrals>('my_referrals'),
   createReferralCode: (code: string) => rpc<Referrals>('create_referral_code', { p_code: code }),
   redeemReferral: (code: string) => rpc<Referrals>('redeem_referral', { p_code: code }),
+  referralPick: (tier: number, pick: string) => rpc<Referrals>('referral_pick', { p_tier: tier, p_pick: pick }),
   // email confirmation (every player confirms their email before playing)
   myEmailStatus: () => rpc<EmailStatus>('my_email_status'),
 

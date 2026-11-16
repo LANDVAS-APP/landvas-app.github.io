@@ -1,7 +1,8 @@
 // Invite friends: every player has a code (their username) and can create one custom code,
 // once. The inviter earns Ink when the new player hits the configured milestone (by default:
-// winning their first minigame) and — when the operator stacks it on — a share of everything
-// that player earns, up to a cap per friend. Built to make the next invite feel close.
+// winning their first minigame). Friends who really play climb the inviter's referral tiers
+// (ReferralPackages), whose picked bonuses stack and pay on top: more Ink, a share of what the
+// friend earns, Luck… Built to make the next invite feel close.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { Check, Copy, Crown, Flame, Gift, Lock, MessageCircle, Rocket, Share2, Sparkles, Star, Ticket, Trophy, Users, Zap } from 'lucide-react';
@@ -19,6 +20,9 @@ import { Button, Empty, Field, PlayerAvatar, ResourceIcon, Spinner, inputCls, us
 import { confetti, confettiCannons } from '../ui/confetti';
 import { clearPendingReferral } from './referralStore';
 import { poll } from '../lib/poll';
+import { ReferralPackages, bundleLines, stackInk, tierName } from './ReferralPackages';
+
+type Stack = NonNullable<Referrals['perks']>['stack'];
 
 const QUALIFY: Record<Referrals['qualify'], string> = {
   signup: 'as soon as they sign up and confirm their email',
@@ -63,7 +67,7 @@ export default function InviteScreen() {
   const me = useOnboardedMe();
   const q = useQuery({ queryKey: ['referrals'], queryFn: api.myReferrals, enabled: !!me, refetchInterval: poll(300_000) });
   const r = q.data;
-  const total = r ? r.stats.earned_ink + (r.stats.share_ink ?? 0) : 0;
+  const total = r ? r.stats.earned_ink + (r.stats.share_ink ?? 0) + (r.stats.bonus_ink ?? 0) : 0;
   // celebrate new invite Ink since the last visit
   useEffect(() => {
     if (!r) return;
@@ -78,15 +82,18 @@ export default function InviteScreen() {
   if (!r) return <Page><Empty title="Invites are unavailable">{q.error ? toGameError(q.error).message : 'Try again in a moment.'}</Empty></Page>;
   const code = r.custom_code ?? r.default_code;
   const share = r.share?.enabled ? r.share : null;
-  const perFriend = r.reward_ink + (share ? share.cap_ink : 0);
+  const stack = r.perks?.enabled ? r.perks.stack : null;
+  // (a stack's share is in the stack's Ink; otherwise the base share, when it's on)
+  const perFriend = r.reward_ink + (stack ? stackInk(r.perks, !!share) : share ? share.cap_ink : 0);
   return (
     <Page>
-      <Hero r={r} total={total} perFriend={perFriend} share={share} />
+      <Hero r={r} total={total} perFriend={perFriend} share={share} stack={stack} />
       {!r.enabled && <p className="mb-4 rounded-2xl border border-warn/40 bg-warn/10 p-3 text-sm">Invite rewards are paused right now. Your codes still work and will count when they’re back on.</p>}
       <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
         <ShareCard code={code} r={r} perFriend={perFriend} />
-        <HowYouEarn r={r} share={share} />
+        <HowYouEarn r={r} share={share} stack={stack} />
       </div>
+      <ReferralPackages r={r} />
       <Ladder count={r.stats.total} />
       <section className="mt-6">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -112,7 +119,7 @@ export default function InviteScreen() {
   );
 }
 
-function Hero({ r, total, perFriend, share }: { r: Referrals; total: number; perFriend: number; share: Referrals['share'] | null }) {
+function Hero({ r, total, perFriend, share, stack }: { r: Referrals; total: number; perFriend: number; share: Referrals['share'] | null; stack: Stack }) {
   const shown = useCountUp(total);
   return (
     <section className="relative mb-5 overflow-hidden rounded-[28px] border border-gold/30 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(255,225,77,0.22),transparent_55%),radial-gradient(120%_120%_at_100%_100%,rgba(123,92,255,0.28),transparent_55%)] p-5 md:p-7" data-testid="invite-hero">
@@ -125,6 +132,7 @@ function Hero({ r, total, perFriend, share }: { r: Referrals; total: number; per
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
             <b className="text-fg">{fmt(r.reward_ink)} Ink</b> {QUALIFY[r.qualify]}
+            {stack && r.perks ? <> — <b className="text-fg">plus your {tierName(r.perks, stack.tier)} bonus</b>{stack.ink ? ` (+${fmt(stack.ink)} Ink)` : ''}</> : null}
             {share ? <> — <b className="text-fg">plus {share.pct}% of every Ink they earn</b>, up to {fmt(share.cap_ink)} per friend.</> : '.'}
             {r.referee_reward_ink > 0 ? <> They get <b className="text-fg">{fmt(r.referee_reward_ink)} Ink</b> too.</> : null}
           </p>
@@ -191,11 +199,14 @@ function ShareCard({ code, r, perFriend }: { code: string; r: Referrals; perFrie
   );
 }
 
-function HowYouEarn({ r, share }: { r: Referrals; share: Referrals['share'] | null }) {
+function HowYouEarn({ r, share, stack }: { r: Referrals; share: Referrals['share'] | null; stack: Stack }) {
+  const k = r.perks;
   const steps = [
     { icon: Share2, title: 'Send your link', text: 'Anyone who joins with it is in your crew.' },
     { icon: Gift, title: `+${fmt(r.reward_ink)} Ink`, text: `Paid ${QUALIFY[r.qualify]}.` },
-    ...(share ? [{ icon: Zap, title: `+${share.pct}% of their Ink`, text: `Every time they earn — up to ${fmt(share.cap_ink)} Ink per friend. It never comes out of their pocket.` }] : []),
+    ...(stack && k ? [{ icon: Sparkles, title: `${tierName(k, stack.tier)} bonus`, text: `${bundleLines(stack, k.share_enabled).filter((l) => !l.off).map((l) => l.text).join(', ') || 'Your picks'} — once they’ve played on ${k.bonus_after_days} different days.` }]
+      : k?.enabled && k.tiers.length ? [{ icon: Trophy, title: 'Climb referral tiers', text: `${fmt(k.tiers[0].n)} friends who really play unlock ${tierName(k, 1)}. Pick a bonus at each tier — they stack.` }] : []),
+    ...(share ? [{ icon: Zap, title: `+${share.pct}% of their Ink`, text: `Every time they earn${share.days ? `, for ${share.days} days` : ''} — up to ${fmt(share.cap_ink)} Ink per friend. It never comes out of their pocket.` }] : []),
   ];
   return (
     <section className="glass grid content-start gap-3 rounded-3xl p-5">
@@ -261,6 +272,11 @@ function FriendCard({ x, r, share, i }: { x: Referrals['recent'][number]; r: Ref
         </div>
         <StatusChip status={x.status} ink={x.reward_ink} qualify={r.qualify} awaitingEmail={x.status === 'pending' && x.email_confirmed === false} />
       </div>
+      {r.perks?.enabled && x.status === 'rewarded' && !x.real && <div className="text-[11.5px] text-muted" data-testid="friend-bonus-waiting">🎁 Counts toward your tiers once they’ve played on {r.perks.bonus_after_days} different days</div>}
+      {x.bonus_status === 'paid' && x.bonus && r.perks && (
+        <div className="text-[11.5px] font-bold text-ok" data-testid="friend-bonus-paid">✨ {tierName(r.perks, x.bonus.tier)} bonus paid{x.bonus.ink ? ` · +${fmt(x.bonus.ink)} Ink` : ''}{x.bonus.luck_refill ? ' · Luck refilled' : ''}{x.bonus.enchanted_luck ? ` · +${x.bonus.enchanted_luck} Enchanted Luck` : ''}{x.bonus.tickets?.length ? ` · ${x.bonus.tickets.length} plot roll${x.bonus.tickets.length > 1 ? 's' : ''}` : ''}</div>
+      )}
+      {x.real && x.bonus_status === 'none' && <div className="text-[11.5px] font-semibold text-gold" data-testid="friend-real">✓ A real friend — counts toward your tiers</div>}
       {share && x.status !== 'void' && (
         <div className="grid gap-1">
           <div className="flex justify-between text-[11px] font-semibold text-muted">

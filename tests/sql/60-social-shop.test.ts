@@ -187,12 +187,11 @@ describe('referrals', () => {
     const after = await db.rpc(a, 'my_referrals');
     expect(after.stats.rewarded).toBe(1);
     expect(after.stats.earned_ink).toBe(500);
-    // …plus the earnings share: 10% of the Ink the new player won
-    const won = Number((await db.sql(`select coalesce(sum(delta), 0) s from resource_ledger where player_id = $1 and resource = 'ink' and reason = 'minigame'`, [b]))[0].s);
-    expect(after.stats.share_ink).toBe(Math.floor(won * 0.1));
-    expect((await db.rpc(a, 'my_state')).balances.ink).toBe(before + 500 + Math.floor(won * 0.1));
+    // …and nothing else: a share of the friend's Ink comes with a referral bonus package (236), not the base invite
+    expect(after.stats.share_ink).toBe(0);
+    expect((await db.rpc(a, 'my_state')).balances.ink).toBe(before + 500);
     const ledger = await db.sql(`select reason from resource_ledger where player_id = $1 and resource = 'ink' and delta > 0`, [a]);
-    expect(new Set(ledger.map((l: any) => l.reason))).toEqual(new Set(won >= 10 ? ['referral', 'referral_share'] : ['referral']));
+    expect(new Set(ledger.map((l: any) => l.reason))).toEqual(new Set(['referral']));
   });
 
   it('the earnings share stops at its cap and can be switched off', async () => {

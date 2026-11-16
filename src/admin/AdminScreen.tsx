@@ -1227,6 +1227,120 @@ export function System() {
 
 // ---- social: invites, Ink conversion, chat ---------------------------------------------------
 
+const REF_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+
+/** one bundle of a referral tier: what it pays per real friend */
+function RefBundleFields({ b, onChange, id }: { b: any; onChange(v: any): void; id: string }) {
+  const v = b ?? {};
+  const set = (k: string, x: unknown) => onChange({ ...v, [k]: x });
+  const t = v.tickets?.[0];
+  return (
+    <div className="grid gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <NumberField label="Ink" value={Number(v.ink ?? 0)} max={1000000} onChange={(n) => set('ink', Math.round(n))} />
+        <NumberField label="Share" value={Number(v.share_pct ?? 0)} max={100} step={0.5} onChange={(n) => set('share_pct', n)} suffix="%" />
+        <NumberField label="Share lasts" value={Number(v.share_days ?? 0)} max={3650} onChange={(n) => set('share_days', Math.round(n))} suffix="d" />
+        <NumberField label="Share up to" value={Number(v.share_cap ?? 0)} max={10000000} onChange={(n) => set('share_cap', Math.round(n))} />
+        <NumberField label="Ench. Luck" value={Number(v.enchanted_luck ?? 0)} max={9} onChange={(n) => set('enchanted_luck', Math.round(n))} />
+        <NumberField label="Plot rolls" value={Number(t?.n ?? 0)} max={10} onChange={(n) => set('tickets', n > 0 ? [{ min: t?.min ?? 'epic', n: Math.round(n) }] : [])} />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Switch id={`${id}-luck`} checked={!!v.luck_refill} label={v.luck_refill ? 'Refills Luck' : 'No Luck refill'} onCheckedChange={(on) => set('luck_refill', on)} />
+        {t?.n ? (
+          <select className={cn(inputCls, 'h-8 w-auto text-xs')} value={t.min} onChange={(e) => set('tickets', [{ min: e.target.value, n: t.n }])} aria-label="Plot roll rarity">
+            {REF_RARITIES.map((x) => <option key={x} value={x}>{x} or better</option>)}
+          </select>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Referral tiers: real friends climb them; Tiers I–III each take one of the options, the last is the Grand Package
+ *  plus a boost; the picks stack. Here: thresholds, every option's bundles, the Grand Package, the boosts, and the
+ *  switch for every share of friends' Ink. */
+function RefPackagesEditor({ pk, onChange }: { pk: any; onChange(v: any): void }) {
+  const tiers: any[] = pk.tiers ?? [];
+  const options: any[] = pk.options ?? [];
+  const boosts: any[] = pk.boosts ?? [];
+  const set = (k: string, v: unknown) => onChange({ ...pk, [k]: v });
+  const setAt = (k: 'tiers' | 'options' | 'boosts', i: number, v: any) => onChange({ ...pk, [k]: (pk[k] ?? []).map((x: any, j: number) => (j === i ? v : x)) });
+  const shareOn = pk.share_enabled !== false;
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="mt-3 grid gap-3 rounded-2xl border border-line p-3" data-testid="ref-packages-admin">
+      <div className="font-bold">🎁 Referral tiers</div>
+      <p className="-mt-2 text-[11px] text-faint">The base invite pays only the Ink above. Friends who really play (earned Ink by playing on enough different days) climb the inviter’s tiers; at each tier before the last the player picks one option, the last is the Grand Package plus a boost they pick. Picks stack: every real friend pays all unlocked tiers’ picks added together, once.</p>
+      <Switch id="ref-pk-on" checked={pk.enabled !== false} label={pk.enabled !== false ? 'Referral tiers are on' : 'Referral tiers are off — only the base reward pays'} onCheckedChange={(on) => set('enabled', on)} />
+      <div className={cn('rounded-xl p-2.5', shareOn ? 'bg-ok/10' : 'bg-bad/10')}>
+        <Switch id="ref-share" checked={shareOn} label={shareOn ? 'Share of invited players’ Ink: on' : 'Share of invited players’ Ink: off'} onCheckedChange={(on) => set('share_enabled', on)} />
+        <p className="mt-1 text-[11px] text-faint">Every tier’s % of the Ink their friends earn by playing. Off: no tier pays a share (the rest of each bonus still pays). Takes effect the moment you save.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <NumberField label="Change a pick every" value={Number(pk.switch_days ?? 30)} max={3650} onChange={(n) => set('switch_days', Math.round(n))} suffix="days" />
+        <NumberField label="Real after" value={Number(pk.bonus_after_days ?? 3)} max={60} onChange={(n) => set('bonus_after_days', Math.round(n))} hint="different days they played" />
+        <NumberField label="Share adds up to" value={Number(pk.max_share_pct ?? 40)} max={100} onChange={(n) => set('max_share_pct', n)} suffix="%" hint="at most, all tiers" />
+        <Field label="Unpicked tier pays" htmlFor="ref-default-pick">
+          <select id="ref-default-pick" className={inputCls} value={pk.default_pick ?? 'golden'} onChange={(e) => set('default_pick', e.target.value)}>
+            {options.map((o) => <option key={o.id} value={o.id}>{o.emoji} {o.name}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid gap-2" data-testid="ref-tiers-admin">
+        <div className="text-xs font-bold text-muted">Tiers — real friends needed (rising)</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {tiers.map((t, i) => (
+            <div key={i} className="grid gap-1.5 rounded-xl border border-line p-2">
+              <input className={cn(inputCls, 'h-8 text-xs font-bold')} value={t.name ?? ''} onChange={(e) => setAt('tiers', i, { ...t, name: e.target.value.slice(0, 40) })} aria-label={`Tier ${i + 1} name`} />
+              <NumberField label="Real friends" value={Number(t.n ?? 1)} max={100000} onChange={(n) => setAt('tiers', i, { ...t, n: Math.max(1, Math.round(n)) })} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-2">
+        <div className="text-xs font-bold text-muted">Options for {tiers.slice(0, -1).map((t) => t.name).join(', ')} — one bundle per tier</div>
+        {options.map((o, i) => (
+          <div key={o.id} className="grid gap-2 rounded-xl border border-line p-2.5" data-testid={`ref-opt-${o.id}`}>
+            <div className="flex items-center gap-2">
+              <input className={cn(inputCls, 'h-9 w-14 text-center text-lg')} value={o.emoji ?? ''} onChange={(e) => setAt('options', i, { ...o, emoji: e.target.value.slice(0, 4) })} aria-label="Emoji" />
+              <input className={cn(inputCls, 'h-9 min-w-0 flex-1 font-bold')} value={o.name ?? ''} onChange={(e) => setAt('options', i, { ...o, name: e.target.value.slice(0, 40) })} aria-label="Name" />
+              <input type="color" className="h-9 w-10 rounded-lg border border-line bg-transparent" value={o.color ?? '#FFC94D'} onChange={(e) => setAt('options', i, { ...o, color: e.target.value })} aria-label="Colour" />
+              <Button size="sm" variant="ghost" onClick={() => setOpen(open === o.id ? null : o.id)}>{open === o.id ? 'Hide' : 'Edit tiers'}</Button>
+            </div>
+            <input className={cn(inputCls, 'h-9 text-xs')} value={o.tagline ?? ''} onChange={(e) => setAt('options', i, { ...o, tagline: e.target.value.slice(0, 80) })} aria-label="Tagline" />
+            {open === o.id && (
+              <div className="grid gap-2 lg:grid-cols-3">
+                {(o.tiers ?? []).map((b: any, ti: number) => (
+                  <div key={ti} className="grid gap-1.5 rounded-lg bg-surface-2/60 p-2">
+                    <div className="text-[11px] font-bold">{tiers[ti]?.name ?? `Tier ${ti + 1}`}</div>
+                    <RefBundleFields id={`ref-${o.id}-${ti}`} b={b} onChange={(nb) => setAt('options', i, { ...o, tiers: o.tiers.map((x: any, j: number) => (j === ti ? nb : x)) })} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-2 rounded-xl border border-gold/40 p-2.5" data-testid="ref-grand-admin">
+        <div className="text-xs font-bold">👑 {tiers[tiers.length - 1]?.name ?? 'Grand Package'} — everything, on top of the other tiers</div>
+        <RefBundleFields id="ref-grand" b={pk.grand} onChange={(g) => set('grand', g)} />
+        <div className="mt-1 text-xs font-bold text-muted">Boosts — the player picks one, added to the Grand Package</div>
+        <div className="grid gap-2 lg:grid-cols-2">
+          {boosts.map((x, i) => (
+            <div key={x.id} className="grid gap-1.5 rounded-lg bg-surface-2/60 p-2" data-testid={`ref-boost-${x.id}`}>
+              <div className="flex items-center gap-2">
+                <input className={cn(inputCls, 'h-8 w-12 text-center')} value={x.emoji ?? ''} onChange={(e) => setAt('boosts', i, { ...x, emoji: e.target.value.slice(0, 4) })} aria-label="Emoji" />
+                <input className={cn(inputCls, 'h-8 min-w-0 flex-1 text-xs font-bold')} value={x.name ?? ''} onChange={(e) => setAt('boosts', i, { ...x, name: e.target.value.slice(0, 40) })} aria-label="Name" />
+              </div>
+              <RefBundleFields id={`ref-boost-${x.id}`} b={x.add} onChange={(add) => setAt('boosts', i, { ...x, add })} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SocialAdmin() {
   const cfg = useConfig();
   const save = useSaveConfig();
@@ -1262,14 +1376,7 @@ export function SocialAdmin() {
             <option value="first_win">wins their first minigame (recommended)</option>
           </select>
         </Field>
-        <div className="mt-3 grid gap-3 rounded-2xl border border-line p-3">
-          <Switch id="ref-share" checked={!!ref.share?.enabled} label={ref.share?.enabled ? 'Earnings share is stacked on top' : 'Earnings share is off'} onCheckedChange={(on) => setRef({ ...ref, share: { pct: 10, cap_ink: 1000, ...(ref.share ?? {}), enabled: on } })} />
-          <div className="grid grid-cols-2 gap-3">
-            <NumberField label="Share of their Ink earnings" value={Number(ref.share?.pct ?? 10)} max={100} onChange={(n) => setRef({ ...ref, share: { enabled: false, cap_ink: 1000, ...(ref.share ?? {}), pct: Math.max(0, Math.min(100, n)) } })} hint="% of every Ink they earn" />
-            <NumberField label="Up to (per invited player)" value={Number(ref.share?.cap_ink ?? 1000)} max={10000000} onChange={(n) => setRef({ ...ref, share: { enabled: false, pct: 10, ...(ref.share ?? {}), cap_ink: Math.max(0, Math.round(n)) } })} hint="Ink in total" />
-          </div>
-          <p className="text-[11px] text-faint">Paid on top of the invite reward, from Ink the invited player earns by playing (minigames, PvP, craft, wheel…). It never reduces their earnings.</p>
-        </div>
+        <RefPackagesEditor pk={ref.packages ?? {}} onChange={(packages) => setRef({ ...ref, packages })} />
       </Card>
       <ResetTimeCard rent={rent} onSave={(v) => save('rent', v, 'Daily reset time updated')} />
       <Card title="USD rent → Ink" actions={<Button size="sm" variant="primary" disabled={!convDirty} onClick={() => save('rent', { ...rent, convert: { enabled: !!conv.enabled, ink_per_usd: Math.max(1, Math.round(conv.ink_per_usd)) } }, 'Conversion updated')}>Save</Button>}>
