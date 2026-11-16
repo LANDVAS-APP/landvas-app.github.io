@@ -1,7 +1,8 @@
-// The Ouroboros, the Homunculus and the Storm Coil — and more Splice charges — in a real browser: buy and crack spare
-// charges in the Splice, coil a splice and catch the tail, close the circle and choose an Aberration, wake a Homunculus
-// and see it walking on the map (a friend greets it), crank a Storm Coil, call the storm, catch a bolt, watch it on the
-// map, and see the storm pass — on the website, then in the app's own premium skin (a simulated iOS shell).
+// The Pocket Sun, the Dowsing Rod and the Storm Coil — more Splice charges, the Traits you use, and the enchantment
+// badges — in a real browser: buy and crack spare charges in the Splice; light a Pocket Sun, rub it white-hot, see it on
+// the map and fire a Solar Flare; tune a Dowsing Rod on its dial and watch a roll get dowsed; crack a Golden Trait's egg;
+// open the Grimoire's Badges; crank a Storm Coil, call the storm, catch a bolt, watch it on the map, and see the storm
+// pass — on the website, then in the app's own premium skin (a simulated iOS shell).
 // Run: npm run build:artifact && node tests/e2e/serpent-flask-storm.mjs
 import { serve, launch } from './browser.mjs';
 import path from 'node:path';
@@ -15,6 +16,7 @@ const check = (n, ok, x = '') => { results.push(ok); console.log(`${ok ? 'PASS' 
 const GRID = 4194304;
 const cellAt = (lng, lat) => { const r = (lat * Math.PI) / 180; return [Math.floor(((lng + 180) / 360) * GRID), Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * GRID)]; };
 const PORTLAND = { lng: -122.68, lat: 45.52 };
+const cellCenter = (gx, gy) => { const lng = ((gx + 0.5) / GRID) * 360 - 180; const n = Math.PI - (2 * Math.PI * (gy + 0.5)) / GRID; return [lng, (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))]; };
 
 async function run(mode) {
   const app = mode === 'app';
@@ -46,6 +48,28 @@ async function run(mode) {
   const visible = (sel) => page.locator(sel).first().isVisible().catch(() => false);
   const waitFor = (sel, timeout = 20000) => page.waitForSelector(sel, { timeout }).then(() => true, () => false);
   const text = (sel) => page.locator(sel).first().textContent().catch(() => '');
+  /** on the map (picking a spot): zoom right in on a cell and tap it, then "use" it */
+  const tapCell = async (gx, gy) => {
+    await page.waitForFunction(() => !!window.__landvasMap, null, { timeout: 30000 });
+    const [lng, lat] = cellCenter(gx, gy);
+    for (let i = 0; i < 3; i++) {
+      await page.waitForTimeout(1200);
+      await page.evaluate(([lng, lat]) => { const m = window.__landvasMap; m.stop(); m.jumpTo({ center: [lng, lat], zoom: 20.5 }); }, [lng, lat]);
+      await page.waitForTimeout(900);
+      const pt = await page.evaluate(([lng, lat]) => { const m = window.__landvasMap; const p = m.project([lng, lat]); const r = m.getCanvas().getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; }, [lng, lat]);
+      await page.mouse.click(pt.x, pt.y);
+      if (await waitFor('[data-testid=pick-use]', 5000)) {
+        await page.waitForTimeout(500);
+        for (let k = 0; k < 3; k++) {
+          await page.click('[data-testid=pick-use]', { force: true }).catch(() => {});
+          if (await page.waitForSelector('[data-testid=pick-card]', { state: 'detached', timeout: 3000 }).then(() => true, () => false)) break;
+        }
+        await page.waitForTimeout(1200);
+        return true;
+      }
+    }
+    return false;
+  };
   try {
     await page.goto(`http://localhost:${PORT}/?e2e=1`, { waitUntil: 'load' });
     await page.waitForSelector('[data-testid=title-play], #email', { timeout: 90000 });
@@ -69,10 +93,11 @@ async function run(mode) {
     await sql(`update players set created_at = now() - interval '3 days', last_active_at = now() where id = '${pia}'`);
     await sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at) select ${bx} + 20 + k * 3, ${by} + 6, '${pia}', ${pt}, 'rare', now() - interval '2 days' from generate_series(0, 3) k on conflict (gx, gy) do nothing`);
     await sql(`update game_config set value = value || '{"splice": {"aberration": 0, "unstable": 0}}' where key = 'enchantments'`);
+    await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
     const give = async (kind, dx, dy) => (await api('admin.giveEnchantment', me, kind, 'e2e: serpent flask storm', { gx: bx + dx, gy: by + dy })).id;
     const ids = {};
-    for (const [i, k] of ['splice', 'goose', 'genie', 'clockwork', 'shard', 'map', 'ouroboros', 'homunculus', 'stormcoil'].entries()) ids[k] = await give(k, 1 + (i % 4) * 3, 1 + Math.floor(i / 4) * 3);
-    ok('the owner gives one of each new kind', ['ouroboros', 'homunculus', 'stormcoil'].every((k) => !!ids[k]));
+    for (const [i, k] of ['splice', 'goose', 'genie', 'clockwork', 'shard', 'map', 'sun', 'rod', 'stormcoil'].entries()) ids[k] = await give(k, 1 + (i % 4) * 3, 1 + Math.floor(i / 4) * 3);
+    ok('the owner gives one of each new kind', ['sun', 'rod', 'stormcoil'].every((k) => !!ids[k]));
     const recharge = () => sql(`update enchantments set state = state || jsonb_build_object('charges', 2, 'charge_at', extract(epoch from now())) where id = '${ids.splice}'`);
 
     // ---- 🧪 the Splice: more charges ----
@@ -89,60 +114,75 @@ async function run(mode) {
     ok('…crack an egg for another', /\+ 2 spare/.test(await text('[data-testid=splice-charges]')), await text('[data-testid=splice-charges]'));
     await shot('02-splice-spares');
 
-    // ---- 🐍 Ouroboros ----
-    await recharge();
-    await api('enchantAct', ids.splice, 'splice', { mode: 'swap', a: ids.goose, b: ids.genie });
-    await nav(`/grimoire/${ids.ouroboros}`);
-    ok('Ouroboros: the scene renders', await waitFor('[data-testid=ouro-scene]'));
-    ok('…with the splice to coil', await waitFor('[data-testid=ouro-coil]'));
-    await page.waitForTimeout(600); await shot('03-ouro-coilable');
-    await page.click('[data-testid=ouro-coil]'); await page.waitForTimeout(1500);
-    ok('…coiled: the bank and the seven-loop ladder', await waitFor('[data-testid=ouro-bank]') && await visible('[data-testid=ouro-ladder]'));
-    await page.click('[data-testid=ouro-chase]');
-    if (process.env.E2E_DEBUG) console.log('timeline', await page.evaluate(() => new Promise((res) => { const out = []; const t0 = performance.now();
-      const iv = setInterval(() => { const b = document.querySelector('[data-testid=ouro-catch]'); const g = document.querySelector('[data-testid=ouro-scene] g[style]');
-        out.push(`${Math.round(performance.now() - t0)}:${b ? 'C' : '-'}:${g?.style.transform ?? ''}`); if (performance.now() - t0 > 2500) { clearInterval(iv); res(out.join(' ')); } }, 150); })));
-    ok('…catch the tail: the head goes round', await waitFor('[data-testid=ouro-catch]', 5000));
-    await page.waitForTimeout(1350);
-    await page.locator('[data-testid=ouro-catch]').dispatchEvent('click').catch(() => {});
-    const toasts = () => page.evaluate(() => [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent).join(' | '));
-    ok('…and the catch is graded', await waitFor('[data-testid=ouro-grade]', 6000), `${await text('[data-testid=ouro-grade]')} ${await toasts()} ${JSON.stringify(await page.evaluate(() => window.__actLog ?? []))}`);
-    await page.waitForTimeout(500); await shot('05-ouro-graded');
-    // seven loops later (as if the days had passed)
-    const coil = (await sql(`select state -> 'coil' c from enchantments where id = '${ids.ouroboros}'`))[0].c;
-    await sql(`update game_config set value = value || '{"ouroboros": {"risk": [0, 0, 0, 0, 0, 0, 0]}}' where key = 'enchantments'`);
-    for (let i = 0; i < 7; i++) {
-      await sql(`update enchantments set state = jsonb_set(jsonb_set(state, '{coil,next_at}', to_jsonb(extract(epoch from now()) - 1)), '{coil,until}', to_jsonb(extract(epoch from now()) - 1)) where id = '${ids.ouroboros}'`);
-      await sql(`update enchant_splices set ends_at = now() - interval '1 second' where id in (${coil.rows.join(',')})`);
-      await sql(`select private.ouro_settle('${ids.ouroboros}')`);
+    // ---- ☀️ Pocket Sun ----
+    await nav(`/grimoire/${ids.sun}`);
+    ok('Pocket Sun: the orb renders, ready to light', await waitFor('[data-testid=sun-scene]') && /Ready to light/.test(await text('[data-testid=sun-status]')));
+    await page.waitForTimeout(700); await shot('03-sun-ready');
+    await page.click('[data-testid=sun-throw]');
+    ok('…throw it: the map opens with its reach', await waitFor('[data-testid=pick-card]', 20000));
+    const tapped = await tapCell(bx + 2, by + 2);
+    ok('…tap a spot by your plots and come back', await waitFor('[data-testid=sun-scene]', 15000), tapped ? '' : '(the pick sheet was slow)');
+    ok('…it lights: a Warm zone, burning', await waitFor('[data-testid=sun-heat]', 20000) && /Burning/.test(await text('[data-testid=sun-status]')), await text('[data-testid=sun-status]'));
+    await page.waitForTimeout(1200); await shot('04-sun-lit');
+    // rub the orb (a drag back and forth)
+    await page.locator('[data-testid=sun-orb]').scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+    const ob = await page.locator('[data-testid=sun-orb]').boundingBox();
+    await sql(`update game_config set value = value || '{"sun": {"snuff_pct": 0}}' where key = 'enchantments'`);
+    for (let round = 0; round < 3; round++) {
+      await page.mouse.move(ob.x + ob.width * 0.25, ob.y + ob.height / 2); await page.mouse.down();
+      for (let i = 0; i < 24; i++) { await page.mouse.move(ob.x + ob.width * (i % 2 ? 0.8 : 0.2), ob.y + ob.height * (0.4 + (i % 3) * 0.1), { steps: 3 }); }
+      await page.mouse.up(); await page.waitForTimeout(1200);
     }
-    await refresh();
-    ok('…seven loops held: the circle is closed — choose the Aberration', await waitFor('[data-testid=ouro-choose]', 12000));
-    await page.waitForTimeout(800); await shot('06-ouro-closed');
-    await page.locator('[data-testid=ouro-ab]').nth(5).click(); await page.waitForTimeout(200);
-    await page.click('[data-testid=ouro-choose-go]'); await page.waitForTimeout(1800);
-    const made = (await sql(`select data ->> 'aberration' a from enchant_splices where id = ${coil.rows[0]}`))[0].a;
-    ok('…the hybrid became the Aberration you chose', made === 'Ninefold', made);
-    ok('…and the bank paid out', await waitFor('[data-testid=ench-payout]', 5000));
-    await shot('07-ouro-chosen');
+    const heat = (await sql(`select (state -> 'zones' -> 0 ->> 'heat')::numeric h from enchantments where id = '${ids.sun}'`))[0]?.h;
+    ok('…rub it: it stokes hotter', Number(heat) >= 70, `heat ${heat}`);
+    await shot('05-sun-stoked');
+    // the Solar Flare: aim, then tap as the ring closes (1.6 s, the server keeps time)
+    await page.click('[data-testid=sun-aim]');
+    ok('…aim the flare: a ring closes in', await waitFor('[data-testid=sun-flare-tap]', 5000));
+    await page.waitForTimeout(1450);
+    await page.locator('[data-testid=sun-flare-tap]').dispatchEvent('click').catch(() => {});
+    ok('…tap as it meets the corona: graded', await waitFor('[data-testid=sun-grade]', 6000), await text('[data-testid=sun-grade]'));
+    await page.waitForTimeout(400); await shot('06-sun-flare');
+    await page.waitForTimeout(2600);
+    await page.click('[data-testid=sun-map]');
+    ok('…“See it on the map”: your sun burns over the zone', await waitFor('[data-testid=map-sun]', 30000));
+    await page.waitForTimeout(2500); await shot('07-sun-map');
 
-    // ---- 🧫 Homunculus ----
-    await sql(`update enchantments set state = state || '{"parts": [{"k": "goose", "lv": 2, "glow": false}, {"k": "genie", "lv": 1, "glow": false}, {"k": "clockwork", "lv": 1, "glow": true}, {"k": "shard", "lv": 1, "glow": true}, {"k": "parasite", "lv": 1}, {"k": "oracle", "lv": 1}]}'::jsonb where id = '${ids.homunculus}'`);
-    await nav(`/grimoire/${ids.homunculus}`);
-    ok('Homunculus: the flask renders, with the creature built from its parts', await waitFor('[data-testid=homu-scene] .lv-homu-figure svg'));
-    ok('…its parts are listed (glowing ones too)', (await page.locator('[data-testid=homu-part]').count()) === 6);
-    await page.waitForTimeout(700); await shot('08-homu-flask');
-    await page.locator('[data-testid=homu-wake]').scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
-    const wb = await page.locator('[data-testid=homu-wake]').boundingBox();
-    await page.mouse.move(wb.x + wb.width / 2, wb.y + wb.height / 2); await page.mouse.down(); await page.waitForTimeout(2400); await page.mouse.up();
-    ok('…hold to wake: it walks out of the flask', await waitFor('[data-testid=homu-boost]', 10000), await text('[data-testid=homu-boost]'));
-    await page.waitForTimeout(900); await shot('09-homu-awake');
-    // Pia greets it
-    const g = await as(pia, 'homunculus_greet', { p_id: ids.homunculus });
-    ok('a friend greets it (+3 them, +5 you)', g?.greeted === true && g.you === 3 && g.them === 5);
-    await page.click('[data-testid=homu-map]');
-    ok('…“Show it on the map”: it’s walking there', await waitFor('[data-testid=map-homunculus]', 30000));
-    await page.waitForTimeout(2500); await shot('10-homu-map');
+    // ---- 🪄 Dowsing Rod ----
+    await nav(`/grimoire/${ids.rod}`);
+    ok('Dowsing Rod: the rod and the dial render', await waitFor('[data-testid=rod-scene]') && await waitFor('[data-testid=rod-dial]'));
+    await page.locator('[data-testid=rod-pick][data-id=legendary]').click(); await page.waitForTimeout(200);
+    await page.click('[data-testid=rod-tune]'); await page.waitForTimeout(1500);
+    ok('…tune it to Legendary: the odds and the depth show', await waitFor('[data-testid=rod-depth]') && /Legendary/.test(await text('[data-testid=rod-target]')), await text('[data-testid=rod-target]'));
+    await shot('08-rod-tuned');
+    // one roll short of full depth, then a claim
+    const need = (await sql(`select private.rod_need(e, 'rarity', 'legendary') n from enchantments e where id = '${ids.rod}'`))[0].n;
+    await sql(`update enchantments set state = jsonb_set(state, '{targets,0,depth}', to_jsonb(${need - 1})) where id = '${ids.rod}'`);
+    const claimed = await as(me, 'acquire_plot', { p_gx: bx + 40, p_gy: by + 40, p_idempotency_key: `e2e-rod-${mode}-0000001` });
+    ok('…at full depth the roll IS the target', claimed?.rarity === 'legendary' && claimed?.dowsed?.[0]?.result === 'forced', `${claimed?.rarity} ${JSON.stringify(claimed?.dowsed)}`);
+    await refresh(); await nav(`/grimoire/${ids.rod}`);
+    ok('…and the rod says so', /Dowsed: Legendary/.test(await text('[data-testid=rod-last]')), await text('[data-testid=rod-last]'));
+    await shot('09-rod-dowsed');
+
+    // ---- 🪿 a Golden Trait: crack its egg ----
+    await recharge();
+    await api('enchantAct', ids.splice, 'splice', { mode: 'graft', a: ids.genie, b: ids.goose });
+    await nav(`/grimoire/${ids.genie}?s=traits`);
+    ok('Golden on a Genie: the golden egg sits on its page', await waitFor('[data-testid=ench-golden-egg]'));
+    const w0 = (await sql(`select (private.genie_eval(e, now())) ->> 'wishes' w from enchantments e where id = '${ids.genie}'`))[0].w;
+    // (the egg bobs: no waiting for it to hold still)
+    await page.locator('[data-testid=ench-golden-egg]').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.locator('[data-testid=ench-golden-egg]').dispatchEvent('click'); await page.waitForTimeout(1800);
+    const w1 = (await sql(`select (private.genie_eval(e, now())) ->> 'wishes' w from enchantments e where id = '${ids.genie}'`))[0].w;
+    ok('…crack it: a free wish', Number(w1) === Number(w0) + 1 && /a wish/.test(await text('[data-testid=ench-golden]')), `${w0} → ${w1}`);
+    await shot('10-golden-egg');
+    await api('enchantAct', ids.genie, 'separate', {}).catch(() => null);
+
+    // ---- 🏅 the Grimoire's Badges ----
+    await nav('/grimoire?tab=badges');
+    ok('the Grimoire’s Badges: every enchantment badge, grouped', await waitFor('[data-testid=grimoire-badges]') && (await page.locator('[data-testid=grimoire-badge]').count()) >= 100);
+    ok('…some are already yours', (await page.locator('[data-testid=grimoire-badge][data-got]').count()) >= 2);
+    await shot('11-badges');
 
     // ---- ⚡ Storm Coil ----
     await recharge();
@@ -182,7 +222,7 @@ async function run(mode) {
     ok('…“Watch it on the map”: the storm is over your plots', stormOk, stormOk ? '' : JSON.stringify(await page.evaluate(async (g) => {
       const z = window.__landvasUi.getState().view.zoom, b = window.__landvasUi.getState().bbox;
       const m = await window.__landvasApi.enchantMap2({ min_gx: b.min_gx, min_gy: b.min_gy, max_gx: b.max_gx, max_gy: b.max_gy });
-      return { z, b, storms: m.storms.length, walkers: m.walkers.length, coil: g, n: document.querySelectorAll('[data-testid=map-storm]').length };
+      return { z, b, storms: m.storms.length, suns: m.suns.length, coil: g, n: document.querySelectorAll('[data-testid=map-storm]').length };
     }, [bx, by])));
     await page.waitForTimeout(2500); await shot('14-storm-map');
     // the storm passes
@@ -195,7 +235,7 @@ async function run(mode) {
     await nav('/grimoire?tab=bestiary');
     await page.waitForTimeout(1200);
     const bestiary = await page.evaluate(() => document.querySelector('[data-testid=grimoire-bestiary]')?.textContent ?? '');
-    ok('the bestiary lists the three new kinds', /Ouroboros/.test(bestiary) && /Homunculus/.test(bestiary) && /Storm Coil/.test(bestiary));
+    ok('the bestiary lists the two new kinds (and no Ouroboros or Homunculus)', /Pocket Sun/.test(bestiary) && /Dowsing Rod/.test(bestiary) && /Storm Coil/.test(bestiary) && !/Ouroboros|Homunculus/.test(bestiary));
     await shot('16-bestiary');
     const wide = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
     ok('nothing wider than the screen', wide <= 0, `${wide}px`);

@@ -44,7 +44,7 @@ export function useQuickRoll() {
     setState({ open: true, result: null, opts, luck: luckBefore, n });
     try {
       const r = await api.quickBuyPlot({ ticket: opts.ticket, hot: opts.hot });
-      setState({ open: true, opts, luck: luckBefore, n, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null } });
+      setState({ open: true, opts, luck: luckBefore, n, at: { gx: r.gx, gy: r.gy }, result: { rarity: r.rarity as RarityId, usd: Number(r.usd_per_second), type: r.plot_type, first: r.starter, shiny: !!r.shiny, hot: !!r.hot_zone, lucky: !!r.lucky, choices: r.choices ?? null, choiceTypes: r.choice_types ?? null, choiceShiny: r.choice_shiny ?? null, guaranteed: opts.ticketRarity ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null } });
       // (refresh the game once the roll has landed — refetching underneath it mid-spin costs frames)
       settle.current = () => { celebrate(r.achievements); refresh(); };
     } catch (e) {

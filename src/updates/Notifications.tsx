@@ -197,9 +197,9 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'prophecy_sealed': return <>sealed a 🔏 prophecy about your next plot roll… roll to see if the Eye was right</>;
       case 'prophecy_true': return <>’s next roll came out just as your 👁️ Oracle foretold <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'prophecy_true_you': return <>’s sealed 👁️ prophecy came true on your roll <span className="text-ok">· +{d.ink} Ink</span></>;
-      case 'coil_bitten': return <>🐍 Your Ouroboros <b>bit through its tail</b> on loop {d.loop} — {d.hybrid} snapped{Number(d.lost) ? ` and ${d.lost} banked Ink was lost` : ''}</>;
-      case 'coil_closed': return <>⭕ <b>The circle closed!</b> Your Ouroboros held for seven loops — choose the Aberration {d.hybrid} becomes</>;
-      case 'homu_greet': return <>waved hello to your 🧫 Homunculus <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'became': return <>{d.from === 'ouroboros' ? <>🐍 Your Ouroboros straightened into a <b>🪄 Dowsing Rod</b></> : <>🧫 Your Homunculus’s heart lit up into a <b>☀️ Pocket Sun</b></>} — it kept its level, stars and name</>;
+      case 'sun_party_claim': return <>claimed a plot in your shared ☀️ Pocket Sun <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'spore_landed': return <>🦠 sent a <b>spore</b> onto your plot — your wins there pay you +10% for a day (and feed them a little)</>;
       case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;
       default: return <>did something with an enchantment</>;
     }

@@ -1,0 +1,81 @@
+/* ☀️ the Pocket Sun and 🪄 the Dowsing Rod (part 9). Endless loops move only transform and opacity (phones). */
+
+/* ---- the Pocket Sun ---- */
+.lv-sun-stage { background: #120604; }
+.lv-sun-sky { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--glow, #FFB703) 32%, transparent), transparent 62%), linear-gradient(180deg, #2B0F2E 0%, #5B1A1F 46%, #2A0B05 100%); }
+.lv-sun-stage.tier-off .lv-sun-sky { background: linear-gradient(180deg, #120A24 0%, #241233 55%, #0E0606 100%); }
+.lv-sun-mote { position: absolute; width: 3px; height: 3px; border-radius: 999px; background: #FFE08A; opacity: 0; animation: lv-sun-mote-rise 5.5s ease-in infinite; }
+@keyframes lv-sun-mote-rise { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 25% { opacity: 0.8; } 100% { transform: translateY(-120px) scale(1.2); opacity: 0; } }
+.lv-sun-stand { position: absolute; left: 50%; bottom: 14%; width: 26%; height: 18%; transform: translateX(-50%); border-radius: 50% 50% 10px 10px / 30% 30% 10px 10px;
+  background: linear-gradient(180deg, #E8B45C, #8A5A1C 60%, #3B2408); box-shadow: inset 0 3px 0 rgba(255, 240, 200, 0.5), 0 10px 22px rgba(0, 0, 0, 0.6); }
+.lv-sun-orb { position: relative; width: 100%; height: 100%; }
+.lv-sun-halo { position: absolute; inset: -38%; border-radius: 999px; background: radial-gradient(circle, color-mix(in srgb, var(--glow) 75%, transparent) 0%, transparent 62%); transition: opacity 0.4s, transform 0.25s; }
+.lv-sun-rays { position: absolute; inset: -22%; animation: lv-sun-spin 18s linear infinite; }
+.lv-sun-rays.b { animation-duration: 27s; animation-direction: reverse; }
+.lv-sun-rays i { position: absolute; left: 50%; top: 50%; width: 8%; height: 50%; margin-left: -4%; transform-origin: 50% 0%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--glow) 90%, transparent), transparent 80%); clip-path: polygon(50% 100%, 0 0, 100% 0); }
+@keyframes lv-sun-spin { to { transform: rotate(360deg); } }
+.lv-sun-core { position: absolute; inset: 14%; border-radius: 999px; overflow: hidden; transition: transform 0.25s;
+  background: radial-gradient(circle at 42% 38%, #fff 0%, var(--core) 28%, var(--glow) 62%, var(--rim) 100%); box-shadow: 0 0 40px var(--glow), 0 0 90px color-mix(in srgb, var(--glow) 60%, transparent); }
+.lv-sun-gran { position: absolute; inset: -20%; background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.35) 0 6%, transparent 7%), radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.25) 0 5%, transparent 6%),
+  radial-gradient(circle at 45% 75%, rgba(255, 220, 160, 0.3) 0 7%, transparent 8%), radial-gradient(circle at 65% 25%, rgba(255, 255, 255, 0.2) 0 4%, transparent 5%); animation: lv-sun-churn 9s linear infinite; }
+@keyframes lv-sun-churn { to { transform: rotate(-360deg); } }
+.lv-sun-glass { position: absolute; inset: 4%; border-radius: 999px; border: 2px solid rgba(255, 255, 255, 0.35); background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28), transparent 40%); }
+.lv-sun-glint { position: absolute; left: 22%; top: 16%; width: 22%; height: 12%; border-radius: 999px; background: rgba(255, 255, 255, 0.55); transform: rotate(-28deg); filter: blur(1px); }
+.lv-sun-shake { animation: lv-sun-tremble 0.28s ease-in-out infinite; }
+@keyframes lv-sun-tremble { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-1.5px, 1px); } 75% { transform: translate(1.5px, -1px); } }
+.lv-sun-tail { position: absolute; left: 50%; top: 55%; width: 26%; height: 210%; transform: translateX(-50%); border-radius: 0 0 999px 999px;
+  background: linear-gradient(180deg, rgba(255, 224, 138, 0.9), rgba(255, 94, 58, 0.4) 45%, transparent); filter: blur(4px); }
+.lv-sun-ring { position: absolute; left: 50%; top: 44%; width: 42%; aspect-ratio: 1; border-radius: 999px; border: 4px solid; box-shadow: 0 0 22px currentColor; }
+.lv-sun-ring.target { transform: translate(-50%, -50%) scale(0.62); border: 2px dashed rgba(255, 255, 255, 0.55); box-shadow: none; }
+.lv-sun-bloom { position: absolute; left: 50%; top: 44%; width: 30%; aspect-ratio: 1; margin: -15% 0 0 -15%; border-radius: 999px; border: 3px solid #FFE08A; box-shadow: 0 0 30px #FFB703; }
+.lv-sun-grade { font-family: var(--font-display, inherit); font-size: 40px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 24px #FFB703, 0 3px 0 #7A2A00; }
+.lv-sun-heatbar { position: relative; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+.lv-sun-heatbar span { position: absolute; inset: 0; transform-origin: left; background: linear-gradient(90deg, #FFB703, #FF5E3A 55%, #FFFFFF 92%); transition: transform 0.3s; }
+.lv-sun-heatbar i { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(0, 0, 0, 0.45); }
+.lv-sun-mode { display: grid; gap: 2px; text-align: left; border-radius: 16px; padding: 10px 12px; background: rgba(255, 255, 255, 0.05); border: 1.5px solid rgba(255, 255, 255, 0.1); }
+.lv-sun-mode b { font-size: 13px; color: #fff; }
+.lv-sun-mode span { font-size: 11px; color: rgba(255, 255, 255, 0.6); line-height: 1.25; }
+.lv-sun-mode.on { border-color: #FFB703; background: rgba(255, 183, 3, 0.14); }
+
+/* the sun on the map */
+.lv-sun-mk { position: relative; display: grid; place-items: center; pointer-events: none; }
+.lv-sun-mk .disc { width: 34px; height: 34px; border-radius: 999px; background: radial-gradient(circle at 40% 35%, #fff, #FFE08A 30%, #FFB703 62%, #FF5E3A); box-shadow: 0 0 22px #FFB703, 0 0 46px rgba(255, 94, 58, 0.6); }
+.lv-sun-mk.white .disc { background: radial-gradient(circle at 40% 35%, #fff, #EAF6FF 40%, #BDE6FF 70%, #7FB8FF); box-shadow: 0 0 26px #BDE6FF, 0 0 56px rgba(127, 184, 255, 0.7); }
+.lv-sun-mk .corona { position: absolute; width: 64px; height: 64px; border-radius: 999px; background: conic-gradient(from 0deg, rgba(255, 183, 3, 0.55), transparent 12%, rgba(255, 183, 3, 0.45) 25%, transparent 37%, rgba(255, 183, 3, 0.55) 50%, transparent 62%, rgba(255, 183, 3, 0.45) 75%, transparent 87%);
+  animation: lv-sun-spin 14s linear infinite; }
+.lv-sun-mk .tag { position: absolute; top: 40px; white-space: nowrap; padding: 1px 8px; border-radius: 999px; font: 900 10px/1.4 system-ui; color: #2B1200; background: linear-gradient(90deg, #FFE08A, #FFB703); }
+.lv-sun-mk.flare .disc { animation: lv-sun-flare-pulse 0.9s ease-in-out infinite; }
+@keyframes lv-sun-flare-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+.lv-sun-spot { width: 14px; height: 14px; border-radius: 999px; background: radial-gradient(circle, #FFF6C8, #FFB703 60%, transparent 70%); animation: lv-sun-spot-blink 1.8s ease-in-out infinite; pointer-events: none; }
+@keyframes lv-sun-spot-blink { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.15); } }
+
+/* ---- the Dowsing Rod ---- */
+.lv-rod-stage { background: #081613; }
+.lv-rod-sky { position: absolute; inset: 0 0 52% 0; background: linear-gradient(180deg, #0F2B3A, #1E4B4A 70%, #2C5A3A); }
+.lv-rod-earth { position: absolute; inset: 48% 0 0 0; overflow: hidden; }
+.lv-rod-earth > i { position: absolute; left: -5%; right: -5%; border-radius: 40% 60% 0 0 / 8px 12px 0 0; }
+.lv-rod-earth .s1 { top: 0; height: 100%; background: #3B2A17; }
+.lv-rod-earth .s2 { top: 22%; height: 100%; background: #2E2013; }
+.lv-rod-earth .s3 { top: 46%; height: 100%; background: #24190F; }
+.lv-rod-earth .s4 { top: 70%; height: 100%; background: #190F09; }
+.lv-rod-vein { position: absolute; left: 8%; right: 8%; bottom: 8%; height: 14%; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--vein), transparent); filter: blur(1px); transition: opacity 0.6s; }
+.lv-rod-veinglow { position: absolute; inset: -60% 20%; border-radius: 999px; background: radial-gradient(circle, color-mix(in srgb, var(--vein) 70%, transparent), transparent 70%); animation: lv-rod-throb 2.6s ease-in-out infinite; }
+@keyframes lv-rod-throb { 0%, 100% { opacity: 0.4; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+.lv-rod-well { position: absolute; left: 50%; top: 0; bottom: 10%; width: 9%; transform: translateX(-50%); border-radius: 0 0 10px 10px; overflow: hidden;
+  background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08); }
+.lv-rod-water { position: absolute; inset: 0; transform-origin: bottom; background: linear-gradient(180deg, color-mix(in srgb, var(--vein) 60%, #6FD3FF), #0E3B55); transition: transform 1s cubic-bezier(.2, .8, .2, 1); }
+.lv-rod-drop { position: absolute; left: 50%; top: -2%; width: 6px; height: 9px; margin-left: -3px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: var(--vein); opacity: 0;
+  animation: lv-rod-drip 2.8s ease-in infinite; }
+@keyframes lv-rod-drip { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 0.9; } 100% { transform: translateY(120px); opacity: 0; } }
+.lv-rod-bead { animation: lv-rod-bead-wob 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes lv-rod-bead-wob { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+.lv-rod-bar { position: relative; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.1); }
+.lv-rod-bar span { position: absolute; inset: 0; transform-origin: left; transition: transform 0.6s; }
+.lv-rod-pick { display: flex; align-items: center; gap: 8px; border-radius: 14px; padding: 7px 9px; background: rgba(255, 255, 255, 0.05); border: 1.5px solid transparent; color: #fff; }
+.lv-rod-pick.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 20%, transparent); }
+.lv-rod-pick.tuned { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 70%, transparent); }
+.lv-rod-pick:disabled { opacity: 0.4; }
+
+html.reduce-motion .lv-sun-rays, html.reduce-motion .lv-sun-gran, html.reduce-motion .lv-sun-mote, html.reduce-motion .lv-sun-shake, html.reduce-motion .lv-rod-drop,
+html.reduce-motion .lv-rod-veinglow, html.reduce-motion .lv-rod-bead, html.reduce-motion .lv-sun-mk .corona, html.reduce-motion .lv-sun-spot { animation: none !important; }

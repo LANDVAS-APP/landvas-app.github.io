@@ -242,45 +242,20 @@ describe('⭐ the powers', () => {
     expect((await row(sp)).state.bonus).toBe(3);
   });
 
-  it('🐍 Ouroboros: loops 25% less likely to bite at ★1', async () => {
-    const o = await enchant(ann, 'ouroboros'); await setStars(o, 1);
-    const v = (await get(ann, o)).view;
-    expect(v.risks[1]).toBeCloseTo(0.075, 3);
+  it('☀️ Pocket Sun: ★1 a wider zone, ★2 a longer day; 🪄 Dowsing Rod: ★1 full depth sooner', async () => {
+    const sun = await enchant(ann, 'sun');
+    const v0 = (await get(ann, sun)).view;
+    await setStars(sun, 2);
+    const v2 = (await get(ann, sun)).view;
+    expect(v2.r0).toBe(Math.round(v0.r0 * 1.5));
+    expect(v2.fuel_h).toBe(v0.fuel_h * 2);
+    const rod = await enchant(ann, 'rod');
+    const t0 = (await act(ann, rod, 'tune', { t: 'rarity', id: 'epic' })).result.tuned.need;
+    await setStars(rod, 1);
+    expect((await get(ann, rod)).view.targets[0].need).toBeLessThan(t0);
   });
 
-  it('🐍 Ouroboros ★3: loops bank double; ★2: a bite pays half the bank', async () => {
-    const cfg = (patch: Record<string, unknown>) => db.sql(`update game_config set value = value || $1::jsonb where key = 'enchantments'`, [JSON.stringify(patch)]);
-    const ouro = await enchant(ann, 'ouroboros'); await setStars(ouro, 3);
-    const sp = await enchant(ann, 'splice'); const g = await enchant(ann, 'goose'); const w = await enchant(ann, 'genie');
-    await db.sql(`update enchantments set state = state || jsonb_build_object('charges', 2, 'charge_at', extract(epoch from now())) where id = $1`, [sp]);
-    await act(ann, sp, 'splice', { mode: 'swap', a: g, b: w });
-    await cfg({ splice: { aberration: 0, unstable: 0 }, ouroboros: { risk: [0, 0, 0, 0, 0, 0, 0] } });
-    const row = (await get(ann, ouro)).view.coilable[0];
-    await act(ann, ouro, 'coil', { row: row.row });
-    const loopNow = async () => {
-      const c = (await st(ouro)).coil;
-      const at = Date.now() / 1000 - 2;
-      await db.sql(`update enchantments set state = jsonb_set(jsonb_set(state, '{coil,next_at}', to_jsonb($2::numeric)), '{coil,until}', to_jsonb($2::numeric)) where id = $1`, [ouro, at]);
-      await db.sql(`update enchant_splices set ends_at = to_timestamp($2) where id = any($1::bigint[])`, [c.rows, at]);
-      await db.sql(`select private.ouro_settle($1)`, [ouro]);
-    };
-    await loopNow();
-    expect((await st(ouro)).coil.bank).toBe(120); // 60 for loop 1, doubled
-    // (★1 Thick Scales takes a quarter off the risk: past 1 it still bites every time)
-    await cfg({ splice: { aberration: 0, unstable: 0 }, ouroboros: { risk: [2, 2, 2, 2, 2, 2, 2] } });
-    const ev0 = (await db.sql(`select count(*)::int n from enchant_events where enchant_id = $1 and kind = 'paid' and data ->> 'what' like 'shed skin%'`, [ouro]))[0].n;
-    await loopNow();
-    expect((await st(ouro)).last).toMatchObject({ end: 'bitten' });
-    const paid = await db.sql(`select data from enchant_events where enchant_id = $1 and kind = 'paid' and data ->> 'what' like 'shed skin%'`, [ouro]);
-    expect(paid.length).toBe(ev0 + 1);
-    await cfg({ ouroboros: { risk: [0, 0.1, 0.2, 0.35, 0.5, 0.6, 0.7] } });
-  });
-
-  it('🧫 Homunculus wakes with a part fewer at ★1; ⚡ Storm Coil storms twice a day at ★1', async () => {
-    const h = await enchant(ann, 'homunculus');
-    const n0 = (await get(ann, h)).view.need;
-    await setStars(h, 1);
-    expect((await get(ann, h)).view.need).toBe(n0 - 1);
+  it('⚡ Storm Coil storms twice a day at ★1', async () => {
     const s = await enchant(ann, 'stormcoil');
     const p0 = (await get(ann, s)).view.per_day;
     await setStars(s, 1);

@@ -37,16 +37,16 @@ beforeAll(async () => {
 afterAll(() => db.close());
 
 describe('the twenty', () => {
-  it('twenty kinds, 171 hybrids, three powers and a Leviathan move each; the egg can hatch into any of the six', async () => {
+  it('twenty kinds, 171 hybrids, three powers and a Leviathan move each; the egg can hatch into any of the eight', async () => {
     const ks = (await db.sql(`select private.ench_kinds() k`))[0].k;
     expect(ks).toHaveLength(20);
-    expect(ks).toEqual(expect.arrayContaining(['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'ouroboros', 'homunculus']));
+    expect(ks).toEqual(expect.arrayContaining(['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod']));
     expect((await db.sql(`select private.ench_hybrid_count() n`))[0].n).toBe(171);
     const r = await db.sql(`select k, jsonb_array_length(private.ench_star_powers(k)) n, private.lev_move(k) m, private.ench_info(k) i from unnest(private.ench_kinds()) k`);
     for (const x of r) { expect(x.n).toBe(3); expect(x.m).toBeTruthy(); expect(x.i.name).toBeTruthy(); }
     expect((await db.sql(`select private.ench_hybrid('deck', 'oracle') h`))[0].h).toEqual(['Book of Fates', true]);
     expect((await db.sql(`select private.ench_hybrid('glyph', 'stormcoil') h`))[0].h).toEqual(['Thunder Script', true]);
-    expect((await db.sql(`select private.ench_hatchable() h`))[0].h).toEqual(['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph']);
+    expect((await db.sql(`select private.ench_hatchable() h`))[0].h).toEqual(['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod']);
   });
 });
 

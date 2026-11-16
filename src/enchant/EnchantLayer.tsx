@@ -87,7 +87,7 @@ function creature(p: EnchantMap['plots'][number]) {
     goose: '<i class="egg"></i>', genie: '<i class="puff"></i><i class="puff"></i><i class="puff"></i>', map: '<i class="x">✕</i>', parasite: '<i class="drip"></i>',
     cuckoo: '<i class="lvx-crack"></i>', pandora: '<i class="glow"></i>', splice: '<i class="bub"></i><i class="bub"></i><i class="bub"></i>', clockwork: '<i class="gear">⚙</i>',
     sizeray: '<i class="wave"></i><i class="wave"></i>', shard: '<i class="glint"></i>', wormhole: '<i class="swirl"></i>', oracle: '<i class="lid"></i>',
-    ouroboros: '<i class="ring"></i>', homunculus: '<i class="bub"></i><i class="bub"></i>', stormcoil: '<i class="zap">⚡</i>',
+    stormcoil: '<i class="zap">⚡</i>', sun: '<i class="lvx-ember"></i><i class="lvx-ember"></i>', rod: '<i class="drip"></i>',
     spyglass: '<i class="lvx-lens"></i>', origami: '<i class="lvx-fold"></i>', crucible: '<i class="lvx-ember"></i><i class="lvx-ember"></i><i class="lvx-ember"></i>',
     puppeteer: '<i class="lvx-string"></i><i class="lvx-string"></i>', deck: '<i class="lvx-card"></i>', glyph: '<i class="lvx-rune">ᚱ</i>',
   };

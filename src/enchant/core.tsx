@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { create } from 'zustand';
 import { api, type EnchantView } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import { invalidateGame, useOnboardedMe } from '../lib/queries';
+import { celebrate, invalidateGame, useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { buzz } from '../native/native';
 import { config } from '../env';
@@ -43,6 +43,8 @@ export function useAct(id: string) {
       void qc.invalidateQueries({ queryKey: ['enchant-map'] });
       void qc.invalidateQueries({ queryKey: ['enchant-map3'] });
       invalidateGame(qc);
+      // 🏅 enchantment badges come back with the action
+      if ((r as any).achievements?.length) celebrate((r as any).achievements);
       const pay = r.result?.pay;
       if (pay && pay.paid > 0 && !opts.silent) efx.pay(pay, r.reflect_kind ?? r.kind, opts.at);
       return r;

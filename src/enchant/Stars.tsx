@@ -43,8 +43,7 @@ export function StarAura({ stars, size, children }: { stars: number; size: numbe
 }
 
 const busyOf = (x: EnchantView) =>
-  !!x.partner || (x.partners ?? []).length > 0 || (x.kind === 'splice' && !!x.view?.active) || (x.kind === 'ouroboros' && !!x.view?.coil)
-  || (x.kind === 'homunculus' && !!x.view?.awake) || (x.kind === 'stormcoil' && !!x.view?.storm);
+  !!x.partner || (x.partners ?? []).length > 0 || (x.kind === 'splice' && !!x.view?.active) || (x.kind === 'stormcoil' && !!x.view?.storm);
 
 /** its stars, its three powers, and the way to earn the next one */
 export function StarsPanel({ v }: { v: EnchantView }) {

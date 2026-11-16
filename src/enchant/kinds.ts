@@ -4,7 +4,7 @@
 // Plain words everywhere: a splice "gene" is a Trait, a "resonant" pair is a Perfect Match, and every hybrid card says
 // what each side actually gets, with numbers.
 export type EnchantKind = 'goose' | 'genie' | 'map' | 'parasite' | 'cuckoo' | 'pandora' | 'splice' | 'clockwork' | 'sizeray' | 'shard' | 'wormhole' | 'oracle'
-  | 'ouroboros' | 'homunculus' | 'stormcoil' | 'spyglass' | 'origami' | 'crucible' | 'puppeteer' | 'deck' | 'glyph';
+  | 'stormcoil' | 'spyglass' | 'origami' | 'crucible' | 'puppeteer' | 'deck' | 'glyph' | 'sun' | 'rod';
 
 export type KindInfo = {
   id: EnchantKind; name: string; emoji: string; a: string; b: string; ink: string;
@@ -32,7 +32,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     gene: 'spread', geneName: 'Spreading', geneText: 'earns 15% more Ink and drops a gift of Ink on a random player' },
   cuckoo: { id: 'cuckoo', name: 'Cuckoo Egg', emoji: '🥚', a: '#4CC9F0', b: '#F72585', ink: '#06222C', noun: 'hatching',
     tagline: 'The Cuckoo flew away and left you an egg. You choose what hatches.',
-    how: ['Pick one of the six new enchantments: the Spyglass, the Origami Pocket, the Crucible, the Puppeteer, the Fated Deck or the Glyphcaster.', 'It keeps your Cuckoo’s level, XP, Stars, nickname and chronicle.'],
+    how: ['Pick what hatches: the Spyglass, the Origami Pocket, the Crucible, the Puppeteer, the Fated Deck, the Glyphcaster, the Pocket Sun or the Dowsing Rod.', 'It keeps your Cuckoo’s level, XP, Stars, nickname and chronicle.'],
     gene: null, geneName: null, geneText: null },
   pandora: { id: 'pandora', name: 'Pandora’s Box', emoji: '🏺', a: '#FF4D6D', b: '#2A0A3D', ink: '#1A0410', noun: 'opening the box',
     tagline: 'Lift the lid. Gifts — or one of seven evils.',
@@ -72,20 +72,6 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
       'Rewrite fate: swap two cards, or burn one for a new draw (it might come out worse).',
       'Every card that comes true pays the Eye 8 Ink. Seal a prophecy about a friend’s next roll: when it comes true, you both get Ink. At level 10 it sees 5 cards and you can rewrite twice.'],
     gene: 'foresight', geneName: 'Foresight', geneText: 'earns 20% more Ink and sees 35% of bad luck coming (and dodges it)' },
-  ouroboros: { id: 'ouroboros', name: 'Ouroboros', emoji: '🐍', a: '#3DDC97', b: '#0E7C5A', ink: '#03160F', noun: 'endless splices',
-    tagline: 'The splice that eats its own tail — and never has to end.',
-    how: ['Coil it around any splice you have running (not a Graft). When the splice would end, it loops instead — every 12 hours.',
-      'Every loop that holds banks Ink and makes the hybrid stronger: Traits ×2 from loop 2, ×3 from loop 4. But each loop is likelier to bite through (0 → 10 → 20 → 35 → 50 → 60 → 70%). A bite snaps the splice, loses the bank, and the serpent sheds its skin for a day.',
-      'Catch the tail before a loop: tap as its head meets its tail. A clean catch halves that loop’s risk. Break the circle any time to cash out.',
-      'Survive seven loops and the circle closes: you choose which secret Aberration the hybrid becomes. A coiled unstable Chimera is steadied.'],
-    gene: 'endless', geneName: 'Endless', geneText: 'earns 10% more Ink, and its splice renews itself once when it ends' },
-  homunculus: { id: 'homunculus', name: 'Homunculus', emoji: '🧫', a: '#FF9AC8', b: '#8A3FFC', ink: '#22061A', noun: 'walking your plots',
-    tagline: 'A creature grown in a flask — out of your splices.',
-    how: ['Every splice you make drips into its flask: it grows a body part from each enchantment in it — goose wings, a genie’s smoke tail, clockwork gears, a glass eye… A part it already has grows instead. An Aberration’s parts glow and count double.',
-      'At 5 it can wake (4 if it’s spliced with a Storm Coil). It walks out onto the map for 7 days, moving between your plots every 2 hours — everyone can see it, and anyone can greet it (a few Ink each). Lead it to a plot twice a day.',
-      'The plot it stands on wears its parts: its minigames pay more (up to +150%).',
-      'Then it melts into a Heart — Ink, Enchanted Luck and a Splice charge — and keeps one part, of your choice, for the next one.'],
-    gene: 'patchwork', geneName: 'Patchwork', geneText: 'borrows a surprise Trait from the Homunculus’s parts on every reward' },
   stormcoil: { id: 'stormcoil', name: 'Storm Coil', emoji: '⚡', a: '#7DF9FF', b: '#3D5AFE', ink: '#04102E', noun: 'lightning',
     tagline: 'Crank it up. Call down a storm on your hybrids.',
     how: ['Crank it full, then call a 3-minute thunderstorm over your plots — live, on the map too. Bolts gather and strike: tap them as they land.',
@@ -134,72 +120,87 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
       '24 glyphs, 4 of them secret. You start with three; the rest turn up as you cast and study — and in minigame wins, Leviathan loot, chests and rare plots.',
       'The Spellbook shows every glyph you’ve found: its shape, what it does, its cost, your best drawing and its mastery (10 casts and it costs less).'],
     gene: 'inscribed', geneName: 'Inscribed', geneText: 'gets a rune: trace it once a day and it casts that glyph’s spell for free' },
+  sun: { id: 'sun', name: 'Pocket Sun', emoji: '☀️', a: '#FFB703', b: '#FF5E3A', ink: '#2B1200', noun: 'your own Hot Zone',
+    tagline: 'A newborn star in a glass orb. Throw it onto the map: your own private Hot Zone.',
+    how: ['Flick the orb onto any spot within 2 km of you or your plots. It blooms into your own Hot Zone — 150 m across at level 1, up to 400 m at level 10 — and burns for 6 hours. One a day.',
+      'Inside it, for you alone: ultras ×2, shinies ×2, and three sunspots that roll a tier higher.',
+      'Rub the orb to stoke it: Hot is ×3 (a quarter smaller), White-hot ×4 (half the size, burning twice as fast). Past 95 heat, a rub can snuff it out.',
+      'Once a day, a Solar Flare: a ring sweeps out — tap as it peaks for up to 2 minutes where every claim inside keeps the better of two rolls.',
+      'Or park it in orbit over your plots: their minigames pay ×1.25 and your enchantments there tick 10% faster. Overlap the daily Hot Zone for a Conjunction; share it with your party.'],
+    gene: 'radiant', geneName: 'Radiant', geneText: 'carries a tiny sun of its own: claims near its plot roll hotter, and its timers run faster' },
+  rod: { id: 'rod', name: 'Dowsing Rod', emoji: '🪄', a: '#7FE0C3', b: '#2F80ED', ink: '#04201A', noun: 'aimed rolls',
+    tagline: 'Tell it what you want to roll. It will find it — eventually.',
+    how: ['Tune it to a target: a rarity (Uncommon to Mythic), Shiny, any Ultra, one Ultra, Enchanted, or one kind of enchantment.',
+      'While it’s tuned, that target is harder to roll — half the natural chance (a third for one Ultra or one kind). But every roll that misses pushes the rod deeper.',
+      'At full depth the next roll IS the target. Full depth is 3× the target’s natural wait (4× for a specific pick) — shown on the dial before you choose.',
+      'Anything better than the target is still yours. A natural hit the rod holds back pushes it 10% deeper. Only your most recently tuned rod dowses.'],
+    gene: 'divining', geneName: 'Divining', geneText: 'divines one outcome of its own luck: harder each time, certain in the end' },
 };
-export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle', 'ouroboros', 'homunculus', 'stormcoil',
-  'spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph'];
-/** the six a Cuckoo Egg can hatch into */
-export const HATCHABLE: EnchantKind[] = ['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph'];
+export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle', 'stormcoil',
+  'spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod'];
+/** what a Cuckoo Egg can hatch into */
+export const HATCHABLE: EnchantKind[] = ['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod'];
 export const kindInfo = (k: string | null | undefined): KindInfo => KINDS[(k ?? 'goose') as EnchantKind] ?? KINDS.goose;
 
 /** the 171 hybrids: [name, Perfect Match] (mirrors private.ench_hybrids) */
 export const HYBRIDS: Record<string, [string, boolean]> = {
-  'genie+goose': ['Wishing Goose', false], 'goose+map': ['Treasure Goose', false], 'goose+parasite': ['Leech Goose', false],
-  'goose+pandora': ['Cursed Goose', false], 'clockwork+goose': ['Clockwork Goose', false], 'goose+sizeray': ['Giant Goose', true],
-  'goose+shard': ['Mirror Goose', false], 'genie+map': ['Cartographer Djinn', false], 'genie+parasite': ['Possessing Djinn', false],
-  'genie+pandora': ['Forbidden Djinn', true], 'clockwork+genie': ['Hourglass Djinn', false], 'genie+sizeray': ['Colossal Djinn', false],
-  'genie+shard': ['Mirror Djinn', false], 'map+parasite': ['Blight Map', false], 'map+pandora': ['Map of Woe', false],
-  'clockwork+map': ['Chronomap', false], 'map+sizeray': ['Atlas Map', false], 'map+shard': ['Looking-Glass Map', true],
-  'pandora+parasite': ['Plague Bearer', false], 'clockwork+parasite': ['Tick', false], 'parasite+sizeray': ['Behemoth Worm', false],
-  'parasite+shard': ['Doppel-Leech', false], 'clockwork+pandora': ['Doomsday Clock', true], 'pandora+sizeray': ['Titan’s Box', false],
-  'pandora+shard': ['Box of Mirrors', false], 'clockwork+sizeray': ['Grandfather Clock', false], 'clockwork+shard': ['Reverse Clock', false],
-  'shard+sizeray': ['Funhouse Mirror', true], 'goose+wormhole': ['Warp Goose', false], 'genie+wormhole': ['Djinn of Doors', false],
-  'map+wormhole': ['Shortcut Map', true], 'parasite+wormhole': ['Burrow Worm', false], 'pandora+wormhole': ['Box of Elsewhere', false],
-  'clockwork+wormhole': ['Time Tunnel', true], 'sizeray+wormhole': ['Spacefold Ray', false], 'shard+wormhole': ['Glass Gate', false],
-  'oracle+wormhole': ['Eye of the Rift', false], 'goose+oracle': ['Augur Goose', false], 'genie+oracle': ['Djinn of Fate', true],
-  'map+oracle': ['Seer’s Map', false], 'oracle+parasite': ['Mind Leech', false], 'oracle+pandora': ['Pandora’s Prophecy', true],
-  'clockwork+oracle': ['Clock of Ages', false], 'oracle+sizeray': ['Far-Sight Ray', false], 'oracle+shard': ['Scrying Glass', false],
-  'goose+ouroboros': ['Eternal Egg', false], 'genie+ouroboros': ['Undying Djinn', false], 'map+ouroboros': ['Map of Return', false],
-  'ouroboros+parasite': ['Tail-Eater Worm', false], 'ouroboros+pandora': ['Box Without End', false], 'clockwork+ouroboros': ['Infinity Clock', true],
-  'ouroboros+sizeray': ['Coil Titan', false], 'ouroboros+shard': ['Endless Mirror', true], 'ouroboros+wormhole': ['Möbius Gate', false],
-  'oracle+ouroboros': ['Eye of Eternity', false], 'goose+homunculus': ['Golem Hen', false], 'genie+homunculus': ['Flask Djinn', true],
-  'homunculus+map': ['Patchwork Atlas', false], 'homunculus+parasite': ['Flesh-Weaver', true], 'homunculus+pandora': ['Box of Limbs', false],
-  'clockwork+homunculus': ['Clockwork Golem', false], 'homunculus+sizeray': ['Titan-Born', false], 'homunculus+shard': ['Glass Golem', false],
-  'homunculus+wormhole': ['Walker Between', false], 'homunculus+oracle': ['Many-Eyed Child', false], 'goose+stormcoil': ['Thunder Goose', false],
-  'genie+stormcoil': ['Storm Djinn', false], 'map+stormcoil': ['Map of Storms', false], 'parasite+stormcoil': ['Galvanic Leech', false],
-  'pandora+stormcoil': ['Box of Thunder', false], 'clockwork+stormcoil': ['Dynamo Clock', false], 'sizeray+stormcoil': ['Plasma Ray', false],
-  'shard+stormcoil': ['Fulgurite', false], 'stormcoil+wormhole': ['Storm Gate', false], 'oracle+stormcoil': ['Eye of the Storm', true],
-  'homunculus+ouroboros': ['Undying Child', false], 'homunculus+stormcoil': ['Galvanized Golem', true], 'ouroboros+stormcoil': ['Storm Serpent', false],
-  'clockwork+spyglass': ['Chronoscope', false], 'genie+spyglass': ['Djinn’s Eye', false], 'goose+spyglass': ['Lookout Goose', false],
-  'homunculus+spyglass': ['Watcher-Child', false], 'map+spyglass': ['Pirate’s Glass', true], 'oracle+spyglass': ['Seer’s Scope', false],
-  'ouroboros+spyglass': ['Endless Horizon', false], 'pandora+spyglass': ['Peeking Box', false], 'parasite+spyglass': ['Stalker Worm', false],
-  'shard+spyglass': ['Periscope', false], 'sizeray+spyglass': ['Telescopic Ray', true], 'spyglass+stormcoil': ['Storm Watcher', false],
-  'spyglass+wormhole': ['Far Glass', false], 'clockwork+origami': ['Paper Clock', false], 'genie+origami': ['Paper Lamp', false],
-  'goose+origami': ['Thousand-Crane Goose', false], 'homunculus+origami': ['Paper Golem', false], 'map+origami': ['Folded Atlas', true],
-  'oracle+origami': ['Fortune Teller', true], 'origami+ouroboros': ['Möbius Crane', false], 'origami+pandora': ['Paper Box', false],
-  'origami+parasite': ['Paper Wasp', false], 'origami+shard': ['Mirror Fold', false], 'origami+sizeray': ['Pop-Up Titan', false],
-  'origami+spyglass': ['Paper Telescope', false], 'origami+stormcoil': ['Kite of Storms', true], 'origami+wormhole': ['Paper Portal', true],
-  'clockwork+crucible': ['Forged Gears', false], 'crucible+genie': ['Brass Lamp', false], 'crucible+goose': ['Gilded Forge', true],
-  'crucible+homunculus': ['Iron Golem', true], 'crucible+map': ['Smelter’s Map', false], 'crucible+oracle': ['Molten Eye', false],
-  'crucible+origami': ['Tempered Fold', false], 'crucible+ouroboros': ['Ring of Fire', false], 'crucible+pandora': ['Furnace of Woes', false],
-  'crucible+parasite': ['Slag Worm', false], 'crucible+shard': ['Glassblower', true], 'crucible+sizeray': ['Titan’s Anvil', false],
-  'crucible+spyglass': ['Brass Spyglass', false], 'crucible+stormcoil': ['Thunder Forge', true], 'crucible+wormhole': ['Lava Gate', false],
-  'clockwork+puppeteer': ['Automaton', true], 'crucible+puppeteer': ['Iron Marionette', false], 'genie+puppeteer': ['Djinn on Strings', false],
-  'goose+puppeteer': ['Puppet Goose', false], 'homunculus+puppeteer': ['Marionette', true], 'map+puppeteer': ['Puppet’s Path', false],
-  'oracle+puppeteer': ['Fate’s Hand', false], 'origami+puppeteer': ['Paper Puppet', false], 'ouroboros+puppeteer': ['Endless Show', false],
-  'pandora+puppeteer': ['Jack-in-the-Box', true], 'parasite+puppeteer': ['Mind Worm', false], 'puppeteer+shard': ['Mirror Dancer', false],
-  'puppeteer+sizeray': ['Giant Puppet', false], 'puppeteer+spyglass': ['Stage Glass', false], 'puppeteer+stormcoil': ['Galvanic Puppet', false],
-  'puppeteer+wormhole': ['Strings Across', false], 'clockwork+deck': ['Hour of Fate', false], 'crucible+deck': ['Forged Fortune', false],
-  'deck+genie': ['Djinn’s Gamble', false], 'deck+goose': ['Fortune Goose', false], 'deck+homunculus': ['Card-Child', false],
-  'deck+map': ['Fortune’s Map', false], 'deck+oracle': ['Book of Fates', true], 'deck+origami': ['House of Cards', true],
-  'deck+ouroboros': ['Endless Deal', false], 'deck+pandora': ['Wild Card', false], 'deck+parasite': ['Card Leech', false],
-  'deck+puppeteer': ['Card Trick', false], 'deck+shard': ['Mirror Hand', false], 'deck+sizeray': ['Giant’s Hand', false],
-  'deck+spyglass': ['Fortune Glass', false], 'deck+stormcoil': ['Storm Card', false], 'deck+wormhole': ['Card From Nowhere', false],
-  'clockwork+glyph': ['Rune Clock', false], 'crucible+glyph': ['Rune Forge', true], 'deck+glyph': ['Tarot Sigil', false],
-  'genie+glyph': ['Lamp Script', false], 'glyph+goose': ['Rune Goose', false], 'glyph+homunculus': ['Inked Child', false],
-  'glyph+map': ['Rune Map', false], 'glyph+oracle': ['Eye of Runes', false], 'glyph+origami': ['Folded Script', false],
-  'glyph+ouroboros': ['Endless Rune', false], 'glyph+pandora': ['Sealed Box', true], 'glyph+parasite': ['Ink Worm', false],
-  'glyph+puppeteer': ['Spell Strings', false], 'glyph+shard': ['Mirror Script', false], 'glyph+sizeray': ['Giant Script', false],
-  'glyph+spyglass': ['Rune Glass', false], 'glyph+stormcoil': ['Thunder Script', true], 'glyph+wormhole': ['Gate Rune', false],
+  'map+rod': ['Divining Map', true], 'map+sun': ['Sunstone Map', false], 'rod+sun': ['Sunwell', true],
+  'deck+map': ['Fortune’s Map', false], 'deck+rod': ['Wand Card', false], 'deck+sun': ['The Sun Card', true],
+  'genie+map': ['Cartographer Djinn', false], 'genie+rod': ['Djinn of Wells', false], 'genie+sun': ['Djinn of Noon', false],
+  'glyph+map': ['Rune Map', false], 'glyph+rod': ['Rune Wand', false], 'glyph+sun': ['Sun Rune', false],
+  'goose+map': ['Treasure Goose', false], 'goose+rod': ['Water-Witch Goose', false], 'goose+sun': ['Sunrise Goose', false],
+  'map+shard': ['Looking-Glass Map', true], 'rod+shard': ['Scrying Pool', false], 'shard+sun': ['Burning Glass', false],
+  'deck+genie': ['Djinn’s Gamble', false], 'deck+glyph': ['Tarot Sigil', false], 'deck+goose': ['Fortune Goose', false],
+  'deck+shard': ['Mirror Hand', false], 'map+oracle': ['Seer’s Map', false], 'oracle+rod': ['Oracle’s Well', false],
+  'oracle+sun': ['Eye of Dawn', false], 'deck+oracle': ['Book of Fates', true], 'genie+glyph': ['Lamp Script', false],
+  'genie+goose': ['Wishing Goose', false], 'genie+shard': ['Mirror Djinn', false], 'glyph+goose': ['Rune Goose', false],
+  'glyph+shard': ['Mirror Script', false], 'goose+shard': ['Mirror Goose', false], 'map+origami': ['Folded Atlas', true],
+  'map+pandora': ['Map of Woe', false], 'map+sizeray': ['Atlas Map', false], 'origami+rod': ['Paper Compass', false],
+  'origami+sun': ['Paper Lantern', false], 'pandora+rod': ['Wishing-Well Box', false], 'pandora+sun': ['Box of Dawn', false],
+  'rod+sizeray': ['Giant’s Staff', false], 'sizeray+sun': ['Solar Lens', false], 'crucible+map': ['Smelter’s Map', false],
+  'crucible+rod': ['Ore Finder', false], 'crucible+sun': ['Sunforge', true], 'deck+origami': ['House of Cards', true],
+  'deck+pandora': ['Wild Card', false], 'deck+sizeray': ['Giant’s Hand', false], 'genie+oracle': ['Djinn of Fate', true],
+  'glyph+oracle': ['Eye of Runes', false], 'goose+oracle': ['Augur Goose', false], 'map+parasite': ['Blight Map', false],
+  'map+spyglass': ['Pirate’s Glass', true], 'map+wormhole': ['Shortcut Map', true], 'oracle+shard': ['Scrying Glass', false],
+  'parasite+rod': ['Root Worm', false], 'parasite+sun': ['Sunworm', false], 'rod+spyglass': ['Prospector’s Glass', false],
+  'rod+wormhole': ['Deep Gate', false], 'spyglass+sun': ['Heliograph', false], 'sun+wormhole': ['Solar Gate', false],
+  'clockwork+map': ['Chronomap', false], 'clockwork+rod': ['Water Clock', false], 'clockwork+sun': ['Sundial', true],
+  'crucible+deck': ['Forged Fortune', false], 'deck+parasite': ['Card Leech', false], 'deck+spyglass': ['Fortune Glass', false],
+  'deck+wormhole': ['Card From Nowhere', false], 'genie+origami': ['Paper Lamp', false], 'genie+pandora': ['Forbidden Djinn', true],
+  'genie+sizeray': ['Colossal Djinn', false], 'glyph+origami': ['Folded Script', false], 'glyph+pandora': ['Sealed Box', true],
+  'glyph+sizeray': ['Giant Script', false], 'goose+origami': ['Thousand-Crane Goose', false], 'goose+pandora': ['Cursed Goose', false],
+  'goose+sizeray': ['Giant Goose', true], 'map+puppeteer': ['Puppet’s Path', false], 'map+stormcoil': ['Map of Storms', false],
+  'origami+shard': ['Mirror Fold', false], 'pandora+shard': ['Box of Mirrors', false], 'puppeteer+rod': ['Marionette Cross', false],
+  'puppeteer+sun': ['Shadow Play', false], 'rod+stormcoil': ['Lightning Rod', true], 'shard+sizeray': ['Funhouse Mirror', true],
+  'stormcoil+sun': ['Solar Storm', true], 'clockwork+deck': ['Hour of Fate', false], 'crucible+genie': ['Brass Lamp', false],
+  'crucible+glyph': ['Rune Forge', true], 'crucible+goose': ['Gilded Forge', true], 'crucible+shard': ['Glassblower', true],
+  'deck+puppeteer': ['Card Trick', false], 'deck+stormcoil': ['Storm Card', false], 'genie+parasite': ['Possessing Djinn', false],
+  'genie+spyglass': ['Djinn’s Eye', false], 'genie+wormhole': ['Djinn of Doors', false], 'glyph+parasite': ['Ink Worm', false],
+  'glyph+spyglass': ['Rune Glass', false], 'glyph+wormhole': ['Gate Rune', false], 'goose+parasite': ['Leech Goose', false],
+  'goose+spyglass': ['Lookout Goose', false], 'goose+wormhole': ['Warp Goose', false], 'oracle+origami': ['Fortune Teller', true],
+  'oracle+pandora': ['Pandora’s Prophecy', true], 'oracle+sizeray': ['Far-Sight Ray', false], 'parasite+shard': ['Doppel-Leech', false],
+  'shard+spyglass': ['Periscope', false], 'shard+wormhole': ['Glass Gate', false], 'clockwork+genie': ['Hourglass Djinn', false],
+  'clockwork+glyph': ['Rune Clock', false], 'clockwork+goose': ['Clockwork Goose', false], 'clockwork+shard': ['Reverse Clock', false],
+  'crucible+oracle': ['Molten Eye', false], 'genie+puppeteer': ['Djinn on Strings', false], 'genie+stormcoil': ['Storm Djinn', false],
+  'glyph+puppeteer': ['Spell Strings', false], 'glyph+stormcoil': ['Thunder Script', true], 'goose+puppeteer': ['Puppet Goose', false],
+  'goose+stormcoil': ['Thunder Goose', false], 'oracle+parasite': ['Mind Leech', false], 'oracle+spyglass': ['Seer’s Scope', false],
+  'oracle+wormhole': ['Eye of the Rift', false], 'origami+pandora': ['Paper Box', false], 'origami+sizeray': ['Pop-Up Titan', false],
+  'pandora+sizeray': ['Titan’s Box', false], 'puppeteer+shard': ['Mirror Dancer', false], 'shard+stormcoil': ['Fulgurite', false],
+  'clockwork+oracle': ['Clock of Ages', false], 'crucible+origami': ['Tempered Fold', false], 'crucible+pandora': ['Furnace of Woes', false],
+  'crucible+sizeray': ['Titan’s Anvil', false], 'oracle+puppeteer': ['Fate’s Hand', false], 'oracle+stormcoil': ['Eye of the Storm', true],
+  'origami+parasite': ['Paper Wasp', false], 'origami+spyglass': ['Paper Telescope', false], 'origami+wormhole': ['Paper Portal', true],
+  'pandora+parasite': ['Plague Bearer', false], 'pandora+spyglass': ['Peeking Box', false], 'pandora+wormhole': ['Box of Elsewhere', false],
+  'parasite+sizeray': ['Behemoth Worm', false], 'sizeray+spyglass': ['Telescopic Ray', true], 'sizeray+wormhole': ['Spacefold Ray', false],
+  'clockwork+origami': ['Paper Clock', false], 'clockwork+pandora': ['Doomsday Clock', true], 'clockwork+sizeray': ['Grandfather Clock', false],
+  'crucible+parasite': ['Slag Worm', false], 'crucible+spyglass': ['Brass Spyglass', false], 'crucible+wormhole': ['Lava Gate', false],
+  'origami+puppeteer': ['Paper Puppet', false], 'origami+stormcoil': ['Kite of Storms', true], 'pandora+puppeteer': ['Jack-in-the-Box', true],
+  'pandora+stormcoil': ['Box of Thunder', false], 'parasite+spyglass': ['Stalker Worm', false], 'parasite+wormhole': ['Burrow Worm', false],
+  'puppeteer+sizeray': ['Giant Puppet', false], 'sizeray+stormcoil': ['Plasma Ray', false], 'spyglass+wormhole': ['Far Glass', false],
+  'clockwork+crucible': ['Forged Gears', false], 'clockwork+parasite': ['Tick', false], 'clockwork+spyglass': ['Chronoscope', false],
+  'clockwork+wormhole': ['Time Tunnel', true], 'crucible+puppeteer': ['Iron Marionette', false], 'crucible+stormcoil': ['Thunder Forge', true],
+  'parasite+puppeteer': ['Mind Worm', false], 'parasite+stormcoil': ['Galvanic Leech', false], 'puppeteer+spyglass': ['Stage Glass', false],
+  'puppeteer+wormhole': ['Strings Across', false], 'spyglass+stormcoil': ['Storm Watcher', false], 'stormcoil+wormhole': ['Storm Gate', false],
+  'clockwork+puppeteer': ['Automaton', true], 'clockwork+stormcoil': ['Dynamo Clock', false], 'puppeteer+stormcoil': ['Galvanic Puppet', false],
 };
 export const HYBRID_COUNT = Object.keys(HYBRIDS).length;
 export const PERFECT_COUNT = Object.values(HYBRIDS).filter(([, p]) => p).length;
@@ -211,8 +212,6 @@ export const PERFECT_EXTRA: Record<string, string> = {
   'clockwork+wormhole': 'The wormhole’s clock runs fast: what comes through arrives hours early.',
   'genie+oracle': 'See how the Forbidden Wish will turn out before you make it.',
   'oracle+pandora': 'See what every notch of the lid will let out before you lift it.',
-  'clockwork+ouroboros': 'While they’re spliced, the Ouroboros’s coils loop every 6 hours instead of 12.',
-  'homunculus+stormcoil': 'Lightning wakes it: the Homunculus can wake with 4 parts instead of 5.',
 };
 
 // ---- Traits, in plain words ----------------------------------------------------------------------------------------
@@ -220,13 +219,13 @@ export type TraitInfo = { name: string; emoji: string; text: (k: number) => stri
 const x = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace(/0$/, '')}×`;
 /** k: 1 normal, 2 a Perfect Match / Graft / Chimera, 3 an Aberration (mirrors private.ench_pay) */
 export const TRAITS: Record<string, TraitInfo> = {
-  golden: { name: 'Golden', emoji: '🪿', text: (k) => `earns ${x(1 + 0.5 * k)} Ink`, mult: (k) => 1 + 0.5 * k },
-  grow: { name: 'Giant', emoji: '📡', text: (k) => `earns ${x(1 + k)} Ink`, mult: (k) => 1 + k },
-  chaos: { name: 'Chaos', emoji: '🏺', text: (k) => `every reward is a gamble: ${[0.5, 0.75, 1][k - 1]}× to ${[2.5, 3.5, 4][k - 1]}× Ink` },
+  golden: { name: 'Golden', emoji: '🪿', text: (k) => `lays ${k === 1 ? 'a golden egg' : `${k} golden eggs`} a day: crack one for a free charge of what it does` },
+  grow: { name: 'Giant', emoji: '📡', text: (k) => `its plot stands giant every day for ${3 + 3 * k} hours: its minigames ×1.5, and visitors tip it` },
+  chaos: { name: 'Chaos', emoji: '🏺', text: (k) => `${k === 1 ? 'a chaos box' : `${k} chaos boxes`} a day: 70% one of its chores is done free, 30% a one-hour hiccup` },
   seek: { name: 'Seeking', emoji: '🗺️', text: (k) => `${[25, 50, 75][k - 1]}% of its rewards bury a chest by its plot — dig it up for +50 Ink` },
-  spread: { name: 'Spreading', emoji: '🦠', text: (k) => `earns ${15 * k}% more Ink, and drops a gift on a random player`, mult: (k) => 1 + 0.15 * k },
-  echo: { name: 'Echo', emoji: '🪞', text: (k) => `${[35, 60, 80][k - 1]}% of its rewards are paid twice` },
-  wish: { name: 'Wishing', emoji: '🧞', text: (k) => `${[30, 55, 75][k - 1]}% of the time, using a charge doesn’t use it up (no charges: +${25 * k}% Ink)` },
+  spread: { name: 'Spreading', emoji: '🦠', text: (k) => `sends ${k === 1 ? 'a spore' : `${k} spores`} a day to neighbours’ plots: their wins there pay them +10% and feed you 10%` },
+  echo: { name: 'Echo', emoji: '🪞', text: (k) => `${k === 1 ? 'once' : k === 2 ? 'twice' : 'three times'} a day its last action repeats by itself a minute later — free` },
+  wish: { name: 'Wishing', emoji: '🧞', text: (k) => `${[30, 55, 75][k - 1]}% of the time, using a charge doesn’t use it up (no charges: once a day its next reward is wished ×2)` },
   trick: { name: 'Tempered', emoji: '🔥', text: (k) => `dodges ${[50, 75, 90][k - 1]}% of its bad luck, and its plot is tempered: the Leviathan can’t trample it, Parasites can’t latch on, pranks and scorches bounce off` },
   farsight: { name: 'Farsight', emoji: '🔭', text: (k) => `reaches ${k + 1}× as far for anything it does on the map` },
   folded: { name: 'Folded', emoji: '🦢', text: (k) => `${k === 1 ? 'once' : k === 2 ? 'twice' : 'three times'} a day, a tap folds its longest wait in half` },
@@ -234,11 +233,11 @@ export const TRAITS: Record<string, TraitInfo> = {
   fated: { name: 'Fated', emoji: '🃏', text: (k) => `${[10, 18, 25][k - 1]}% of its rewards draw one of the 22 cards — and the card comes true` },
   inscribed: { name: 'Inscribed', emoji: '✍️', text: (k) => `has a rune: trace it once a day and it casts that glyph for free${k > 1 ? ` (×${1 + 0.5 * (k - 1)} strength)` : ''}` },
   tempo: { name: 'Tempo', emoji: '⚙️', text: (k) => `its timers run ${k + 2}× as fast` },
-  linked: { name: 'Linked', emoji: '🌀', text: (k) => `works as if on a second plot: +${40 * k}% Ink`, mult: (k) => 1 + 0.4 * k },
-  foresight: { name: 'Foresight', emoji: '👁️', text: (k) => `earns ${20 * k}% more Ink and sees ${[35, 60, 80][k - 1]}% of bad luck coming`, mult: (k) => 1 + 0.2 * k },
-  endless: { name: 'Endless', emoji: '🐍', text: (k) => `earns ${10 * k}% more Ink, and the splice renews itself ${['once', 'twice', 'three times'][k - 1]} when it ends`, mult: (k) => 1 + 0.1 * k },
-  patchwork: { name: 'Patchwork', emoji: '🧫', text: (k) => `every reward borrows a surprise Trait from the Homunculus’s parts${k > 1 ? ` (at ${k}× strength)` : ''}` },
-  charged: { name: 'Charged', emoji: '⚡', text: (k) => `earns ${25 * k}% more Ink — and this splice was 3× as likely to mutate`, mult: (k) => 1 + 0.25 * k },
+  linked: { name: 'Linked', emoji: '🌀', text: (k) => `works from a second plot of yours too: that plot’s minigames ×${(1 + 0.2 * k).toFixed(1)}, tempered when it is` },
+  foresight: { name: 'Foresight', emoji: '👁️', text: (k) => `sees its bad luck coming and dodges ${[35, 60, 80][k - 1]}% of it — and shows what’s next` },
+  charged: { name: 'Charged', emoji: '⚡', text: (k) => `builds static with every use; at ${[12, 9, 6][k - 1]} it arcs to ${3 * k} of your plots nearby: their minigames ×1.25 for an hour` },
+  radiant: { name: 'Radiant', emoji: '☀️', text: (k) => `carries a tiny sun (${40 * k} m): your claims near its plot roll ultras ×${1 + 0.5 * k}, and its timers run ${10 * k}% faster` },
+  divining: { name: 'Divining', emoji: '🪄', text: () => 'divines one outcome of its own luck — harder each time, certain at full depth' },
   // what a plot lends the enchantment spliced with it
   inspired: { name: 'Inspired', emoji: '🎨', text: () => 'earns 20% more Ink (your canvas inspires it)', mult: () => 1.2 },
   wild: { name: 'Wild', emoji: '🐾', text: () => 'earns 10% more Ink and levels up twice as fast', mult: () => 1.1 },
@@ -250,19 +249,19 @@ export const TRAITS: Record<string, TraitInfo> = {
 export const traitOf = (gene: string | null | undefined) => (gene ? TRAITS[gene] : undefined);
 export const traitText = (gene: string | null | undefined, k = 1) => traitOf(gene)?.text(Math.min(3, Math.max(1, k))) ?? '';
 
-/** where each kind's Ink comes from — an Ink Trait boosts exactly these */
+/** where each kind's Ink comes from */
 export const PAYS_FROM: Record<EnchantKind, string> = {
   goose: 'its golden eggs and chased foxes', genie: 'its Ink wishes', map: 'its treasure chests', parasite: 'its feeds', cuckoo: 'nothing yet (it’s an egg)',
   pandora: 'gifts from the box, and Hope', splice: 'the Chimera’s roars', clockwork: 'its daily chime (wind the day’s last turn)',
   sizeray: 'micro-gems and parasites it shrinks', shard: 'whatever it reflects', wormhole: 'what you catch coming through it', oracle: 'each prophecy that comes true',
-  ouroboros: 'its bank (when you break the circle or close it)', homunculus: 'its heart (when its week is up)', stormcoil: 'the bolts you catch in its storms',
-  spyglass: 'the sighted plots you claim', origami: 'every plot it unfolds', crucible: 'every plot it forges up a tier', puppeteer: 'its puppet shows',
-  deck: 'the cards that pay Ink', glyph: 'the glyphs that pay Ink',
+  stormcoil: 'the bolts you catch in its storms', spyglass: 'the sighted plots you claim', origami: 'every plot it unfolds', crucible: 'every plot it forges up a tier',
+  puppeteer: 'its puppet shows', deck: 'the cards that pay Ink', glyph: 'the glyphs that pay Ink', sun: 'the plots claimed in its light', rod: 'the sightings it walks you to',
 };
 /** what Farsight stretches on each kind that reaches for something on the map */
 const REACHES: Partial<Record<EnchantKind, string>> = {
   map: 'it picks up pieces and digs from twice as far', wormhole: 'its far end can be twice as far away', puppeteer: 'its strings reach plots twice as far away',
   spyglass: 'it looks twice as far', origami: 'it unfolds plots twice as far from you', stormcoil: 'its storms reach neighbours twice as far', glyph: 'its Vortex pulls chests in from twice as far',
+  sun: 'it lights suns twice as far from you', rod: 'its Divining Walk goes twice as far',
 };
 /** the chores a Strings puppet does on each kind */
 const CHORES: Partial<Record<EnchantKind, string>> = {
@@ -270,6 +269,19 @@ const CHORES: Partial<Record<EnchantKind, string>> = {
   parasite: 'harvests its feed', stormcoil: 'cranks the handle three turns', oracle: 'gazes at your next rolls', crucible: 'tends your horseshoes',
   glyph: 'studies the Spellbook', spyglass: 'looks through the glass at a spot nearby', deck: 'turns a card and lets it come true',
 };
+/** what a golden egg gives each kind (mirrors private.ench_refill) */
+const GOLD_GIVES: Partial<Record<EnchantKind, string>> = {
+  genie: 'a wish', oracle: 'a gaze', spyglass: 'a look', puppeteer: 'a string', glyph: '2 mana', origami: 'a fold', sizeray: 'a shot', splice: 'a spare Splice charge',
+  deck: 'another card today', goose: '2 hours of egg', wormhole: 'an opening now', map: 'a new map now', sun: 'another sun today', shard: 'a gaze now',
+  clockwork: '30 wound minutes', stormcoil: '30% charge', crucible: '20 Heat', pandora: 'another opening today', parasite: '4 hours of feeding', rod: 'a little depth',
+};
+/** what repeats by itself with Echo (mirrors private.echo_acts) */
+const ECHOES: Partial<Record<EnchantKind, string>> = {
+  goose: 'collecting the egg happens', genie: 'its wish is made', oracle: 'its gaze happens', spyglass: 'a look is taken nearby', glyph: 'its last spell is cast',
+  deck: 'another card is turned', stormcoil: 'its crank turns', clockwork: 'its key winds', sun: 'its stoke happens', pandora: 'the lid lifts',
+};
+/** what Divining can aim at on each kind (mirrors private.div_targets) */
+const DIVINES: Partial<Record<EnchantKind, string>> = { goose: 'a Platinum egg', splice: 'an Aberration', crucible: 'a strike that lands', deck: 'The World' };
 /** what a kind's charge is called, where Wishing keeps one */
 const KEEPS: Partial<Record<EnchantKind, string>> = { genie: 'wish', sizeray: 'shot', oracle: 'gaze' };
 /** the bad luck a kind can dodge, where Trickster and Foresight dodge it */
@@ -277,15 +289,14 @@ const DODGES: Partial<Record<EnchantKind, (pct: number) => string>> = {
   goose: () => 'foxes miss its egg half the time (from its next egg on)',
   genie: (p) => `the Forbidden Wish’s twist misses ${p}% of the time`,
   pandora: (p) => `${p}% of the curses that escape miss you`,
-  ouroboros: (p) => `${p}% of the time a loop that would bite through holds instead`,
   stormcoil: (p) => `${p}% of the plots a missed bolt would scorch are spared`,
 };
-const INK_GENES = new Set(['golden', 'grow', 'chaos', 'seek', 'spread', 'echo', 'linked', 'foresight', 'endless', 'charged', 'patchwork', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
+const INK_GENES = new Set(['seek', 'inspired', 'wild', 'fertile', 'invested', 'streak', 'homely']);
 /** what a reward's chip says when a Trait worked (mirrors the labels private.ench_pay writes) */
 export const TRAIT_CHIP: Record<string, string> = {
   golden: 'Golden', grow: 'Giant', chaos: 'Chaos', seek: 'Seeking', spread: 'Spreading', echo: 'Echo', linked: 'Linked', foresight: 'Foresight',
-  wish: 'Wishing', trick: 'Tempered', farsight: 'Farsight', folded: 'Folded', strings: 'Strings', fated: 'Fated', inscribed: 'Inscribed', inspired: 'Inspired', wild: 'Wild', fertile: 'Fertile', invested: 'Invested', streak: 'Arcade streak', homely: 'At home',
-  endless: 'Endless', charged: 'Charged', patchwork: 'Patchwork',
+  wish: 'Wished', trick: 'Tempered', farsight: 'Farsight', folded: 'Folded', strings: 'Strings', fated: 'Fated', inscribed: 'Inscribed', inspired: 'Inspired', wild: 'Wild', fertile: 'Fertile', invested: 'Invested', streak: 'Arcade streak', homely: 'At home',
+  charged: 'Charged', radiant: 'Radiant', divining: 'Divining',
 };
 export type TraitHere = { gene: string; k: number; name: string; emoji: string; text: string;
   /** what you have to do for it (null: it works by itself) */ you: string | null;
@@ -299,7 +310,7 @@ export function traitHere(gene: string | null | undefined, k: number, kind: stri
   if (gene === 'seek') { text = `${[25, 50, 75][s - 1]}% of its rewards bury a chest by its plot (+50 Ink each, keeps 7 days)`; you = 'Dig its chests up — tap them here or on the map'; }
   if (gene === 'wish') {
     if (KEEPS[me]) text = `${[30, 55, 75][s - 1]}% of the time a ${KEEPS[me]} doesn’t use up its charge`;
-    else { text = `earns ${25 * s}% more Ink (it has no charges to keep)`; on = PAYS_FROM[me] ?? null; }
+    else { text = `it has no charges to keep, so once a day its next reward is wished: ×2`; on = PAYS_FROM[me] ?? null; }
   }
   if (gene === 'trick') {
     const d = DODGES[me];
@@ -313,12 +324,16 @@ export function traitHere(gene: string | null | undefined, k: number, kind: stri
   if (gene === 'strings') text = `${['once', 'twice', 'three times'][s - 1]} a day a puppet does a chore for you: ${CHORES[me] ?? 'one of your other enchantments’ chores (it has none of its own)'}`;
   if (gene === 'inscribed') { text = `its rune is a glyph: trace it once a day and it casts that spell for free, as strong as you drew it${s > 1 ? ` (×${1 + 0.5 * (s - 1)})` : ''}`; you = 'Trace its rune below, once a day'; }
   if (gene === 'foresight') {
-    const extra = me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'pandora' || me === 'ouroboros' || me === 'stormcoil' ? `, and ${[35, 60, 80][s - 1]}% of its bad luck is seen coming and dodged` : '';
-    text = `earns ${20 * s}% more Ink${extra}`;
+    const d = DODGES[me];
+    text = `sees its bad luck coming${d ? `: ${d([35, 60, 80][s - 1])}` : ` and dodges ${[35, 60, 80][s - 1]}% of it`}${me === 'genie' ? ', and you see how the Forbidden Wish will turn out' : me === 'goose' ? ', and you see whether the egg is Platinum' : me === 'pandora' ? ', and you see which evils are still inside' : ''}`;
   }
-  if (gene === 'linked' && me === 'map') text = `earns ${40 * s}% more Ink, and picks up map pieces from anywhere`;
+  if (gene === 'linked') { text = `works from a second plot of yours too: that plot’s minigames pay ×${(1 + 0.2 * s).toFixed(1)}, and it’s tempered when this one is`; you = 'Pick its second plot on the map'; }
   if (gene === 'tempo') text = `its timers run ${s + 2}× as fast — eggs, wishes, charges and cooldowns all come sooner`;
-  if (gene === 'patchwork') text = `every reward borrows a Trait from one of the Homunculus’s parts${s > 1 ? ` (at ${s}× strength)` : ''}`;
+  if (gene === 'golden') { text = `${s === 1 ? 'a golden egg' : `${s} golden eggs`} a day on its page: crack one for ${GOLD_GIVES[me] ?? 'a little Ink'} — and 1 in 5 carries a Splice spark`; you = 'Crack its golden eggs below'; }
+  if (gene === 'chaos') { text = `${s === 1 ? 'a chaos box' : `${s} chaos boxes`} a day: 70% it ${CHORES[me] ?? 'gets a free charge'}, 30% a one-hour hiccup (its clock stops)`; you = 'Open its chaos boxes below'; }
+  if (gene === 'echo') text = ECHOES[me] ? `${['once', 'twice', 'three times'][s - 1]} a day, ${ECHOES[me]} again by itself a minute later — free` : `${['once', 'twice', 'three times'][s - 1]} a day a mirror ghost pays its last reward again, a minute later`;
+  if (gene === 'radiant') text = `its plot carries a tiny sun, ${40 * s} m across: your claims there roll ultras ×${1 + 0.5 * s}, and its timers run ${10 * s}% faster in the warmth`;
+  if (gene === 'divining') { text = `pick one outcome of its luck — ${DIVINES[me] ?? 'a Splice spark from its rewards'}: harder each time, certain at full depth`; you = 'Choose what it divines below'; }
   return { gene, k: s, name: t.name, emoji: t.emoji, text, you, on };
 }
 /** what a plot's minigames get when an enchantment is spliced into it (mirrors private.ench_minigame_mult) */
@@ -326,7 +341,7 @@ export const PLOT_GETS: Record<string, string> = {
   golden: 'its minigames pay 1.5× Ink', grow: 'its minigames pay 2× Ink', chaos: 'its minigame wins are a gamble: 0.5× to 2.5×', seek: '1 in 4 wins pays 1.5×',
   spread: 'its minigames pay 15% more', echo: '35% of wins pay double', wish: 'its minigames pay 25% more', trick: 'its minigames pay 20% more',
   tempo: 'its minigames pay 30% more', linked: 'its minigames pay 40% more', foresight: 'its minigames pay 20% more',
-  endless: 'its minigames pay 10% more', patchwork: 'its minigames borrow a part’s Trait', charged: 'its minigames pay 25% more',
+  radiant: 'its minigames pay 20% more', divining: '15% of wins are divined: ×2', charged: 'its minigames pay 25% more',
   farsight: 'its minigames pay 15% more', folded: 'its minigames pay 10% more', strings: 'its minigames pay 15% more', fated: '1 in 10 wins pays double', inscribed: 'its minigames pay 10% more',
 };
 export const PLOT_TRAIT: Record<string, string> = { canvas: 'inspired', habitat: 'wild', farm: 'fertile', business: 'invested', arcade: 'streak' };
@@ -334,7 +349,7 @@ export const plotTrait = (kind: string | null | undefined) => PLOT_TRAIT[kind ??
 const ADJ: Record<string, [string, string]> = { goose: ['Golden', 'Hen'], genie: ['Wishing', 'Djinn'], map: ['Treasure', 'Atlas'], parasite: ['Hungering', 'Worm'],
   cuckoo: ['Hatching', 'Egg'], pandora: ['Cursed', 'Box'], clockwork: ['Ticking', 'Engine'], sizeray: ['Giant', 'Titan'], shard: ['Mirrored', 'Glass'],
   wormhole: ['Warped', 'Gate'], oracle: ['All-Seeing', 'Eye'], splice: ['Spliced', 'Chimera'],
-  ouroboros: ['Endless', 'Serpent'], homunculus: ['Patchwork', 'Golem'], stormcoil: ['Charged', 'Storm'],
+  stormcoil: ['Charged', 'Storm'], sun: ['Radiant', 'Sun'], rod: ['Divining', 'Wand'],
   spyglass: ['Far-Seeing', 'Spyglass'], origami: ['Folded', 'Crane'], crucible: ['Molten', 'Anvil'], puppeteer: ['Strung', 'Marionette'], deck: ['Fated', 'Card'], glyph: ['Runic', 'Glyph'] };
 const PLOT_NOUN: Record<string, string> = { canvas: 'Canvas', habitat: 'Habitat', farm: 'Farm', business: 'Shop', arcade: 'Arcade', home: 'House', landlord: 'Manor', train: 'Station',
   plane: 'Airfield', base: 'Plot', mine: 'Mine', sky: 'Sky Isle', workshop: 'Workshop', diner: 'Diner', dungeon: 'Dungeon', brawl: 'Arena' };
@@ -411,8 +426,9 @@ export const TITLES: Record<string, string> = {
   'Big Bang': 'Fired 50 times', Colossus: 'Made 10 plots giant', 'Ant-Maker': 'Made 10 plots tiny', Prankster: 'Pranked 10 players', 'Seven Years': 'Shattered the glass', 'Many Faces': 'Made 20 reflections',
   Gatekeeper: 'Opened the wormhole 5 times', Worldwalker: 'Linked plots 1,000 km apart', Constellation: 'Reached level 10',
   Seer: '10 prophecies came true', 'Fate-Weaver': 'Rewrote fate 10 times (an Oracle), or collected all 22 cards (a Fated Deck)',
-  'Codex Complete': 'Discovered all 171 hybrids', Eternal: 'Closed the circle (7 loops)', 'Tail-Catcher': '10 clean catches', Snakeskin: 'Bitten through 3 times',
-  Alchemist: 'Woke a Homunculus', Generations: 'Three hearts', 'Many Limbs': 'Grew 7 parts', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
+  'Codex Complete': 'Discovered all 171 hybrids', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
+  Sunkeeper: 'Lit 10 suns', Corona: '5 PERFECT Solar Flares', Sunspotter: 'Claimed 10 sunspots', Diviner: 'Brought up its first target',
+  'Deep Diviner': 'Dowsed a Mythic, an Ultra or a Primordial', Lodefinder: 'Brought up 10 targets',
   Galvanist: 'Made an Aberration with lightning',
   'Eagle-Eye': 'Took 50 looks', Prospector: 'Claimed 10 plots it sighted', 'Far-Seer': 'Sighted a Legendary or better',
   'Paper Crane': 'Unfolded 10 plots', 'Thousand Cranes': 'Unfolded 100 plots', 'Far-Folder': 'Unfolded a plot 100 km away',
@@ -438,4 +454,12 @@ export const enchantName = (e: { nickname?: string | null; kind: string; serial:
 export function nightAt(lng: number, now = new Date()) {
   const h = (now.getUTCHours() + now.getUTCMinutes() / 60 + lng / 15 + 48) % 24;
   return h >= 22 || h < 6;
+}
+
+/** the Dowsing Rod's word on a roll, for the roll reveal */
+export function dowsedLine(d: { result: string; name: string; depth: number; need: number }) {
+  if (d.result === 'hit' || d.result === 'forced') return `🪄 Dowsed: ${d.name}!`;
+  if (d.result === 'slip') return `🫗 The rod held back a ${d.name} — ${Math.round((100 * d.depth) / Math.max(1, d.need))}% deep now`;
+  if (d.result === 'better') return `🪄 Better than ${d.name} — it’s yours`;
+  return `🪄 ${Math.round((100 * d.depth) / Math.max(1, d.need))}% deep toward ${d.name}`;
 }

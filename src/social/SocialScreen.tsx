@@ -277,8 +277,7 @@ function FeedRow({ e }: { e: FeedEvent }) {
         : d.sub === 'genie_freed' ? <>{who} made the Forbidden Wish — and <b style={{ color: k?.a }}>🧞 the Genie went free</b></>
         : d.sub === 'treasure' ? <>{who} dug up a <b className="text-gold">🧰 treasure chest</b> with a Legendary+ roll ticket</>
         : d.sub === 'shatter' ? <>{who}’s <b style={{ color: k?.a }}>🪞 Mirror Shard</b> shattered after seven reflections</>
-        : d.sub === 'circle' ? <>{who}’s <b style={{ color: k?.a }}>🐍 Ouroboros</b> survived seven loops — the circle closed and <b className="text-[#FFD1DE]">{d.from}</b> became <b className="text-[#FF8FB3]">☣️ {d.hybrid}</b></>
-        : d.sub === 'awoke' ? <>{who}’s <b style={{ color: k?.a }}>🧫 Homunculus</b> woke up and walked out onto the map{(d.parts ?? []).length ? <> — built from {(d.parts as string[]).map((p) => ENCH[p as keyof typeof ENCH]?.emoji).join(' ')}</> : null}</>
+        : d.sub === 'became' ? <>{who}’s {d.from === 'ouroboros' ? '🐍 Ouroboros straightened into a' : '🧫 Homunculus lit up into a'} <b style={{ color: k?.a }}>{k?.emoji} {k?.name}</b></>
         : d.sub === 'storm' ? <>{who} called a <b style={{ color: k?.a }}>⛈️ lightning storm</b> down on their plots{d.hybrids ? <> — {d.hybrids} hybrid{d.hybrids > 1 ? 's' : ''} under it</> : null}</>
         : d.sub === 'starred' ? <>{who}’s <b style={{ color: k?.a }}>{k?.emoji} {k?.name} #{d.serial}</b> earned <b className="text-gold">{'★'.repeat(Number(d.stars) || 1)} star {d.stars}</b> — and a new power</>
         : <>{who} did something enchanted</>;

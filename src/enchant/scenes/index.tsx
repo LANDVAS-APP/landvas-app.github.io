@@ -19,14 +19,14 @@ import { SizeRayScene } from './SizeRayScene';
 import { SpliceScene } from './SpliceScene';
 import { WormholeScene } from './WormholeScene';
 import { OracleScene } from './OracleScene';
-import { OuroborosScene } from './OuroborosScene';
-import { HomunculusScene } from './HomunculusScene';
 import { StormCoilScene } from './StormCoilScene';
+import { SunScene } from './SunScene';
+import { RodScene } from './RodScene';
 
 const SCENES: Record<string, (p: SceneProps) => React.ReactElement> = {
   goose: GooseScene, genie: GenieScene, map: MapScene, parasite: ParasiteScene, cuckoo: EggScene, pandora: PandoraScene,
   splice: SpliceScene, clockwork: ClockworkScene, sizeray: SizeRayScene, shard: ShardScene, wormhole: WormholeScene, oracle: OracleScene,
-  ouroboros: OuroborosScene, homunculus: HomunculusScene, stormcoil: StormCoilScene,
+  stormcoil: StormCoilScene, sun: SunScene, rod: RodScene,
   spyglass: SpyglassScene, origami: OrigamiScene, crucible: CrucibleScene, puppeteer: PuppeteerScene, deck: DeckScene, glyph: GlyphScene,
 };
 

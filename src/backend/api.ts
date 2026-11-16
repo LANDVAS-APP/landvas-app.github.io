@@ -28,6 +28,17 @@ export type TraitsNow = {
   farsight?: { k: number; reach: number; reaches: boolean; scouted: number; last: { gx: number; gy: number; rarity: string }[] | null; today: boolean };
   tempered?: { k: number; dodged: number };
   fated?: { k: number; cards: number; last: { card: string; name: string; fx: string; at: string } | null };
+  golden?: { k: number; left: number; cracked: number; refills: boolean };
+  spores?: { k: number; sent: number; fed: number; live: { gx: number; gy: number; host: string | null; fed: number; ink: number; until: string }[] };
+  chaos?: { k: number; left: number; opened: number };
+  giant?: { k: number; hours: number; days: number; now: { mode: string; until: string } | null };
+  echo?: { k: number; left: number; done: number; acts: string[]; pending: { action: string; due_at: string } | null };
+  linked?: { k: number; plot: [number, number] | null; mult: number };
+  foresight?: { k: number; dodge: number; dodged: number; preview: { label: string } | null };
+  charged?: { k: number; static: number; full: number; arcs: number };
+  wishing?: { k: number; keeps: boolean; ready: boolean };
+  radiant?: { k: number; r_m: number; um: number; faster: number };
+  divining?: { k: number; targets: { key: string; name: string; p: number }[]; target: string; depth: number; need: number; hits: number };
 };
 export type EnchantView = EnchantBrief & { status: string; xp: number; xp_next: number; xp_prev: number; stats: Record<string, number>; owner: any; first_owner: any;
   clock?: { now: string; skip_s: number; frozen_until: string | null; /** seconds its clock moves per real second right now (a Clockwork splice ×3, a tiny plot +1, frozen 0) */ rate?: number; rate_until?: string | null }; partner: EnchantPartner | null; partners?: EnchantPartner[]; size?: PlotSize | null; updated_at?: string;
@@ -48,11 +59,11 @@ export type MapWormhole = { id: string; mine: boolean; owner_name?: string | nul
 export type EnchantMap = { plots: { id: string; gx: number; gy: number; kind: string; serial: number; level: number; nickname: string | null; status: string; mine: boolean; owner_name: string | null; sigil: number; partner: string | null; frozen: boolean; reflect: string | null; updated_at?: string; stars?: number }[];
   attached: { id: string; what: 'parasite' | 'egg'; stage: number; feeds: number; gx: number; gy: number; at: number | null; hatch_at: number | null; welcomed: boolean; home: [number, number] | null; owner_name: string | null; cells: [number, number][] | null; mine: boolean; on_mine: boolean }[];
   giants: { gx: number; gy: number; mult: number }[]; sizes: MapSize[]; wormholes: MapWormhole[]; chests?: { id: number; gx: number; gy: number; ink: number; kind: string }[] };
-export type MapWalker = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; serial: number; nickname: string | null; sigil: number; level: number;
-  parts: { k: string; lv: number; glow: boolean }[]; mult: number; home: [number, number]; greeted: boolean };
+export type MapSun = { id: string; i: number; gx: number; gy: number; r_m: number; tier: 'warm' | 'hot' | 'white'; heat: number; mode: 'claim' | 'orbit'; flare: boolean;
+  flare_until: number | null; until: number; party: boolean; mine: boolean; owner_name: string | null; spots: [number, number][]; reflected: boolean };
 export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
   bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
-export type EnchantMap2 = { walkers: MapWalker[]; coils: { id: string; gx: number; gy: number; loops: number; status: string; mine: boolean }[]; storms: MapStorm[]; server_now: number };
+export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: number };
 export type MapSighting = { id: number; gx: number; gy: number; rarity: string; kind: string | null; hot: boolean; second: boolean; at: string; expires_at: string; expires_in: number };
 export type EnchantMap3 = {
   sightings: MapSighting[];
@@ -225,7 +236,6 @@ export const api = {
   enchantMap3: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap3>('enchant_map3', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   /** 🎭 a Puppeteer's run on someone else's plot (a real minigame session) */
   puppetStart: (id: string, gx: number, gy: number) => rpc<MinigameStart & { puppet: { id: string; owner: any; rarity: string; name: string | null; grand: boolean } }>('puppet_start', { p_id: id, p_gx: gx, p_gy: gy }),
-  homunculusGreet: (id: string) => rpc<{ greeted: boolean; you: number; them: number }>('homunculus_greet', { p_id: id }),
   stormCatch: (id: string, i: number) => rpc<{ caught: boolean; ink: number }>('storm_catch', { p_id: id, p_i: i }),
   sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),
   sizeUndo: (gx: number, gy: number) => rpc<{ undone: boolean; was_prank: boolean }>('size_undo', { p_gx: gx, p_gy: gy }),

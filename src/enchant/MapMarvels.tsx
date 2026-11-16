@@ -1,7 +1,7 @@
-// The three newest enchantments, out on the map: a Homunculus walking from one of its owner's plots to the next (tap
-// someone else's to greet it — a few Ink each), a serpent coiled round every enchantment in a coiled splice (its loops on
-// a badge), and storms — a thundercloud over the Storm Coil and every bolt gathering and striking where it lands, on the
-// server's own clock. Tap your own bolts to catch them; anyone can catch a stray that lands on a neighbour's plot.
+// Out on the map, live: your Pocket Suns (and your party's shared ones) — a burning disc and its corona over the zone,
+// the zone itself as a glowing circle, and your sunspots blinking inside it — and storms: a thundercloud over the Storm
+// Coil and every bolt gathering and striking where it lands, on the server's own clock. Tap your own bolts to catch
+// them; anyone can catch a stray that lands on a neighbour's plot.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type * as maplibregl from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
@@ -14,12 +14,21 @@ import { useUi } from '../lib/store';
 import { mapHandle } from '../map/mapHandle';
 import { newMarker } from '../map/maplib';
 import { cellCenter } from '../shared/grid';
-import { homuSvg } from './homunculus';
 import { feel } from './living';
 
-const WALK_ZOOM = 15.5;
+const SUN_ZOOM = 13.5;
 const STORM_ZOOM = 12.5;
 const ZZ = '<svg class="zz" viewBox="0 0 30 220" aria-hidden="true"><path d="M15 0 L4 92 L14 92 L2 220 L28 70 L17 70 L26 0 Z" fill="#E8F6FF" stroke="#7DF9FF" stroke-width="2"/></svg>';
+/** each sun's zone as a circle on the map */
+function sunGeo(list: EnchantMap2['suns']) {
+  const ring = (gx: number, gy: number, m: number) => {
+    const [lng, lat] = cellCenter(gx, gy);
+    const dLat = m / 111_320, dLng = m / (111_320 * Math.cos((lat * Math.PI) / 180));
+    return Array.from({ length: 49 }, (_, i) => { const a = (i / 48) * Math.PI * 2; return [lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat]; });
+  };
+  return { type: 'FeatureCollection', features: list.map((z) => ({ type: 'Feature', properties: { c: z.tier === 'white' ? '#BDE6FF' : z.tier === 'hot' ? '#FF5E3A' : '#FFB703', flare: !!z.flare },
+    geometry: { type: 'Polygon', coordinates: [ring(Number(z.gx), Number(z.gy), Number(z.r_m))] } })) };
+}
 const esc = (s: string | null | undefined) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function wrap(html: string, cls: string, onClick?: () => void) {
@@ -55,32 +64,28 @@ export function MapMarvels({ ready }: { ready: boolean }) {
       const m = newMarker({ element: node, anchor, offset: offs }).setLngLat(lngLat).addTo(map);
       list.push(m); return m;
     };
-    // 🧫 walking Homunculi
-    for (const w of data.walkers) {
-      const name = w.nickname || `Homunculus #${w.serial}`;
-      const html = `<span class="lv-homu-mk"><span class="fig lv-homu-figure walking">${homuSvg(w.parts, { id: `mw${w.id.slice(0, 8)}` })}</span>`
-        + `<span class="tag${w.mine ? ' mine' : ''}">${w.mine ? 'Your ' : ''}${esc(name)}${w.mine ? '' : ` · @${esc(w.owner_name)}`} · ×${Number(w.mult).toFixed(1)}</span>`
-        + `${!w.mine && !w.greeted ? '<span class="wave">👋</span>' : ''}</span>`;
-      const node = wrap(html, 'lv-em', async () => {
-        if (w.mine) { nav(`/grimoire/${w.id}`); return; }
-        if (w.greeted) { toast(`You’ve greeted @${w.owner_name ?? '?'}’s Homunculus today`); return; }
-        try {
-          const r = await api.homunculusGreet(w.id);
-          feel('success');
-          toast.success(`👋 You greeted @${w.owner_name ?? '?'}’s Homunculus: +${r.you} Ink (and they got +${r.them})`);
-          void qc.invalidateQueries({ queryKey: ['enchant-map2'] }); invalidateGame(qc);
-        } catch (e) { toast.error(toGameError(e).message); }
+    // ☀️ suns: the disc and its corona, the zone as a ring, the sunspots inside (yours only)
+    const suns: { s: (typeof data.suns)[number] }[] = [];
+    for (const z of data.suns ?? []) {
+      const tag = z.mine ? `${z.mode === 'orbit' ? '🪐 In orbit' : '☀️ Your sun'}` : `🤝 @${esc(z.owner_name)}’s sun`;
+      const node = wrap(`<span class="lv-sun-mk ${z.tier}${z.flare ? ' flare' : ''}"><i class="corona"></i><i class="disc"></i><b class="tag">${tag}</b></span>`, 'lv-em-sun', () => {
+        if (z.mine && !z.reflected) nav(`/grimoire/${z.id}`);
       });
-      node.title = `${name}${w.owner_name ? ` · @${w.owner_name}` : ''} — its plot’s games ×${Number(w.mult).toFixed(2)}`;
-      node.dataset.testid = 'map-homunculus';
-      add(near, cellCenter(w.gx, w.gy), node, 'bottom', [0, 10]);
+      node.dataset.testid = 'map-sun';
+      add(far, cellCenter(Number(z.gx), Number(z.gy)), node);
+      if (z.mine) for (const [gx, gy] of z.spots ?? []) {
+        const sp = wrap('<span class="lv-sun-spot"></span>', 'lv-em-sunspot');
+        sp.style.pointerEvents = 'none';
+        sp.dataset.testid = 'map-sunspot';
+        add(near, cellCenter(gx, gy), sp);
+      }
+      suns.push({ s: z });
     }
-    // 🐍 coiled serpents
-    for (const c of data.coils) {
-      const node = wrap(`<span class="lv-ouro-mk${c.status === 'closed' ? ' closed' : ''}"><i></i><b>🐍${c.loops}</b></span>`, 'lv-em-ouro');
-      node.style.pointerEvents = 'none';
-      node.dataset.testid = 'map-coil';
-      add(near, cellCenter(c.gx, c.gy), node);
+    if (map.getSource('lv-suns')) (map.getSource('lv-suns') as maplibregl.GeoJSONSource).setData(sunGeo(data.suns ?? []) as any);
+    else if (map.isStyleLoaded()) {
+      map.addSource('lv-suns', { type: 'geojson', data: sunGeo(data.suns ?? []) as any });
+      map.addLayer({ id: 'lv-suns-fill', type: 'fill', source: 'lv-suns', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['get', 'flare'], 0.28, 0.14] } });
+      map.addLayer({ id: 'lv-suns-line', type: 'line', source: 'lv-suns', paint: { 'line-color': ['get', 'c'], 'line-width': 2.5, 'line-opacity': 0.85, 'line-dasharray': [3, 1.5] } });
     }
     // ⚡ storms: the cloud, and every bolt where it lands
     const bolts: { node: HTMLElement; s: MapStorm; b: MapStorm['bolts'][number] }[] = [];
@@ -117,10 +122,10 @@ export function MapMarvels({ ready }: { ready: boolean }) {
         add(far, cellCenter(b.gx, b.gy), node);
       }
     }
-    // zoomed out a little, only the storms show; right in, the walkers and coils too
+    // zoomed out a little, the storms and suns show; right in, the sunspots too
     const vis = () => {
       const z = map.getZoom();
-      for (const m of near) m.getElement().style.display = z >= WALK_ZOOM ? '' : 'none';
+      for (const m of near) m.getElement().style.display = z >= SUN_ZOOM + 2 ? '' : 'none';
       for (const m of far) m.getElement().style.display = z >= STORM_ZOOM ? '' : 'none';
     };
     vis();
@@ -143,7 +148,7 @@ export function MapMarvels({ ready }: { ready: boolean }) {
         }
       }, 120);
     }
-    return () => { map.off('zoom', vis); clearInterval(timer); [...near, ...far].forEach((m) => m.remove()); };
+    return () => { map.off('zoom', vis); clearInterval(timer); [...near, ...far].forEach((m) => m.remove()); if (map.getSource('lv-suns')) (map.getSource('lv-suns') as maplibregl.GeoJSONSource).setData(sunGeo([]) as any); };
   }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

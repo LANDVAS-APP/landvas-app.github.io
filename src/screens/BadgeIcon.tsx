@@ -28,9 +28,11 @@ const SHAPES: Record<string, string> = {
   round: 'M50 4 A46 46 0 1 1 49.9 4Z',
   diamond: 'M50 3 L95 50 L50 97 L5 50Z',
   ticket: 'M14 10 H86 A8 8 0 0 0 94 18 V82 A8 8 0 0 0 86 90 H14 A8 8 0 0 0 6 82 V18 A8 8 0 0 0 14 10Z',
+  // an eight-pointed sigil, for the enchantments
+  sigil: 'M50 2 L60 26 L84 16 L74 40 L98 50 L74 60 L84 84 L60 74 L50 98 L40 74 L16 84 L26 60 L2 50 L26 40 L16 16 L40 26Z',
 };
 const BY_CAT: Record<string, keyof typeof SHAPES> = {
-  creation: 'round', collection: 'hex', exploration: 'diamond', mastery: 'star', community: 'round', rarity: 'shield', daily: 'star', travel: 'ticket', estate: 'hex', kinds: 'shield',
+  creation: 'round', collection: 'hex', exploration: 'diamond', mastery: 'star', community: 'round', rarity: 'shield', daily: 'star', travel: 'ticket', estate: 'hex', kinds: 'shield', enchant: 'sigil',
 };
 
 export function BadgeIcon({ icon, category, tier = 0, locked, size = 52 }: { icon: string; category: string; tier?: number; locked?: boolean; size?: number }) {

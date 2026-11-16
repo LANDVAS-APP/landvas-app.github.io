@@ -92,10 +92,13 @@ describe('🗺️ Seeking buries a real chest you can dig up', () => {
 });
 
 describe('🧞🪺 Wishing and Tempered always do something', () => {
-  it('Wishing on a Goose (no charges to keep): +50% Ink when grafted', async () => {
+  it('Wishing on a Goose (no charges to keep): once a day its next reward is wished ×2', async () => {
     await graft(ids.goose, ids.genie);
+    await db.sql(`update enchantments set stats = stats - 'wish_day' where id = $1`, [ids.goose]);
     const p = await pay(ids.goose);
-    expect(p.mods.some((m: any) => m.label === 'Wishing +50%')).toBe(true);
+    expect(p.mods.some((m: any) => m.label === 'Wished ×2 (once a day)')).toBe(true);
+    const q = await pay(ids.goose);
+    expect(q.mods.some((m: any) => /Wished/.test(m.label))).toBe(false);
     await end();
   });
   it('Tempered (the Crucible’s) never pays Ink: on a Wormhole it tempers the plot; on a Goose it dodges foxes too', async () => {
@@ -111,14 +114,15 @@ describe('🧞🪺 Wishing and Tempered always do something', () => {
 });
 
 describe('⚙️👁️ the Clockwork chimes and the Oracle is paid, so Ink Traits work on them', () => {
-  it('winding the day’s last turn chimes and pays — and a Golden Trait boosts it', async () => {
+  it('winding the day’s last turn chimes and pays — and a Golden Trait lays it an egg (not more Ink)', async () => {
     await graft(ids.clock, ids.goose);
     const a = await act(ann, ids.clock, 'wind', { turns: 14 });
     expect(a.result.chimed).toBe(false);
     const b = await act(ann, ids.clock, 'wind', { turns: 1 });
     expect(b.result.chimed).toBe(true);
     expect(b.result.pay.base).toBeGreaterThanOrEqual(30);
-    expect(b.result.pay.mods.some((m: any) => /Golden/.test(m.label))).toBe(true);
+    expect(b.result.pay.mods.some((m: any) => /Golden/.test(m.label))).toBe(false);
+    expect(b.traits.golden).toMatchObject({ k: 2, refills: true });
     await expectError(act(ann, ids.clock, 'wind', { turns: 1 }), 'wound_out');
     await end();
   });

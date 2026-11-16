@@ -268,7 +268,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
         <span className="font-black text-[#9BF6E5]">🧬 Splice Codex</span>
         <span className="font-bold text-white/70">{codexN}/{HYBRID_COUNT} hybrids · {(view.trinities ?? []).length} trinities · {(view.quads ?? []).length ? `${view.quads.length} quad${view.quads.length > 1 ? 's' : ''} · ` : ''}{(view.aberrations ?? []).length}/6 aberrations</span>
       </div>
-      <p className="text-center text-[11px] text-white/55">{view.made} splice{view.made === 1 ? '' : 's'} made. A Clockwork can freeze a hybrid to keep it fused longer; an Ouroboros can coil it into loops; a Storm Coil’s lightning mutates it.</p>
+      <p className="text-center text-[11px] text-white/55">{view.made} splice{view.made === 1 ? '' : 's'} made. A Clockwork can freeze a hybrid to keep it fused longer; a Storm Coil’s lightning mutates it; a Dowsing Rod’s Divining can aim it at an Aberration.</p>
     </div>
   );
 }
@@ -310,7 +310,7 @@ function MoreCharges({ view, act, busy }: { view: any; act: SceneProps['act']; b
             ) : <span className="text-[11px] text-white/50">No unhatched eggs — Inkborn playdates lay them.</span>}
           </div>
           <div className="rounded-xl bg-black/25 p-2.5 text-white/75">
-            🪿 A Golden Goose egg carries a spark {shop.spark_pct ?? 20}% of the time (a Platinum one always does) · 🧫 a Homunculus’s heart brings one.
+            🪿 A Golden Goose egg carries a spark {shop.spark_pct ?? 20}% of the time (a Platinum one always does) · 🪄 a Divining Trait can bring one.
           </div>
         </div>
       )}

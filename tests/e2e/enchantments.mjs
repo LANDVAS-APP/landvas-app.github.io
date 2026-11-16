@@ -17,7 +17,7 @@ const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a),
 const sql = (q) => page.evaluate((q) => window.__landvasBackend.db.query(q).then((r) => r.rows), q);
 const nav = async (p) => { await page.evaluate((p) => window.__landvasNav(p), p); await page.waitForTimeout(900); };
 const KINDS = { goose: 'goose-scene', genie: 'genie-scene', map: 'map-scene', parasite: 'parasite-scene', pandora: 'pandora-scene', splice: 'splice-scene', clockwork: 'clock-scene', sizeray: 'ray-scene', shard: 'shard-scene',
-  wormhole: 'wormhole-scene', oracle: 'oracle-scene', ouroboros: 'ouro-scene', homunculus: 'homu-scene', stormcoil: 'storm-scene',
+  wormhole: 'wormhole-scene', oracle: 'oracle-scene', stormcoil: 'storm-scene', sun: 'sun-scene', rod: 'rod-scene',
   spyglass: 'spyglass-scene', origami: 'origami-scene', crucible: 'crucible-scene', puppeteer: 'puppeteer-scene', deck: 'deck-scene', glyph: 'glyph-scene' };
 const N = Object.keys(KINDS).length;
 try {

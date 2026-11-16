@@ -222,10 +222,12 @@ describe('🧪 Splice, ⚙️ Clockwork, 📡 Size Ray', () => {
     await expectError(act(ann, ids.splice, 'splice', { a: ids.goose, b: ids.genie }), 'no_charges');
     const g = await db.rpc(ann, 'enchant_get', { p_id: ids.goose });
     expect(g.partner).toMatchObject({ kind: 'sizeray', gene: 'grow', resonant: true, hybrid: 'Giant Goose' });
-    // the Giant gene triples the goose's egg
+    // the Giant Trait no longer pays Ink: its plot stands giant every day instead (part 10)
     await skip(ids.goose, 3 * 3600);
     const c = await act(ann, ids.goose, 'collect');
-    expect(c.result.pay.mods.some((m: any) => /Giant ×3/.test(m.label))).toBe(true);
+    expect(c.result.pay.mods.some((m: any) => /Giant/.test(m.label))).toBe(false);
+    await db.sql(`select private.trait_daily($1)`, [ids.goose]);
+    expect((await db.rpc(ann, 'enchant_get', { p_id: ids.goose })).traits.giant).toMatchObject({ k: 2 });
   });
   it('Clockwork: wind it, fast-forward an enchantment, freeze a spliced one to keep the hybrid longer', async () => {
     ids.clock = await enchant(ann, 'clockwork', 32);

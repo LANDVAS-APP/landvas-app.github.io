@@ -29,7 +29,7 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { celebrateDelay, type Overlay } from './celebrate';
 import { EnchantTransform } from '../enchant/EnchantTransform';
 import { Sigil } from '../enchant/Sigil';
-import { kindInfo } from '../enchant/kinds';
+import { dowsedLine, kindInfo } from '../enchant/kinds';
 import { useNavigate } from 'react-router-dom';
 import { Director, bestIdx, type Phase } from './stage/director';
 import { reelPos, type EnchantBrief } from './stage/trace';
@@ -45,7 +45,8 @@ export type { EnchantBrief };
 export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null;
   /** Luck's rerolls: every roll (the first is the plot's own); the player keeps one */ choices?: RarityId[] | null;
   /** each roll's minigame type and shine */ choiceTypes?: string[] | null; choiceShiny?: boolean[] | null;
-  /** the roll came out Enchanted: the enchantment born on it */ enchant?: EnchantBrief | null };
+  /** the roll came out Enchanted: the enchantment born on it */ enchant?: EnchantBrief | null;
+  /** 🪄 what a tuned Dowsing Rod did to this roll */ dowsed?: { result: string; name: string; depth: number; need: number; t: string }[] | null };
 
 const INK = '#1B1240';
 const N = RARITY_ORDER.length;
@@ -396,8 +397,11 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           {revealed && result && (
             <motion.div className="grid gap-2.5 text-center" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduce ? 0 : celebrateDelay(final) / 1000, duration: 0.3 }}>
               <div className="text-[15px] font-extrabold" style={{ color: ench ? '#F0DBFF' : info.glow }}>{subtitle}</div>
-              {(finalShiny || result.hot || result.lucky) && (
+              {(finalShiny || result.hot || result.lucky || (result.dowsed ?? []).length > 0) && (
                 <div className="flex flex-wrap justify-center gap-1.5">
+                  {(result.dowsed ?? []).map((d, i) => (d.result === 'hit' || d.result === 'forced'
+                    ? <motion.span key={`d${i}`} initial={{ scale: 0, rotate: -8 }} animate={{ scale: [0, 1.3, 1], rotate: 0 }} transition={{ delay: 0.45 }} className="lv-dowsed-stamp rounded-full px-3 py-1 font-display text-[15px] font-black text-[#04201A]" data-testid="roll-dowsed">{dowsedLine(d)}</motion.span>
+                    : <span key={`d${i}`} className="rounded-full bg-[#7FE0C3]/15 px-3 py-1 text-[12px] font-extrabold text-[#AFF3DE]" data-testid="roll-dowse-note">{dowsedLine(d)}</span>))}
                   {finalShiny && <motion.span initial={{ scale: 0 }} animate={{ scale: [0, 1.25, 1] }} transition={{ delay: 0.55 }} className="rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-3 py-1 font-display text-[15px] font-black text-[#1a0b2e] shadow-[0_0_24px_#fff8]" data-testid={testId === 'ink-roll' ? 'roll-shiny' : 'claim-shiny'}>✨ SHINY · ×5 rent ✨</motion.span>}
                   {result.lucky && <span className="rounded-full bg-[#3DDC97]/20 px-3 py-1 text-[12px] font-extrabold text-[#8CF5C6]" data-testid="roll-lucky">🍀 Lucky roll</span>}
                   {result.hot && <span className="rounded-full bg-[#FF6A1F]/25 px-3 py-1 text-[12px] font-extrabold text-[#FFB27A]">🔥 Hot Zone roll</span>}

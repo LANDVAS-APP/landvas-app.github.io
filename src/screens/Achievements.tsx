@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 const APP = isNative();
 
-const CATS: Record<string, string> = { rarity: '💎 Rarities', collection: '🗺️ Collection', kinds: '🏗️ Every kind of plot', daily: '🔥 Daily & Luck', travel: '✈️ Travel', estate: '🏘️ Estates', creation: '🎨 Creation', exploration: '🧭 Exploration', mastery: '🎮 Mastery', community: '💖 Community' };
+const CATS: Record<string, string> = { enchant: '🔮 Enchantments', rarity: '💎 Rarities', collection: '🗺️ Collection', kinds: '🏗️ Every kind of plot', daily: '🔥 Daily & Luck', travel: '✈️ Travel', estate: '🏘️ Estates', creation: '🎨 Creation', exploration: '🧭 Exploration', mastery: '🎮 Mastery', community: '💖 Community' };
 export default function Achievements() {
   const q = useQuery({ queryKey: ['achievements'], queryFn: api.achievements });
   const [show, setShow] = useState<'all' | 'got' | 'todo'>('all');

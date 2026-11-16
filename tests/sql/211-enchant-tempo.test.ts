@@ -25,6 +25,8 @@ beforeAll(async () => {
   await db.sql(`update players set created_at = now() - interval '3 days' where id = $1`, [ann]);
   await db.giveInk(ann, 200_000);
   await db.sql(`update game_config set value = jsonb_set(value, '{enabled}', 'false') where key = 'luck'`);
+  // (no Aberrations or unstable splices: a random one would change the rates these check)
+  await db.sql(`update game_config set value = value || '{"splice": {"aberration": 0, "unstable": 0}}'::jsonb where key = 'enchantments'`);
 });
 afterAll(() => db.close());
 

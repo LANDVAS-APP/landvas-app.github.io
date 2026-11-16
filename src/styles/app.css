@@ -1433,6 +1433,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-shiny-stamp { background: linear-gradient(90deg, #FF7AE0, #FFE14D, #3DDC97, #22E3FF, #A45CFF, #FF7AE0); background-size: 200% 100%; animation: lv-shiny-stamp 1.6s linear infinite;
   box-shadow: 0 0 0 3px #fff, 0 0 30px rgba(255,255,255,0.8); }
 @keyframes lv-shiny-stamp { to { background-position: 200% 0; } }
+/* 🪄 a Dowsing Rod brought up its target */
+.lv-dowsed-stamp { background: linear-gradient(90deg, #7FE0C3, #E8FFF7, #6FD3FF); box-shadow: 0 0 22px rgba(127, 224, 195, 0.75); }
 @media (prefers-reduced-motion: reduce) { .lv-rr-foil, .lv-twinkle, .lv-shiny-stamp { animation: none; } }
 /* the ink splash (src/roll/RollReveal.tsx InkSplash): every piece grows out from its own middle — its group holds its
    final size (scale), the piece pops up to it (no var() in the keyframes) */

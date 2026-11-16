@@ -30,6 +30,8 @@ import { Sigil } from './Sigil';
 import { nextIn } from './pickers';
 import { GlyphMark, said } from './scenes/GlyphScene';
 import { StarAura, StarPips, StarsPanel } from './Stars';
+import { ChaosBox, DivineTarget, GoldenEggs, LinkPlot, traitProof } from './TraitTools';
+import { GrimoireBadges } from './GrimoireBadges';
 import './enchant.css';
 
 export default function GrimoireScreen() {
@@ -87,7 +89,7 @@ function Home() {
       <SpliceInvites />
       <AllChests />
       <Tabs value={tab} onValueChange={(t) => setSp((p) => { p.set('tab', t); return p; }, { replace: true })} className="mb-4"
-        items={[{ value: 'mine', label: `Enchantments${list.length ? ` · ${list.length}` : ''}` }, { value: 'visitors', label: `On my land${visitors.data?.length ? ` · ${visitors.data.length}` : ''}` }, { value: 'bestiary', label: 'Bestiary' }, { value: 'codex', label: 'Codex' }]} />
+        items={[{ value: 'mine', label: `Enchantments${list.length ? ` · ${list.length}` : ''}` }, { value: 'visitors', label: `On my land${visitors.data?.length ? ` · ${visitors.data.length}` : ''}` }, { value: 'bestiary', label: 'Bestiary' }, { value: 'codex', label: 'Codex' }, { value: 'badges', label: 'Badges' }]} />
       {tab === 'mine' && (mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : list.length ? (
         <div className="grid gap-3">
           {/* ready now: everything that has something waiting, one tap away */}
@@ -124,6 +126,7 @@ function Home() {
       ))}
       {tab === 'visitors' && <Visitors list={visitors.data ?? []} loading={visitors.isLoading} />}
       {tab === 'bestiary' && <Bestiary data={best.data} />}
+      {tab === 'badges' && <GrimoireBadges />}
       {tab === 'codex' && <Codex codex={best.data?.codex ?? []} trinities={best.data?.trinities ?? []} plots={best.data?.plots ?? []} aberrations={best.data?.aberrations ?? []} />}
     </Page>
   );
@@ -371,6 +374,7 @@ function TraitsAtWork({ v, mine, onSeparate, act, busy }: { v: EnchantView; mine
           : p.gene === 'farsight' && tn.farsight ? (tn.farsight.reaches ? `It reaches ${tn.farsight.reach}× as far right now` : `${tn.farsight.scouted} plot${tn.farsight.scouted === 1 ? '' : 's'} scouted${tn.farsight.today ? ' · today’s are on your map' : ''}`)
           : p.gene === 'trick' && tn.tempered ? `Its plot is tempered${tn.tempered.dodged ? ` · ${tn.tempered.dodged} bad luck dodged` : ''}`
           : p.gene === 'fated' && tn.fated ? (tn.fated.last ? `Last card: ${tn.fated.last.name} — ${tn.fated.last.fx} · ${tn.fated.cards} in all` : 'No card drawn yet — one comes with a reward')
+          : traitProof(p.gene, tn) ? traitProof(p.gene, tn)
           : t?.on ? (paid.length ? `Worked on ${hits} of ${paid.length} reward${paid.length === 1 ? '' : 's'} since the splice` : `No reward since the splice yet — it works on ${t.on}`) : null;
         return (
           <div key={(p as any).row ?? p.id} className="grid gap-1.5 rounded-2xl bg-[#00F5D4]/10 px-3 py-2.5 text-[12px]" data-testid="ench-partner">
@@ -386,6 +390,10 @@ function TraitsAtWork({ v, mine, onSeparate, act, busy }: { v: EnchantView; mine
                 {proof && <div className="text-[11px] font-bold text-[#9BF6E5]" data-testid="ench-trait-proof">📈 {proof}</div>}
                 {mine && p.gene === 'folded' && tn.fold && <FoldWait v={v} fold={tn.fold} act={act} busy={busy} />}
                 {mine && p.gene === 'inscribed' && tn.rune && <TraceRune rune={tn.rune} act={act} busy={busy} />}
+                {mine && p.gene === 'golden' && tn.golden && <GoldenEggs g={tn.golden} act={act} busy={busy} />}
+                {mine && p.gene === 'chaos' && tn.chaos && <ChaosBox c={tn.chaos} act={act} busy={busy} />}
+                {mine && p.gene === 'linked' && tn.linked && <LinkPlot v={v} l={tn.linked} act={act} busy={busy} />}
+                {mine && p.gene === 'divining' && tn.divining && <DivineTarget d={tn.divining} act={act} busy={busy} />}
                 {mine && p.gene === 'farsight' && tn.farsight && !tn.farsight.reaches && tn.farsight.scouted > 0 && (
                   <Link to="/world" className="w-fit rounded-full bg-[#F4C95D]/20 px-3 py-1 text-[11.5px] font-black text-[#FFE8A3]" data-testid="ench-farsight-map">🔭 See its readings on the map</Link>
                 )}
@@ -497,7 +505,7 @@ function SceneMood({ v }: { v: EnchantView }) {
 const WORKS_ON: Record<string, string[]> = {
   goose: ['its own egg'], genie: ['you'], map: ['plots nearby', 'the map'], parasite: ['other players’ plots'], pandora: ['you'], splice: ['your enchantments', 'your plots', 'friends'],
   clockwork: ['your other enchantments'], sizeray: ['any plot on the map'], shard: ['others’ enchantments'], wormhole: ['two of your plots'], oracle: ['your rolls', 'a friend’s roll'],
-  ouroboros: ['a running splice'], homunculus: ['your plots'], stormcoil: ['your hybrids', 'your plots'], spyglass: ['unclaimed plots on the map'], origami: ['your plots', 'free spots on the map'],
+  stormcoil: ['your hybrids', 'your plots'], sun: ['any spot on the map', 'your plots', 'your party'], rod: ['your plot rolls', 'spots near you'], spyglass: ['unclaimed plots on the map'], origami: ['your plots', 'free spots on the map'],
   crucible: ['your plots'], puppeteer: ['other players’ plots'], deck: ['your day'], glyph: ['your plots', 'your enchantments', 'the Leviathan'], cuckoo: ['what it hatches into'],
 };
 const SECTIONS = [['play', '✨ Play'], ['traits', '🧬 Traits'], ['stars', '⭐ Stars'], ['story', '📜 Story'], ['how', '❓ How']] as const;
@@ -521,7 +529,7 @@ function Detail({ id }: { id: string }) {
   const at = copies.findIndex((e) => e.id === v.id);
   const wait = v.attention ? null : nextIn(v, (q.dataUpdatedAt ? (Date.now() - q.dataUpdatedAt) / 1000 : 0) * rateOf(v));
   const partners = v.partners ?? (v.partner ? [v.partner] : []);
-  const traitNeeds = !!(v.traits?.fold && v.traits.fold.left > 0) || !!(v.traits?.rune && v.traits.rune.ready);
+  const traitNeeds = !!(v.traits?.fold && v.traits.fold.left > 0) || !!(v.traits?.rune && v.traits.rune.ready) || !!(v.traits?.golden && v.traits.golden.left > 0) || !!(v.traits?.chaos && v.traits.chaos.left > 0);
   const jump = (s: string) => document.getElementById(`ench-${s}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return (
     <Page>
@@ -653,6 +661,17 @@ const EV: Record<string, (d: any) => string> = {
   merged: (d) => (d.kind === 'essence' ? '🔮 Three Essence poured in' : d.same ? `✨ A ${kindInfo(d.kind).name} #${d.serial} was poured in` : `🔮 A ${kindInfo(d.kind).name} #${d.serial} poured in as Essence`),
   merged_away: (d) => `✨ Poured into ${kindInfo(d.into).name} #${d.serial}${d.same ? '' : ' as Essence'}`,
   star: (d) => `${'⭐'.repeat(d.stars)} Earned ★${d.stars}: ${d.power}`,
+  became: (d) => (d.from === 'ouroboros' ? '🐍 The Ouroboros straightened into a Dowsing Rod' : '🧫 The Homunculus’s heart lit up into a Pocket Sun'),
+  ignited: (d) => `☀️ Lit a ${d.mode === 'orbit' ? 'sun in orbit' : 'Pocket Sun'}, ${d.r} m across`, snuffed: () => '🌑 Stoked too hot — the sun snuffed out', doused: () => '💧 Doused the sun',
+  flared: (d) => `🌞 A ${d.grade} Solar Flare (${d.s} s)`, tuned: (d) => `🪄 Tuned to ${d.name} (full depth in ${Number(d.need).toLocaleString()} rolls)`,
+  dowsed: (d) => `💧 Dowsed ${d.name}${d.how === 'forced' ? ' at full depth' : ''}!`, rod_slip: (d) => `🫗 Held back a ${d.name} — ${Math.round((100 * d.depth) / Math.max(1, d.need))}% deep`,
+  walked: (d) => (d.found ? `🚶 Walked the map and twitched over a ${d.rarity} spot` : '🚶 Walked the map — nothing today'),
+  gold_egg: (d) => `🪿 Cracked a golden egg: ${d.what ?? `+${d.ink} Ink`}${d.spark ? ' — and a Splice spark' : ''}`,
+  chaos_box: (d) => (d.good ? `🏺 A chaos box: ${d.label}` : d.dodged ? '🏺 A chaos box hiccup — dodged' : '🏺 A chaos box hiccup: its clock stopped for an hour'),
+  spored: (d) => `🦠 Sent ${d.n} spore${d.n > 1 ? 's' : ''} to neighbours’ plots`, stood_giant: (d) => `📡 Its plot stood giant for ${d.h} h`,
+  echoed: (d) => `🪞 An echo: ${d.action === 'reward' ? 'its last reward paid again' : `${d.action} again, by itself`}${d.ink ? ` (+${d.ink} Ink)` : ''}`, echo_faded: () => '🪞 An echo faded (nothing to repeat)',
+  arced: (d) => `⚡ Static arced to ${d.plots} plot${d.plots === 1 ? '' : 's'} (×1.25 for an hour)`, linked_plot: () => '🌀 Linked a second plot', divined: (d) => `🪄 Divined ${d.key === 'platinum' ? 'a Platinum egg' : d.key === 'aberration' ? 'an Aberration' : d.key === 'strike' ? 'a strike that lands' : d.key === 'world' ? 'The World' : 'a Splice spark'}!`,
+  divine_slip: () => '🫗 Divining held back a natural hit — a little deeper',
   gift: (d) => `🎁 Gave a wish to @${d.to}`, boon: () => '👑 The Master’s Boon: an Epic+ roll ticket', toll: (d) => `🔔 Rang the Toll of Hours — ${d.n} enchantments jumped 30 min ahead`,
   hatched_into: (d) => `🥚 Hatched into a ${kindInfo(d.kind).name} (#${d.serial})`,
   sighted: (d) => `🔭 Sighted a ${d.rarity === 'enchanted' ? 'plot that stirs ✨' : `${d.rarity} plot`}`, prospected: (d) => `🔭 Claimed a plot it sighted (${d.rarity})${d.ink ? ` +${d.ink} Ink` : ''}`,

@@ -16,7 +16,7 @@ describe('badges', () => {
   });
   it('every metric a badge uses is one the server measures (no badge can never unlock)', async () => {
     await db.sql(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values (5, 3000000, 'graphite', 'singularity', $1, now())`, [u]);
-    const [m] = await db.sql(`select private.achievement_metrics($1) m`, [u]);
+    const [m] = await db.sql(`select private.achievement_metrics($1) || private.ench_metrics($1) m`, [u]);
     const metrics = (await db.sql(`select distinct metric from achievements where is_active`)).map((x: any) => x.metric);
     const missing = metrics.filter((k: string) => !(k in m.m) && !k.startsWith('rar_') && !k.startsWith('kind_'));
     expect(missing).toEqual([]);

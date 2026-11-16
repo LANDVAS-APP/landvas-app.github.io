@@ -45,7 +45,7 @@ describe('🥚 the Cuckoo is gone', () => {
   it('is out of the roster: never rolled, no hybrids, no Star powers, no Leviathan move', async () => {
     const ks = (await db.sql(`select private.ench_kinds() k`))[0].k;
     expect(ks).not.toContain('cuckoo');
-    expect(ks).toEqual(expect.arrayContaining(['spyglass', 'origami', 'crucible', 'ouroboros', 'homunculus']));
+    expect(ks).toEqual(expect.arrayContaining(['spyglass', 'origami', 'crucible', 'sun', 'rod']));
     const h = (await db.sql(`select private.ench_hybrids() h, private.ench_hybrid_count() n`))[0];
     expect(Object.keys(h.h).some((x) => x.includes('cuckoo'))).toBe(false);
     expect(h.n).toBe(Object.keys(h.h).length);
