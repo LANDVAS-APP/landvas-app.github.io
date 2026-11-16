@@ -109,6 +109,8 @@ export function goTarget(now: Whereabouts | null | undefined): { label: string; 
   if (!now?.online || !a) return null;
   if (a.kind === 'arcade' && a.detail.arcade) return { label: '🕹️ Join', route: `/arcade/${a.detail.arcade}` };
   if (a.kind === 'home' && a.detail.username) return { label: '🏠 Join', route: `/u/${encodeURIComponent(a.detail.username)}/home` };
+  // at their farm, business, realm…: come and help
+  if (a.kind === 'place' && a.detail.route && /^\/(farm|business|realm|habitat|landlord)\/[\w-]+$/.test(a.detail.route)) return { label: '🤝 Help', route: a.detail.route };
   return null;
 }
 /** go to them (and into their room) */

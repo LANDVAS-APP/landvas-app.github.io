@@ -680,7 +680,7 @@ export type DigState = {
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
   gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number; refilled?: string; added?: number;
 };
-export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other' | 'arcade' | 'party' | 'home';
+export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other' | 'arcade' | 'party' | 'home' | 'place';
 export type Whereabouts = {
   online: boolean;
   activity: { kind: ActivityKind; detail: Record<string, string>; at: string } | null;

@@ -40,6 +40,9 @@ function fromPath(path: string, space: SpaceState | undefined): { kind: Activity
   if (seg[0] === 'inkborn' && seg[1] === 'play') return { kind: 'game', detail: { game: seg[2] ?? '' } };
   if (seg[0] === 'inkborn' && seg[1] === 'playdate') return { kind: 'playdate', detail: {} };
   if (seg[0] === 'inkborn') return { kind: 'inkborn', detail: {} };
+  // at a place (a farm, business, realm, sanctuary or estate): friends and the party can come and help
+  const PLACES: Record<string, string> = { farm: 'farm', business: 'business', realm: 'realm', habitat: 'sanctuary', landlord: 'estate' };
+  if (PLACES[seg[0]] && seg[1] && seg[2] !== 'play') return { kind: 'place', detail: { what: PLACES[seg[0]], route: `/${seg[0]}/${seg[1]}` } };
   if (seg[0] === 'habitat') return { kind: 'sanctuary', detail: {} };
   if (seg[0] === 'play' || seg[0] === 'game') return { kind: 'game', detail: { game: seg[1] ?? '' } };
   if (['create', 'editor', 'canvases', 'sketch', 'duet', 'doodle'].includes(seg[0])) return { kind: 'create', detail: {} };
@@ -87,6 +90,7 @@ export function describeWhereabouts(w: Whereabouts | undefined) {
   if (place) return `🪐 on ${place}`;
   if (!w.online) return null;
   if (a?.kind === 'home' && a.detail.username) return `🏠 at @${a.detail.username}’s home`;
+  if (a?.kind === 'place') return ({ farm: '🌾 on a farm', business: '🍋 running a business', realm: '⛏️ in a realm', sanctuary: '🌳 in a sanctuary', estate: '🏘️ at an estate' } as Record<string, string>)[a.detail.what ?? ''] ?? '🗺️ at a place';
   const map: Partial<Record<string, string>> = { map: '🗺️ on the map', inkborn: '🐾 with their Inkborn', sanctuary: '🌳 in a sanctuary', playdate: '🧺 on a playdate',
     create: '🎨 creating', gallery: '🖼️ in the gallery', social: '💬 chatting', space: '🛰️ at mission control', arcade: '🕹️ in an arcade', party: '🎉 looking for a party' };
   return map[a?.kind ?? ''] ?? '🟢 online';

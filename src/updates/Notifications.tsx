@@ -153,7 +153,7 @@ function UpdatesBody({ open, onClose }: { open: boolean; onClose(): void }) {
 const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(a: Alert): React.ReactNode; to(a: Alert): string | null }> = {
   stamp: { icon: Stamp, color: '#FFB23F', text: (a) => <>collected stamp <b>#{a.data.serial}</b> of “{a.data.title}”{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => `/art/${a.data.publication_id}` },
   visit: { icon: DoorOpen, color: '#7B5CFF',
-    text: (a) => (a.data.arcade ? <>walked into your arcade 🕹️</> : a.data.business ? (a.data.tip ? <>bought a lemonade at your business 🍋</> : <>is looking round your business</>) : a.data.farm ? <>is looking round your farm 🌾</> : <>visited your room</>),
+    text: (a) => (a.data.arcade ? <>walked into your arcade 🕹️</> : a.data.business ? (a.data.tip ? <>bought a lemonade at your business 🍋</> : <>is looking round your business</>) : a.data.farm ? (a.data.help ? <>helped water your crops 💧</> : <>is looking round your farm 🌾</>) : <>visited your room</>),
     to: (a) => (a.data.arcade ? `/arcade/${a.data.arcade}` : a.data.business ? `/business/${a.data.business}` : a.data.farm ? `/farm/${a.data.farm}` : a.actor ? `/u/${a.actor.username}/home` : null) },
   checkin: { icon: DoorOpen, color: '#3DDC97', text: (a) => <>checked into your room{a.data.ink ? <span className="text-ok"> · +{a.data.ink} Ink</span> : null}</>, to: (a) => (a.actor ? `/u/${a.actor.username}/home` : null) },
   inspire: { icon: Sparkles, color: '#3DDC97', text: (a) => <>was inspired by “{a.data.title}”</>, to: (a) => `/art/${a.data.publication_id}` },

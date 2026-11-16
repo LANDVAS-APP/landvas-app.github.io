@@ -128,6 +128,16 @@ function FarmView({ f }: { f: Farm }) {
     setLastCrop(crop); saveStorage(LAST_CROP, crop); scene.current?.burst(bed, 'plant'); if (haptics) buzz('light');
   });
   const water = (bed: number) => act(`water-${bed}`, () => api.farmWater(f.id, bed), () => { scene.current?.burst(bed, 'water'); if (haptics) buzz('light'); });
+  // visiting: water their growing crops for them
+  const helpsLeft = useQuery({ queryKey: ['farm-helps-left', f.id], queryFn: () => api.farmHelpsLeft(f.id), enabled: !f.mine, staleTime: 30_000 });
+  const thirsty = f.beds.filter((b) => !b.watered && !isReady(b));
+  const help = (bed: number) => act(`help-${bed}`, () => api.farmHelp(f.id, bed), (r) => {
+    scene.current?.burst(bed, 'water'); if (haptics) buzz('light');
+    const x = r as Farm & { helps_left?: number; ink?: number };
+    qc.setQueryData(['farm-helps-left', f.id], x.helps_left ?? 0);
+    toast.success(`💧 Watered @${f.owner.username}’s ${crops[bedAt(bed)?.crop ?? '']?.name ?? 'crop'}`, { description: `It grows faster now${x.ink ? ` · +${x.ink} Ink for you` : ''} · ${x.helps_left ?? 0} more today` });
+    setSel(null);
+  });
   const harvest = (bed: number | null) => act(`harvest-${bed ?? 'all'}`, () => api.farmHarvest(f.id, bed), (r) => {
     const got = Object.entries(r.harvested ?? {});
     const idxs = bed != null ? [bed] : f.beds.filter(isReady).map((b) => b.idx);
@@ -246,7 +256,20 @@ function FarmView({ f }: { f: Farm }) {
           )}
         </div>
       ) : (
-        <div className="absolute inset-x-0 bottom-0 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))] text-center text-xs text-white/85"><span className="rounded-full bg-black/45 px-3 py-1.5 backdrop-blur">You’re visiting — @{f.owner.username} will see you dropped by 🌾</span></div>
+        // visiting: lend a hand — water their growing crops (a few a day here)
+        <div className="absolute inset-x-0 bottom-0 grid justify-items-center gap-2 p-3 pb-[max(12px,env(safe-area-inset-bottom,0px))] text-center" data-testid="farm-help-bar">
+          {sel != null && bedAt(sel) && (
+            <div className="rounded-2xl bg-black/65 px-3 py-2 text-xs backdrop-blur" data-testid="farm-help-bed">
+              {(() => { const b = bedAt(sel)!; return isReady(b) ? `${crops[b.crop]?.emoji} Ready — @${f.owner.username} will harvest it` : b.watered ? `${crops[b.crop]?.emoji} Already watered — growing fast` : <Button size="sm" variant="rainbow" loading={busy === `help-${sel}`} disabled={(helpsLeft.data ?? 1) <= 0} onClick={() => help(sel)} data-testid="farm-help-water"><Droplets className="h-4 w-4" /> Water their {crops[b.crop]?.name}</Button>; })()}
+            </div>
+          )}
+          {thirsty.length > 0 && (helpsLeft.data ?? 1) > 0 && sel == null && (
+            <Button variant="rainbow" loading={busy?.startsWith('help-')} onClick={() => help(thirsty[0].idx)} data-testid="farm-help-next"><Droplets className="h-4 w-4" /> Help: water a crop for @{f.owner.username}</Button>
+          )}
+          <span className="rounded-full bg-black/45 px-3 py-1.5 text-xs text-white/85 backdrop-blur">
+            {helpsLeft.data === 0 ? `🤝 Thanks for helping! You can water more here tomorrow` : thirsty.length ? `🤝 You’re helping @${f.owner.username} — tap a growing crop to water it · ${helpsLeft.data ?? '…'} left today` : `🌾 Nothing needs water right now — @${f.owner.username} will see you dropped by`}
+          </span>
+        </div>
       )}
       {f.mine && <Market open={market} onOpenChange={setMarket} f={f} />}
       {f.mine && f.progress && <FarmHub open={hub} onOpenChange={setHub} f={f} tab={hubTab} setTab={setHubTab} />}
