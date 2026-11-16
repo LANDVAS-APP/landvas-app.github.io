@@ -16,12 +16,16 @@ export interface LiveDef<W> {
   renderer(): Renderer<W>;
 }
 
-export const ARENA_GAMES: Record<string, { name: string; emoji: string; color: string; modes: ArenaMode[]; blurb: string; how: string }> = {
+export const ARENA_GAMES: Record<string, { name: string; emoji: string; color: string; modes: ArenaMode[]; blurb: string; how: string;
+  /** only for players who found this arcade secret (its pod and lobbies are hidden from everyone else) */ secret?: string }> = {
   paintwars: { name: 'Paint Wars', emoji: '🎨', color: '#FF3D9A', modes: ['ffa', 'teams', 'duel'], blurb: 'Roll over the floor to paint it your colour. Most paint when time runs out wins.', how: 'Drag to roll · 💥 SPLAT paints a big blob (every 6s) · grab ⚡ for speed' },
   bumper: { name: 'Bumper Orbs', emoji: '🫧', color: '#22E3FF', modes: ['duel', 'ffa', 'teams'], blurb: 'Shove everyone off the shrinking platform. Last one on wins the round.', how: 'Drag to roll · 💨 DASH to slam into people · stay on the platform!' },
   trails: { name: 'Ink Trails', emoji: '〰️', color: '#B6FF3D', modes: ['duel', 'ffa'], blurb: 'Steer your ink line and never cross a trail. Last one drawing wins the round.', how: 'Drag left / right to steer (or tap the sides) · slip through the gaps!' },
   volley: { name: 'Bubble Volley', emoji: '🏐', color: '#FFB13D', modes: ['duel', 'teams'], blurb: 'Bounce the bubble over the net. First side to 7 wins.', how: 'Drag left / right to move · ⬆ JUMP to hit it high' },
   meteor: { name: 'Meteor Guard', emoji: '☄️', color: '#B57BFF', modes: ['coop'], blurb: 'Together, guard the core from waves of meteors. How many waves can you last?', how: 'Drag to swing your shield round the core · 💫 PULSE clears nearby meteors (every 12s)' },
+  landgrab: { name: 'LAND GRAB', emoji: '🟩', color: '#3DDC97', modes: ['ffa', 'teams', 'duel', 'coop'], secret: 'founder',
+    blurb: 'Live, 2-4 of you on one map: loop back to your land to claim what you closed off. Cut their trails, guard yours.',
+    how: 'Drag to steer · get back to your land to claim · ⚡ DASH for a burst · never cross your own trail' },
 };
 export const MODE_INFO: Record<ArenaMode, { label: string; emoji: string; short: string; need: [number, number] }> = {
   duel: { label: '1v1', emoji: '⚔️', short: 'Head to head', need: [2, 2] },

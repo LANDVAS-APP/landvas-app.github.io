@@ -57,9 +57,17 @@ try {
   await sql(`update arcades set xp = 20000, machines = '{"stacker": 1, "cyclone": 1, "skeeball": 1, "pusher": 1, "bop": 1, "snake": 1, "airhockey": 1}' where id = '${arcadeId}'`);
   await page.evaluate((id) => window.__landvasNav(`/arcade/${id}`), arcadeId);
   await page.waitForSelector('[data-testid=arcade]', { timeout: 30000 }); await page.waitForTimeout(2500);
-  check('no mirror button before it’s found', (await page.locator('[data-testid=arcade-mirror-btn]').count()) === 0);
-  check('nothing on the other side yet', JSON.stringify(await api('arcadeMirrorGet')) === '{"found":false}');
+  check('the 🪞 door is in every arcade, for everyone', (await page.locator('[data-testid=arcade-mirror-btn]').count()) === 1);
+  const g0 = await api('arcadeMirrorGet');
+  check('not through yet: just the price (the secret stays secret)', g0.found === false && g0.price === 25000 && !/recipe|stacker|Rose/i.test(JSON.stringify(g0)), JSON.stringify(g0));
   await shot('01-arcade');
+  await page.click('[data-testid=arcade-mirror-btn]');
+  check('the door: walk through for 25,000 tickets, or find the way in', await page.waitForSelector('[data-testid=mirror-door-screen]', { timeout: 15000 }).then(() => true, () => false)
+    && /25,000/.test(await page.textContent('[data-testid=mirror-door-screen]').catch(() => '')) && (await page.locator('[data-testid=mirror-door-secret]').count()) === 1);
+  check('…not enough tickets yet: the button waits', await page.locator('[data-testid=mirror-buy]').isDisabled());
+  await shot('01b-door');
+  await page.click('[data-testid=mirror-door-back]');
+  await page.waitForSelector('[data-testid=arcade]', { timeout: 20000 }); await page.waitForTimeout(1500);
 
   // Rose, Amber, Sun, Mint… (through the API) then Sky in the hall
   for (const g of ['stacker', 'skeeball', 'pusher', 'bop']) await round(arcadeId, g, 40);

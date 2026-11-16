@@ -33,6 +33,7 @@ import { BoothHud, CarnivalNear, startBooth, TreatCart, type CarnivalBusy } from
 import type { CarnivalMe } from '../backend/types';
 import { config } from '../env';
 import { GlassCrack, MirrorRoom, mirrorKey } from './mirror/MirrorRoom';
+import { useTuckWorlds } from '../app/WorldsButton';
 import { AdmitOne, BackRoom, BSIDE_GAME, BSideMenu, LANDGRAB, PROTO, SecretCabinet, SecretReveal, TokenChip, hallPads, secretKey, secretsKey } from './secrets/SecretUI';
 import type { BSideDiff } from './secrets/bside';
 
@@ -62,12 +63,13 @@ export default function ArcadeScreen() {
 /** The arcade, or (through its portal) the shared Live Arena. */
 function ArcadeOrArena({ a }: { a: Arcade }) {
   const [params] = useSearchParams();
-  const [room, setRoom] = useState<'arcade' | 'arena' | 'mirror'>(() => (params.get('room') === 'arena' ? 'arena' : 'arcade'));
+  const [room, setRoom] = useState<'arcade' | 'arena' | 'mirror'>(() => (params.get('room') === 'arena' ? 'arena' : params.get('room') === 'mirror' ? 'mirror' : 'arcade'));
   const [first, setFirst] = useState<{ bounty: number } | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
   useEffect(() => { sfx.blip(14); }, [room]);
   if (room === 'mirror') return <MirrorRoom a={a} first={first} onBack={() => { setFirst(null); setRoom('arcade'); }} />;
-  return room === 'arena' ? <ArenaRoom from={a.id} onBack={() => setRoom('arcade')} />
-    : <ArcadeView a={a} onArena={() => setRoom('arena')} onMirror={(f) => { setFirst(f); setRoom('mirror'); }} />;
+  return room === 'arena' ? <ArenaRoom from={a.id} pick={pick} onBack={() => { setPick(null); setRoom('arcade'); }} />
+    : <ArcadeView a={a} onArena={(g) => { setPick(g ?? null); setRoom('arena'); }} onMirror={(f) => { setFirst(f); setRoom('mirror'); }} />;
 }
 
 /** A handful of regulars hanging round the cabinets (more as the arcade levels up). */
@@ -82,7 +84,7 @@ function regulars(seed: number, n: number) {
   return out;
 }
 
-function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMirror(first: { bounty: number } | null): void }) {
+function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(game?: string): void; onMirror(first: { bounty: number } | null): void }) {
   // a bigger arcade (more plots merged) has more cabinets in service
   const access = usePlaceAccess('arcade', a.id).data;
   const nav = useNavigate();
@@ -175,6 +177,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
   // together: the live room (others walking about), open lobbies and your match
   const myId = me?.user_id;
   const liveRoom = useArcadeLive({ arcadeId: a.id, myId, hall, playing });
+  useTuckWorlds(!!playing);
   const live = liveRoom.live;
   // your party: one tap to invite people into the arcade with you
   const party = useParty().data;
@@ -280,7 +283,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
       {/* side buttons */}
       {!busy && (
         <div className="absolute right-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+92px)] grid gap-2">
-          <button onClick={onArena} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #FFE14D' }} data-testid="arcade-arena-btn"><span className="text-lg leading-none">⚔️</span>Live</button>
+          <button onClick={() => onArena()} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #FFE14D' }} data-testid="arcade-arena-btn"><span className="text-lg leading-none">⚔️</span>Live</button>
           <button onClick={() => { sfx.blip(14); showParty(party?.group ? 'party' : 'invite'); }} className="relative grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #3DDC97' }} data-testid="arcade-party-btn">
             <PartyPopper className="h-5 w-5 text-[#3DDC97]" />{party?.group ? 'Party' : 'Invite'}
             {(party?.invites.length ?? 0) > 0 && <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-hot px-1 text-[10px] leading-4">{party!.invites.length}</span>}
@@ -288,7 +291,8 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-scores"><Trophy className="h-5 w-5 text-[#FFE14D]" />Scores</button>
           <button onClick={() => setSheet('prizes')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-prizes-btn"><span className="text-lg leading-none">🎁</span>Prizes</button>
           <button onClick={() => setSheet('jukebox')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-jukebox-btn"><Music className="h-5 w-5 text-[#22E3FF]" />Music</button>
-          {mirror.data?.found && <button onClick={() => { sfx.blip(16); onMirror(null); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #DDE8FF' }} data-testid="arcade-mirror-btn"><span className="text-lg leading-none" style={{ transform: 'scaleX(-1)' }}>🪞</span>Mirror</button>}
+          {/* the Mirror Arcade's door: open to everyone now (walk through for tickets, or find the way in) */}
+          {(mirror.data?.found || mirror.data?.open) && <button onClick={() => { sfx.blip(16); onMirror(null); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #DDE8FF' }} data-testid="arcade-mirror-btn"><span className="text-lg leading-none" style={{ transform: 'scaleX(-1)' }}>🪞</span>Mirror</button>}
           {a.mine && <button onClick={() => setSheet('manage')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-manage"><Wrench className="h-5 w-5" />Manage</button>}
         </div>
       )}
@@ -320,6 +324,11 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
                   <span className="block text-[11px] font-bold">Your best: {founderQ.data && founderQ.data.found ? founderQ.data.best['landgrab:classic'] ?? '—' : '—'}</span></span>
               </button>
             )}
+            {near.kind === 'machine' && near.id === 'landgrab' && found.has('founder') && (
+              <button onClick={() => { sfx.blip(14); onArena('landgrab'); }} className="flex items-center gap-2 rounded-2xl bg-black/75 px-4 py-2 text-sm font-black text-white shadow-xl" style={{ boxShadow: 'inset 0 0 0 1.5px #3DDC97' }} data-testid="landgrab-live">
+                🌐 Play it live · 2-4 players · teams, versus or co-op
+              </button>
+            )}
             {near.kind === 'machine' && nearGame && nearLocked && (
               <div className="flex items-center gap-3 rounded-3xl bg-black/75 px-5 py-3">
                 <Lock className="h-6 w-6 text-white/60" />
@@ -330,7 +339,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
             )}
             {near.kind === 'carnival' && carnival && cme && <CarnivalNear a={a} c={carnival} cme={cme} me={meState} spot={near.id} hall={hall} onMe={setMeState} onCme={setCme} onBusy={setCBusy} onTreats={() => setTreats(true)} />}
             {near.kind === 'door' && (
-              <button onClick={onArena} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFE14D] to-[#FF3D9A] px-5 py-3 text-left text-[#2A0A1A] shadow-2xl" data-testid="arcade-door"><span className="text-4xl">⚔️</span>
+              <button onClick={() => onArena()} className="lv-arc-play flex items-center gap-3 rounded-3xl bg-gradient-to-br from-[#FFE14D] to-[#FF3D9A] px-5 py-3 text-left text-[#2A0A1A] shadow-2xl" data-testid="arcade-door"><span className="text-4xl">⚔️</span>
                 <span><span className="block font-display text-2xl font-black">Enter the Live Arena</span><span className="block text-xs font-bold">Live 1v1, 2v2, free-for-all & co-op games with players from every arcade</span></span></button>
             )}
             {near.kind === 'prizes' && (
@@ -520,8 +529,8 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, 
               )}
               {phase.k === 'mwait' && match && (
                 <motion.div key="mwait" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-3" data-testid="match-countdown">
-                  <div className="lv-arc-marquee text-2xl" style={{ ['--glow' as string]: match.m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>{match.m.mode === 'versus' ? '⚔️ VERSUS' : '🤝 TEAM'}</div>
-                  <div className="text-sm text-white/80">{match.m.players.length} players · <b>{PLAY[match.m.play ?? 'classic'].short}</b> · same round, same time{match.m.mode === 'team' && match.m.target ? ` · team target ${fmtScore(match.m.target)}` : ''}</div>
+                  <div className="lv-arc-marquee text-2xl" style={{ ['--glow' as string]: match.m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>{match.m.mode === 'versus' ? '⚔️ VERSUS' : '🤝 CO-OP'}</div>
+                  <div className="text-sm text-white/80">{match.m.players.length} players · <b>{PLAY[match.m.play ?? 'classic'].short}</b> · same round, same time{match.m.mode === 'team' && match.m.target ? ` · co-op target ${fmtScore(match.m.target)}` : ''}</div>
                   <motion.div key={left ?? 'x'} initial={{ scale: 2.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="lv-arc-marquee text-9xl">{left && left > 0 ? left : 'GO'}</motion.div>
                 </motion.div>
               )}

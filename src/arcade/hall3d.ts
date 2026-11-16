@@ -424,7 +424,7 @@ export function createHall(o: HallOpts) {
         cols2.forEach((c, i) => { const p2 = box(0.28, 0.04, 0.4, glow(c, 0.6)); p2.position.set(-0.45 + i * 0.3, 0, 0); pads.add(p2); });
         break;
       }
-      case 'live:paintwars': case 'live:bumper': case 'live:trails': case 'live:volley': case 'live:meteor': {
+      case 'live:paintwars': case 'live:bumper': case 'live:trails': case 'live:volley': case 'live:meteor': case 'live:landgrab': {
         // a live pod: a cabinet with four glowing player pads in front of it
         upright(1.25, 1.62);
         const pads = new THREE.Group(); pads.position.set(0, 0.03, 1.15); g.add(pads); parts.push(pads);
@@ -566,7 +566,9 @@ export function createHall(o: HallOpts) {
     g.fillStyle = 'rgba(10,6,30,0.75)'; g.beginPath(); g.roundRect((256 - w) / 2, 6, w, 42, 21); g.fill();
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, 128, 28);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false })); sp.scale.set(1.3, 0.28, 1); sp.renderOrder = 5; return sp;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false }));
+    // (the mirror hall is drawn flipped: flip the name back so it reads the right way round)
+    sp.scale.set(o.mirror ? -1.3 : 1.3, 0.28, 1); sp.renderOrder = 5; return sp;
   };
   const setOthers = (list: { id: string; url: string; name: string; x: number; z: number; playing?: string | null }[]) => {
     const keep = new Set(list.map((o) => o.id));
@@ -793,7 +795,7 @@ export function createHall(o: HallOpts) {
         if (c.m.id === 'plinko') { const k = (t * 0.5) % 1; c.parts[0].position.y = 2.8 - k * 1.85; c.parts[0].position.x = Math.sin(k * 20) * 0.1; }
         if (c.m.id === 'racer') c.parts[0].rotation.z = Math.sin(t * 1.5) * 0.4;
         if (c.m.id === 'rhythm') c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = Math.floor(t * 4 + i * 1.7) % 4 === i ? 2.4 : 0.4; });
-        if (c.m.id.startsWith('live:')) { c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5 + Math.max(0, Math.sin(t * 3 + i * 1.6)) * 1.6; }); c.parts[1].position.y = 3.05 + Math.abs(Math.sin(t * 2.4)) * 0.12; }
+        if (c.m.id.startsWith('live:') && c.parts[1]) { c.parts[0].children.forEach((p2, i) => { ((p2 as THREE.Mesh).material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5 + Math.max(0, Math.sin(t * 3 + i * 1.6)) * 1.6; }); c.parts[1].position.y = 3.05 + Math.abs(Math.sin(t * 2.4)) * 0.12; }
         if (c.m.id === 'maze' || c.m.id === 'blaster' || c.m.id === 'snake') c.parts[0].position.y = 2.95 + Math.abs(Math.sin(t * 3)) * 0.12;
       }
       if (c.label) c.label.position.y = 3.0 + Math.sin(t * 2) * 0.05;

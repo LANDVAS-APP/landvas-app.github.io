@@ -12,12 +12,14 @@ import { Button, PlayerAvatar, ResourceIcon } from '../../ui';
 import { sfx } from '../../arcade/sfx';
 import { PARTY } from './index';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
+import { useTuckWorlds } from '../../app/WorldsButton';
 
 type Msg = { t: 'gs'; k: number; s: unknown; now: number } | { t: 'gm'; id: string; m: unknown } | { t: 'end'; r: Places };
 
 export const seatsOf = (g: HomeGame): Seat[] => [...g.players].sort((a, b) => (a.slot ?? 9) - (b.slot ?? 9)).map((p, i) => ({ id: p.id, slot: p.slot ?? i, name: `@${p.username}`, color: SEAT_COLORS[(p.slot ?? i) % SEAT_COLORS.length], p }));
 
 export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
+  useTuckWorlds(true);
   const def = PARTY[game.game];
   const seats = useRef(seatsOf(game)).current;
   const host = game.host === myId;

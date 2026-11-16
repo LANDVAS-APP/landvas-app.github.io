@@ -465,6 +465,10 @@ export const api = {
   // the Mirror Arcade (hidden: arcadeMirrorGet answers only { found: false } until you've found it)
   arcadeMirrorCheck: (session: string) => rpc<{ opened: boolean; first?: boolean; bounty?: number }>('arcade_mirror_check', { p_session: session }),
   arcadeMirrorGet: () => rpc<import('./types').MirrorArcade>('arcade_mirror_get'),
+  arcadeMirrorBuy: () => rpc<import('./types').MirrorArcade>('arcade_mirror_buy'),
+  arcadeMirrorLive: (arcade: string, x: number | null, z: number | null, playing: string | null) => rpc<import('./types').ArcadeLive>('arcade_mirror_live', { p_arcade: arcade, p_x: x, p_z: z, p_playing: playing }),
+  arcadeMirrorMatchCreate: (arcade: string, game: string, mode: 'versus' | 'team') => rpc<import('./types').ArcadeMatch>('arcade_mirror_match_create', { p_arcade: arcade, p_game: game, p_mode: mode }),
+  arcadeMirrorMatchStart: (match: string) => rpc<import('./types').ArcadeMatch>('arcade_mirror_match_start', { p_match: match }),
   arcadeMirrorStart: (game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_mirror_start', { p_game: game, p_mode: mode }),
   arcadeMirrorFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_mirror_finish', { p_session: session, p_score: arcScore(score) }),
   // the arcade's other secrets (hidden: arcadeSecretsMe answers { found: [] } until you've found one)

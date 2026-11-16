@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { create } from 'zustand';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../backend/api';
 import type { CanvasGroup } from '../backend/types';
@@ -22,6 +23,16 @@ const DEFAULT: Spot = { y: 0.6, side: 'right', tucked: false }; // (the left edg
 const NEVER = /^\/(welcome|onboarding|auth|reset-password|legal)(\/|$)|^\/$/;
 /** screens where it starts tucked (games, the editor): it'd cover the play */
 const PLAYING = /\/play\/|^\/play-sandbox|^\/pvp-sandbox|^\/create\/|^\/space\/planet\/|^\/brawl-demo|^\/inkborn\/playdate/;
+
+/** a game is on screen somewhere (a cabinet, a live match, a party game): the button tucks itself away meanwhile */
+const useWorldsAway = create<{ n: number; add(d: number): void }>((set) => ({ n: 0, add: (d) => set((s) => ({ n: Math.max(0, s.n + d) })) }));
+export function useTuckWorlds(on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    useWorldsAway.getState().add(1);
+    return () => useWorldsAway.getState().add(-1);
+  }, [on]);
+}
 
 export type WorldPlace = { key: string; emoji: string; title: string; sub?: string; route: string };
 
@@ -55,9 +66,10 @@ export function WorldsButton() {
   const [spot, setSpot] = useState<Spot>(() => ({ ...DEFAULT, ...safeStorage<Partial<Spot>>(KEY, {}) }));
   const [open, setOpen] = useState(false);
   // tucked for now (a game): opening it once shows it again on this screen
-  const playing = PLAYING.test(loc.pathname);
+  const away = useWorldsAway((w) => w.n > 0);
+  const playing = PLAYING.test(loc.pathname) || away;
   const [peek, setPeek] = useState(false);
-  useEffect(() => setPeek(false), [loc.pathname]);
+  useEffect(() => setPeek(false), [loc.pathname, away]);
   const save = (s: Spot) => { setSpot(s); saveStorage(KEY, s); };
   const tucked = spot.tucked || (playing && !peek);
   // dragging: up and down along the edge; across the middle to switch sides; into the edge to tuck it away

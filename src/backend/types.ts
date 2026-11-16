@@ -209,6 +209,8 @@ export type ArcadeMember = Profile & { explorer_style?: unknown; x: number; z: n
 export type ArcadeMatchPlayer = Profile & { explorer_style?: unknown; score: number | null; finished: boolean; bonus: number; session: string | null };
 export type ArcadeMatch = {
   id: string; arcade_id: string; game: string; mode: 'versus' | 'team'; status: 'lobby' | 'playing' | 'done' | 'cancelled'; host: string;
+  /** which side of the glass: the front hall, or the Mirror Arcade */
+  side?: 'front' | 'mirror';
   /** how everyone in the match plays it: Classic (the usual round) or Endless (until you run out of lives) */
   play?: 'classic' | 'endless';
   seed: number | null; target: number | null; created_at: string; started_at: string | null; server_time: string; players: ArcadeMatchPlayer[]; level: number;
@@ -729,7 +731,8 @@ export type SecretGames = { found: false } | { found: true; secret: string; ink_
   boards: Record<string, { player: Profile; score: number }[]>; best: Record<string, number>; data: Record<string, any> | null; me: ArcadeMe };
 export type MirrorGame = { id: string; name: string; emoji: string; color: string; order: number; own: boolean };
 export type MirrorBoard = { player: Profile; score: number }[];
-export type MirrorArcade = { found: false } | { found: true; found_at: string; ink_mult: number; games: MirrorGame[]; boards: Record<string, MirrorBoard>; boards_endless: Record<string, MirrorBoard>;
+export type MirrorArcade = { found: false; /** the door's open to everyone */ open?: boolean; /** tickets to walk through */ price?: number; tickets?: number }
+  | { found: true; found_at: string; /** found the way in, bought it, or given it */ how?: 'found' | 'bought' | 'granted'; ink_mult: number; games: MirrorGame[]; boards: Record<string, MirrorBoard>; boards_endless: Record<string, MirrorBoard>;
   best: Record<string, number>; best_endless: Record<string, number>; me: ArcadeMe };
 export type Arcade = {
   id: string; group_id: string; seed: number; name: string; plots: number; owner: Profile; mine: boolean;

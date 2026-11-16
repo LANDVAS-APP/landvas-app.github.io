@@ -4,7 +4,9 @@
 import { pulse } from '../../lib/pulse';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { secretsKey } from '../secrets/SecretUI';
 import { toast } from 'sonner';
 import { api } from '../../backend/api';
 import { useAutoJoin } from '../../party/lfg';
@@ -21,6 +23,7 @@ import { ARENA_GAMES, MODE_INFO, TEAM_COLORS } from './kit';
 import { LIVE_DEFS } from './games';
 import { LiveGame } from './LiveGame';
 import { config } from '../../env';
+import { useTuckWorlds } from '../../app/WorldsButton';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Pos = { t: 'pos'; id: string; x: number; z: number; f: number; p: string | null };
@@ -80,7 +83,7 @@ function useArenaLive(opts: { myId: string | undefined; from: string | null; hal
 
 const GAME_IDS = Object.keys(ARENA_GAMES);
 
-export function ArenaRoom({ from, onBack }: { from: string | null; onBack(): void }) {
+export function ArenaRoom({ from, onBack, pick }: { from: string | null; onBack(): void; /** walk straight to this game's pod */ pick?: string | null }) {
   const me = useOnboardedMe();
   const reduce = useUi((s) => s.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -97,7 +100,6 @@ export function ArenaRoom({ from, onBack }: { from: string | null; onBack(): voi
       explorerUrl: svgUrl(explorerSvg(me?.profile.explorer_style, me?.profile.accent_color ?? '#7B5CFF', 184)),
       onNear: (s) => { setNear(s); if (s) sfx.blip(s.kind === 'machine' ? 7 : 12); },
     });
-    h.setMachines(GAME_IDS.map((id) => ({ id: `live:${id}`, name: ARENA_GAMES[id].name, color: ARENA_GAMES[id].color, emoji: ARENA_GAMES[id].emoji, level: 1, locked: false })));
     h.setDecor({ floor: 'grid', neon: 'rainbow', lights: 'lasers' }, 'LIVE ARENA');
     hall.current = h;
     if (import.meta.env.DEV || config.e2e) (window as unknown as { __arenaDefs: unknown }).__arenaDefs = LIVE_DEFS;
@@ -105,8 +107,22 @@ export function ArenaRoom({ from, onBack }: { from: string | null; onBack(): voi
     return () => { h.dispose(); hall.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { hall.current?.setPaused(!!game); }, [game]);
+  // the pods: every game, and a secret one only for those who found it
+  const secrets = useQuery({ queryKey: secretsKey, queryFn: () => api.arcadeSecretsMe(), staleTime: 60_000, refetchOnWindowFocus: false });
+  const ids = useMemo(() => GAME_IDS.filter((id) => !ARENA_GAMES[id].secret || (secrets.data?.found ?? []).includes(ARENA_GAMES[id].secret!)), [secrets.data]);
+  useEffect(() => {
+    hall.current?.setMachines(ids.map((id) => ({ id: `live:${id}`, name: ARENA_GAMES[id].name, color: ARENA_GAMES[id].color, emoji: ARENA_GAMES[id].emoji, level: 1, locked: false })));
+  }, [ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  // came here from a cabinet to play it live: walk to its pod
+  const picked = useRef(false);
+  useEffect(() => {
+    if (!pick || picked.current || !ids.includes(pick)) return;
+    picked.current = true;
+    setTimeout(() => hall.current?.walkTo({ kind: 'machine', id: `live:${pick}` }), 400);
+  }, [pick, ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const room = useArenaLive({ myId, from, hall, playing: game?.game ?? null });
+  useTuckWorlds(!!game);
   const live = room.live;
   // the host pressed Start: everyone in the lobby drops into the game
   const handled = useRef(new Set<string>());

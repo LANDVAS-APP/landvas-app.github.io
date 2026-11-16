@@ -1,4 +1,5 @@
 // The five Live Arena games. Each world is plain data: the host steps it, everyone draws it.
+import { landgrab } from './landgrab';
 import { type ArenaMode, type Inp, type LP, type LiveDef, type LiveResult, TEAM_COLORS, bg, clamp, colorOf, fit, glow, ip, label, placesFrom, rng } from './kit';
 
 type Ent = { x: number; y: number };
@@ -458,5 +459,5 @@ export const meteor: LiveDef<MG> = {
   },
 };
 
-export const LIVE_DEFS: Record<string, LiveDef<any>> = { paintwars, bumper, trails, volley, meteor }; // eslint-disable-line @typescript-eslint/no-explicit-any
+export const LIVE_DEFS: Record<string, LiveDef<any>> = { paintwars, bumper, trails, volley, meteor, landgrab }; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type { Inp, LP, LiveResult };

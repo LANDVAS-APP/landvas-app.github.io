@@ -1,6 +1,7 @@
 // Arcades together: a live room of up to 10 visitors (you see each other walking about), and matches on any
 // cabinet for 2-4 players in the room. Versus: everyone plays the same round at the same time, top score wins
-// bonus tickets. Team: same round, scores add up toward a shared target, and everyone gets the bonus.
+// bonus tickets. Co-op ("team" on the server): same round, scores add up toward a shared target, and everyone gets the
+// bonus. The Mirror Arcade has the same, on its side of the glass (side: 'mirror').
 // The heartbeat (every few seconds) keeps your place in the room, lists the open lobbies and your match;
 // positions and live scores stream over the room's realtime channel in between.
 import { pulse } from '../lib/pulse';
@@ -20,7 +21,7 @@ import { sfx } from './sfx';
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Msg = { t: 'pos'; id: string; x: number; z: number; f: number; p: string | null } | { t: 'score'; m: string; id: string; s: number };
 
-export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined; hall: React.RefObject<HallScene | null>; playing: string | null }) {
+export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined; hall: React.RefObject<HallScene | null>; playing: string | null; /** the Mirror Arcade's room */ side?: 'mirror' }) {
   const [live, setLive] = useState<ArcadeLive | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({}); // live scores in your match, by player
   const ref = useRef(opts); ref.current = opts;
@@ -51,7 +52,7 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
       if (stopped || document.hidden) return;
       const pose = ref.current.hall.current?.pose();
       try {
-        const r = await api.arcadeLive(arcade, pose?.x ?? null, pose?.z ?? null, ref.current.playing);
+        const r = await (ref.current.side === 'mirror' ? api.arcadeMirrorLive : api.arcadeLive)(arcade, pose?.x ?? null, pose?.z ?? null, ref.current.playing);
         if (stopped) return;
         members = new Set(r.members.map((m) => m.id));
         others = r.members.map((m) => {
@@ -83,7 +84,7 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
   return { live, scores, send: (m: Msg) => send.current?.(m), refresh: () => beatNow.current() };
 }
 
-const MODE = { versus: { label: 'Versus', emoji: '⚔️', color: '#FF3D6E', blurb: 'Same round, same time — top score wins bonus tickets' }, team: { label: 'Team', emoji: '🤝', color: '#22E3FF', blurb: 'Your scores add up — hit the target and everyone gets the bonus' } } as const;
+const MODE = { versus: { label: 'Versus', emoji: '⚔️', color: '#FF3D6E', blurb: 'Same round, same time — top score wins bonus tickets' }, team: { label: 'Co-op', emoji: '🤝', color: '#22E3FF', blurb: 'Play together: your scores add up — hit the target and everyone gets the bonus' } } as const;
 /** how a match is played: the usual round, or until everyone runs out of lives */
 export type MatchPlay = 'classic' | 'endless';
 export const PLAY: Record<MatchPlay, { label: string; short: string; blurb: string }> = {
@@ -116,14 +117,14 @@ export function PlayToggle({ value, onChange, disabled, testid = 'match-play' }:
 }
 
 /** Start a match from the cabinet you're standing at: pick Classic or Endless, then Versus or Team. */
-export function MatchButtons({ arcade, game, onMatch, disabled }: { arcade: string; game: string; onMatch(m: ArcadeMatch): void; disabled?: boolean }) {
+export function MatchButtons({ arcade, game, onMatch, disabled, side }: { arcade: string; game: string; onMatch(m: ArcadeMatch): void; disabled?: boolean; /** at a mirror cabinet */ side?: 'mirror' }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [play, setPlay] = useState<MatchPlay>(() => { try { return localStorage.getItem('landvas.matchPlay') === 'endless' ? 'endless' : 'classic'; } catch { return 'classic'; } });
   const pick = (p: MatchPlay) => { setPlay(p); try { localStorage.setItem('landvas.matchPlay', p); } catch { /* private mode */ } };
   const go = async (mode: 'versus' | 'team') => {
     setBusy(mode);
     try {
-      let m = await api.arcadeMatchCreate(arcade, game, mode);
+      let m = await (side === 'mirror' ? api.arcadeMirrorMatchCreate : api.arcadeMatchCreate)(arcade, game, mode);
       if (play !== 'classic') m = await api.arcadeMatchSetPlay(m.id, play).catch(() => m);
       sfx.coin(); onMatch(m);
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
@@ -194,11 +195,11 @@ export function LobbyPanel({ a, m, myId, onChange }: { a: Arcade; m: ArcadeMatch
           );
         })}
       </div>
-      {m.mode === 'team' && m.target && <div className="mt-2 text-center text-xs text-white/80">Team target: <b className="text-[#22E3FF]">{fmtScore(m.target)}</b> points together</div>}
+      {m.mode === 'team' && m.target && <div className="mt-2 text-center text-xs text-white/80">Co-op target: <b className="text-[#22E3FF]">{fmtScore(m.target)}</b> points together</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="ghost" size="sm" className="!text-white" loading={busy === 'leave'} onClick={() => run('leave', () => api.arcadeMatchLeave(m.id))} data-testid="match-leave">Leave</Button>
         {host
-          ? <Button variant="rainbow" size="sm" className="ml-auto" disabled={m.players.length < 2} loading={busy === 'start'} onClick={() => run('start', () => api.arcadeMatchStart(m.id))} data-testid="match-start">{m.players.length < 2 ? 'Waiting for players…' : `▶ Start (${m.players.length} players)`}</Button>
+          ? <Button variant="rainbow" size="sm" className="ml-auto" disabled={m.players.length < 2} loading={busy === 'start'} onClick={() => run('start', () => (m.side === 'mirror' ? api.arcadeMirrorMatchStart : api.arcadeMatchStart)(m.id))} data-testid="match-start">{m.players.length < 2 ? 'Waiting for players…' : `▶ Start (${m.players.length} players)`}</Button>
           : <span className="ml-auto self-center text-xs text-white/70">Waiting for the host to start…</span>}
       </div>
     </motion.div>
@@ -214,7 +215,7 @@ export function MatchStrip({ m, scores, myId, myScore }: { m: ArcadeMatch; score
     <div className="w-full max-w-[560px] rounded-2xl bg-black/70 p-2 text-white" data-testid="match-strip">
       {m.mode === 'team' && m.target ? (
         <div className="mb-1.5">
-          <div className="flex justify-between text-[10px] font-black"><span>🤝 TEAM{m.play === 'endless' ? ' · ∞' : ''}</span><span className="tnum">{fmtScore(total)} / {fmtScore(m.target)}</span></div>
+          <div className="flex justify-between text-[10px] font-black"><span>🤝 CO-OP{m.play === 'endless' ? ' · ∞' : ''}</span><span className="tnum">{fmtScore(total)} / {fmtScore(m.target)}</span></div>
           <div className="mt-0.5 h-2 overflow-hidden rounded-full bg-white/15"><motion.div className="h-full rounded-full bg-gradient-to-r from-[#22E3FF] to-[#3DDC97]" animate={{ width: `${Math.min(100, (total / m.target) * 100)}%` }} /></div>
         </div>
       ) : null}
@@ -254,7 +255,7 @@ export function MatchResults({ a, matchId, myId, onDone }: { a: Arcade; matchId:
   return (
     <div className="grid w-full max-w-xs justify-items-center gap-2" data-testid="match-results">
       <div className="lv-arc-marquee text-xl" style={{ ['--glow' as string]: m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>
-        {m.status !== 'done' ? 'WAITING FOR THE OTHERS…' : m.mode === 'versus' ? (me?.bonus ? '★ YOU WIN! ★' : `@${rows[0]?.username} WINS`) : total >= (m.target ?? 0) ? '★ TEAM TARGET HIT! ★' : 'SO CLOSE!'}
+        {m.status !== 'done' ? 'WAITING FOR THE OTHERS…' : m.mode === 'versus' ? (me?.bonus ? '★ YOU WIN! ★' : `@${rows[0]?.username} WINS`) : total >= (m.target ?? 0) ? '★ CO-OP TARGET HIT! ★' : 'SO CLOSE!'}
       </div>
       {m.mode === 'team' && m.target && <div className="font-mono text-sm">Team: <b className="text-[#22E3FF]">{fmtScore(total)}</b> / {fmtScore(m.target)}</div>}
       <div className="grid w-full gap-1">

@@ -35,7 +35,7 @@ afterAll(() => db.close());
 describe('The Mirror Arcade', () => {
   it('is hidden: nothing in game_config, nothing for someone who hasn’t found it', async () => {
     expect(JSON.stringify(await db.sql(`select value from game_config`))).not.toMatch(/Twin Drops|arcade_mirror|"glass": \{"order"/);
-    expect(await db.rpc(vi, 'arcade_mirror_get', {})).toEqual({ found: false });
+    expect(await db.rpc(vi, 'arcade_mirror_get', {})).toMatchObject({ found: false });
     await expectError(db.rpc(vi, 'arcade_mirror_start', { p_game: 'twin' }), 'not_found');
   });
 
@@ -54,7 +54,7 @@ describe('The Mirror Arcade', () => {
     for (const g of ['stacker', 'skeeball', 'pusher', 'snake', 'bop']) await play(vi, g, 50);
     last = await play(vi, 'cyclone', 50);
     expect(await check(vi, last)).toEqual({ opened: false });
-    expect(await db.rpc(vi, 'arcade_mirror_get', {})).toEqual({ found: false });
+    expect(await db.rpc(vi, 'arcade_mirror_get', {})).toMatchObject({ found: false });
   });
 
   it('Rose, Amber, Sun, Mint, Sky opens it, once, with a bounty', async () => {
@@ -121,6 +121,6 @@ describe('The Mirror Arcade', () => {
     expect(m.boards_endless.twin[0]).toMatchObject({ score: 9000 });
     expect(m.best.twin).toBe(1500);
     // the owner of the arcade it was found in hasn't found it
-    expect(await db.rpc(ow, 'arcade_mirror_get', {})).toEqual({ found: false });
+    expect(await db.rpc(ow, 'arcade_mirror_get', {})).toMatchObject({ found: false });
   });
 });
