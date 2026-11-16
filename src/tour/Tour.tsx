@@ -1,7 +1,7 @@
 // The new-player tutorial: a short, skippable walk through what you can do. "Show me" jumps
 // to the screen and shrinks the tour to a pill so the player can look around, then carry on.
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Brush, CircleDollarSign, Gamepad2, Gift, Map, MapPinned, PawPrint, Sparkles, Trophy, Wand2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Brush, CircleDollarSign, Gamepad2, Gift, Map, MapPinned, PawPrint, Sparkles, Trophy, Wand2, X } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
@@ -22,6 +22,7 @@ const STEPS: Step[] = [
   { icon: Wand2, color: '#FF9F1C', title: 'Grow a mural', body: 'Buy neighbouring plots and merge them into one canvas you can paint across. Bigger murals earn bigger craft bonuses — merging costs a little Ink per plot.' },
   { icon: CircleDollarSign, color: '#22C7B5', title: 'Rent every second', body: 'Your land earns USD rent around the clock. Hit the 20× boost once a day — daily limits reset every evening.' },
   { icon: Trophy, color: '#FFE14D', title: 'More ways to earn', body: 'Spin the daily wheel, check in at other players’ rooms, enter weekly challenges and battle in free PvP minigames.', to: '/pvp', cta: 'Show me PvP' },
+  { icon: BookOpen, color: '#8B6BFF', title: 'Every answer in one place', body: 'The Handbook explains every feature with pictures and live numbers, plus the best ways to grind. Open it any time from the Play tab.', to: '/handbook', cta: 'Open the Handbook' },
   { icon: Gift, color: '#FF4FD8', title: 'Bring your friends', body: 'Invite friends with your code: you earn Ink when they start playing, plus a share of what they earn.', to: '/invite', cta: 'Show me my invite link' },
 ];
 

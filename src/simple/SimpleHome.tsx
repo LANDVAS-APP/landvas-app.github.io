@@ -141,7 +141,7 @@ export default function SimpleHome() {
           <div className="text-[10px] font-semibold text-white/50 tnum">1 in {Math.round(1_000_000_000 / Math.max(1, rarities().reduce((s, x) => s + (Number(x.ppb) || 0), 0))).toLocaleString()} · 19 of them</div>
         </Link>
       </div>
-      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link> · <Link to="/guide" className="font-bold text-white/70 underline" data-testid="simple-guide">The full guide →</Link></p>
+      <p className="-mt-2 px-1 text-[10px] text-white/40">Any plot can roll ✨ shiny (1 in 1,000) for ×5 rent. Ultra rarities each earn in their own special way. <Link to="/legend" className="font-bold text-white/70 underline" data-testid="simple-legend">How rarities work →</Link> · <Link to="/guide" className="font-bold text-white/70 underline" data-testid="simple-guide">The full guide →</Link> · <Link to="/handbook" className="font-bold text-white/70 underline" data-testid="simple-handbook">The Handbook →</Link></p>
 
       <CollectionCard onOpen={() => setAlbum(true)} />
 

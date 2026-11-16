@@ -366,7 +366,7 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
               <li>{choice === 'train' ? '🚆' : '✈️'} <b>{g.name}</b> becomes {KIND_A(choice)}. Tap Travel on the map to {choice === 'train' ? 'ride to real train stations: you board at the station nearest you and stop at the real stations on the way' : 'fly to any of 3,000+ real airports: you board at the airport nearest you'}.</li>
               <li>📍 When you arrive you’re really there: claim plots, play and check in nearby. Head home whenever you like.</li>
               <li>🛂 Every new station and airport is a souvenir stamp in your passport (and a little Ink).</li>
-              <li>🎟️ {choice === 'train' ? '4 trips a day, +1 for each extra Train plot' : '2 flights a day, +1 for each extra Plane plot'}. Switching between Train and Plane is free.</li>
+              <li>🎟️ 2 trips a day (trains and flights together), +2 more for 100 Ink. Switching between Train and Plane is free.</li>
               <li>🎨 <b>Your artwork is saved, not erased.</b> Switching back to Art Canvas brings it back exactly as it was.</li>
             </ul>
           ) : choice === 'landlord' ? (

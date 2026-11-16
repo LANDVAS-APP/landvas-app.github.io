@@ -31,7 +31,7 @@ import { Z_PLOT, cellCenter } from '../shared/grid';
 import { UltraTracker } from '../ultra/UltraTracker';
 import { PlotWorlds } from '../play/PlotWorlds';
 import { activeBoost, fullClearInk } from '../play/rates';
-import { Atom, Clapperboard, Footprints, PartyPopper } from 'lucide-react';
+import { Atom, Clapperboard, Footprints, GraduationCap, PartyPopper } from 'lucide-react';
 import { PartyHubCard } from '../party/PartyButtons';
 import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
@@ -55,12 +55,12 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/inkborn': PawPrint, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen, '/space': Rocket, '/space/play/asteroids': Zap,
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/party': PartyPopper, '/me': Smile, '/achievements': Award, '/explorer': Compass,
-  '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
+  '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/handbook': GraduationCap, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
 };
 const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold' };
 const YOU = { to: '/me', label: 'You', pages: [
   { to: '/me', label: 'Profile' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/grimoire', label: 'Grimoire' }, { to: '/primordials', label: 'Primordials' }, { to: '/fusion', label: 'Fusion Lab' }, { to: '/clips', label: 'Clips' },
-  { to: '/royalty', label: 'Royalty' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
+  { to: '/royalty', label: 'Royalty' }, { to: '/handbook', label: 'Handbook' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
 ] };
 
 const rise = (i: number) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { delay: Math.min(i, 12) * 0.035, type: 'spring' as const, stiffness: 420, damping: 32 } });
@@ -177,6 +177,19 @@ export default function GameHub() {
         {me && <PlotWorlds />}
         {me && <FirstLightCard />}
         {me && <UltraTracker />}
+
+        {/* how everything works: the Handbook */}
+        <motion.div {...rise(n++)}>
+          <Link to="/handbook" className="mb-3 flex items-center gap-3 rounded-[22px] p-3.5" data-testid="hub-handbook"
+            style={{ background: 'linear-gradient(135deg, rgba(139,107,255,0.28), rgba(34,227,255,0.12))', boxShadow: 'inset 0 0 0 1px rgba(170,190,255,0.22)' }}>
+            <Emblem tone="violet" size={44}><GraduationCap className="h-[22px] w-[22px]" /></Emblem>
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-[15px] font-black">The Handbook</span>
+              <span className="block text-[12px] font-semibold text-muted">Every feature explained, with pictures, live numbers and the best ways to grind</span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+          </Link>
+        </motion.div>
 
         {/* everything, at a glance */}
         <motion.h2 {...rise(n++)} className="mb-2.5 px-0.5 font-display text-[17px] font-black">Everything</motion.h2>

@@ -52,6 +52,9 @@ export default function SupportScreen() {
         actions={!composing && <Button variant="primary" onClick={() => setComposing(true)} data-testid="support-new"><MessageSquarePlus className="h-4 w-4" /> New ticket</Button>}>
         Tell us what’s up and the LANDVAS team will reply right here. You’ll get a notification on the bell when we answer.
       </PageHeader>
+      <Link to="/handbook" className="glass mb-4 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold" data-testid="support-handbook">
+        <span>🎓 How does something work? <span className="block text-xs font-semibold text-muted">The Handbook explains every feature, with pictures.</span></span><span className="text-muted">›</span>
+      </Link>
       {composing && <NewTicket defaultCategory={sp.get('category') ?? 'bug'} onDone={(id) => { setComposing(false); setSp({ t: id }); }} onCancel={() => setComposing(false)} />}
       {mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : !tickets.length && !composing ? (
         <Empty icon={<LifeBuoy className="h-6 w-6" />} title="No tickets yet" action={<Button variant="primary" onClick={() => setComposing(true)}>Ask for help</Button>}>

@@ -391,8 +391,8 @@ const KIND_OPTS: KindOpt[] = [
 /** the subplots, by kind */
 const SUBS: Partial<Record<PlotKind, { icon: string; title: string; body: string; perks: string[] }>> = {
   home: { icon: '🏠', title: 'Home', body: 'Your house: visitors walk in from your profile', perks: ['Opens “Visit home” on your profile', 'Merge 2×2 … 10×10 for a bigger house: floors, stairs, balconies, a roof terrace, a lift, a pool', 'Visitors check in with a note or a drawing in your book'] },
-  train: { icon: '🚆', title: 'Train', body: 'Ride to real stations on the rail network', perks: ['Board at the station nearest you', 'Stop at the real stations on the way', '4 trips a day, +1 for each extra Train plot'] },
-  plane: { icon: '✈️', title: 'Plane', body: 'Fly to 3,000+ real airports worldwide', perks: ['Board at the airport nearest you', 'Fly anywhere in the world in minutes', '2 flights a day, +1 for each extra Plane plot'] },
+  train: { icon: '🚆', title: 'Train', body: 'Ride to real stations on the rail network', perks: ['Board at the station nearest you', 'Stop at the real stations on the way', '2 trips a day (trains and flights together), +2 more for 100 Ink'] },
+  plane: { icon: '✈️', title: 'Plane', body: 'Fly to 3,000+ real airports worldwide', perks: ['Board at the airport nearest you', 'Fly anywhere in the world in minutes', '2 trips a day (trains and flights together), +2 more for 100 Ink'] },
   landlord: { icon: '🏘️', title: 'Landlord', body: 'Homes you rent to virtual tenants', perks: ['Tenants pay on the 1st of every month', 'Rent day: 50× USD rent from these plots all day', 'Normal rent the rest of the month'] },
 };
 /** the type a kind belongs to (a subplot belongs to its main type) */

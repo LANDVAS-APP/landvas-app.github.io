@@ -66,6 +66,7 @@ const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const ClipsScreen = lazy(() => import('../clips/ClipsScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
+const HandbookScreen = lazy(() => import('../handbook/HandbookScreen'));
 const RoyaltyScreen = lazy(() => import('../screens/Royalty'));
 const PowersScreen = lazy(() => import('../rarity/PowersScreen'));
 const FusionLab = lazy(() => import('../rarity/FusionLab'));
@@ -172,7 +173,7 @@ function OnboardingGate() {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/handbook/, 'The LANDVAS Handbook — every feature, explained'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
 ];
@@ -282,6 +283,8 @@ const routes: RouteObject[] = [
           { path: '/grimoire/:id', element: player(<GrimoireScreen />) },
           { path: '/clips', element: player(<ClipsScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },
+          { path: '/handbook', element: p(<HandbookScreen />) },
+          { path: '/handbook/:chapter', element: p(<HandbookScreen />) }, // public: new players can read it before signing up
           { path: '/royalty', element: p(<RoyaltyScreen />) },
           { path: '/powers/:cell', element: player(<PowersScreen />) },
           { path: '/fusion', element: player(<FusionLab />) },

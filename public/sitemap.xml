@@ -5,6 +5,22 @@
   <url><loc>https://landvas.app/gallery</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>
   <url><loc>https://landvas.app/players</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://landvas.app/social</loc><changefreq>hourly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://landvas.app/handbook</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://landvas.app/handbook/start</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/world</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/roll</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/rent</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/ink</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/luck</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/places</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/inkborn</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/space</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/enchant</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/ultra</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/social</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/progress</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/strategy</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://landvas.app/handbook/faq</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
   <url><loc>https://landvas.app/welcome</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://landvas.app/legal/terms</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>
   <url><loc>https://landvas.app/legal/privacy</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>

@@ -4,7 +4,7 @@
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MAP_THEMES } from './basemap';
 import { AnimatePresence, motion } from 'motion/react';
-import { Compass, Layers, MapPinned, Palette } from 'lucide-react';
+import { ChevronRight, Compass, GraduationCap, Layers, MapPinned, Palette } from 'lucide-react';
 import type * as maplibregl from 'maplibre-gl';
 import { newMarker } from './maplib';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -153,6 +153,17 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
             style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 118px)' } : {}) }}
             className={cn('z-30 grid content-start gap-1.5 overflow-y-auto overscroll-contain rounded-[22px] border-[1.5px] border-white/15 bg-[#0e1336]/95 p-2 text-white shadow-2xl',
               rail ? 'lv-panel fixed left-3 w-[min(300px,calc(100vw-24px))]' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
+            {/* first thing in the panel: how everything works */}
+            <Link to="/handbook" onClick={() => setOpen(false)} data-testid="open-handbook"
+              className="mb-0.5 flex items-center gap-2.5 rounded-2xl px-2.5 py-2.5 text-left text-white active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg, #7B5CFF, #2A8CFF 60%, #12C7E8)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.28), 0 6px 18px rgba(60,90,255,0.35)' }}>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/20"><GraduationCap className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-[14px] font-black leading-tight">The Handbook</span>
+                <span className="block text-[10.5px] font-semibold leading-snug text-white/85">Every feature explained, with pictures</span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-white/80" />
+            </Link>
             {MODES.map((m) => (
               <button key={m.id} role="radio" aria-checked={mode === m.id} onClick={() => { setMode(m.id); buzz('light'); }}
                 className={cn('lv-gbtn justify-start px-3 py-2 text-left text-[13px]', mode === m.id && 'on')}>

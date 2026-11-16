@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, BookOpen, Brush, Clapperboard, Crown, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
+import { Award, BookOpen, Brush, Clapperboard, Crown, Camera, ChevronRight, DoorOpen, Gamepad2, Gift, GraduationCap, LayoutGrid, LogOut, MessagesSquare, Package, Settings as SettingsIcon, Shield, Shirt, Trash2, Trophy, Users, Wallet } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ export default function MeHub() {
   const links = [
     { to: '/canvases', label: 'My canvases', icon: LayoutGrid, hint: `${me.group_count} canvas${me.group_count === 1 ? '' : 'es'}` },
     { to: '/play', label: 'Play & earn Ink', icon: Gamepad2, hint: `${fmt(me.balances.ink)} Ink` },
+    { to: '/handbook', label: 'The Handbook', icon: GraduationCap, hint: 'Every feature, explained' },
     { to: '/guide', label: 'The guide', icon: BookOpen, hint: 'Live rates, Ink per activity, earnings' },
     { to: '/invite', label: 'Invite friends', icon: Gift, hint: 'Earn Ink for every friend' },
     { to: '/inventory', label: 'Studio & shop', icon: Package, hint: 'Brushes, colours, tools' },

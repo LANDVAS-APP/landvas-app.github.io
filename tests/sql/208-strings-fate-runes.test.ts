@@ -151,6 +151,7 @@ describe('🃏 Fated Deck', () => {
     await fx('sun');
     const p = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [deck]))[0].p;
     expect(p.mods.map((m: any) => m.label)).toEqual(expect.arrayContaining([expect.stringMatching(/^Glow ×1\.25/)]));
+    await db.sql(`delete from enchant_buffs where player_id = $1 and kind = 'fate_tower'`, [ann]);
     await fx('tower');
     expect(Number((await db.sql(`select private.lev_player_mult($1) m`, [ann]))[0].m)).toBeCloseTo(3, 2);
     const l0 = await luck(ann);
@@ -231,10 +232,11 @@ describe('✍️ Glyphcaster', () => {
 
   it('studying finds new glyphs; mastery makes them cheaper; secrets wait for the twenty', async () => {
     await db.sql(`update game_config set value = value || '{"glyph": {"find": 0, "study": 1}}'::jsonb where key = 'enchantments'`);
+    const k0 = (await row(gl)).state.known.length as number;
     const s = await act(ann, gl, 'study');
     expect(s.result.found).toBeTruthy();
     expect(s.result.found.secret).toBeUndefined();
-    expect(s.view.known).toHaveLength(4);
+    expect(s.view.known).toHaveLength(k0 + 1);
     await expectError(act(ann, gl, 'study'), 'already_today');
     // mastered (10 casts): a 2-mana glyph costs 1
     await db.sql(`update enchantments set state = state || '{"mana": 5, "mastery": {"triangle": 10}}'::jsonb where id = $1`, [gl]);
@@ -258,6 +260,10 @@ describe('✍️ Glyphcaster', () => {
 });
 
 describe('the last three Traits', () => {
+  // (a swap is sometimes an Aberration, which wears the Trait at strength 3: keep these plain)
+  beforeAll(async () => {
+    await db.sql(`update game_config set value = jsonb_set(value, '{splice}', coalesce(value -> 'splice', '{}'::jsonb) || '{"aberration": 0}'::jsonb) where key = 'enchantments'`);
+  });
   it('Strings: a puppet does one of the partner’s chores (or another enchantment’s) once a day', async () => {
     const sp = await enchant(bob, 'splice');
     const pup = await enchant(bob, 'puppeteer');
