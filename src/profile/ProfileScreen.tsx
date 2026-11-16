@@ -19,6 +19,7 @@ import { RARITY_ORDER, rarityInfo, ULTRA, type RarityId } from '../shared/rarity
 import { formatRate } from '../shared/rent';
 import { LandMosaic } from '../land/LandMosaic';
 import { FriendButton } from '../social/FriendButton';
+import { InviteToPartyButton } from '../party/PartyButtons';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { ULTRA_THEMES, ultraOfRarity } from '../explorer/ultra';
 
@@ -113,6 +114,7 @@ export default function ProfileScreen() {
                 return <Button variant={a.playing > 0 ? 'rainbow' : 'secondary'} size="sm" className="rounded-full" data-testid="profile-join-arcade" onClick={() => nav(`/arcade/${a.id}`)}>🕹️ {d.is_me ? 'My arcade' : a.playing > 0 ? `Join their arcade · ${a.playing} playing` : 'Their arcade'}</Button>;
               })()}
               <FriendButton playerId={p.id} username={p.username} />
+              {me && !d.is_me && <InviteToPartyButton playerId={p.id} username={p.username} />}
               {d.is_me && <Button variant="ghost" size="sm" className="rounded-full" onClick={() => nav('/explorer')}>✨ Explorer</Button>}
               {me && !d.is_me && (
                 <Button variant="ghost" size="sm" className="rounded-full" onClick={async () => {

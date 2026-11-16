@@ -479,7 +479,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -674,7 +674,7 @@ export type DigState = {
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
   gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number; refilled?: string; added?: number;
 };
-export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other';
+export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other' | 'arcade' | 'party';
 export type Whereabouts = {
   online: boolean;
   activity: { kind: ActivityKind; detail: Record<string, string>; at: string } | null;
@@ -700,7 +700,7 @@ export type PlanetQuests = {
   crew: (PlanetQuest & { min_share: number; mine: number; can_claim: boolean; crew: (Profile & { amount: number })[]; crew_size: number }) | null;
   claimed_quest?: string; paid?: number; earned?: number; items_got?: Record<string, number>;
 };
-export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile };
+export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile; /** party chat: "joined" / "left" lines */ kind?: 'chat' | 'join' | 'leave' };
 export type RoverModel = { id: string; name: string; emoji: string; speed: number; tank: number; burn_per_km: number; cost: Record<string, number> };
 export type RoverState = {
   owned: string[]; active: string | null; fuel: number; tank: number; driving: boolean; world: string | null; km: number; km_today: number;
@@ -862,6 +862,7 @@ export type MapFindClaim = { id: string; kind: MapFindKind; ink: number; capped:
 /** a group member: where they are only while they're away travelling (never GPS, never home) */
 export type TravelGroupMember = Profile & {
   leader: boolean; me: boolean; away: boolean;
+  /** v1.2 parties: online right now, and (for the others) what they're up to */ online?: boolean; now?: Whereabouts | null;
   lng?: number; lat?: number; traveling?: boolean; dest_lng?: number | null; dest_lat?: number | null; arrives_at?: string | null;
   fixed_at?: string; speed_mps?: number | null; origin_lng?: number; origin_lat?: number; vehicle?: VehicleKind;
   trip?: { mode: TravelMode | 'home'; to: string | null } | null;
@@ -869,8 +870,28 @@ export type TravelGroupMember = Profile & {
 export type TravelGroupState = {
   group: { id: string; code: string; leader: boolean; max: number; members: TravelGroupMember[]; invited: Profile[];
     /** the group's private live channel (members only; it changes when someone leaves) */ channel?: string;
-    /** a game under way */ game?: { id: string; kind: GroupGameKind; ends_at: string } | null } | null;
-  invites: { group_id: string; by: Profile; size: number }[];
+    /** a game under way */ game?: { id: string; kind: GroupGameKind; ends_at: string } | null;
+    // ---- v1.2 parties ----
+    name?: string; custom_name?: string | null; visibility?: PartyVisibility; activity?: PartyActivity; note?: string | null;
+    /** where party chat is nudged */ chat?: string; /** your invite code, for the party link */ ref?: string;
+    /** members online right now */ online?: number; created_at?: string } | null;
+  invites: { group_id: string; by: Profile; size: number; name?: string; activity?: PartyActivity; visibility?: PartyVisibility; at?: string }[];
+};
+/** the party (the same thing as the travel group, since v1.2) */
+export type PartyState = TravelGroupState;
+export type PartyVisibility = 'private' | 'public';
+export type PartyActivity = 'hangout' | 'travel' | 'arcade' | 'games' | 'space' | 'art' | 'explore';
+export type PartyLobby = {
+  id: string; name: string; activity: PartyActivity; note: string | null; created_at: string; leader: Profile;
+  size: number; online: number; max: number; full: boolean; mine: boolean; friends: number;
+  members: (Profile & { online: boolean; leader: boolean })[];
+};
+export type PartyLobbies = { mine: string | null; max: number; lobbies: PartyLobby[]; online_count: number };
+export type PartyTarget = Profile & { online: boolean; in_party: boolean; invited: boolean; friend: boolean; busy?: boolean; friends_only?: boolean; now?: Whereabouts };
+export type PartyTargets = { friends: PartyTarget[]; online: PartyTarget[]; search: PartyTarget[]; online_count: number };
+export type PartyPreview = {
+  code: string; name: string; activity: PartyActivity; note: string | null; visibility: PartyVisibility; leader: Profile;
+  max: number; size: number; online: number; members: Profile[]; mine: boolean;
 };
 
 // ---- travelling together, live (v1.0.0) -------------------------------------------------------------

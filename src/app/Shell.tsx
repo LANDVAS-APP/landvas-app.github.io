@@ -1,6 +1,6 @@
 import { getBackend } from '../backend/backend';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile } from 'lucide-react';
+import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile, PartyPopper } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -24,6 +24,8 @@ import { guard } from '../backend/supabase/guard';
 import { poll } from '../lib/poll';
 import { NATIVE_APP } from './buildFlags';
 import { restRoute, startRest } from '../lib/rest';
+import { PartyNavButton } from '../party/PartyButtons';
+import { PARTY_KEY } from '../party/party';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
@@ -42,7 +44,7 @@ export const SECTIONS = [
     { to: '/play', label: 'Play & Earn' }, { to: '/pvp', label: 'PvP' }, { to: '/doodle', label: 'Draw & Guess' }, { to: '/events', label: 'Events' }, { to: '/leaderboards', label: 'Ranks' },
   ] },
   { to: '/social', label: 'Community', icon: MessagesSquare, pages: [
-    { to: '/social', label: 'Feed & chat' }, { to: '/clans', label: 'Clans' }, { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
+    { to: '/social', label: 'Feed & chat' }, { to: '/party', label: 'Parties' }, { to: '/clans', label: 'Clans' }, { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
   ] },
 ];
 export const ME_PAGES = [
@@ -133,10 +135,12 @@ export function Shell() {
     // nudges can't make every phone hammer the server)
     const last: Record<string, number> = {};
     return getBackend().onPush?.((kind) => {
-      const k = kind === 'news' ? 'news' : kind === 'eggs' ? 'eggs' : 'alerts', gap = k === 'news' ? 60_000 : 5_000;
+      const k = kind === 'news' ? 'news' : kind === 'eggs' ? 'eggs' : kind === 'party' ? 'party' : 'alerts', gap = k === 'news' ? 60_000 : k === 'party' ? 1_500 : 5_000;
       if (Date.now() - (last[k] ?? 0) < gap) return;
       last[k] = Date.now();
       if (k === 'news') { void qc.invalidateQueries({ queryKey: ['notifications'] }); return; }
+      // your party changed (someone joined or left, an invite came in): look again
+      if (k === 'party') { void qc.invalidateQueries({ queryKey: PARTY_KEY }); void qc.invalidateQueries({ queryKey: ['party-lobbies'] }); return; }
       if (k === 'eggs') { void qc.invalidateQueries({ queryKey: ['ink-eggs'] }); return; }
       if (kind === 'support') void qc.invalidateQueries({ queryKey: ['support'] });
       for (const q of [['alerts'], ['notifications'], ['friends']]) void qc.invalidateQueries({ queryKey: q });
@@ -176,6 +180,7 @@ export function Shell() {
         {(simple ? SIMPLE_TABS : SECTIONS).map((i) => <RailItem key={i.to} {...i} active={simple ? under(loc.pathname, i.to) : sec?.to === i.to} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} active={loc.pathname.startsWith('/admin')} /> : null}
         <div className="flex-1" />
+        <PartyNavButton className="mb-1" />
         <NotificationBell className="mb-2 !bg-transparent !shadow-none hover:!bg-surface-2" />
         {me ? (
           <NavLink to="/me" className="rounded-2xl p-1 hover:bg-surface-2" aria-label="Your profile">
@@ -369,7 +374,7 @@ export function Page({ children, wide }: { children: ReactNode; wide?: boolean }
 const PAGE_ICON: Record<string, typeof Globe2> = {
   '/plots': LayoutGrid, '/challenges': Trophy, '/sketch': PenLine, '/duet': Users, '/inventory': Package, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen,
   '/space/play/asteroids': Rocket, '/space/play/lander': Moon, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Trophy, '/clans': Shield, '/gallery': Images,
-  '/players': Users, '/invite': Gift, '/achievements': Award, '/explorer': Compass, '/settings': Settings, '/support': LifeBuoy,
+  '/players': Users, '/invite': Gift, '/party': PartyPopper, '/achievements': Award, '/explorer': Compass, '/settings': Settings, '/support': LifeBuoy,
 };
 function SectionShortcuts({ pages, tone }: { pages: { to: string; label: string }[]; tone: DiscTone }) {
   const ref = useEdgeFade<HTMLDivElement>();
@@ -428,7 +433,7 @@ export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: st
     <header className="mb-6 grid gap-4">
       <div className="flex items-center justify-between gap-3 md:hidden">
         <LogoMark size={30} />
-        <div className="flex items-center gap-2">{me && <ResourceBar compact />}<NotificationBell size="sm" /></div>
+        <div className="flex items-center gap-2">{me && <ResourceBar compact />}<PartyNavButton compact /><NotificationBell size="sm" /></div>
       </div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">

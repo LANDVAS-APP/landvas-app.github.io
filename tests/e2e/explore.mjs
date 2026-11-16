@@ -88,9 +88,10 @@ try {
   const s0 = await api('claimStarter', START.gx, START.gy, 'Lea air');
   await api('setGroupKind', s0.group_id, 'plane');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  await openTravel(/Group/);
-  await page.click('[data-testid=group-create]'); await page.waitForTimeout(1200);
-  const code = (await page.locator('[data-testid=group-code]').innerText()).trim();
+  await openTravel(/Party/);
+  // v1.2: a party is its own thing — starting one from Travel opens the Party sheet on inviting, with the code
+  await page.click('[data-testid=group-create]'); await page.waitForTimeout(1500);
+  const code = (await page.locator('[data-testid=party-code]:visible').first().innerText()).trim();
   check('lea starts a group and gets a code', /^[A-Z0-9]{6}$/.test(code), code);
   await shot('01-group-created');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
@@ -99,9 +100,13 @@ try {
   await switchUser();
   await signUp('max@example.test', 'max_mate');
   await api('claimStarter', START.gx + 3, START.gy + 3, 'Max place');
-  await openTravel(/Group/);
-  await page.fill('[data-testid=group-code-input]', code);
-  await page.click('[data-testid=group-join]'); await page.waitForTimeout(1500);
+  await openTravel(/Party/);
+  // not in a party: "Join with a code" opens the Party sheet
+  await page.locator('[data-testid=travel-group] button').filter({ hasText: /code/i }).first().click(); await page.waitForTimeout(1200);
+  await page.fill('[data-testid=party-code-input]', code);
+  await page.click('[data-testid=party-code-join]'); await page.waitForTimeout(1800);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  await openTravel(/Party/);
   const names = await page.locator('[data-testid=group-member]').evaluateAll((els) => els.map((e) => e.dataset.user));
   check('max joins: the group is lea and max', names.join(',') === 'lea_lead,max_mate', names.join(','));
   const wh = await page.locator('[data-testid=member-where]').allInnerTexts();

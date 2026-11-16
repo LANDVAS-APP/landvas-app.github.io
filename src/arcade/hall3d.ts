@@ -673,7 +673,9 @@ export function createHall(o: HallOpts) {
     }
     const h = ray.intersectObjects(carn ? [floor, carn.ground] : [floor])[0]; if (h && !blocked(h.point.x, h.point.z)) go(h.point.x, h.point.z);
   };
-  const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -MX; if (k === 'd' || k === 'arrowright') P.keys.x = MX; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
+  // (typing in a chat box isn't walking)
+  const typing = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
+  const kd = (e: KeyboardEvent) => { if (typing(e)) return; const k = e.key.toLowerCase(); if (k === 'a' || k === 'arrowleft') P.keys.x = -MX; if (k === 'd' || k === 'arrowright') P.keys.x = MX; if (k === 'w' || k === 'arrowup') P.keys.z = -1; if (k === 's' || k === 'arrowdown') P.keys.z = 1; };
   const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (['a', 'd', 'arrowleft', 'arrowright'].includes(k)) P.keys.x = 0; if (['w', 's', 'arrowup', 'arrowdown'].includes(k)) P.keys.z = 0; };
   o.canvas.addEventListener('pointerdown', pd); window.addEventListener('pointermove', pm); window.addEventListener('pointerup', pu); window.addEventListener('pointercancel', pu);
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);

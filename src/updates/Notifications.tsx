@@ -163,6 +163,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   duet: { icon: Users, color: '#FF4D6D', text: (a) => <>finished your duet: {a.data.prompt}</>, to: (a) => `/duet/${a.data.duet_id}` },
   doodle: { icon: Sparkles, color: '#FFE14D', text: () => <>guessed your drawing</>, to: () => '/doodle' },
   friend_request: { icon: UserPlus, color: '#22E3FF', text: () => <>sent you a friend request</>, to: () => '/social' },
+  party_invite: { icon: Users, color: '#3DDC97', text: (a) => <>invited you to their party{a.data.name ? <> “{a.data.name}”</> : null} 🎉</>, to: () => '/party' },
   friend_accept: { icon: UserCheck, color: '#3DDC97', text: () => <>accepted your friend request</>, to: (a) => (a.actor ? `/u/${a.actor.username}` : '/social') },
   sanctuary_visit: { icon: PawPrint, color: '#B49BFF', text: (a) => <>is visiting your sanctuary{a.data.name ? <> “{a.data.name}”</> : null}</>, to: (a) => (a.data.habitat ? `/habitat/${a.data.habitat}` : '/habitat') },
   playdate: {
@@ -261,7 +262,8 @@ export function AlertPopups() {
     // first load: only what just happened pops up; the rest waits in the bell
     const isFirst = !seen.current;
     if (!seen.current) seen.current = new Set();
-    const pop = items.filter((a) => !seen.current!.has(a.id) && ALERT[a.kind] && fresh(a)).slice(0, isFirst ? 2 : 4).reverse();
+    // (party invites pop up on their own, with Join and Decline right on them)
+    const pop = items.filter((a) => !seen.current!.has(a.id) && ALERT[a.kind] && a.kind !== 'party_invite' && fresh(a)).slice(0, isFirst ? 2 : 4).reverse();
     for (const a of items) seen.current.add(a.id);
     if (!pop.length) return;
     buzz('light');

@@ -229,6 +229,8 @@ const PROFILE_KEYS: { k: string; label: string; hint: string }[] = [
   { k: 'profile_games', label: 'Game records on my profile', hint: 'Your minigame levels, best scores and wins' },
   { k: 'profile_stats', label: 'Stats on my profile', hint: 'How many plots and artworks you have, your level — and your place in the rarity rankings' },
   { k: 'royalty', label: 'Show me on the Royalty page', hint: 'If you hold a Crown, your name next to it (off: “a secret monarch”)' },
+  { k: 'online', label: 'Show me in “Online now”', hint: 'Players who aren’t your friends can find you in the party invite list while you’re playing (friends and your party always see you)' },
+  { k: 'party_invites', label: 'Anyone can invite me to a party', hint: 'Off: only friends can send you party invites' },
 ];
 /** what others can see: the live feed (all of it, or kind by kind) and parts of your public profile */
 function PrivacySettings() {

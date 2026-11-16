@@ -184,7 +184,7 @@ export function TravelSheet() {
     <Dialog open={open} onOpenChange={setOpen} title={<span className="flex items-center gap-2">🧳 Travel</span>}
       description="Ride trains and fly to real stations and airports. When you arrive you’re really there.">
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-3"
-        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'group', label: '👥 Group' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }, { value: 'people', label: '🌍 Travellers' }]} />
+        items={[{ value: 'train', label: '🚆 Train' }, { value: 'plane', label: '✈️ Plane' }, { value: 'group', label: '👥 Party' }, { value: 'passport', label: `🛂 Passport${d?.stamps ? ` · ${d.stamps}` : ''}` }, { value: 'people', label: '🌍 Travellers' }]} />
       {!d ? <div className="flex justify-center py-8"><Spinner /></div>
         : tab === 'passport' ? <Passport status={d} />
         : tab === 'people' ? <Travellers status={d} onDone={() => setOpen(false)} />

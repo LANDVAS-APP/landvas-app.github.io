@@ -8,6 +8,7 @@ import { BootScreen } from './app/BootScreen';
 import { setAvatarResolver } from './ui';
 import { startUpdates } from './app/updates';
 import { captureReferral } from './social/referralStore';
+import { capturePartyLink } from './party/link';
 import { initNative } from './native/native';
 import { markBundleReady, recoverFromBrokenBundle } from './native/liveBundle';
 import { TempServerBanner } from './app/TempServerBanner';
@@ -31,6 +32,7 @@ markBundleReady();
 startUpdates();
 // keep an invite code from a ?ref= link before the router tidies the address
 captureReferral();
+capturePartyLink();
 
 function Root() {
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; error?: unknown; App?: React.ComponentType }>({ status: 'loading' });

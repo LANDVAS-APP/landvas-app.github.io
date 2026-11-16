@@ -56,8 +56,8 @@ export function GroupButton() {
   if (!g) return null;
   const here = g.members.filter((m) => !m.me && (m.away || live[m.id])).length;
   return (
-    <button className={cn('lv-gbtn round', here > 0 && 'on')} onClick={() => set(true)} title="Your travel group: emotes, games and photos" data-testid="group-button">
-      <Users className="h-5 w-5" /><span className="lbl tnum">{here > 0 ? `${here} here` : 'Group'}</span>
+    <button className={cn('lv-gbtn round', here > 0 && 'on')} onClick={() => set(true)} title="Your party: emotes, games and photos" data-testid="group-button">
+      <Users className="h-5 w-5" /><span className="lbl tnum">{here > 0 ? `${here} here` : 'Party'}</span>
     </button>
   );
 }

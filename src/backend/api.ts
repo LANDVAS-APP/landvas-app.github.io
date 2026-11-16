@@ -302,6 +302,24 @@ export const api = {
   groupPhoto: () => rpc<import('./types').GroupPhoto>('travel_group_photo'),
   groupPhotos: () => rpc<import('./types').GroupPhoto[]>('travel_group_photos'),
   travelGroupKick: (id: string) => rpc<import('./types').TravelGroupState>('travel_group_kick', { p_player: id }),
+  // parties (v1.2): one party for everything — lobbies, invites, links, chat
+  partyCreate: (o: { name?: string | null; visibility?: import('./types').PartyVisibility; activity?: import('./types').PartyActivity } = {}) =>
+    rpc<import('./types').PartyState>('party_create', { p_name: o.name ?? null, p_visibility: o.visibility ?? 'private', p_activity: o.activity ?? 'hangout' }),
+  partyUpdate: (o: { name?: string | null; visibility?: import('./types').PartyVisibility | null; activity?: import('./types').PartyActivity | null; note?: string | null }) =>
+    rpc<import('./types').PartyState>('party_update', { p_name: o.name ?? null, p_visibility: o.visibility ?? null, p_activity: o.activity ?? null, p_note: o.note ?? null }),
+  partyPromote: (id: string) => rpc<import('./types').PartyState>('party_promote', { p_player: id }),
+  partyJoinCode: (code: string, switchParty = false) => rpc<import('./types').PartyState>('party_join_code', { p_code: code, p_switch: switchParty }),
+  partyJoinPublic: (id: string, switchParty = false) => rpc<import('./types').PartyState>('party_join_public', { p_group: id, p_switch: switchParty }),
+  partyAccept: (id: string, switchParty = false) => rpc<import('./types').PartyState>('party_accept', { p_group: id, p_switch: switchParty }),
+  partyInvite: (id: string) => rpc<import('./types').PartyState>('party_invite', { p_player: id }),
+  partyUninvite: (id: string) => rpc<import('./types').PartyState>('party_uninvite', { p_player: id }),
+  partyInviteTargets: (query = '') => rpc<import('./types').PartyTargets>('party_invite_targets', { p_query: query || null }),
+  partyLobbies: (activity: import('./types').PartyActivity | null = null) => rpc<import('./types').PartyLobbies>('party_lobbies', { p_activity: activity }),
+  partyPreview: (code: string) => rpc<import('./types').PartyPreview | null>('party_preview', { p_code: code }),
+  partyChatSend: (body: string) => rpc<import('./types').PlanetChatMsg>('party_chat_send', { p_body: body }),
+  partyChatList: (after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; topic: string | null; party: string | null }>('party_chat_list', { p_after: after }),
+  arcadeChatSend: (arcade: string, body: string) => rpc<import('./types').PlanetChatMsg>('arcade_chat_send', { p_arcade: arcade, p_body: body }),
+  arcadeChatList: (arcade: string, after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; shard: number | null; topic: string | null }>('arcade_chat_list', { p_arcade: arcade, p_after: after }),
   travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
 
   // more ways to earn

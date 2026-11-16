@@ -93,8 +93,10 @@ describe('finds on the map', () => {
 
 describe('travel groups', () => {
   let code: string;
-  it('leading a group needs a Travel plot; others join with the code or an invite', async () => {
-    await expectError(db.rpc(max, 'travel_group_create'), 'needs_travel_plot');
+  it('anyone can start a group (a party — no Travel plot needed); others join with the code or an invite', async () => {
+    // v1.2: parties are their own thing now — max (no Travel plot) can start one too
+    expect((await db.rpc(max, 'travel_group_create')).group).toMatchObject({ leader: true });
+    await db.rpc(max, 'travel_group_leave');
     const g = await db.rpc(lea, 'travel_group_create');
     expect(g.group).toMatchObject({ leader: true, max: 10 });
     code = g.group.code;

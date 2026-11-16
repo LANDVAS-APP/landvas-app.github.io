@@ -36,6 +36,8 @@ import { FlyChip, PinFlight, useFlyUi } from '../travel/Fly';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
+import { create } from 'zustand';
+import { MapPartyChat, PartyNavButton } from '../party/PartyButtons';
 import { buzz, isNative } from '../native/native';
 import GameHud, { ProfileMenu } from '../app/GameHud';
 import { BellCard } from '../updates/Notifications';
@@ -107,6 +109,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const picking = pickingPlot || aimingRay;
   const travel = useTravel();
   const travelling = !!me && !!travel.data?.away;
+  const questShown = useQuest((q) => q.shown);
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className={cn('absolute inset-0', away && 'lv-away')}>
@@ -158,6 +161,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           {me ? <PlayerBadge /> : !session ? <div className="pointer-events-auto"><SignInChip /></div> : null}
           <div className="pointer-events-auto ml-auto flex items-center gap-1.5">
             {me && <CurrencyPills />}
+            {me && <PartyNavButton compact className="lv-gbtn !h-[38px] !w-[38px] !rounded-full !p-0" />}
             <NotificationBell className="lv-gbtn !h-[38px] !w-[38px] !rounded-full !p-0" />
           </div>
         </div>
@@ -195,6 +199,12 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
         <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
       </div>
+      {me && !away && !selected && !joystick && !picking && !celebrating && (
+        <MapPartyChat className={cn('absolute left-[max(12px,env(safe-area-inset-left,0px))] z-20',
+          travelling ? 'bottom-[calc(160px+env(safe-area-inset-bottom,0px))] md:bottom-24'
+          : questShown ? 'bottom-[calc(164px+env(safe-area-inset-bottom,0px))] md:bottom-24'
+          : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))] md:bottom-8')} />
+      )}
       {me && !away && travelling && !selected && !joystick && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
@@ -308,7 +318,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const tray: { key: string; node: ReactNode; label: string }[] = [
     { key: 'plots', label: 'My plots', node: <Link to="/plots" className="lv-gbtn round" aria-label="My plots" data-testid="hud-plots" onClick={() => { tap(); setMore(false); }}><LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span></Link> },
     ...(has && !tripLive ? [{ key: 'travel', label: 'Trains & planes', node: <TravelButton /> }] : []),
-    ...(has && !groupLive && group.data?.group ? [{ key: 'group', label: 'Your group', node: <GroupButton /> }] : []),
+    ...(has && !groupLive && group.data?.group ? [{ key: 'group', label: 'Your party', node: <GroupButton /> }] : []),
     ...(!flying ? [{ key: 'space', label: 'Your rocket', node: spaceBtn }] : []),
     ...((canMerge || APP) && !merging ? [{ key: 'merge', label: 'Merge plots', node: (
       <button className="lv-gbtn round" onClick={() => { tap(); setMore(false); startMerge(null); }} title="Merge touching plots into one bigger canvas or sanctuary" data-testid="map-merge">
@@ -565,6 +575,13 @@ export function TypeDot({ t, size = 14 }: { t: PlotTypeId; size?: number }) {
 
 // ---- "Getting started" quest list: the mandatory launch loop, made visible ----
 
+/** the getting-started list is on screen (the party chat sits above it then) */
+const useQuest = create<{ shown: boolean }>(() => ({ shown: false }));
+function QuestShown() {
+  useEffect(() => { useQuest.setState({ shown: true }); return () => useQuest.setState({ shown: false }); }, []);
+  return null;
+}
+
 function Checklist() {
   const me = useOnboardedMe();
   const nav = useNavigate();
@@ -624,6 +641,7 @@ function Checklist() {
   const R = 15, C = 2 * Math.PI * R;
   return (
     <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] left-[max(12px,env(safe-area-inset-left,0px))] z-10 w-[min(300px,calc(100vw-96px))] md:bottom-6" data-testid="quest">
+      <QuestShown />
       <AnimatePresence>
         {open && (
           <motion.ol initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}

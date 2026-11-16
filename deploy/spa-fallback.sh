@@ -8,8 +8,8 @@
 set -euo pipefail
 cd "${1:-dist}"
 cp index.html 404.html
-STATIC="world welcome onboarding play canvases gallery players me achievements leaderboards inventory events settings admin social invite explorer support duels pvp challenges sketch doodle duet reset-password auth/confirm inkborn habitat legal/privacy legal/terms legal/delete-account legal/content legal/rent legal/copyright"
-DYNAMIC="create play u art legal duet sketch inkborn habitat"
+STATIC="world welcome onboarding play canvases gallery players party me achievements leaderboards inventory events settings admin social invite explorer support duels pvp challenges sketch doodle duet reset-password auth/confirm inkborn habitat legal/privacy legal/terms legal/delete-account legal/content legal/rent legal/copyright"
+DYNAMIC="create play u art legal duet sketch inkborn habitat party"
 : > _redirects
 for r in $STATIC; do
   mkdir -p "$r"

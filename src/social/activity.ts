@@ -45,6 +45,9 @@ function fromPath(path: string, space: SpaceState | undefined): { kind: Activity
   if (['create', 'editor', 'canvases', 'sketch', 'duet', 'doodle'].includes(seg[0])) return { kind: 'create', detail: {} };
   if (['gallery', 'art'].includes(seg[0])) return { kind: 'gallery', detail: {} };
   if (seg[0] === 'social') return { kind: 'social', detail: {} };
+  // an arcade: friends and your party can follow you in
+  if (seg[0] === 'arcade' && seg[1]) return { kind: 'arcade', detail: { arcade: seg[1] } };
+  if (seg[0] === 'party') return { kind: 'party', detail: {} };
   return { kind: 'other', detail: {} };
 }
 
@@ -82,7 +85,7 @@ export function describeWhereabouts(w: Whereabouts | undefined) {
   if (place) return `🪐 on ${place}`;
   if (!w.online) return null;
   const map: Partial<Record<string, string>> = { map: '🗺️ on the map', inkborn: '🐾 with their Inkborn', sanctuary: '🌳 in a sanctuary', playdate: '🧺 on a playdate',
-    create: '🎨 creating', gallery: '🖼️ in the gallery', social: '💬 chatting', space: '🛰️ at mission control' };
+    create: '🎨 creating', gallery: '🖼️ in the gallery', social: '💬 chatting', space: '🛰️ at mission control', arcade: '🕹️ in an arcade', party: '🎉 looking for a party' };
   return map[a?.kind ?? ''] ?? '🟢 online';
 }
 /** Can I warp to them? (out on a world, not mid-flight; their live group has room, or they're a friend) */

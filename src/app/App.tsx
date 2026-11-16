@@ -5,6 +5,7 @@ import { Suspense, lazy, useEffect, useSyncExternalStore, type ReactNode } from 
 import { isNative } from '../native/native';
 import { useActivityReporter } from '../social/activity';
 import { AlertPopups } from '../updates/Notifications';
+import { PartyGlobal } from '../party/PartyGlobal';
 import { useOnboardedMe, watchBalances, watchCalls } from '../lib/queries';
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, createHashRouter, createMemoryRouter, useLocation, type RouteObject } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -105,6 +106,7 @@ const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
 const RealmScreen = lazy(() => import('../realms/RealmScreen'));
 const ClansScreen = lazy(() => import('../clans/ClansScreen'));
+const PartyScreen = lazy(() => import('../party/PartyScreen'));
 const ClanHall = lazy(() => import('../clans/ClanHall'));
 const BusinessGame = lazy(() => import('../business/BusinessGame'));
 const InkbornGame = lazy(() => import('../inkborn/games/InkbornGame'));
@@ -166,7 +168,7 @@ function OnboardingGate() {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/clan\/hall/, 'Clan hall'],
+  [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
 ];
@@ -216,7 +218,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
@@ -259,6 +261,8 @@ const routes: RouteObject[] = [
           { path: '/social', element: p(<SocialScreen />) },
           { path: '/clans', element: player(<ClansScreen />) },
           { path: '/clans/:id', element: player(<ClansScreen />) },
+          { path: '/party', element: p(<PartyScreen />) },
+          { path: '/party/:code', element: p(<PartyScreen />) }, // public: an invite link works before signing up
           { path: '/invite', element: player(<InviteScreen />) },
           { path: '/explorer', element: player(<ExplorerScreen />) },
           { path: '/players', element: p(<PlayersScreen />) },

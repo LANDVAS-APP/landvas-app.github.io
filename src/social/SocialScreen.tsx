@@ -3,7 +3,7 @@ import { isNative } from '../native/native';
 import { rarityInfo } from '../shared/rarity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star } from 'lucide-react';
+import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star, PartyPopper } from 'lucide-react';
 import { dedupe, reconcile } from './feedList';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,6 +22,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
 import { FriendButton } from './FriendButton';
+import { InviteToPartyButton } from '../party/PartyButtons';
 import { Rocket } from 'lucide-react';
 import { canWarpTo, describeWhereabouts, registerGameNames, useWarpTo } from './activity';
 import { PlanetBall } from '../space/PlanetBall';
@@ -56,6 +57,7 @@ export default function SocialScreen() {
     <Page wide>
       <PageHeader eyebrow="Together" title="Social" actions={isNative() ? undefined : <>
         <Link to="/players" className="glass flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-muted hover:text-fg"><Users className="h-4 w-4" /> Players</Link>
+        {me && <Link to="/party" className="glass flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-ok hover:text-fg" data-testid="social-party"><PartyPopper className="h-4 w-4" /> Parties</Link>}
         {me && <Link to="/invite" className="glass flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-gold hover:text-fg" data-testid="social-invite"><Gift className="h-4 w-4" /> Invite</Link>}
       </>}>
         See what everyone is claiming and painting right now, talk with the whole world, and keep your friends close.
@@ -618,6 +620,7 @@ function FriendsTab() {
                   {f.now?.space?.home_name && !f.now.space.at_home && <div className="truncate text-[11px] text-faint">🏡 home world: {f.now.space.home_name}</div>}
                 </div>
                 {canWarpTo(f.now, true) && <Button size="sm" variant="rainbow" onClick={() => void warpTo(f.player)} data-testid="warp-to-friend">⚡ Warp</Button>}
+                <InviteToPartyButton playerId={f.player.id} username={f.player.username} />
                 <Link to={`/u/${f.player.username}/home`} className="flex h-8 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold hover:border-line-strong" aria-label={`Visit @${f.player.username}'s home`}><DoorOpen className="h-3.5 w-3.5" /> Home</Link>
               </div>
             ))}

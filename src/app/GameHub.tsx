@@ -31,7 +31,8 @@ import { Z_PLOT, cellCenter } from '../shared/grid';
 import { UltraTracker } from '../ultra/UltraTracker';
 import { PlotWorlds } from '../play/PlotWorlds';
 import { activeBoost, fullClearInk } from '../play/rates';
-import { Atom, Clapperboard, Footprints } from 'lucide-react';
+import { Atom, Clapperboard, Footprints, PartyPopper } from 'lucide-react';
+import { PartyHubCard } from '../party/PartyButtons';
 import GameHud from './GameHud';
 import { Page, SECTIONS } from './Shell';
 import { NATIVE_APP } from './buildFlags';
@@ -53,7 +54,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/world': Globe2, '/plots': LayoutGrid, '/canvases': Palette, '/challenges': Trophy, '/sketch': PenLine, '/duet': Theater, '/inventory': Package,
   '/inkborn': PawPrint, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen, '/space': Rocket, '/space/play/asteroids': Zap,
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
-  '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/me': Smile, '/achievements': Award, '/explorer': Compass,
+  '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/party': PartyPopper, '/me': Smile, '/achievements': Award, '/explorer': Compass,
   '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
 };
 const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold' };
@@ -147,6 +148,9 @@ export default function GameHub() {
             <span className="go">Enter <ChevronRight className="h-4 w-4" /></span>
           </Link>
         </motion.div>
+
+        {/* your party: lobbies, invites, the party you're in — one tap from the menu */}
+        {me && <motion.div {...rise(n++)}><PartyHubCard /></motion.div>}
 
         {/* every part of the game */}
         <div className="mb-6 grid grid-cols-2 gap-2.5" data-testid="hub-cards">

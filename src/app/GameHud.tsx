@@ -17,6 +17,7 @@ import { CurrencyIcon, Emblem, GameDisc, PlayerAvatar, type DiscTone } from '../
 import { BellCard, useUpdatesCount } from '../updates/Notifications';
 import { OrbGlyph } from '../ui/OrbGlyph';
 import { useHudCard } from './radial';
+import { PartyDisc } from '../party/PartyButtons';
 
 export default function GameHud({ overlay, after }: { overlay?: boolean; after?: ReactNode }) {
   const me = useOnboardedMe();
@@ -76,6 +77,7 @@ export default function GameHud({ overlay, after }: { overlay?: boolean; after?:
         {me && <InkPill fs={fit?.fs} />}
         {after}
         {!me && <div className="flex-1 !pointer-events-none" />}
+        {me && <PartyDisc />}
         {me && <BellDisc />}
       </div>
       {/* the hub: your menu and the bell drop down right here (the map shows them under its own row) */}

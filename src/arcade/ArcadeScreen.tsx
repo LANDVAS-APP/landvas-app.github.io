@@ -5,7 +5,9 @@
 // new cabinets, upgrade them (more tickets a round) and pick the floor, neon and light show.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Infinity as InfinityIcon, Lock, Music, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X } from 'lucide-react';
+import { ArrowLeft, Infinity as InfinityIcon, Lock, Music, PartyPopper, Play, RotateCcw, Trophy, Volume2, VolumeX, Wrench, X } from 'lucide-react';
+import { ArcadeChatDock } from './ArcadeChat';
+import { useParty, usePartyUi } from '../party/party';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -173,6 +175,9 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
   const myId = me?.user_id;
   const liveRoom = useArcadeLive({ arcadeId: a.id, myId, hall, playing });
   const live = liveRoom.live;
+  // your party: one tap to invite people into the arcade with you
+  const party = useParty().data;
+  const showParty = usePartyUi((s) => s.show);
   const [matchOn, setMatchOn] = useState<ArcadeMatch | null>(null);
   const handled = useRef(new Set<string>());
   useEffect(() => {
@@ -275,6 +280,10 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
       {!busy && (
         <div className="absolute right-3 top-[calc(max(12px,env(safe-area-inset-top,0px))+92px)] grid gap-2">
           <button onClick={onArena} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #FFE14D' }} data-testid="arcade-arena-btn"><span className="text-lg leading-none">⚔️</span>Live</button>
+          <button onClick={() => { sfx.blip(14); showParty(party?.group ? 'party' : 'invite'); }} className="relative grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" style={{ boxShadow: 'inset 0 0 0 1.5px #3DDC97' }} data-testid="arcade-party-btn">
+            <PartyPopper className="h-5 w-5 text-[#3DDC97]" />{party?.group ? 'Party' : 'Invite'}
+            {(party?.invites.length ?? 0) > 0 && <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-hot px-1 text-[10px] leading-4">{party!.invites.length}</span>}
+          </button>
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-scores"><Trophy className="h-5 w-5 text-[#FFE14D]" />Scores</button>
           <button onClick={() => setSheet('prizes')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-prizes-btn"><span className="text-lg leading-none">🎁</span>Prizes</button>
           <button onClick={() => setSheet('jukebox')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-jukebox-btn"><Music className="h-5 w-5 text-[#22E3FF]" />Music</button>
@@ -282,6 +291,8 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
           {a.mine && <button onClick={() => setSheet('manage')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="arcade-manage"><Wrench className="h-5 w-5" />Manage</button>}
         </div>
       )}
+      {/* chat: everyone in this room, and your party */}
+      {!busy && myId && <ArcadeChatDock arcadeId={a.id} inRoom={!!live} myId={myId} raised={!!near || !!lobby} />}
       {/* what you're standing at */}
       <AnimatePresence>
         {!busy && lobby && myId && (
