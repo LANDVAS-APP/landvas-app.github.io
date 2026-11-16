@@ -260,7 +260,7 @@ const MESSAGES: Record<string, string> = {
   no_trait: 'It isn’t wearing that Trait right now.', nothing_to_wait: 'Nothing is waiting to be folded — none of your enchantments has a wait right now.',
   grand_locked: 'Reach level 8 for the Grand Spread.', already_week: 'The Grand Spread comes once a week — it’s already been laid this week.', no_rune: 'You don’t have that rune — make one from metal.', bad_type: 'Pick a different kind of plot.',
   not_enough_metal: 'Not enough metal for that.', too_many: 'That’s as many as it can take.', hands_full: 'You can carry three — put one away first.',
-  plot_has_artifact: 'That plot already has an artifact on it.', no_horseshoe: 'Carry a horseshoe first.', anchored: 'That plot is protected — no pranks there.',
+  plot_has_artifact: 'That plot already has an artifact on it.', no_horseshoe: 'Carry a horseshoe or an Ink Amphora first.', anchored: 'That plot is protected — no pranks there.',
   your_own_plot: 'Pick someone else’s plot — you can play your own anytime.', no_minigame: 'That plot has no game to play.', no_strings: 'No strings left — one comes back soon.',
   card_waiting: 'A card is waiting — let it come true first.', already_flipped: 'That card is already turned.', no_card: 'Nothing in your hand.',
   hand_full: 'You’re already holding a card — play it first.', unknown_glyph: 'You haven’t found that glyph yet.', no_mana: 'Not enough mana — it refills through the day.',

@@ -1,7 +1,7 @@
 // 🔥 Crucible: a forge in the dark. Melt plots into the pot — they fly in, splash, and the metal glows hotter — then take
 // one of your plots to the anvil: pump the bellows in time with the ring, and bring the hammer down. The chance a strike
 // lifts it a tier grows with the Heat, a little at a time; a miss keeps half (Steady keeps more, Fury risks it all).
-// What melts leaves metal: runes, artifacts (a horseshoe, a bell, a lantern, an anchor), inlays and monuments.
+// What melts leaves metal: runes, artifacts (eight of them, from a horseshoe to a Phoenix Feather), inlays and monuments.
 import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rarityInfo } from '../../shared/rarity';
@@ -12,6 +12,7 @@ import { centerOf, efx, type SceneProps } from '../core';
 import { PlotRow, plotName, sleep, useCraftClip, type PlotLite } from '../craft';
 import { feel } from '../living';
 import { MapPickButton, useMapPick, usePlotChoice } from '../pickers';
+import { ARTIFACTS, ARTIFACT_ORDER, ArtifactArt, LevelPips } from '../artifacts';
 
 const METALS: Record<string, { name: string; c: string; hi: string; lo: string; from: string }> = {
   iron: { name: 'Iron', c: '#8A8F98', hi: '#D5D9E0', lo: '#4A4E55', from: 'Common' }, copper: { name: 'Copper', c: '#C46A35', hi: '#F3B08A', lo: '#6E3418', from: 'Uncommon' },
@@ -21,12 +22,6 @@ const METALS: Record<string, { name: string; c: string; hi: string; lo: string; 
 const RUNES: Record<string, { name: string; emoji: string; text: string }> = {
   steady: { name: 'Steady', emoji: '🛡️', text: 'a miss keeps 75% of the Heat' }, fury: { name: 'Fury', emoji: '💢', text: 'a bigger chance — but a miss loses it all' },
   kind: { name: 'Kind', emoji: '🎨', text: 'a hit also turns the plot into the kind you choose' },
-};
-const ARTIFACTS: Record<string, { name: string; emoji: string; text: string; carry: boolean }> = {
-  horseshoe: { name: 'Iron Horseshoe', emoji: '🧲', text: 'Carry it: Luck every day (more as it levels)', carry: true },
-  bell: { name: 'Silver Bell', emoji: '🔔', text: 'Carry it: your Leviathan hits land harder', carry: true },
-  lantern: { name: 'Gold Lantern', emoji: '🏮', text: 'Hang it on a plot: its minigames pay more', carry: false },
-  anchor: { name: 'Starsteel Anchor', emoji: '⚓', text: 'Set it on a plot: no Parasites, no pranks there', carry: false },
 };
 const TIERS = ['', 'Bronze', 'Silver', 'Gold', 'Starsteel'];
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -109,6 +104,110 @@ function Bellows({ onDone }: { onDone: (score: number) => void }) {
   );
 }
 
+/** the artifacts: the set, what you can forge, and the shelf of what you have */
+function ArtifactWorkshop({ view, arts, busy, allPlots, mountPick, act, pot, onReveal }: {
+  view: any; arts: any[]; busy: boolean; allPlots: PlotLite[]; mountPick: ReturnType<typeof useMapPick>; act: SceneProps['act'];
+  pot: React.RefObject<HTMLDivElement | null>; onReveal(r: { kind: string; level: number; power: string; fused: boolean }): void;
+}) {
+  const owned = new Set(arts.map((a) => a.kind));
+  const carried = arts.filter((a) => a.carried).length, hands = Number(view.carry ?? 4);
+  const forge = async (k: string) => {
+    const r = await act('forge', { artifact: k }, { silent: true });
+    const a = r?.result?.artifact;
+    if (!a) return;
+    efx.burst({ ...centerOf(pot.current), colors: [ARTIFACTS[k]?.glow ?? '#FFD27A', '#fff'], count: 90, speed: 10, kind: 'spark' });
+    feel('success');
+    onReveal({ kind: a.kind, level: a.level, power: a.power, fused: false });
+  };
+  const fuse = async (a: any, b: any) => {
+    const r = await act('fuse', { a: a.id, b: b.id }, { silent: true });
+    const x = r?.result?.artifact;
+    if (!x) return;
+    feel('success');
+    onReveal({ kind: x.kind, level: x.level, power: x.power, fused: true });
+  };
+  const collect = async () => {
+    const r = await act('tend', {}, { silent: true });
+    if (!r?.result) return;
+    efx.burst({ x: innerWidth / 2, y: innerHeight / 2, colors: ['#7CFF6B', '#5B8CFF'], count: 22, speed: 8, kind: 'emoji', emojis: [...(r.result.luck ? ['🍀'] : []), ...(r.result.ink ? ['💧'] : [])] });
+    toast.success([r.result.luck ? `🍀 +${r.result.luck} Luck` : '', r.result.ink ? `💧 +${r.result.ink} Ink` : ''].filter(Boolean).join(' · ') || 'Collected');
+  };
+  return (
+    <div className="grid gap-2" data-testid="crucible-workshop">
+      <div className="flex items-center justify-between gap-2">
+        <span className="lvx-label">Artifacts · carrying {carried}/{hands}</span>
+        {view.tend_ready && <Button size="sm" variant="rainbow" onClick={() => void collect()} disabled={busy} data-testid="crucible-tend">✨ Collect today’s gifts</Button>}
+      </div>
+      <div className="lvx-set" data-testid="crucible-set" title="One of each">
+        {ARTIFACT_ORDER.map((k) => <ArtifactArt key={k} kind={k} size={24} ghost={!owned.has(k)} />)}
+        <span className="ml-auto text-[11px] font-black" style={{ color: view.grand ? '#C9B4FF' : view.set ? '#FFD27A' : 'rgba(255,255,255,.6)' }}>
+          {view.grand ? '🏆 Grand Set · +10% enchantment Ink' : view.set ? `⚒️ Smith’s Set +5% · ${owned.size}/8 for the Grand Set` : `${owned.size}/4 kinds for the Smith’s Set`}
+        </span>
+      </div>
+      <div className="grid gap-1.5">
+        {ARTIFACT_ORDER.map((k) => {
+          const a = ARTIFACTS[k];
+          return (
+            <div key={k} className="lvx-row" data-testid={`crucible-recipe-${k}`}>
+              <ArtifactArt kind={k} size={40} />
+              <span className="grid flex-1 leading-tight"><span className="text-[13px] font-black text-white">{a.name}</span><span className="text-[11px] text-white/60">{a.text} · {cost(view.recipes?.artifacts?.[k] ?? {})}</span></span>
+              <Button size="sm" onClick={() => void forge(k)} disabled={busy} data-testid={`crucible-forge-${k}`}>Forge</Button>
+            </div>
+          );
+        })}
+      </div>
+      {arts.length > 0 && (
+        <div className="lvx-shelf" data-testid="crucible-artifacts">
+          {arts.map((a) => {
+            const twin = arts.find((b) => b.id !== a.id && b.kind === a.kind && b.level === a.level);
+            const info = ARTIFACTS[a.kind] ?? ARTIFACTS.horseshoe;
+            return (
+              <div key={a.id} className={cn('lvx-art-card', a.level >= 5 && 'l5')} style={{ ['--g' as any]: info.glow }} data-testid="crucible-artifact" data-kind={a.kind} data-level={a.level}>
+                <span className={cn('tag', (a.carried || a.gx != null) && 'on')}>{a.carried ? 'Carried' : a.gx != null ? 'On a plot' : 'In the chest'}</span>
+                <ArtifactArt kind={a.kind} level={a.level} size={64} />
+                <span className="text-[13px] font-black leading-tight text-white">{info.name}</span>
+                <LevelPips level={a.level} />
+                <span className="text-[11px] font-semibold leading-tight text-white/70">{a.power}</span>
+                <div className="mt-0.5 flex flex-wrap items-center justify-center gap-2 text-[12px]">
+                  {twin && a.level < 5 && <button className="font-black text-[#FFB347]" onClick={() => void fuse(a, twin)} disabled={busy} data-testid="crucible-fuse">⚒️ Fuse</button>}
+                  {info.carry ? <button className="font-black text-white/85" onClick={() => void act('mount', { id: a.id })} disabled={busy} data-testid="crucible-carry">{a.carried ? 'Put away' : 'Carry'}</button>
+                    : <select className="max-w-[120px] rounded bg-white/10 px-1 py-0.5 text-[11px] text-white" value={a.gx != null ? `${a.gx},${a.gy}` : ''} onChange={(e) => { const [gx, gy] = e.target.value.split(',').map(Number); void act('mount', e.target.value ? { id: a.id, gx, gy } : { id: a.id }); }} data-testid="crucible-place">
+                        <option value="">Not placed</option>{allPlots.slice(0, 80).map((p) => <option key={`${p.gx},${p.gy}`} value={`${p.gx},${p.gy}`}>{plotName(p)}</option>)}</select>}
+                  {!info.carry && !mountPick.simple && allPlots.length > 0 && <button className="text-[13px]" title="Place it on the map" aria-label="Place it on the map" data-testid="crucible-mount-map"
+                    onClick={() => mountPick.open({ title: `Place the ${info.name}`, emoji: info.emoji, color: info.glow, hint: 'Tap the plot to set it on', keep: { id: a.id },
+                      allowed: allPlots.map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name ?? null, plot_type: p.plot_type })) })}>🗺️</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** a fresh artifact rises out of the pot (tap to put it on the shelf) */
+function ArtifactReveal({ r, onClose }: { r: { kind: string; level: number; power: string; fused: boolean }; onClose(): void }) {
+  const info = ARTIFACTS[r.kind] ?? ARTIFACTS.horseshoe;
+  const close = useRef(onClose); close.current = onClose;
+  useEffect(() => { const t = setTimeout(() => close.current(), 4500); return () => clearTimeout(t); }, [r]);
+  return (
+    <motion.div className="lvx-reveal" style={{ ['--g' as any]: info.glow }} onClick={onClose} data-testid="crucible-reveal"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="lvx-reveal-rays" initial={{ rotate: 0, scale: 0.6, opacity: 0 }} animate={{ rotate: 90, scale: 1, opacity: 1 }} transition={{ duration: 3, ease: 'easeOut' }} />
+      <motion.div className="relative grid justify-items-center gap-2 px-6 text-center" initial={{ y: 60, scale: 0.4, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 180, damping: 14 }}>
+        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">{r.fused ? 'Fused' : 'Forged'}</span>
+        <ArtifactArt kind={r.kind} level={r.level} size={148} />
+        <span className="font-display text-[26px] font-black text-white" style={{ textShadow: `0 0 18px ${info.glow}` }}>{info.name}</span>
+        <LevelPips level={r.level} />
+        <span className="max-w-[260px] text-[13px] font-bold text-white/85">{r.power}</span>
+        <span className="mt-1 text-[11px] text-white/50">{info.carry ? 'Carry it to use it' : 'Set it on one of your plots'} · tap to close</span>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
   const pot = useRef<HTMLDivElement>(null), anvil = useRef<HTMLDivElement>(null);
   const clip = useCraftClip(v);
@@ -122,6 +221,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
   const [bellows, setBellows] = useState<'off' | 'on' | number>('off');
   const [swing, setSwing] = useState(0);
   const [verdict, setVerdict] = useState<any>(null);
+  const [reveal, setReveal] = useState<{ kind: string; level: number; power: string; fused: boolean } | null>(null);
   const [mark, setMark] = useState<{ p: PlotLite | null; metal: string; pour: Record<string, number>; name: string }>({ p: null, metal: 'iron', pour: {}, name: '' });
   const heat = Number(view.heat ?? 0);
   const metal: Record<string, number> = view.metal ?? {};
@@ -296,34 +396,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
                 <Button size="sm" onClick={() => void act('rune', { rune: k })} disabled={!!busy} data-testid={`crucible-make-${k}`}>Make</Button></div>
             ))}
           </div>
-          <div className="grid gap-1.5">
-            <div className="flex items-center justify-between"><span className="lvx-label">Artifacts{view.set ? ' · ⚒️ Smith’s Set: +5% enchantment Ink' : ''}</span>
-              {view.tend_ready && <Button size="sm" variant="rainbow" onClick={() => void act('tend').then((r) => r?.result && efx.burst({ x: innerWidth / 2, y: innerHeight / 2, colors: ['#7CFF6B'], count: 18, speed: 8, kind: 'emoji', emojis: ['🍀', '🧲'] }))} data-testid="crucible-tend">🧲 Collect Luck</Button>}</div>
-            {Object.entries(ARTIFACTS).map(([k, a]) => (
-              <div key={k} className="lvx-row"><span className="text-xl">{a.emoji}</span><span className="grid flex-1 leading-tight"><span className="text-[13px] font-black text-white">{a.name}</span><span className="text-[11px] text-white/60">{a.text} · {cost(view.recipes?.artifacts?.[k] ?? {})}</span></span>
-                <Button size="sm" onClick={() => void act('forge', { artifact: k }).then((r) => r?.result && efx.burst({ ...centerOf(pot.current), colors: ['#FFD27A', '#fff'], count: 80, speed: 9, kind: 'spark' }))} disabled={!!busy} data-testid={`crucible-forge-${k}`}>Forge</Button></div>
-            ))}
-            {arts.length > 0 && (
-              <div className="grid gap-1" data-testid="crucible-artifacts">
-                {arts.map((a) => {
-                  const twin = arts.find((b) => b.id !== a.id && b.kind === a.kind && b.level === a.level);
-                  const info = ARTIFACTS[a.kind];
-                  return (
-                    <div key={a.id} className="flex items-center gap-2 rounded-xl bg-white/5 px-2.5 py-1.5 text-[12px]">
-                      <span>{info.emoji}</span><span className="flex-1 font-bold text-white">{info.name} <span className="text-[#FFD23F]">{'◆'.repeat(a.level)}</span><br /><span className="text-[11px] font-semibold text-white/60">{a.power}{a.carried ? ' · carried' : a.gx != null ? ' · on a plot' : ''}</span></span>
-                      {twin && a.level < 5 && <button className="font-black text-[#FFB347]" onClick={() => void act('fuse', { a: a.id, b: twin.id })} disabled={!!busy}>Fuse</button>}
-                      {info.carry ? <button className="font-black text-white/80" onClick={() => void act('mount', { id: a.id })} disabled={!!busy} data-testid="crucible-carry">{a.carried ? 'Put away' : 'Carry'}</button>
-                        : <select className="rounded bg-white/10 px-1 py-0.5 text-[11px] text-white" value={a.gx != null ? `${a.gx},${a.gy}` : ''} onChange={(e) => { const [gx, gy] = e.target.value.split(',').map(Number); void act('mount', e.target.value ? { id: a.id, gx, gy } : { id: a.id }); }}>
-                            <option value="">Not placed</option>{allPlots.slice(0, 80).map((p) => <option key={`${p.gx},${p.gy}`} value={`${p.gx},${p.gy}`}>{plotName(p)}</option>)}</select>}
-                      {!info.carry && !mountPick.simple && allPlots.length > 0 && <button className="text-[13px]" title="Place it on the map" aria-label="Place it on the map" data-testid="crucible-mount-map"
-                        onClick={() => mountPick.open({ title: `Place the ${info.name}`, emoji: info.emoji, color: '#FFD27A', hint: 'Tap the plot to set it on', keep: { id: a.id },
-                          allowed: allPlots.map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name ?? null, plot_type: p.plot_type })) })}>🗺️</button>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ArtifactWorkshop view={view} arts={arts} busy={!!busy} allPlots={allPlots} mountPick={mountPick} act={act} pot={pot} onReveal={setReveal} />
         </div>
       )}
 
@@ -355,6 +428,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
           {(view.inlays ?? []).length > 0 && <div className="text-[11px] text-white/60">{view.inlays.length} plot{view.inlays.length > 1 ? 's' : ''} inlaid</div>}
         </div>
       )}
+      <AnimatePresence>{reveal && <ArtifactReveal r={reveal} onClose={() => setReveal(null)} />}</AnimatePresence>
       <p className="text-center text-[11px] text-white/55">Strikes climb the ladder to Mythic — then, very rarely, to an Ultra, and past an Ultra to a Crown (only while that spot’s crown is free). Artifacts, inlays and monuments are Ink and perks only; rent never changes except by rarity.</p>
     </div>
   );

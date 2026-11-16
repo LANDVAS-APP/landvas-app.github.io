@@ -157,3 +157,23 @@
 .lvx-ench-chip { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px 6px 6px; border-radius: 16px; background: rgba(255, 255, 255, 0.045);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
 .lvx-ench-chip.on { background: color-mix(in srgb, var(--a) 22%, transparent); box-shadow: inset 0 0 0 2px var(--a); }
+
+/* ⚒️ the Crucible's artifacts: a Legendary's sparks twinkle (opacity and transform only) */
+.lvx-art-spark { transform-box: fill-box; animation: lvx-art-tw 1.8s ease-in-out infinite; }
+@keyframes lvx-art-tw { 0%, 100% { opacity: 0.15; transform: scale(0.5); } 50% { opacity: 1; transform: scale(1.15); } }
+/* a shelf of what you've forged */
+.lvx-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.lvx-art-card { position: relative; display: grid; gap: 4px; justify-items: center; padding: 10px 8px 8px; border-radius: 18px; text-align: center;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--g, #FFD27A) 22%, transparent), rgba(255, 255, 255, 0.03) 70%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g, #FFD27A) 35%, rgba(255, 255, 255, 0.06)); }
+.lvx-art-card.l5 { box-shadow: inset 0 0 0 1.5px #B596FF, 0 0 18px rgba(156, 123, 255, 0.35); }
+.lvx-art-card .tag { position: absolute; top: 6px; right: 6px; border-radius: 999px; padding: 1px 7px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em;
+  background: rgba(0, 0, 0, 0.45); color: rgba(255, 255, 255, 0.8); }
+.lvx-art-card .tag.on { background: #FFB347; color: #2B0A00; }
+/* the set: eight silhouettes */
+.lvx-set { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); }
+/* a fresh artifact rises from the pot */
+.lvx-reveal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(5, 3, 10, 0.92); }
+.lvx-reveal-rays { position: absolute; width: 340px; height: 340px; border-radius: 999px;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--g, #FFD27A) 55%, transparent) 0deg 6deg, transparent 6deg 22deg);
+  -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 68%); mask-image: radial-gradient(circle, #000 20%, transparent 68%); }

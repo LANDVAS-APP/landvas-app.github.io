@@ -99,7 +99,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     how: ['Melt any of your plots — no limit. Each one becomes Heat (rarer plots, far more) and metal, and goes back to the world at its spot’s own roll.',
       'Strike one of your plots on the anvil: its chance to rise a tier grows with the Heat, a little at a time. Higher tiers need far more. A miss keeps half the Heat.',
       'Past Mythic it can strike an Ultra — and past an Ultra, a Crown (while that spot’s crown is free). Both are very, very hard. Pump the bellows for a little more.',
-      'Metal makes temper runes, artifacts (a horseshoe, a bell, a lantern, an anchor), inlays for your plots and monuments everyone can see.'],
+      'Metal makes temper runes, eight artifacts (a horseshoe, a bell, a lantern, an anchor, a Golden Nest for your goose, a Lodestone, a Phoenix Feather and an Ink Amphora — one of each is the Grand Set), inlays for your plots and monuments everyone can see.'],
     gene: 'trick', geneName: 'Tempered', geneText: 'dodges half its bad luck, and its plot is tempered: no tramples, no Parasites, no pranks' },
   puppeteer: { id: 'puppeteer', name: 'Puppeteer', emoji: '🎭', a: '#E63946', b: '#FFB703', ink: '#2A0509', noun: 'puppet shows',
     tagline: 'Pull the strings of someone else’s plot — and play its game.',
@@ -266,7 +266,7 @@ const REACHES: Partial<Record<EnchantKind, string>> = {
 /** the chores a Strings puppet does on each kind */
 const CHORES: Partial<Record<EnchantKind, string>> = {
   goose: 'collects the egg when it’s ready, chases off the fox, or polishes the egg', clockwork: 'winds the key five turns', pandora: 'lifts the lid a notch',
-  parasite: 'harvests its feed', stormcoil: 'cranks the handle three turns', oracle: 'gazes at your next rolls', crucible: 'tends your horseshoes',
+  parasite: 'harvests its feed', stormcoil: 'cranks the handle three turns', oracle: 'gazes at your next rolls', crucible: 'collects its artifacts’ gifts',
   glyph: 'studies the Spellbook', spyglass: 'looks through the glass at a spot nearby', deck: 'turns a card and lets it come true',
 };
 /** what a golden egg gives each kind (mirrors private.ench_refill) */

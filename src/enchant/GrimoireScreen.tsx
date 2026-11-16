@@ -18,6 +18,7 @@ import { Button, Empty, Spinner, Tabs, inputCls } from '../ui';
 import { ClockRate, EnchantFxLayer, centerOf, efx, rateOf, useAct, useEnchant, useMyEnchantments, useTick, useVisitors } from './core';
 import { TempoBadge, UseOnThis } from './UseOnThis';
 import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, TRAIT_CHIP, dur, enchantName, hybridCard, hybridKey, kindInfo, traitHere, type EnchantKind, type SpliceMode } from './kinds';
+import { ARTIFACTS } from './artifacts';
 import { SeekChests, useSeekChests } from './Chests';
 import { HybridCard } from './HybridCard';
 import { EvolveAura, MoodVeil, feel, useMood } from './living';
@@ -679,7 +680,7 @@ const EV: Record<string, (d: any) => string> = {
   folded: (d) => `🦢 Folded ${d.name ?? 'a plot'} (${d.rarity}) into the pocket`, unfolded: (d) => `🦢 Unfolded a ${d.rarity} plot ${d.km} km away`, smoothed: () => '🦢 Smoothed a plot out where it was',
   creased: (d) => `🦢 Its clock folded ${d.hours} hours forward`,
   melted: (d) => `🔥 Melted ${d.n} plot${d.n > 1 ? 's' : ''} into ${d.heat} Heat`, struck: (d) => (d.ok ? `⚒️ Forged a ${d.from} plot up to ${d.to}${d.master ? ' — a Masterwork' : ''}` : `⚒️ A strike missed (${Math.round(d.chance * 100)}%)`),
-  rune: (d) => (d.glyph ? `✍️ Its rune was traced: ${d.name} at ${Math.round(Number(d.accuracy) * 100)}%` : `🪨 Made a ${d.rune} rune`), artifact: (d) => `⚒️ Forged a ${d.artifact}`, fused: (d) => `⚒️ Fused a ${d.artifact} up to level ${d.level}`, tended: (d) => `🧲 The horseshoes brought ${d.luck} Luck`,
+  rune: (d) => (d.glyph ? `✍️ Its rune was traced: ${d.name} at ${Math.round(Number(d.accuracy) * 100)}%` : `🪨 Made a ${d.rune} rune`), artifact: (d) => `⚒️ Forged a ${ARTIFACTS[d.artifact]?.name ?? d.artifact}`, fused: (d) => `⚒️ Fused a ${ARTIFACTS[d.artifact]?.name ?? d.artifact} up to level ${d.level}`, tended: (d) => `✨ The artifacts brought ${[Number(d.luck) ? `${d.luck} Luck` : '', Number(d.ink) ? `${d.ink} Ink` : ''].filter(Boolean).join(' and ') || 'their gifts'}`,
   inlaid: (d) => `◇ Inlaid ${d.metal} into a plot`, monument: (d) => `🏛️ ${d.name ?? 'A monument'} grew to ${d.points} points`,
   strung: (d) => `🎭 Pulled the strings of @${d.owner}’s plot${d.grand ? ' — a Grand Show' : ''}`, show: (d) => `🎭 ${d.passed ? 'A show on strings' : 'A puppet run'} · level ${d.level}${d.ink ? ` · +${d.ink} Ink` : ''}`,
   fate: (d) => `🃏 ${d.card}${d.up === false ? ' (reversed)' : ''}${d.held ? ', played from the hand' : ''}`, reborn: (d) => `🦋 Rebirth: a ${d.from} plot became ${d.to}`,
