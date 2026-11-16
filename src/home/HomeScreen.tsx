@@ -16,7 +16,11 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import type { ExplorerStyle, HomeData, RealmKind, HomeGame, HomeLive, HomePlaced, HomeStyleData, PlanetChatMsg } from '../backend/types';
-import { PlanetChatBox } from '../space/PlanetChat';
+import { ChatDock, type DockChannel } from '../party/ChatDock';
+import { useParty, usePartyUi } from '../party/party';
+import { usePartyChat } from '../party/usePartyChat';
+import { bubbleFor, type Talker } from '../party/chat';
+import { HousePeople, HousePeopleButton } from './HousePeople';
 import { TRACKS, music } from '../arcade/music';
 import { isRealm, REALM_KINDS, REALM_META, realmRoute } from '../realms/kinds';
 import { GuestBook } from './GuestBook';
@@ -107,7 +111,8 @@ export type LiveScene = {
   moveOther(id: string, x: number, z: number, face?: number, fl?: number): void;
   say(id: string, text: string): void;
 };
-export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<LiveScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>) {
+export function useHomeLive(hostId: string, myId: string | undefined, hall: React.RefObject<LiveScene | null>, onRec: (id: string, by: string) => void, chatRef: React.RefObject<((m: unknown) => void) | null>,
+  /** your party: their name tags say so */ partyRef?: React.RefObject<Set<string>>) {
   const [live, setLive] = useState<HomeLive | null>(null);
   const api2 = useRef({ refresh: () => {}, send: (_m: unknown) => {} });
   const recRef = useRef(onRec); recRef.current = onRec;
@@ -140,7 +145,7 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
         members = new Set(r.members.map((m) => m.id));
         others = r.members.map((m) => {
           let u = urls.get(m.id); if (!u) { u = svgUrl(explorerSvg(m.explorer_style as ExplorerStyle | undefined, m.accent_color ?? '#7B5CFF', 184)); urls.set(m.id, u); }
-          return { id: m.id, url: u, name: `@${m.username}`, x: m.x, z: m.z, fl: (m as { f?: number }).f ?? 0 };
+          return { id: m.id, url: u, name: `${partyRef?.current?.has(m.id) ? '🎉 ' : ''}@${m.username}`, x: m.x, z: m.z, fl: (m as { f?: number }).f ?? 0 };
         });
         hall.current?.setOthers(others);
         if (r.channel !== chName) { ch?.close(); chName = r.channel; ch = backend.liveChannel?.(r.channel, onMsg, { me: myId, onPeer }) ?? null; }
@@ -163,7 +168,7 @@ export function useHomeLive(hostId: string, myId: string | undefined, hall: Reac
 }
 
 /** chat for everyone in the house: a chat box, and speech bubbles over whoever said it */
-export function useHomeChat(home: string, myId: string | undefined, scene: { current: LiveScene | null }, send: (m: unknown) => void,
+export function useHomeChat(home: string, myId: string | undefined, scene: { current: Pick<LiveScene, 'say'> | null }, send: (m: unknown) => void,
   fns: { list(after: number): Promise<{ items: PlanetChatMsg[]; shard?: number | null; clan?: string | null }>; send(body: string): Promise<PlanetChatMsg>;
          /** where the server nudges when someone says something (from the list's answer) */ topic?(r: { shard?: number | null; clan?: string | null }): string | null } =
     { list: (a) => api.homeChatList(home, a), send: (b) => api.homeChatSend(home, b) }) {
@@ -197,7 +202,7 @@ export function useHomeChat(home: string, myId: string | undefined, scene: { cur
     return () => { clearTimeout(t0); clearInterval(t); };
   }, [myId, topic, tick]);
   return {
-    msgs, unread,
+    msgs, unread, ready: true,
     send: async (body: string) => { const m = await fnRef.current.send(body); add([m], true); send({ t: 'chat', id: myId, m }); return m; },
     // someone in the room says they just sent something: look now (what they sent isn't trusted as-is)
     onChat: () => nudge.current?.soon(0),
@@ -282,12 +287,25 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
   const [noHomeTip, setNoHomeTip] = useState(true);
 
   const chatIn = useRef<((m: unknown) => void) | null>(null);
+  // your party: in the house their name tags say 🎉, their chat sits beside the house's, and invites are a tap away
+  const partyG = useParty().data?.group ?? null;
+  const partyIds = useRef(new Set<string>()); partyIds.current = new Set((partyG?.members ?? []).map((m) => m.id));
   const room = useHomeLive(host.id, me?.user_id, hall, (id, by) => {
     setRec(id); const who = room.live?.members.find((m) => m.id === by);
     if (who) toast(`🎶 @${who.username} put on ${id === 'off' ? 'silence' : TRACKS.find((t) => t.id === id)?.name ?? 'a record'}`, { duration: 2000 });
-  }, chatIn);
-  const chat = useHomeChat(host.id, me?.user_id, hall, room.send);
+  }, chatIn, partyIds);
+  // what anyone says pops up over them: in the house, and over their seat or player in a game at the table
+  const gameTalk = useRef<Talker | null>(null);
+  const talk = useRef({ say: (id: string, text: string) => { hall.current?.say(id, text); gameTalk.current?.say(id, text); } });
+  const chat = useHomeChat(host.id, me?.user_id, talk, room.send);
   chatIn.current = chat.onChat;
+  const partyChat = usePartyChat({ onLine: bubbleFor(talk, me?.user_id) });
+  const showParty = usePartyUi((st) => st.show);
+  const [people, setPeople] = useState(false);
+  const channels: DockChannel[] = [
+    { id: 'house', label: 'House', chat, placeholder: 'Say something to the house…', empty: 'Say hi to everyone here 👋 — it pops up over you', notHere: 'One moment — still stepping inside…' },
+    ...(partyG ? [{ id: 'party', label: 'Party', chat: partyChat, placeholder: 'Message your party…', empty: 'Only your party sees this — wherever they are.', notHere: 'You’re not in a party right now.' }] : []),
+  ];
   const live = room.live;
   const here = (live?.members.length ?? 0) + 1;
   // the host started your table: in you go
@@ -339,6 +357,7 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
           <div className="pointer-events-auto flex flex-col gap-2">
             {own && <button onClick={() => { setEdit(true); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#FFB13D] to-[#FF5FA2] text-[9px] font-black shadow-lg" data-testid="home-decorate"><Paintbrush className="h-5 w-5" />Decorate</button>}
             <button onClick={() => setPicker(true)} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" data-testid="home-games"><span className="text-lg leading-none">🎲</span>Games</button>
+            <HousePeopleButton live={live} onOpen={() => setPeople(true)} />
             <button onClick={() => setGuests(true)} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" data-testid="home-guestbook"><BookHeart className="h-5 w-5 text-[#FF9FB2]" />Book</button>
             {hasPlayer && <button onClick={() => { const on = !musicOn; setMusicOn(on); if (on && rec !== 'off') { started.current = true; music.play(rec, false); } else music.stop(); }} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/45 text-[9px] font-bold backdrop-blur" aria-label={musicOn ? 'Music off' : 'Music on'} data-testid="home-music">{musicOn && rec !== 'off' ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}{musicOn && rec !== 'off' ? 'Music' : 'Muted'}</button>}
           </div>
@@ -419,12 +438,13 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
         </div>
       )}
       {!edit && !game && !guests && (
-        <PlanetChatBox chat={chat} myId={me?.user_id} className="absolute bottom-[104px] left-3 z-20" title="House chat" sub={`${here} here`} placeholder="Say something to the house…" empty="Say hi to everyone here 👋" notHere="One moment — still stepping inside…" />
+        <ChatDock channels={channels} myId={me?.user_id} onInvite={() => setPeople(true)} testid="home-chat" className="absolute bottom-[104px] left-3 z-20" />
       )}
+      {me && <HousePeople open={people} onClose={() => setPeople(false)} live={live} host={host} myId={me.user_id} partyChat={partyChat} />}
       {picker && <GamePicker home={host.id} here={here} onClose={() => setPicker(false)} onMade={room.refresh} />}
       {game && me && (SIMS3[game.game]
-        ? <Live3D game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />
-        : <PartyGame game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />)}
+        ? <Live3D game={game} myId={me.user_id} talk={{ ref: gameTalk, channels, onInvite: () => showParty('invite') }} onClose={() => { setGame(null); room.refresh(); }} />
+        : <PartyGame game={game} myId={me.user_id} talk={{ ref: gameTalk, channels, onInvite: () => showParty('invite') }} onClose={() => { setGame(null); room.refresh(); }} />)}
       {edit && hall.current && own && <Decorator h={h} start={startLayout} scene={hall.current} onClose={(saved) => {
         setEdit(false);
         if (saved) { qc.setQueryData(['home', host.username.toLowerCase()], saved); invalidateGame(qc); }

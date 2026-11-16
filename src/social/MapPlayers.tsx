@@ -80,7 +80,7 @@ export function MapPlayersLayer() {
       if (!x) {
         const el = explorerElement(p.explorer_style, /^#[0-9a-f]{3,8}$/i.test(p.accent_color) ? p.accent_color : '#8B5CFF');
         el.classList.add('lv-mate', 'lv-other');
-        el.dataset.testid = 'map-player'; el.dataset.user = p.username;
+        el.dataset.testid = 'map-player'; el.dataset.user = p.username; el.dataset.player = p.id;
         const nm = document.createElement('div'); nm.className = 'lv-mate-name'; nm.textContent = `@${p.username}`;
         el.appendChild(nm);
         el.addEventListener('click', (ev) => { ev.stopPropagation(); const cur = peopleRef.current.find((o) => o.id === p.id); if (cur) setOpen(cur); });

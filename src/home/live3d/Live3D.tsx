@@ -17,6 +17,7 @@ import { PartyResults, seatsOf } from '../party/PartyGame';
 import { isBot, simBots } from '../party/bots';
 import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type In3, type LavaW, type P3, type PaintW, type RLW, type SnowW, type SumoW, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
+import { ChatDock, type GameTalk } from '../../party/ChatDock';
 import { framePacer } from '../../lib/gfx';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
@@ -42,7 +43,7 @@ function blend(a: W3, b: W3, k: number): W3 {
 /** sticks are rounded to 16 directions and 3 speeds, so holding one steady sends nothing */
 const quant = (i: In3): In3 => { const l = Math.min(1, Math.hypot(i.x, i.y)); if (l < 0.2) return { x: 0, y: 0, b: i.b }; const a = Math.round(Math.atan2(i.y, i.x) / (Math.PI / 8)) * (Math.PI / 8), m = l > 0.75 ? 1 : 0.55; return { x: Math.round(Math.cos(a) * m * 100) / 100, y: Math.round(Math.sin(a) * m * 100) / 100, b: i.b }; };
 
-export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
+export function Live3D({ game, myId, onClose, talk }: { game: HomeGame; myId: string; onClose(): void; talk?: GameTalk }) {
   const sim = SIMS3[game.game];
   const reduce = useUi((s) => s.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -67,6 +68,8 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       canvas: cv.current, game: game.game, me: myId, world: base, reduceMotion: reduce,
       seats: seats.map((s) => ({ id: s.id, name: s.name, color: s.color, url: svgUrl(explorerSvg((game.players.find((p) => p.id === s.id) as { explorer_style?: ExplorerStyle } | undefined)?.explorer_style, s.p.accent_color ?? s.color, 184)) })),
     });
+    // the house's chat comes along: what anyone says pops up over them here
+    if (talk) talk.ref.current = { say: (id, text) => world.say(id === 'me' ? myId : id, text) };
     // who's running the game right now (it can change hands if the host drops out), and which hand-over we're on
     let amHost = game.host === myId, hostId = game.host, epoch = 0;
     // host: the real world, stepped 30 times a second (and the one before the last step, to draw smoothly between)
@@ -219,7 +222,7 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
       const i = quant(input.current), key = `${i.x},${i.y},${i.b}`, n = performance.now();
       if ((key !== sentKey && n - sentAt >= 90) || n - sentAt > 1000) { sentKey = key; sentAt = n; send({ t: 'i', id: myId, i }); }
     }, 45);
-    return () => { stop = true; cancelAnimationFrame(raf); clearInterval(tx); clearInterval(pinger); stopTicker(); ch.close(); inCh?.close(); world.dispose(); delete (window as unknown as { __live3d?: unknown }).__live3d; };
+    return () => { if (talk) talk.ref.current = null; stop = true; cancelAnimationFrame(raf); clearInterval(tx); clearInterval(pinger); stopTicker(); ch.close(); inCh?.close(); world.dispose(); delete (window as unknown as { __live3d?: unknown }).__live3d; };
   }, [game.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the soundtrack: a chase for tag, tiptoeing then a dark lantern theme for hide & seek, a rumble for the lava,
@@ -263,6 +266,8 @@ export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; 
         {phase === 'play' && <button onClick={onClose} className="pointer-events-auto rounded-xl bg-black/55 p-2" aria-label="Leave the game"><X className="h-4 w-4" /></button>}
       </div>
       {stick && <div className="pointer-events-none absolute" style={{ left: stick.ox - R, top: stick.oy - R, width: R * 2, height: R * 2 }}><div className="absolute inset-0 rounded-full border-2 border-white/30 bg-white/5" /><div className="absolute h-12 w-12 rounded-full bg-white/50" style={{ left: R - 24 + stick.x, top: R - 24 + stick.y }} /></div>}
+      {talk && phase !== 'end' && <ChatDock channels={talk.channels} myId={myId} onInvite={talk.onInvite} quiet hotkey={false} testid="game-chat"
+        className="absolute bottom-6 left-3 z-[85]" />}
       {phase === 'play' && me?.alive !== false && !blind && (
         <button className="absolute bottom-8 right-6 grid h-24 w-24 place-items-center rounded-full text-sm font-black shadow-2xl active:scale-90" style={{ background: `radial-gradient(circle at 35% 30%, #fff8, ${sim.color})`, boxShadow: `0 0 26px ${sim.color}`, marginBottom: 'env(safe-area-inset-bottom)' }}
           onPointerDown={(e) => { e.stopPropagation(); press(true); }} onPointerUp={() => press(false)} onPointerLeave={() => press(false)} data-testid="live3d-action">{sim.action}</button>

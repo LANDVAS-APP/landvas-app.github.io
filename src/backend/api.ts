@@ -356,6 +356,8 @@ export const api = {
   partyChatList: (after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; topic: string | null; party: string | null }>('party_chat_list', { p_after: after }),
   arcadeChatSend: (arcade: string, body: string) => rpc<import('./types').PlanetChatMsg>('arcade_chat_send', { p_arcade: arcade, p_body: body }),
   arcadeChatList: (arcade: string, after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; shard: number | null; topic: string | null }>('arcade_chat_list', { p_arcade: arcade, p_after: after }),
+  arenaChatSend: (body: string) => rpc<import('./types').PlanetChatMsg>('arena_chat_send', { p_body: body }),
+  arenaChatList: (after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; shard: number | null; topic: string | null }>('arena_chat_list', { p_after: after }),
   travelStop: (id: string) => rpc<import('./types').TravelStopInfo>('travel_stop', { p_id: id }),
 
   // more ways to earn

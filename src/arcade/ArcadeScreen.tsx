@@ -295,7 +295,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(game?: string
         </div>
       )}
       {/* chat: everyone in this room, and your party */}
-      {!busy && myId && <ArcadeChatDock arcadeId={a.id} inRoom={!!live} myId={myId} raised={lobby ? 'lobby' : near ? 'near' : null} />}
+      {!busy && myId && <ArcadeChatDock arcadeId={a.id} inRoom={!!live} myId={myId} raised={lobby ? 'lobby' : near ? 'near' : null} hall={hall} />}
       {/* what you're standing at */}
       <AnimatePresence>
         {!busy && lobby && myId && (

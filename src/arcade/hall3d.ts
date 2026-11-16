@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buildCarnival, CARNIVAL_BOUNDS, CARNIVAL_Z, type Carnival } from './carnival3d';
+import { speechBubbles } from '../lib/speech3d';
 
 export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string;
   /** a fixed place (index into the hall's slots) instead of the next free one: secret cabinets */ slot?: number };
@@ -562,13 +563,14 @@ export function createHall(o: HallOpts) {
   const others = new Map<string, Other>();
   const nameTag = (name: string) => {
     const c = document.createElement('canvas'); c.width = 256; c.height = 56; const g = c.getContext('2d')!;
+    // (the mirror hall is drawn flipped: draw the name mirrored so it reads the right way round — a sprite's scale can't flip it)
+    if (o.mirror) { g.translate(256, 0); g.scale(-1, 1); }
     g.font = '800 26px ui-rounded, system-ui, sans-serif'; const w = Math.min(250, g.measureText(name).width + 24);
     g.fillStyle = 'rgba(10,6,30,0.75)'; g.beginPath(); g.roundRect((256 - w) / 2, 6, w, 42, 21); g.fill();
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, 128, 28);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false }));
-    // (the mirror hall is drawn flipped: flip the name back so it reads the right way round)
-    sp.scale.set(o.mirror ? -1.3 : 1.3, 0.28, 1); sp.renderOrder = 5; return sp;
+    sp.scale.set(1.3, 0.28, 1); sp.renderOrder = 5; return sp;
   };
   const setOthers = (list: { id: string; url: string; name: string; x: number; z: number; playing?: string | null }[]) => {
     const keep = new Set(list.map((o) => o.id));
@@ -587,6 +589,8 @@ export function createHall(o: HallOpts) {
       if (performance.now() - o.fresh > 3000) { o.tx = it.x; o.tz = it.z; o.playing = it.playing ?? null; }
     }
   };
+  // what people say (the room's chat, your party's) pops up over their heads
+  const speech = speechBubbles(scene, { flip: !!o.mirror });
   const moveOther = (id: string, x: number, z: number, face?: number, playing?: string | null) => {
     const o = others.get(id); if (!o) return;
     o.tx = x; o.tz = z; o.fresh = performance.now(); if (face) o.face = face; if (playing !== undefined) o.playing = playing;
@@ -842,6 +846,7 @@ export function createHall(o: HallOpts) {
     if (dimUntil && t > dimUntil) { dimUntil = 0; expTarget = 1.15; }
     if (signBack && t > signBack) { signBack = 0; signMat.map?.dispose(); signMat.map = labelTex(signName.slice(0, 28) || 'Arcade', neon[0]); signMat.needsUpdate = true; }
     if (Math.abs(renderer.toneMappingExposure - expTarget) > 0.005) renderer.toneMappingExposure += (expTarget - renderer.toneMappingExposure) * Math.min(1, dt * 2.5);
+    speech.tick((id) => { if (id === 'me') return { x: P.x, y: 1.55, z: P.z }; const ot = others.get(id); return ot ? { x: ot.x, y: 1.78, z: ot.z } : null; });
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -909,13 +914,17 @@ export function createHall(o: HallOpts) {
       tapAt(fx: number, fy: number, kind: 'down' | 'up' = 'down') { ndc.set(fx * 2 - 1, -(fy * 2 - 1)); ray.setFromCamera(ndc, camera); carn!.input(kind, ray); },
     } : null,
     setOthers, moveOther,
+    /** a speech bubble over someone in the room (their id, or 'me') */
+    say: (id: string, text: string) => { if (id === 'me' || others.has(id)) speech.say(id, text); },
+    /** tests: who has a bubble up */
+    talking: () => speech.ids(),
     /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),
     debug: () => ({ P: { x: P.x, z: P.z }, near, outK, paused, riding: carn?.riding() ?? '', stick: !!P.stick, keys: { ...P.keys }, zoomOn: zoom.on, next: P.path[0] ? { x: P.path[0].x, z: P.path[0].y } : null, blockedLeft: blocked(P.x - 0.2, P.z), blockedRight: blocked(P.x + 0.2, P.z), walls: walls.filter((b) => P.x - 0.3 > b.x0 - 0.5 && P.x - 0.3 < b.x1 + 0.5 && P.z > b.z0 - 0.5 && P.z < b.z1 + 0.5), cabs: [...cabs.keys()], zoom: zoom.k, path: P.path.length, others: [...others.entries()].map(([id, x]) => ({ id, x: x.x, z: x.z, playing: x.playing })) }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
-      setRegulars([]); setShelf([]); setOthers([]);
+      setRegulars([]); setShelf([]); setOthers([]); speech.dispose();
       floorMat.map?.dispose(); signMat.map?.dispose(); hotFx.material.map?.dispose(); hotFx.material.dispose();
       carn?.dispose(); for (const x of bag) x.dispose();
       renderer.dispose();

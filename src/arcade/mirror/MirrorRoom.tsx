@@ -21,6 +21,7 @@ import { Button, Dialog, PlayerAvatar, ResourceIcon, Spinner } from '../../ui';
 import { confettiCannons } from '../../ui/confetti';
 import { ARENAS as ARENAS1, BONUS as BONUS1, ENDLESS as ENDLESS1, HOW as HOW1, scoreBus } from '../games';
 import { fmtScore, InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, PLAY, useArcadeLive } from '../party';
+import { ArcadeChatDock } from '../ArcadeChat';
 import { ARENAS2, BONUS2, ENDLESS2, HOW2 } from '../games2';
 import { createHall, type HallScene, type HallSpot } from '../hall3d';
 import { music } from '../music';
@@ -204,6 +205,9 @@ function MirrorHall({ a, m, onBack, first }: { a: Arcade; m: Extract<MirrorArcad
           <button onClick={() => setSheet('scores')} className="grid h-12 w-12 place-items-center rounded-2xl bg-black/55 text-[9px] font-bold" data-testid="mirror-scores"><Trophy className="h-5 w-5 text-[#DDE8FF]" />Scores</button>
         </div>
       )}
+      {/* chat: everyone through the glass in this room, and your party */}
+      {!busy && myId && <ArcadeChatDock arcadeId={a.id} side="mirror" inRoom={!!live} myId={myId} hall={hall}
+        raised={lobby ? 'lobby' : near?.kind === 'machine' ? 'lobby' : near ? 'near' : null} />}
       <AnimatePresence>
         {!busy && lobby && myId && (
           <motion.div key="lobby" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">

@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, Crown, Globe2, Link2, Lock, LogOut, MapPin, MessageCircle, Pencil, Search, Send, Share2, UserPlus, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -213,6 +213,8 @@ function MyParty({ g, onDone, setTab }: { g: Group; onDone?(): void; setTab(t: P
         </div>
       </section>
 
+      <PartyPlaces g={g} onDone={onDone} />
+
       <section>
         <div className="mb-2 flex items-center justify-between">
           <div className="eyebrow">In the party</div>
@@ -238,6 +240,39 @@ function MyParty({ g, onDone, setTab }: { g: Group; onDone?(): void; setTab(t: P
       </button>
       {edit && <PartySettings g={g} onClose={() => setEdit(false)} />}
     </div>
+  );
+}
+
+/** where your party is: everyone at a place you can join (a house, an arcade, a farm…), grouped — and where you are */
+function PartyPlaces({ g, onDone }: { g: Group; onDone?(): void }) {
+  const nav = useNavigate();
+  const loc = useLocation();
+  const places = new Map<string, { label: string; join: string; what: string; members: TravelGroupMember[]; mine: boolean }>();
+  for (const m of g.members) {
+    if (m.me) continue;
+    const t = goTarget(m.now);
+    if (!t) continue;
+    const x = places.get(t.route) ?? { label: t.label, join: t.route, what: describeWhereabouts(m.now ?? undefined) ?? '', members: [], mine: false };
+    x.members.push(m); places.set(t.route, x);
+  }
+  // where you are right now (the party sheet opened in a house or an arcade)
+  const here = places.get(loc.pathname); if (here) here.mine = true;
+  if (!places.size) return null;
+  return (
+    <section className="grid gap-1.5" data-testid="party-places">
+      <div className="eyebrow">Where your party is</div>
+      {[...places.values()].sort((a, b) => Number(b.mine) - Number(a.mine) || b.members.length - a.members.length).map((p) => (
+        <div key={p.join} className={cn('flex items-center gap-3 rounded-2xl px-3 py-2', p.mine ? 'bg-ok/10 ring-1 ring-ok/40' : 'bg-surface-2')} data-testid="party-place">
+          <div className="flex -space-x-2">{p.members.slice(0, 4).map((m) => <PlayerAvatar key={m.id} p={m} size={30} className="ring-2 ring-bg" />)}</div>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-[13px] font-bold">{p.what || p.label}</div>
+            <div className="truncate text-[11.5px] text-muted">{p.members.map((m) => `@${m.username}`).join(', ')}{p.mine ? ' · with you' : ''}</div>
+          </div>
+          {p.mine ? <span className="text-[12px] font-bold text-ok">You’re here</span>
+            : <Button size="sm" variant="primary" onClick={() => { onDone?.(); void goTo(p.members[0].id, p.join, nav); }} data-testid="party-place-join">{p.label}</Button>}
+        </div>
+      ))}
+    </section>
   );
 }
 

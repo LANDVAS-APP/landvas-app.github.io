@@ -9,9 +9,12 @@ import { cn } from '../lib/utils';
 import type { RoomChat } from './chat';
 
 export type DockChannel = { id: string; label: string; chat: RoomChat; placeholder: string; empty: string; notHere: string };
+/** a game at a house table: the house's chats come along, and what people say pops up over them in the game */
+export type GameTalk = { ref: { current: import('./chat').Talker | null }; channels: DockChannel[]; onInvite?(): void };
 
-export function ChatDock({ channels, myId, className, onInvite, hotkey = true, testid = 'chat-dock' }: {
+export function ChatDock({ channels, myId, className, onInvite, hotkey = true, testid = 'chat-dock', quiet = false }: {
   channels: DockChannel[]; myId?: string; className?: string; onInvite?(): void; hotkey?: boolean; testid?: string;
+  /** closed, don't float the last few lines (what people say already pops up over them) */ quiet?: boolean;
 }) {
   const [open, setOpenState] = useState(false);
   const [tab, setTab] = useState(channels[0]?.id ?? '');
@@ -54,7 +57,7 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
   };
   const unread = channels.reduce((n, c) => n + c.chat.unread, 0);
   // closed: the last few lines (from any room) float on screen for a little while
-  const recent = channels.flatMap((c) => c.chat.msgs.filter((m) => (m.kind ?? 'chat') === 'chat' && now - new Date(m.at).getTime() < 15000).map((m) => ({ m, c })))
+  const recent = quiet ? [] : channels.flatMap((c) => c.chat.msgs.filter((m) => (m.kind ?? 'chat') === 'chat' && now - new Date(m.at).getTime() < 15000).map((m) => ({ m, c })))
     .sort((a, b) => new Date(a.m.at).getTime() - new Date(b.m.at).getTime()).slice(-3);
   return (
     <div className={cn('pointer-events-none flex w-[min(72vw,310px)] flex-col items-start gap-1.5', className)} data-testid={testid}>

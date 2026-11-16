@@ -22,7 +22,10 @@ import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
 import { Button, PlayerAvatar, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
-import { PlanetChatBox } from '../space/PlanetChat';
+import { ChatDock, type DockChannel } from '../party/ChatDock';
+import { useParty, usePartyUi } from '../party/party';
+import { usePartyChat } from '../party/usePartyChat';
+import { bubbleFor } from '../party/chat';
 import { svgUrl, useHomeChat, useHomeLive } from '../home/HomeScreen';
 import { PartyGame } from '../home/party/PartyGame';
 import { Live3D } from '../home/live3d/Live3D';
@@ -89,6 +92,14 @@ function Keep({ c, k }: { c: Clan; k: ClanKeep }) {
   const chatIn = useRef<((m: unknown) => void) | null>(null);
   const room = useHomeLive(c.id, me?.user_id, keep, () => {}, chatIn);
   const chat = useHomeChat(c.id, me?.user_id, keep, room.send, { list: (a) => api.clanChatList(a), send: (b) => api.clanChatSend(b), topic: (r) => (r.clan ? `cc:${r.clan}` : null) });
+  // your party's chat sits beside the clan's, and what anyone says pops up over them in the Keep
+  const inParty = !!useParty().data?.group;
+  const partyChat = usePartyChat({ onLine: bubbleFor(keep, me?.user_id) });
+  const showParty = usePartyUi((st) => st.show);
+  const channels: DockChannel[] = [
+    { id: 'clan', label: 'Clan', chat, placeholder: 'Message your clan…', empty: 'Say hi to your clan 👋', notHere: 'One moment — still riding in…' },
+    ...(inParty ? [{ id: 'party', label: 'Party', chat: partyChat, placeholder: 'Message your party…', empty: 'Only your party sees this — wherever they are.', notHere: 'You’re not in a party right now.' }] : []),
+  ];
   chatIn.current = chat.onChat;
   const live = room.live;
   const here = (live?.members.length ?? 0) + 1;
@@ -188,7 +199,7 @@ function Keep({ c, k }: { c: Clan; k: ClanKeep }) {
           {lobby ? <TableLobby t={lobby} myId={me.user_id} onChange={room.refresh} /> : invite && <TableInvite t={invite} onJoined={room.refresh} />}
         </div>
       )}
-      {!game && !play && !near && <PlanetChatBox chat={chat} myId={me?.user_id} className="absolute bottom-[76px] left-3 z-20" title="Clan chat" sub={`${here} in the Keep`} placeholder="Message your clan…" empty="Say hi to your clan 👋" notHere="One moment — still riding in…" />}
+      {!game && !play && !near && <ChatDock channels={channels} myId={me?.user_id} onInvite={() => showParty('invite')} testid="clan-chat" className="absolute bottom-[76px] left-3 z-20" />}
       {picker && <GamePicker home={c.id} here={here} onClose={() => setPicker(false)} onMade={room.refresh} />}
       {game && me && (SIMS3[game.game]
         ? <Live3D game={game} myId={me.user_id} onClose={() => { setGame(null); room.refresh(); }} />

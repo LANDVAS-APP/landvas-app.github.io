@@ -17,7 +17,7 @@ export function useRoomChat(opts: {
   list(after: number): Promise<{ items: PlanetChatMsg[]; topic: string | null }>;
   send(body: string): Promise<PlanetChatMsg>;
   myId?: string;
-  /** a new message came in (not the backlog) */ onLine?(m: PlanetChatMsg): void;
+  /** a new message came in, or you sent one (not the backlog) */ onLine?(m: PlanetChatMsg): void;
 }): RoomChat {
   const { key, myId } = opts;
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
@@ -65,6 +65,7 @@ export function useRoomChat(opts: {
   const send = useCallback(async (body: string) => {
     const m = await ref.current.send(body);
     add([m], false, true);
+    ref.current.onLine?.(m); // (your own line pops up over you too)
     return m;
   }, [add]);
 
@@ -73,3 +74,12 @@ export function useRoomChat(opts: {
     setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
   };
 }
+
+/** a place people walk about in (a house, an arcade, a game) that can show a speech bubble over someone (their id, or 'me') */
+export type Talker = { say(id: string, text: string): void };
+
+/** what someone said, over their head (chat lines only — not "joined the party") */
+export const bubbleFor = (scene: { current: Talker | null } | undefined, myId: string | undefined) => (m: PlanetChatMsg) => {
+  if ((m.kind ?? 'chat') !== 'chat' || !m.player?.id) return;
+  scene?.current?.say(m.player.id === myId ? 'me' : m.player.id, m.body);
+};

@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
 import { Button, Emblem, GameDisc } from '../ui';
 import { ChatDock } from './ChatDock';
+import { sayOnMap } from '../travel/live';
 import { LOBBIES_KEY, PARTY_KEY, activityOf, useParty, usePartyUi } from './party';
 import { usePartyChat } from './usePartyChat';
 
@@ -130,7 +131,8 @@ export function MapPartyChat({ className }: { className?: string }) {
   const me = useOnboardedMe();
   const g = useParty().data?.group;
   const show = usePartyUi((s) => s.show);
-  const chat = usePartyChat();
+  // what anyone says pops up over them on the map (you, and your party out there with you)
+  const chat = usePartyChat({ onLine: (m) => { if ((m.kind ?? 'chat') === 'chat' && m.player?.id) sayOnMap(m.player.id, m.body, m.player.id === me?.user_id); } });
   return (
     <div className={cn('pointer-events-none flex flex-col items-start gap-1.5', className)}>
       <LfgPill className="max-w-[min(72vw,310px)]" />

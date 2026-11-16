@@ -13,6 +13,7 @@ import { sfx } from '../../arcade/sfx';
 import { PARTY } from './index';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
 import { botProfiles, isBot, partyBots } from './bots';
+import { ChatDock, type GameTalk } from '../../party/ChatDock';
 
 type Msg = { t: 'gs'; k: number; s: unknown; now: number } | { t: 'gm'; id: string; m: unknown } | { t: 'end'; r: Places };
 
@@ -23,7 +24,10 @@ export const seatsOf = (g: HomeGame): Seat[] => {
   return [...people, ...bots];
 };
 
-export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
+export function PartyGame({ game, myId, onClose, talk }: { game: HomeGame; myId: string; onClose(): void; talk?: GameTalk }) {
+  // the house's chat comes along: what anyone says pops up under their seat
+  const said = useSeatSay(talk, myId);
+  const seatEls = useRef(new Map<string, HTMLDivElement>());
   const def = PARTY[game.game];
   const seats = useRef(seatsOf(game)).current;
   const host = game.host === myId;
@@ -105,13 +109,16 @@ export function PartyGame({ game, myId, onClose }: { game: HomeGame; myId: strin
       {/* the players, their scores and whose turn */}
       <div className="flex justify-center gap-2 overflow-x-auto px-3 pb-2">
         {seats.map((x) => (
-          <div key={x.id} className={cn('flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-xs font-bold', turn === x.id ? 'bg-white/25 ring-2' : 'bg-white/10')} style={{ ['--tw-ring-color' as string]: x.color }}>
+          <div key={x.id} ref={(el) => { if (el) seatEls.current.set(x.id, el); else seatEls.current.delete(x.id); }} data-testid="party-seat" data-seat={x.id} className={cn('flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-xs font-bold', turn === x.id ? 'bg-white/25 ring-2' : 'bg-white/10')} style={{ ['--tw-ring-color' as string]: x.color }}>
             <span className="rounded-full p-0.5" style={{ background: x.color }}><PlayerAvatar p={x.p} size={22} /></span>
             <span className="max-w-[80px] truncate">{x.id === myId ? 'You' : x.name}</span>
             {score && <span className="tabular-nums" style={{ color: x.color }}>{score[x.id] ?? 0}</span>}
           </div>
         ))}
       </div>
+      <SeatBubbles said={said} els={seatEls.current} />
+      {talk && <ChatDock channels={talk.channels} myId={myId} onInvite={talk.onInvite} quiet hotkey={false} testid="game-chat"
+        className="absolute bottom-[max(16px,env(safe-area-inset-bottom,0px))] left-3 z-[85]" />}
       <div className="flex flex-1 items-start justify-center overflow-y-auto px-3 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-2">
         <def.View s={s as never} me={myId} seats={seats} send={(m: unknown) => sendRef.current(m)} now={now} host={host} />
       </div>
@@ -161,5 +168,40 @@ export function PartyResults({ g, myId, onClose }: { g: HomeGame | null; myId: s
         <Button variant="rainbow" onClick={onClose} data-testid="party-close">Back to the party</Button>
       </div>
     </motion.div>
+  );
+}
+
+/** what people at the table say, for a few seconds each (keyed by seat: 'me' is you) */
+export function useSeatSay(talk: GameTalk | undefined, myId: string) {
+  const [said, setSaid] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!talk) return;
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    talk.ref.current = {
+      say: (id, text) => {
+        const who = id === 'me' ? myId : id, body = String(text ?? '').trim().slice(0, 140); if (!body) return;
+        setSaid((x) => ({ ...x, [who]: body }));
+        clearTimeout(timers.get(who));
+        timers.set(who, setTimeout(() => setSaid((x) => { const n = { ...x }; delete n[who]; return n; }), 5500 + Math.min(body.length, 90) * 40));
+      },
+    };
+    return () => { talk.ref.current = null; for (const t of timers.values()) clearTimeout(t); };
+  }, [talk?.ref, myId]); // eslint-disable-line react-hooks/exhaustive-deps
+  return said;
+}
+
+/** the speech bubbles, just under each speaker's seat */
+function SeatBubbles({ said, els }: { said: Record<string, string>; els: Map<string, HTMLDivElement> }) {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[84]" aria-live="polite">
+      {Object.entries(said).map(([id, text]) => {
+        const r = els.get(id)?.getBoundingClientRect(); if (!r) return null;
+        return (
+          <div key={id} className="lv-seat-say" style={{ left: Math.min(Math.max(r.left + r.width / 2, 100), innerWidth - 100), top: r.bottom + 8 }} data-testid="party-seat-say">
+            {text.length > 90 ? `${text.slice(0, 88)}…` : text}
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -1366,6 +1366,20 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   animation: lv-emote 3.6s ease-out forwards;
 }
 @keyframes lv-emote { 0% { transform: translateX(-50%) scale(.2); opacity: 0; } 8% { transform: translateX(-50%) scale(1.15); opacity: 1; } 14% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; transform: translateX(-50%) translateY(-6px); } 100% { opacity: 0; transform: translateX(-50%) translateY(-16px); } }
+/* what someone at a house game's table said, under their seat */
+.lv-seat-say { position: fixed; z-index: 84; transform: translateX(-50%); width: max-content; max-width: 190px; padding: 6px 10px; border-radius: 14px;
+  background: #fff; color: #1C1512; font-size: 12.5px; font-weight: 700; line-height: 1.25; text-align: center; overflow-wrap: anywhere;
+  box-shadow: 0 6px 16px rgba(0,0,0,.35); animation: lv-say-pop 0.3s ease-out; }
+.lv-seat-say::before { content: ''; position: absolute; left: 50%; bottom: 100%; margin-left: -7px; border: 7px solid transparent; border-bottom-color: #fff; }
+/* what someone said, over them on the map (one-off: pops, holds, fades) */
+.lv-say {
+  position: absolute; left: 50%; bottom: 100%; z-index: 6; margin-bottom: 8px; width: max-content; max-width: 190px; padding: 6px 10px;
+  border-radius: 14px; background: #fff; color: #1C1512; font-size: 12.5px; font-weight: 700; line-height: 1.25; text-align: center;
+  overflow-wrap: anywhere; box-shadow: 0 6px 16px rgba(0,0,0,.3); pointer-events: none; transform: translateX(-50%);
+  animation: lv-say-pop 0.3s ease-out;
+}
+.lv-say::after { content: ''; position: absolute; left: 50%; top: 100%; margin-left: -7px; border: 7px solid transparent; border-top-color: #fff; }
+@keyframes lv-say-pop { 0% { transform: translateX(-50%) scale(.3); opacity: 0; } 70% { transform: translateX(-50%) scale(1.06); opacity: 1; } 100% { transform: translateX(-50%) scale(1); } }
 .lv-explorer.dancing .body { animation: lv-dance .5s ease-in-out infinite !important; }
 @keyframes lv-dance { 0%,100% { transform: translateY(0) rotate(-10deg); } 50% { transform: translateY(-8px) rotate(10deg); } }
 .lv-ping { display: grid; justify-items: center; pointer-events: none; }

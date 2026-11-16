@@ -10,6 +10,7 @@ import { secretsKey } from '../secrets/SecretUI';
 import { toast } from 'sonner';
 import { api } from '../../backend/api';
 import { useAutoJoin } from '../../party/lfg';
+import { ArcadeChatDock } from '../ArcadeChat';
 import { getBackend, toGameError } from '../../backend/backend';
 import type { ArenaLive, ArenaMatch, ArenaMode, ExplorerStyle } from '../../backend/types';
 import { explorerSvg } from '../../explorer/character';
@@ -145,6 +146,8 @@ export function ArenaRoom({ from, onBack, pick }: { from: string | null; onBack(
         <button onClick={() => { setMuted(!mute); setMute(!mute); }} className="pointer-events-auto rounded-xl bg-black/55 p-2" aria-label={mute ? 'Sound on' : 'Sound off'}>{mute ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
       </div>
       {live && myId && !lobby && !game && <div className="pointer-events-none absolute inset-x-0 top-[calc(max(12px,env(safe-area-inset-top,0px))+76px)] z-20 px-14"><ArenaInvite live={live} myId={myId} onJoined={room.refresh} /></div>}
+      {/* chat: everyone in this arena room, and your party */}
+      {myId && !game && <ArcadeChatDock arcadeId="" arena inRoom={!!live} myId={myId} hall={hall} raised={lobby ? 'lobby' : podGame ? 'tall' : near ? 'near' : null} />}
       <AnimatePresence>
         {lobby && myId && !game && (
           <motion.div key="lobby" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 pb-[max(20px,env(safe-area-inset-bottom,0px))]">

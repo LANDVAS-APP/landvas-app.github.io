@@ -112,7 +112,7 @@ export function GroupMapLayer() {
       if (have.has(m.id)) continue;
       const el = explorerElement(m.explorer_style, /^#[0-9a-f]{3,8}$/i.test(m.accent_color) ? m.accent_color : '#8B5CFF');
       el.classList.add('lv-mate');
-      el.dataset.testid = 'group-mate'; el.dataset.user = m.username;
+      el.dataset.testid = 'group-mate'; el.dataset.user = m.username; el.dataset.player = m.id;
       const nm = document.createElement('div'); nm.className = 'lv-mate-name'; nm.textContent = `@${m.username}`;
       el.appendChild(nm);
       el.style.display = 'none';

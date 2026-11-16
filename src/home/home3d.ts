@@ -906,6 +906,8 @@ export function createHome(o: HomeOpts) {
       else { const it = items.find((x) => x.p.i === s.id); if (it) { const [w, d] = rot(it.p); const sm = ITEM[it.p.i]?.small; const base = sm ? items.find((b) => ITEM[b.p.i]?.top && Math.abs(b.p.x - it.p.x) < 1 && Math.abs(b.p.z - it.p.z) < 1) : null; const bd = base ? rot(base.p)[1] : d; go(it.p.x, (base ? base.p.z : it.p.z) + bd / 2 + 0.45); void w; } }
     },
     setOthers, moveOther, say,
+    /** tests: who has a speech bubble up */
+    talking: () => [...bubbles.keys()],
     pose: () => ({ x: P.x, z: P.z, face: P.face, floor: floorNo }),
     setPaused(p: boolean) { paused = p; },
     debug: () => ({ P: { x: P.x, z: P.z }, near, floor: floorNo, levels: levels(), house, items: items.length, sel, editing, critters: critters.map((c) => ({ x: c.x, z: c.z, st: c.st })), others: [...others.keys()], path: P.path.length }),

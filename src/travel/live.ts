@@ -58,6 +58,24 @@ export function bubble(el: HTMLElement, e: Emote) {
   setTimeout(() => b.remove(), 3600);
 }
 
+/** what someone said, in a speech bubble over them on the map for a few seconds */
+export function sayOver(el: HTMLElement, text: string) {
+  const body = String(text ?? '').trim().slice(0, 140); if (!body) return;
+  el.querySelector(':scope > .lv-say')?.remove();
+  el.querySelector(':scope > .lv-emote')?.remove();
+  const b = document.createElement('div');
+  b.className = 'lv-say'; b.dataset.testid = 'map-say';
+  b.textContent = body.length > 90 ? `${body.slice(0, 88)}…` : body;
+  el.appendChild(b);
+  setTimeout(() => b.remove(), 5500 + Math.min(body.length, 90) * 40);
+}
+/** a chat line over whoever said it on the map: you, or one of your party out there with you */
+export function sayOnMap(playerId: string, text: string, mine: boolean) {
+  const el = mine ? document.querySelector<HTMLElement>('.lv-explorer[data-me]')
+    : document.querySelector<HTMLElement>(`.lv-explorer[data-player="${CSS.escape(playerId)}"]`);
+  if (el && el.style.display !== 'none' && el.isConnected) sayOver(el, text);
+}
+
 /** send something to the group (only while you're away travelling) */
 type Out<M> = M extends { id: string } ? Omit<M, 'id'> : never;
 export function sendGroup(m: Out<Msg>) {

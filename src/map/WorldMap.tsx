@@ -387,6 +387,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
     let lastFollow = 0;
     let lastPaint = 0;
     const el = explorerElement(me?.profile.explorer_style, accent);
+    el.dataset.me = '1';
     // your companion trots along beside you
     let pet: { cv: HTMLCanvasElement; g: CanvasRenderingContext2D; n: number } | null = null;
     if (companion) {

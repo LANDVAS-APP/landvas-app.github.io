@@ -5,6 +5,7 @@
 // (flowers, grass, fence pickets, lava tiles) are instanced, and only the tall things that can hide you get
 // their own meshes (so they can fade out when they're between the camera and you).
 import * as THREE from 'three';
+import { speechBubbles } from '../../lib/speech3d';
 import { adaptiveDpr, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { rng } from '../party/kit';
 import { LAVA, SOFT_REVEAL, sees, softAt, type ChairW, type HSW, type LavaW, type Ob, type TagW, type W3 } from './sims';
@@ -452,7 +453,12 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
   let last = performance.now();
   const span = o.world.H ?? o.world.R ?? o.world.HX ?? (o.world as { R0?: number }).R0 ?? ((o.world as LavaW).N ?? 10) * LAVA.S / 2;
 
+  // what people say (the house's chat, your party's) pops up over them — not over someone hidden from you
+  const speech = speechBubbles(scene, { width: 2.3 });
+  const shown = new Set<string>();
   return {
+    /** a speech bubble over a player */
+    say: (id: string, text: string) => { if (avs.has(id)) speech.say(id, text); },
     /** draw one frame: w is what to show right now (already smoothed), t the time */
     frame(w: W3, t: number, intro: number) {
       const now = performance.now(), raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now; tune(raw);
@@ -468,6 +474,7 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
         if (moved > 0.005) av.walk += moved * 3;
         const bob = p.on && moved > 0.01 && !o.reduceMotion ? Math.abs(Math.sin(av.walk)) * 0.1 : 0;
         av.sp.visible = av.tag.visible = seen; av.ring.visible = av.shadow.visible = seen && p.alive;
+        if (seen) shown.add(p.id); else shown.delete(p.id);
         const soft = (o.game === 'hide' || o.game === 'tag') && softAt(ctx.obs, p.x, p.z);
         av.sp.position.set(p.x, p.y + bob, p.z); av.sp.material.opacity = ghost ? 0.35 : soft && meP?.id !== hs?.seeker ? 0.55 : 1;
         if (av.xr) { av.xr.visible = seen && p.alive; av.xr.position.copy(av.sp.position); }
@@ -517,9 +524,10 @@ export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seat
         for (const m of faded) if (!hit.has(m)) { m.material = m.userData.orig; faded.delete(m); }
         for (const m of hit) if (!faded.has(m)) { m.userData.orig = m.material; m.material = fadeMat(m); faded.add(m); }
       }
+      speech.tick((id) => { if (!shown.has(id)) return null; const p = w.ps.find((q) => q.id === id); return p ? { x: p.x, y: p.y + 2.05, z: p.z } : null; });
       renderer.render(scene, camera);
     },
-    dispose() { ro.disconnect(); for (const x of bag) x.dispose(); renderer.dispose(); },
+    dispose() { ro.disconnect(); speech.dispose(); for (const x of bag) x.dispose(); renderer.dispose(); },
   };
 }
 export type World3D = ReturnType<typeof createWorld3D>;
