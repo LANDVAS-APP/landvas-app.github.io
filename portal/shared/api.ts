@@ -10,6 +10,15 @@ export type Day = {
   signups?: number; active?: number; earners?: number;
 };
 export type Filter = { col: string; op: string; value?: unknown };
+/** Live control → Earning switches (admin_earn_switches) */
+export type EarnSwitches = {
+  off: { key: string; note: string | null; at: string; by: string | null }[];
+  held: Record<string, { n: number; amount: number; last_at: string }>;
+  reasons: Record<string, number>; refs: Record<string, number>;
+  arcade_games: { id: string; name: string; emoji: string; where: string }[]; secrets: string[];
+  minigames: { id: string; name: string }[]; enchantments: { id: string; name: string; emoji: string }[];
+  plot_kinds: { id: string; name: string }[]; rarities: { id: string; name: string; tier: string | null; mult: number }[];
+};
 export type TableInfo = {
   schema: string; name: string; kind: string; rows: number; bytes: number; comment: string | null; rls: boolean; sensitive: boolean; pk: string[];
   columns: { name: string; type: string; nullable: boolean; default: string | null; generated: boolean; comment: string | null }[];
@@ -56,6 +65,8 @@ export const portal = {
   secretSave: (id: string, cfg: Record<string, any>) => rpc<SecretsAdmin>('admin_arcade_secret_save', { p_id: id, p_cfg: cfg }),
   secretFinder: (id: string, player: string, found: boolean) => rpc<SecretStats>('admin_arcade_secret_finder', { p_id: id, p_player: player, p_found: found }),
   // fair play: the egg loop (moderators look, economy staff fix) and ultras & rent
+  earnSwitches: () => rpc<EarnSwitches>('admin_earn_switches'),
+  earnSwitch: (key: string, off: boolean, note: string | null) => rpc<EarnSwitches>('admin_earn_switch', { p_key: key, p_off: off, p_note: note }),
   eggLoopScan: (min = 1) => rpc<EggLoopScan>('admin_egg_loop_scan', { p_min: min }),
   eggLoopPlayer: (id: string) => rpc<EggLoopPlayer>('admin_egg_loop_player', { p_player: id }),
   eggLoopFix: (id: string, plots: { gx: number; gy: number; action: 'downgrade' | 'take'; rarity?: string | null }[], reason: string) =>

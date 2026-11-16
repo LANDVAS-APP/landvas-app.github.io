@@ -105,7 +105,8 @@ describe('The Mirror Arcade', () => {
     await expectError(db.rpc(vi, 'arcade_mirror_finish', { p_session: s.session, p_score: 10 }), 'game_too_fast');
     await db.sql(`update arcade_mirror_plays set started_at = now() - interval '10 seconds' where id = $1`, [s.session]);
     const r = await db.rpc(vi, 'arcade_mirror_finish', { p_session: s.session, p_score: 999999 });
-    expect(r.score).toBeLessThanOrEqual(200 * 11);
+    expect(r.score).toBeLessThanOrEqual(Math.ceil(200 * 11 * (1 + 11 / 60) * 1.5)); // the run's envelope (no top score)
+    expect(r.score).toBeLessThan(999999);
     expect((await db.rpc(vi, 'arcade_mirror_finish', { p_session: s.session, p_score: 5 })).repeat).toBe(true);
     await expectError(db.rpc(vi, 'arcade_mirror_start', { p_game: 'nope' }), 'invalid_game');
   });

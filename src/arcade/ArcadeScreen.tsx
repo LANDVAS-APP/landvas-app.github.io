@@ -24,7 +24,7 @@ import { ARENAS as ARENAS1, BONUS as BONUS1, CLAW_LOG, ENDLESS as ENDLESS1, HOW 
 import { ARENAS2, BONUS2, ENDLESS2, HOW2 } from './games2';
 import { createHall, type HallScene, type HallSpot } from './hall3d';
 import { music } from './music';
-import { InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, useArcadeLive } from './party';
+import { fmtScore, InviteBanner, LobbyPanel, MatchButtons, MatchResults, MatchStrip, PLAY, useArcadeLive } from './party';
 import { scoreBus } from './games';
 import { lockLabel, usePlaceAccess } from '../plot/placeAccess';
 import { isMuted, setMuted, sfx } from './sfx';
@@ -491,7 +491,7 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, 
       </div>
       {match && <div className="mb-2 flex w-full justify-center"><MatchStrip m={match.m} scores={match.scores} myId={match.myId} myScore={phase.k === 'mdone' ? phase.score : myScore} /></div>}
       <div className="lv-arc-crt min-h-0 w-full max-w-[560px] flex-1">
-        {phase.k === 'play' && Arena && <Arena key={phase.session} seed={phase.seed} level={phase.level} mode={match ? 'classic' : mode} haptics={haptics} reduce={reduce} onEnd={(s) => void finish(phase.session, s)} />}
+        {phase.k === 'play' && Arena && <Arena key={phase.session} seed={phase.seed} level={phase.level} mode={match ? (match.m.play ?? 'classic') : mode} haptics={haptics} reduce={reduce} onEnd={(s) => void finish(phase.session, s)} />}
         {phase.k !== 'play' && (
           <div className="absolute inset-0 grid place-items-center overflow-y-auto p-5 text-center" style={{ background: `radial-gradient(120% 90% at 50% 10%, ${info.color}55, #05030C 70%)` }}>
             <AnimatePresence mode="wait">
@@ -511,8 +511,8 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, 
                   {BONUS[game] && <p className="max-w-xs rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold text-[#FFE14D]">{BONUS[game]}</p>}
                   {a.hot?.game === game && <p className="text-xs font-black text-[#FFB13D]">🔥 HOT CABINET · ×{a.hot.tickets} tickets this hour</p>}
                   <div className="font-mono text-xs text-white/60">{mode === 'endless'
-                    ? <>YOUR BEST {me.best_endless?.[game] ?? 0} · HIGH SCORE {a.boards_endless?.[game]?.[0]?.score ?? 0}</>
-                    : <>YOUR BEST {me.best[game] ?? 0} · HIGH SCORE {a.boards[game]?.[0]?.score ?? 0}</>}</div>
+                    ? <>YOUR BEST {fmtScore(me.best_endless?.[game] ?? 0)} · HIGH SCORE {fmtScore(a.boards_endless?.[game]?.[0]?.score ?? 0)}</>
+                    : <>YOUR BEST {fmtScore(me.best[game] ?? 0)} · HIGH SCORE {fmtScore(a.boards[game]?.[0]?.score ?? 0)}</>}</div>
                   <button onClick={start} disabled={busy} className="lv-arc-bigbtn !h-20 !w-auto !rounded-3xl px-8 text-lg" data-testid="arcade-start">{busy ? '…' : '▶ PRESS START'}</button>
                   <div className="font-mono text-[11px] text-[#FFE14D] opacity-80">FREE PLAY · WIN TICKETS 🎟️</div>
                 </motion.div>
@@ -520,13 +520,13 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, 
               {phase.k === 'mwait' && match && (
                 <motion.div key="mwait" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-3" data-testid="match-countdown">
                   <div className="lv-arc-marquee text-2xl" style={{ ['--glow' as string]: match.m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>{match.m.mode === 'versus' ? '⚔️ VERSUS' : '🤝 TEAM'}</div>
-                  <div className="text-sm text-white/80">{match.m.players.length} players · same round, same time{match.m.mode === 'team' && match.m.target ? ` · team target ${match.m.target}` : ''}</div>
+                  <div className="text-sm text-white/80">{match.m.players.length} players · <b>{PLAY[match.m.play ?? 'classic'].short}</b> · same round, same time{match.m.mode === 'team' && match.m.target ? ` · team target ${fmtScore(match.m.target)}` : ''}</div>
                   <motion.div key={left ?? 'x'} initial={{ scale: 2.2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="lv-arc-marquee text-9xl">{left && left > 0 ? left : 'GO'}</motion.div>
                 </motion.div>
               )}
               {phase.k === 'mdone' && match && (
                 <motion.div key="mdone" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-3">
-                  <div className="font-mono text-5xl font-black text-[#FFE14D]" style={{ textShadow: '0 0 24px #FFB13D' }}>{phase.score}</div>
+                  <div className="font-mono text-5xl font-black text-[#FFE14D]" style={{ textShadow: '0 0 24px #FFB13D' }} data-testid="match-my-score">{phase.score.toLocaleString()}</div>
                   {phase.r && <div className="lv-arc-ticket text-lg">🎟️ +{phase.r.tickets}{phase.r.paid ? ` · +${phase.r.paid} Ink` : ''}</div>}
                   <MatchResults a={a} matchId={match.m.id} myId={match.myId} onDone={() => { qc.invalidateQueries({ queryKey: arcadeKey(a.id) }); confettiCannons(); }} />
                   <button onClick={onExit} className="rounded-2xl bg-white/10 px-5 py-2 text-sm font-bold" data-testid="match-back">Back to the arcade</button>
@@ -537,7 +537,7 @@ function Cabinet({ a, me, game, haptics, reduce, onExit, onMe, match, onSecret, 
                 <motion.div key="done" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="grid justify-items-center gap-2.5" data-testid="arcade-done">
                   {phase.r?.mode === 'endless' && <div className="font-mono text-[11px] font-black text-[#B6FF3D]">∞ ENDLESS RUN</div>}
                   {phase.r?.new_record ? <div className="lv-arc-marquee text-2xl" style={{ ['--glow' as string]: '#FFE14D' }}>★ NEW HIGH SCORE ★</div> : phase.r?.new_best ? <div className="lv-arc-marquee text-xl" style={{ ['--glow' as string]: '#22E3FF' }}>PERSONAL BEST!</div> : <div className="font-mono text-sm text-white/70">GAME OVER</div>}
-                  <div className="font-mono text-6xl font-black text-[#FFE14D]" style={{ textShadow: '0 0 24px #FFB13D' }}>{phase.score}</div>
+                  <div className={cn('font-mono font-black text-[#FFE14D]', phase.score >= 1_000_000 ? 'text-4xl' : phase.score >= 10_000 ? 'text-5xl' : 'text-6xl')} style={{ textShadow: '0 0 24px #FFB13D' }} data-testid="arcade-final-score">{phase.score.toLocaleString()}</div>
                   {phase.r && (
                     <>
                       <motion.div initial={{ scale: 0.8 }} animate={{ scale: [1, 1.08, 1] }} transition={{ repeat: counted < phase.r.tickets ? Infinity : 0, duration: 0.3 }} className="lv-arc-ticket text-2xl" data-testid="arcade-won">🎟️ +{counted}</motion.div>
@@ -688,7 +688,7 @@ function Scores({ a, me, onClose }: { a: Arcade; me: ArcadeMe; onClose(): void }
         {rows.map((r, i) => (
           <div key={r.player.id} className="flex items-center gap-2 rounded-xl bg-[var(--bg-3)] px-3 py-2 font-mono text-sm">
             <span className={cn('w-6 text-center font-black', i === 0 ? 'text-[#FFD84D]' : i === 1 ? 'text-[#C9D3E6]' : i === 2 ? 'text-[#E0A06B]' : 'text-[var(--fg-2)]')}>{i + 1}</span>
-            <PlayerAvatar p={r.player} size={24} /><span className="min-w-0 flex-1 truncate font-sans font-semibold">@{r.player.username}</span><b className="text-[#FFE14D]">{r.score}</b>
+            <PlayerAvatar p={r.player} size={24} /><span className="min-w-0 flex-1 truncate font-sans font-semibold">@{r.player.username}</span><b className="text-[#FFE14D]">{fmtScore(r.score)}</b>
           </div>
         ))}
         {where === 'world' && hof.isLoading && <div className="grid place-items-center py-4"><Spinner /></div>}

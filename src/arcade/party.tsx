@@ -83,16 +83,53 @@ export function useArcadeLive(opts: { arcadeId: string; myId: string | undefined
 }
 
 const MODE = { versus: { label: 'Versus', emoji: '⚔️', color: '#FF3D6E', blurb: 'Same round, same time — top score wins bonus tickets' }, team: { label: 'Team', emoji: '🤝', color: '#22E3FF', blurb: 'Your scores add up — hit the target and everyone gets the bonus' } } as const;
+/** how a match is played: the usual round, or until everyone runs out of lives */
+export type MatchPlay = 'classic' | 'endless';
+export const PLAY: Record<MatchPlay, { label: string; short: string; blurb: string }> = {
+  classic: { label: 'Classic', short: 'Classic', blurb: 'the usual round' },
+  endless: { label: '∞ Endless', short: '∞ Endless', blurb: 'until everyone runs out of lives' },
+};
+const modeOf = (m: { mode: string }) => MODE[m.mode as keyof typeof MODE] ?? { label: m.mode, emoji: '🎮', color: '#B57BFF', blurb: 'Same round, same time' };
+/** a score, readable at any size (1,234 · 98.7K · 4.21M) */
+export function fmtScore(n: number | null | undefined) {
+  const v = Math.max(0, Math.floor(Number(n) || 0));
+  if (v < 100_000) return v.toLocaleString();
+  if (v < 1_000_000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  if (v < 1_000_000_000) return `${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
+  return `${(v / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`;
+}
 
-/** Start a match from the cabinet you're standing at. */
+/** Classic or Endless, for a match (or the cabinet) */
+export function PlayToggle({ value, onChange, disabled, testid = 'match-play' }: { value: MatchPlay; onChange(p: MatchPlay): void; disabled?: boolean; testid?: string }) {
+  return (
+    <div className="flex rounded-2xl bg-black/60 p-0.5" role="radiogroup" aria-label="How the match is played" data-testid={testid}>
+      {(['classic', 'endless'] as const).map((p) => (
+        <button key={p} type="button" role="radio" aria-checked={value === p} disabled={disabled} onClick={() => { if (value !== p) { sfx.blip(p === 'endless' ? 9 : 4); onChange(p); } }}
+          data-testid={`${testid}-${p}`}
+          className={cn('rounded-[14px] px-2.5 py-1 font-mono text-[11px] font-black uppercase transition disabled:opacity-60', value === p ? 'bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.45)]' : 'text-white/70')}>
+          {PLAY[p].short}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Start a match from the cabinet you're standing at: pick Classic or Endless, then Versus or Team. */
 export function MatchButtons({ arcade, game, onMatch, disabled }: { arcade: string; game: string; onMatch(m: ArcadeMatch): void; disabled?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [play, setPlay] = useState<MatchPlay>(() => { try { return localStorage.getItem('landvas.matchPlay') === 'endless' ? 'endless' : 'classic'; } catch { return 'classic'; } });
+  const pick = (p: MatchPlay) => { setPlay(p); try { localStorage.setItem('landvas.matchPlay', p); } catch { /* private mode */ } };
   const go = async (mode: 'versus' | 'team') => {
     setBusy(mode);
-    try { const m = await api.arcadeMatchCreate(arcade, game, mode); sfx.coin(); onMatch(m); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
+    try {
+      let m = await api.arcadeMatchCreate(arcade, game, mode);
+      if (play !== 'classic') m = await api.arcadeMatchSetPlay(m.id, play).catch(() => m);
+      sfx.coin(); onMatch(m);
+    } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
   return (
-    <div className="flex gap-2" data-testid="match-buttons">
+    <div className="flex flex-wrap items-center justify-center gap-2" data-testid="match-buttons">
+      <PlayToggle value={play} onChange={pick} disabled={disabled || !!busy} />
       {(['versus', 'team'] as const).map((m) => (
         <button key={m} disabled={disabled || !!busy} onClick={() => void go(m)} data-testid={`match-new-${m}`}
           className="flex items-center gap-1.5 rounded-2xl bg-black/70 px-3 py-2 text-xs font-black text-white shadow-lg backdrop-blur disabled:opacity-50" style={{ boxShadow: `inset 0 0 0 1.5px ${MODE[m].color}` }}>
@@ -109,11 +146,11 @@ export function InviteBanner({ a, live, myId, onJoined }: { a: Arcade; live: Arc
   const inv = live.lobbies.find((m) => !m.players.some((p) => p.id === myId) && m.players.length < 4);
   if (!inv || live.match?.status === 'lobby' || live.match?.status === 'playing') return null;
   const host = inv.players.find((p) => p.id === inv.host) ?? inv.players[0];
-  const g = a.games[inv.game], md = MODE[inv.mode];
+  const g = a.games[inv.game], md = modeOf(inv);
   return (
     <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-black/80 p-2 pl-3 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 24px ${md.color}66, inset 0 0 0 1.5px ${md.color}` }} data-testid="match-invite">
       {host && <PlayerAvatar p={host} size={28} />}
-      <div className="min-w-0 flex-1 text-xs"><b>@{host?.username}</b> is starting <b>{md.emoji} {md.label}</b> on <b>{g?.emoji} {g?.name}</b><span className="text-white/60"> · {inv.players.length}/4</span></div>
+      <div className="min-w-0 flex-1 text-xs"><b>@{host?.username}</b> is starting <b>{md.emoji} {md.label}</b>{inv.play === 'endless' ? <b className="text-[#B6FF3D]"> ∞ Endless</b> : null} on <b>{g?.emoji} {g?.name}</b><span className="text-white/60"> · {inv.players.length}/4</span></div>
       <Button size="sm" variant="rainbow" loading={busy} data-testid="match-join" onClick={async () => {
         setBusy(true);
         try { const m = await api.arcadeMatchJoin(inv.id); sfx.coin(); onJoined(m); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
@@ -125,13 +162,19 @@ export function InviteBanner({ a, live, myId, onJoined }: { a: Arcade; live: Arc
 /** Your lobby: who's in, and (for the host) Start. */
 export function LobbyPanel({ a, m, myId, onChange }: { a: Arcade; m: ArcadeMatch; myId: string; onChange(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const host = m.host === myId, g = a.games[m.game], md = MODE[m.mode];
+  const host = m.host === myId, g = a.games[m.game], md = modeOf(m), play: MatchPlay = m.play ?? 'classic';
   const run = async (k: string, f: () => Promise<unknown>) => { setBusy(k); try { await f(); onChange(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); } };
   return (
     <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto mx-auto w-full max-w-md rounded-3xl bg-black/85 p-4 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 30px ${md.color}55, inset 0 0 0 2px ${md.color}` }} data-testid="match-lobby">
       <div className="flex items-center gap-2">
         <span className="text-3xl">{g?.emoji}</span>
-        <div className="min-w-0 flex-1"><div className="font-display text-lg font-black">{md.emoji} {md.label} · {g?.name}</div><div className="text-[11px] text-white/70">{md.blurb}</div></div>
+        <div className="min-w-0 flex-1"><div className="font-display text-lg font-black">{md.emoji} {md.label} · {g?.name}</div><div className="text-[11px] text-white/70">{md.blurb} · {PLAY[play].blurb}</div></div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2" data-testid="match-lobby-play">
+        <span className="text-[11px] font-bold text-white/60">{host ? 'Play it' : 'Playing'}</span>
+        {host
+          ? <PlayToggle value={play} disabled={!!busy} onChange={(p) => run('play', () => api.arcadeMatchSetPlay(m.id, p))} testid="lobby-play" />
+          : <span className="rounded-xl bg-white/10 px-2.5 py-1 font-mono text-[11px] font-black uppercase" data-testid="lobby-play-shown">{PLAY[play].short}</span>}
       </div>
       <div className="mt-3 grid grid-cols-4 gap-2">
         {Array.from({ length: 4 }, (_, i) => {
@@ -143,7 +186,7 @@ export function LobbyPanel({ a, m, myId, onChange }: { a: Arcade; m: ArcadeMatch
           );
         })}
       </div>
-      {m.mode === 'team' && m.target && <div className="mt-2 text-center text-xs text-white/80">Team target: <b className="text-[#22E3FF]">{m.target.toLocaleString()}</b> points together</div>}
+      {m.mode === 'team' && m.target && <div className="mt-2 text-center text-xs text-white/80">Team target: <b className="text-[#22E3FF]">{fmtScore(m.target)}</b> points together</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="ghost" size="sm" className="!text-white" loading={busy === 'leave'} onClick={() => run('leave', () => api.arcadeMatchLeave(m.id))} data-testid="match-leave">Leave</Button>
         {host
@@ -163,7 +206,7 @@ export function MatchStrip({ m, scores, myId, myScore }: { m: ArcadeMatch; score
     <div className="w-full max-w-[560px] rounded-2xl bg-black/70 p-2 text-white" data-testid="match-strip">
       {m.mode === 'team' && m.target ? (
         <div className="mb-1.5">
-          <div className="flex justify-between text-[10px] font-black"><span>🤝 TEAM</span><span className="tnum">{total.toLocaleString()} / {m.target.toLocaleString()}</span></div>
+          <div className="flex justify-between text-[10px] font-black"><span>🤝 TEAM{m.play === 'endless' ? ' · ∞' : ''}</span><span className="tnum">{fmtScore(total)} / {fmtScore(m.target)}</span></div>
           <div className="mt-0.5 h-2 overflow-hidden rounded-full bg-white/15"><motion.div className="h-full rounded-full bg-gradient-to-r from-[#22E3FF] to-[#3DDC97]" animate={{ width: `${Math.min(100, (total / m.target) * 100)}%` }} /></div>
         </div>
       ) : null}
@@ -173,7 +216,7 @@ export function MatchStrip({ m, scores, myId, myScore }: { m: ArcadeMatch; score
             {m.mode === 'versus' && <span className={cn('text-[10px] font-black', i === 0 ? 'text-[#FFD84D]' : 'text-white/60')}>{i + 1}</span>}
             <PlayerAvatar p={r.p} size={18} />
             <span className="min-w-0 flex-1 truncate text-[10px] font-bold">{r.p.id === myId ? 'You' : `@${r.p.username}`}</span>
-            <b className="font-mono text-[11px] tnum">{r.s}</b>{r.done && <span className="text-[9px]">✓</span>}
+            <b className="font-mono text-[11px] tnum">{fmtScore(r.s)}</b>{r.done && <span className="text-[9px]">✓</span>}
           </div>
         ))}
       </div>
@@ -205,18 +248,18 @@ export function MatchResults({ a, matchId, myId, onDone }: { a: Arcade; matchId:
       <div className="lv-arc-marquee text-xl" style={{ ['--glow' as string]: m.mode === 'versus' ? '#FF3D6E' : '#22E3FF' }}>
         {m.status !== 'done' ? 'WAITING FOR THE OTHERS…' : m.mode === 'versus' ? (me?.bonus ? '★ YOU WIN! ★' : `@${rows[0]?.username} WINS`) : total >= (m.target ?? 0) ? '★ TEAM TARGET HIT! ★' : 'SO CLOSE!'}
       </div>
-      {m.mode === 'team' && m.target && <div className="font-mono text-sm">Team: <b className="text-[#22E3FF]">{total}</b> / {m.target}</div>}
+      {m.mode === 'team' && m.target && <div className="font-mono text-sm">Team: <b className="text-[#22E3FF]">{fmtScore(total)}</b> / {fmtScore(m.target)}</div>}
       <div className="grid w-full gap-1">
         {rows.map((p, i) => (
           <div key={p.id} className={cn('flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm', p.id === myId ? 'bg-white/20' : 'bg-white/10')}>
             {m.mode === 'versus' && <b className={cn('w-4 text-center', i === 0 ? 'text-[#FFD84D]' : 'text-white/60')}>{i + 1}</b>}
             <PlayerAvatar p={p} size={22} /><span className="min-w-0 flex-1 truncate font-bold">@{p.username}</span>
-            <b className="font-mono">{p.finished ? p.score ?? 0 : '…'}</b>
+            <b className="font-mono">{p.finished ? fmtScore(p.score ?? 0) : '…'}</b>
             {p.bonus > 0 && <span className="lv-arc-ticket text-[10px]">+{p.bonus} 🎟️</span>}
           </div>
         ))}
       </div>
-      {m.status === 'done' && <p className="text-[11px] text-white/60">{a.games[m.game]?.name} · {m.mode === 'versus' ? 'top score takes the bonus' : 'everyone shares the team bonus'}</p>}
+      {m.status === 'done' && <p className="text-[11px] text-white/60">{a.games[m.game]?.name} · {PLAY[m.play ?? 'classic'].short} · {m.mode === 'versus' ? 'top score takes the bonus' : 'everyone shares the team bonus'}</p>}
     </div>
   );
 }

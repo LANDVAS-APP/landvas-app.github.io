@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Coins, Database, FileClock, Flag, Globe2, HeartPulse, LayoutDashboard, LifeBuoy, Map as MapIcon, Megaphone,
-  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles,
+  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles, Power,
 } from 'lucide-react';
 import { api } from '../../src/backend/api';
 import { getBackend } from '../../src/backend/backend';
@@ -32,6 +32,7 @@ const Live = lazy(() => import('./pages/Live'));
 const Security = lazy(() => import('./pages/Security'));
 const Tool = lazy(() => import('./pages/Tools'));
 const Secrets = lazy(() => import('./pages/Secrets'));
+const EarnSwitches = lazy(() => import('./pages/EarnSwitches'));
 
 export function useWho() {
   return useQuery({ queryKey: ['whoami', getBackend().session()?.userId], queryFn: portal.whoami, staleTime: 60_000 });
@@ -69,6 +70,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
   const review = useQuery({ queryKey: ['admin', 'review-mode'], queryFn: api.admin.reviewMode, enabled: has('moderator'), refetchInterval: 60_000 });
   const notes = useNotifications();
   const cash = useQuery({ queryKey: ['admin', 'cashouts', 'requested'], queryFn: () => api.admin.cashoutQueue('requested'), enabled: has('payouts'), refetchInterval: 120_000 });
+  const earnOff = useQuery({ queryKey: ['admin', 'earn-switches'], queryFn: portal.earnSwitches, enabled: has('economy'), refetchInterval: 60_000, retry: false });
   const me = useQuery({ queryKey: ['admin-me'], queryFn: api.myState, staleTime: 300_000 });
   const nav: NavItem[] = [
     { to: '/', label: 'Dashboard', icon: <LayoutDashboard />, end: true, short: 'Home' },
@@ -92,6 +94,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     who.owner && { to: '/sql', label: 'SQL console', icon: <Terminal />, group: 'Data' },
     has() && { to: '/audit', label: 'Audit log', icon: <FileClock />, group: 'Data' },
     has('economy') && { to: '/live', label: 'Live control', icon: <RadioTower />, group: 'Data' },
+    has('economy') && { to: '/earning', label: 'Earning switches', icon: <Power />, group: 'Data', count: earnOff.data?.off.length || undefined },
     has() && { to: '/config', label: 'Game settings', icon: <SlidersHorizontal />, group: 'Data' },
     has() && { to: '/tools/switches', label: 'Switches', icon: <Flag />, group: 'Data' },
     { to: '/security', label: 'Security & staff', icon: <ShieldCheck />, group: 'Account' },
@@ -147,6 +150,7 @@ const router = createBrowserRouter([
       { path: 'audit', element: page(<Audit />) },
       { path: 'config', element: page(<Config />) },
       { path: 'live', element: page(<Live />) },
+      { path: 'earning', element: page(<EarnSwitches />) },
       { path: 'security', element: page(<Security />) },
       { path: 'tools/:tool', element: page(<Tool />) },
       { path: 'secrets', element: page(<Secrets />) },

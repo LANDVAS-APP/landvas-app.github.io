@@ -47,7 +47,11 @@ describe('the arcade carnival', () => {
     expect(Number((await me()).tickets)).toBe(t0 + f.tickets);
     const s2 = await db.rpc(cal, 'carnival_start', { p_arcade: arc, p_game: 'darts' });
     await db.sql(`update arcade_plays set started_at = now() - interval '40 seconds' where id = $1`, [s2.session]);
-    expect((await db.rpc(cal, 'arcade_finish', { p_session: s2.session, p_score: 99999 })).score).toBeLessThanOrEqual(600);
+    // no top score, but never past what a human could do in 40 seconds, and it pays on at most the booth's top (600)
+    const f2 = await db.rpc(cal, 'arcade_finish', { p_session: s2.session, p_score: 99999 });
+    expect(f2.score).toBeLessThanOrEqual(Math.ceil(30 * 41 * (1 + 41 / 60) * 1.5));
+    expect(f2.score).toBeLessThan(99999);
+    expect((await db.sql(`select reward_score from arcade_plays where id = $1`, [s2.session]))[0].reward_score).toBeLessThanOrEqual(600);
   });
 
   it('a treat costs tickets and adds tickets at the booths', async () => {

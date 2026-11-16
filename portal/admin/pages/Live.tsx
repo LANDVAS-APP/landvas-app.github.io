@@ -30,6 +30,7 @@ const VERSION = /^\d+(\.\d+){0,3}$/;
 /** everything else that already changes live, and where */
 const ELSEWHERE: { to: string; title: string; what: string }[] = [
   { to: '/config', title: 'Game settings', what: 'Every number the game runs on: prices, rewards, minigames, Inkborn, farms, space, realms, clans, travel, limits, moderation words. 60+ settings.' },
+  { to: '/earning', title: 'Earning switches', what: 'Stop any way of earning, live: one enchantment or splice, one arcade cabinet or the whole arcade, one minigame, one multiplier, a rent extra — the game keeps playing and that part pays 0.' },
   { to: '/tools/switches', title: 'Switches', what: 'Whole systems on or off: chat, gallery, events, minigames, cash-outs, purchases, ads, globe view.' },
   { to: '/tools/earnings', title: 'Rates & rarities', what: 'What each rarity earns, the odds of each rarity, minigame Ink.' },
   { to: '/tools/shop', title: 'Shop', what: 'Every item, price and outfit in the shop.' },

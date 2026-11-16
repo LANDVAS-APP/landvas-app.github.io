@@ -209,6 +209,8 @@ export type ArcadeMember = Profile & { explorer_style?: unknown; x: number; z: n
 export type ArcadeMatchPlayer = Profile & { explorer_style?: unknown; score: number | null; finished: boolean; bonus: number; session: string | null };
 export type ArcadeMatch = {
   id: string; arcade_id: string; game: string; mode: 'versus' | 'team'; status: 'lobby' | 'playing' | 'done' | 'cancelled'; host: string;
+  /** how everyone in the match plays it: Classic (the usual round) or Endless (until you run out of lives) */
+  play?: 'classic' | 'endless';
   seed: number | null; target: number | null; created_at: string; started_at: string | null; server_time: string; players: ArcadeMatchPlayer[]; level: number;
 };
 export type ArcadeLive = { arcade_id: string; shard: number; joined: boolean; room_size: number; channel: string; members: ArcadeMember[]; in_arcade: number; lobbies: ArcadeMatch[]; match: ArcadeMatch | null };

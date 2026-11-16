@@ -52,12 +52,18 @@ describe('Arcade plots', () => {
     expect(a.boards.stacker[0]).toMatchObject({ score: 60 });
   });
 
-  it('scores are checked: not too fast, never past what the game allows', async () => {
+  it('scores are checked: not too fast, never past what a human could do in that time', async () => {
     const s = await db.rpc(ow, 'arcade_start', { p_arcade: arcId, p_game: 'stacker' });
     await expectError(db.rpc(ow, 'arcade_finish', { p_session: s.session, p_score: 10 }), 'game_too_fast');
     await age(s.session, 5);
     const r = await db.rpc(ow, 'arcade_finish', { p_session: s.session, p_score: 900 });
-    expect(r.score).toBeLessThanOrEqual(14 * 6);
+    // the score kept: inside the run's envelope (base rate × time × the ramp × headroom)
+    expect(r.score).toBeLessThanOrEqual(Math.ceil(14 * 6 * (1 + 6 / 60) * 1.5));
+    expect(r.score).toBeLessThan(900);
+    // what it paid on: the old limit (never faster than the game's base rate)
+    const row = (await db.sql(`select reward_score, claimed_score from arcade_plays where id = $1`, [s.session]))[0];
+    expect(row.reward_score).toBeLessThanOrEqual(14 * 6);
+    expect(row.claimed_score).toBe(900);
     expect((await db.rpc(ow, 'arcade_finish', { p_session: s.session, p_score: 5 })).repeat).toBe(true);
   });
 
@@ -151,9 +157,11 @@ describe('Arcade plots', () => {
     expect(a.boards_endless.stacker[0].score).toBe(2000);
     expect(a.me.best_endless.stacker).toBe(2000);
     expect((await db.rpc(vi, 'arcade_hall_of_fame', { p_game: 'stacker', p_mode: 'endless' }))[0].score).toBe(2000);
-    // Classic still stops at the cabinet's top
+    // Classic has no top score either now, but it pays exactly as before: up to the cabinet's top
     const c = await play(vi, 'stacker', 5000, 3000);
-    expect(c.score).toBe(900);
+    expect(c.score).toBe(5000);
+    const row = (await db.sql(`select reward_score from arcade_plays where player_id = $1 and score = 5000 and mode = 'classic'`, [vi]))[0];
+    expect(row.reward_score).toBe(900);
   });
 
   it('tickets buy arcade-only cosmetics (never Ink), and Inkborn can wear them', async () => {
@@ -200,9 +208,10 @@ describe('Arcade plots', () => {
     // an endless snake run that ends early (out of lives) just scores nothing instead of failing
     const s = await db.rpc(ow, 'arcade_start', { p_arcade: arcId, p_game: 'snake', p_mode: 'endless' });
     expect((await db.rpc(ow, 'arcade_finish', { p_session: s.session, p_score: 40 })).score).toBe(0);
-    // classic pinball stops at its top score; endless doesn't
+    // no top score in Classic or Endless now (Classic still pays on at most its top, 8000)
     const c = await play(ow, 'pinball', 99999, 600);
-    expect(c.score).toBe(8000);
+    expect(c.score).toBe(99999);
+    expect((await db.sql(`select reward_score from arcade_plays where player_id = $1 and game = 'pinball' and mode = 'classic' order by started_at desc limit 1`, [ow]))[0].reward_score).toBe(8000);
     const e = await db.rpc(ow, 'arcade_start', { p_arcade: arcId, p_game: 'pinball', p_mode: 'endless' });
     await age(e.session, 600);
     expect((await db.rpc(ow, 'arcade_finish', { p_session: e.session, p_score: 12000 })).score).toBe(12000);

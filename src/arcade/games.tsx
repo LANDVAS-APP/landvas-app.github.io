@@ -19,7 +19,7 @@ import { sfx } from './sfx';
 import { config } from '../env';
 
 export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
-  /** classic: the usual round (scores capped); endless: keep going until you run out of lives */ mode?: 'classic' | 'endless' };
+  /** classic: the usual round; endless: keep going until you run out of lives (scores have no top in either) */ mode?: 'classic' | 'endless' };
 export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -48,7 +48,7 @@ export function Hud({ score, left, right }: { score: number; left?: React.ReactN
   useEffect(() => { for (const f of scoreListeners) f(score); }, [score]);
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 font-mono text-white">
-      <div className="lv-arc-led" data-testid="arc-score"><span className="text-[9px] opacity-70">SCORE</span><b>{String(score).padStart(4, '0')}</b></div>
+      <div className="lv-arc-led" data-testid="arc-score"><span className="text-[9px] opacity-70">SCORE</span><b>{score >= 10_000 ? Math.floor(score).toLocaleString() : String(Math.floor(score)).padStart(4, '0')}</b></div>
       {left}
       {right}
     </div>

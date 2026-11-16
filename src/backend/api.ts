@@ -129,7 +129,19 @@ export type RxMoment = { id: number; gx: number; gy: number; rarity: string; how
 export type RxTier = { tier_one_in: number; list: { id: string; name: string; emoji: string; color: string; glow: string; ability: string; one_in: number; world: number; mine: number }[];
   recent: { rarity: string; how: string; place: string | null; owner_name: string | null; at: string }[] };
 export type RxFusionBook = { recipes: { a?: string; b?: string; to: string | null; secret: boolean; name?: string; emoji?: string; color?: string; glow?: string; ability?: string; made?: number }[];
-  ultras: { gx: number; gy: number; rarity: string; name: string | null; plot_type: string; shiny: boolean; why: string | null }[]; per_day: number };
+  ultras: { gx: number; gy: number; rarity: string; name: string | null; plot_type: string; shiny: boolean; why: string | null }[]; per_day: number; triple?: boolean };
+/** a Primordial that was fused from three ultras, given back as three ultras the player picks */
+export type PrimordialRefund = { id: number; gx: number; gy: number; primordial: string; fused_from: string[]; fused_at: string | null; reverted_to: string | null; name?: string | null };
+/** a Crown's share of its kingdom: 1% of the Ink everyone else there earns, or 1% of their rent */
+export type CrownShare = {
+  gx: number; gy: number; tier: 'crown' | 'crown_state' | 'crown_country'; kingdom: string; country: string; members: number;
+  choice: 'ink' | 'rent'; picked: boolean; chosen_at: string | null; locked_until: string | null; can_switch: boolean;
+  ink_pct: number; rent_pct: number; lock_days: number; ink_day: number; rent_usd_per_second: number; rent_day: number; ink_total: number; mine: boolean;
+};
+export type RefundChoice = { id: string; name: string; emoji: string; color: string; glow: string; ability: string | null; usd_per_second: number; ink_mult: number; ppm: number };
+
+/** an arcade score as the server takes it: whole, never negative, at most the biggest whole number it stores */
+const arcScore = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(2147483647, Math.floor(n))) : 0);
 
 export const api = {
   worldConfig: () => rpc<WorldConfig>('world_config'),
@@ -233,6 +245,10 @@ export const api = {
   rarityMoments: (since: number) => rpc<{ moments: RxMoment[]; last: number }>('rarity_moments', { p_since: since }),
   primordialTier: () => rpc<RxTier>('primordial_tier'),
   fusionBook: () => rpc<RxFusionBook>('fusion_book'),
+  crownSharesMine: () => rpc<CrownShare[]>('crown_shares_mine'),
+  crownShareChoose: (gx: number, gy: number, choice: 'ink' | 'rent') => rpc<CrownShare>('crown_share_choose', { p_gx: gx, p_gy: gy, p_choice: choice }),
+  primordialRefundStatus: () => rpc<{ open: PrimordialRefund[]; choices: RefundChoice[] }>('primordial_refund_status'),
+  primordialRefundChoose: (id: number, picks: string[]) => rpc<{ ok: boolean; picks: string[]; on_plot: boolean }>('primordial_refund_choose', { p_id: id, p_picks: picks }),
   ultraFuse: (cells: [number, number][]) => rpc<{ rarity: string; gx: number; gy: number; released: [number, number][]; triple: boolean; rarity_info: { name: string; emoji: string; color: string; glow: string; tier: string; ability: string } }>('ultra_fuse', { p_cells: cells }),
   firstLight: () => rpc<{ gx: number; gy: number; owner_name: string; name: string | null; art_path: string | null; mine: boolean } | null>('first_light_for_me'),
   leviathanGlyph: (enchant: string, accuracy: number) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_glyph', { p_enchant: enchant, p_accuracy: accuracy }),
@@ -439,12 +455,12 @@ export const api = {
   arcadeGet: (id: string) => rpc<import('./types').Arcade>('arcade_get', { p_id: id }),
   arcadeForPlot: (gx: number, gy: number) => rpc<{ arcade_id: string; name: string; owner: Profile; plots: number; level: number; plays: number; machines: number } | null>('arcade_for_plot', { p_gx: gx, p_gy: gy }),
   arcadeStart: (arcade: string, game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number; hot: boolean; best: number | null; record: number | null }>('arcade_start', { p_arcade: arcade, p_game: game, p_mode: mode }),
-  arcadeFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_finish', { p_session: session, p_score: score }),
+  arcadeFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_finish', { p_session: session, p_score: arcScore(score) }),
   // the Mirror Arcade (hidden: arcadeMirrorGet answers only { found: false } until you've found it)
   arcadeMirrorCheck: (session: string) => rpc<{ opened: boolean; first?: boolean; bounty?: number }>('arcade_mirror_check', { p_session: session }),
   arcadeMirrorGet: () => rpc<import('./types').MirrorArcade>('arcade_mirror_get'),
   arcadeMirrorStart: (game: string, mode: import('./types').ArcadeMode = 'classic') => rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_mirror_start', { p_game: game, p_mode: mode }),
-  arcadeMirrorFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_mirror_finish', { p_session: session, p_score: score }),
+  arcadeMirrorFinish: (session: string, score: number) => rpc<import('./types').ArcadeFinish>('arcade_mirror_finish', { p_session: session, p_score: arcScore(score) }),
   // the arcade's other secrets (hidden: arcadeSecretsMe answers { found: [] } until you've found one)
   arcadeSecretsMe: () => rpc<import('./types').SecretsMe>('arcade_secrets_me'),
   arcadeSecretCheck: (session: string) => rpc<{ opened: boolean; secret?: 'mirror' | 'founder'; first?: boolean; bounty?: number }>('arcade_secret_check', { p_session: session }),
@@ -454,7 +470,7 @@ export const api = {
   arcadeSecretStart: (secret: string, game: string, mode: import('./types').ArcadeMode = 'classic') =>
     rpc<{ session: string; seed: number; game: string; mode: import('./types').ArcadeMode; level: number }>('arcade_secret_start', { p_secret: secret, p_game: game, p_mode: mode }),
   arcadeSecretFinish: (session: string, score: number, meta: Record<string, unknown> = {}) =>
-    rpc<import('./types').ArcadeFinish & { data?: Record<string, any> }>('arcade_secret_finish', { p_session: session, p_score: score, p_meta: meta }),
+    rpc<import('./types').ArcadeFinish & { data?: Record<string, any> }>('arcade_secret_finish', { p_session: session, p_score: arcScore(score), p_meta: meta }),
   carnivalStart: (arcade: string, game: string) => rpc<{ session: string; seed: number; game: string; seconds: number; mult: number }>('carnival_start', { p_arcade: arcade, p_game: game }),
   carnivalTreat: (arcade: string, treat: string) => rpc<{ treat: string; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_treat', { p_arcade: arcade, p_treat: treat }),
   carnivalFortune: (arcade: string) => rpc<{ fortune: import('./types').CarnivalFortune; me: import('./types').ArcadeMe; carnival: import('./types').CarnivalMe }>('carnival_fortune', { p_arcade: arcade }),
@@ -473,6 +489,7 @@ export const api = {
   arcadeMatchJoin: (match: string) => rpc<import('./types').ArcadeMatch>('arcade_match_join', { p_match: match }),
   arcadeMatchLeave: (match: string) => rpc<void>('arcade_match_leave', { p_match: match }),
   arcadeMatchStart: (match: string) => rpc<import('./types').ArcadeMatch>('arcade_match_start', { p_match: match }),
+  arcadeMatchSetPlay: (match: string, play: 'classic' | 'endless') => rpc<import('./types').ArcadeMatch>('arcade_match_set_play', { p_match: match, p_play: play }),
   homeGet: (username: string) => rpc<import('./types').HomeData>('home_get', { p_username: username }),
   homeSave: (name: string | null, style: import('./types').HomeStyleData, layout: import('./types').HomePlaced[]) => rpc<import('./types').HomeData>('home_save', { p_name: name, p_style: style, p_layout: layout }),
   homeDoors: (doors: Record<string, string>) => rpc<import('./types').HomeData>('home_doors', { p_doors: doors }),
