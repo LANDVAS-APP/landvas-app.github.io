@@ -22,7 +22,6 @@ import { cn, fmt, plotLabel, safeStorage, saveStorage } from '../lib/utils';
 import { PLOT_TYPES, drawPlotDesign } from '../map/plotStyle';
 import type { PlotTypeId } from '../shared/grid';
 import { Button, Cost, Dialog, ResourceIcon, Spinner, useConfirm, PlayerAvatar } from '../ui';
-import { rarities } from '../shared/rarity';
 import { RarityBadge } from './RarityBadge';
 import { MadeBadge } from '../gallery/MadeBadge';
 import { kindFamily } from '../realms/estates/meta';
@@ -40,6 +39,7 @@ import { PlotEnchant } from '../enchant/PlotEnchant';
 import { PlotPowerCard } from '../rarity/PlotPowerCard';
 import { buzz, isNative } from '../native/native';
 import { PlotWonders } from '../enchant/PlotWonders';
+import { ClaimFacts, ClaimHeader, OddsSheet, TypePicker, type KindOpt } from './ClaimPreview';
 const NATIVE = isNative();
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -68,16 +68,19 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
   // dialogs live here (not in AcquireBlock) so they survive the panel switching to "owned"
   const [claimed, setClaimed] = useState<{ groupId: string; first: boolean } | null>(null);
   const [grow, setGrow] = useState<{ newGroup: string; neighbors: string[] } | null>(null);
+  const [odds, setOdds] = useState(false);
+  const unowned = !!d && !d.owned;
   return (
     <motion.aside
       initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', stiffness: 380, damping: 34 }}
       className={NATIVE
-        ? 'lv-plotsheet fixed inset-x-0 bottom-0 z-30 max-h-[66dvh] overflow-y-auto overscroll-contain rounded-t-[28px] px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-3'
-        : 'glass fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5'}
+        ? cn(unowned ? 'lv-claimsheet' : 'lv-plotsheet', 'fixed inset-x-0 bottom-0 z-30 max-h-[66dvh] overflow-y-auto overscroll-contain rounded-t-[28px] px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-3')
+        : cn(unowned ? 'lv-claimsheet' : 'glass', 'fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5')}
       style={NATIVE && d?.rarity_info ? { ['--glow' as string]: d.rarity_info.glow } : undefined}
       aria-label="Plot details" data-testid="plot-panel">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
-      <div className="flex items-start gap-3">
+      {unowned && <ClaimHeader d={d} onClose={() => select(null)} onOdds={() => setOdds(true)} />}
+      <div className={cn('flex items-start gap-3', unowned && 'hidden')}>
         {NATIVE && d?.owned ? null : d?.plot_type ? <PlotSwatch type={d.plot_type} className="ring-2" /> : d ? <MysterySwatch /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}
         <div className="min-w-0 flex-1">
           <div className={cn('flex flex-wrap items-center gap-2', NATIVE && d?.owned && 'hidden')}>
@@ -94,21 +97,14 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
       {q.isLoading && <div className="flex justify-center py-10"><Spinner /></div>}
       {q.error && <p className="mt-4 text-sm text-bad">{toGameError(q.error).message}</p>}
       {d && !d.owned && (
-        <div className={cn('grid gap-3', NATIVE ? 'mt-3' : 'mt-4')}>
-          {!NATIVE && d.type_info && d.plot_type ? (
-            <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface/50 p-2.5">
-              <GamePreview game={d.type_info.minigame} size={44} className="shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[11px] font-extrabold uppercase tracking-wider text-muted">Minigame</div>
-                <div className="truncate font-display font-semibold">{d.type_info.minigame_name}</div>
-              </div>
-            </div>
-          ) : null}
-          {!NATIVE && !d.rarity && <RarityOdds />}
-          {d.locked && <p className="flex items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"><Lock className="h-4 w-4" /> This plot is locked while a dispute is reviewed.</p>}
+        <div className="mt-3 grid grid-cols-1 gap-3" data-testid="claim-preview">
+          <ClaimFacts d={d}>
+            {d.locked && <span className="lv-cpv-fact lv-cpv-warn"><Lock className="h-3.5 w-3.5" /> Locked while a dispute is reviewed</span>}
+          </ClaimFacts>
           <AcquireBlock d={d} signedIn={!!session} onClaimed={setClaimed} onGrow={setGrow} />
         </div>
       )}
+      <OddsSheet open={odds} onClose={() => setOdds(false)} />
       {d && d.rarity === 'enchanted' && <PlotEnchant gx={d.gx} gy={d.gy} />}
       {d && d.rarity && d.rarity !== 'enchanted' && <PlotPowerCard gx={d.gx} gy={d.gy} rarity={d.rarity} mine={!!d.is_mine} />}
       {d && d.owned && NATIVE && <OwnedHero d={d} />}
@@ -247,7 +243,14 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const pickKind = (k: PlotKind) => { setKind(k); saveStorage('landvas.plotKind', k); };
   const a = d.acquire;
   if (!signedIn || !me) {
-    return <GameCta color="#8b6bff" onClick={() => nav('/welcome?next=/')} label="Sign up to claim" />;
+    return (
+      <div className="lv-cpv-cta" data-testid="plot-buy">
+        <motion.button whileTap={{ scale: 0.97 }} className="lv-buy" onClick={() => nav('/welcome?next=/')} data-testid="claim-sign-up">
+          <span className="ic"><Sparkles className="h-6 w-6" /></span>
+          <span className="min-w-0 flex-1 text-left"><b>Sign up to claim</b><i>Free · your first plots are on us</i></span>
+        </motion.button>
+      </div>
+    );
   }
   const starter = a?.starter_available;
   const cost = Number(a?.ink ?? 0);
@@ -308,10 +311,10 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   // 1) no explorer yet → one clear step: turn on location
   if (!reach?.explorer) {
     return (
-      <div className="grid justify-items-center gap-2 rounded-2xl border border-line bg-surface/50 p-4 text-center">
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/15"><MapPin className="h-6 w-6 text-accent-2" /></div>
-        <div className="font-display text-[17px] font-semibold">Turn on your location</div>
-        <p className="text-xs text-muted">You claim the land right around where you really are.</p>
+      <div className="lv-cpv-state">
+        <div className="big"><MapPin className="h-6 w-6" /></div>
+        <h3>Turn on your location</h3>
+        <p>You claim the land right around where you really are.</p>
         <Button className="mt-1 w-full" variant="primary" size="lg" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
       </div>
     );
@@ -321,81 +324,55 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
     const dist = reach.distance ?? 0;
     const steps = Math.min(12, Math.max(1, dist));
     return (
-      <div className="grid justify-items-center gap-2 rounded-2xl border border-line bg-surface/50 p-4 text-center" data-testid="plot-out-of-reach">
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-accent-2/15"><Footprints className="h-6 w-6 text-accent-2" /></div>
-        <div className="font-display text-[17px] font-semibold"><span className="tnum">{fmt(dist)}</span> plots away</div>
+      <div className="lv-cpv-state" data-testid="plot-out-of-reach">
+        <div className="big"><Footprints className="h-6 w-6" /></div>
+        <h3><span className="tnum">{fmt(dist)}</span> plots away</h3>
         <div className="flex items-center gap-1" aria-hidden>
-          {Array.from({ length: steps }, (_, i) => <span key={i} className={cn('h-1.5 w-1.5 rounded-full', i < reach.max ? 'bg-ok' : 'bg-line-strong')} />)}
+          {Array.from({ length: steps }, (_, i) => <span key={i} className={cn('h-1.5 w-1.5 rounded-full', i < reach.max ? 'bg-[#3ddc97]' : 'bg-white/20')} />)}
           <MapPin className="ml-1 h-3.5 w-3.5 text-[#FFE14D]" />
         </div>
-        <p className="text-xs text-muted">Walk within {reach.max} plot{reach.max === 1 ? '' : 's'} to claim it — your explorer follows you.</p>
+        <p>Walk within {reach.max} plot{reach.max === 1 ? '' : 's'} to claim it — your explorer follows you.</p>
         {!gpsOn && <Button className="mt-1 w-full" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
       </div>
     );
   }
-  // 3) in reach: pick what to build, then one big button
+  // 3) in reach: pick what to build, then one big button — all on screen, no scrolling
   const affordable = starter || canAfford;
-  if (NATIVE) return (
-    <div className="grid gap-2.5" data-testid="plot-buy">
-      {affordable && !unavailable && <KindChips kind={kind} onPick={pickKind} />}
-      {unavailable ? <button className="lv-buy" disabled>Unavailable</button> : affordable ? (
-        <motion.button whileTap={{ scale: 0.97 }} className="lv-buy" onClick={run} disabled={busy === 'claim'} data-testid="claim-plot" style={{ ['--k' as string]: opt.color }}>
-          <span className="ic">{busy === 'claim' ? <span className="lv-loader sm"><i /><i /><i /></span> : <span className="text-[22px] leading-none">{SUBS[kind]?.icon ?? opt.icon}</span>}</span>
-          <span className="min-w-0 flex-1 text-left"><b>{starter ? 'Claim free plot' : 'Claim plot'}</b><i>{SUBS[kind] ? SUBS[kind]!.title : opt.title}{freeLeft > 0 ? ` · ${freeLeft} free left` : ''}</i></span>
-          <span className="price">{starter || cost === 0 ? 'FREE' : <><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</>}</span>
-        </motion.button>
-      ) : (
-        <div className="grid gap-2" data-testid="plot-need-ink">
-          <div className="flex items-center justify-between text-[13px] font-bold"><span>Not enough Ink</span><span className="tnum">{fmt(ink)} / {fmt(cost)}</span></div>
-          <div className="lv-meter"><span style={{ width: `${Math.max(4, Math.min(100, (ink / Math.max(1, cost)) * 100))}%`, background: 'linear-gradient(90deg,#22e3ff,#8b6bff)' }} /></div>
-          <button className="lv-btn lv-rainbow h-12 w-full" onClick={() => nav('/play')}><Gamepad2 className="h-5 w-5" /> Win {fmt(cost - ink)} more Ink</button>
-        </div>
-      )}
-      {affordable && !unavailable && (naming
-        ? <input autoFocus className="lv-input !h-11 text-sm" maxLength={32} placeholder="Plot name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
-        : <button type="button" onClick={() => setNaming(true)} className="justify-self-center text-[12px] font-bold text-white/50" data-testid="plot-name-toggle">✎ Name it (optional)</button>)}
-    </div>
-  );
+  const label = SUBS[kind] ? `${opt.title} · ${SUBS[kind]!.title}` : opt.title;
   return (
-    <div className="grid gap-3">
-      {affordable && !unavailable && <PlotKindChoice kind={kind} onPick={pickKind} />}
-      {nextToMine && affordable && !unavailable && (
-        <div className="flex items-center gap-2 rounded-xl bg-accent-2/10 px-3 py-2 text-xs font-semibold text-accent-2"><Link2 className="h-3.5 w-3.5 shrink-0" /> Next to your land — you can connect them after</div>
+    <div className="grid min-w-0 grid-cols-1 gap-3" data-testid="plot-buy">
+      {affordable && !unavailable && <TypePicker opts={KIND_OPTS} subs={SUBS} kind={kind} onPick={pickKind} />}
+      {affordable && !unavailable && naming && (
+        <input autoFocus className="lv-cpv-name" maxLength={32} placeholder="Plot name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
       )}
-      {affordable && !unavailable && (naming ? (
-        <input autoFocus className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 text-sm placeholder:text-faint focus:border-accent focus:outline-none" maxLength={32}
-          placeholder="Plot name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />
-      ) : (
-        <button type="button" onClick={() => setNaming(true)} className="justify-self-start text-xs font-bold text-muted hover:text-fg" data-testid="plot-name-toggle">✎ Name it (optional)</button>
-      ))}
-      {freeLeft > 0 && !unavailable && (
-        <div className="justify-self-center rounded-full bg-ok/15 px-3 py-1 text-[11px] font-bold text-ok" data-testid="free-plots-left">🎁 {freeLeft} free plot{freeLeft === 1 ? '' : 's'} left for new players</div>
-      )}
-      {unavailable ? (
-        <GameCta color="#5a6385" disabled label="Unavailable" />
-      ) : affordable ? (
-        <GameCta color={opt.color} loading={busy === 'claim'} onClick={run} testid="claim-plot"
-          label={starter ? 'Claim free plot' : 'Claim'} sub={SUBS[kind] ? `${opt.title} · ${SUBS[kind]!.title}` : opt.title}
-          price={starter || cost === 0 ? <span className="font-extrabold">FREE</span> : <span className="inline-flex items-center gap-1 tnum"><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</span>} />
-      ) : (
-        <div className="grid gap-2.5 rounded-2xl border border-line bg-surface/50 p-3" data-testid="plot-need-ink">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-bold">Not enough Ink</span>
-            <span className="inline-flex items-center gap-1 font-bold tnum"><ResourceIcon r="ink" className="h-3.5 w-3.5" />{fmt(ink)} <span className="text-faint">/ {fmt(cost)}</span></span>
+      <div className="lv-cpv-cta">
+        {unavailable ? <button className="lv-buy" disabled>Unavailable</button> : affordable ? (
+          <motion.button whileTap={{ scale: 0.97 }} className="lv-buy" onClick={run} disabled={busy === 'claim'} data-testid="claim-plot" style={{ ['--k' as string]: opt.color }}>
+            <span className="ic">{busy === 'claim' ? <span className="lv-loader sm"><i /><i /><i /></span> : <span className="text-[22px] leading-none">{SUBS[kind]?.icon ?? opt.icon}</span>}</span>
+            <span className="min-w-0 flex-1 text-left"><b>{starter ? 'Claim free plot' : 'Claim plot'}</b><i className="truncate">{label}</i></span>
+            <span className="price">{starter || cost === 0 ? 'FREE' : <><ResourceIcon r="ink" className="h-4 w-4" />{fmt(cost)}</>}</span>
+          </motion.button>
+        ) : (
+          <div className="grid gap-2" data-testid="plot-need-ink">
+            <div className="flex items-center justify-between text-[13px] font-bold"><span>Not enough Ink</span><span className="inline-flex items-center gap-1 tnum"><ResourceIcon r="ink" className="h-3.5 w-3.5" />{fmt(ink)} <span className="text-white/45">/ {fmt(cost)}</span></span></div>
+            <div className="lv-meter"><span style={{ width: `${Math.max(4, Math.min(100, (ink / Math.max(1, cost)) * 100))}%`, background: 'linear-gradient(90deg,#22e3ff,#8b6bff)' }} /></div>
+            <button className="lv-btn lv-rainbow h-12 w-full" onClick={() => nav('/play')}><Gamepad2 className="h-5 w-5" /> Win {fmt(cost - ink)} more Ink</button>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-surface-2">
-            <motion.div className="h-full rounded-full bg-[linear-gradient(90deg,#22e3ff,#8b6bff)]" initial={{ width: 0 }} animate={{ width: `${Math.max(4, Math.min(100, (ink / Math.max(1, cost)) * 100))}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }} />
+        )}
+        {affordable && !unavailable && (
+          <div className="lv-cpv-meta">
+            {!naming && <button type="button" onClick={() => setNaming(true)} data-testid="plot-name-toggle">✎ Name it</button>}
+            {freeLeft > 0 && <span className="ok" data-testid="free-plots-left">🎁 {freeLeft} free plot{freeLeft === 1 ? '' : 's'} left</span>}
+            {nextToMine && <span className="link inline-flex items-center gap-1"><Link2 className="h-3 w-3" /> Next to your land</span>}
           </div>
-          <GameCta color="#8b6bff" onClick={() => nav('/play')} label={`Win ${fmt(cost - ink)} more Ink`} icon={<Gamepad2 className="h-5 w-5" />} />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
 /** Every plot type, in picker order. Same price and rent whichever you pick. Residential is one type with two
  *  subplots (Home, Landlord): picking it opens the choice between them. */
-type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[]; tid?: string };
 const KIND_OPTS: KindOpt[] = [
   { k: 'base', icon: '🟩', title: 'Base', body: 'Just land: earns rent, no extras — give it a type any time, free', color: '#5FB37A', perks: ['Earns USD rent like any plot', 'Nothing to look after', 'Turn it into any type later, free'] },
   { k: 'canvas', icon: '🎨', title: 'Art', body: 'Paint art the whole world can see', color: '#7B5CFF', perks: ['Paint with every brush and tool', 'Publish your art onto the map', 'Merge neighbours into one mural'] },
@@ -421,33 +398,6 @@ const SUBS: Partial<Record<PlotKind, { icon: string; title: string; body: string
 /** the type a kind belongs to (a subplot belongs to its main type) */
 const optOf = (k: PlotKind) => KIND_OPTS.find((o) => o.k === k || o.subs?.includes(k)) ?? KIND_OPTS[0];
 
-/** the app: every plot type in one sideways row (Base picked), subplots underneath when a type has them */
-function KindChips({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
-  const opt = optOf(kind);
-  const ref = useRef<HTMLDivElement>(null);
-  return (
-    <div className="grid gap-2" data-testid="plot-kind">
-      <div ref={ref} className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-        {KIND_OPTS.map((o) => {
-          const on = opt.k === o.k;
-          return (
-            <button key={o.k} type="button" className={cn('lv-kchip', on && 'on')} style={{ ['--k' as string]: o.color }} aria-pressed={on} data-testid={`kind-${o.tid ?? o.k}`}
-              onClick={() => { buzz('light'); onPick(o.subs ? o.subs[0] : o.k); }}>
-              <span className="text-[17px] leading-none">{o.icon}</span>{o.title}
-            </button>
-          );
-        })}
-      </div>
-      {opt.subs && (
-        <div className="flex gap-2">
-          {opt.subs.map((k) => <button key={k} type="button" className={cn('lv-kchip sub', kind === k && 'on')} style={{ ['--k' as string]: opt.color }} onClick={() => onPick(k)} data-testid={`kind-${k}`}>{SUBS[k]?.icon} {SUBS[k]?.title}</button>)}
-        </div>
-      )}
-      <div className="text-[11.5px] font-semibold text-white/50">{SUBS[kind]?.body ?? opt.body}</div>
-    </div>
-  );
-}
-
 /** the app: your plot (or someone's) as a premium card — its art or swatch glowing in its rarity, the numbers that
  *  matter, and who owns it */
 function OwnedHero({ d }: { d: PlotDetails }) {
@@ -462,136 +412,6 @@ function OwnedHero({ d }: { d: PlotDetails }) {
           <span className="lv-tag">×{d.rarity_info ? Number(d.rarity_info.ink_reward_multiplier).toFixed(2) : '1.00'} Ink</span><span className="lv-tag">Level {d.level}</span>
         </div>
         {d.type_info && <div className="truncate text-[11.5px] font-semibold text-white/55">🎮 {d.type_info.minigame_name}</div>}
-      </div>
-    </div>
-  );
-}
-
-function PlotKindChoice({ kind, onPick }: { kind: PlotKind; onPick(k: PlotKind): void }) {
-  const [details, setDetails] = useState(false);
-  const opt = optOf(kind);
-  const sub = SUBS[kind];
-  return (
-    <div className="grid gap-2" data-testid="plot-kind-choice">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted">Build a…</span>
-        <span className="text-[11px] text-faint">Same price for every type</span>
-      </div>
-      {/* every type at once: tiny squares */}
-      <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="What this plot becomes">
-        {KIND_OPTS.map((o) => {
-          const on = opt.k === o.k;
-          return (
-            <motion.button key={o.k} type="button" role="radio" aria-checked={on} aria-label={o.title} title={o.title} whileTap={{ scale: 0.9 }}
-              onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} data-testid={`buy-as-${o.tid ?? o.k}`}
-              className={cn('relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border-2 p-0.5 transition', on ? 'bg-surface-2' : 'border-transparent bg-surface/50 opacity-75 hover:opacity-100')}
-              style={on ? { borderColor: o.color, boxShadow: `0 0 16px -6px ${o.color}` } : undefined}>
-              <span className="text-[20px] leading-none">{o.icon}</span>
-              <span className="w-full truncate text-center text-[9px] font-bold leading-tight" style={{ color: on ? o.color : undefined }}>{o.title}</span>
-              {o.subs && <span className="absolute right-0.5 top-0.5 text-[8px] leading-none text-faint" aria-hidden>▾</span>}
-            </motion.button>
-          );
-        })}
-      </div>
-      {/* Residential / Travel: pick the subplot */}
-      <AnimatePresence initial={false}>
-        {opt.subs && (
-          <motion.div key="subs" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border p-1.5" style={{ borderColor: `${opt.color}55`, background: `${opt.color}12` }} role="radiogroup" aria-label={`${opt.title} subplot`} data-testid="buy-subplots">
-              {opt.subs.map((k) => {
-                const sp = SUBS[k]!, on = kind === k;
-                return (
-                  <button key={k} type="button" role="radio" aria-checked={on} onClick={() => onPick(k)} data-testid={`buy-as-${k}`}
-                    className={cn('flex items-center gap-2 rounded-xl border-2 px-2 py-1.5 text-left transition', on ? 'bg-surface-2' : 'border-transparent opacity-75 hover:opacity-100')} style={on ? { borderColor: opt.color } : undefined}>
-                    <span className="text-xl">{sp.icon}</span>
-                    <span className="min-w-0"><span className="block text-xs font-bold" style={{ color: on ? opt.color : undefined }}>{sp.title}</span><span className="block text-[10px] leading-tight text-muted">{sp.body}</span></span>
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.p key={kind} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
-          className="min-h-[18px] text-center text-xs text-muted">{sub ? `${sub.icon} ${opt.title} · ${sub.title}: ${sub.body}` : opt.body}</motion.p>
-      </AnimatePresence>
-      {/* every type's details (and the subplots') */}
-      <button type="button" onClick={() => setDetails((v) => !v)} className="justify-self-center text-[11px] font-bold text-muted hover:text-fg" aria-expanded={details} data-testid="buy-details-toggle">
-        {details ? '▴ Hide details' : '▾ What can each type do?'}
-      </button>
-      <AnimatePresence initial={false}>
-        {details && (
-          <motion.div key="details" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="grid max-h-[46vh] gap-1.5 overflow-y-auto pr-1 scroll-thin" data-testid="buy-details">
-              {KIND_OPTS.map((o) => (
-                <div key={o.k} className={cn('rounded-xl border p-2', optOf(kind).k === o.k ? '' : 'border-line')} style={optOf(kind).k === o.k ? { borderColor: o.color } : undefined}>
-                  <button type="button" onClick={() => onPick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} className="flex w-full items-center gap-2 text-left">
-                    <span className="text-xl">{o.icon}</span>
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-bold" style={{ color: o.color }}>{o.title}</span><span className="block text-[11px] text-muted">{o.body}</span></span>
-                  </button>
-                  <ul className="mt-1 grid gap-0.5 pl-8 text-[11px]">{o.perks.map((p) => <li key={p} className="flex gap-1"><span style={{ color: o.color }}>✦</span>{p}</li>)}</ul>
-                  {o.subs && (
-                    <div className="mt-1.5 grid gap-1.5 pl-8">
-                      {o.subs.map((k) => { const sp = SUBS[k]!; return (
-                        <button key={k} type="button" onClick={() => onPick(k)} className={cn('rounded-lg border p-1.5 text-left', kind === k ? '' : 'border-line')} style={kind === k ? { borderColor: o.color } : undefined} data-testid={`buy-detail-${k}`}>
-                          <div className="text-xs font-bold">{sp.icon} {sp.title} <span className="font-normal text-muted">— {sp.body}</span></div>
-                          <ul className="mt-0.5 grid gap-0.5 text-[10.5px] text-muted">{sp.perks.map((p) => <li key={p}>· {p}</li>)}</ul>
-                        </button>
-                      ); })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/** The big, chunky, pressable game button (raised edge, sinks when tapped). */
-function GameCta({ color, label, sub, price, icon, onClick, loading, disabled, testid }: {
-  color: string; label: string; sub?: string; price?: ReactNode; icon?: ReactNode; onClick?(): void; loading?: boolean; disabled?: boolean; testid?: string;
-}) {
-  const off = disabled || loading;
-  return (
-    <motion.button type="button" onClick={onClick} disabled={off} data-testid={testid} whileTap={off ? undefined : { y: 4, boxShadow: `0 1px 0 0 color-mix(in srgb, ${color} 55%, black)` }}
-      className={cn('relative flex h-[58px] w-full select-none items-center gap-3 overflow-hidden rounded-2xl px-4 text-left text-white', disabled && 'opacity-60')}
-      style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${color} 72%, white), ${color} 55%)`, boxShadow: `0 5px 0 0 color-mix(in srgb, ${color} 55%, black), 0 16px 30px -14px ${color}` }}>
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" aria-hidden />
-      <span className="relative grid h-8 w-8 shrink-0 place-items-center">{loading ? <Spinner /> : (icon ?? <Sparkles className="h-5 w-5" />)}</span>
-      <span className="relative min-w-0 flex-1 leading-tight">
-        <span className="block truncate font-display text-[18px] font-bold drop-shadow-[0_1px_0_rgba(0,0,0,0.25)]">{label}</span>
-        {sub && <span className="block truncate text-[11px] font-bold uppercase tracking-wider text-white/80">{sub}</span>}
-      </span>
-      {price && <span className="relative shrink-0 rounded-xl bg-black/25 px-3 py-1.5 text-[15px] font-bold">{price}</span>}
-    </motion.button>
-  );
-}
-
-/** What a mystery plot could roll: one bar, five rarities, real odds. */
-function RarityOdds() {
-  const list = rarities();
-  const total = list.reduce((s, r) => s + Number(r.weight), 0) || 1;
-  const pct = (w: number) => { const p = (w / total) * 100; return p < 1 ? `${p.toFixed(1)}%` : `${Math.round(p)}%`; };
-  return (
-    <div className="rounded-2xl border border-line bg-surface/50 p-3" data-testid="mystery-note">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted">What’s inside?</span>
-        <span className="text-[11px] text-faint">Revealed when you claim</span>
-      </div>
-      <div className="mt-2 flex h-2.5 gap-0.5 overflow-hidden rounded-full">
-        {list.map((r) => <div key={r.id} style={{ flex: Number(r.weight), background: r.color, boxShadow: `0 0 10px ${r.color}` }} />)}
-      </div>
-      <div className="mt-2 grid grid-cols-5 gap-1 text-center">
-        {list.map((r) => (
-          <div key={r.id} className="min-w-0">
-            <div className="truncate text-[10px] font-extrabold uppercase" style={{ color: r.glow }}>{r.name}</div>
-            <div className="text-[10px] text-faint tnum">{pct(Number(r.weight))}</div>
-          </div>
-        ))}
       </div>
     </div>
   );
