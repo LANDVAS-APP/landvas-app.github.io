@@ -16,27 +16,15 @@ export function useHotZone() {
 /** is this plot inside today's Hot Zone? (the same circle the server uses) */
 export const inHotZone = (z: { gx: number; gy: number; radius: number } | null | undefined, gx: number, gy: number) =>
   !!z && (gx - z.gx) ** 2 + (gy - z.gy) ** 2 <= z.radius ** 2;
-/** the Hot Zone badge: on a plot inside today's zone (plot card, buy button) */
-export function HotZoneBadge({ gx, gy, className }: { gx: number; gy: number; className?: string }) {
+/** one line in the claim preview when the plot is inside today's zone: what the zone does for this claim */
+export function HotZoneFact({ gx, gy }: { gx: number; gy: number }) {
   const q = useHotZone();
   const z = q.data?.today;
   if (!z || !inHotZone(z, gx, gy)) return null;
   return (
-    <span className={cn('lv-hotbadge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black', className)} title={`Inside today’s Hot Zone (${z.name}): better rarities, ${q.data!.ultra_mult}× ultras, ${q.data!.shiny_mult}× shiny`} data-testid="hot-zone-badge">
-      🔥 Hot Zone
+    <span className="lv-cpv-fact" style={{ background: 'linear-gradient(135deg, rgba(255,106,31,.3), rgba(255,45,111,.3))', color: '#FFD0B0' }} data-testid="hot-zone-buy">
+      🔥 Hot Zone · {z.name}: better roll, {q.data!.ultra_mult}× ultras, {q.data!.shiny_mult}× shiny
     </span>
-  );
-}
-/** the line above the claim button when the plot is inside today's zone */
-export function HotZoneBuyNote({ gx, gy }: { gx: number; gy: number }) {
-  const q = useHotZone();
-  const z = q.data?.today;
-  if (!z || !inHotZone(z, gx, gy)) return null;
-  return (
-    <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, rgba(255,106,31,.28), rgba(255,45,111,.28))', border: '1px solid rgba(255,106,31,.5)' }} data-testid="hot-zone-buy">
-      <span className="text-base leading-none">🔥</span>
-      <span className="min-w-0 flex-1">You’re in today’s Hot Zone — {z.name}. Better rarity roll, {q.data!.ultra_mult}× ultras, {q.data!.shiny_mult}× shiny.</span>
-    </div>
   );
 }
 /** is your explorer standing inside today's Hot Zone right now? (re-checked as you walk or fly) */

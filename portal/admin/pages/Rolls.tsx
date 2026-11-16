@@ -3,7 +3,7 @@
 //    each with a different minigame) and Pantheon (a different ultra on every roll).
 // ⬆️ Ascend — pay Ink to reroll a fresh plot's rarity: it only goes up, the price climbs fast, and every try nudges the
 //    odds of a higher tier (pity).
-// Server side: supabase/migrations/20261119000231_tickets_enchant_rolls_godrolls.sql and 20261119000232_ascend_roll_settings.sql.
+// Server side: supabase/migrations/20261119000351_tickets_enchant_rolls_godrolls.sql and 20261119000352_ascend_roll_settings.sql.
 // Gifts for one player (tickets, enchantments, a Godroll lined up, Ink earnings) are on the player's Gifts tab.
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

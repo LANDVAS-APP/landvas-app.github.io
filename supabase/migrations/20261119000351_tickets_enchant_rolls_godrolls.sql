@@ -86,7 +86,7 @@ create or replace function private.godroll_cfg() returns jsonb language sql stab
 $$;
 
 -- ---- an enchantment's recipe -------------------------------------------------------------------------------------
-/** staff's recipe for an enchantment: {kind, stars 0–3, level 1–10, xp, nickname, state{}} (unknown keys ignored) */
+/** staff's recipe for an enchantment: {kind, stars 0–5, level 1–10, xp, nickname, state{}} (unknown keys ignored) */
 create or replace function private.ench_spec_clean(p jsonb) returns jsonb language plpgsql stable as $$
 declare o jsonb := '{}'::jsonb; k text;
 begin
@@ -96,7 +96,7 @@ begin
     if private.ench_info(k) is null or k = 'cuckoo' or not (k = any (private.ench_kinds())) then raise exception 'invalid_kind' using errcode = 'P0001'; end if;
     o := o || jsonb_build_object('kind', k);
   end if;
-  if p ? 'stars' and jsonb_typeof(p -> 'stars') = 'number' then o := o || jsonb_build_object('stars', least(greatest((p ->> 'stars')::int, 0), 3)); end if;
+  if p ? 'stars' and jsonb_typeof(p -> 'stars') = 'number' then o := o || jsonb_build_object('stars', least(greatest((p ->> 'stars')::int, 0), 5)); end if;
   if p ? 'level' and jsonb_typeof(p -> 'level') = 'number' then o := o || jsonb_build_object('level', least(greatest((p ->> 'level')::int, 1), coalesce((private.ench_cfg() ->> 'max_level')::int, 10))); end if;
   if p ? 'xp' and jsonb_typeof(p -> 'xp') = 'number' then o := o || jsonb_build_object('xp', least(greatest((p ->> 'xp')::int, 0), 100000)); end if;
   if nullif(btrim(coalesce(p ->> 'nickname', '')), '') is not null then o := o || jsonb_build_object('nickname', left(btrim(p ->> 'nickname'), 24)); end if;
@@ -114,7 +114,7 @@ begin
   if p_id is null or p_spec is null or jsonb_typeof(p_spec) <> 'object' then return; end if;
   v_lv := (p_spec ->> 'level')::int;
   update public.enchantments set
-    stars = case when p_spec ? 'stars' then least(greatest((p_spec ->> 'stars')::int, 0), 3) else stars end,
+    stars = case when p_spec ? 'stars' then least(greatest((p_spec ->> 'stars')::int, 0), 5) else stars end,
     level = coalesce(v_lv, level),
     -- the XP of that level at least (so the next XP never drops it back)
     xp = greatest(case when p_spec ? 'xp' then (p_spec ->> 'xp')::int else xp end, case when v_lv is not null then 4 * (v_lv - 1) * (v_lv - 1) else 0 end),
@@ -324,6 +324,10 @@ select private.fn_patch('private.take_plot(uuid,integer,integer,text,jsonb)',
       select l.enchants -> l.best into v_espec from public.luck_choices l where l.player_id = p_uid and l.gx = p_gx and l.gy = p_gy and l.picked is null;
       if jsonb_typeof(v_espec) <> 'object' then v_espec := null; end if;
       v_ench := coalesce(v_espec ->> 'kind', private.ench_pick_kind());
+    end if;
+    -- a Godroll is final: a tuned Dowsing Rod doesn't dowse over it
+    if exists (select 1 from public.luck_choices l where l.player_id = p_uid and l.gx = p_gx and l.gy = p_gy and l.picked is null and l.godroll is not null) then
+      v_rod_ok := false;
     end if;$a$);
 select private.fn_patch('private.take_plot(uuid,integer,integer,text,jsonb)',
   $a$  if v_ench is not null then v_ench_row := private.ench_create(v_ench, p_uid, p_gx, p_gy); end if;$a$,

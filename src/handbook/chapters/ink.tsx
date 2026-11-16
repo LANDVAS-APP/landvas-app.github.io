@@ -7,8 +7,8 @@ import { fmtN, type Ctx } from '../live';
 import { B, Bullets, Combo, Facts, Figure, Formula, GoRow, H, Note, P, Pro, Steps, Table, Tip, Warn } from '../ui';
 import { LevelTrack, StreakWeek, WheelPie } from '../visuals';
 
-const GAME_ORDER: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'sculptor', 'rollermural', 'mirrorline'];
-const STYLE: Record<GameId, string> = { tracecraft: 'Graphite', colorburst: 'Pigment', paintpop: 'Mosaic', lightlines: 'Lumina', memorymural: 'Fresco', sculptor: 'Clay', rollermural: 'Prism', mirrorline: 'Glass' };
+const GAME_ORDER: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'blocksplash', 'rollermural', 'mirrorline'];
+const STYLE: Record<GameId, string> = { tracecraft: 'Graphite', colorburst: 'Pigment', paintpop: 'Mosaic', lightlines: 'Lumina', memorymural: 'Fresco', blocksplash: 'Stencil', rollermural: 'Prism', mirrorline: 'Glass' };
 
 /** the level-complete Ink of a level, averaged over the games */
 export function levelInk(c: Ctx, level: number) {
@@ -53,7 +53,7 @@ export const ink: Chapter = {
     {
       id: 'games', emoji: '🎮', title: 'The eight plot minigames',
       summary: 'Each plot style has its own game. Here’s how every one plays.',
-      keys: 'minigames tracecraft colorburst paint pop lightlines memory mural sculptor roller mural mirrorline how to play',
+      keys: 'minigames tracecraft colorburst paint pop lightlines memory mural block splash blocksplash roller mural mirrorline how to play',
       body: () => (
         <>
           {GAME_ORDER.map((g) => (

@@ -171,7 +171,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
             <NotificationBell className="lv-gbtn !h-[38px] !w-[38px] !rounded-full !p-0" />
           </div>
         </div>
-        {me && <div className="pointer-events-auto flex min-w-0 items-center gap-2"><RentHud /><BoostButton compact /></div>}
+        {/* your earnings and the boost: centred, sharing the row (stretched across it on phones) */}
+        {me && <div className="pointer-events-auto mx-auto flex w-full min-w-0 max-w-[460px] items-center justify-center gap-2" data-testid="rent-row"><RentHud className="flex-[3] justify-center" /><BoostButton compact className="flex-[2] justify-center !h-10 !rounded-2xl" /></div>}
         {narrow ? (<>
           {/* phones: one tidy row of round buttons (as in the app); whichever is open shows as a card right under it */}
           <div className="lv-maprow flex items-center justify-center gap-2.5 [&>*]:pointer-events-auto" data-testid="map-row">

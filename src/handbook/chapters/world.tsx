@@ -25,9 +25,9 @@ export const KINDS: { k: string; icon: string; title: string; c: string; body: s
   { k: 'train', icon: '🧳', title: 'Travel', c: '#2FA4D9', body: 'Two subplots: Train or Plane. Ride to real stations and airports, and really be there.' },
 ];
 
-const STYLE_ORDER: PlotTypeId[] = ['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'clay', 'prism', 'glass'];
+const STYLE_ORDER: PlotTypeId[] = ['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'stencil', 'prism', 'glass'];
 const GAME_OF: Record<PlotTypeId, keyof typeof GAME_INFO> = {
-  graphite: 'tracecraft', pigment: 'colorburst', mosaic: 'paintpop', lumina: 'lightlines', fresco: 'memorymural', clay: 'sculptor', prism: 'rollermural', glass: 'mirrorline',
+  graphite: 'tracecraft', pigment: 'colorburst', mosaic: 'paintpop', lumina: 'lightlines', fresco: 'memorymural', stencil: 'blocksplash', prism: 'rollermural', glass: 'mirrorline',
 };
 
 export const world: Chapter = {
@@ -166,7 +166,7 @@ export const world: Chapter = {
     {
       id: 'styles', emoji: '🎨', title: 'Plot styles and their minigames',
       summary: 'Every spot has one of eight art styles, and the style decides which minigame lives there.',
-      keys: 'plot type style graphite pigment mosaic lumina fresco clay prism glass which minigame',
+      keys: 'plot type style graphite pigment mosaic lumina fresco stencil prism glass which minigame',
       body: () => (
         <>
           <P>Besides its rarity, every spot has a fixed <B>style</B>: one of eight art materials, each with its own look on the map and its own minigame. When the roll lands, the minigame’s tag drops onto the card.</P>

@@ -1,5 +1,4 @@
 import { plotBlocks } from '../map/WorldMap';
-import { HotZoneBadge, HotZoneBuyNote } from '../daily/HotZone';
 import { AscendOffer } from '../roll/Ascend';
 import { TravelPlotCard, useTravelUi } from '../travel/Travel';
 import { HouseCard, LandlordCard } from '../residential/ResidentialCard';
@@ -87,7 +86,6 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
         <div className="min-w-0 flex-1">
           <div className={cn('flex flex-wrap items-center gap-2', NATIVE && d?.owned && 'hidden')}>
             {d && (d.rarity ? <RarityBadge r={d.rarity} /> : <MysteryBadge />)}
-            {d && !d.owned && <HotZoneBadge gx={selected.gx} gy={selected.gy} />}
             {(d?.owned || d?.type_info) && <span className="eyebrow">{d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : 'Plot'}</span>}
           </div>
           <h2 className="mt-1 truncate font-display text-lg font-semibold" data-testid="plot-title">{d?.name || (d && !d.owned ? 'Unclaimed land' : <span className="tnum">Plot {plotLabel(selected.gx, selected.gy)}</span>)}</h2>
@@ -344,7 +342,6 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const label = SUBS[kind] ? `${opt.title} · ${SUBS[kind]!.title}` : opt.title;
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3" data-testid="plot-buy">
-      {!unavailable && <HotZoneBuyNote gx={d.gx} gy={d.gy} />}
       {affordable && !unavailable && <TypePicker opts={KIND_OPTS} subs={SUBS} kind={kind} onPick={pickKind} />}
       {affordable && !unavailable && naming && (
         <input autoFocus className="lv-cpv-name" maxLength={32} placeholder="Plot name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Plot name" data-testid="plot-name-input" />

@@ -49,7 +49,7 @@ export function EnchantRecipe({ v, onChange, testid = 'ench' }: { v: EnchantSpec
         </select>
         <select className={sel} value={v.stars ?? ''} onChange={(e) => onChange({ ...v, stars: e.target.value === '' ? null : Number(e.target.value) })} aria-label="Stars" data-testid={`${testid}-stars`}>
           <option value="">stars: as rolled</option>
-          {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n ? '★'.repeat(n) : 'no stars'}</option>)}
+          {[0, 1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n ? '★'.repeat(n) : 'no stars'}</option>)}
         </select>
         <select className={sel} value={v.level ?? ''} onChange={(e) => onChange({ ...v, level: e.target.value === '' ? null : Number(e.target.value) })} aria-label="Level" data-testid={`${testid}-level`}>
           <option value="">level: 1</option>

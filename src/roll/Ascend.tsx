@@ -1,6 +1,6 @@
 // ⬆️ Ascend: pay Ink to reroll a plot you just claimed. The rarity can only go up (what you have is locked in as the
 // floor), every try costs more than the last, and every try nudges the odds of a higher tier up a little.
-// Server: public.ascend_quote / public.ascend_roll (supabase/migrations/20261119000232_ascend_roll_settings.sql).
+// Server: public.ascend_quote / public.ascend_roll (supabase/migrations/20261119000352_ascend_roll_settings.sql).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';

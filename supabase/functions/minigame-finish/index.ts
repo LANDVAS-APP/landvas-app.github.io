@@ -1066,7 +1066,7 @@ function step(L, st, p, x, y) {
   const tray = st.tray.slice();
   tray[p] = null;
   let next = st.next;
-  if (tray.every((t) => t == null)) {
+  if (!tray.some((t) => t != null)) {
     for (let k = 0; k < 3; k++) tray[k] = next + k < L.pieces.length ? next + k : null;
     next += 3;
   }

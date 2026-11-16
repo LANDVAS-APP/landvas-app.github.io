@@ -143,8 +143,8 @@ try {
   if (hz?.today) {
     const free = (await sql(`select ${hz.today.gx} + dx as gx, ${hz.today.gy} as gy from generate_series(0, 3) dx where not exists (select 1 from world_plots w where w.gx = ${hz.today.gx} + dx and w.gy = ${hz.today.gy} and w.owner_id is not null) limit 1`))[0];
     await page.evaluate((c) => window.__landvasUi.getState().select(c), { gx: free.gx, gy: free.gy });
-    const badge = await page.waitForSelector('[data-testid=hot-zone-badge]', { timeout: 15000 }).then(() => true, () => false);
-    check('a plot inside today’s Hot Zone shows the 🔥 badge', badge, `${hz.today.name}`);
+    const badge = await page.waitForSelector('[data-testid=hot-zone-buy]', { timeout: 15000 }).then(() => true, () => false);
+    check('claiming a plot inside today’s Hot Zone shows 🔥 Hot Zone', badge && /Hot Zone/.test(await page.textContent('[data-testid=hot-zone-buy]')), `${hz.today.name}`);
     await shot('11-hot-zone-plot');
     await page.evaluate(() => window.__landvasUi.getState().select(null)); await page.waitForTimeout(600);
     // (close the "drop into the world" sheet a new full-game player gets)
@@ -157,6 +157,18 @@ try {
     check('the Hot Zone card has trivia about the city', trivia && /About/.test(t) && /Paint ideas/.test(t), t.slice(0, 160));
     await shot('12-hot-zone-trivia');
   } else check('a Hot Zone today', false);
+
+  // ---- the earnings and boost row: centred, sharing the row ------------------------------------------------------
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  const row = await page.locator('[data-testid=rent-row]').boundingBox().catch(() => null);
+  const vw = page.viewportSize().width;
+  check('earnings + boost are centred and fill the row on a phone', !!row && Math.abs(row.x + row.width / 2 - vw / 2) < 4 && row.width > vw * 0.85, JSON.stringify(row));
+  await shot('13-rent-row-phone');
+  await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(800);
+  // (centred over the map, which starts after the side nav)
+  const off = await page.evaluate(() => { const el = document.querySelector('[data-testid=rent-row]'); const r = el.getBoundingClientRect(), p = el.parentElement.getBoundingClientRect(); return { row: r.x + r.width / 2, area: p.x + p.width / 2 }; });
+  check('…and centred over the map on a wide screen', Math.abs(off.row - off.area) < 4, JSON.stringify(off));
+  await shot('14-rent-row-wide');
 
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {

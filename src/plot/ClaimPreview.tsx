@@ -11,6 +11,7 @@ import { cn, fmt, plotLabel } from '../lib/utils';
 import { plotMetres } from '../shared/grid';
 import { isFusion, isPrimordial, rarities } from '../shared/rarity';
 import { Dialog } from '../ui';
+import { HotZoneFact } from '../daily/HotZone';
 import './claim.css';
 
 export type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[]; tid?: string };
@@ -37,6 +38,7 @@ export function ClaimFacts({ d, children }: { d: PlotDetails; children?: ReactNo
   return (
     <div className="lv-cpv-facts">
       {d.type_info?.minigame_name && <span className="lv-cpv-fact">🎮 {d.type_info.minigame_name}</span>}
+      <HotZoneFact gx={d.gx} gy={d.gy} />
       <span className="lv-cpv-fact lv-cpv-mystery" data-testid="mystery-note"><b>?</b> Rarity, rent{d.type_info ? '' : ' and minigame'} revealed when you claim</span>
       {children}
     </div>

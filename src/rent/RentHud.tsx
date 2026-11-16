@@ -95,7 +95,7 @@ function fullLeft(sec: number) {
   return h ? `${h}h ${String(m).padStart(2, '0')}m ${String(x).padStart(2, '0')}s` : `${m}m ${String(x).padStart(2, '0')}s`;
 }
 
-export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean }) {
+export function BoostButton({ compact, hud, className }: { compact?: boolean; hud?: boolean; className?: string }) {
   const { rent, offset, update } = useRent();
   const [busy, setBusy] = useState(false);
   useTicker(500);
@@ -113,7 +113,7 @@ export function BoostButton({ compact, hud }: { compact?: boolean; hud?: boolean
       title={none ? `No free boosts left — they reset ${new Date(rent.boost.resets_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : `+${rent.boost.minutes_per_boost} min of ${rent.boost.multiplier}× rent`}
       className={cn('relative flex shrink-0 items-center gap-1.5 overflow-hidden text-[12.5px] font-extrabold uppercase tracking-wide text-white transition active:scale-95 disabled:cursor-not-allowed',
         hud ? 'lv-hud-boost h-9 rounded-full pl-2.5 pr-3' : 'h-10 rounded-2xl px-3',
-        active ? 'shadow-[0_0_24px_-2px_#FFB31F]' : 'shadow-[0_10px_30px_-12px_#FF3D9A]', (none || capped) && !active && 'opacity-60')}
+        active ? 'shadow-[0_0_24px_-2px_#FFB31F]' : 'shadow-[0_10px_30px_-12px_#FF3D9A]', (none || capped) && !active && 'opacity-60', className)}
       style={{ background: active ? 'linear-gradient(90deg,#FF6A00,#FFB31F,#FF3D9A,#FF6A00)' : 'linear-gradient(135deg,#FF3D9A,#A45CFF)', backgroundSize: active ? '300% 100%' : undefined, animation: active ? 'lv-shimmer 2.5s linear infinite' : undefined }}
       data-shimmer={active ? '1' : undefined}
     >
@@ -206,7 +206,7 @@ export function BoostCard({ onClose }: { onClose(): void }) {
 }
 
 /** Top-of-map pill: live USD balance; tap for the wallet. */
-export function RentHud() {
+export function RentHud({ className }: { className?: string } = {}) {
   const { rent, offset } = useRent();
   const [open, setOpen] = useState(false);
   useTicker(1000);
@@ -215,7 +215,7 @@ export function RentHud() {
   const boosted = rate > Number(rent.rate_usd_per_second);
   return (
     <>
-      <button onClick={() => setOpen(true)} className="glass pointer-events-auto flex h-10 min-w-0 items-center gap-2 rounded-2xl px-3 text-left" aria-label="Your USD rent" data-testid="rent-hud">
+      <button onClick={() => setOpen(true)} className={cn('glass pointer-events-auto flex h-10 min-w-0 items-center gap-2 rounded-2xl px-3 text-left', className)} aria-label="Your USD rent" data-testid="rent-hud">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#3DDC97]/20 text-[13px] font-black text-[#3DDC97]">$</span>
         <span className="min-w-0">
           <LiveUsd rent={rent} offset={offset} dim className="block font-display text-[13.5px] font-semibold leading-tight" />
