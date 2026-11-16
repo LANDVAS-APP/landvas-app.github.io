@@ -58,6 +58,7 @@ import { useIntegrityPing } from '../integrity/signals';
 import { RestrictionNotice } from '../integrity/RestrictionNotice';
 import { TermsUpdate } from './TermsUpdate';
 import { LiveControl } from './LiveControl';
+import { RouteError } from './RouteError';
 import { NATIVE_APP } from './buildFlags';
 import { ElevenBanner } from '../rarity/ElevenBanner';
 const LegendScreen = lazy(() => import('../screens/Legend'));
@@ -217,10 +218,14 @@ function SessionSync() {
 const p = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
+// every screen gets its own error screen (the tab bar and the rest of the game stay up), and so does the whole app
+const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorElement: <RouteError /> }));
+
 const routes: RouteObject[] = [
   {
+    errorElement: <RouteError />,
     element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WorldsButton /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
-    children: [
+    children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
       { path: '/auth/confirm', element: <AuthConfirm /> },
@@ -250,7 +255,7 @@ const routes: RouteObject[] = [
       { path: '/brawl-demo', element: p(<BrawlDemo />) },
       {
         element: <Shell />,
-        children: [
+        children: safe([
           { path: '/', element: <RootRoute /> },
           { path: '/world', element: <WorldRoute /> },
           { path: '/canvases', element: player(<CanvasesScreen />) },
@@ -302,9 +307,9 @@ const routes: RouteObject[] = [
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           ...(AdminScreen ? [{ path: '/admin', element: player(<AdminScreen />) }] : []),
           { path: '*', element: <Navigate to="/world" replace /> },
-        ],
+        ]),
       },
-    ],
+    ]),
   },
 ];
 

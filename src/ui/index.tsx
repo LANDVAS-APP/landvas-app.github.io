@@ -239,7 +239,11 @@ export const RESOURCE_META: Record<Resource, { name: string; color: string; hint
   gallery_tokens: { name: 'Gallery Tokens', color: '#3DDC97', hint: 'Earned through approved art and achievements.' },
 };
 
+// rewards that aren't wallet resources (badges pay Luck, for one): shown with their own mark instead of breaking the page
+const REWARD_EXTRA: Record<string, { emoji: string; name: string }> = { luck: { emoji: '🍀', name: 'Luck' }, enchanted_luck: { emoji: '✨', name: 'Enchanted Luck' } };
+
 export function ResourceIcon({ r, className }: { r: Resource; className?: string }) {
+  if (!RESOURCE_META[r]) return <span className={cn('inline-grid h-4 w-4 shrink-0 place-items-center text-[12px] leading-none', className)} aria-hidden>{REWARD_EXTRA[r]?.emoji ?? '•'}</span>;
   const c = RESOURCE_META[r].color;
   return (
     <svg viewBox="0 0 20 20" className={cn('h-4 w-4 shrink-0', className)} aria-hidden>
@@ -290,7 +294,7 @@ export function CurrencyIcon({ kind, size = 24 }: { kind: 'usd' | 'ink'; size?: 
 
 export function ResourcePill({ r, value, className }: { r: Resource; value: number | string; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[13px] font-bold tnum', className)} title={`${RESOURCE_META[r].name} — ${RESOURCE_META[r].hint}`}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[13px] font-bold tnum', className)} title={RESOURCE_META[r] ? `${RESOURCE_META[r].name} — ${RESOURCE_META[r].hint}` : REWARD_EXTRA[r]?.name}>
       <ResourceIcon r={r} />
       {typeof value === 'number' ? new Intl.NumberFormat().format(Math.floor(value)) : value}
     </span>
@@ -303,7 +307,9 @@ export function Cost({ cost }: { cost: Partial<Record<Resource, number>> | null 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {entries.map(([k, v]) => (
-        <span key={k} className="inline-flex items-center gap-1 font-bold tnum"><ResourceIcon r={k} />{new Intl.NumberFormat().format(v)}</span>
+        <span key={k} className="inline-flex items-center gap-1 font-bold tnum" title={RESOURCE_META[k]?.name ?? REWARD_EXTRA[k]?.name ?? k.replace(/_/g, ' ')}>
+          <ResourceIcon r={k} />{new Intl.NumberFormat().format(v)}{!RESOURCE_META[k] && !REWARD_EXTRA[k] ? ` ${k.replace(/_/g, ' ')}` : ''}
+        </span>
       ))}
     </span>
   );
