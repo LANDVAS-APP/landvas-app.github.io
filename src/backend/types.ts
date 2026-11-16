@@ -892,7 +892,14 @@ export type PartyLobby = {
 export type LfgItem = { kind: 'home' | 'arcade' | 'arena'; id: string; game: string; mode?: string; title: string; emoji: string | null; host: Profile;
   players: number; max: number; where: string; route: string; at: string };
 /** someone online on their own, open to being joined */
-export type JoinablePlayer = Profile & { online: true; now: Whereabouts | null; friend: boolean };
+export type JoinablePlayer = Profile & { online: true; now: Whereabouts | null; friend: boolean; /** out in the game where you can see them on the map */ findable?: boolean };
+/** where someone's explorer shows on the map: only out in the game without GPS (a trip, or the joystick far from home) */
+export type FoundExplorer = {
+  how: 'travel' | 'joystick'; lng: number; lat: number; traveling: boolean;
+  dest_lng: number | null; dest_lat: number | null; arrives_at: string | null; vehicle: string | null;
+  trip: { mode: 'train' | 'plane' | 'home'; to: string | null } | null;
+};
+export type MapExplorer = Profile & FoundExplorer & { in_party: boolean; joinable: boolean };
 export type PartyLobbies = { mine: string | null; max: number; lobbies: PartyLobby[]; online_count: number;
   /** games waiting for players */ lfg?: LfgItem[]; /** people on their own you can team up with */ players?: JoinablePlayer[];
   /** whether people can join you when you're on your own */ joinable?: boolean };

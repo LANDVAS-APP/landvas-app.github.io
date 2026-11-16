@@ -38,6 +38,7 @@ import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { create } from 'zustand';
 import { MapPartyChat, PartyNavButton } from '../party/PartyButtons';
+import { MapPlayersLayer } from '../social/MapPlayers';
 import { buzz, isNative } from '../native/native';
 import GameHud, { ProfileMenu } from '../app/GameHud';
 import { BellCard } from '../updates/Notifications';
@@ -209,6 +210,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
       {me && !away && <TravelOverlays />}
+      {me && !away && <MapPlayersLayer />}
       {me && !selected && !joystick && !merging && !away && !travelling && !picking && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}

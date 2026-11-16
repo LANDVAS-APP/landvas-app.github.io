@@ -24,6 +24,7 @@ import {
   useParty, usePartyJoin, type PartyTab,
 } from './party';
 import { useAutoJoin } from './lfg';
+import { useFindOnMap } from '../social/findOnMap';
 
 type Group = NonNullable<PartyState['group']>;
 
@@ -460,6 +461,7 @@ function TargetList({ title, items, empty, busy, onInvite, testid }: { title: Re
 
 // ---- the lobbies --------------------------------------------------------------------------------------------------
 export function LobbyList({ setTab, onDone }: { setTab(t: PartyTab): void; onDone?(): void }) {
+  const findOnMap = useFindOnMap();
   const nav = useNavigate();
   const [filter, setFilter] = useState<PartyActivity | null>(null);
   const q = useQuery({ queryKey: [...LOBBIES_KEY, filter], queryFn: () => api.partyLobbies(filter), refetchInterval: 15_000, staleTime: 5_000 });
@@ -542,7 +544,8 @@ export function LobbyList({ setTab, onDone }: { setTab(t: PartyTab): void; onDon
                   <div className="truncate text-sm font-semibold">@{p.username}{p.friend && <span className="ml-1 text-[10px] font-bold text-accent-2">FRIEND</span>}</div>
                   <div className="truncate text-[11px] text-muted">{describeWhereabouts(p.now ?? undefined) ?? '🟢 online'}</div>
                 </div>
-                {place && <Button size="sm" variant="secondary" onClick={() => { onDone?.(); void goTo(p.id, place.route, nav); }} data-testid="lobby-player-go">{place.label.replace('Join', 'Go')}</Button>}
+                {place ? <Button size="sm" variant="secondary" onClick={() => { onDone?.(); void goTo(p.id, place.route, nav); }} data-testid="lobby-player-go">{place.label.replace('Join', 'Go')}</Button>
+                  : p.findable ? <Button size="sm" variant="secondary" onClick={() => { void findOnMap(p.id, p.username).then((ok) => { if (ok) onDone?.(); }); }} data-testid="lobby-player-find" aria-label={`Find @${p.username} on the map`}><MapPin className="h-4 w-4" /> Find</Button> : null}
                 <Button size="sm" variant="primary" loading={busy === `p:${p.id}`} onClick={() => void joinPlayer(p)} data-testid="lobby-player-join"><Users className="h-4 w-4" /> Team up</Button>
               </div>
             );

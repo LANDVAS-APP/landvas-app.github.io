@@ -334,6 +334,9 @@ export const api = {
   partyJoinPlayer: (id: string, switchParty = false) => rpc<import('./types').PartyState>('party_join_player', { p_player: id, p_switch: switchParty }),
   placeFollow: (id: string) => rpc<{ ok: boolean }>('place_follow', { p_player: id }),
   lfgList: () => rpc<{ items: import('./types').LfgItem[] }>('lfg_list'),
+  mapExplorers: (b: { w: number; s: number; e: number; n: number }) =>
+    rpc<{ items: import('./types').MapExplorer[] }>('map_explorers', { p_west: b.w, p_south: b.s, p_east: b.e, p_north: b.n }),
+  findExplorer: (id: string) => rpc<import('./types').FoundExplorer | null>('find_explorer', { p_player: id }),
   partyPreview: (code: string) => rpc<import('./types').PartyPreview | null>('party_preview', { p_code: code }),
   partyChatSend: (body: string) => rpc<import('./types').PlanetChatMsg>('party_chat_send', { p_body: body }),
   partyChatList: (after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; topic: string | null; party: string | null }>('party_chat_list', { p_after: after }),

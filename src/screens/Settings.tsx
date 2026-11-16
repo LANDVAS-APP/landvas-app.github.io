@@ -231,6 +231,8 @@ const PROFILE_KEYS: { k: string; label: string; hint: string }[] = [
   { k: 'royalty', label: 'Show me on the Royalty page', hint: 'If you hold a Crown, your name next to it (off: “a secret monarch”)' },
   { k: 'online', label: 'Show me in “Online now”', hint: 'Players who aren’t your friends can find you in the party invite list while you’re playing (friends and your party always see you)' },
   { k: 'party_invites', label: 'Anyone can invite me to a party', hint: 'Off: only friends can send you party invites' },
+  { k: 'joinable', label: 'Anyone online can join me', hint: 'Players can team up with you (a party forms) and join your games. Off: you play privately — invites only' },
+  { k: 'on_map', label: 'Show my explorer on the map', hint: 'Only ever while you’re out travelling in the game, far from home — never while you’re on GPS' },
 ];
 /** what others can see: the live feed (all of it, or kind by kind) and parts of your public profile */
 function PrivacySettings() {
