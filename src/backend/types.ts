@@ -686,7 +686,13 @@ export type Whereabouts = {
   activity: { kind: ActivityKind; detail: Record<string, string>; at: string } | null;
   space: { location: string; dest: string | null; arrive_at: string | null; home_seed: number | null; home_name: string | null; at_home: boolean } | null;
   room: { live: boolean; in_room?: number; room_size?: number } | null;
+  /** can they be watched right now (online, playing something, watching on) */
+  watch?: boolean;
 };
+/** your own watch channel: watchers say hi there, and your game sends what's on screen while anyone's watching */
+export type WatchMe = { on: boolean; channel: string; fps: number; max_kb: number };
+/** someone you're watching (or about to) */
+export type WatchTarget = Profile & { now: Whereabouts; friend: boolean; in_party: boolean; channel: string | null };
 export type SpaceSocial = {
   friends: { player: Profile; now: Whereabouts }[];
   new_worlds: { player: Profile; seed: number; name: string; at: string }[];

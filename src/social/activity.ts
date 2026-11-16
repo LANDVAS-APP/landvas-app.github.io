@@ -27,6 +27,9 @@ export function reportActivity(kind: ActivityKind | null, detail: Record<string,
   if (override) send(override.kind, override.detail);
 }
 
+/** what you're up to right now, as the screen (or the screen's own report) says */
+export const activityFor = (path: string, space: SpaceState | undefined) => override ?? fromPath(path, space);
+
 function fromPath(path: string, space: SpaceState | undefined): { kind: ActivityKind; detail: Record<string, string> } {
   const seg = path.split('/').filter(Boolean);
   const onWorld = space && space.location !== 'earth' && !space.dest ? space.location : null;

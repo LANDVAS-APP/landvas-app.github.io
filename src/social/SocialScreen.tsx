@@ -34,6 +34,7 @@ import { poll, live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
 import { KINDS as ENCH } from '../enchant/kinds';
 import { NATIVE_APP } from '../app/buildFlags';
+import { WatchButton } from '../watch/LiveNow';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -618,6 +619,7 @@ function FriendsTab() {
                   <div className="truncate text-xs text-muted" data-testid="friend-now">{describeWhereabouts(f.now) ?? `@${f.player.username} · ${fmt(f.plots)} plot${f.plots === 1 ? '' : 's'}`}</div>
                   {f.now?.space?.home_name && !f.now.space.at_home && <div className="truncate text-[11px] text-faint">🏡 home world: {f.now.space.home_name}</div>}
                 </div>
+                <WatchButton username={f.player.username} now={f.now} />
                 {canWarpTo(f.now, true) && <Button size="sm" variant="rainbow" onClick={() => void warpTo(f.player)} data-testid="warp-to-friend">⚡ Warp</Button>}
                 <InviteToPartyButton playerId={f.player.id} username={f.player.username} />
                 <Link to={`/u/${f.player.username}/home`} className="flex h-8 items-center gap-1 rounded-xl border border-line px-2.5 text-xs font-bold hover:border-line-strong" aria-label={`Visit @${f.player.username}'s home`}><DoorOpen className="h-3.5 w-3.5" /> Home</Link>

@@ -15,7 +15,7 @@ cd "${1:-dist}"
 cp index.html 404.html
 STATIC="world welcome onboarding play canvases gallery players party me achievements leaderboards inventory events settings admin social invite explorer support duels pvp challenges sketch doodle duet reset-password auth/confirm inkborn habitat legal/privacy legal/terms legal/delete-account legal/content legal/rent legal/copyright"
 STATIC="$(printf '%s\n' $STATIC $FROM_APP | grep -v '^$' | sort -u | tr '\n' ' ')"
-DYNAMIC="create play u art legal duet sketch inkborn habitat party farm landlord business arcade realm clans grimoire powers space play-sandbox pvp-sandbox"
+DYNAMIC="create play u art legal duet sketch inkborn habitat party farm landlord business arcade realm clans grimoire powers space play-sandbox pvp-sandbox watch"
 : > _redirects
 for r in $STATIC; do
   mkdir -p "$r"

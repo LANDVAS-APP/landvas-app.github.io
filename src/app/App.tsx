@@ -31,6 +31,7 @@ function WorldRoute() {
   return <Suspense fallback={<div className="absolute inset-0 bg-bg" />}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
 }
 import { WorldsButton } from './WorldsButton';
+import { WatchHost } from '../watch/WatchHost';
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
 import { AuthConfirm } from '../screens/AuthConfirm';
@@ -103,6 +104,7 @@ const InkbornStudio = lazy(() => import('../inkborn/Studio'));
 const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 const KeeperScreen = lazy(() => import('../inkborn/Keeper'));
 const FarmScreen = lazy(() => import('../farm/FarmScreen'));
+const WatchScreen = lazy(() => import('../watch/WatchScreen'));
 const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
@@ -172,7 +174,7 @@ function OnboardingGate() {
 const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
-  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'],
+  [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -224,7 +226,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WorldsButton /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WorldsButton /><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },
@@ -236,6 +238,7 @@ const routes: RouteObject[] = [
       { path: '/inkborn/play/:game/:id', element: player(<InkbornGame />) },
       { path: '/inkborn/playdate/:theirs', element: player(<Playdate />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
+      { path: '/watch/:username', element: player(<WatchScreen />) },
       { path: '/farm/:id', element: player(<FarmScreen />) },
       { path: '/landlord/:id', element: player(<EstateScreen />) },
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },

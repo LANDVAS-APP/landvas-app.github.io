@@ -22,7 +22,7 @@ const DEFAULT: Spot = { y: 0.6, side: 'right', tucked: false }; // (the left edg
 /** screens it never shows on (signed out, setting up) */
 const NEVER = /^\/(welcome|onboarding|auth|reset-password|legal)(\/|$)|^\/$/;
 /** screens where it starts tucked (games, the editor): it'd cover the play */
-const PLAYING = /\/play\/|^\/play-sandbox|^\/pvp-sandbox|^\/create\/|^\/space\/planet\/|^\/brawl-demo|^\/inkborn\/playdate/;
+const PLAYING = /\/play\/|^\/watch\/|^\/play-sandbox|^\/pvp-sandbox|^\/create\/|^\/space\/planet\/|^\/brawl-demo|^\/inkborn\/playdate/;
 
 /** a game is on screen somewhere (a cabinet, a live match, a party game): the button tucks itself away meanwhile */
 const useWorldsAway = create<{ n: number; add(d: number): void }>((set) => ({ n: 0, add: (d) => set((s) => ({ n: Math.max(0, s.n + d) })) }));

@@ -21,6 +21,7 @@ import { LandMosaic } from '../land/LandMosaic';
 import { FriendButton } from '../social/FriendButton';
 import { InviteToPartyButton } from '../party/PartyButtons';
 import { FindOnMapButton } from '../social/findOnMap';
+import { WatchProfileButton } from '../watch/LiveNow';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
 import { ULTRA_THEMES, ultraOfRarity } from '../explorer/ultra';
 
@@ -116,6 +117,7 @@ export default function ProfileScreen() {
               })()}
               <FriendButton playerId={p.id} username={p.username} />
               {me && !d.is_me && <InviteToPartyButton playerId={p.id} username={p.username} />}
+              {me && !d.is_me && <WatchProfileButton username={p.username} />}
               {me && !d.is_me && <FindOnMapButton playerId={p.id} username={p.username} />}
               {d.is_me && <Button variant="ghost" size="sm" className="rounded-full" onClick={() => nav('/explorer')}>✨ Explorer</Button>}
               {me && !d.is_me && (

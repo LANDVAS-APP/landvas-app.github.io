@@ -25,6 +25,7 @@ import {
 } from './party';
 import { useAutoJoin } from './lfg';
 import { useFindOnMap } from '../social/findOnMap';
+import { LiveNow, WatchButton } from '../watch/LiveNow';
 
 type Group = NonNullable<PartyState['group']>;
 
@@ -264,6 +265,7 @@ function MemberRow({ m, g, busy, run, onDone }: { m: TravelGroupMember; g: Group
         <div className="flex items-center gap-1 truncate text-sm font-semibold">@{m.username}{m.me && <span className="text-[11px] font-normal text-muted">(you)</span>}{m.leader && <Crown className="h-3.5 w-3.5 shrink-0 text-gold" aria-label="leader" />}</div>
         <div className="truncate text-[11px] text-muted" data-testid="party-member-status">{status}</div>
       </div>
+      {!m.me && <WatchButton username={m.username} now={m.now} onGo={onDone} />}
       {follow && <Button size="sm" variant="secondary" onClick={follow.go} data-testid="party-follow">{follow.label}</Button>}
       {g.leader && !m.me && (
         <div className="relative">
@@ -529,6 +531,7 @@ export function LobbyList({ setTab, onDone }: { setTab(t: PartyTab): void; onDon
           ))}
         </AnimatePresence>
       )}
+      <LiveNow onGo={onDone} />
       {(d?.players?.length ?? 0) > 0 && (
         <section className="mt-1 grid grid-cols-[minmax(0,1fr)] gap-1.5" data-testid="lobby-players">
           <div className="eyebrow">🟢 On their own — team up · {d!.players!.length}</div>
@@ -544,6 +547,7 @@ export function LobbyList({ setTab, onDone }: { setTab(t: PartyTab): void; onDon
                   <div className="truncate text-sm font-semibold">@{p.username}{p.friend && <span className="ml-1 text-[10px] font-bold text-accent-2">FRIEND</span>}</div>
                   <div className="truncate text-[11px] text-muted">{describeWhereabouts(p.now ?? undefined) ?? '🟢 online'}</div>
                 </div>
+                <WatchButton username={p.username} now={p.now} onGo={onDone} />
                 {place ? <Button size="sm" variant="secondary" onClick={() => { onDone?.(); void goTo(p.id, place.route, nav); }} data-testid="lobby-player-go">{place.label.replace('Join', 'Go')}</Button>
                   : p.findable ? <Button size="sm" variant="secondary" onClick={() => { void findOnMap(p.id, p.username).then((ok) => { if (ok) onDone?.(); }); }} data-testid="lobby-player-find" aria-label={`Find @${p.username} on the map`}><MapPin className="h-4 w-4" /> Find</Button> : null}
                 <Button size="sm" variant="primary" loading={busy === `p:${p.id}`} onClick={() => void joinPlayer(p)} data-testid="lobby-player-join"><Users className="h-4 w-4" /> Team up</Button>

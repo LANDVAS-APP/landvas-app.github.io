@@ -443,6 +443,10 @@ export const api = {
   /** water someone else's growing crop for them (a few a day at each farm) */
   farmHelp: (farm: string, bed: number) => rpc<import('./types').Farm & { helped: boolean; helps_left: number; ink: number }>('farm_help', { p_farm: farm, p_bed: bed }),
   farmHelpsLeft: (farm: string) => rpc<number>('farm_helps_left', { p_farm: farm }),
+  // watching someone play
+  watchMe: () => rpc<import('./types').WatchMe>('watch_me'),
+  watchStart: (username: string) => rpc<import('./types').WatchTarget>('watch_start', { p_username: username }),
+  watchablePlayers: () => rpc<import('./types').JoinablePlayer[]>('watchable_players'),
   farmHarvest: (farm: string, bed: number | null) => rpc<import('./types').Farm>('farm_harvest', { p_farm: farm, p_bed: bed }),
   farmSell: (item: string, qty: number) => rpc<{ sold: number; item: string; paid: number; coins: number; items: Record<string, number>; ink_today: number; daily_cap: number; level_up: number; progress: import('./types').FarmProgress }>('farm_sell', { p_item: item, p_qty: qty }),
   farmUpgrade: (key: string) => rpc<import('./types').FarmProgressResult>('farm_upgrade', { p_key: key }),
