@@ -1,9 +1,9 @@
 // The Fusion Lab (/fusion): two of your ultras become one (the recipe book says which). Primordials can only be rolled
-// (three ultras used to fuse into one; those are given back as ultras the player picks — PrimordialRefund).
+// (three ultras used to fuse into one; those Primordials gave back the very three ultras that went in).
 // The first plot you pick keeps everything — its drawing, name and level; the other goes back to the world.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -16,7 +16,6 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { hasPower, rarityInfo, type RarityId } from '../shared/rarity';
 import { cellKey, powerPath } from './powers';
 import './rarity.css';
-import { RefundPicker, useRefunds } from './PrimordialRefund';
 
 const WHY: Record<string, string> = { starter_plot: 'your starter plot', merged: 'part of a bigger canvas', plot_folded: 'folded away', plot_locked: 'locked' };
 
@@ -34,11 +33,6 @@ export default function FusionLab() {
   const recipe = picked.length === 2 ? (book?.recipes ?? []).find((r) => r.to && [r.a, r.b].sort().join('+') === [picked[0].rarity, picked[1].rarity].sort().join('+')) : null;
   const outcome = recipe?.to ?? null;
   const toggle = (k: string) => setSel((s) => (s.includes(k) ? s.filter((x) => x !== k) : s.length < 2 ? [...s, k] : s));
-  const refunds = useRefunds();
-  const [refundOpen, setRefundOpen] = useState(() => params.get('refund') === '1');
-  const [heldRefund, setHeldRefund] = useState<NonNullable<typeof refunds.data>['open'][number] | null>(null);
-  const openRefund = refunds.data?.open[0] ?? (refundOpen ? heldRefund : null);
-  useEffect(() => { if (refunds.data?.open[0]) setHeldRefund(refunds.data.open[0]); }, [refunds.data]);
 
   const fuse = async () => {
     setBusy(true);
@@ -57,14 +51,6 @@ export default function FusionLab() {
   return (
     <Page>
       <PageHeader eyebrow="Ultra Fusions" title="🧬 The Fusion Lab">Two of your ultras become one stronger plot. The first you pick keeps its drawing, name and level; the other goes back to the world. <Link to="/primordials" className="underline">Primordials</Link> are only ever rolled.</PageHeader>
-      {refunds.data?.open[0] && (
-        <button type="button" onClick={() => setRefundOpen(true)} className="lvrx-refund mb-5 flex w-full items-center gap-3 rounded-3xl p-4 text-left" data-testid="refund-banner">
-          <span className="text-3xl">🌌</span>
-          <span className="min-w-0 flex-1"><b className="block font-display text-[16px] text-[#FDE68A]">Your fused Primordial’s ultras are waiting</b><span className="block text-[12.5px] text-white/70">Pick any three ultras: your plot becomes one, your next two claims roll the others.</span></span>
-          <span className="lv-gbtn shrink-0 px-4 py-2 text-sm">Pick</span>
-        </button>
-      )}
-      {openRefund && refunds.data && <RefundPicker refund={openRefund} choices={refunds.data.choices} open={refundOpen} onClose={() => { setRefundOpen(false); setHeldRefund(null); }} />}
 
       <section className="mb-6 grid gap-2" data-testid="fusion-book">
         <h2 className="eyebrow">The recipe book</h2>

@@ -141,15 +141,12 @@ export type RxTier = { tier_one_in: number; list: { id: string; name: string; em
   recent: { rarity: string; how: string; place: string | null; owner_name: string | null; at: string }[] };
 export type RxFusionBook = { recipes: { a?: string; b?: string; to: string | null; secret: boolean; name?: string; emoji?: string; color?: string; glow?: string; ability?: string; made?: number }[];
   ultras: { gx: number; gy: number; rarity: string; name: string | null; plot_type: string; shiny: boolean; why: string | null }[]; per_day: number; triple?: boolean };
-/** a Primordial that was fused from three ultras, given back as three ultras the player picks */
-export type PrimordialRefund = { id: number; gx: number; gy: number; primordial: string; fused_from: string[]; fused_at: string | null; reverted_to: string | null; name?: string | null };
 /** a Crown's share of its kingdom: 1% of the Ink everyone else there earns, or 1% of their rent */
 export type CrownShare = {
   gx: number; gy: number; tier: 'crown' | 'crown_state' | 'crown_country'; kingdom: string; country: string; members: number;
   choice: 'ink' | 'rent'; picked: boolean; chosen_at: string | null; locked_until: string | null; can_switch: boolean;
   ink_pct: number; rent_pct: number; lock_days: number; ink_day: number; rent_usd_per_second: number; rent_day: number; ink_total: number; mine: boolean;
 };
-export type RefundChoice = { id: string; name: string; emoji: string; color: string; glow: string; ability: string | null; usd_per_second: number; ink_mult: number; ppm: number };
 
 /** an arcade score as the server takes it: whole, never negative, at most the biggest whole number it stores */
 const arcScore = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(2147483647, Math.floor(n))) : 0);
@@ -257,8 +254,6 @@ export const api = {
   fusionBook: () => rpc<RxFusionBook>('fusion_book'),
   crownSharesMine: () => rpc<CrownShare[]>('crown_shares_mine'),
   crownShareChoose: (gx: number, gy: number, choice: 'ink' | 'rent') => rpc<CrownShare>('crown_share_choose', { p_gx: gx, p_gy: gy, p_choice: choice }),
-  primordialRefundStatus: () => rpc<{ open: PrimordialRefund[]; choices: RefundChoice[] }>('primordial_refund_status'),
-  primordialRefundChoose: (id: number, picks: string[]) => rpc<{ ok: boolean; picks: string[]; on_plot: boolean }>('primordial_refund_choose', { p_id: id, p_picks: picks }),
   ultraFuse: (cells: [number, number][]) => rpc<{ rarity: string; gx: number; gy: number; released: [number, number][]; triple: boolean; rarity_info: { name: string; emoji: string; color: string; glow: string; tier: string; ability: string } }>('ultra_fuse', { p_cells: cells }),
   firstLight: () => rpc<{ gx: number; gy: number; owner_name: string; name: string | null; art_path: string | null; mine: boolean } | null>('first_light_for_me'),
   leviathanGlyph: (enchant: string, accuracy: number) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_glyph', { p_enchant: enchant, p_accuracy: accuracy }),

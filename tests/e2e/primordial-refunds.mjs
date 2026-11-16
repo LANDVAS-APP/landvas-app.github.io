@@ -1,6 +1,7 @@
 // Real-browser check (local-mode build): Primordials are only rolled. A player whose Primordial was fused from three
-// ultras gets the picker by itself, picks any three ultras (the plot becomes the first, the next two claims the others),
-// and the Fusion Lab no longer offers three-ultra fusions. Phone size, website and app skin.
+// ultras gets those very three back by themselves — no picker: the plot is the first again, a released spot that's still
+// free comes home as the second, and the third (its spot taken) waits for the next claim. One alert says so, and the
+// Fusion Lab no longer offers three-ultra fusions or a refund banner. Phone size, website and app skin.
 // Run: npm run build:artifact && node tests/e2e/primordial-refunds.mjs
 import { serve, launch } from './browser.mjs';
 import fs from 'node:fs';
@@ -40,40 +41,44 @@ async function run(mode) {
   await page.waitForSelector('#username', { timeout: 20000 }); await page.fill('#username', `prim_${mode}`); await page.check('input[type=checkbox]'); await page.click('button[type=submit]');
   await page.waitForFunction(() => !!window.__landvasApi, null, { timeout: 30000 });
   await page.waitForTimeout(2000);
-  // a Primordial fused the old way
+  // a Primordial fused the old way: the first plot became the Loom, the second and third plots were released
   const me = (await sql(`select id from players order by created_at desc limit 1`))[0].id;
-  await sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at, name) values (1300000, 1500000, '${me}', (select id from plot_types order by sort limit 1), 'loom', now(), 'Big Loom')`);
-  await sql(`insert into private.fairplay_log (player_id, kind, gx, gy, data) values ('${me}', 'rx_fuse', 1300000, 1500000, '{"from": ["chaos", "kraken", "hive"], "to": "loom"}')`);
+  const T = `(select id from plot_types order by sort limit 1)`;
+  await sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at, name) values (1300000, 1500000, '${me}', ${T}, 'loom', now(), 'Big Loom')`);
+  await sql(`insert into world_plots (gx, gy, plot_type, rarity) values (1300001, 1500000, ${T}, 'common')`);   // released, still free
+  const other = (await sql(`select id from players where id <> '${me}' order by created_at limit 1`))[0]?.id;
+  if (other) await sql(`insert into world_plots (gx, gy, owner_id, plot_type, rarity, claimed_at) values (1300002, 1500000, '${other}', ${T}, 'rare', now())`); // taken since
+  await sql(`insert into private.fairplay_log (player_id, kind, gx, gy, data) values ('${me}', 'rx_fuse', 1300000, 1500000, '{"from": ["chaos", "kraken", "hive"], "to": "loom", "released": [[1300001, 1500000], [1300002, 1500000]]}')`);
   const n = (await sql(`select private.primordial_refunds_open() n`))[0].n;
-  ok('the fused Primordial opens a refund', n === 1);
-  ok('…and its plot is its first ultra again', (await sql(`select rarity from world_plots where gx = 1300000 and gy = 1500000`))[0].rarity === 'chaos');
-  // the app shows the picker by itself (as it would on the next app start), once any other pop-up is dealt with
+  ok('the fused Primordial is refunded', n === 1);
+  const cell = async (x) => (await sql(`select owner_id, rarity from world_plots where gx = ${x} and gy = 1500000`))[0];
+  ok('…its plot is its first ultra again', (await cell(1300000)).rarity === 'chaos');
+  ok('…the free released spot is theirs again, as the second ultra', (await cell(1300001))?.owner_id === me && (await cell(1300001))?.rarity === 'kraken', JSON.stringify(await cell(1300001)));
+  const grants = (await sql(`select rarity from private.granted_rolls where player_id = '${me}' and used_at is null and cancelled_at is null`)).map((r) => r.rarity);
+  ok(other ? '…and the third (its spot taken) comes on the next claim' : '…and the third came home too', other ? grants.join() === 'hive' : (await cell(1300002))?.rarity === 'hive', grants.join());
+  // the alert pops up by itself; nothing to pick
   for (let k = 0; k < 3 && await page.locator('[role=dialog][data-state=open]').count(); k++) { await page.keyboard.press('Escape'); await page.waitForTimeout(500); }
-  await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['primordial-refunds'] }));
-  const opened = await page.waitForSelector('[data-testid=refund-picker]', { timeout: 40000 }).then(() => true, () => false);
-  if (!opened) await shot('00-no-picker');
-  ok('the picker opens by itself', opened);
-  await page.waitForTimeout(800); await shot('01-picker');
-  const choices = await page.locator('[data-testid^=refund-choice-]').count();
-  ok('it offers the ultras to pick from (no Crowns, no Primordials)', choices >= 15 && (await page.locator('[data-testid=refund-choice-crown]').count()) === 0 && (await page.locator('[data-testid=refund-choice-loom]').count()) === 0, `${choices}`);
-  const pick = async (id) => { const l = page.locator(`[data-testid=refund-choice-${id}]`); await l.scrollIntoViewIfNeeded(); await page.waitForTimeout(300); await l.click(); await page.waitForTimeout(250); };
-  ok('Volcano is one of the choices', (await page.locator('[data-testid=refund-choice-volcano]').count()) === 1);
-  await pick('volcano'); await pick('hive'); await pick('hive');
-  ok('three slots filled', (await page.locator('[data-testid=refund-confirm]').textContent())?.includes('Bring my ultras back'), await page.locator('[data-testid=refund-confirm]').textContent());
-  ok('the confirm button stays on screen', await page.locator('[data-testid=refund-confirm]').isVisible() && ((await page.locator('[data-testid=refund-confirm]').boundingBox())?.y ?? 9999) < 844);
-  await shot('02-picked');
-  await page.locator('[data-testid=refund-confirm]').click();
-  ok('done', await page.waitForSelector('[data-testid=refund-done]', { timeout: 20000 }).then(() => true, () => false));
-  await page.waitForTimeout(800); await shot('03-done');
-  ok('the plot is the first pick', (await sql(`select rarity from world_plots where gx = 1300000 and gy = 1500000`))[0].rarity === 'volcano');
-  ok('…and the next two claims will roll the others', (await sql(`select count(*)::int n from private.granted_rolls where player_id = '${me}' and rarity = 'hive' and used_at is null`))[0].n === 2);
-  await page.locator('[data-testid=refund-close]').click({ force: true });
-  // the Fusion Lab: two ultras only
+  await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['alerts'] }));
+  const pop = page.locator('[data-testid=alert-popup][data-kind=power]').filter({ hasText: 'Your ultras are back' });
+  const popped = await pop.first().waitFor({ timeout: 40000 }).then(() => true, () => false);
+  const text = popped ? (await pop.first().textContent({ timeout: 3000 }).catch(() => '')) ?? '' : '';
+  await shot('01-alert');
+  ok('one alert says the three fused ultras are back', popped && /Chaos/.test(text) && /Kraken/.test(text) && /Hive/.test(text) && /Loom/.test(text), text);
+  ok('…and says where the third comes', !other || /next claim/.test(text), text);
+  await page.waitForTimeout(4000);
+  ok('no picker anywhere', (await page.locator('[data-testid=refund-picker]').count()) === 0);
+  // the bell's activity keeps it
+  await page.locator('[data-testid=notification-bell]:visible').first().click();
+  const listed = await page.locator('[data-testid=activity-list]').filter({ hasText: 'Your ultras are back' }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+  await page.waitForTimeout(500); await shot('02-bell');
+  ok('the bell lists it', listed);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  // the Fusion Lab: two ultras only, no refund banner
   await nav('/fusion');
   await page.waitForSelector('[data-testid=fusion-book]', { timeout: 20000 });
   ok('the Fusion Lab says Primordials are only rolled', (await page.locator('[data-testid=recipe-primordial]').count()) === 1 && (await page.locator('[data-testid=recipe-triple]').count()) === 0);
-  ok('…and the refund is done (no banner)', (await page.locator('[data-testid=refund-banner]').count()) === 0);
-  await shot('04-fusion');
+  ok('…and has no refund banner or picker', (await page.locator('[data-testid=refund-banner]').count()) === 0 && (await page.locator('[data-testid=refund-picker]').count()) === 0);
+  await shot('03-fusion');
   ok('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await ctx.close(); await browser.close(); browser = null;
 }

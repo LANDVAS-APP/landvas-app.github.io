@@ -234,11 +234,19 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'stars': return <>called down ⭐ shooting stars near your land — catch them on the map!</>;
       case 'genesis': return <>raised 🌀 new land near you — claims there roll ultras 3× as often for two days</>;
       case 'traveller': return <>stepped through your 🌑 Void Gate</>;
-      case 'refund': return <>🌌 <b>Primordials are rolled, never fused</b> — the three ultras in your {R(d.rarity)} are coming back. Pick any three ultras you want!</>;
+      case 'refund': return <>🌌 <b>Primordials are rolled, never fused</b> — the three ultras in your {R(d.rarity)} are coming back</>;
+      case 'refund_back': {
+        const back: string[] = d.back ?? [];
+        const names = back.map((r, i) => <span key={i}>{i > 0 && (i === back.length - 1 ? ' and ' : ', ')}{R(r)}</span>);
+        const later = d.claims > 0 ? <> {d.claims === 1 ? 'One of them' : `${d.claims} of them`} come{d.claims === 1 ? 's' : ''} on your next claim{d.claims === 1 ? '' : 's'}, as {d.claims === 1 ? 'its' : 'their'} old spot{d.claims === 1 ? ' was' : 's were'} taken.</> : null;
+        return d.swapped
+          ? <>🌌 <b>Your fused ultras are back</b> — Primordial refunds now give back exactly what went in instead of picks: the {names} from your {R(d.rarity)}.{later}</>
+          : <>🌌 <b>Your ultras are back</b> — the {names} you fused into your {R(d.rarity)}{d.claims > 0 ? '' : ', each on its own spot'}.{later}</>;
+      }
       default: return <>✨ A rarity’s power stirred</>;
     }
   }, to: (a) => (['erupted', 'whisper', 'galloped', 'pollinated', 'stars', 'genesis'].includes(a.data?.sub) && a.data?.gx != null
-    ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : a.data?.sub === 'refund' ? '/fusion?refund=1' : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
+    ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : (a.data?.sub === 'refund' || a.data?.sub === 'refund_back') && a.data?.gx != null ? `/world?fly=${a.data.gx},${a.data.gy}&z=18` : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
 
