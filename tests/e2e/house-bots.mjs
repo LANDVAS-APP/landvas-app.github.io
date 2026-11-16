@@ -78,7 +78,7 @@ try {
   await page.waitForTimeout(9000);
   const moved = await page.evaluate(() => { const w = window.__live3d?.w; return w ? w.ps.filter((p) => p.id.startsWith('bot:')).map((p) => Math.round(Math.hypot(p.x, p.z) * 10) / 10) : null; });
   check('…the bots run about', !!moved && moved.length === 2 && moved.some((d) => d > 1), JSON.stringify(moved));
-  check('…and the Worlds button steps aside', (await page.locator('[data-testid=worlds-button]').count()) === 0);
+  check('…and nothing floats over the play (the Worlds button lives on the map)', (await page.locator('[data-testid=worlds-button]').count()) === 0);
   await shot('04-tag');
 } catch (e) {
   check('no crash', false, String(e?.stack ?? e).slice(0, 400));

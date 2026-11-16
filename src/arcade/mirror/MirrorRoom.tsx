@@ -28,7 +28,6 @@ import { sfx } from '../sfx';
 import { MIRROR_ARENAS, MIRROR_BONUS, MIRROR_ENDLESS, MIRROR_HOW } from './games';
 import { mirrorOff, mirrorOn, type MirrorFlip } from './mir';
 import { config } from '../../env';
-import { useTuckWorlds } from '../../app/WorldsButton';
 
 const ARENAS = { ...ARENAS1, ...ARENAS2, ...MIRROR_ARENAS }, HOW = { ...HOW1, ...HOW2, ...MIRROR_HOW }, BONUS = { ...BONUS1, ...BONUS2, ...MIRROR_BONUS }, ENDLESS = { ...ENDLESS1, ...ENDLESS2, ...MIRROR_ENDLESS };
 export const mirrorKey = ['arcade-mirror'] as const;
@@ -159,7 +158,6 @@ function MirrorHall({ a, m, onBack, first }: { a: Arcade; m: Extract<MirrorArcad
   // together: whoever else is through the glass in this arcade, their lobbies and your match
   const myId = me?.user_id;
   const liveRoom = useArcadeLive({ arcadeId: a.id, myId, hall, playing, side: 'mirror' });
-  useTuckWorlds(!!playing);
   const live = liveRoom.live;
   const [matchOn, setMatchOn] = useState<ArcadeMatch | null>(null);
   const handled = useRef(new Set<string>());

@@ -23,7 +23,6 @@ import { ARENA_GAMES, MODE_INFO, TEAM_COLORS } from './kit';
 import { LIVE_DEFS } from './games';
 import { LiveGame } from './LiveGame';
 import { config } from '../../env';
-import { useTuckWorlds } from '../../app/WorldsButton';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Pos = { t: 'pos'; id: string; x: number; z: number; f: number; p: string | null };
@@ -122,7 +121,6 @@ export function ArenaRoom({ from, onBack, pick }: { from: string | null; onBack(
   }, [pick, ids.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const room = useArenaLive({ myId, from, hall, playing: game?.game ?? null });
-  useTuckWorlds(!!game);
   const live = room.live;
   // the host pressed Start: everyone in the lobby drops into the game
   const handled = useRef(new Set<string>());

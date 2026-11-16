@@ -293,6 +293,8 @@ export type CanvasGroup = {
   business_id?: string | null;
   arcade_id?: string | null;
   realm_id?: string | null;
+  /** the place's own level (arcades and realms) */
+  place_level?: number | null;
   name: string;
   status: string;
   plot_count: number;

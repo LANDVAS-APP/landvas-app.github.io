@@ -89,7 +89,7 @@ try {
   await page.waitForTimeout(400);
   const p1 = await page.evaluate((id) => ({ x: window.__arenaGame.w.ps[id].x, y: window.__arenaGame.w.ps[id].y, trail: window.__arenaGame.w.ps[id].trail.length }), me);
   check('…your drop steers off your land, leaving a wet trail', p1.x !== p0.x && p1.trail > 0, `${JSON.stringify(p0)} → ${JSON.stringify(p1)}`);
-  check('…the Worlds button tucks itself away while you play', (await page.locator('[data-testid=worlds-button]').count()) === 0 && (await page.locator('[data-testid=worlds-tab]').count()) === 1);
+  check('…nothing floats over the play (the Worlds button lives on the map)', (await page.locator('[data-testid=worlds-button]').count()) === 0);
   await shot('03-live');
 } catch (e) {
   check('no crash', false, String(e?.stack ?? e).slice(0, 400));

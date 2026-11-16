@@ -1345,16 +1345,15 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .lv-find.got .lv3d { animation: lv-find-got .6s ease-out forwards; }
 /* your travel group, live on the map as their own explorers */
 .lv-explorer.lv-mate { z-index: 1; }
-/* the Worlds button: floats on the edge of every screen; tucked, it's a little tab in the edge */
-.lv-worlds { position: fixed; z-index: 44; pointer-events: auto; }
-.lv-worlds .lv-disc .lb { font-size: 9.5px; }
-.lv-worlds-tab {
-  position: fixed; z-index: 44; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px;
-  width: 24px; padding: 9px 0; color: #fff; font-size: 12px; line-height: 1; background: rgba(23, 15, 61, 0.94);
-  border: 1.5px solid rgba(139, 92, 255, 0.65); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); -webkit-tap-highlight-color: transparent;
-}
-.lv-worlds-tab.r { border-right: 0; border-radius: 12px 0 0 12px; }
-.lv-worlds-tab.l { border-left: 0; border-radius: 0 12px 12px 0; }
+/* the map's side rail: one column of same-size round buttons, each with its label (live things, Worlds, More, Move, Me) */
+.lv-rail { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.lv-rail > .lv-gbtn.round { width: 52px; height: 52px; }
+.lv-rail > .lv-gbtn.round > svg { width: 20px; height: 20px; }
+.lv-rail-gap { display: block; width: 22px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, 0.28); }
+/* Worlds: its own colour, so it's easy to find on the rail */
+.lv-gbtn.lv-worlds-btn { background: linear-gradient(180deg, #4aa8ff, #5b3df5); border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 0 #2a1f8f, 0 12px 26px -10px rgba(74, 120, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.lv-gbtn.lv-worlds-btn:active { box-shadow: 0 1px 0 #2a1f8f, 0 6px 14px -10px rgba(74, 120, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
 /* other players out in the game: tap one to see who it is */
 .lv-explorer.lv-other { pointer-events: auto; cursor: pointer; z-index: 0; }
 .lv-mate-name {

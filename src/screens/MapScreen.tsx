@@ -29,6 +29,7 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
+import { WorldsButton } from '../app/WorldsButton';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { LuckCard, LuckChip, LuckDisc } from '../luck/Altar';
 import { GrimoireButton } from '../enchant/GrimoireButton';
@@ -379,7 +380,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
       <AnimatePresence>
         {more && <motion.button key="scrim" aria-label="Close" className="absolute inset-0 z-[9] cursor-default bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />}
       </AnimatePresence>
-      <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 md:bottom-8" data-testid="hud-rail">
+      <div className="lv-rail absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 md:bottom-8" data-testid="hud-rail">
         <AnimatePresence>
           {more && (
             <motion.div key="tray" data-testid="hud-tray" role="menu"
@@ -399,17 +400,20 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
         {has && tripLive && <TravelButton />}
         {has && groupLive && <GroupButton />}
         {flying && spaceBtn}
+        {((has && (tripLive || groupLive)) || flying) && <span className="lv-rail-gap" aria-hidden />}
+        <WorldsButton />
         <button className={cn('lv-gbtn round', more && 'on')} onClick={() => { tap(); setMore((m) => !m); }} aria-expanded={more} aria-label="More" data-testid="hud-more">
-          <motion.span animate={{ rotate: more ? 45 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 26 }}><Plus className="h-6 w-6" strokeWidth={2.6} /></motion.span>
+          <motion.span className="grid place-items-center" animate={{ rotate: more ? 45 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 26 }}><Plus className="h-5 w-5" strokeWidth={2.8} /></motion.span>
+          <span className="lbl">{more ? 'Close' : 'More'}</span>
           {nudge && !more && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-[#0b0e24] bg-hot" />}
         </button>
         {has && joy?.enabled !== false && (
           <button className={cn('lv-gbtn round', joystick && 'on')} onClick={() => { tap(); onJoystick(); }} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
-            <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move`}</span>
+            <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : 'Move'}</span>
           </button>
         )}
         {has && (
-          <button className={cn('lv-gbtn round !h-[60px] !w-[60px]', ex.following ? 'on' : '')} aria-label="Center on my explorer"
+          <button className={cn('lv-gbtn round', ex.following ? 'on' : '')} aria-label="Center on my explorer"
             onClick={() => {
               tap();
               const p = explorerNow(ex.state, ex.offset);
@@ -481,7 +485,7 @@ function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
   }
   return (
     <>
-      {live && <div className="absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 flex flex-col items-center gap-2.5 [&_.lv-gbtn.round]:!h-[50px] [&_.lv-gbtn.round]:!w-[50px]" data-testid="hud-rail">{live}</div>}
+      <div className="lv-rail absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10" data-testid="hud-rail">{live}<WorldsButton /></div>
       {nudge && !open && <span className="lv-world-nudge" aria-hidden />}
       <div className="lv-world-hint-wrap"><AnimatePresence>{hint && !open && <motion.div className="lv-world-hint" initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} data-testid="world-hint">Hold 🌍 for map actions</motion.div>}</AnimatePresence></div>
       <DailyWheel open={wheel} onOpenChange={setWheel} />

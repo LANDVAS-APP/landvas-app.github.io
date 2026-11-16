@@ -15,7 +15,6 @@ import { useUi } from '../../lib/store';
 import { Button } from '../../ui';
 import { PartyResults, seatsOf } from '../party/PartyGame';
 import { isBot, simBots } from '../party/bots';
-import { useTuckWorlds } from '../../app/WorldsButton';
 import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type In3, type LavaW, type P3, type PaintW, type RLW, type SnowW, type SumoW, type TagW, type W3 } from './sims';
 import { createWorld3D, type World3D } from './worlds';
 import { framePacer } from '../../lib/gfx';
@@ -44,7 +43,6 @@ function blend(a: W3, b: W3, k: number): W3 {
 const quant = (i: In3): In3 => { const l = Math.min(1, Math.hypot(i.x, i.y)); if (l < 0.2) return { x: 0, y: 0, b: i.b }; const a = Math.round(Math.atan2(i.y, i.x) / (Math.PI / 8)) * (Math.PI / 8), m = l > 0.75 ? 1 : 0.55; return { x: Math.round(Math.cos(a) * m * 100) / 100, y: Math.round(Math.sin(a) * m * 100) / 100, b: i.b }; };
 
 export function Live3D({ game, myId, onClose }: { game: HomeGame; myId: string; onClose(): void }) {
-  useTuckWorlds(true);
   const sim = SIMS3[game.game];
   const reduce = useUi((s) => s.settings.reduceMotion);
   const cv = useRef<HTMLCanvasElement>(null);

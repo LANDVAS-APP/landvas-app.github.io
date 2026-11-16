@@ -1,8 +1,9 @@
-// Real-browser test of the Worlds button and the tidier map (local-mode build, a phone):
+// Real-browser test of the Worlds button and the map's side rail (local-mode build, a phone):
 //  - the website's map on a phone: one row of round buttons (cards open under it), Fly in the + tray
-//  - the Worlds button floats on every screen: the map, home and your places (here an arcade) are one tap away
-//  - drag it into the edge to tuck it away (a tab stays); tap the tab to bring it back; in games it starts tucked
-//  - the app has it too
+//  - the side rail: one tidy column of same-size buttons — Worlds (its own button), More, Move, Me
+//  - Worlds shows your best place of each kind: two arcades → one Arcade, the higher-level one ("best of 2")
+//  - the Worlds button lives on the map only: not in your arcade, your home or a game
+//  - the app has it on the map's rail too
 // Run: npm run build:artifact && node tests/e2e/worlds.mjs
 import { serve, launch } from './browser.mjs';
 import fs from 'node:fs';
@@ -48,8 +49,17 @@ async function run(app) {
     if (r0) await page.evaluate((r) => window.__landvasExplorer?.getState().set(r), r0);
     await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
     await api('claimStarter', START.gx, START.gy, 'Neon Alley').catch((e) => console.log('note  claim:', String(e?.message ?? e)));
-    const g = (await api('myGroups'))[0];
-    const arc = g ? (await api('setGroupKind', g.id, 'arcade')).arcade_id : null;
+    // two more places of their own: a second arcade (levelled up) and a farm
+    await sql(`select private.ledger_apply(id, 'ink', 500000, 'admin_adjust', 'test', 'test', 'e2e:worlds:' || id) from profiles where username = 'worlds_${tag}'`);
+    for (let i = 0; i < 2; i++) await api('quickBuyPlot').catch((e) => console.log('note  buy:', String(e?.message ?? e)));
+    const gs = await api('myGroups');
+    const kinds = ['arcade', 'arcade', 'farm'];
+    const made = [];
+    for (let i = 0; i < Math.min(gs.length, 3); i++) made.push(await api('setGroupKind', gs[i].id, kinds[i]).catch((e) => { console.log('note  kind:', String(e?.message ?? e)); return null; }));
+    const arcs = made.filter((m) => m?.arcade_id).map((m) => m.arcade_id);
+    // the second arcade is the better one
+    if (arcs[1]) await sql(`update arcades set xp = 60000 where id = '${arcs[1]}'`);
+    const arc = arcs[1] ?? arcs[0] ?? null;
     await page.evaluate(() => window.__landvasQc.invalidateQueries());
     await nav('/world'); await page.waitForTimeout(3000);
     await page.evaluate((h) => window.__landvasUi.getState().requestFly({ lng: h.longitude, lat: h.latitude, zoom: 16.5 }), p0);
@@ -75,45 +85,41 @@ async function run(app) {
       check('…Cancel ends it', (await page.locator('[data-testid=pin-catcher]').count()) === 0);
     }
 
-    // ---- the Worlds button ----
-    check(`${tag}: the Worlds button is on the map`, await waitFor('[data-testid=worlds-button]', 10000));
+    // ---- the side rail and the Worlds button ----
+    check(`${tag}: the Worlds button is on the map's side rail`, await waitFor('[data-testid=hud-rail] [data-testid=worlds-button]', 10000));
+    const sizes = await page.locator('[data-testid=hud-rail] > .lv-gbtn').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+    check(`${tag}: …the rail's buttons are all one size`, sizes.length >= 1 && new Set(sizes).size === 1, JSON.stringify(sizes));
+    if (!app) {
+      const order = await page.locator('[data-testid=hud-rail] > .lv-gbtn').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
+      check('…Worlds sits right above the + button', order.indexOf('worlds-button') >= 0 && order.indexOf('hud-more') === order.indexOf('worlds-button') + 1, JSON.stringify(order));
+      const xs = await page.locator('[data-testid=hud-rail] > .lv-gbtn').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left + e.getBoundingClientRect().width / 2)));
+      check('…in one straight column', new Set(xs).size === 1, JSON.stringify(xs));
+    }
+    await shot('01-rail');
     await tid('worlds-button').first().click();
     check('…a tap opens Worlds', await waitFor('[data-testid=worlds-sheet]', 8000));
     await page.waitForSelector('[data-testid=worlds-places]', { timeout: 10000 }).catch(() => {});
-    check('…with your places (your arcade)', !!arc && (await page.locator(`[data-testid=world-go][data-route="/arcade/${arc}"]`).count()) === 1);
+    const tiles = await page.locator('[data-testid=worlds-places] [data-testid=world-go]').evaluateAll((els) => els.map((e) => ({ route: e.getAttribute('data-route'), text: e.textContent })));
+    const arcTiles = tiles.filter((t) => /^\/arcade\//.test(t.route ?? ''));
+    check('…one Arcade for your two arcades: the higher-level one', arcs.length === 2 && arcTiles.length === 1 && arcTiles[0].route === `/arcade/${arc}` && /Lv \d+/.test(arcTiles[0].text) && /best of 2/.test(arcTiles[0].text), JSON.stringify(tiles));
+    check('…and your farm', tiles.some((t) => /^\/farm\//.test(t.route ?? '')));
     await shot('02-sheet');
     await page.click(`[data-testid=world-go][data-route="/arcade/${arc}"]`);
     await page.waitForTimeout(3500);
-    check('the Worlds button is in the arcade too', await waitFor('[data-testid=worlds-button]', 25000));
+    check('it takes you into the arcade', await waitFor('[data-testid=arcade-screen], [data-testid=arcade-hall], canvas', 25000));
+    check('…where nothing floats over it: no Worlds button in the arcade', (await page.locator('[data-testid=worlds-button]').count()) === 0);
     await shot('03-arcade');
-    await tid('worlds-button').first().click();
-    await waitFor('[data-testid=worlds-sheet]', 8000);
-    check('…which takes you there (and it knows you’re there)', /You’re here/.test(await page.locator(`[data-testid=world-go][data-route="/arcade/${arc}"]`).textContent().catch(() => '')));
-    await page.click('[data-testid=world-go][data-route="/home"]');
-    await page.waitForTimeout(3500);
-    await shot('04-home');
-    await tid('worlds-button').first().click();
-    await waitFor('[data-testid=worlds-sheet]', 8000);
-    check('Home is one tap away', /You’re here/.test(await page.locator('[data-testid=world-go][data-route="/home"]').textContent().catch(() => '')));
-    await page.keyboard.press('Escape'); await page.waitForTimeout(600);
-
-    // tuck it away by dragging it into the edge, then bring it back
-    const b = await tid('worlds-button').first().boundingBox();
-    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
-    await page.mouse.move(b.x + b.width / 2 + 25, b.y + b.height / 2 - 10, { steps: 4 });
-    await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2 - 20, { steps: 4 });
-    await page.mouse.up(); await page.waitForTimeout(600);
-    check('dragging it into the edge tucks it away', (await page.locator('[data-testid=worlds-button]').count()) === 0 && await waitFor('[data-testid=worlds-tab]', 3000));
-    await shot('05-tucked');
-    await tid('worlds-tab').first().click(); await page.waitForTimeout(500);
-    check('…tapping the tab brings it back', (await page.locator('[data-testid=worlds-button]').count()) === 1);
-    check('…and it remembers', (await page.evaluate(() => JSON.parse(localStorage.getItem('landvas.worlds') || '{}').tucked)) === false);
-
-    // in a game it starts tucked
+    await nav('/home'); await page.waitForTimeout(3500);
+    check('…none at home either', (await page.locator('[data-testid=worlds-button]').count()) === 0);
     await nav('/play/tracecraft'); await page.waitForTimeout(3000);
-    check('in a game it starts tucked (a tab only)', (await page.locator('[data-testid=worlds-button]').count()) === 0 && (await page.locator('[data-testid=worlds-tab]').count()) === 1);
-    await nav('/world'); await page.waitForTimeout(1500);
-    check('…and is back on the map', (await page.locator('[data-testid=worlds-button]').count()) === 1);
+    check('…nor in a game', (await page.locator('[data-testid=worlds-button]').count()) === 0);
+    await nav('/world'); await page.waitForTimeout(2500);
+    check('…and it is back on the map', (await page.locator('[data-testid=hud-rail] [data-testid=worlds-button]').count()) === 1);
+    await tid('worlds-button').first().click();
+    await waitFor('[data-testid=worlds-sheet]', 8000);
+    await page.click('[data-testid=world-go][data-route="/home"]');
+    await page.waitForTimeout(2500);
+    check('Home is one tap away from the map', await page.evaluate(() => location.pathname === '/home' || !!document.querySelector('[data-testid=home-screen], canvas')));
   } catch (e) {
     check(`${tag}: no crash`, false, String(e?.stack ?? e).slice(0, 400));
     await shot('zz-crash');

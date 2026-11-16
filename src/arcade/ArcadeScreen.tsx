@@ -33,7 +33,6 @@ import { BoothHud, CarnivalNear, startBooth, TreatCart, type CarnivalBusy } from
 import type { CarnivalMe } from '../backend/types';
 import { config } from '../env';
 import { GlassCrack, MirrorRoom, mirrorKey } from './mirror/MirrorRoom';
-import { useTuckWorlds } from '../app/WorldsButton';
 import { AdmitOne, BackRoom, BSIDE_GAME, BSideMenu, LANDGRAB, PROTO, SecretCabinet, SecretReveal, TokenChip, hallPads, secretKey, secretsKey } from './secrets/SecretUI';
 import type { BSideDiff } from './secrets/bside';
 
@@ -177,7 +176,6 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(game?: string
   // together: the live room (others walking about), open lobbies and your match
   const myId = me?.user_id;
   const liveRoom = useArcadeLive({ arcadeId: a.id, myId, hall, playing });
-  useTuckWorlds(!!playing);
   const live = liveRoom.live;
   // your party: one tap to invite people into the arcade with you
   const party = useParty().data;

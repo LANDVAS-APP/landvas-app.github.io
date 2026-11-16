@@ -11,7 +11,6 @@ import { Button, PlayerAvatar, Spinner } from '../ui';
 import { useOnboardedMe } from '../lib/queries';
 import { describeWhereabouts } from '../social/activity';
 import { goTarget, goTo, usePartyJoin } from '../party/party';
-import { useTuckWorlds } from '../app/WorldsButton';
 import { REACTIONS, type WatchMsg } from './stream';
 import { cleanCss, paint, sanitize, stageDoc } from './render';
 import { Floats, useFloats } from './WatchHost';
@@ -69,7 +68,6 @@ export default function WatchScreen() {
   const me = useOnboardedMe();
   const nav = useNavigate();
   const join = usePartyJoin();
-  useTuckWorlds(true);
   const q = useQuery({ queryKey: ['watch', username.toLowerCase()], queryFn: () => api.watchStart(username), enabled: !!me, refetchInterval: 15_000, retry: false });
   const t = q.data;
   const [frame, setFrame] = useState<Frame | null>(null);
