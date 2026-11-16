@@ -47,6 +47,8 @@ function fromPath(path: string, space: SpaceState | undefined): { kind: Activity
   if (seg[0] === 'social') return { kind: 'social', detail: {} };
   // an arcade: friends and your party can follow you in
   if (seg[0] === 'arcade' && seg[1]) return { kind: 'arcade', detail: { arcade: seg[1] } };
+  // at a home (theirs or someone's): friends and the party can come straight in
+  if (seg[0] === 'u' && seg[1] && (seg[2] === 'home' || seg[2] === 'room')) return { kind: 'home', detail: { username: seg[1] } };
   if (seg[0] === 'party') return { kind: 'party', detail: {} };
   return { kind: 'other', detail: {} };
 }
@@ -84,6 +86,7 @@ export function describeWhereabouts(w: Whereabouts | undefined) {
   if (place && w.room?.live) return `🪐 exploring ${place} · ${w.room.in_room}/${w.room.room_size}`;
   if (place) return `🪐 on ${place}`;
   if (!w.online) return null;
+  if (a?.kind === 'home' && a.detail.username) return `🏠 at @${a.detail.username}’s home`;
   const map: Partial<Record<string, string>> = { map: '🗺️ on the map', inkborn: '🐾 with their Inkborn', sanctuary: '🌳 in a sanctuary', playdate: '🧺 on a playdate',
     create: '🎨 creating', gallery: '🖼️ in the gallery', social: '💬 chatting', space: '🛰️ at mission control', arcade: '🕹️ in an arcade', party: '🎉 looking for a party' };
   return map[a?.kind ?? ''] ?? '🟢 online';

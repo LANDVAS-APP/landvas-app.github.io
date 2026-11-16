@@ -9,7 +9,7 @@ import { ArrowLeft, Infinity as InfinityIcon, Lock, Music, PartyPopper, Play, Ro
 import { ArcadeChatDock } from './ArcadeChat';
 import { useParty, usePartyUi } from '../party/party';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
@@ -61,7 +61,8 @@ export default function ArcadeScreen() {
 
 /** The arcade, or (through its portal) the shared Live Arena. */
 function ArcadeOrArena({ a }: { a: Arcade }) {
-  const [room, setRoom] = useState<'arcade' | 'arena' | 'mirror'>(() => (new URLSearchParams(location.search).get('room') === 'arena' ? 'arena' : 'arcade'));
+  const [params] = useSearchParams();
+  const [room, setRoom] = useState<'arcade' | 'arena' | 'mirror'>(() => (params.get('room') === 'arena' ? 'arena' : 'arcade'));
   const [first, setFirst] = useState<{ bounty: number } | null>(null);
   useEffect(() => { sfx.blip(14); }, [room]);
   if (room === 'mirror') return <MirrorRoom a={a} first={first} onBack={() => { setFirst(null); setRoom('arcade'); }} />;
@@ -292,7 +293,7 @@ function ArcadeView({ a, onArena, onMirror }: { a: Arcade; onArena(): void; onMi
         </div>
       )}
       {/* chat: everyone in this room, and your party */}
-      {!busy && myId && <ArcadeChatDock arcadeId={a.id} inRoom={!!live} myId={myId} raised={!!near || !!lobby} />}
+      {!busy && myId && <ArcadeChatDock arcadeId={a.id} inRoom={!!live} myId={myId} raised={lobby ? 'lobby' : near ? 'near' : null} />}
       {/* what you're standing at */}
       <AnimatePresence>
         {!busy && lobby && myId && (

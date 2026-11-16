@@ -7,6 +7,7 @@ import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../../backend/api';
+import { useAutoJoin } from '../../party/lfg';
 import { getBackend, toGameError } from '../../backend/backend';
 import type { ArenaLive, ArenaMatch, ArenaMode, ExplorerStyle } from '../../backend/types';
 import { explorerSvg } from '../../explorer/character';
@@ -189,12 +190,14 @@ function PodPanel({ game, live, myId, onChange }: { game: string; live: ArenaLiv
 
 function JoinRow({ m, onJoined }: { m: ArenaMatch; onJoined(): void }) {
   const [busy, setBusy] = useState(false);
+  const join = async () => { setBusy(true); try { await api.arenaJoin(m.id); sfx.coin(); onJoined(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); } };
+  useEffect(() => { if (useAutoJoin.getState().take(m.id)) void join(); }, [m.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const host = m.players.find((p) => p.id === m.host) ?? m.players[0], md = MODE_INFO[m.mode];
   return (
     <div className="flex items-center gap-2 rounded-2xl bg-white/10 p-1.5 pl-2">
       {host && <PlayerAvatar p={host} size={24} />}
       <div className="min-w-0 flex-1 text-xs"><b>@{host?.username}</b> · {md.emoji} {md.label} <span className="text-white/60">{m.players.length}/{md.need[1]}</span></div>
-      <Button size="sm" variant="rainbow" loading={busy} data-testid="arena-join" onClick={async () => { setBusy(true); try { await api.arenaJoin(m.id); sfx.coin(); onJoined(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); } }}>Join</Button>
+      <Button size="sm" variant="rainbow" loading={busy} data-testid="arena-join" onClick={() => void join()}>Join</Button>
     </div>
   );
 }

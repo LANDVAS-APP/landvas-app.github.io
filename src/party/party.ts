@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { PartyActivity, PartyState, TravelGroupMember } from '../backend/types';
+import type { PartyActivity, PartyState, TravelGroupMember, Whereabouts } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { poll } from '../lib/poll';
 import { isNative } from '../native/native';
@@ -63,12 +63,13 @@ export { PARTY_CODE } from './link';
 export { capturePartyLink, clearPendingParty, pendingParty, savePendingParty } from './link';
 
 // ---- joining (with a "switch parties?" when you're already in one) ----------------------------------------------------
-export type JoinHow = { kind: 'code'; code: string } | { kind: 'public'; id: string } | { kind: 'invite'; id: string };
+export type JoinHow = { kind: 'code'; code: string } | { kind: 'public'; id: string } | { kind: 'invite'; id: string } | { kind: 'player'; id: string };
 export function usePartyJoin() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   return async (how: JoinHow, name?: string): Promise<PartyState | null> => {
-    const call = (sw: boolean) => (how.kind === 'code' ? api.partyJoinCode(how.code, sw) : how.kind === 'public' ? api.partyJoinPublic(how.id, sw) : api.partyAccept(how.id, sw));
+    const call = (sw: boolean) => (how.kind === 'code' ? api.partyJoinCode(how.code, sw) : how.kind === 'public' ? api.partyJoinPublic(how.id, sw)
+      : how.kind === 'player' ? api.partyJoinPlayer(how.id, sw) : api.partyAccept(how.id, sw));
     const done = (r: PartyState) => { qc.setQueryData(PARTY_KEY, r); void qc.invalidateQueries({ queryKey: LOBBIES_KEY }); return r; };
     try {
       return done(await call(false));
@@ -101,3 +102,17 @@ export function memberAt(m: TravelGroupMember, now: number): [number, number] | 
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
 }
 
+
+/** where someone is that you can go to: their arcade, a home (theirs or someone's) — you land in their room */
+export function goTarget(now: Whereabouts | null | undefined): { label: string; route: string } | null {
+  const a = now?.activity;
+  if (!now?.online || !a) return null;
+  if (a.kind === 'arcade' && a.detail.arcade) return { label: '🕹️ Join', route: `/arcade/${a.detail.arcade}` };
+  if (a.kind === 'home' && a.detail.username) return { label: '🏠 Join', route: `/u/${encodeURIComponent(a.detail.username)}/home` };
+  return null;
+}
+/** go to them (and into their room) */
+export async function goTo(playerId: string, route: string, nav: (to: string) => void) {
+  try { await api.placeFollow(playerId); } catch { /* still go */ }
+  nav(route);
+}

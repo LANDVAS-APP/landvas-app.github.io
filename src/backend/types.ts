@@ -481,7 +481,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -676,7 +676,7 @@ export type DigState = {
   dug?: number; finds?: Record<string, number>; new_layers?: string[]; layer_ink?: number; crafted?: string;
   gx?: number; gy?: number; cored?: boolean; my_shafts?: { gx: number; gy: number; depth: number; cored: boolean }[]; reached_core?: boolean; core_ink?: number; party?: number; party_mult?: number; refilled?: string; added?: number;
 };
-export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other' | 'arcade' | 'party';
+export type ActivityKind = 'map' | 'planet' | 'dig' | 'space' | 'game' | 'inkborn' | 'sanctuary' | 'playdate' | 'create' | 'gallery' | 'social' | 'other' | 'arcade' | 'party' | 'home';
 export type Whereabouts = {
   online: boolean;
   activity: { kind: ActivityKind; detail: Record<string, string>; at: string } | null;
@@ -888,7 +888,14 @@ export type PartyLobby = {
   size: number; online: number; max: number; full: boolean; mine: boolean; friends: number;
   members: (Profile & { online: boolean; leader: boolean })[];
 };
-export type PartyLobbies = { mine: string | null; max: number; lobbies: PartyLobby[]; online_count: number };
+/** a game waiting for more players: a table at someone's house, an arcade match, a Live Arena lobby */
+export type LfgItem = { kind: 'home' | 'arcade' | 'arena'; id: string; game: string; mode?: string; title: string; emoji: string | null; host: Profile;
+  players: number; max: number; where: string; route: string; at: string };
+/** someone online on their own, open to being joined */
+export type JoinablePlayer = Profile & { online: true; now: Whereabouts | null; friend: boolean };
+export type PartyLobbies = { mine: string | null; max: number; lobbies: PartyLobby[]; online_count: number;
+  /** games waiting for players */ lfg?: LfgItem[]; /** people on their own you can team up with */ players?: JoinablePlayer[];
+  /** whether people can join you when you're on your own */ joinable?: boolean };
 export type PartyTarget = Profile & { online: boolean; in_party: boolean; invited: boolean; friend: boolean; busy?: boolean; friends_only?: boolean; now?: Whereabouts };
 export type PartyTargets = { friends: PartyTarget[]; online: PartyTarget[]; search: PartyTarget[]; online_count: number };
 export type PartyPreview = {

@@ -4,7 +4,7 @@ import { ChatDock, type DockChannel } from '../party/ChatDock';
 import { useParty, usePartyUi } from '../party/party';
 import { useArcadeChat, usePartyChat } from '../party/usePartyChat';
 
-export function ArcadeChatDock({ arcadeId, inRoom, myId, raised }: { arcadeId: string; inRoom: boolean; myId: string; raised: boolean }) {
+export function ArcadeChatDock({ arcadeId, inRoom, myId, raised }: { arcadeId: string; inRoom: boolean; myId: string; raised: 'lobby' | 'near' | null }) {
   const room = useArcadeChat(arcadeId, inRoom);
   const party = usePartyChat();
   const inParty = !!useParty().data?.group;
@@ -15,6 +15,8 @@ export function ArcadeChatDock({ arcadeId, inRoom, myId, raised }: { arcadeId: s
   ];
   return (
     <ChatDock channels={channels} myId={myId} onInvite={() => show('invite')} testid="arcade-chat"
-      className={cn('absolute left-3 z-20 transition-[bottom]', raised ? 'bottom-[calc(max(20px,env(safe-area-inset-bottom,0px))+112px)]' : 'bottom-[calc(max(20px,env(safe-area-inset-bottom,0px))+60px)]')} />
+      // above whatever's at the bottom: a match lobby (tall), the machine you're at, or the walking hint
+      className={cn('absolute left-3 z-20 transition-[bottom]', raised === 'lobby' ? 'bottom-[calc(max(20px,env(safe-area-inset-bottom,0px))+214px)]'
+        : raised === 'near' ? 'bottom-[calc(max(20px,env(safe-area-inset-bottom,0px))+112px)]' : 'bottom-[calc(max(20px,env(safe-area-inset-bottom,0px))+60px)]')} />
   );
 }

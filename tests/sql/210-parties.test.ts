@@ -33,7 +33,9 @@ describe('starting a party', () => {
     expect(p.group.members[0]).toMatchObject({ me: true, online: true });
     // the plain old way still works (no plot needed either), and gets a default name
     const q = await db.rpc(cal, 'travel_group_create');
-    expect(q.group).toMatchObject({ name: "cal_party's party", custom_name: null, visibility: 'private', activity: 'hangout' });
+    // (public by default since open play; cal makes it private)
+    expect(q.group).toMatchObject({ name: "cal_party's party", custom_name: null, visibility: 'public', activity: 'hangout' });
+    expect((await db.rpc(cal, 'party_update', { p_visibility: 'private' })).group.visibility).toBe('private');
     await expectError(db.rpc(cal, 'party_create', {}), 'already_in_group');
   });
 
@@ -120,7 +122,7 @@ describe('invites', () => {
     // inviting with no party starts one
     expect((await party(solo)).group).toBeNull();
     const p = await db.rpc(solo, 'party_invite', { p_player: eve });
-    expect(p.group).toMatchObject({ leader: true, visibility: 'private' });
+    expect(p.group).toMatchObject({ leader: true, visibility: 'public' });
     expect(p.group.invited.map((x: any) => x.username)).toEqual(['eve_party']);
     const inv = (await party(eve)).invites;
     expect(inv[0]).toMatchObject({ name: "gus_party's party", size: 1, activity: 'hangout' });

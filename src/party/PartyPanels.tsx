@@ -9,7 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { PartyActivity, PartyLobby, PartyPreview, PartyState, PartyTarget, PartyVisibility, TravelGroupMember } from '../backend/types';
+import type { JoinablePlayer, LfgItem, PartyActivity, PartyLobby, PartyPreview, PartyState, PartyTarget, PartyVisibility, TravelGroupMember } from '../backend/types';
 import { useExplorer } from '../explorer/explorer';
 import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
@@ -20,9 +20,10 @@ import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfir
 import { ChatLine } from './ChatDock';
 import { usePartyChat } from './usePartyChat';
 import {
-  ACTIVITIES, ACTIVITY_IDS, LOBBIES_KEY, PARTY_KEY, activityOf, memberAt, memberStatus, partyLink, savePendingParty,
+  ACTIVITIES, ACTIVITY_IDS, LOBBIES_KEY, PARTY_KEY, activityOf, goTarget, goTo, memberAt, memberStatus, partyLink, savePendingParty,
   useParty, usePartyJoin, type PartyTab,
 } from './party';
+import { useAutoJoin } from './lfg';
 
 type Group = NonNullable<PartyState['group']>;
 
@@ -39,7 +40,7 @@ export default function PartyPanels({ tab, setTab, onDone }: { tab: PartyTab; se
           { value: 'invite', label: 'Invite' },
         ]} />
       {tab === 'party' && <PartyHome onDone={onDone} setTab={setTab} />}
-      {tab === 'lobbies' && <LobbyList setTab={setTab} />}
+      {tab === 'lobbies' && <LobbyList setTab={setTab} onDone={onDone} />}
       {tab === 'invite' && <InvitePanel />}
     </div>
   );
@@ -103,6 +104,7 @@ function StartParty({ setTab }: { setTab(t: PartyTab): void }) {
   };
   return (
     <>
+      <OpenToJoin />
       <section className="rainbow-edge rounded-3xl bg-surface-2 p-4" data-testid="party-start">
         <div className="mb-1 font-display text-lg font-bold">🎉 Start a party</div>
         <p className="mb-3 text-[13px] text-muted">Up to 10 players. Take it anywhere — the map, trips (when the leader boards, everyone rides along), arcades, space — and chat the whole way.</p>
@@ -126,6 +128,28 @@ function StartParty({ setTab }: { setTab(t: PartyTab): void }) {
         <Users className="h-4 w-4 text-accent-2" /> Or jump into a lobby and meet new people
       </button>
     </>
+  );
+}
+
+/** on your own: open to being joined (anyone online can team up with you — a party forms), or private */
+function OpenToJoin() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['privacy'], queryFn: api.myPrivacy, staleTime: 30_000 });
+  const [busy, setBusy] = useState(false);
+  if (!q.data) return null;
+  const open = q.data.joinable !== false;
+  return (
+    <div className={cn('flex items-center gap-3 rounded-2xl border p-3', open ? 'border-ok/40 bg-ok/10' : 'border-line bg-surface-2/50')} data-testid="open-to-join">
+      <span className="text-xl" aria-hidden>{open ? '🟢' : '🔒'}</span>
+      <div className="min-w-0 flex-1 text-[12.5px]">
+        <b>{open ? 'You’re open to team up' : 'You’re playing privately'}</b>
+        <div className="text-muted">{open ? 'Anyone online can join you — a party forms the moment they do.' : 'Nobody can join you unless you invite them.'}</div>
+      </div>
+      <Button size="sm" variant="secondary" loading={busy} data-testid="open-to-join-toggle" onClick={async () => {
+        setBusy(true);
+        try { qc.setQueryData(['privacy'], await api.setPrivacy({ joinable: !open })); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+      }}>{open ? <><Lock className="h-4 w-4" /> Go private</> : <><Globe2 className="h-4 w-4" /> Open up</>}</Button>
+    </div>
   );
 }
 
@@ -222,10 +246,10 @@ function MemberRow({ m, g, busy, run, onDone }: { m: TravelGroupMember; g: Group
   const [menu, setMenu] = useState(false);
   const status = memberStatus(m, m.me ? null : describeWhereabouts(m.now ?? undefined));
   // follow them: into their arcade, to their world, or to where they are on a trip
-  const arcade = m.now?.activity?.kind === 'arcade' ? m.now.activity.detail.arcade : null;
+  const place = m.me ? null : goTarget(m.now);
   const at = memberAt(m, Date.now() + useExplorer.getState().offset);
   const follow = m.me ? null
-    : arcade ? { label: '🕹️ Join', go: () => { onDone?.(); nav(`/arcade/${arcade}`); } }
+    : place ? { label: place.label, go: () => { onDone?.(); void goTo(m.id, place.route, nav); } }
     : canWarpTo(m.now ?? undefined, true) ? { label: '⚡ Warp', go: () => { onDone?.(); void warpTo(m); } }
     : at ? { label: <><MapPin className="h-3.5 w-3.5" /> Show</>, go: () => { useExplorer.getState().setFollowing(false); requestFly({ lng: at[0], lat: at[1], zoom: 14 }); onDone?.(); nav('/world'); } }
     : null;
@@ -435,7 +459,8 @@ function TargetList({ title, items, empty, busy, onInvite, testid }: { title: Re
 }
 
 // ---- the lobbies --------------------------------------------------------------------------------------------------
-export function LobbyList({ setTab }: { setTab(t: PartyTab): void }) {
+export function LobbyList({ setTab, onDone }: { setTab(t: PartyTab): void; onDone?(): void }) {
+  const nav = useNavigate();
   const [filter, setFilter] = useState<PartyActivity | null>(null);
   const q = useQuery({ queryKey: [...LOBBIES_KEY, filter], queryFn: () => api.partyLobbies(filter), refetchInterval: 15_000, staleTime: 5_000 });
   const party = useParty();
@@ -451,8 +476,31 @@ export function LobbyList({ setTab }: { setTab(t: PartyTab): void }) {
       void q.refetch(); toast.success('Your party is live in the lobbies 🎉');
     } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(null); }
   };
+  // a game waiting for players: team up with its host (if you're not in a party), go there, and sit down at it
+  const joinLfg = async (it: LfgItem) => {
+    setBusy(`lfg:${it.id}`);
+    try {
+      if (!party.data?.group) await api.partyJoinPlayer(it.host.id).then((r) => qc.setQueryData(PARTY_KEY, r)).catch(() => null);
+      useAutoJoin.getState().set(it.id);
+      buzz('success');
+      onDone?.();
+      await goTo(it.host.id, it.route, nav);
+    } finally { setBusy(null); }
+  };
+  // someone on their own: a party forms around them
+  const joinPlayer = async (p: JoinablePlayer) => {
+    setBusy(`p:${p.id}`);
+    try { if (await join({ kind: 'player', id: p.id }, `@${p.username}`)) { buzz('success'); toast.success(`You teamed up with @${p.username} 🎉`); setTab('party'); } }
+    catch (e) { toast.error(toGameError(e).message); void q.refetch(); } finally { setBusy(null); }
+  };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3" data-testid="party-lobbies">
+      {(d?.lfg?.length ?? 0) > 0 && (
+        <section className="grid grid-cols-[minmax(0,1fr)] gap-1.5" data-testid="lfg">
+          <div className="eyebrow flex items-center gap-1.5"><span className="lv-live"><i /></span> Looking for players · {d!.lfg!.length}</div>
+          {d!.lfg!.map((it) => <LfgCard key={it.id} it={it} busy={busy === `lfg:${it.id}`} onJoin={() => void joinLfg(it)} />)}
+        </section>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className="text-[12px] text-muted"><span className="lv-live"><i /> Live</span> Public parties with people online, busiest first{d ? <> · <b className="text-ok">{d.online_count}</b> playing now</> : null}</div>
       </div>
@@ -479,6 +527,43 @@ export function LobbyList({ setTab }: { setTab(t: PartyTab): void }) {
           ))}
         </AnimatePresence>
       )}
+      {(d?.players?.length ?? 0) > 0 && (
+        <section className="mt-1 grid grid-cols-[minmax(0,1fr)] gap-1.5" data-testid="lobby-players">
+          <div className="eyebrow">🟢 On their own — team up · {d!.players!.length}</div>
+          {d!.players!.map((p) => {
+            const place = goTarget(p.now);
+            return (
+              <div key={p.id} className="flex items-center gap-3 rounded-2xl bg-surface-2/40 px-2 py-1.5" data-testid="lobby-player" data-user={p.username}>
+                <Link to={`/u/${p.username}`} className="relative shrink-0" onClick={() => onDone?.()}>
+                  <PlayerAvatar p={p} size={36} />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--bg-2)] bg-ok" />
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">@{p.username}{p.friend && <span className="ml-1 text-[10px] font-bold text-accent-2">FRIEND</span>}</div>
+                  <div className="truncate text-[11px] text-muted">{describeWhereabouts(p.now ?? undefined) ?? '🟢 online'}</div>
+                </div>
+                {place && <Button size="sm" variant="secondary" onClick={() => { onDone?.(); void goTo(p.id, place.route, nav); }} data-testid="lobby-player-go">{place.label.replace('Join', 'Go')}</Button>}
+                <Button size="sm" variant="primary" loading={busy === `p:${p.id}`} onClick={() => void joinPlayer(p)} data-testid="lobby-player-join"><Users className="h-4 w-4" /> Team up</Button>
+              </div>
+            );
+          })}
+        </section>
+      )}
+    </div>
+  );
+}
+
+const LFG_KIND: Record<LfgItem['kind'], string> = { home: '🏠', arcade: '🕹️', arena: '🏟️' };
+function LfgCard({ it, busy, onJoin }: { it: LfgItem; busy: boolean; onJoin(): void }) {
+  const open = Math.max(0, it.max - it.players);
+  return (
+    <div className="flex items-center gap-3 rounded-3xl border border-ok/40 bg-ok/10 p-2.5" data-testid="lfg-item" data-kind={it.kind}>
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-surface text-2xl" aria-hidden>{it.emoji ?? LFG_KIND[it.kind]}</div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold"><b>{it.title}</b> <span className="font-semibold text-muted">· @{it.host.username}</span></div>
+        <div className="truncate text-[12px] text-muted">{LFG_KIND[it.kind]} {it.where} · {it.players}/{it.max} · <span className="font-bold text-ok">{open} seat{open === 1 ? '' : 's'} open</span> · {timeAgo(it.at)}</div>
+      </div>
+      <Button size="sm" variant="rainbow" loading={busy} onClick={onJoin} data-testid="lfg-join">Join</Button>
     </div>
   );
 }

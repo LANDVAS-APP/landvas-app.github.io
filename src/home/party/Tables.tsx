@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../../backend/api';
+import { useAutoJoin } from '../../party/lfg';
 import { toGameError } from '../../backend/backend';
 import type { HomeGame } from '../../backend/types';
 import { cn } from '../../lib/utils';
@@ -48,13 +49,16 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
 /** someone opened a table: one tap to sit down, wherever you are in the house */
 export function TableInvite({ t, onJoined }: { t: HomeGame; onJoined(): void }) {
   const [busy, setBusy] = useState(false);
+  const join = async () => { setBusy(true); try { await api.homeGameJoin(t.id); sfx.coin(); onJoined(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); } };
+  // the table you tapped in "Looking for players": sit straight down
+  useEffect(() => { if (useAutoJoin.getState().take(t.id)) void join(); }, [t.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const d = GAME_META[t.game]; if (!d) return null;
   const host = t.players.find((p) => p.id === t.host) ?? t.players[0];
   return (
     <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-black/75 p-2 pl-3 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 20px ${d.color}55, inset 0 0 0 1.5px ${d.color}` }} data-testid="party-invite">
       <span className="text-2xl">{d.emoji}</span>
       <div className="min-w-0 flex-1 text-xs"><b>@{host?.username}</b> wants to play <b>{d.name}</b> <span className="text-white/60">{t.players.length}/{d.max}</span></div>
-      <Button size="sm" variant="rainbow" loading={busy} data-testid="party-join" onClick={async () => { setBusy(true); try { await api.homeGameJoin(t.id); sfx.coin(); onJoined(); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); } }}>Join</Button>
+      <Button size="sm" variant="rainbow" loading={busy} data-testid="party-join" onClick={() => void join()}>Join</Button>
     </motion.div>
   );
 }

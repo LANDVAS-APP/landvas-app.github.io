@@ -14,6 +14,29 @@ import { ChatDock } from './ChatDock';
 import { LOBBIES_KEY, PARTY_KEY, activityOf, useParty, usePartyUi } from './party';
 import { usePartyChat } from './usePartyChat';
 
+/** games waiting for players right now (house tables, arcade matches, arena lobbies) */
+export function useLfg() {
+  const me = useOnboardedMe();
+  return useQuery({ queryKey: ['lfg'], queryFn: api.lfgList, enabled: !!me, staleTime: 15_000, refetchInterval: 30_000 });
+}
+
+/** "🎮 3 looking for players" — one tap to the list */
+export function LfgPill({ className }: { className?: string }) {
+  const q = useLfg();
+  const show = usePartyUi((s) => s.show);
+  const items = q.data?.items ?? [];
+  if (!items.length) return null;
+  const first = items[0];
+  return (
+    <button className={cn('pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full bg-[#0B2A1C]/90 px-3 py-1.5 text-xs font-bold text-white shadow-lg ring-1 ring-[#3DDC97]/60', className)}
+      onClick={() => { buzz('light'); show('lobbies'); }} data-testid="lfg-pill">
+      <span className="text-sm" aria-hidden>{first.emoji ?? '🎮'}</span>
+      <span className="truncate">{items.length === 1 ? <>@{first.host.username} wants to play <b>{first.title}</b></> : <><b>{items.length} games</b> looking for players</>}</span>
+      <span className="shrink-0 rounded-full bg-[#3DDC97] px-1.5 text-[10px] font-black text-[#0B2A1C]">JOIN</span>
+    </button>
+  );
+}
+
 /** the HUD (map and Play hub, in the app): your party, invites waiting */
 export function PartyDisc() {
   const q = useParty();
@@ -81,11 +104,13 @@ export function PartyHubCard() {
   const invites = q.data?.invites.length ?? 0;
   const lobbies = useQuery({ queryKey: [...LOBBIES_KEY, null], queryFn: () => api.partyLobbies(null), staleTime: 30_000, refetchInterval: 60_000, enabled: !g });
   const live = lobbies.data?.lobbies.length ?? 0;
+  const lfg = useLfg().data?.items.length ?? 0;
   const sub = g ? `${activityOf(g.activity).emoji} ${g.name} · 🟢 ${g.online ?? 0} online · ${g.members.length}/${g.max}`
     : invites ? `${invites} party invite${invites === 1 ? '' : 's'} waiting`
+    : lfg ? `🎮 ${lfg} game${lfg === 1 ? '' : 's'} looking for players — jump in`
     : live ? `${live} live ${live === 1 ? 'lobby' : 'lobbies'} · ${lobbies.data?.online_count ?? 0} playing now` : 'Start a party, invite anyone, meet new people';
   return (
-    <div className={cn('lv-pdaily t-emerald mb-3 w-full', (invites > 0 || live > 0) && !g && 'ready')} data-testid="hub-party">
+    <div className={cn('lv-pdaily t-emerald mb-3 w-full', (invites > 0 || live > 0 || lfg > 0) && !g && 'ready')} data-testid="hub-party">
       <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => { buzz('light'); show(g || invites ? 'party' : 'lobbies'); }}>
         <Emblem tone="emerald" size={42}><span className="text-[20px] leading-none">🎉</span></Emblem>
         <span className="min-w-0 flex-1">
@@ -106,9 +131,11 @@ export function MapPartyChat({ className }: { className?: string }) {
   const g = useParty().data?.group;
   const show = usePartyUi((s) => s.show);
   const chat = usePartyChat();
-  if (!g) return null;
   return (
-    <ChatDock className={className} myId={me?.user_id} onInvite={() => show('invite')} testid="map-party-chat"
-      channels={[{ id: 'party', label: 'Party', chat, placeholder: 'Message your party…', empty: 'Say hi to your party 👋 — it goes with you on the map and in arcades.', notHere: 'You’re not in a party right now.' }]} />
+    <div className={cn('pointer-events-none flex flex-col items-start gap-1.5', className)}>
+      <LfgPill className="max-w-[min(72vw,310px)]" />
+      {g && <ChatDock myId={me?.user_id} onInvite={() => show('invite')} testid="map-party-chat"
+        channels={[{ id: 'party', label: 'Party', chat, placeholder: 'Message your party…', empty: 'Say hi to your party 👋 — it goes with you on the map and in arcades.', notHere: 'You’re not in a party right now.' }]} />}
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
+import { useAutoJoin } from '../party/lfg';
 import { getBackend, toGameError } from '../backend/backend';
 import type { Arcade, ArcadeLive, ArcadeMatch, ExplorerStyle } from '../backend/types';
 import { explorerSvg } from '../explorer/character';
@@ -143,18 +144,25 @@ export function MatchButtons({ arcade, game, onMatch, disabled }: { arcade: stri
 /** Someone in your room is gathering players: one tap to join. */
 export function InviteBanner({ a, live, myId, onJoined }: { a: Arcade; live: ArcadeLive; myId: string; onJoined(m: ArcadeMatch): void }) {
   const [busy, setBusy] = useState(false);
-  const inv = live.lobbies.find((m) => !m.players.some((p) => p.id === myId) && m.players.length < 4);
-  if (!inv || live.match?.status === 'lobby' || live.match?.status === 'playing') return null;
+  // the one you tapped in "Looking for players", if it's here; else any with room
+  const want = useAutoJoin((s) => s.id);
+  const open = live.lobbies.filter((m) => !m.players.some((p) => p.id === myId) && m.players.length < 4);
+  const inv = open.find((m) => m.id === want) ?? open[0];
+  const join = async () => {
+    if (!inv) return;
+    setBusy(true);
+    try { const m = await api.arcadeMatchJoin(inv.id); sfx.coin(); onJoined(m); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+  };
+  const mid = live.match?.status === 'lobby' || live.match?.status === 'playing';
+  useEffect(() => { if (inv && !mid && useAutoJoin.getState().take(inv.id)) void join(); }, [inv?.id, mid]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!inv || mid) return null;
   const host = inv.players.find((p) => p.id === inv.host) ?? inv.players[0];
   const g = a.games[inv.game], md = modeOf(inv);
   return (
     <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-black/80 p-2 pl-3 text-white shadow-2xl backdrop-blur" style={{ boxShadow: `0 0 24px ${md.color}66, inset 0 0 0 1.5px ${md.color}` }} data-testid="match-invite">
       {host && <PlayerAvatar p={host} size={28} />}
       <div className="min-w-0 flex-1 text-xs"><b>@{host?.username}</b> is starting <b>{md.emoji} {md.label}</b>{inv.play === 'endless' ? <b className="text-[#B6FF3D]"> ∞ Endless</b> : null} on <b>{g?.emoji} {g?.name}</b><span className="text-white/60"> · {inv.players.length}/4</span></div>
-      <Button size="sm" variant="rainbow" loading={busy} data-testid="match-join" onClick={async () => {
-        setBusy(true);
-        try { const m = await api.arcadeMatchJoin(inv.id); sfx.coin(); onJoined(m); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
-      }}>Join</Button>
+      <Button size="sm" variant="rainbow" loading={busy} data-testid="match-join" onClick={() => void join()}>Join</Button>
     </motion.div>
   );
 }

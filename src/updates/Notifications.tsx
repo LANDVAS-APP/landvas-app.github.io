@@ -164,6 +164,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   doodle: { icon: Sparkles, color: '#FFE14D', text: () => <>guessed your drawing</>, to: () => '/doodle' },
   friend_request: { icon: UserPlus, color: '#22E3FF', text: () => <>sent you a friend request</>, to: () => '/social' },
   party_invite: { icon: Users, color: '#3DDC97', text: (a) => <>invited you to their party{a.data.name ? <> “{a.data.name}”</> : null} 🎉</>, to: () => '/party' },
+  party_join: { icon: Users, color: '#3DDC97', text: () => <>joined you — you’re in a party now 🎉</>, to: () => '/party' },
   friend_accept: { icon: UserCheck, color: '#3DDC97', text: () => <>accepted your friend request</>, to: (a) => (a.actor ? `/u/${a.actor.username}` : '/social') },
   sanctuary_visit: { icon: PawPrint, color: '#B49BFF', text: (a) => <>is visiting your sanctuary{a.data.name ? <> “{a.data.name}”</> : null}</>, to: (a) => (a.data.habitat ? `/habitat/${a.data.habitat}` : '/habitat') },
   playdate: {
