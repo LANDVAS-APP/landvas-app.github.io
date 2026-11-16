@@ -1,8 +1,9 @@
-// The Fusion Lab (/fusion): two of your ultras become one (the recipe book says which), three become a random
-// Primordial. The first plot you pick keeps everything — its drawing, name and level; the others go back to the world.
+// The Fusion Lab (/fusion): two of your ultras become one (the recipe book says which). Primordials can only be rolled
+// (three ultras used to fuse into one; those are given back as ultras the player picks — PrimordialRefund).
+// The first plot you pick keeps everything — its drawing, name and level; the other goes back to the world.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
@@ -15,6 +16,7 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { hasPower, rarityInfo, type RarityId } from '../shared/rarity';
 import { cellKey, powerPath } from './powers';
 import './rarity.css';
+import { RefundPicker, useRefunds } from './PrimordialRefund';
 
 const WHY: Record<string, string> = { starter_plot: 'your starter plot', merged: 'part of a bigger canvas', plot_folded: 'folded away', plot_locked: 'locked' };
 
@@ -30,8 +32,13 @@ export default function FusionLab() {
   const byKey = useMemo(() => new Map((book?.ultras ?? []).map((u) => [cellKey(u.gx, u.gy), u])), [book]);
   const picked = sel.map((k) => byKey.get(k)).filter(Boolean) as NonNullable<ReturnType<typeof byKey.get>>[];
   const recipe = picked.length === 2 ? (book?.recipes ?? []).find((r) => r.to && [r.a, r.b].sort().join('+') === [picked[0].rarity, picked[1].rarity].sort().join('+')) : null;
-  const outcome = picked.length === 3 ? 'primordial' : recipe?.to ?? null;
-  const toggle = (k: string) => setSel((s) => (s.includes(k) ? s.filter((x) => x !== k) : s.length < 3 ? [...s, k] : s));
+  const outcome = recipe?.to ?? null;
+  const toggle = (k: string) => setSel((s) => (s.includes(k) ? s.filter((x) => x !== k) : s.length < 2 ? [...s, k] : s));
+  const refunds = useRefunds();
+  const [refundOpen, setRefundOpen] = useState(() => params.get('refund') === '1');
+  const [heldRefund, setHeldRefund] = useState<NonNullable<typeof refunds.data>['open'][number] | null>(null);
+  const openRefund = refunds.data?.open[0] ?? (refundOpen ? heldRefund : null);
+  useEffect(() => { if (refunds.data?.open[0]) setHeldRefund(refunds.data.open[0]); }, [refunds.data]);
 
   const fuse = async () => {
     setBusy(true);
@@ -49,7 +56,15 @@ export default function FusionLab() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Ultra Fusions" title="🧬 The Fusion Lab">Two of your ultras become one stronger plot. Three become a random <Link to="/primordials" className="underline">Primordial</Link>. The first you pick keeps its drawing, name and level; the others go back to the world.</PageHeader>
+      <PageHeader eyebrow="Ultra Fusions" title="🧬 The Fusion Lab">Two of your ultras become one stronger plot. The first you pick keeps its drawing, name and level; the other goes back to the world. <Link to="/primordials" className="underline">Primordials</Link> are only ever rolled.</PageHeader>
+      {refunds.data?.open[0] && (
+        <button type="button" onClick={() => setRefundOpen(true)} className="lvrx-refund mb-5 flex w-full items-center gap-3 rounded-3xl p-4 text-left" data-testid="refund-banner">
+          <span className="text-3xl">🌌</span>
+          <span className="min-w-0 flex-1"><b className="block font-display text-[16px] text-[#FDE68A]">Your fused Primordial’s ultras are waiting</b><span className="block text-[12.5px] text-white/70">Pick any three ultras: your plot becomes one, your next two claims roll the others.</span></span>
+          <span className="lv-gbtn shrink-0 px-4 py-2 text-sm">Pick</span>
+        </button>
+      )}
+      {openRefund && refunds.data && <RefundPicker refund={openRefund} choices={refunds.data.choices} open={refundOpen} onClose={() => { setRefundOpen(false); setHeldRefund(null); }} />}
 
       <section className="mb-6 grid gap-2" data-testid="fusion-book">
         <h2 className="eyebrow">The recipe book</h2>
@@ -63,7 +78,7 @@ export default function FusionLab() {
           ) : (
             <div key={`s${i}`} className="glass flex items-center gap-3 rounded-2xl p-3 text-muted" data-testid="recipe-secret">❔ + ❔ → <b>a secret fusion</b></div>
           ))}
-          <div className="glass flex items-center gap-3 rounded-2xl p-3" data-testid="recipe-triple">✦ + ✦ + ✦ → <b className="text-[#FDE68A]">a random Primordial</b></div>
+          <div className="glass flex items-center gap-3 rounded-2xl p-3 text-muted" data-testid="recipe-primordial">🌌 <span><b className="text-[#FDE68A]">Primordials</b> can’t be fused — they’re only ever rolled</span></div>
         </div>
       </section>
 
@@ -92,10 +107,9 @@ export default function FusionLab() {
 
       {picked.length >= 2 && (
         <section className="lvrx-preview mb-6 grid justify-items-center gap-2 rounded-3xl p-5 text-center" data-testid="fusion-preview">
-          {outcome === 'primordial' ? <><div className="text-4xl">🌌</div><b className="font-display text-xl text-[#FDE68A]">A random Primordial</b><p className="text-sm text-white/70">Three ultras into one of the rarest things in LANDVAS — which one, nobody knows.</p></>
-            : outcome ? <><BasePlotArt rarity={outcome as RarityId} size={72} /><b className="font-display text-xl" style={{ color: rarityInfo(outcome).color }}>{rarityInfo(outcome).name}</b><p className="text-sm text-white/70">{rarityInfo(outcome).ability}</p></>
-              : <p className="text-sm text-white/70" data-testid="fusion-no-recipe">Those two don’t fuse (as far as the book knows). Try another pair — or pick a third for a Primordial.</p>}
-          {(outcome || picked.length === 3) && <button className="lv-gbtn px-5 py-2.5" onClick={() => setConfirm(true)} data-testid="fusion-go">Fuse them</button>}
+ {outcome ? <><BasePlotArt rarity={outcome as RarityId} size={72} /><b className="font-display text-xl" style={{ color: rarityInfo(outcome).color }}>{rarityInfo(outcome).name}</b><p className="text-sm text-white/70">{rarityInfo(outcome).ability}</p></>
+              : <p className="text-sm text-white/70" data-testid="fusion-no-recipe">Those two don’t fuse (as far as the book knows). Try another pair.</p>}
+          {outcome && <button className="lv-gbtn px-5 py-2.5" onClick={() => setConfirm(true)} data-testid="fusion-go">Fuse them</button>}
           {outcome == null && picked.length === 2 && <button className="text-xs font-bold text-white/60 underline" onClick={() => setConfirm(true)} data-testid="fusion-try">Try anyway</button>}
         </section>
       )}
@@ -105,7 +119,7 @@ export default function FusionLab() {
           <motion.div className="fixed inset-0 z-[120] grid place-items-center bg-black/70 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirm(false)}>
             <motion.div className="glass grid max-w-sm gap-3 rounded-3xl p-5" initial={{ scale: 0.9 }} animate={{ scale: 1 }} onClick={(e) => e.stopPropagation()} data-testid="fusion-confirm">
               <b className="font-display text-lg">Fuse {picked.length} ultras?</b>
-              <p className="text-sm text-muted">Your <b>{rarityInfo(picked[0].rarity).name}</b> plot becomes the fusion and keeps everything. {picked.slice(1).map((p) => rarityInfo(p.rarity).name).join(' and ')} go{picked.length === 2 ? 'es' : ''} back to the world. This can’t be undone.</p>
+              <p className="text-sm text-muted">Your <b>{rarityInfo(picked[0].rarity).name}</b> plot becomes the fusion and keeps everything. {picked.slice(1).map((p) => rarityInfo(p.rarity).name).join(' and ')} goes back to the world. This can’t be undone.</p>
               <div className="flex gap-2"><button className="lv-gbtn flex-1 py-2.5" disabled={busy} onClick={fuse} data-testid="fusion-confirm-go">{busy ? 'Fusing…' : 'Fuse'}</button><button className="flex-1 rounded-2xl bg-white/10 py-2.5 font-bold" onClick={() => setConfirm(false)}>Not yet</button></div>
             </motion.div>
           </motion.div>
@@ -114,7 +128,7 @@ export default function FusionLab() {
           <motion.div className="fixed inset-0 z-[130] grid place-items-center bg-black/85 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMade(null)} data-testid="fusion-made">
             <motion.div className="lvrx-made grid justify-items-center gap-3 text-center" initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 13 }}
               style={{ ['--c' as string]: rarityInfo(made.rarity).color, ['--g' as string]: rarityInfo(made.rarity).glow }} onClick={(e) => e.stopPropagation()}>
-              <div className="text-[11px] font-black uppercase tracking-[0.25em] text-white/70">{made.triple ? 'A Primordial is born' : 'Fused'}</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.25em] text-white/70">Fused</div>
               <BasePlotArt rarity={made.rarity as RarityId} size={132} />
               <b className="font-display text-3xl" style={{ color: rarityInfo(made.rarity).glow }} data-testid="fusion-made-name">{rarityInfo(made.rarity).emoji} {rarityInfo(made.rarity).name}</b>
               <p className="max-w-xs text-sm text-white/80">{rarityInfo(made.rarity).ability}</p>

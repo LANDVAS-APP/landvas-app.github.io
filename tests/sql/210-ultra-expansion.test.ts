@@ -1,5 +1,5 @@
 // The Ultra Expansion: nine new ultras that change the land around them (their marks for their owner only), Ultra Fusions
-// (two ultras → one; three → a random Primordial), and the Primordials — rolled on their own parts-per-billion roll, a
+// (two ultras → one; Primordials are only ever rolled), and the Primordials — rolled on their own parts-per-billion roll, a
 // shockwave on every map when one appears, and a power over the land around each.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb, expectError } from '../helpers/db';
@@ -211,13 +211,14 @@ describe('🧬 Ultra Fusions', () => {
     await expectError(db.rpc(bob, 'ultra_fuse', { p_cells: [[at(1004).gx, at(1004).gy], [at(1000).gx, at(1000).gy]] }), 'not_your_plot');
   });
 
-  it('any three ultras become a random Primordial (and a shockwave says how)', async () => {
+  it('three ultras no longer fuse: Primordials are only ever rolled', async () => {
     for (const [i, r] of [[1100, 'chaos'], [1102, 'kraken'], [1104, 'hive']] as const) { await claim(cy, i, 80); await setR(i, 80, r); }
-    const f = await db.rpc(cy, 'ultra_fuse', { p_cells: [[at(1100).gx, at(1100).gy + 80], [at(1102).gx, at(1102).gy + 80], [at(1104).gx, at(1104).gy + 80]] });
-    expect(f.triple).toBe(true);
-    expect(f.rarity_info.tier).toBe('primordial');
-    expect(f.released).toHaveLength(2);
-    expect((await one(`select how from rarity_moments where gx = $1 and gy = $2 order by id desc`, [at(1100).gx, at(1100).gy + 80])).how).toBe('fused');
+    await expectError(db.rpc(cy, 'ultra_fuse', { p_cells: [[at(1100).gx, at(1100).gy + 80], [at(1102).gx, at(1102).gy + 80], [at(1104).gx, at(1104).gy + 80]] }), 'primordials_roll_only');
+    // nothing changed
+    expect((await one(`select rarity, owner_id from world_plots where gx = $1 and gy = $2`, [at(1102).gx, at(1102).gy + 80]))).toMatchObject({ rarity: 'kraken', owner_id: cy });
+    expect((await db.rpc(cy, 'fusion_book')).triple).toBe(false);
+    // (back to everyday plots, so their powers — a Hive pollinating neighbours — don't touch the tests below)
+    for (const i of [1100, 1102, 1104]) { await setR(i, 80, 'common'); await db.sql(`select private.rx_sync($1, $2)`, [O.gx + i, O.gy + 80]); }
   });
 });
 

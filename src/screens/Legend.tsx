@@ -143,7 +143,7 @@ export default function Legend() {
 
       <section className="mb-7 grid gap-3" data-testid="legend-fusions">
         <h2 className="eyebrow">🧬 Ultra Fusions</h2>
-        <p className="-mt-1 text-sm text-muted">Never rolled: two of your ultras become one. The first plot keeps everything; the other goes back to the world. Three ultras together become a random Primordial.</p>
+        <p className="-mt-1 text-sm text-muted">Never rolled: two of your ultras become one. The first plot keeps everything; the other goes back to the world. Primordials can’t be fused — they’re only ever rolled.</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {FUSIONS.filter((r) => r !== 'kaleidoscope' && r !== 'doppelganger').map((r) => {
             const i = rarityInfo(r);

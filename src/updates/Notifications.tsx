@@ -234,10 +234,11 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'stars': return <>called down ⭐ shooting stars near your land — catch them on the map!</>;
       case 'genesis': return <>raised 🌀 new land near you — claims there roll ultras 3× as often for two days</>;
       case 'traveller': return <>stepped through your 🌑 Void Gate</>;
+      case 'refund': return <>🌌 <b>Primordials are rolled, never fused</b> — the three ultras in your {R(d.rarity)} are coming back. Pick any three ultras you want!</>;
       default: return <>✨ A rarity’s power stirred</>;
     }
   }, to: (a) => (['erupted', 'whisper', 'galloped', 'pollinated', 'stars', 'genesis'].includes(a.data?.sub) && a.data?.gx != null
-    ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
+    ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.sub === 'stars' || a.data.sub === 'genesis' ? 16 : 18}` : a.data?.sub === 'refund' ? '/fusion?refund=1' : a.data?.gx != null ? `/powers/${a.data.gx}_${a.data.gy}` : '/primordials') },
   neighbor: { icon: MapPin, color: '#22E3FF', text: (a) => <>claimed the plot next to yours on {worldName(a.data.world)}</>, to: () => '/world' },
 };
 

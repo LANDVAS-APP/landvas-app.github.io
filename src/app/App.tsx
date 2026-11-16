@@ -59,6 +59,7 @@ import { TermsUpdate } from './TermsUpdate';
 import { LiveControl } from './LiveControl';
 import { NATIVE_APP } from './buildFlags';
 import { ElevenBanner } from '../rarity/ElevenBanner';
+import { PrimordialRefundGlobal } from '../rarity/PrimordialRefund';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const ClipsScreen = lazy(() => import('../clips/ClipsScreen'));
@@ -218,7 +219,7 @@ const player = (el: ReactNode) => <RequirePlayer>{p(el)}</RequirePlayer>;
 
 const routes: RouteObject[] = [
   {
-    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><ElevenBanner /><PrimordialRefundGlobal /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: [
       { path: '/welcome', element: <Welcome /> },
       { path: '/reset-password', element: <ResetPassword /> },

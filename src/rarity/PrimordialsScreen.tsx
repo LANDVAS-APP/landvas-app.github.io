@@ -69,7 +69,7 @@ export default function PrimordialsScreen() {
       </section>
 
       <div className="mb-10 flex flex-wrap justify-center gap-2">
-        <Link to="/fusion" className="lv-gbtn px-4 py-2 text-sm" data-testid="prim-to-fusion">🧬 Three ultras → a Primordial</Link>
+        <Link to="/fusion" className="lv-gbtn px-4 py-2 text-sm" data-testid="prim-to-fusion">🧬 The Fusion Lab (two ultras → one)</Link>
         <Link to="/legend" className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-bold">📖 Every rarity</Link>
       </div>
     </Page>

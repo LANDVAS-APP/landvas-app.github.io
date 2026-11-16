@@ -80,3 +80,9 @@
 @media (prefers-reduced-motion: reduce) {
   .lvrx-pm > i, .lvrx-pm > b, .lvrx-star > span, .lvrx-emblem-prim, .lvrx-hero-prim::after, .lvrx-eleven-open > div:first-child, .lvrx-banner b.star { animation: none !important; }
 }
+
+/* ---- the Primordial refund: pick three ultras (PrimordialRefund.tsx) ---------------------------------------- */
+.lvrx-refund { background: radial-gradient(120% 60% at 50% 0%, rgba(253, 230, 138, 0.16), rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, #1d1a4a, #0b0a22);
+  border: 1px solid rgba(253, 230, 138, 0.25); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.9), 0 0 40px -10px rgba(253, 230, 138, 0.35); }
+.lvrx-slot { border: 1.5px dashed rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.03); }
+.lvrx-slot.on { border-style: solid; border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: 0 0 18px -6px var(--c); }
