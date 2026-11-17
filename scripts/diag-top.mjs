@@ -22,6 +22,7 @@ async function logs(sql, hours = 24) {
   u.searchParams.set('sql', sql);
   u.searchParams.set('iso_timestamp_start', start.toISOString());
   u.searchParams.set('iso_timestamp_end', end.toISOString());
+  await new Promise((r) => setTimeout(r, 4000)); // the logs API allows a few calls a minute
   try {
     const res = await fetch(u, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(90000) });
     const text = await res.text();
@@ -66,18 +67,17 @@ out('active_players', await query(`select count(*) filter (where last_active_at 
 }
 // ---- API gateway logs (last 24 h, ClickHouse): every request the apps make -----------------------------------------
 const A = (k) => `log_attributes['${k}']`;
-out('log_sources', await logs(`select source_name, count() n from logs group by source_name order by n desc`));
-out('log_sources2', await logs(`select source, count() n from logs group by source order by n desc`));
-out('edge_keys', await logs(`select arrayJoin(mapKeys(log_attributes)) k, count() c from logs where source_name = 'edge_logs' group by k order by c desc limit 150`));
-out('edge_sample', await logs(`select log_attributes from logs where source_name = 'edge_logs' and ${A('request.path')} like '/rest/v1/rpc/%' order by timestamp desc limit 2`));
+
+out('edge_keys', await logs(`select arrayJoin(mapKeys(log_attributes)) k, count() c from logs where source = 'edge_logs' group by k order by c desc limit 150`));
+out('edge_sample', await logs(`select log_attributes from logs where source = 'edge_logs' and ${A('request.path')} like '/rest/v1/rpc/%' order by timestamp desc limit 2`));
 const P = `${A('request.path')}`;
-out('api_by_path', await logs(`select ${P} path, ${A('request.method')} method, count() n, round(avg(toFloat64OrZero(${A('response.origin_time')}))) avg_ms from logs where source_name = 'edge_logs' group by path, method order by n desc limit 150`));
-out('api_by_kind', await logs(`select extract(${P}, '^/([a-z]+/v[0-9]+)') kind, count() n from logs where source_name = 'edge_logs' group by kind order by n desc limit 20`));
-out('api_by_status', await logs(`select ${A('response.status_code')} st, count() n from logs where source_name = 'edge_logs' group by st order by n desc limit 20`));
-out('api_bytes_by_path', await logs(`select ${P} path, count() n, sum(toInt64OrZero(${A('response.headers.content_length')})) bytes from logs where source_name = 'edge_logs' group by path order by bytes desc limit 80`));
-out('api_by_hour', await logs(`select toStartOfHour(timestamp) h, count() n from logs where source_name = 'edge_logs' group by h order by h`));
-out('api_by_ua', await logs(`select substring(${A('request.headers.user_agent')}, 1, 60) ua, count() n from logs where source_name = 'edge_logs' group by ua order by n desc limit 15`));
-out('api_by_ip_top', await logs(`select cityHash64(${A('request.headers.x_real_ip')}) % 100000 ip_bucket, count() n from logs where source_name = 'edge_logs' group by ip_bucket order by n desc limit 25`));
-out('storage_by_path', await logs(`select extract(${P}, '^(/storage/v1/object/[a-z]+/[^/]+)') p, count() n, sum(toInt64OrZero(${A('response.headers.content_length')})) bytes from logs where source_name = 'edge_logs' and ${P} like '/storage/%' group by p order by n desc limit 30`));
-out('auth_by_path', await logs(`select ${P} path, count() n from logs where source_name = 'edge_logs' and ${P} like '/auth/%' group by path order by n desc limit 30`));
-out('functions_calls', await logs(`select ${P} path, count() n from logs where source_name = 'edge_logs' and ${P} like '/functions/%' group by path order by n desc limit 20`));
+out('api_by_path', await logs(`select ${P} path, ${A('request.method')} method, count() n, round(avg(toFloat64OrZero(${A('response.origin_time')}))) avg_ms from logs where source = 'edge_logs' group by path, method order by n desc limit 150`));
+out('api_by_kind', await logs(`select extract(${P}, '^/([a-z]+/v[0-9]+)') kind, count() n from logs where source = 'edge_logs' group by kind order by n desc limit 20`));
+out('api_by_status', await logs(`select ${A('response.status_code')} st, count() n from logs where source = 'edge_logs' group by st order by n desc limit 20`));
+out('api_bytes_by_path', await logs(`select ${P} path, count() n, sum(toInt64OrZero(${A('response.headers.content_length')})) bytes from logs where source = 'edge_logs' group by path order by bytes desc limit 80`));
+out('api_by_hour', await logs(`select toStartOfHour(timestamp) h, count() n from logs where source = 'edge_logs' group by h order by h`));
+out('api_by_ua', await logs(`select substring(${A('request.headers.user_agent')}, 1, 60) ua, count() n from logs where source = 'edge_logs' group by ua order by n desc limit 15`));
+out('api_by_ip_top', await logs(`select cityHash64(${A('request.headers.x_real_ip')}) % 100000 ip_bucket, count() n from logs where source = 'edge_logs' group by ip_bucket order by n desc limit 25`));
+out('storage_by_path', await logs(`select extract(${P}, '^(/storage/v1/object/[a-z]+/[^/]+)') p, count() n, sum(toInt64OrZero(${A('response.headers.content_length')})) bytes from logs where source = 'edge_logs' and ${P} like '/storage/%' group by p order by n desc limit 30`));
+out('auth_by_path', await logs(`select ${P} path, count() n from logs where source = 'edge_logs' and ${P} like '/auth/%' group by path order by n desc limit 30`));
+out('functions_calls', await logs(`select ${P} path, count() n from logs where source = 'edge_logs' and ${P} like '/functions/%' group by path order by n desc limit 20`));
