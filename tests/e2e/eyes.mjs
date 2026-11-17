@@ -183,6 +183,7 @@ try {
   const me = (await sql(`select id from players order by created_at desc limit 1`))[0].id;
   await sql(`update players set created_at = now() - interval '3 days' where id = '${me}'`);
   await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
+  await sql(`update resource_balances set amount = 20000 where player_id = $1 and resource = 'ink'`, [me]);
   const r0 = await api('reportPosition', HERE.lng, HERE.lat, 8).catch(() => null);
   if (r0) await page.evaluate((r) => window.__landvasExplorer?.getState().set(r), r0);
 
@@ -217,7 +218,7 @@ try {
   const btn = app ? '[data-testid=map-row] [data-testid=eyes-disc]' : '[data-testid=eyes-rail]';
   check('the map has the 👁️ way in', await waitFor(btn, 15000));
   await shot('00-map');
-  await page.click(btn);
+  await page.click(btn, { timeout: 15000 }).catch(() => page.click(btn, { force: true }));
   check('it opens the first-person view', await waitFor('[data-testid=eyes]', 40000));
   await page.waitForSelector('[data-testid=eyes-loading]', { state: 'detached', timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
@@ -240,13 +241,41 @@ try {
   check('it draws (a lit, colourful frame)', pixels.lit > 20000 && pixels.colours > 40, JSON.stringify(pixels));
   await shot('01-street-day');
   await page.click('[data-testid=eyes-hint-ok]').catch(() => {});
-  // the ridge to the east, from up on a jetpack (eyes 38 m up)
-  const exState = await page.evaluate(() => window.__landvasExplorer.getState().state);
-  await page.evaluate((s) => window.__landvasExplorer.getState().set({ ...s, vehicle: { ...(s.vehicle ?? {}), current: 'jet' } }), exState);
+  // ---- your explorer: hands, body, the ride ---------------------------------------------------------------------------
+  await sql(`insert into vehicles_owned (player_id, kind) select $1, k from unnest(array['bike','car','jet']) k on conflict do nothing`, [me]).catch((e) => console.log('vehicles:', String(e).slice(0, 120)));
+  const refresh = async () => { const st = await api('myExplorer'); if (st) await page.evaluate((s) => window.__landvasExplorer.getState().set(s), st); await page.waitForTimeout(600); };
+  await refresh();
+  check('what you ride is right there in the view (and the garage)', await waitFor('[data-testid=eyes] [data-testid=vehicle-bar]', 8000));
+  await eyes('lookAt', Math.PI / 2, -0.05); await page.waitForTimeout(800); await shot('01b-hands');
+  await eyes('lookAt', Math.PI / 2, -1.3); await page.waitForTimeout(800); await shot('01c-look-down');
+  for (const v of ['bike', 'car', 'jet']) {
+    if (await page.locator(`[data-testid=eyes] [data-testid=vehicle-${v}]`).count()) await page.click(`[data-testid=eyes] [data-testid=vehicle-${v}]`);
+    await page.waitForTimeout(1500);
+    await eyes('lookAt', Math.PI / 2, v === 'jet' ? -0.05 : 0.02); await page.waitForTimeout(700);
+    check(`ride the ${v}: you're in its seat`, (await eyes('debug'))?.veh === v);
+    await shot(`02-${v}`);
+  }
+  // the jetpack: hold ▲ to rise over the rooftops
+  check('the jetpack has its own up and down', await waitFor('[data-testid=eyes-rise]', 4000));
+  const rb = await page.locator('[data-testid=eyes-rise]').boundingBox();
+  if (rb) { await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2); await page.mouse.down(); await page.waitForTimeout(2200); await page.mouse.up(); }
+  await page.waitForTimeout(600);
+  check('up on a jetpack the eyes rise above the rooftops', (await eyes('debug'))?.pos?.[1] > 30, `${Math.round((await eyes('debug'))?.pos?.[1])} m`);
   await eyes('lookAt', Math.PI / 2, -0.02); await page.waitForTimeout(1200); await shot('02-mountains-east');
-  check('up on a jetpack the eyes rise above the rooftops', (await eyes('debug'))?.pos?.[1] > 30);
   await eyes('lookAt', Math.PI * 1.5, -0.05); await page.waitForTimeout(900); await shot('02b-jetpack-west');
-  await page.evaluate((s) => window.__landvasExplorer.getState().set(s), exState);
+  // driving on a low tank (the car runs on it): refill it right here
+  await page.click('[data-testid=eyes] [data-testid=vehicle-car]').catch(() => {});
+  await page.waitForTimeout(1200);
+  await sql(`update explorers set joy_seconds = 2, joy_day = now() where player_id = $1`, [me]);
+  await refresh();
+  check('a low tank offers a refill in the view', await waitFor('[data-testid=eyes] [data-testid=joystick-refills]', 6000));
+  await shot('02c-refill');
+  if (await page.locator('[data-testid=eyes] [data-testid=joystick-refill-ink]').isEnabled().catch(() => false)) {
+    await page.click('[data-testid=eyes] [data-testid=joystick-refill-ink]');
+    check('…and it refills', await waitFor('text=Tank refilled', 6000));
+  } else check('…the Ink refill is on offer', false);
+  await page.click('[data-testid=eyes] [data-testid=vehicle-walk]').catch(() => {});
+  await page.waitForTimeout(1200);
   // the Primordial's beacon, in its true direction (NNE)
   const pr = await eyes('debug');
   check('a Primordial stands as a beacon on the skyline', pr?.beacons >= 1, `${pr?.beacons}`);
@@ -264,6 +293,7 @@ try {
   await page.click('[data-testid=eyes-face-lev]').catch(() => {});
   await page.waitForTimeout(1400);
   d = await eyes('debug');
+  if (!d?.lev) console.log('leviathan now', JSON.stringify(await sql(`select status, path_km, walk_s, data->'hunt' hunt, pause_until from leviathans order by spawned_at desc limit 1`)));
   check('the Leviathan is out there, colossal on the skyline', !!d?.lev && d.lev.dist > 1500 && d.lev.dist < 5000, JSON.stringify(d?.lev));
   await shot('05-leviathan');
   const lAt = await eyes('screenOf', { lev: true });
@@ -285,8 +315,14 @@ try {
   if (drop) {
     // turn until it's in view (it floats somewhere around you)
     const clear = (a) => a && a.y > 250 && a.y < 640 && a.x > 70 && a.x < 340 ? a : null;
-    for (const pitch of [0.35, 0.2, 0.55]) for (let k = 0; k < 16 && !dAt; k++) { await eyes('lookAt', (k / 16) * Math.PI * 2, pitch); await page.waitForTimeout(250); dAt = clear(await eyes('screenOf', { drop })); }
-    if (dAt) dAt = clear(await eyes('screenOf', { drop })) ?? dAt;
+    // face it (it drifts: aim again until it's in the clear middle of the screen)
+    for (let k = 0; k < 12 && !dAt; k++) {
+      const at = ((await eyes('debug'))?.dropsAt ?? []).find((x) => x.id.startsWith(`${drop}:`));
+      if (!at) { await page.waitForTimeout(500); continue; }
+      await eyes('lookAt', at.yaw, at.pitch); await page.waitForTimeout(200);
+      dAt = at.visible ? clear(await eyes('screenOf', { drop })) : null;
+      if (!dAt) await page.waitForTimeout(400);
+    }
   }
   if (dAt) {
     await shot('07-treasure');
@@ -332,9 +368,11 @@ try {
   // walk: face east and hold W
   await eyes('lookAt', Math.PI / 2, 0);
   const p0 = await page.evaluate(() => window.__landvasExplorer.getState().state);
-  await page.keyboard.down('w'); await page.waitForTimeout(1800); await page.keyboard.up('w'); await page.waitForTimeout(1200);
+  await page.keyboard.down('w'); await page.waitForTimeout(3200); await page.keyboard.up('w'); await page.waitForTimeout(1200);
   const p1 = await page.evaluate(() => window.__landvasExplorer.getState().state);
   check('walk with W: forward is where you look (east)', p1.lng > p0.lng && Math.abs(p1.lat - p0.lat) < Math.abs(p1.lng - p0.lng), `${(p1.lng - p0.lng).toFixed(6)} east, ${(p1.lat - p0.lat).toFixed(6)} north`);
+  const dw = await eyes('debug');
+  check('it feels like walking: steps (and their sound) as you go', dw?.steps > 2, `${dw?.steps} steps`);
   await shot('13-walked');
 
   // ---- a picture, and back -------------------------------------------------------------------------------------------

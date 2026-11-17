@@ -14,6 +14,8 @@ import { CONSTELLATIONS, NAMED_STARS, daylight, equatorial, galactic, moonPositi
 import { bearingDistance, cellToLocal, curveDrop, lngLatToLocal, localToCell, plotSize, type Frame } from './geo';
 import { hex, type BuildingMesh, type Terrain } from './world';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
+import { createBody, type BodyLook, type BodyVehicle } from './body';
+import { createEyesSound, type Surface } from './sound';
 
 export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null };
 export type Beacon = { id: string; lng: number; lat: number; color: string; emoji: string };
@@ -39,6 +41,7 @@ export type EyesOpts = {
   onPick(p: Pick | null, at: { x: number; y: number }): void;
   /** the camera turned (compass bearing and pitch, radians), at most a few times a second */ onLook?(yaw: number, pitch: number): void;
   reduceMotion?: boolean;
+  /** what you're riding (the hands, the seat, the sounds) */ vehicle?(): BodyVehicle;
 };
 
 export type Eyes = {
@@ -62,6 +65,9 @@ export type Eyes = {
   /** look somewhere: compass bearing and pitch (radians) */ lookAt(yaw: number, pitch: number): void;
   look(): { yaw: number; pitch: number; fov: number };
   setGyro(on: boolean): void;
+  /** your explorer's skin, outfit and tool (the hands and body you see) */ setBodyLook(l: BodyLook): void;
+  /** what's underfoot where you stand */ surface(): Surface;
+  sound(): ReturnType<typeof createEyesSound>;
   /** throw an ink bomb at the Leviathan (lands in ~0.6 s) */ throwAtLev(onLand?: () => void): boolean;
   /** pop / catch effects */ burstAtDrop(id: string): void;
   burstAtStar(id: number): void;
@@ -116,6 +122,22 @@ export function createEyes(o: EyesOpts): Eyes {
     return { hemi, dir };
   };
   const lightsFar = mkLights(far), lightsNear = mkLights(near);
+  const sound = createEyesSound();
+  let steps = 0;
+  const body = createBody(near, (kind, strong) => { steps++; sound.step(kind, strong, surfaceAt(pos.x, pos.z)); });
+  // what's underfoot: read from the street's own painting (green: grass, blue: water)
+  let groundRead: { g: CanvasRenderingContext2D; x0: number; z0: number; size: number; px: number } | null = null;
+  const surfaceAt = (x: number, z: number): Surface => {
+    if (!groundRead) return 'hard';
+    const u = Math.floor(((x - groundRead.x0) / groundRead.size) * groundRead.px), v = Math.floor(((z - groundRead.z0) / groundRead.size) * groundRead.px);
+    if (u < 0 || v < 0 || u >= groundRead.px || v >= groundRead.px) return 'hard';
+    try {
+      const d = groundRead.g.getImageData(u, v, 1, 1).data;
+      if (d[2] > d[0] + 25 && d[2] > d[1] - 10) return 'water';
+      if (d[1] > d[0] + 12 && d[1] > d[2] + 4) return 'grass';
+    } catch { /* tainted: assume pavement */ }
+    return 'hard';
+  };
 
   // ---- the sky dome -------------------------------------------------------------------------------------------------
   const skyU = {
@@ -497,7 +519,10 @@ export function createEyes(o: EyesOpts): Eyes {
 
   // ---- the camera: where you stand and where you look -----------------------------------------------------------------
   let frame: Frame | null = null;
-  let yaw = 0, pitch = 0.05, fov = 62, vyaw = 0, vpitch = 0;
+  let yaw = 0, pitch = 0.05, fov = 70, vyaw = 0, vpitch = 0;
+  // how you move (for the walk, the sounds and the feel of speed)
+  let speed = 0, turn = 0, lastYaw = 0, fovKick = 0, shake = 0, nextRoar = 0, lastDrive = 0;
+  const lastPos = new THREE.Vector3(NaN, 0, 0);
   const pos = new THREE.Vector3(0, 1.7, 0);
   let gyro = false, gyroQ: THREE.Quaternion | null = null, gyroYaw = 0;
   const qTmp = new THREE.Quaternion(), eTmp = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -527,8 +552,19 @@ export function createEyes(o: EyesOpts): Eyes {
       eTmp.set(pitch, -yaw, 0, 'YXZ');
       cam.quaternion.setFromEuler(eTmp);
     }
-    cam.fov = fov;
-    farCam.fov = fov;
+    // the head: the walk's bob and sway, a little shake when something huge walks nearby
+    const b = body.bob();
+    const right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+    cam.position.y += b.y + (Math.random() - 0.5) * shake * 0.12;
+    cam.position.addScaledVector(right, b.x + (Math.random() - 0.5) * shake * 0.08);
+    // look down and your head leans out over your body, so you see your chest, your legs and your shoes below
+    const vNow = o.vehicle?.() ?? 'walk';
+    const lean = Math.max(0, Math.min(1, (-pitch - 0.45) / 0.8)) * (vNow === 'walk' ? 0.2 : vNow === 'bike' ? 0.12 : 0);
+    if (lean) cam.position.add(new THREE.Vector3(Math.sin(yaw) * lean, -lean * 0.3, -Math.cos(yaw) * lean));
+    cam.rotateZ(b.roll);
+    cam.fov = fov + fovKick;
+    farCam.fov = cam.fov;
+    farCam.position.copy(cam.position);
     farCam.quaternion.copy(cam.quaternion);
   };
 
@@ -547,6 +583,7 @@ export function createEyes(o: EyesOpts): Eyes {
 
   const setGround: Eyes['setGround'] = (n, fr) => {
     nearTex?.dispose(); nearTex = null;
+    groundRead = n ? { g: n.canvas.getContext('2d', { willReadFrequently: true })!, x0: n.region.x0, z0: n.region.z0, size: n.region.size, px: n.canvas.width } : null;
     if (n) {
       nearTex = new THREE.CanvasTexture(n.canvas);
       nearTex.colorSpace = THREE.SRGBColorSpace;
@@ -1125,6 +1162,7 @@ export function createEyes(o: EyesOpts): Eyes {
     w = nw; h = nh;
     renderer.setSize(nw, nh, false);
     cam.aspect = farCam.aspect = nw / nh;
+    body.resize(nw / nh);
     cam.updateProjectionMatrix();
     farCam.updateProjectionMatrix();
   };
@@ -1152,9 +1190,30 @@ export function createEyes(o: EyesOpts): Eyes {
       yaw += vyaw; pitch = Math.max(-1.45, Math.min(1.52, pitch + vpitch));
       vyaw *= 0.9; vpitch *= 0.9;
     }
+    // how fast you're going and turning (smoothed), for the walk and the feel of speed
+    if (Number.isFinite(lastPos.x) && dt > 0) {
+      const v = Math.hypot(pos.x - lastPos.x, pos.z - lastPos.z) / dt;
+      speed += ((v > 400 ? 0 : v) - speed) * Math.min(1, dt * 5);
+      let dy = yaw - lastYaw; dy = ((dy + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      turn += (dy / dt - turn) * Math.min(1, dt * 6);
+    }
+    lastPos.copy(pos); lastYaw = yaw;
+    const veh = o.vehicle?.() ?? 'walk';
+    fovKick += ((veh === 'car' || veh === 'jet' ? Math.min(9, speed * 0.35) : Math.min(3, speed * 0.4)) - fovKick) * Math.min(1, dt * 3);
+    shake = Math.max(0, shake - dt * 1.5);
+    if (lev.group.visible && levPlace?.walking && levDist < 1800) shake = Math.max(shake, (1 - levDist / 1800) * (0.35 + 0.65 * Math.max(0, Math.sin(t * 2.2 * (levPlace.look.rampage ? 2.6 : 1)))));
+    if (lev.group.visible && levDist < 4000) {
+      if (!nextRoar) nextRoar = t + 6 + Math.random() * 8;
+      else if (t > nextRoar) { nextRoar = t + 25 + Math.random() * 35; sound.roar(1 - levDist / 4000); shake = Math.max(shake, 1 - levDist / 4000); }
+    }
+    if (now - lastDrive > 250) { lastDrive = now; sound.drive(veh, speed, false); }
     applyCamera();
     cam.updateProjectionMatrix();
     farCam.updateProjectionMatrix();
+    body.update({
+      dt, t, speed, turn, yaw, pitch, vehicle: veh, eye: pos, eyeHeight: o.eye(), day: sky.day, sun: sunV, camQ: cam.quaternion,
+      light: { dir: lightsNear.dir.color, dirI: lightsNear.dir.intensity, sky: lightsNear.hemi.color, ground: lightsNear.hemi.groundColor, hemiI: lightsNear.hemi.intensity },
+    });
     if (o.onLook && now - lastLookSent > 120) { lastLookSent = now; o.onLook(((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch); }
     if (now - lastSky > 4000 || lastSky < 0) updateSky(now);
     else { starGroup.matrix.setPosition(pos); starGroup.matrixWorldNeedsUpdate = true; }
@@ -1317,6 +1376,9 @@ export function createEyes(o: EyesOpts): Eyes {
     renderer.render(far, farCam);
     renderer.clearDepth();
     renderer.render(near, cam);
+    // your hands (and the bike's bars, the car's dashboard, the jetpack's grips) on top of everything
+    renderer.clearDepth();
+    renderer.render(body.overlay, body.ocam);
   };
   raf = requestAnimationFrame(tick);
 
@@ -1346,10 +1408,15 @@ export function createEyes(o: EyesOpts): Eyes {
       const mid = from.clone().lerp(target, 0.5).add(new THREE.Vector3(0, from.distanceTo(target) * 0.18, 0));
       const mesh = inkBall.clone();
       near.add(mesh);
-      throws.push({ mesh, t: 0, from, to: target, mid, done: onLand });
+      body.throw();
+      sound.whoosh();
+      throws.push({ mesh, t: 0, from, to: target, mid, done: () => { sound.splat(); onLand?.(); } });
       return true;
     },
     burstAtDrop: (id) => {
+      body.reach();
+      sound.pop();
+      sound.chime();
       const d = drops.find((x) => x.d.id === id);
       if (!d) return;
       const near2 = d.pos.distanceTo(pos) < NEAR_LIMIT;
@@ -1358,6 +1425,8 @@ export function createEyes(o: EyesOpts): Eyes {
       d.visible = false;
     },
     burstAtStar: (id) => {
+      body.reach();
+      sound.chime(true);
       const f = falling.find((x) => x.s.id === id);
       if (!f) return;
       burst(f.obj.position, ['#FFE48A', '#ffffff', '#FFB020'], 120, 12, 3.5);
@@ -1387,6 +1456,9 @@ export function createEyes(o: EyesOpts): Eyes {
       el.parentElement?.appendChild(div);
       floaters.push({ el: div, t: 0, at });
     },
+    setBodyLook: (l) => body.setLook(l),
+    surface: () => surfaceAt(pos.x, pos.z),
+    sound: () => sound,
     sky: () => ({ ...sky }),
     now: () => clock ?? Date.now(),
     screenOf: (tg) => {
@@ -1404,7 +1476,7 @@ export function createEyes(o: EyesOpts): Eyes {
     },
     snapshot: () => new Promise((resolve) => {
       // draw a fresh frame and copy it straight away (the drawing buffer isn't kept between frames)
-      renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam);
+      renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam); renderer.clearDepth(); renderer.render(body.overlay, body.ocam);
       el.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
     }),
     debug: () => ({
@@ -1412,10 +1484,13 @@ export function createEyes(o: EyesOpts): Eyes {
       buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: trunks?.count ?? 0, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
       beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, sky: { ...sky },
-      edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, calls: renderer.info.render.calls, tris: renderer.info.render.triangles,
+      edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
+      dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles,
     }),
     dispose: () => {
       disposed = true;
+      body.dispose();
+      sound.dispose();
       cancelAnimationFrame(raf);
       ro.disconnect();
       setGyro(false);

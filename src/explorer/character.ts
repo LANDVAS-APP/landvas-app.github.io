@@ -191,6 +191,13 @@ function hold(id: string): string {
   }
 }
 
+/** The outfit's main colour (for the first-person view's sleeves and torso): the fill, or a gradient's first stop. */
+export function outfitColor(style: ExplorerStyle | null | undefined, accent: string): string {
+  const o = outfit(styleOf(style).outfit, accent, 'fp');
+  if (!o.fill.startsWith('url(')) return o.fill;
+  return /stop-color="(#[0-9a-fA-F]{3,8})"/.exec(o.defs)?.[1] ?? accent;
+}
+
 /** The character's SVG markup (46 x 58 viewBox, feet at the bottom). */
 export function explorerSvg(style: ExplorerStyle | null | undefined, accent: string, size = 46) {
   const s = styleOf(style);

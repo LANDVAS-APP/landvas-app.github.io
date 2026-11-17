@@ -375,7 +375,12 @@ export function Joystick({ onClose, minimal }: { onClose(): void; /** just the s
           {fuel && <div className="flex flex-wrap gap-1">{controls}</div>}
           {vehicles}
           </>)}
-          {minimal && fuel && <div className={cn('rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-bold tnum text-white', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
+          {minimal && (<>
+            {/* in the first-person view: what you're riding (and the garage), and a refill when the tank runs low */}
+            {vehicles}
+            {fuel && (empty || secs < Number(joy?.tank_seconds ?? 60) * 0.3) && <div className="flex flex-wrap gap-1" data-testid="joystick-refills">{controls}</div>}
+            {fuel && <div className={cn('rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-bold tnum text-white', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
+          </>)}
           <div ref={pad} role="slider" aria-label="Joystick: drag to move your explorer (or use WASD / the arrow keys)" aria-valuetext={fuel ? `${fmtTank(secs)} of fuel left` : 'walk freely'} tabIndex={0}
             className={cn('relative h-36 w-36 touch-none select-none rounded-full border border-white/25 bg-black/35 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur', empty ? 'opacity-50' : '')}
             onPointerDown={(e) => {

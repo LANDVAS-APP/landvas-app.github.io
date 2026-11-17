@@ -27,6 +27,7 @@ import { ClaimCelebration } from '../plot/ClaimCelebration';
 import { LeviathanFight, useLevUi } from '../leviathan/Leviathan';
 import { LEV_KEY, fmtDmg, levPos, levRampage, levTiny, useLeviathan } from '../leviathan/useLeviathan';
 import { cellCenter, plotMetres } from '../shared/grid';
+import { SKIN, auraColor, outfitColor, styleOf } from '../explorer/character';
 import { isPrimordial, rarityInfo, rarityTier, setRarities } from '../shared/rarity';
 import { toMap } from '../lib/toMap';
 import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
@@ -39,7 +40,9 @@ const FAR_HALF = 2600; // the softer ground of the town around
 const PLOT_R = isPhone() ? 210 : 280; // plots drawn this far each way
 const REFRAME = 1600; // walked this far from where the world was built: build it again around you
 
-const EYE: Record<string, number> = { walk: 1.7, bike: 1.65, car: 1.35, jet: 38 };
+// eye height by what you're riding (the jetpack's is yours to raise and lower)
+const EYE: Record<string, number> = { walk: 1.62, bike: 1.74, car: 1.22 };
+let jetAlt = 24;
 
 // the camera's bearing, for the compass and the stick (outside React: it changes many times a second)
 let heading = 0, headingPitch = 0;
@@ -81,7 +84,8 @@ export default function EyesScreen() {
     const s = createEyes({
       canvas: canvas.current,
       pose: () => { const st = useExplorer.getState(); const p = explorerNow(st.state, st.offset); return p ? { lng: p.lng, lat: p.lat } : null; },
-      eye: () => EYE[useExplorer.getState().state?.vehicle?.current ?? 'walk'] ?? 1.7,
+      eye: () => { const v = useExplorer.getState().state?.vehicle?.current ?? 'walk'; return v === 'jet' ? jetAlt : EYE[v] ?? 1.62; },
+      vehicle: () => (useExplorer.getState().state?.vehicle?.current ?? 'walk') as 'walk' | 'bike' | 'car' | 'jet',
       onPick: (p) => onPick.current(p),
       onLook: (y, p) => { heading = y; headingPitch = p; lookSubs.forEach((f) => f()); },
       reduceMotion: !!settings.reduceMotion,
@@ -100,6 +104,27 @@ export default function EyesScreen() {
       delete (window as unknown as { __landvasEyes?: Eyes }).__landvasEyes;
     };
   }, [hasExplorer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // your hands, your sleeves, your tool: the explorer you are
+  const style = me?.profile.explorer_style;
+  const accent = me?.profile.accent_color || '#8B5CFF';
+  useEffect(() => {
+    if (!eyes) return;
+    const s = styleOf(style);
+    eyes.setBodyLook({ skin: SKIN[s.skin] ?? '#FFE2C4', outfit: outfitColor(style, accent), pants: '#2B2F4A', shoes: '#F4F6FF', accent, hold: s.hold, aura: auraColor(style, accent) });
+  }, [eyes, style, accent]);
+  // the jetpack: hold ▲ / ▼ to rise and sink (2–80 m)
+  const vehicle = ex.state?.vehicle?.current ?? 'walk';
+  const [alt, setAlt] = useState(jetAlt);
+  const climb = useRef<number | null>(null);
+  const hold = (dir: 1 | -1) => {
+    const stop = () => { if (climb.current) cancelAnimationFrame(climb.current); climb.current = null; window.removeEventListener('pointerup', stop); };
+    let last = performance.now();
+    const step = (now: number) => { jetAlt = Math.max(2, Math.min(80, jetAlt + dir * ((now - last) / 1000) * 9)); last = now; setAlt(Math.round(jetAlt)); climb.current = requestAnimationFrame(step); };
+    stop(); climb.current = requestAnimationFrame(step);
+    window.addEventListener('pointerup', stop);
+  };
+  useEffect(() => () => { if (climb.current) cancelAnimationFrame(climb.current); }, []);
 
   // WASD / arrows walk too (the stick opens if it's closed)
   useDriveKeys(!!me && hasExplorer, () => setSteer(true));
@@ -541,6 +566,15 @@ export default function EyesScreen() {
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>
+
+      {/* the jetpack: up and down */}
+      {vehicle === 'jet' && (
+        <div className="absolute left-[max(12px,env(safe-area-inset-left,0px))] top-1/2 z-20 grid -translate-y-1/2 justify-items-center gap-2" data-testid="eyes-jet">
+          <button className="grid h-12 w-12 touch-none place-items-center rounded-full bg-black/50 text-xl shadow-lg active:scale-95" onPointerDown={() => hold(1)} aria-label="Rise" data-testid="eyes-rise">▲</button>
+          <div className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-black tnum" data-testid="eyes-alt">🚀 {alt} m</div>
+          <button className="grid h-12 w-12 touch-none place-items-center rounded-full bg-black/50 text-xl shadow-lg active:scale-95" onPointerDown={() => hold(-1)} aria-label="Sink" data-testid="eyes-sink">▼</button>
+        </div>
+      )}
 
       {/* bottom: walking, and what's in the sky */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 px-[max(14px,env(safe-area-inset-left,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))]">
