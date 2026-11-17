@@ -90,7 +90,9 @@ export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking'
   /** (the owner's view only) */ next_power_at?: string | null; true_place?: string | null;
   walk_s: number; walk_at: string; pause_until: string | null; rise_at: string; spawned_at: string; origin: string; exit_sea: string | null; place: string | null; trail: [number, number][];
   /** how many times it has come back from the deep */ returns?: number;
-  shrunk_until: string | null; foretold_until: string | null; roar_at: string | null; target: { gx?: number; gy?: number; owner_name: string | null; giant?: boolean; player?: boolean } | null; cities: string[] | null; pos: LevPos; fighters: number };
+  /** ENRAGED: it goes after players and plots nonstop */ hunting?: boolean;
+  /** (the owner's view only) the hunt */ hunt?: { on: boolean; auto: 'players' | 'plots' | 'both'; follow: boolean; targets: any[]; hunted?: number; cur?: any } | null;
+  shrunk_until: string | null; foretold_until: string | null; roar_at: string | null; target: { gx?: number; gy?: number; owner_name: string | null; giant?: boolean; player?: boolean; more?: number } | null; cities: string[] | null; pos: LevPos; fighters: number };
 export type LevMove = { id: string; kind: string; serial: number; level: number; sigil: number; name: string; move: string; effect: string | null; dmg: number; ready_in: number };
 export type LevState = { server_time: string; lev: Leviathan | null;
   feed: { id: number; name: string | null; label: string; emoji: string; dmg: number; at: string; move: string }[] | null;
@@ -870,7 +872,8 @@ export const api = {
     inkModes: () => rpc<(import('./types').PlayerInkMode & { player: any })[]>('admin_ink_modes'),
     inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
     setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
-    leviathan: (action: 'summon' | 'dismiss' | 'status' | 'speed' | 'heal' | 'retreat' | 'stay' | 'roam' | 'target' | 'rampage' | 'tiny' | 'hide' | 'submerge' | 'resurface' | 'set_hp', args: Record<string, unknown> = {}) =>
+    levFind: (q: string) => rpc<{ place: string | null; plots: { gx: number; gy: number; rarity: string | null; owner_name: string | null; name: string | null }[] }>('admin_lev_find', { p_q: q }),
+    leviathan: (action: 'summon' | 'dismiss' | 'status' | 'speed' | 'heal' | 'retreat' | 'stay' | 'roam' | 'target' | 'rampage' | 'tiny' | 'hide' | 'submerge' | 'resurface' | 'set_hp' | 'add_hp' | 'hunt', args: Record<string, unknown> = {}) =>
       rpc<LevState & { cfg: any; history: any[]; hp_calc: LevHpCalc; pace: LevPace | null }>('admin_leviathan', { p_action: action, p_args: args }),
     giveEnchantment: (player: string, kind: string, reason: string, near: { gx: number; gy: number } | null) =>
       rpc<EnchantBrief>('admin_give_enchantment', { p_player: player, p_kind: kind, p_reason: reason, p_near_gx: near?.gx ?? null, p_near_gy: near?.gy ?? null }),

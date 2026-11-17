@@ -228,6 +228,7 @@ export const enchant: Chapter = {
             'Sometimes it shrinks (bombs miss more) or hides: search the map, “cold… warm… HOT!”. Finding it pays Ink and lets you hit it.',
             'It’s built to last a long fight: its health grows with the enchantments out and the players about.',
             'Sometimes it dives back into the sea. It comes back later as the same Leviathan, only stronger, and the damage you already did still counts.',
+            'When it’s ENRAGED it hunts players and plots nonstop, and follows a player who moves. If it’s coming for you, you’re told.',
             'When it falls, everyone who fought is paid.',
           ]} />
           <Table head={['When it falls', 'You get']} rows={[

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, type LevDeep, type LevHpCalc, type LevPace } from '../backend/api';
+import { pickedFor, usePlotPick } from '../enchant/plotPick';
 import { getBackend, toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
@@ -877,6 +878,9 @@ function LeviathanSettings({ value }: { value: any }) {
   const st = useQuery({ queryKey: ['admin-leviathan'], queryFn: () => api.admin.leviathan('status'), staleTime: 10_000 });
   const [warn, setWarn] = useState(60);
   const [backIn, setBackIn] = useState(0);
+  const [sumHp, setSumHp] = useState<number>(NaN);
+  const [sumPace, setSumPace] = useState(1);
+  const [sumHunt, setSumHunt] = useState(false);
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
   const refresh = () => { void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); };
   const run = async (a: 'summon' | 'dismiss' | 'submerge', msg: string, args: Record<string, unknown> = {}) => {
@@ -897,8 +901,16 @@ function LeviathanSettings({ value }: { value: any }) {
         </div>
         {!l && deep && <LevResurface deep={deep} calc={st.data?.hp_calc ?? null} onDone={refresh} />}
         <div className="flex flex-wrap items-end gap-2">
-          {!l && <><NumberField label="Warning before it rises" value={warn} min={0} max={1440} suffix="min" onChange={(n) => setWarn(Math.round(n))} />
-            <Button variant={deep ? 'secondary' : 'rainbow'} onClick={() => void run('summon', `Summoned — it rises in ${warn} min`, { warn_min: warn })} data-testid="lev-summon">{deep ? 'Summon a new one instead' : 'Summon one now'}</Button></>}
+          {!l && <div className="grid w-full gap-2 rounded-2xl border border-line bg-surface/40 p-3" data-testid="lev-summon-panel">
+            <div className="text-xs font-black uppercase tracking-wider text-muted">{deep ? 'Or summon a new one' : 'Summon one'} — your own</div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <NumberField label="Warning before it rises" value={warn} min={0} max={1440} suffix="min" onChange={(n) => setWarn(Math.round(n))} />
+              <NumberField label="Its health (blank = by the settings)" value={sumHp} step={100000} min={1} onChange={(n) => setSumHp(n)} />
+              <NumberField label="Walks at" value={sumPace} step={0.5} min={0.05} max={100} suffix="× pace" onChange={(n) => setSumPace(n)} />
+            </div>
+            <Switch id="lev-summon-hunt" checked={sumHunt} label={sumHunt ? '😡 Enraged from the moment it rises — hunts players and plots nonstop' : 'Walks its road and roams (as usual)'} onCheckedChange={setSumHunt} />
+            <div><Button variant={deep ? 'secondary' : 'rainbow'} onClick={() => void run('summon', `Summoned — it rises in ${warn} min`, { warn_min: warn, ...(Number.isFinite(sumHp) && sumHp >= 1 ? { hp: sumHp } : {}), ...(sumPace !== 1 ? { mult: sumPace } : {}), ...(sumHunt ? { hunt: { on: true, auto: 'both' } } : {}) })} data-testid="lev-summon">{deep ? 'Summon a new one instead' : 'Summon one now'}</Button></div>
+          </div>}
           {!l && deep && <Button variant="danger" onClick={() => void run('dismiss', 'It’s gone for good')} data-testid="lev-forget">Let it go for good</Button>}
           {l && <>
             <NumberField label="Comes back by itself after" value={backIn} min={0} max={1440} step={1} suffix="h (0 = when you say / weekly)" onChange={(n) => setBackIn(Math.max(0, n || 0))} />
@@ -942,6 +954,9 @@ function LeviathanSettings({ value }: { value: any }) {
   );
 }
 
+type LevTarget = { t: 'player'; id: string; name: string } | { t: 'plot'; gx: number; gy: number; name?: string | null; rarity?: string | null };
+/** the game's own admin (the website) has the map to pick on; admin.landvas.app doesn't */
+const IN_GAME = typeof location !== 'undefined' && !location.hostname.startsWith('admin.');
 const fmtHp = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e8 ? 0 : 1)}M` : fmt(Math.round(n)));
 const fmtHours = (h: number) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${h.toFixed(h < 10 ? 1 : 0)} h` : `${(h / 24).toFixed(1)} days`);
 
@@ -1044,14 +1059,40 @@ function LevLive({ l, cfg, hitPace, onDone }: { l: any; cfg: any; hitPace: LevPa
   const [lastH, setLastH] = useState(9);
   const [hpSet, setHpSet] = useState(() => Number(l.hp_max));
   const [keep, setKeep] = useState(true);
+  const [addHp, setAddHp] = useState(1_000_000);
   const [who, setWho] = useState('');
   const [player, setPlayer] = useState<any>(null);
-  const [plots, setPlots] = useState<[number, number][]>([]);
+  const [targets, setTargets] = useState<LevTarget[]>([]);
+  const [findQ, setFindQ] = useState('');
+  const [findAt, setFindAt] = useState('');
+  const [huntAuto, setHuntAuto] = useState<'players' | 'plots' | 'both'>(() => l.hunt?.auto ?? 'both');
+  const [follow, setFollow] = useState(true);
+  const [huntPace, setHuntPace] = useState(() => Math.round((Number(l.speed_kmh) / Math.max(0.001, Number(l.base_kmh || l.speed_kmh))) * 10) / 10);
   const [busy, setBusy] = useState<string | null>(null);
+  const nav = useNavigate();
   useEffect(() => setKmh(Math.round(Number(l.speed_kmh))), [l.speed_kmh]);
   useEffect(() => setHpSet(Number(l.hp_max)), [l.hp_max]);
+  // back from picking a plot on the map: the list you had, and the plot you tapped
+  useEffect(() => {
+    const d = pickedFor('leviathan', 'target');
+    if (!d) return;
+    usePlotPick.getState().clear();
+    setTargets([...((d.keep?.targets as LevTarget[] | undefined) ?? []), { t: 'plot' as const, gx: d.plot.gx, gy: d.plot.gy }].slice(0, 24));
+  }, []);
   const found = useQuery({ queryKey: ['admin', 'players', 'lev', who], queryFn: () => api.admin.searchPlayers(who), enabled: who.trim().length >= 2 && !player, staleTime: 10_000 });
   const theirPlots = useQuery({ queryKey: ['admin', 'player-plots', player?.id], queryFn: () => api.admin.playerPlots(player.id), enabled: !!player });
+  const finds = useQuery({ queryKey: ['admin', 'lev-find', findAt], queryFn: () => api.admin.levFind(findAt), enabled: findAt.trim().length >= 2, staleTime: 30_000 });
+  const isPlot = (gx: number, gy: number) => targets.some((x) => x.t === 'plot' && x.gx === gx && x.gy === gy);
+  const togglePlotT = (p: { gx: number; gy: number; owner_name?: string | null; rarity?: string | null }) =>
+    setTargets((ts) => (ts.some((x) => x.t === 'plot' && x.gx === p.gx && x.gy === p.gy) ? ts.filter((x) => !(x.t === 'plot' && x.gx === p.gx && x.gy === p.gy)) : [...ts, { t: 'plot' as const, gx: p.gx, gy: p.gy, name: p.owner_name ?? null, rarity: p.rarity ?? null }].slice(0, 24)));
+  const addPlayer = (p: any) => setTargets((ts) => (ts.some((x) => x.t === 'player' && x.id === p.id) ? ts : [...ts, { t: 'player' as const, id: p.id, name: p.username }].slice(0, 24)));
+  const sendList = () => targets.map((x) => (x.t === 'player' ? { t: 'player', id: x.id } : { t: 'plot', gx: x.gx, gy: x.gy }));
+  const listName = targets.length === 0 ? null : targets.length === 1 ? (targets[0].t === 'player' ? `@${targets[0].name}` : '1 plot') : `${targets.length} targets`;
+  const pickOnMap = () => {
+    usePlotPick.getState().start({ id: 'leviathan', slot: 'target', title: 'Pick a plot for the Leviathan', emoji: '🐉', hint: 'Tap any plot on the map — it’s added to its targets', color: '#FF2D55',
+      allowed: [], back: '/admin#earnings', keep: { targets }, free: { anchors: [], radiusM: null, use: 'Add it to the Leviathan’s targets' } });
+    nav('/world');
+  };
   const act = async (a: Parameters<typeof api.admin.leviathan>[0], args: Record<string, unknown>, msg: string) => {
     setBusy(a);
     try { await api.admin.leviathan(a, args); toast.success(msg); onDone(); }
@@ -1061,16 +1102,14 @@ function LevLive({ l, cfg, hitPace, onDone }: { l: any; cfg: any; hitPace: LevPa
   const base = Number(l.base_kmh || l.speed_kmh);
   const pace = Number(l.speed_kmh) / Math.max(0.001, base);
   const left = (t: string | null) => (t && Date.parse(t) > Date.now() ? `${Math.max(1, Math.round((Date.parse(t) - Date.now()) / 60000))} min left` : null);
-  const aim = () => ({ ...(player ? { player: player.id } : {}), ...(plots.length ? { plots } : {}) });
-  const aimName = player ? `@${player.username}${plots.length ? ` (${plots.length} plot${plots.length === 1 ? '' : 's'})` : ''}` : plots.length ? `${plots.length} plot${plots.length === 1 ? '' : 's'}` : null;
-  const togglePlot = (gx: number, gy: number) => setPlots((ps): [number, number][] => (ps.some((p) => p[0] === gx && p[1] === gy) ? ps.filter((p) => !(p[0] === gx && p[1] === gy)) : [...ps, [gx, gy] as [number, number]].slice(0, 12)));
   return (
     <div className="grid gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-3" data-testid="lev-live">
       <div className="text-xs font-black uppercase tracking-wider text-accent">Live controls — this Leviathan, right now (its health and everyone’s damage stay as they are)</div>
       <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
         <span className="rounded-full bg-surface-2 px-2 py-0.5">📍 {l.true_place ?? l.place}</span>
         <span className="rounded-full bg-surface-2 px-2 py-0.5">💨 {fmt(Math.round(Number(l.speed_kmh)))} km/h · ×{pace.toFixed(pace >= 10 ? 0 : 1)} its pace</span>
-        {l.target?.owner_name && <span className="rounded-full bg-surface-2 px-2 py-0.5">🎯 @{l.target.owner_name}</span>}
+        {l.hunting && <span className="rounded-full bg-[#FF2D55]/25 px-2 py-0.5" data-testid="lev-hunting">😡 HUNTING{l.hunt?.targets?.length ? ` your ${l.hunt.targets.length} target${l.hunt.targets.length === 1 ? '' : 's'}` : l.hunt?.auto === 'players' ? ' players' : l.hunt?.auto === 'plots' ? ' plots' : ' players & plots'}{l.hunt?.hunted ? ` · ${l.hunt.hunted} so far` : ''}</span>}
+        {l.target?.owner_name && <span className="rounded-full bg-surface-2 px-2 py-0.5">🎯 @{l.target.owner_name}{l.target.player ? '' : '’s plot'}{l.target.more ? ` +${l.target.more} more` : ''}</span>}
         {left(l.rampage_until) && <span className="rounded-full bg-warn/20 px-2 py-0.5">⚡ rampage · {left(l.rampage_until)}</span>}
         {left(l.tiny_until) && <span className="rounded-full bg-surface-2 px-2 py-0.5">🔬 tiny · {left(l.tiny_until)}</span>}
         {left(l.hidden_until) && <span className="rounded-full bg-surface-2 px-2 py-0.5">🫥 hidden · {left(l.hidden_until)}</span>}
@@ -1091,7 +1130,12 @@ function LevLive({ l, cfg, hitPace, onDone }: { l: any; cfg: any; hitPace: LevPa
           <Switch id="lev-hp-keep" checked={keep} label={keep ? 'Keeps its wounds' : 'Full health'} onCheckedChange={setKeep} />
           <Button size="sm" variant="secondary" disabled={!!busy || !(hpSet >= 1)} onClick={() => void act('set_hp', { mode: 'fixed', hp: hpSet, keep }, `Its health is ${fmtHp(hpSet)} now`)} data-testid="lev-hp-set">Set</Button>
         </div>
-        <p className="text-[11px] text-faint">“Keeps its wounds” keeps the same share of its health left (so it stays enraged / fleeing where it was). Its health and the fight go on from here — nobody’s damage is lost.</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Add health" value={addHp} step={100000} min={1} onChange={(n) => setAddHp(Math.round(n))} />
+          <Button size="sm" variant="primary" disabled={!!busy || !(addHp >= 1)} onClick={() => void act('add_hp', { hp: addHp }, `+${fmtHp(addHp)} health`)} data-testid="lev-hp-add">💪 Add</Button>
+          {[25, 50, 100].map((pc) => <Button key={pc} size="sm" variant="ghost" disabled={!!busy} onClick={() => void act('add_hp', { pct: pc }, pc === 100 ? 'Its health doubled' : `+${pc}% health`)} data-testid={`lev-hp-add-${pc}`}>{pc === 100 ? '×2' : `+${pc}%`}</Button>)}
+        </div>
+        <p className="text-[11px] text-faint">“Add” raises its health and its health bar together. “Keeps its wounds” keeps the same share of its health left (so it stays enraged / fleeing where it was). Its health and the fight go on from here — nobody’s damage is lost.</p>
       </div>
 
       <div className="grid gap-2">
@@ -1099,48 +1143,99 @@ function LevLive({ l, cfg, hitPace, onDone }: { l: any; cfg: any; hitPace: LevPa
         <div className="flex flex-wrap items-end gap-2">
           <NumberField label="km/h" value={kmh} min={1} max={5000} onChange={(n) => setKmh(Math.round(n))} />
           <Button size="sm" variant="primary" disabled={!!busy} onClick={() => void act('speed', { kmh }, `It walks at ${kmh} km/h now`)} data-testid="lev-speed-set">Set</Button>
-          {[1, 2, 5, 10, 25].map((m) => <Button key={m} size="sm" variant={Math.abs(pace - m) < 0.05 ? 'secondary' : 'ghost'} disabled={!!busy} onClick={() => void act('speed', { mult: m }, m === 1 ? 'Back to its normal pace' : `×${m} its pace`)} data-testid={`lev-speed-x${m}`}>×{m}</Button>)}
+          {[0.25, 0.5, 1, 2, 5, 10, 25].map((m) => <Button key={m} size="sm" variant={Math.abs(pace - m) < 0.05 ? 'secondary' : 'ghost'} disabled={!!busy} onClick={() => void act('speed', { mult: m }, m === 1 ? 'Back to its normal pace' : `×${m} its pace`)} data-testid={`lev-speed-x${m}`}>×{m === 0.25 ? '¼' : m === 0.5 ? '½' : m}</Button>)}
         </div>
         <p className="text-[11px] text-faint">Faster = more ground (and more plots trampled) every minute. It goes on from where it is — no jump.</p>
       </div>
 
-      <div className="grid gap-2">
-        <div className="text-sm font-bold">🎯 Send it after someone</div>
-        {player ? (
-          <div className="flex items-center gap-2 text-sm"><b>@{player.username}</b><span className="text-faint">· it heads for their explorer, then their best plots{plots.length ? ' — or just the plots you tick' : ''}</span>
-            <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => { setPlayer(null); setPlots([]); setWho(''); }}>Change</Button></div>
-        ) : (
-          <input className={inputCls} placeholder="Search a player (username)" value={who} onChange={(e) => setWho(e.target.value)} data-testid="lev-target-search" />
-        )}
-        {!player && (found.data ?? []).length > 0 && (
-          <div className="grid max-h-40 gap-1 overflow-y-auto scroll-thin">
-            {found.data!.slice(0, 8).map((p: any) => (
-              <button key={p.id} className="flex items-center justify-between rounded-xl px-2 py-1.5 text-left text-sm hover:bg-surface-2" onClick={() => setPlayer(p)} data-testid="lev-target-player">
-                <b>@{p.username}</b><span className="text-xs text-muted">{p.plots} plots</span>
-              </button>
+      <div className="grid gap-2" data-testid="lev-targets">
+        <div className="text-sm font-bold">🎯 Targets — any players and plots, in order</div>
+        {targets.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5" data-testid="lev-target-list">
+            {targets.map((x, i) => (
+              <span key={x.t === 'player' ? `p${x.id}` : `${x.gx},${x.gy}`} className="inline-flex items-center gap-1 rounded-full bg-surface-2 py-0.5 pl-2 pr-1 text-[11px] font-bold">
+                <span className="text-faint">{i + 1}.</span>{x.t === 'player' ? <>👤 @{x.name}</> : <>📍 {plotLabel(x.gx, x.gy)}{x.rarity ? <span style={{ color: rarityInfo(x.rarity as RarityId).color }}> · {rarityInfo(x.rarity as RarityId).name}</span> : null}{x.name ? <span className="text-muted"> · @{x.name}</span> : null}</>}
+                <button className="grid h-4 w-4 place-items-center rounded-full hover:bg-surface" aria-label="Remove" onClick={() => setTargets((ts) => ts.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button>
+              </span>
             ))}
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setTargets([])}>Clear</Button>
           </div>
-        )}
-        {player && (theirPlots.data ?? []).length > 0 && (
-          <div className="grid max-h-44 gap-1 overflow-y-auto scroll-thin text-xs" data-testid="lev-target-plots">
-            {(theirPlots.data ?? []).slice(0, 40).map((p: any) => {
-              const on = plots.some((x) => x[0] === p.gx && x[1] === p.gy);
-              return (
-                <label key={`${p.gx},${p.gy}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1', on && 'bg-surface-2')}>
-                  <input type="checkbox" checked={on} onChange={() => togglePlot(p.gx, p.gy)} data-testid="lev-target-plot" />
-                  <RarityBadge r={p.rarity} small /><span className="truncate text-muted">{p.kingdom ? `👑 ${p.kingdom}` : p.place ?? `${p.gx}, ${p.gy}`}</span>
+        ) : <p className="text-[11px] text-faint">Nothing picked yet — add players and plots below (or rampage / hunt with nothing picked and it finds its own).</p>}
+        <div className="grid gap-2 rounded-xl bg-surface/50 p-2">
+          <div className="text-[11px] font-black uppercase tracking-wider text-muted">A player</div>
+          {player ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm"><b>@{player.username}</b>
+              <Button size="sm" variant="secondary" className="h-7" onClick={() => addPlayer(player)} disabled={targets.some((x) => x.t === 'player' && x.id === player.id)} data-testid="lev-target-add-player">+ Them (where they are, then their best plots)</Button>
+              <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => { setPlayer(null); setWho(''); }}>Change</Button></div>
+          ) : (
+            <input className={inputCls} placeholder="Search a player (username)" value={who} onChange={(e) => setWho(e.target.value)} data-testid="lev-target-search" />
+          )}
+          {!player && (found.data ?? []).length > 0 && (
+            <div className="grid max-h-40 gap-1 overflow-y-auto scroll-thin">
+              {found.data!.slice(0, 8).map((p: any) => (
+                <button key={p.id} className="flex items-center justify-between rounded-xl px-2 py-1.5 text-left text-sm hover:bg-surface-2" onClick={() => setPlayer(p)} data-testid="lev-target-player">
+                  <b>@{p.username}</b><span className="text-xs text-muted">{p.plots} plots</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {player && (theirPlots.data ?? []).length > 0 && (
+            <div className="grid max-h-44 gap-1 overflow-y-auto scroll-thin text-xs" data-testid="lev-target-plots">
+              {(theirPlots.data ?? []).slice(0, 40).map((p: any) => (
+                <label key={`${p.gx},${p.gy}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1', isPlot(p.gx, p.gy) && 'bg-surface-2')}>
+                  <input type="checkbox" checked={isPlot(p.gx, p.gy)} onChange={() => togglePlotT({ gx: p.gx, gy: p.gy, owner_name: player.username, rarity: p.rarity })} data-testid="lev-target-plot" />
+                  <RarityBadge r={p.rarity} small /><span className="truncate text-muted">{p.kingdom ? `👑 ${p.kingdom}` : p.place ?? plotLabel(p.gx, p.gy)}</span>
                 </label>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+          <div className="text-[11px] font-black uppercase tracking-wider text-muted">Any plot</div>
+          <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); setFindAt(findQ.trim()); }}>
+            <input className={cn(inputCls, 'min-w-[180px] flex-1')} placeholder="Plot number, a link to it, or a place (e.g. Denver)" value={findQ} onChange={(e) => setFindQ(e.target.value)} data-testid="lev-find-q" />
+            <Button type="submit" size="sm" variant="secondary" data-testid="lev-find-go">Find</Button>
+            {IN_GAME && <Button type="button" size="sm" variant="ghost" onClick={pickOnMap} data-testid="lev-pick-map">📍 Pick on the map</Button>}
+          </form>
+          {findAt && finds.data && (
+            <div className="grid max-h-44 gap-1 overflow-y-auto scroll-thin text-xs" data-testid="lev-find-results">
+              {finds.data.place && <div className="px-2 text-[11px] text-muted">Plots around {finds.data.place}</div>}
+              {finds.data.plots.length === 0 && <div className="px-2 text-faint">No plots found.</div>}
+              {finds.data.plots.map((p) => (
+                <label key={`${p.gx},${p.gy}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1', isPlot(p.gx, p.gy) && 'bg-surface-2')}>
+                  <input type="checkbox" checked={isPlot(p.gx, p.gy)} onChange={() => togglePlotT(p)} data-testid="lev-find-plot" />
+                  {p.rarity ? <RarityBadge r={p.rarity} small /> : <span className="text-faint">unclaimed</span>}
+                  <span className="truncate text-muted">{p.name ?? plotLabel(p.gx, p.gy)}{p.owner_name ? ` · @${p.owner_name}` : ''}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-end gap-2">
-          <Button size="sm" variant="primary" disabled={!!busy || !aimName} onClick={() => void act('target', plots.length ? { plots } : aim(), `It’s heading for ${aimName}`)} data-testid="lev-target-go">Go for {aimName ?? '…'}</Button>
+          <Button size="sm" variant="primary" disabled={!!busy || !listName} onClick={() => void act('target', { targets: sendList() }, `It’s heading for ${listName}`)} data-testid="lev-target-go">Go for {listName ?? '…'}</Button>
           <NumberField label="Rampage for" value={mins.rampage} min={1} max={240} suffix="min" onChange={(n) => setMins({ ...mins, rampage: Math.round(n) })} />
           <NumberField label="at" value={mult} min={1.5} max={50} suffix="× pace" onChange={(n) => setMult(n)} />
-          <Button size="sm" variant="rainbow" disabled={!!busy} onClick={() => void act('rampage', { ...(plots.length ? { plots } : aim()), minutes: mins.rampage, mult }, aimName ? `RAMPAGE — charging at ${aimName}` : 'RAMPAGE — charging at the players near it')} data-testid="lev-rampage">⚡ Rampage{aimName ? ` at ${aimName}` : ' (players near it)'}</Button>
+          <Button size="sm" variant="rainbow" disabled={!!busy} onClick={() => void act('rampage', { targets: sendList(), minutes: mins.rampage, mult }, listName ? `RAMPAGE — charging at ${listName}` : 'RAMPAGE — charging at the players near it')} data-testid="lev-rampage">⚡ Rampage{listName ? ` at ${listName}` : ' (players near it)'}</Button>
         </div>
-        <p className="text-[11px] text-faint">The players it’s coming for are told. A rampage goes that fast for that long, then drops back to the pace it had.</p>
+        <p className="text-[11px] text-faint">Players: where their explorer is right now, then their best plots. Everyone it’s coming for is told. A rampage goes that fast for that long, then drops back to the pace it had.</p>
+      </div>
+
+      <div className="grid gap-2 rounded-xl border border-[#FF2D55]/40 bg-[#FF2D55]/5 p-2.5" data-testid="lev-hunt">
+        <div className="text-sm font-bold">😡 Enrage — hunt players and plots nonstop</div>
+        {l.hunting && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span>Hunting{l.target?.owner_name ? <> — now after <b>@{l.target.owner_name}</b>{l.target.player ? '' : '’s plot'}</> : ''}{l.hunt?.hunted ? ` · ${l.hunt.hunted} hunted so far` : ''}</span>
+            <Button size="sm" variant="danger" className="ml-auto h-7" disabled={!!busy} onClick={() => void act('hunt', { on: false }, 'It calmed down — roaming again')} data-testid="lev-hunt-off">Call it off</Button>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted">{targets.length ? 'Your targets, round and round — or by itself:' : 'By itself, it goes after:'}</span>
+          {(['players', 'plots', 'both'] as const).map((m) => <Button key={m} size="sm" variant={huntAuto === m ? 'primary' : 'ghost'} className="h-7" onClick={() => setHuntAuto(m)} data-testid={`lev-hunt-auto-${m}`}>{m === 'players' ? '👤 Players' : m === 'plots' ? '📍 The rarest plots' : '👤📍 Both, in turn'}</Button>)}
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Hunt at" value={huntPace} step={0.5} min={0.05} max={100} suffix="× its pace" onChange={(n) => setHuntPace(n)} />
+          <Switch id="lev-hunt-follow" checked={follow} label="Follows a player who moves" onCheckedChange={setFollow} />
+          <Button size="sm" variant="rainbow" disabled={!!busy} onClick={() => void act('hunt', { on: true, auto: huntAuto, follow, mult: huntPace, targets: sendList() }, targets.length ? `ENRAGED — hunting ${listName} nonstop` : 'ENRAGED — hunting nonstop')} data-testid="lev-hunt-go">😡 {l.hunting ? 'Hunt' : 'Enrage — hunt'} {listName ? `${listName} nonstop` : 'nonstop'}</Button>
+        </div>
+        <p className="text-[11px] text-faint">Each time it reaches one it turns on the next — your list, round and round, or whoever it finds (players where they are right now, then their best plots; or the rarest land around it), never the same one twice in a row. Everyone it goes for is told. It keeps hunting until you call it off or send it to retreat (and through a dive under the sea and back).</p>
       </div>
 
       <div className="grid gap-2">

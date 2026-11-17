@@ -209,6 +209,7 @@ function Fight() {
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/85">⚔️ {l.fighters} fighting</span>
             {levMult(l) > 1 && <span className="rounded-full bg-[#FF5CDB] px-2.5 py-1 text-white">💥 hits ×{levMult(l)}</span>}
             {l.weakspot_until && Date.parse(l.weakspot_until) > serverNow() && <span className="rounded-full bg-[#F4C95D] px-2.5 py-1 text-[#1B1405]" data-testid="lev-weakspot">🔭 WEAK SPOT ×2 · <Countdown to={l.weakspot_until} /></span>}
+            {l.hunting && <span className="rounded-full bg-[#FF2D55] px-2.5 py-1 text-white" data-testid="lev-hunting">😡 HUNTING — it goes after players and plots nonstop</span>}
             {l.target?.owner_name && <span className="rounded-full bg-[#FF2D55] px-2.5 py-1 text-white">🎯 heading for @{l.target.owner_name}{l.target.player ? '' : `’s ${l.target.giant ? 'giant ' : ''}plot`}</span>}
             {levRampage(l) && <span className="rounded-full bg-[#FF9F1C] px-2.5 py-1 text-[#2A0D00]" data-testid="lev-rampage">⚡ RAMPAGE · <Countdown to={l.rampage_until!} /></span>}
             {levTiny(l) && <span className="rounded-full bg-[#22E3FF] px-2.5 py-1 text-[#06222C]" data-testid="lev-tiny">🔬 TINY — half your bombs miss · <Countdown to={l.tiny_until!} /></span>}
@@ -262,10 +263,10 @@ function Fight() {
               {(st?.feed ?? []).slice(0, 12).map((h) => (
                 <motion.div key={h.id} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-[12.5px]">
                   <span>{h.emoji}</span>
-                  {h.move === 'heal' || h.move === 'dive' || h.move === 'return'
+                  {h.move === 'heal' || h.move === 'dive' || h.move === 'return' || h.move === 'hunt'
                     ? <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-[#9BE7FF]">The Leviathan</b> {h.label.charAt(0).toLowerCase() + h.label.slice(1)}</span>
                     : <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-white">@{h.name ?? '?'}</b> {h.move === 'giant' ? '’s giant plot stood in its way' : `· ${h.label}`}</span>}
-                  {h.move !== 'dive' && h.move !== 'return' && <b className={cn('shrink-0', h.move === 'heal' ? 'text-[#7CFFB2]' : 'text-[#FF8FD0]')}>{h.move === 'heal' ? '+' : ''}{fmtDmg(h.dmg)}</b>}
+                  {h.move !== 'dive' && h.move !== 'return' && h.move !== 'hunt' && <b className={cn('shrink-0', h.move === 'heal' ? 'text-[#7CFFB2]' : 'text-[#FF8FD0]')}>{h.move === 'heal' ? '+' : ''}{fmtDmg(h.dmg)}</b>}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -349,7 +350,14 @@ export function LeviathanMoments() {
     tell('tiny', l.tiny_until, '🔬 The Leviathan shrank itself!', 'It’s tiny — half the ink bombs miss. A Size Ray move blows it back up.');
     tell('hidden', l.hidden_until, '🫥 The Leviathan vanished!', 'It’s hiding somewhere on the map — zoom in and search to find it (and fight it).');
     tell('rampage', l.rampage_until, '⚡ The Leviathan is on a RAMPAGE!', l.target?.owner_name ? `It’s charging at @${l.target.owner_name}.` : 'It’s charging across the map.');
-  }, [l?.id, l?.tiny_until, l?.hidden_until, l?.rampage_until, l?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    // ENRAGED: once when it starts hunting (not for a hunt that was already on when you came)
+    const hk = `${l.id}:hunt`;
+    if (l.hunting && said.hunt !== hk) {
+      const first = said.hunt === undefined && Date.now() - mountedAt.current < 4000;
+      said.hunt = hk;
+      if (!first) { toast('😡 The Leviathan is ENRAGED!', { description: 'It’s hunting players and plots nonstop — get your enchantments ready.' }); feel('heavy'); }
+    } else if (!l.hunting && said.hunt === hk) said.hunt = '';
+  }, [l?.id, l?.tiny_until, l?.hidden_until, l?.rampage_until, l?.status, l?.hunting]); // eslint-disable-line react-hooks/exhaustive-deps
   const done = () => {
     if (!moment) return;
     if (moment.kind === 'warning' || moment.kind === 'risen') saveStorage('landvas.leviathan.seen', { ...seen, [moment.id]: moment.kind });
