@@ -40,7 +40,6 @@ import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { create } from 'zustand';
 import { MapPartyChat, PartyNavButton } from '../party/PartyButtons';
-import { MapPlayersLayer } from '../social/MapPlayers';
 import { buzz, isNative } from '../native/native';
 import GameHud, { ProfileMenu } from '../app/GameHud';
 import { BellCard } from '../updates/Notifications';
@@ -252,7 +251,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
       )}
       {me && !away && <TravelOverlays />}
-      {me && !away && <MapPlayersLayer />}
+      {/* (other players' explorers: only your party's show — the party layer draws them; strangers never do) */}
       {me && !selected && !joystick && !merging && !away && !travelling && !picking && <Checklist />}
       {me && <MergeBar />}
       {me && !away && <PlacementPrompt />}
@@ -396,7 +395,8 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   return (
     <>
       <AnimatePresence>
-        {more && <motion.button key="scrim" aria-label="Close" className="absolute inset-0 z-[9] cursor-default bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />}
+        {/* (fading out, the scrim lets taps through: the map's next tap — dropping a ✈️ pin — must land on the map) */}
+        {more && <motion.button key="scrim" aria-label="Close" className="absolute inset-0 z-[9] cursor-default bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, pointerEvents: 'none' }} onClick={() => setMore(false)} />}
       </AnimatePresence>
       <div className="lv-rail absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10 md:bottom-8" data-testid="hud-rail">
         <AnimatePresence>

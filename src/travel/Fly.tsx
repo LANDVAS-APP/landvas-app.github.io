@@ -3,9 +3,8 @@
 // 100 Ink (or, once ads are on, by watching one).
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { create } from 'zustand';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import { useExplorer } from '../explorer/explorer';
@@ -13,14 +12,13 @@ import { invalidateGame } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn, fmt } from '../lib/utils';
 import { mapHandle } from '../map/mapHandle';
+import { newMarker } from '../map/maplib';
 import { buzz, isNative } from '../native/native';
 import { Dialog } from '../ui';
 import { TRAVEL_KEY, useTravel } from './Travel';
+import { useFlyUi } from './flyStore';
 
-export const useFlyUi = create<{ pinMode: boolean; refill: boolean; setPinMode(v: boolean): void; setRefill(v: boolean): void }>((set) => ({
-  pinMode: false, refill: false,
-  setPinMode: (pinMode) => set({ pinMode }), setRefill: (refill) => set({ refill }),
-}));
+export { useFlyUi };
 
 const km = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
   const R = 6371, dLat = ((b.lat - a.lat) * Math.PI) / 180, dLng = ((b.lng - a.lng) * Math.PI) / 180;
@@ -64,36 +62,44 @@ export function FlyChip({ className }: { className?: string }) {
   );
 }
 
-/** pin mode: the next tap on the map drops a pin; then "Fly here?" */
+/** pin mode: a tap on the map drops a pin (another tap moves it); then "Fly here?". The map pans and zooms as always
+ *  while you choose, and the pin is a marker on the map: it stays on its spot however you zoom. */
 export function PinFlight() {
   const on = useFlyUi((s) => s.pinMode);
   const set = useFlyUi((s) => s.setPinMode);
-  const [pin, setPin] = useState<{ lng: number; lat: number; x: number; y: number } | null>(null);
+  const pin = useFlyUi((s) => s.pin);
+  const setPin = useFlyUi((s) => s.setPin);
   const [busy, setBusy] = useState(false);
   const travel = useTravel();
   const fly = useFly();
   const ex = useExplorer((s) => s.state);
   const left = travel.data?.plane?.left ?? null;
-  const tap = (e: React.PointerEvent) => {
-    const m = mapHandle.current; if (!m) return;
-    const r = m.getCanvas().getBoundingClientRect();
-    const ll = m.unproject([e.clientX - r.left, e.clientY - r.top]);
-    setPin({ lng: ll.lng, lat: ll.lat, x: e.clientX, y: e.clientY });
+  // the pin on the map, at its spot
+  useEffect(() => {
+    const map = mapHandle.current;
+    if (!on || !pin || !map) return;
+    // (the map positions the wrapper; only the pin inside drops in — an animation on the marker element itself would
+    // override the map's own transform)
+    const wrap = document.createElement('div');
+    wrap.dataset.testid = 'fly-pin';
+    const el = document.createElement('div');
+    el.className = 'lv-fly-pin'; el.textContent = '📍';
+    wrap.appendChild(el);
+    const mk = newMarker({ element: wrap, anchor: 'bottom' }).setLngLat([pin.lng, pin.lat]).addTo(map);
     buzz('light');
-  };
+    return () => { mk.remove(); };
+  }, [on, pin]);
+  useEffect(() => () => { useFlyUi.getState().setPin(null); }, []);
   const close = () => { setPin(null); set(false); };
   const go = async () => { if (!pin) return; setBusy(true); const ok = await fly(pin.lng, pin.lat); setBusy(false); if (ok) close(); };
   if (!on) return <RefillDialog />;
   return (
     <>
       <RefillDialog />
-      {/* a sheet over the map that catches the tap (pan and zoom still work with two fingers / the wheel) */}
-      {!pin && <div className="absolute inset-0 z-[25] cursor-crosshair" onPointerUp={tap} data-testid="pin-catcher" />}
       <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+150px)] z-[26] flex justify-center px-4">
-        {!pin && <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#2F7BFF] py-2 pl-4 pr-2 text-[13px] font-extrabold text-white shadow-xl">📍 Tap anywhere on the map to drop a pin
+        {!pin && <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#2F7BFF] py-2 pl-4 pr-2 text-[13px] font-extrabold text-white shadow-xl" data-testid="pin-banner">📍 Tap anywhere on the map to drop a pin
           <button className="rounded-xl bg-black/25 px-2.5 py-1 text-[12px]" onClick={() => set(false)} data-testid="pin-cancel">Cancel</button></div>}
       </div>
-      {pin && <div className="pointer-events-none absolute z-[26] -translate-x-1/2 -translate-y-full text-[34px] drop-shadow-lg" style={{ left: pin.x, top: pin.y }}>📍</div>}
       <AnimatePresence>
         {pin && (
           <motion.div className="absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-[27] flex justify-center px-4" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>

@@ -311,7 +311,7 @@ export type InviteCard = {
   stats: { plots: number; best: { id: string; name: string; color: string } | null; art: number; crew: number };
   image_path: string | null;
 };
-export type MyInviteCard = InviteCard & { page_codes: string[]; updated_at: string | null; themes: string[]; emojis: string[];
+export type MyInviteCard = InviteCard & { enabled?: boolean; page_codes: string[]; updated_at: string | null; themes: string[]; emojis: string[];
   arts: { id: string; title: string; thumb_path: string | null; preview_path: string | null }[] };
 /** what a friend sees at landvas.app/i/CODE (anyone, signed out too) */
 export type InviteLandingData = {

@@ -59,19 +59,22 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
   const rubbed = useRef({ d: 0, last: null as null | { x: number; y: number }, n: 0, t: 0 });
   useEffect(() => { if (z) setHeat(Number(z.heat_now)); }, [z?.heat_now]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // a mirrored sun (a Mirror Shard reflecting one) is thrown around your explorer: it has no plot of its own
+  const nearExplorer = !!mirror && !!view.explorer;
   const anchors = useMemo(() => {
     const a: [number, number][] = [];
     if (view.explorer) a.push([view.explorer[0], view.explorer[1]]);
-    a.push([v.gx, v.gy]);
+    if (!nearExplorer) a.push([v.gx, v.gy]);
     return a;
-  }, [view.explorer, v.gx, v.gy]);
+  }, [view.explorer, v.gx, v.gy, nearExplorer]);
 
   // ---- throw it onto the map ----
   const startThrow = () => {
-    if (mirror) return;
     feel('medium');
-    spot.start({ title: 'Throw your Pocket Sun', emoji: '☀️', color: '#FFB703', anchors, radiusM: Number(view.range_m ?? 2000), use: mode === 'orbit' ? 'Put it in orbit here' : 'Light it here',
-      hint: `Tap a spot within ${(Number(view.range_m ?? 2000) / 1000).toFixed(1)} km of your explorer or any of your plots`, keep: { mode } });
+    const km = (Number(view.range_m ?? 2000) / 1000).toFixed(1);
+    spot.start({ title: mirror ? 'Throw your mirrored Pocket Sun' : 'Throw your Pocket Sun', emoji: '☀️', color: '#FFB703', anchors, radiusM: Number(view.range_m ?? 2000),
+      use: mode === 'orbit' ? 'Put it in orbit here' : 'Light it here',
+      hint: nearExplorer ? `Tap anywhere within ${km} km of your explorer` : `Tap a spot within ${km} km of your explorer or any of your plots`, keep: { mode } });
   };
   useEffect(() => {
     if (!spot.done) return;
@@ -96,7 +99,7 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
 
   // ---- rub to stoke ----
   const onDown = (e: React.PointerEvent) => {
-    if (!z || mirror || busy) return;
+    if (!z || busy) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     rubbed.current = { d: 0, last: { x: e.clientX, y: e.clientY }, n: 0, t: Date.now() };
   };
@@ -241,7 +244,7 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
               </button>
             ))}
           </div>
-          <Button variant="rainbow" size="lg" onClick={startThrow} disabled={!!busy || !view.can_ignite || !!mirror || phase !== 'idle'} data-testid="sun-throw">
+          <Button variant="rainbow" size="lg" onClick={startThrow} disabled={!!busy || !view.can_ignite || phase !== 'idle'} data-testid="sun-throw">
             {view.can_ignite ? `☀️ Throw it onto the map (${Math.round(Number(view.r0))} m)` : `Your sun rests · ${dur(view.next_day_in)}`}
           </Button>
         </div>
@@ -251,17 +254,17 @@ export function SunScene({ v, view, act, busy, at, mirror }: SceneProps) {
         <div className="grid gap-2">
           <p className="text-center text-[12px] font-bold text-white/70">{heat >= 90 ? '⚠️ White-hot: half the size, burning twice as fast — one more rub could snuff it.' : 'Rub the orb to stoke it: hotter means stronger, but smaller.'}</p>
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="rainbow" onClick={() => void aim()} disabled={!!busy || !view.flare_ready || phase !== 'idle' || !!mirror} data-testid="sun-aim">
+            <Button variant="rainbow" onClick={() => void aim()} disabled={!!busy || !view.flare_ready || phase !== 'idle'} data-testid="sun-aim">
               {view.flare_ready ? '🌞 Solar Flare' : '🌞 Flare used today'}
             </Button>
             <Button variant="secondary" onClick={() => showOnMap(z)} data-testid="sun-map">🗺️ See it on the map</Button>
           </div>
           <div className="flex flex-wrap justify-center gap-2 text-[11.5px] font-bold">
-            <button className="rounded-full bg-white/10 px-3 py-1" disabled={!!busy || !!mirror} onClick={() => void act('mode', { i: z.i, mode: z.mode === 'orbit' ? 'claim' : 'orbit' })} data-testid="sun-switch">
+            <button className="rounded-full bg-white/10 px-3 py-1" disabled={!!busy} onClick={() => void act('mode', { i: z.i, mode: z.mode === 'orbit' ? 'claim' : 'orbit' })} data-testid="sun-switch">
               {z.mode === 'orbit' ? '🎯 Switch to Hot Zone' : '🪐 Switch to orbit'}</button>
-            {view.in_party && <button className="rounded-full bg-white/10 px-3 py-1" disabled={!!busy || !!mirror} onClick={() => void act('share', { i: z.i, on: !z.party })} data-testid="sun-share">
+            {view.in_party && <button className="rounded-full bg-white/10 px-3 py-1" disabled={!!busy} onClick={() => void act('share', { i: z.i, on: !z.party })} data-testid="sun-share">
               {z.party ? '🤝 Shared with your party' : '🤝 Share with your party'}</button>}
-            <button className="rounded-full bg-white/5 px-3 py-1 text-white/50" disabled={!!busy || !!mirror} onClick={() => void act('douse', { i: z.i })} data-testid="sun-douse">💧 Douse it</button>
+            <button className="rounded-full bg-white/5 px-3 py-1 text-white/50" disabled={!!busy} onClick={() => void act('douse', { i: z.i })} data-testid="sun-douse">💧 Douse it</button>
           </div>
           {view.conjunction && <div className="rounded-2xl bg-[#FF5E3A]/20 px-3 py-2 text-center text-[12px] font-black text-[#FFD0A0]" data-testid="sun-conjunction">🪐 Conjunction! Your sun overlaps today’s Hot Zone — ultras up to ×{8}.</div>}
           {zones.length > 1 && <div className="text-center text-[11px] font-bold text-white/60">✨ Binary star: {zones.length} suns burning</div>}

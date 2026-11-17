@@ -207,9 +207,10 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'sun_party_claim': return <>claimed a plot in your shared ☀️ Pocket Sun <span className="text-ok">· +{d.ink} Ink</span></>;
       case 'spore_landed': return <>🦠 sent a <b>spore</b> onto your plot — your wins there pay you +10% for a day (and feed them a little)</>;
       case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;
+      case 'mirror_sun_back': return <>🪞 Your Mirror Shard’s reflected ☀️ <b>Pocket Sun</b> couldn’t be thrown — that’s fixed{d.extended ? <>, and it’s back: <b>{d.hours} hours</b> to throw it anywhere near your explorer.</> : <>. A Pocket Sun is waiting among your shard’s reflections — step into it whenever you like.</>}</>;
       default: return <>did something with an enchantment</>;
     }
-  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.sub === 'far_sighted' ? '/world' : a.data?.sub === 'puppet_auto' ? `/world?fly=${a.data.gx},${a.data.gy}&z=19` : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet', 'glyph_found'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
+  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.sub === 'far_sighted' ? '/world' : a.data?.sub === 'puppet_auto' ? `/world?fly=${a.data.gx},${a.data.gy}&z=19` : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet', 'glyph_found', 'mirror_sun_back'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
   leviathan: { icon: Sparkles, color: '#FF5CDB', text: (a) => {
     const d = a.data as Record<string, any>;
     switch (d.sub) {

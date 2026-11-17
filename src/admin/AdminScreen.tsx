@@ -1501,6 +1501,12 @@ export function SocialAdmin() {
             <option value="first_win">wins their first minigame (recommended)</option>
           </select>
         </Field>
+        <div className={cn('mt-3 rounded-2xl border border-line p-3', ref.cards?.enabled === false && 'bg-bad/10')} data-testid="ref-cards-admin">
+          <Switch id="ref-cards" checked={ref.cards?.enabled !== false}
+            label={ref.cards?.enabled !== false ? 'Invite cards: on — players can style their invite link and page' : 'Invite cards: off — players can’t change their card'}
+            onCheckedChange={(on) => setRef({ ...ref, cards: { ...(ref.cards ?? {}), enabled: on } })} />
+          <p className="text-[11px] text-faint">Off: the card editor disappears, invite pages show the plain LANDVAS card and the next site update builds no custom link previews. Back on, saved cards return as they were. Takes effect the moment you save.</p>
+        </div>
         <RefPackagesEditor pk={ref.packages ?? {}} onChange={(packages) => setRef({ ...ref, packages })} />
       </Card>
       <ResetTimeCard rent={rent} onSave={(v) => save('rent', v, 'Daily reset time updated')} />

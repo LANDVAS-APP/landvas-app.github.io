@@ -51,7 +51,7 @@ export function InviteCardEditor({ r, code, profile, link }: { r: Referrals; cod
     });
     return () => cancelAnimationFrame(raf);
   }, [card, profile, code, avatar, art, tab]);
-  if (!c || !draft || !card) return null;
+  if (!c || !draft || !card || c.enabled === false) return null;   // (staff switched invite cards off)
   const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(c));
   const words = previewText(card, profile);
   const set = (p: Partial<Draft>) => setDraft({ ...draft, ...p });

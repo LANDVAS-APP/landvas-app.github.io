@@ -1,5 +1,6 @@
-// Players on the map: only explorers out in the game without GPS (a trip, or the joystick far from home) show or can be
-// found — never anyone on GPS, never near their real spot, never heading home, never offline, never if they hid.
+// Players on the map: only your party's explorers, and only while they're out in the game without GPS (a trip, or the
+// joystick far from home) — never anyone on GPS, never near their real spot, never heading home, never offline, never
+// if they hid. Strangers' explorers never show.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestDb } from '../helpers/db';
 
@@ -37,7 +38,15 @@ beforeAll(async () => {
                  where player_id = $1`, [riding, await trip(riding, 'train', null), HOME.lng, HOME.lat, PARIS.lng, PARIS.lat]);
   await place(homeward, 'travel', 1.0, 50.0);
   await db.sql(`update explorers set trip_id = $2 where player_id = $1`, [homeward, await trip(homeward, 'home', null)]);
+  // everyone's in one party with me (only a party's explorers show)
+  await party([me, gps, joyNear, joyFar, away, riding, homeward]);
 });
+/** put these players in one party */
+async function party(ids: string[]) {
+  await db.sql(`delete from travel_group_members where player_id = any($1::uuid[])`, [ids]);
+  const g = (await db.sql(`insert into travel_groups (leader_id, code) values ($1, upper(substr(md5(random()::text), 1, 6))) returning id`, [ids[0]]))[0].id;
+  for (const id of ids) await db.sql(`insert into travel_group_members (group_id, player_id) values ($1, $2)`, [g, id]);
+}
 afterAll(() => db.close());
 
 describe('who shows on the map', () => {
@@ -57,7 +66,7 @@ describe('who shows on the map', () => {
     for (const k of ['origin_lng', 'origin_lat', 'fixed_at', 'gps_lng', 'home_lng', 'speed_mps']) expect(r).not.toHaveProperty(k);
     expect(Math.abs(r.lng - HOME.lng)).toBeGreaterThan(0.1);
     expect(items.find((p: any) => p.username === 'map_joyfar')).toMatchObject({ how: 'joystick', traveling: false });
-    expect(items.find((p: any) => p.username === 'map_away')).toMatchObject({ how: 'travel', joinable: true });
+    expect(items.find((p: any) => p.username === 'map_away')).toMatchObject({ how: 'travel', in_party: true });
   });
 
   it('only the ones in view', async () => {
@@ -88,6 +97,30 @@ describe('who shows on the map', () => {
   });
 });
 
+describe('only your party', () => {
+  it('a stranger’s explorer never shows or can be found — however far out in the game they are', async () => {
+    const stranger = await db.newPlayer('map_stranger');
+    await online(stranger);
+    await place(stranger, 'travel', PARIS.lng + 0.01, PARIS.lat);
+    await db.sql(`update explorers set home_lng = $2, home_lat = $3 where player_id = $1`, [stranger, HOME.lng, HOME.lat]);
+    expect(await names(me)).not.toContain('map_stranger');
+    expect(await db.rpc(me, 'find_explorer', { p_player: stranger })).toBeNull();
+    // they team up: now they show
+    const g = (await db.sql(`select group_id from travel_group_members where player_id = $1`, [me]))[0].group_id;
+    await db.sql(`insert into travel_group_members (group_id, player_id) values ($1, $2)`, [g, stranger]);
+    expect(await names(me)).toContain('map_stranger');
+    // and leaving the party hides them again
+    await db.sql(`delete from travel_group_members where player_id = $1`, [stranger]);
+    expect(await names(me)).not.toContain('map_stranger');
+  });
+  it('without a party you see nobody', async () => {
+    await db.sql(`delete from travel_group_members where player_id = $1`, [me]);
+    expect(await names(me)).toEqual([]);
+    const g = (await db.sql(`select group_id from travel_group_members where player_id = $1`, [away]))[0].group_id;
+    await db.sql(`insert into travel_group_members (group_id, player_id) values ($1, $2)`, [g, me]);
+  });
+});
+
 describe('find someone', () => {
   it('finds them when they’re out in the game; not on GPS or near home', async () => {
     expect(await db.rpc(me, 'find_explorer', { p_player: away })).toMatchObject({ how: 'travel', lng: PARIS.lng, lat: PARIS.lat });
@@ -96,10 +129,11 @@ describe('find someone', () => {
     expect(await db.rpc(me, 'find_explorer', { p_player: homeward })).toBeNull();
   });
 
-  it('the lobbies say who can be found', async () => {
+  it('the lobbies say who can be found: on their own (not in your party), nobody', async () => {
+    await db.sql(`delete from travel_group_members where player_id = $1`, [away]);
     const l = await db.rpc(me, 'party_lobbies', {});
-    const by = (n: string) => l.players.find((p: any) => p.username === n);
-    expect(by('map_away').findable).toBe(true);
-    expect(by('map_gps').findable).toBe(false);
+    expect(l.players.find((p: any) => p.username === 'map_away')?.findable).toBe(false);
+    const g = (await db.sql(`select group_id from travel_group_members where player_id = $1`, [me]))[0].group_id;
+    await db.sql(`insert into travel_group_members (group_id, player_id) values ($1, $2)`, [g, away]);
   });
 });

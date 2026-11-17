@@ -1,7 +1,9 @@
 // Real-browser test of other players on the map (local-mode build, a phone):
-//  - explorers out in the game (staying somewhere on a trip, or mid-ride) show on the map; anyone on GPS never does
-//  - tapping one shows who it is and what they're up to; Team up forms a party around them
-//  - "Find" in the lobbies flies the map to someone and opens their card; profiles say "Find on map" only when you can
+//  - strangers' explorers never show, however far out in the game they are; only your party's do (out in the game,
+//    never on GPS)
+//  - the lobbies and profiles offer "Find" only for your party
+//  - zooming in and out: your explorer, your party's and the ✈️ fly pin stay on their spots
+//  - the ✈️ fly pin: the map pans and zooms while you choose; a tap drops it, another moves it
 //  - Settings has "Show my explorer on the map"
 // Run: npm run build:artifact && node tests/e2e/map-players.mjs
 import { serve, launch } from './browser.mjs';
@@ -77,46 +79,79 @@ try {
 
   await nav('/world'); await page.waitForTimeout(3000);
   await page.evaluate((h) => window.__landvasUi.getState().requestFly({ lng: h.lng, lat: h.lat, zoom: 16.5 }), here);
-  await page.waitForTimeout(4000);
-  check('players out in the game show on the map', await waitFor('[data-testid=map-player][data-user=map_tom]', 30000) && await waitFor('[data-testid=map-player][data-user=map_rae]', 10000));
-  check('…never anyone on GPS', (await page.locator('[data-testid=map-player][data-user=map_gil]').count()) === 0);
-  const a = await page.locator('[data-testid=map-player][data-user=map_rae]').boundingBox();
-  await page.waitForTimeout(3000);
-  const b = await page.locator('[data-testid=map-player][data-user=map_rae]').boundingBox();
-  check('…the one riding a train moves along', !!a && !!b && b.x > a.x, `${a?.x?.toFixed(1)} → ${b?.x?.toFixed(1)}`);
-  await shot('01-map-players');
+  await page.waitForTimeout(5000);
+  check('strangers out in the game don’t show on the map', (await page.locator('[data-testid=map-player], [data-testid=group-mate]').count()) === 0);
+  await shot('01-no-strangers');
 
-  // tap tom
-  await page.locator('[data-testid=map-player][data-user=map_tom]').click({ force: true });
-  check('tapping one says who it is and what they’re up to', await waitFor('[data-testid=map-player-card]', 8000), await tid('map-player-doing').first().textContent().catch(() => ''));
-  await shot('02-card');
-  await tid('map-player-team').first().click();
-  await page.waitForTimeout(2500);
-  const g = (await api('travelGroup')).group;
-  check('Team up forms a party around them', !!g && g.members.length === 2 && g.members.some((m) => m.username === 'map_tom' && !m.me), JSON.stringify(g?.members?.map((m) => m.username)));
-  await page.keyboard.press('Escape').catch(() => {});
-  await page.waitForTimeout(800);
-  check('…and your party isn’t drawn twice', (await page.locator('[data-testid=map-player][data-user=map_tom]').count()) === 0);
-  await api('travelGroupLeave').catch(() => {});
+  // tom and ana team up: now tom shows (the party layer), rae and gil don't
+  const ana = (await sql(`select id from profiles where username = 'map_ana'`))[0].id;
+  const grp = (await sql(`insert into travel_groups (leader_id, code) values ($1, 'MAPTST') returning id`, [ana]))[0].id;
+  await sql(`insert into travel_group_members (group_id, player_id) values ($1, $2), ($1, $3)`, [grp, ana, tom]);
+  await page.evaluate(() => window.__landvasQc.invalidateQueries()); await page.waitForTimeout(4000);
+  check('your party’s explorer shows', await waitFor('[data-testid=group-mate][data-user=map_tom]', 20000));
+  check('…and only theirs', (await page.locator('[data-testid=group-mate][data-user=map_rae], [data-testid=map-player]').count()) === 0);
+  await shot('02-party-mate');
 
-  // find rae from the lobbies
+  // zooming in and out: everyone stays on their spot
+  const where = () => page.evaluate(() => {
+    const m = window.__landvasMap, c = m.getContainer().getBoundingClientRect();
+    const me = document.querySelector('.lv-explorer[data-me="1"]');
+    const ex = window.__landvasExplorer.getState().state;
+    const off = (el, ll) => { if (!el || !ll) return null; const r = el.getBoundingClientRect(), p = m.project(ll); return Math.round(Math.hypot(r.x + r.width / 2 - c.x - p.x, r.bottom - c.y - (p.y + 6))); };
+    return { me: off(me, ex && [ex.lng, ex.lat]), z: m.getZoom() };
+  });
+  let worst = 0;
+  for (const z of [14, 18.5, 12, 17]) {
+    await page.evaluate((z) => { const m = window.__landvasMap; m.zoomTo(z, { around: m.unproject([330, 640]), duration: 500 }); }, z);
+    for (let i = 0; i < 3; i++) { await page.waitForTimeout(220); const w = await where(); worst = Math.max(worst, w.me ?? 0); }
+  }
+  check('zooming in and out: your explorer stays on its spot', worst <= 2, `${worst}px off at worst`);
+  const mateBox = async () => { const b = await page.locator('[data-testid=group-mate][data-user=map_tom]').boundingBox(); return b; };
+  const tomAt = { lng: here.lng + 0.0006, lat: here.lat + 0.0004 };
+  let mateWorst = 0;
+  for (const z of [15, 18, 16.5]) {
+    await page.evaluate((z) => window.__landvasMap.jumpTo({ zoom: z }), z); await page.waitForTimeout(900);
+    const b = await mateBox(); const p = await page.evaluate((ll) => { const m = window.__landvasMap, c = m.getContainer().getBoundingClientRect(), q = m.project([ll.lng, ll.lat]); return { x: q.x + c.x, y: q.y + c.y + 6 }; }, tomAt);
+    if (b) mateWorst = Math.max(mateWorst, Math.round(Math.hypot(b.x + b.width / 2 - p.x, b.y + b.height - p.y)));
+  }
+  check('…and so does your party’s', mateWorst <= 3, `${mateWorst}px off at worst`);
+
+  // the ✈️ fly pin
+  await page.evaluate(() => window.__landvasMap.jumpTo({ zoom: 9 })); await page.waitForTimeout(800);
+  await page.evaluate(() => window.__landvasFly?.getState().setPinMode(true));
+  if (!(await page.evaluate(() => !!window.__landvasFly))) await tid('fly-chip').first().click().catch(() => {});
+  await page.waitForTimeout(600);
+  const z0 = await page.evaluate(() => window.__landvasMap.getZoom());
+  await page.mouse.move(215, 430); await page.mouse.wheel(0, -400); await page.waitForTimeout(1200);
+  check('choosing where to fly, the map still zooms', (await page.evaluate(() => window.__landvasMap.getZoom())) > z0 + 0.2);
+  await page.mouse.click(300, 560); await page.waitForTimeout(800);
+  check('a tap drops the pin', await waitFor('[data-testid=fly-pin]', 5000) && await waitFor('[data-testid=pin-sheet]', 5000));
+  const pinOff = () => page.evaluate(() => {
+    const m = window.__landvasMap, c = m.getContainer().getBoundingClientRect(), pin = window.__landvasFly.getState().pin;
+    const r = document.querySelector('[data-testid=fly-pin]').getBoundingClientRect(), p = m.project([pin.lng, pin.lat]);
+    return Math.round(Math.hypot(r.x + r.width / 2 - c.x - p.x, r.bottom - c.y - p.y));
+  });
+  const pinLL = await page.evaluate(() => ({ ...window.__landvasFly.getState().pin }));
+  let pinWorst = await pinOff();
+  for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, i < 2 ? -300 : 500); await page.waitForTimeout(400); pinWorst = Math.max(pinWorst, await pinOff()); }
+  check('zooming in and out, the pin stays on its spot', pinWorst <= 3, `${pinWorst}px off at worst`);
+  const pinLL2 = await page.evaluate(() => ({ ...window.__landvasFly.getState().pin }));
+  check('…the place it marks doesn’t change', Math.abs(pinLL.lng - pinLL2.lng) < 1e-9 && Math.abs(pinLL.lat - pinLL2.lat) < 1e-9);
+  await shot('03-fly-pin');
+  await page.mouse.click(160, 380); await page.waitForTimeout(600);
+  const pinLL3 = await page.evaluate(() => ({ ...window.__landvasFly.getState().pin }));
+  check('another tap moves it', Math.abs(pinLL3.lng - pinLL.lng) > 1e-6 && (await page.locator('[data-testid=fly-pin]').count()) === 1);
+  await page.evaluate(() => window.__landvasFly.getState().setPinMode(false)); await page.waitForTimeout(400);
+  check('cancelling takes the pin away', (await page.locator('[data-testid=fly-pin]').count()) === 0);
+
+  // find: only your party
   await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['party-lobbies'] }));
   await nav('/party?tab=lobbies'); await page.waitForTimeout(2500);
-  await waitFor('[data-testid=lobby-players]', 10000);
-  const findBtn = page.locator('[data-testid=lobby-player][data-user=map_rae] [data-testid=lobby-player-find]');
-  check('the lobbies offer Find for someone out in the game', await waitFor('[data-testid=lobby-player][data-user=map_rae] [data-testid=lobby-player-find]', 10000));
-  check('…but not for someone on GPS', (await page.locator('[data-testid=lobby-player][data-user=map_gil] [data-testid=lobby-player-find]').count()) === 0);
-  await shot('03-lobbies-find');
-  await findBtn.first().click().catch(() => {});
-  check('Find flies to them and opens their card', await waitFor('[data-testid=map-player-card]', 15000) && /rae/.test(await tid('map-player-card').first().textContent().catch(() => '')));
-  await shot('04-found');
-  await tid('map-player-close').first().click().catch(() => {});
-
-  // profiles
+  check('the lobbies don’t offer Find for strangers', (await page.locator('[data-testid=lobby-player-find]').count()) === 0);
   await nav('/u/map_rae'); await page.waitForTimeout(2500);
-  check('a profile says “Find on map” while they’re out in the game', await waitFor('[data-testid=profile-find-map]', 8000));
-  await nav('/u/map_gil'); await page.waitForTimeout(2500);
-  check('…and not while they’re on GPS', (await page.locator('[data-testid=profile-find-map]').count()) === 0);
+  check('a stranger’s profile has no “Find on map”', (await page.locator('[data-testid=profile-find-map]').count()) === 0);
+  await nav('/u/map_tom'); await page.waitForTimeout(2500);
+  check('your party-mate’s does', await waitFor('[data-testid=profile-find-map]', 8000));
 
   await nav('/settings'); await page.waitForTimeout(2500);
   check('Settings has “Show my explorer on the map”', (await page.locator('#pv-on_map').count()) === 1);

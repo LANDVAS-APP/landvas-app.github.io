@@ -227,7 +227,7 @@ try {
   // a pin anywhere: no trips left → refill 2 for 100 Ink, then fly
   // (on a phone, Fly lives in the + tray)
   if (!(await page.locator('[data-testid=fly-chip]:visible').count())) { await page.click('[data-testid=hud-more]'); await page.waitForTimeout(500); }
-  await page.click('[data-testid=fly-chip]:visible'); await page.waitForSelector('[data-testid=pin-catcher]');
+  await page.click('[data-testid=fly-chip]:visible'); await page.waitForSelector('[data-testid=pin-banner]');
   await page.mouse.click(200, 520); await page.waitForSelector('[data-testid=pin-sheet]');
   await shot('06e-pin');
   await page.click('[data-testid=pin-fly]'); await page.waitForSelector('[data-testid=refill-dialog]', { timeout: 8000 });

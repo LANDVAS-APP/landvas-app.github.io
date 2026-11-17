@@ -80,9 +80,9 @@ async function run(app) {
       await tid('hud-more').first().click(); await page.waitForTimeout(600);
       check('Fly lives in the + tray', (await page.locator('[data-testid=hud-tray] [data-testid=fly-chip]').count()) === 1);
       await page.click('[data-testid=hud-tray] [data-testid=fly-chip]');
-      check('…and drops a pin (with a Cancel)', await waitFor('[data-testid=pin-catcher]', 5000) && await waitFor('[data-testid=pin-cancel]', 3000));
+      check('…and drops a pin (with a Cancel)', await waitFor('[data-testid=pin-banner]', 5000) && await waitFor('[data-testid=pin-cancel]', 3000));
       await page.click('[data-testid=pin-cancel]'); await page.waitForTimeout(500);
-      check('…Cancel ends it', (await page.locator('[data-testid=pin-catcher]').count()) === 0);
+      check('…Cancel ends it', (await page.locator('[data-testid=pin-banner]').count()) === 0);
     }
 
     // ---- the side rail and the Worlds button ----

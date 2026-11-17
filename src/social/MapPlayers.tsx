@@ -1,4 +1,5 @@
-// Other players on the map — only explorers out in the game without GPS (on a trip, or the joystick far from home).
+// Other players on the map (not mounted: only your party’s explorers show now, and the party layer in travel/Group.tsx
+// draws them). Kept for its card. Was: explorers out in the game without GPS (on a trip, or the joystick far from home).
 // The server decides who shows (never anyone on GPS, never near their real spot); this draws them, glides the ones on
 // the move, and a tap shows who it is with "Team up".
 import { useEffect, useMemo, useRef, useState } from 'react';

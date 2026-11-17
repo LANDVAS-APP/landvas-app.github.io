@@ -88,9 +88,14 @@ describe('link pages', () => {
     expect((await db.rpc(amy, 'my_invite_card')).page_codes.sort()).toEqual(['AMYPAINTS', 'CARD_AMY']);
     await expectError(db.rpc(amy, 'invite_pages_built', { p_codes: ['X'] }), '');
   });
-  it('staff can switch cards off', async () => {
+  it('staff can switch cards off: no changes, the plain card everywhere, no custom pages — and back on, as they were', async () => {
     await db.sql(`update game_config set value = value || '{"cards": {"enabled": false}}'::jsonb where key = 'referrals'`);
     await expectError(set(amy), 'invite_cards_off');
+    expect((await db.rpc(amy, 'my_invite_card')).enabled).toBe(false);
+    expect((await db.rpc(null, 'invite_card', { p_code: 'CARD_AMY' })).card).toMatchObject({ saved: false, theme: 'aurora', headline: null });
+    expect(await db.rpc(null, 'invite_cards_for_pages')).toEqual([]);
     await db.sql(`update game_config set value = value - 'cards' where key = 'referrals'`);
+    expect((await db.rpc(amy, 'my_invite_card')).enabled).toBe(true);
+    expect((await db.rpc(null, 'invite_card', { p_code: 'CARD_AMY' })).card).toMatchObject({ saved: true, headline: 'Build an empire with me' });
   });
 });

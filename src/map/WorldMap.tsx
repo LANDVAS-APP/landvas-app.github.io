@@ -19,6 +19,7 @@ import { outlineEdges } from '../shared/fusion';
 import { ART_MAX_ZOOM, ART_MIN_ZOOM, GRID_LEVEL, GRID_SIZE, Z_STREET, cellPolygon, latToY, lngLatToCell, viewportCells, xToLng, yToLat } from '../shared/grid';
 import { rarities } from '../shared/rarity';
 import { explorerNow, useExplorer } from '../explorer/explorer';
+import { useFlyUi } from '../travel/flyStore';
 import { ArtIndex, registerArtProtocol } from './artTiles';
 import { CELLS_MIN_ZOOM, GRIDLINES_MIN_ZOOM, PLOTS_MIN_ZOOM, PlotBlocks, registerPlotProtocols } from './plotTiles';
 import { useCelebration } from '../plot/ClaimCelebration';
@@ -190,6 +191,9 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       });
       m.on('click', (e) => {
         if (!map) return;
+        // ✈️ choosing where to fly: a tap drops (or moves) the pin, at any zoom
+        const fly = useFlyUi.getState();
+        if (fly.pinMode) { fly.setPin({ lng: e.lngLat.lng, lat: e.lngLat.lat }); return; }
         const ex = useExplorer.getState();
         const z = map.getZoom();
         if (z < GRIDLINES_MIN_ZOOM) {
