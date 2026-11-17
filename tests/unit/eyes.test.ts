@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { NAMED_STARS, equatorial, horizontal, moonPhaseName, moonPosition, planets, skyDir, skyMatrix, sunPosition, daylight } from '../../src/eyes/astro';
 import { decodeTile, polygons, ringArea } from '../../src/eyes/mvt';
 import { bearingDistance, cellToLocal, localToCell, makeFrame, plotSize } from '../../src/eyes/geo';
-import { buildBuildings, tilesFor, treePoints, type Tile } from '../../src/eyes/world';
+import { buildBuildings, tilesFor, treeMix, treePoints, type Tile } from '../../src/eyes/world';
+import { leafState, treeGeometries } from '../../src/eyes/nature';
 import { lngLatToCell } from '../../src/shared/grid';
 
 const RAD = Math.PI / 180;
@@ -157,11 +158,11 @@ describe('the vector-tile reader', () => {
     // the tower's walls (30 m) face away from its middle
     const P = b.position, N = b.normal, V = P.length / 3;
     let cx = 0, cz = 0, k = 0;
-    for (let i = 0; i < V; i++) if (b.wuv[i * 2] < 0 && P[i * 3 + 1] === 30) { cx += P[i * 3]; cz += P[i * 3 + 2]; k++; }
+    for (let i = 0; i < V; i++) if (b.wuv[i * 4] < 0 && P[i * 3 + 1] === 30) { cx += P[i * 3]; cz += P[i * 3 + 2]; k++; }
     cx /= k; cz /= k;
     let walls = 0;
     for (let i = 0; i < V; i += 1) {
-      if (b.wuv[i * 2] < 0 || P[i * 3 + 1] !== 30 || i % 4 !== 2) continue;
+      if (b.wuv[i * 4] < 0 || P[i * 3 + 1] !== 30 || i % 4 !== 2) continue;
       const mx = (P[(i - 1) * 3] + P[i * 3]) / 2, mz = (P[(i - 1) * 3 + 2] + P[i * 3 + 2]) / 2;
       expect(N[i * 3] * (mx - cx) + N[i * 3 + 2] * (mz - cz)).toBeGreaterThan(0);
       walls++;
@@ -236,5 +237,66 @@ describe('the local frame', () => {
     const ts = tilesFor(f, 14, { x0: -600, z0: -600, size: 1200 });
     expect(ts.length).toBeGreaterThanOrEqual(1);
     expect(ts.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('the street, really', () => {
+  const f = makeFrame(-104.99, 39.74);
+  const z = 14, n = 2 ** z;
+  const tx = Math.floor(f.X0 * n), ty = Math.floor(f.Y0 * n);
+  const house = (ring: number[], h = 8): Tile => ({ z, x: tx, y: ty, layers: { building: { name: 'building', extent: 4096, features: [{ type: 3, props: { render_height: h }, parts: [ring] }] } } });
+  // ~14 m × 9 m: a house
+  const ring = [1000, 1000, 1030, 1000, 1030, 1020, 1000, 1020, 1000, 1000];
+  it('gives a house a pitched roof, tiles sloping up from the eaves to the ridge', () => {
+    const pal = { bld: [[0, '#888888']] } as never;
+    // its own random number decides gable or hip and the like, but a footprint this simple always gets a roof
+    let pitched = 0;
+    for (let k = 0; k < 12; k++) {
+      const r = ring.map((v, i) => v + (i % 2 ? 0 : k * 50));
+      const b = buildBuildings(f, [house(r)], pal, { near: 1e6, far: 1e6, skylineMin: 0, budget: 1e6, at: [0, 0], real: true });
+      const V = b.position.length / 3;
+      let roofV = 0, top = 0, eave = Infinity;
+      for (let i = 0; i < V; i++) {
+        if (b.wuv[i * 4] === -2) { roofV++; top = Math.max(top, b.position[i * 3 + 1]); eave = Math.min(eave, b.position[i * 3 + 1]); expect(b.normal[i * 3 + 1]).toBeGreaterThan(0.2); }
+      }
+      if (roofV) { pitched++; expect(top).toBeCloseTo(8, 5); expect(eave).toBeLessThan(7); expect(eave).toBeGreaterThanOrEqual(2.8); }
+    }
+    expect(pitched).toBeGreaterThan(6);
+  });
+  it('keeps flat roofs (and their clutter) for big blocks', () => {
+    const big = [1000, 1000, 1300, 1000, 1300, 1200, 1000, 1200, 1000, 1000];
+    const b = buildBuildings(f, [house(big, 30)], { bld: [[0, '#888888']] } as never, { near: 1e6, far: 1e6, skylineMin: 0, budget: 1e6, at: [0, 0], real: true });
+    let flat = 0;
+    for (let i = 0; i < b.position.length / 3; i++) if (b.wuv[i * 4] === -1) flat++;
+    expect(flat).toBeGreaterThan(3);
+    for (const r of b.roofBits) expect(r.y).toBe(30);
+  });
+  it('dresses the trees for the real season', () => {
+    // mid-November in Denver: well into autumn, leaves turning and falling
+    const nov = leafState(39.7, new Date(Date.UTC(2026, 10, 17)));
+    expect(nov.autumn).toBeGreaterThan(0.8);
+    expect(nov.leaf).toBeLessThan(0.9);
+    // July: full leaf; January: bare
+    expect(leafState(39.7, new Date(Date.UTC(2026, 6, 10))).leaf).toBe(1);
+    expect(leafState(39.7, new Date(Date.UTC(2026, 0, 10))).leaf).toBeLessThan(0.05);
+    // the south has its seasons the other way round: May in Melbourne is autumn
+    expect(leafState(-37.8, new Date(Date.UTC(2026, 4, 1))).autumn).toBeGreaterThan(0.5);
+    // the tropics stay green
+    expect(leafState(1.3, new Date(Date.UTC(2026, 10, 17)))).toEqual({ leaf: 1, autumn: 0, blossom: 0, spring: 0 });
+  });
+  it('builds every kind of tree, near and far', () => {
+    const g = treeGeometries();
+    for (const [k, geo] of Object.entries(g)) {
+      expect(geo, k).toBeTruthy();
+      expect(geo.attributes.position.count, k).toBeGreaterThan(10);
+      expect(geo.attributes.color, k).toBeTruthy();
+    }
+    // the far ones really are lighter
+    expect(g.farCrown.attributes.position.count).toBeLessThan(g.crown.attributes.position.count / 3);
+  });
+  it('grows the right trees for the latitude', () => {
+    expect(treeMix(1.3).palm).toBeGreaterThan(0.3);
+    expect(treeMix(60).conifer).toBeGreaterThan(treeMix(35).conifer);
+    expect(treeMix(48).palm).toBe(0);
   });
 });

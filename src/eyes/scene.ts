@@ -12,7 +12,9 @@ import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { CONSTELLATIONS, NAMED_STARS, daylight, equatorial, galactic, moonPosition, planets, skyDir, skyMatrix, sunPosition, type NamedStar } from './astro';
 import { bearingDistance, cellToLocal, curveDrop, lngLatToLocal, localToCell, plotSize, type Frame } from './geo';
-import { hex, type BuildingMesh, type Terrain } from './world';
+import { hex, type BuildingMesh, type StreetThings, type Terrain, type TreePt } from './world';
+import { createNature } from './nature';
+import { createStreet } from './street';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyLook, type BodyVehicle } from './body';
 import { createEyesSound, type Surface } from './sound';
@@ -41,6 +43,7 @@ export type EyesOpts = {
   onPick(p: Pick | null, at: { x: number; y: number }): void;
   /** the camera turned (compass bearing and pitch, radians), at most a few times a second */ onLook?(yaw: number, pitch: number): void;
   reduceMotion?: boolean;
+  /** you've moved near the edge of the sharpest ground: paint a new patch round (x, z) */ onNeedClose?(x: number, z: number): void;
   /** what you're riding (the hands, the seat, the sounds) */ vehicle?(): BodyVehicle;
 };
 
@@ -50,7 +53,10 @@ export type Eyes = {
   setGround(near: { canvas: HTMLCanvasElement; region: { x0: number; z0: number; size: number }; glow: number } | null,
     far: { canvas: HTMLCanvasElement; region: { x0: number; z0: number; size: number }; glow: number } | null): void;
   setBuildings(b: BuildingMesh | null, night: boolean): void;
-  setTrees(t: { x: number; z: number; s: number }[], leaf: string): void;
+  /** trees of the right kinds, dressed for the real season at this latitude */ setTrees(t: TreePt[], lat: number): void;
+  /** lamps, parked cars, the clutter on the roofs */ setStreet(s: StreetThings | null, roofs: BuildingMesh['roofBits'] | null): void;
+  /** what the ground is, metre by metre (for the grass that grows round your feet) */ setOccupancy(fn: ((x: number, z: number) => number) | null): void;
+  /** the sharpest ground, right round you (kerbs, road markings, zebra crossings) */ setClose(c: { canvas: HTMLCanvasElement; region: { x0: number; z0: number; size: number } } | null): void;
   setTerrain(t: Terrain | null, colors: { land: string; water: string; rock: string; snow: string; wood: string; neon: boolean }): void;
   setPlots(p: PlotPlace[]): void;
   setArt(gx: number, gy: number, img: ImageBitmap | HTMLCanvasElement | null): void;
@@ -79,6 +85,8 @@ export type Eyes = {
   /** where something is on screen (CSS px), or null when it's behind you or not there (tests, hints) */
   screenOf(t: { lev: true } | { drop: string } | { star: number } | { cell: [number, number] } | { beacon: string }): { x: number; y: number } | null;
   debug(): Record<string, unknown>;
+  /** (tests) the sharpest ground's own painting */ closeCanvas(): HTMLCanvasElement | null;
+  /** (tests) hide or show one layer of the view */ debugShow(layer: string, on: boolean): void;
   dispose(): void;
 };
 
@@ -103,6 +111,7 @@ export function createEyes(o: EyesOpts): Eyes {
   renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.autoClear = false;
+  renderer.info.autoReset = false;
   const own: { dispose(): void }[] = [];
   const T = <X extends { dispose(): void }>(x: X) => { own.push(x); return x; };
 
@@ -122,6 +131,23 @@ export function createEyes(o: EyesOpts): Eyes {
     return { hemi, dir };
   };
   const lightsFar = mkLights(far), lightsNear = mkLights(near);
+  // real shadows round you: the buildings, trees, lamps and cars cast them on the street and on each other. The shadow
+  // map is only redrawn when it has to be (you walked off its middle, the sun moved, the street was rebuilt).
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  const SH = phone ? 70 : 95;
+  {
+    const d = lightsNear.dir;
+    d.castShadow = true;
+    d.shadow.mapSize.set(phone ? 1024 : 2048, phone ? 1024 : 2048);
+    Object.assign(d.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 1400 });
+    d.shadow.camera.updateProjectionMatrix();
+    d.shadow.bias = -0.0006;
+    d.shadow.normalBias = 0.04;
+  }
+  let shadowDirty = true, lastShadow = 0;
+  const shadowAt = new THREE.Vector2(1e9, 1e9), shadowSun = new THREE.Vector3(), sunLight = new THREE.Vector3(0, 1, 0);
   const sound = createEyesSound();
   let steps = 0;
   const body = createBody(near, (kind, strong) => { steps++; sound.step(kind, strong, surfaceAt(pos.x, pos.z)); });
@@ -318,49 +344,172 @@ export function createEyes(o: EyesOpts): Eyes {
     return T(new THREE.CanvasTexture(c));
   })();
   const groundMat = T(new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, alphaMap: fadeTex, emissive: '#ffffff', emissiveIntensity: 0 }));
+  // the sharpest ground (right round you), and water that moves and mirrors the sky
+  const groundU = {
+    uClose: { value: null as THREE.Texture | null }, uCloseRect: { value: new THREE.Vector4(0, 0, 1, 0) },
+    uWater: { value: new THREE.Color('#33607a') }, uSkyCol: { value: new THREE.Color('#9cc4e8') }, uSunDirV: { value: new THREE.Vector3(0, 1, 0) },
+    uTime: { value: 0 }, uDayG: { value: 1 },
+  };
   groundMat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, groundU);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGw;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvGw = (modelMatrix * vec4(position, 1.0)).xz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec2 vGw;\n${NOISE}`)
-      .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= 0.9 + 0.14 * vnoise(vGw * 1.7) + 0.06 * vnoise(vGw * 0.23);');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec2 vGw;
+      uniform sampler2D uClose; uniform vec4 uCloseRect; uniform vec3 uWater, uSkyCol, uSunDirV; uniform float uTime, uDayG;
+      ${NOISE}`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        if (uCloseRect.w > 0.5) {
+          vec2 cuv = (vGw - uCloseRect.xy) / uCloseRect.z;
+          if (cuv.x > 0.0 && cuv.y > 0.0 && cuv.x < 1.0 && cuv.y < 1.0) {
+            vec2 e = min(cuv, 1.0 - cuv); float w = smoothstep(0.0, 0.12, min(e.x, e.y));
+            diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uClose, cuv).rgb, w);
+          }
+        }
+        float isWater = 1.0 - smoothstep(0.035, 0.09, distance(diffuseColor.rgb, uWater));
+        diffuseColor.rgb *= 0.9 + 0.14 * vnoise(vGw * 1.7) + 0.06 * vnoise(vGw * 0.23) + 0.05 * (vnoise(vGw * 9.0) - 0.5) * (1.0 - isWater);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (isWater > 0.01) {
+          // ripples: two drifting noise layers tilt the surface; the sky and the sun glint off it
+          vec2 q = vGw * 0.35 + vec2(uTime * 0.06, uTime * 0.045);
+          vec2 q2 = vGw * 0.9 - vec2(uTime * 0.11, -uTime * 0.07);
+          float hx = vnoise(q + vec2(0.1, 0.0)) - vnoise(q - vec2(0.1, 0.0)) + 0.5 * (vnoise(q2 + vec2(0.1, 0.0)) - vnoise(q2 - vec2(0.1, 0.0)));
+          float hz = vnoise(q + vec2(0.0, 0.1)) - vnoise(q - vec2(0.0, 0.1)) + 0.5 * (vnoise(q2 + vec2(0.0, 0.1)) - vnoise(q2 - vec2(0.0, 0.1)));
+          vec3 wn = normalize(vec3(-hx * 0.9, 1.0, -hz * 0.9));
+          vec3 wnV = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
+          vec3 vd = normalize(vViewPosition);
+          float fres = 0.12 + 0.88 * pow(1.0 - max(dot(-vd, wnV), 0.0), 4.0);
+          vec3 sunV = normalize((viewMatrix * vec4(uSunDirV, 0.0)).xyz);
+          float glint = pow(max(dot(reflect(vd, wnV), sunV), 0.0), 180.0) * uDayG * 3.0;
+          vec3 refl = uSkyCol * (0.55 + 0.45 * uDayG);
+          totalEmissiveRadiance += (refl * fres * 0.9 + vec3(1.0, 0.95, 0.85) * glint) * isWater;
+          diffuseColor.rgb *= 1.0 - 0.55 * fres * isWater;
+        }`);
   };
   const ground = new THREE.Mesh(T(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), groundMat);
   ground.renderOrder = -2;
+  ground.receiveShadow = true;
   ground.visible = false;
   near.add(ground);
   let nearTex: THREE.Texture | null = null, farTex: THREE.Texture | null = null;
 
-  // ---- buildings (windows light up at night) ------------------------------------------------------------------------
-  const bldU = { uNight: { value: 0 }, uLit: { value: 0.38 }, uGlass: { value: new THREE.Color('#5d7ea8') } };
+  // ---- buildings: real facades --------------------------------------------------------------------------------------
+  // Drawn on the graphics card from each wall's own measurements (metres along it, metres up it, the building's height
+  // and its own random number): houses get framed windows with sills, mid-rises ribbon windows, towers glass curtain
+  // walls with mullions and floor slabs; most buildings over two storeys have shops at street level (big windows, a
+  // door here and there, a coloured awning or sign band). Glass mirrors the sky by day; at night windows and shops
+  // light up. Pitched roofs show their rows of tiles. Detail fades to the average colour when it gets too small to see.
+  const bldU = { uNight: { value: 0 }, uLit: { value: 0.38 }, uGlass: { value: new THREE.Color('#2a3946') }, uSkyCol: groundU.uSkyCol, uDayB: groundU.uDayG };
   const bldMat = T(new THREE.MeshLambertMaterial({ vertexColors: true }));
   bldMat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, bldU);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 wuv; varying vec2 vWuv;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWuv = wuv;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uNight; uniform float uLit; uniform vec3 uGlass; varying vec2 vWuv;\nfloat bayer4(vec2 p) { vec2 q = mod(floor(p), 4.0); int i = int(q.x) + int(q.y) * 4; float m[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.); return (m[i] + 0.5) / 16.0; }')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 wuv; varying vec4 vWuv; varying vec3 vWp;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWuv = wuv; vWp = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      uniform float uNight; uniform float uLit; uniform vec3 uGlass; uniform vec3 uSkyCol; uniform float uDayB; varying vec4 vWuv; varying vec3 vWp;
+      ${NOISE}
+      float bayer4(vec2 p) { vec2 q = mod(floor(p), 4.0); int i = int(q.x) + int(q.y) * 4; float m[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.); return (m[i] + 0.5) / 16.0; }
+      float rnd1(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      vec3 awning(float r) { return r < 0.17 ? vec3(0.42, 0.05, 0.05) : r < 0.34 ? vec3(0.06, 0.22, 0.12) : r < 0.5 ? vec3(0.05, 0.08, 0.22) : r < 0.67 ? vec3(0.3, 0.03, 0.08) : r < 0.84 ? vec3(0.55, 0.22, 0.03) : vec3(0.03, 0.03, 0.035); }`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         // walls right beside you dissolve, so you can see past the building you're standing against
         float dcam = length(vViewPosition);
         if (dcam < 13.0 && bayer4(gl_FragCoord.xy) > smoothstep(3.5, 13.0, dcam)) discard;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        if (vWuv.x >= 0.0) {
-          vec2 cell = vec2(vWuv.x / 3.3, vWuv.y / 3.4); vec2 f = fract(cell); vec2 id = floor(cell);
-          float win = step(0.2, f.x) * step(f.x, 0.8) * step(0.28, f.y) * step(f.y, 0.78) * step(0.6, vWuv.y);
-          float r = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
-          float lit = step(1.0 - uLit, r);
-          vec3 wc = mix(vec3(1.0, 0.74, 0.42), vec3(0.62, 0.82, 1.0), step(0.72, fract(r * 7.13)));
-          totalEmissiveRadiance += wc * win * lit * uNight * 1.4;
-          diffuseColor.rgb = mix(diffuseColor.rgb, uGlass, win * (1.0 - uNight) * 0.6);
-          diffuseColor.rgb *= 0.8 + 0.2 * smoothstep(0.0, 45.0, vWuv.y);
+        float H = vWuv.z, seed = vWuv.w, wx = vWuv.x, wy = vWuv.y;
+        vec3 wall = diffuseColor.rgb;
+        vec3 vd = normalize(vViewPosition);
+        float fres = 0.18 + 0.82 * pow(1.0 - abs(dot(vd, normal)), 3.0);
+        if (wx >= 0.0) {
+          // weathering, and a darker foot where the wall meets the ground
+          wall *= 0.92 + 0.12 * vnoise(vec2(wx * 0.35, wy * 0.6) + seed * 40.0);
+          float style = H > 40.0 ? (seed < 0.65 ? 2.0 : 1.0) : (H > 15.0 && seed > 0.7 ? 1.0 : 0.0);
+          float shop = (H >= 9.0 && seed < 0.82) ? 4.3 : 0.0;
+          float fh = style > 1.5 ? 3.8 : 3.0 + fract(seed * 7.0) * 0.45;
+          float bay = style > 1.5 ? 1.5 : 2.5 + fract(seed * 13.0) * 1.3;
+          vec2 cell = vec2(wx / bay, (wy - shop) / fh); vec2 fc = fract(cell); vec2 id = floor(cell);
+          float px = max(fwidth(cell.x), fwidth(cell.y));
+          float detail = 1.0 - smoothstep(0.18, 0.5, px);
+          float win = 0.0, frame = 0.0;
+          if (style < 0.5) {
+            float ww = 0.4 + fract(seed * 3.1) * 0.2, wh = 0.48 + fract(seed * 5.7) * 0.16;
+            vec2 lo = vec2(0.5 - ww * 0.5, 0.3), hi = vec2(0.5 + ww * 0.5, 0.3 + wh);
+            win = step(lo.x, fc.x) * step(fc.x, hi.x) * step(lo.y, fc.y) * step(fc.y, hi.y);
+            float outer = step(lo.x - 0.03, fc.x) * step(fc.x, hi.x + 0.03) * step(lo.y - 0.07, fc.y) * step(fc.y, hi.y + 0.03);
+            frame = outer - win;
+            float bar = win * (1.0 - step(0.012, abs(fc.x - 0.5))) * step(0.5, ww) + win * (1.0 - step(0.015, abs(fc.y - (lo.y + wh * 0.62))));
+            frame = min(1.0, frame + bar); win *= 1.0 - bar;
+          } else if (style < 1.5) {
+            win = step(0.28, fc.y) * step(fc.y, 0.86);
+            float mull = step(0.955, fract(wx / 1.6));
+            frame = win * mull; win *= 1.0 - mull;
+          } else {
+            float slab = step(fc.y, 0.11); float mull = step(0.955, fract(wx / 1.5));
+            win = (1.0 - slab) * (1.0 - mull); frame = (1.0 - slab) * mull;
+          }
+          float body = step(shop + 0.5, wy) * step(wy, H - 0.8);
+          win *= body; frame *= body;
+          // floor lines and a cornice
+          float band = (1.0 - step(0.035, fc.y)) * body * step(style, 1.5);
+          float cornice = step(H - 0.7, wy);
+          // the shops at street level
+          float sf = step(wy, shop) * step(0.5, shop);
+          float sx = fract(wx / 3.4); float sid = floor(wx / 3.4);
+          float rs = rnd1(vec2(sid, seed * 91.0));
+          float door = step(0.78, rs);
+          float sglass = sf * step(0.07, sx) * step(sx, 0.93) * step(0.35, wy) * step(wy, 3.05) * (1.0 - door);
+          float sdoor = sf * door * step(0.3, sx) * step(sx, 0.7) * step(wy, 2.4);
+          float awn = sf * step(3.2, wy) * step(wy, 3.85);
+          float ledge = step(shop, wy) * step(wy, shop + 0.3) * step(0.5, shop);
+          // glass: dark, mirroring the sky by day (some panes curtained, each catching the light a little differently)
+          float pr = rnd1(id + seed * 17.0);
+          vec3 glass = uGlass * (0.75 + 0.5 * pr);
+          float curtain = step(0.82, pr) * step(style, 0.5);
+          glass = mix(glass, vec3(0.62, 0.55, 0.45), curtain * 0.7);
+          vec3 frameC = style > 1.5 ? vec3(0.07, 0.08, 0.09) : style > 0.5 ? wall * 0.6 : mix(wall * 1.25, vec3(0.85), 0.5);
+          vec3 c = wall;
+          c = mix(c, wall * 0.8, band * 0.6);
+          c = mix(c, wall * (style > 1.5 ? 0.5 : 0.82), cornice);
+          c = mix(c, wall * 1.18, ledge);
+          c = mix(c, frameC, frame);
+          c = mix(c, glass * 0.55, win);
+          c = mix(c, uGlass * 0.6, sglass);
+          c = mix(c, vec3(0.06, 0.05, 0.045), sdoor);
+          c = mix(c, awning(fract(seed * 23.0 + sid * 0.0)), awn);
+          // fade the pattern out where it's too fine to draw
+          float avgWin = style > 1.5 ? 0.75 : style > 0.5 ? 0.5 : 0.25;
+          vec3 avg = mix(wall, glass * 0.55, avgWin * body);
+          c = mix(avg, c, detail);
+          diffuseColor.rgb = c * (0.6 + 0.4 * smoothstep(0.0, 2.4, wy));
+          // the sky in the glass (by day)
+          float g = (win + sglass) * detail + avgWin * body * (1.0 - detail);
+          totalEmissiveRadiance += uSkyCol * fres * g * uDayB * 0.42;
+          // night: lit windows (warm, a few cool), most shops lit
+          float lit = step(1.0 - uLit, pr) * (1.0 - curtain * 0.5);
+          vec3 wc = mix(vec3(1.0, 0.72, 0.4), vec3(0.62, 0.82, 1.0), step(0.74, fract(pr * 7.13)));
+          totalEmissiveRadiance += wc * (win * lit * detail + avgWin * body * uLit * (1.0 - detail) * 0.8) * uNight * 1.35;
+          totalEmissiveRadiance += vec3(1.0, 0.8, 0.55) * sglass * step(0.3, rs) * uNight * 1.6;
+          totalEmissiveRadiance += awning(fract(seed * 23.0)) * awn * uNight * 1.2;
+        } else if (wx < -2.5) {
+          // a gable end: plain wall
+          diffuseColor.rgb = wall * (0.92 + 0.12 * vnoise(vWp.xz * 0.4 + wy));
+        } else if (wx < -1.5) {
+          // a pitched roof: rows of tiles (or slates), weathered
+          float rows = wy / 0.34; float rp = max(fwidth(rows), 0.001);
+          float edge = smoothstep(0.0, 0.22, fract(rows));
+          float d2 = 1.0 - smoothstep(0.3, 0.6, rp);
+          float tile = rnd1(vec2(floor(rows), floor(vWp.x * 3.0 + vWp.z * 3.0 + floor(rows) * 0.5)));
+          diffuseColor.rgb = wall * mix(0.86, (0.72 + 0.28 * edge) * (0.9 + 0.2 * tile), d2) * (0.9 + 0.15 * vnoise(vWp.xz * 0.6));
+        } else {
+          // a flat roof: tar and gravel, patched
+          diffuseColor.rgb = wall * (0.82 + 0.22 * vnoise(vWp.xz * 0.9) + 0.08 * vnoise(vWp.xz * 7.0));
         }
-        totalEmissiveRadiance += diffuseColor.rgb * uNight * 0.1;`);
+        totalEmissiveRadiance += diffuseColor.rgb * uNight * 0.08;`);
   };
   let buildings: THREE.Mesh | null = null;
 
-  // ---- trees ------------------------------------------------------------------------------------------------------------
-  const trunkGeo = T(new THREE.CylinderGeometry(0.16, 0.26, 3, 6).translate(0, 1.5, 0));
-  const crownGeo = T(new THREE.IcosahedronGeometry(2.3, 0).translate(0, 4.4, 0));
-  const trunkMat = T(new THREE.MeshLambertMaterial({ color: '#6B4A33' }));
-  const crownMat = T(new THREE.MeshLambertMaterial({ color: '#3E8A4A', flatShading: true }));
-  let trunks: THREE.InstancedMesh | null = null, crowns: THREE.InstancedMesh | null = null;
+  // ---- trees, grass, and what stands on the street ----------------------------------------------------------------
+  const nature = createNature(near, { phone });
+  const street = createStreet(near);
 
   // ---- plots ------------------------------------------------------------------------------------------------------------
   const plotsGroup = new THREE.Group();
@@ -575,7 +724,7 @@ export function createEyes(o: EyesOpts): Eyes {
     gridU.uPs.value = plotSize(f);
     // a new place: what was built around the old one would stand in the wrong spot until the new one arrives
     if (moved) {
-      setGround(null, null); setBuildings(null, false); setTrees([], '#3E8A4A'); setPlots([]);
+      setGround(null, null); setClose(null); setBuildings(null, false); nature.setTrees([], 0); nature.setGround(null); street.set(null, null); setPlots([]);
       for (const [k, mesh] of artPlanes) { plotsGroup.remove(mesh); (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); artPlanes.delete(k); }
       setMine([]); setFallingStars([]);
     }
@@ -607,6 +756,20 @@ export function createEyes(o: EyesOpts): Eyes {
     } else farRect.value.w = 0;
   };
 
+  let closeTex: THREE.Texture | null = null, closeCanvas: HTMLCanvasElement | null = null;
+  let closeAt: THREE.Vector2 | null = null, closeAsked = 0;
+  const setClose: Eyes['setClose'] = (c) => {
+    closeTex?.dispose(); closeTex = null;
+    if (!c) { groundU.uCloseRect.value.w = 0; closeAt = null; return; }
+    closeCanvas = c.canvas;
+    closeTex = new THREE.CanvasTexture(c.canvas);
+    closeTex.colorSpace = THREE.SRGBColorSpace;
+    closeTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    groundU.uClose.value = closeTex;
+    groundU.uCloseRect.value.set(c.region.x0, c.region.z0, c.region.size, 1);
+    closeAt = new THREE.Vector2(c.region.x0 + c.region.size / 2, c.region.z0 + c.region.size / 2);
+  };
+
   const setBuildings = (b: BuildingMesh | null, night: boolean) => {
     if (buildings) { near.remove(buildings); buildings.geometry.dispose(); buildings = null; }
     bldU.uLit.value = night ? 0.42 : 0.3;
@@ -615,33 +778,18 @@ export function createEyes(o: EyesOpts): Eyes {
     g.setAttribute('position', new THREE.BufferAttribute(b.position, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(b.normal, 3));
     g.setAttribute('color', new THREE.BufferAttribute(b.color, 3));
-    g.setAttribute('wuv', new THREE.BufferAttribute(b.wuv, 2));
+    g.setAttribute('wuv', new THREE.BufferAttribute(b.wuv, 4));
     g.setIndex(new THREE.BufferAttribute(b.index, 1));
     g.computeBoundingSphere();
     buildings = new THREE.Mesh(g, bldMat);
+    buildings.castShadow = buildings.receiveShadow = true;
     near.add(buildings);
+    shadowDirty = true;
   };
 
-  const setTrees = (list: { x: number; z: number; s: number }[], leaf: string) => {
-    for (const m of [trunks, crowns]) if (m) { near.remove(m); m.dispose(); }
-    trunks = crowns = null;
-    crownMat.color.set(leaf);
-    if (!list.length) return;
-    trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, list.length);
-    crowns = new THREE.InstancedMesh(crownGeo, crownMat, list.length);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    const c = new THREE.Color();
-    list.forEach((t, i) => {
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (t.x * 13.7 + t.z * 7.1) % 6.28);
-      s.setScalar(t.s);
-      p.set(t.x, 0, t.z);
-      m.compose(p, q, s);
-      trunks!.setMatrixAt(i, m);
-      crowns!.setMatrixAt(i, m);
-      crowns!.setColorAt(i, c.set(leaf).multiplyScalar(0.8 + ((t.x * 3.1 + t.z) % 1 + 1) % 1 * 0.4));
-    });
-    near.add(trunks, crowns);
-  };
+  const setTrees = (list: TreePt[], lat: number) => { nature.setTrees(list, lat, new Date(clock ?? Date.now())); shadowDirty = true; };
+  const setStreet: Eyes['setStreet'] = (st, roofs) => { street.set(st, roofs); shadowDirty = true; };
+  const setOccupancy: Eyes['setOccupancy'] = (fn) => nature.setGround(fn);
 
   const setTerrain: Eyes['setTerrain'] = (t, cl) => {
     if (terrain) { far.remove(terrain); terrain.geometry.dispose(); terrain = null; }
@@ -990,6 +1138,10 @@ export function createEyes(o: EyesOpts): Eyes {
     const lightDir = day > 0.05 || m.alt < 0 ? sunV : moonV;
     const sunCol = new THREE.Color('#FFF1DA').lerp(new THREE.Color('#FFB27A'), skyU.uDusk.value);
     const moonCol = new THREE.Color('#8FA6E8');
+    sunLight.copy(lightDir);
+    groundU.uSkyCol.value.copy(hor).lerp(new THREE.Color('#ffffff'), 0.15 * day);
+    groundU.uSunDirV.value.copy(sunV);
+    groundU.uDayG.value = day;
     for (const L of [lightsFar, lightsNear]) {
       L.dir.position.copy(lightDir).multiplyScalar(1000);
       L.dir.color.copy(day > 0.05 ? sunCol : moonCol);
@@ -1154,6 +1306,7 @@ export function createEyes(o: EyesOpts): Eyes {
 
   // ---- the loop -----------------------------------------------------------------------------------------------------
   const pace = framePacer({ ambient: () => !throws.length && !levPlace });
+  let frames = 0, frameMs = 16;
   const tune = adaptiveDpr((d) => { dpr = d; renderer.setPixelRatio(d); starU.uPx.value = d; resize(); }, dpr, pace);
   let raf = 0, last = performance.now(), t0 = performance.now(), disposed = false;
   let w = 0, h = 0;
@@ -1176,6 +1329,7 @@ export function createEyes(o: EyesOpts): Eyes {
     if (!pace.ready(now)) return;
     const rawDt = (now - last) / 1000;
     const dt = Math.min(0.1, rawDt);
+    frames++; frameMs += (rawDt * 1000 - frameMs) * 0.1;
     last = now;
     tune(rawDt);
     const t = (now - t0) / 1000;
@@ -1217,6 +1371,33 @@ export function createEyes(o: EyesOpts): Eyes {
     if (o.onLook && now - lastLookSent > 120) { lastLookSent = now; o.onLook(((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch); }
     if (now - lastSky > 4000 || lastSky < 0) updateSky(now);
     else { starGroup.matrix.setPosition(pos); starGroup.matrixWorldNeedsUpdate = true; }
+    // shadows: keep the sun's camera centred near you (snapped, so the map doesn't shimmer); redraw only when needed
+    {
+      const d = lightsNear.dir;
+      // (castShadow stays on: switching it would rebuild every material; below the horizon the map just isn't redrawn)
+      const lit = sunLight.y > 0.05;
+      const grid = SH * 0.3;
+      const cx = Math.round(pos.x / grid) * grid, cz = Math.round(pos.z / grid) * grid;
+      const dirN = sunLight;
+      const moved = cx !== shadowAt.x || cz !== shadowAt.y || dirN.dot(shadowSun) < 0.99996;
+      if (lit && (shadowDirty || moved) && now - lastShadow > 200) {
+        shadowAt.set(cx, cz); shadowSun.copy(dirN); shadowDirty = false; lastShadow = now;
+        d.target.position.set(cx, 0, cz);
+        d.target.updateMatrixWorld();
+        // (the light keeps its direction; only where it stands moves)
+        d.userData.at = new THREE.Vector3(cx, 0, cz).addScaledVector(dirN, 600);
+        renderer.shadowMap.needsUpdate = true;
+      }
+      if (d.userData.at) d.position.copy(d.userData.at as THREE.Vector3);
+    }
+    nature.update(o.reduceMotion ? 0 : t, pos, o.eye());
+    street.update(bldU.uNight.value);
+    groundU.uTime.value = o.reduceMotion ? 0 : t;
+    // the sharpest ground follows you: ask for a new patch near its edge
+    if (o.onNeedClose && now - closeAsked > 1500) {
+      const half = groundU.uCloseRect.value.z / 2;
+      if (!closeAt || Math.max(Math.abs(pos.x - closeAt.x), Math.abs(pos.z - closeAt.y)) > half * 0.55) { closeAsked = now; o.onNeedClose(pos.x, pos.z); }
+    }
     skyU.uTime.value = o.reduceMotion ? 0 : t;
     starU.uTime.value = t;
     auraU.uTime.value = o.reduceMotion ? 0 : t;
@@ -1372,6 +1553,7 @@ export function createEyes(o: EyesOpts): Eyes {
       f.el.style.opacity = String(Math.max(0, 1 - f.t / 1.4));
       if (f.t > 1.4 || v.z > 1) { f.el.remove(); floaters.splice(i, 1); }
     }
+    renderer.info.reset();
     renderer.clear();
     renderer.render(far, farCam);
     renderer.clearDepth();
@@ -1391,7 +1573,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   return {
-    setFrame, frame: () => frame, setGround, setBuildings, setTrees, setTerrain, setPlots, setArt, setMine, setLeviathan, setBeacons,
+    setFrame, frame: () => frame, setGround, setClose, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots, setArt, setMine, setLeviathan, setBeacons,
     setFallingStars, setDrops, setBuddies, setHotZone,
     setClock: (ms) => { clock = ms; lastSky = -1e9; },
     lookAt: (y, p) => { yaw = y; pitch = Math.max(-1.45, Math.min(1.52, p)); vyaw = vpitch = 0; if (gyro) gyroQ = null; },
@@ -1479,13 +1661,20 @@ export function createEyes(o: EyesOpts): Eyes {
       renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam); renderer.clearDepth(); renderer.render(body.overlay, body.ocam);
       el.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
     }),
+    closeCanvas: () => closeCanvas,
+    debugShow: (layer, on) => {
+      const all: Record<string, THREE.Object3D | null> = { ground, grid, plots: plotsGroup, buildings, terrain, body: body.body, shadow: body.shadow, lev: lev.group };
+      if (layer === 'shadows') { lightsNear.dir.castShadow = on; return; }
+      const x = all[layer]; if (x) x.visible = on;
+      if (layer === 'nature' || layer === 'street') near.children.forEach((c) => { if (c.userData.layer === layer) c.visible = on; });
+    },
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
-      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: trunks?.count ?? 0, terrain: !!terrain, ground: ground.visible,
+      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
       beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
-      dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles,
+      dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, frames, frameMs: Math.round(frameMs),
     }),
     dispose: () => {
       disposed = true;
@@ -1505,7 +1694,7 @@ export function createEyes(o: EyesOpts): Eyes {
       for (const [, mesh] of artPlanes) { (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); }
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
-      for (const m of [trunks, crowns]) m?.dispose();
+      nature.dispose(); street.dispose(); closeTex?.dispose();
       nearTex?.dispose(); farTex?.dispose();
       for (const t of emojiTex.values()) t.dispose();
       for (const d of own) d.dispose();

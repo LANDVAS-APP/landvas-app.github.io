@@ -263,6 +263,15 @@ try {
   check('up on a jetpack the eyes rise above the rooftops', (await eyes('debug'))?.pos?.[1] > 30, `${Math.round((await eyes('debug'))?.pos?.[1])} m`);
   await eyes('lookAt', Math.PI / 2, -0.02); await page.waitForTimeout(1200); await shot('02-mountains-east');
   await eyes('lookAt', Math.PI * 1.5, -0.05); await page.waitForTimeout(900); await shot('02b-jetpack-west');
+  // a drone's view of the streets below: markings, crossings, parked cars, lamps, trees, roofs
+  for (const [k, yaw] of [['n', 0], ['s', Math.PI]]) { await eyes('lookAt', yaw, -0.7); await page.waitForTimeout(1500); await shot(`02d-streets-below-${k}`); }
+  if (process.env.EYES_LAYERS) {
+    for (const layer of ['ground', 'grid', 'plots', 'nature', 'street', 'buildings', 'body', 'shadows']) {
+      await page.evaluate((l) => window.__landvasEyes.debugShow(l, false), layer); await page.waitForTimeout(700); await shot(`02x-without-${layer}`);
+    }
+  }
+  const closePng = await page.evaluate(() => window.__landvasEyes?.closeCanvas()?.toDataURL('image/png') ?? null);
+  if (closePng) fs.writeFileSync(path.join(OUT, '02e-close-ground.png'), Buffer.from(closePng.split(',')[1], 'base64'));
   // driving on a low tank (the car runs on it): refill it right here
   await page.click('[data-testid=eyes] [data-testid=vehicle-car]').catch(() => {});
   await page.waitForTimeout(1200);
@@ -368,12 +377,40 @@ try {
   // walk: face east and hold W
   await eyes('lookAt', Math.PI / 2, 0);
   const p0 = await page.evaluate(() => window.__landvasExplorer.getState().state);
-  await page.keyboard.down('w'); await page.waitForTimeout(3200); await page.keyboard.up('w'); await page.waitForTimeout(1200);
+  // (a software-rendered test browser draws few frames a second: keep walking until the steps come, up to 9 s)
+  await page.keyboard.down('w'); await page.waitForTimeout(3200);
+  for (let k = 0; k < 12 && ((await eyes('debug'))?.steps ?? 0) <= 2; k++) await page.waitForTimeout(500);
+  await page.keyboard.up('w'); await page.waitForTimeout(1200);
   const p1 = await page.evaluate(() => window.__landvasExplorer.getState().state);
   check('walk with W: forward is where you look (east)', p1.lng > p0.lng && Math.abs(p1.lat - p0.lat) < Math.abs(p1.lng - p0.lng), `${(p1.lng - p0.lng).toFixed(6)} east, ${(p1.lat - p0.lat).toFixed(6)} north`);
   const dw = await eyes('debug');
   check('it feels like walking: steps (and their sound) as you go', dw?.steps > 2, `${dw?.steps} steps`);
+  console.log('frame', JSON.stringify({ calls: dw?.calls, tris: dw?.tris, ms: dw?.frameMs, dpr: dw?.dpr, trees: dw?.trees, grass: dw?.grass, street: dw?.street, close: dw?.close }));
   await shot('13-walked');
+
+  // ---- down on a real street: pavement, kerb, markings, parked cars, lamps, trees, shopfronts ------------------------
+  {
+    const z = 14, n = 2 ** z;
+    const X = ((HERE.lng + 180) / 360) * n, tx = Math.floor(X);
+    const r = (HERE.lat * Math.PI) / 180, Y = ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n, ty = Math.floor(Y);
+    // a north–south minor street (an odd line of the town's grid), mid-block
+    let k = Math.round(((X - tx) * 4096) / 512); if (k % 2 === 0) k += 1;
+    const v = (Math.floor(((Y - ty) * 4096) / 512) + 0.5) * 512;
+    const lngOf = (u) => ((tx + u / 4096) / n) * 360 - 180;
+    const latOf = (vv) => { const yy = Math.PI * (1 - (2 * (ty + vv / 4096)) / n); return (180 / Math.PI) * Math.atan(Math.sinh(yy)); };
+    const metresPerUnit = (40075016.7 * Math.cos(r)) / n / 4096;
+    const lng = lngOf(k * 512 + 6.2 / metresPerUnit), lat = latOf(v);
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, lng, lat]);
+    await refresh(); await page.waitForTimeout(2500);
+    const ds = await eyes('debug');
+    check('down on the street: lamps, parked cars and street trees along it', (ds?.street ?? 0) >= 3 && (ds?.trees ?? 0) > 0, JSON.stringify({ street: ds?.street, trees: ds?.trees, close: ds?.close }));
+    await eyes('lookAt', 0, -0.06); await page.waitForTimeout(1800); await shot('15-street-north');
+    await eyes('lookAt', Math.PI * 1.5, 0.12); await page.waitForTimeout(1200); await shot('15b-street-across');
+    await eyes('lookAt', Math.PI * 1.75, -0.35); await page.waitForTimeout(1200); await shot('15c-street-kerb');
+    await eyes('setClock', at(21)); await page.waitForTimeout(4500);
+    await eyes('lookAt', 0, -0.03); await page.waitForTimeout(1500); await shot('15d-street-night');
+    await eyes('setClock', at(12)); await page.waitForTimeout(4500);
+  }
 
   // ---- a picture, and back -------------------------------------------------------------------------------------------
   // (the app's share sheet is the phone's own: here it just takes the picture)
@@ -394,6 +431,7 @@ try {
   check('no errors in the page', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   console.error(e);
+  if (errors.length) console.error('page errors:', errors.slice(0, 5).join('\n'));
   check('ran to the end', false, String(e).slice(0, 300));
   await shot('zz-crash');
 } finally {

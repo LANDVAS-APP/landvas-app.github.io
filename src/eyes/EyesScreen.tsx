@@ -32,7 +32,7 @@ import { isPrimordial, rarityInfo, rarityTier, setRarities } from '../shared/rar
 import { toMap } from '../lib/toMap';
 import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
 import { bearingDistance, fmtDistance, makeFrame, type Frame } from './geo';
-import { buildBuildings, drawGround, fetchTile, loadTerrain, streetsSource, tilesFor, treePoints, type Tile } from './world';
+import { buildBuildings, drawGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
 
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
@@ -88,6 +88,7 @@ export default function EyesScreen() {
       vehicle: () => (useExplorer.getState().state?.vehicle?.current ?? 'walk') as 'walk' | 'bike' | 'car' | 'jet',
       onPick: (p) => onPick.current(p),
       onLook: (y, p) => { heading = y; headingPitch = p; lookSubs.forEach((f) => f()); },
+      onNeedClose: (x, z) => closeAsk.current?.(x, z),
       reduceMotion: !!settings.reduceMotion,
     });
     const f = makeFrame(start.current.lng, start.current.lat);
@@ -147,6 +148,9 @@ export default function EyesScreen() {
     return () => clearInterval(t);
   }, [eyes, frame]);
 
+  // the sharpest ground right round you is painted again as you move (the scene asks)
+  const closeAsk = useRef<((x: number, z: number) => void) | null>(null);
+
   // ---- the real place: streets, buildings, trees, land out to the horizon ---------------------------------------------
   useEffect(() => {
     if (!eyes || !frame) return;
@@ -155,7 +159,8 @@ export default function EyesScreen() {
     const sun = sunPosition(Date.now(), frame.lat0, frame.lng0);
     const night = daylight(sun.alt) < 0.35;
     const neon = mapTheme() === 'neon';
-    const pal = streetPalette(night);
+    const real = !neon;
+    const pal = real ? realPalette(streetPalette(night)) : streetPalette(night);
     const glow = neon && night ? 0.55 : 0;
     const colors = { land: pal.land, water: pal.water, rock: pal.rock, snow: '#F4F8FF', wood: pal.wood, neon };
     // the land first (it's the backdrop for everything)
@@ -180,18 +185,39 @@ export default function EyesScreen() {
       const get = (z: number, r: typeof nearR) => Promise.all(tilesFor(frame, z, r).map((t) => fetchTile(src, z, t.x, t.y))).then((l) => l.filter((x): x is Tile => !!x));
       const near = await get(Math.min(14, src.maxzoom), nearR);
       if (!live) return;
-      eyes.setGround({ canvas: drawGround(frame, near, nearR, isPhone() ? 1536 : 2048, pal, { detail: true }), region: nearR, glow }, null);
-      eyes.setBuildings(buildBuildings(frame, near, pal, { near: NEAR_HALF * 1.1, far: NEAR_HALF * 1.1, skylineMin: 999, budget: isPhone() ? 70_000 : 160_000 }), night);
-      eyes.setTrees(treePoints(frame, near, { radius: NEAR_HALF, max: isPhone() ? 700 : 1800 }), pal.wood);
+      const big = isPhone() ? 1536 : 2048;
+      eyes.setGround({ canvas: drawGround(frame, near, nearR, big, pal, { detail: true, real }), region: nearR, glow }, null);
+      // the sharpest ground, right round you: kerbs, road markings, zebra crossings
+      const CLOSE = isPhone() ? 150 : 200;
+      closeAsk.current = (x, z) => {
+        if (!live) return;
+        const r = { x0: Math.round(x - CLOSE / 2), z0: Math.round(z - CLOSE / 2), size: CLOSE };
+        eyes.setClose({ canvas: drawGround(frame, near, r, isPhone() ? 1536 : 2048, pal, { detail: true, real, close: true }), region: r });
+      };
+      const at0 = eyes.debug().pos as number[] | undefined;
+      closeAsk.current(at0?.[0] ?? 0, at0?.[2] ?? 0);
+      // what the ground is, metre by metre (trees and lamps go on open ground, grass grows on lawns)
+      const occ = occupancy(frame, near, nearR, isPhone() ? 0.9 : 0.75);
+      const bld = buildBuildings(frame, near, pal, { near: NEAR_HALF * 1.1, far: NEAR_HALF * 1.1, skylineMin: 999, budget: isPhone() ? 70_000 : 160_000, real });
+      eyes.setBuildings(bld, night);
+      const st = streetThings(frame, near, { radius: isPhone() ? 300 : 420, ground: occ, max: isPhone() ? 260 : 520 });
+      const trees = treePoints(frame, near, { radius: NEAR_HALF, max: isPhone() ? 700 : 1800, free: (x, z) => { const g = occ(x, z); return g === 0 || g === 1; } });
+      eyes.setTrees([...st.trees, ...trees], frame.lat0);
+      eyes.setStreet(st, bld.roofBits);
+      eyes.setOccupancy(occ);
       setSteps((s) => ({ ...s, streets: near.length ? 'ok' : 'none' }));
       // further out: the town's ground on the land, and its tall buildings on the skyline
       const mid = await get(Math.min(13, src.maxzoom), farR);
       if (!live) return;
-      eyes.setGround({ canvas: drawGround(frame, near, nearR, isPhone() ? 1536 : 2048, pal, { detail: true }), region: nearR, glow },
-        mid.length ? { canvas: drawGround(frame, mid, farR, isPhone() ? 1024 : 2048, pal), region: farR, glow: glow * 0.8 } : null);
-      if (mid.length) eyes.setBuildings(buildBuildings(frame, [...near, ...mid], pal, { near: NEAR_HALF * 1.05, far: 1700, skylineMin: 24, budget: isPhone() ? 90_000 : 220_000 }), night);
+      eyes.setGround({ canvas: drawGround(frame, near, nearR, big, pal, { detail: true, real }), region: nearR, glow },
+        mid.length ? { canvas: drawGround(frame, mid, farR, isPhone() ? 1024 : 2048, pal, { real }), region: farR, glow: glow * 0.8 } : null);
+      if (mid.length) {
+        const all = buildBuildings(frame, [...near, ...mid], pal, { near: NEAR_HALF * 1.05, far: 1700, skylineMin: 24, budget: isPhone() ? 90_000 : 220_000, real });
+        eyes.setBuildings(all, night);
+        eyes.setStreet(st, all.roofBits);
+      }
     })().catch(() => setSteps((s) => ({ ...s, streets: 'none' })));
-    return () => { live = false; };
+    return () => { live = false; closeAsk.current = null; };
   }, [eyes, frame]);
 
   useEffect(() => { if (steps.streets !== 'wait') { const t = setTimeout(() => setReady(true), 350); return () => clearTimeout(t); } }, [steps.streets]);
