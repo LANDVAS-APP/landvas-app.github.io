@@ -28,8 +28,6 @@ async function run(label, viewport, signIn) {
   } else {
     await page.waitForFunction(() => typeof window.__landvasNav === 'function', null, { timeout: 60000 });
   }
-  // a fresh update (published by staff): the handbook shows it right at the top
-  await sql(`insert into announcements (title, body, kind, status, published_at, popup) values ('Chat pops up over everyone', 'What anyone says pops up over their head, everywhere people walk about together.', 'update', 'published', now(), false)`);
   if (signIn) {
     // the map's View panel opens with the Handbook as its first button
     await page.evaluate(() => window.__landvasNav('/world'));
@@ -48,10 +46,10 @@ async function run(label, viewport, signIn) {
   }
   await page.waitForSelector('[data-testid=handbook]', { timeout: 30000 });
   await page.waitForFunction(() => /Live/.test(document.querySelector('.hb-hero .stats')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
-  await page.waitForSelector('[data-testid=hb-updates]', { timeout: 15000 }).catch(() => {});
-  const firstBlock = await page.evaluate(() => document.querySelector('[data-testid=handbook]')?.firstElementChild?.getAttribute('data-testid'));
-  check(`${label}: What’s new, right at the top, with the newest update`, firstBlock === 'hb-updates' && /Chat pops up over everyone/.test(await page.locator('[data-testid=hb-updates]').innerText()), `${firstBlock}`);
-  if (signIn) check(`${label}: …marked new for you`, /NEW/.test(await page.locator('[data-testid=hb-updates] [data-testid=announcement-card]').first().innerText()));
+  check(`${label}: no updates block on top (the handbook opens with its own header)`, (await page.locator('.hb-updates').count()) === 0);
+  // the start-here numbers go in the logo's colours: red, orange, yellow, green, blue
+  const nums = await page.$$eval('[data-testid^=hb-start-] .n', (els) => els.map((e) => getComputedStyle(e).backgroundColor));
+  check(`${label}: start-here numbers in the logo's colours`, nums.join() === ['rgb(255, 77, 109)', 'rgb(255, 159, 28)', 'rgb(255, 225, 77)', 'rgb(61, 220, 151)', 'rgb(52, 195, 255)'].join(), nums.join(' | '));
   check(`${label}: index shows every chapter`, (await page.locator('[data-testid^=hb-chapter-]').count()) === CHAPTERS.length);
   check(`${label}: numbers are live`, /Live/.test(await page.locator('.hb-hero .stats').innerText()));
   check(`${label}: start-here path has 5 steps`, (await page.locator('[data-testid^=hb-start-]').count()) === 5);

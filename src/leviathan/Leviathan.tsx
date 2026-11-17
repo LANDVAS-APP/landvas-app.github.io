@@ -1,4 +1,6 @@
-// 🐉 Fighting the Leviathan: the banner on the map (website) or a medallion and card in the app's HUD row; the fight itself
+// 🐉 Fighting the Leviathan: a medallion in the map's button row (app and website) that opens its card — with a number on
+// it when something new happens (it rose, got enraged, went on a rampage, vanished, shrank) — and nothing else standing
+// over the map; the fight itself
 // — one shared health bar, tap the beast to throw ink bombs, every enchantment you own has a move, a live feed of every
 // blow and the top fighters — and the big moments: the warning (the map shakes), the rising, the fall (your loot) and the
 // escape.
@@ -46,56 +48,63 @@ function HpBar({ l, big }: { l: Lev; big?: boolean }) {
   );
 }
 
-/** what it's up to right now, in a few words (its powers, a rampage, its speed) */
-function levNow(l: Lev): string | null {
-  if (l.status === 'warning') return null;
-  if (l.hidden) return `🫥 Hiding${l.place ? ` somewhere around ${l.place}` : ''} — search the map`;
-  const bits: string[] = [];
-  if (levRampage(l)) bits.push('⚡ RAMPAGE');
-  if (levHidden(l)) bits.push('🫥 hidden (you found it)');
-  if (levTiny(l)) bits.push('🔬 tiny — bombs miss');
-  const pace = levPace(l);
-  if (!levRampage(l) && Math.abs(pace - 1) > 0.15) bits.push(`${pace > 1 ? '💨' : '🐢'} ×${pace >= 10 ? Math.round(pace) : pace.toFixed(1)} speed`);
-  return bits.length ? bits.join(' · ') : null;
-}
-
 function Countdown({ to }: { to: string }) {
   const [, set] = useState(0);
   useEffect(() => { const t = setInterval(() => set((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   return <>{dur((Date.parse(to) - serverNow()) / 1000)}</>;
 }
 
-/** the website: a banner across the top of the map */
-export function LeviathanBanner() {
-  const q = useLeviathan();
-  const l = q.data?.lev;
-  if (!l) return null;
-  return (
-    <motion.button onClick={() => useLevUi.getState().open()} className={cn('lv-lev-banner pointer-events-auto grid w-[min(420px,100%)] gap-1.5 rounded-2xl px-3 py-2 text-left', l.status, levRampage(l) && 'rampage', l.hidden && 'veiled')}
-      initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} data-testid="lev-banner">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl lv-lev-bob">🐉</span>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate font-display text-[15px] font-black text-white">The Leviathan {STATUS_TEXT[l.status]}</div>
-          <div className="truncate text-[11px] font-bold text-white/70">{l.status === 'warning' ? <>{l.origin} · rises in <Countdown to={l.rise_at} /></> : levNow(l) ?? `${l.place ?? ''} · ${l.fighters} fighting`}</div>
-        </div>
-        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#2A0D44]">{l.status === 'warning' ? 'Watch' : 'FIGHT'}</span>
-      </div>
-      {l.status !== 'warning' && <HpBar l={l} />}
-    </motion.button>
-  );
+// ---- what's happening, and how much of it you haven't looked at yet (the number on the button) ---------------------------
+type News = { key: string; emoji: string; title: string; desc: string; hot?: boolean };
+/** everything going on with it right now, newest-feeling first; each has a key that changes when it happens again */
+export function levNews(l: Lev): News[] {
+  const id = l.returns ? `${l.id}:${l.returns}` : l.id;
+  const n: News[] = [];
+  if (l.hunting) n.push({ key: `${id}:hunt`, emoji: '😡', title: 'It’s ENRAGED and hunting', desc: 'It goes after players and plots nonstop — get your enchantments ready.', hot: true });
+  if (levRampage(l)) n.push({ key: `${id}:rampage:${l.rampage_until}`, emoji: '⚡', title: 'It’s on a RAMPAGE', desc: l.target?.owner_name ? `Charging at @${l.target.owner_name}.` : 'Charging across the map.', hot: true });
+  if (l.status === 'enraged') n.push({ key: `${id}:enraged`, emoji: '💢', title: 'It’s ENRAGED', desc: 'Badly hurt and furious — throw everything at it.', hot: true });
+  if (l.status === 'fleeing') n.push({ key: `${id}:fleeing`, emoji: '🌊', title: 'It’s fleeing to the sea', desc: `Racing ${l.exit_sea ?? 'to the sea'} — finish it before it escapes.`, hot: true });
+  if (l.hidden || levHidden(l)) n.push({ key: `${id}:hidden:${l.hidden_until ?? ''}`, emoji: '🫥', title: 'It vanished', desc: 'It’s hiding somewhere on the map — zoom in and search to find it (and fight it).' });
+  if (levTiny(l)) n.push({ key: `${id}:tiny:${l.tiny_until}`, emoji: '🔬', title: 'It shrank itself', desc: 'It’s tiny — half the ink bombs miss. A Size Ray move blows it back up.' });
+  if (l.status === 'warning') n.push({ key: `${id}:warning`, emoji: '🌊', title: l.returns ? `It’s coming back — ×${l.strength} stronger` : 'Something is rising', desc: `${l.origin ?? 'Out at sea'} — every player can fight it.` });
+  else n.push({ key: `${id}:risen`, emoji: '🐉', title: l.returns ? `It’s back — ×${l.strength} stronger` : 'The Leviathan has risen', desc: `It came ashore ${l.origin ?? ''}${l.place ? ` — ${l.place} now` : ''}.` });
+  return n;
 }
+const NEWS_KEY = 'landvas.leviathan.news';
+/** what you've already looked at (kept for the current Leviathan only) */
+const useNewsSeen = create<{ seen: string[]; see(keys: string[]): void }>((set) => ({
+  seen: safeStorage<string[]>(NEWS_KEY, []),
+  see: (keys) => set((st) => {
+    const prefix = keys[0]?.split(':')[0];
+    const seen = [...new Set([...st.seen.filter((k) => !prefix || k.startsWith(prefix)), ...keys])].slice(-40);
+    saveStorage(NEWS_KEY, seen);
+    return { seen };
+  }),
+}));
+/** the things going on that you haven't seen yet */
+export function useLevUnseen(l: Lev | null | undefined) {
+  const seen = useNewsSeen((st) => st.seen);
+  return l ? levNews(l).filter((x) => !seen.includes(x.key)) : [];
+}
+const markSeen = (l: Lev | null | undefined) => { if (l) useNewsSeen.getState().see(levNews(l).map((x) => x.key)); };
 
-/** the app: a medallion in the HUD row */
-export function LeviathanDisc() {
+/** the Leviathan's button (the app's HUD row, the website's map row, Simple mode): only while one walks the Earth. A number
+ *  on it when something new happens; tapping it opens its card (signed out: the fight, to watch). */
+export function LeviathanDisc({ size = 44 }: { size?: number }) {
   const q = useLeviathan();
   const l = q.data?.lev;
+  const me = useOnboardedMe();
   const card = useHudCard((s) => s.card);
   const toggle = useHudCard((s) => s.toggle);
+  const unseen = useLevUnseen(l).length;
+  // something new happened while you were here: a nudge (the number says the rest)
+  const was = useRef(unseen);
+  useEffect(() => { if (unseen > was.current) feel(levNews(l!)[0]?.hot ? 'heavy' : 'medium'); was.current = unseen; }, [unseen]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!l) return null;
   return (
-    <GameDisc tone={l.status === 'enraged' ? 'crimson' : 'violet'} size={44} glow={card !== 'lev'} on={card === 'lev'} onClick={() => { feel('light'); toggle('lev'); }}
-      aria-label="The Leviathan" data-testid="lev-disc">
+    <GameDisc tone={l.status === 'enraged' || l.hunting || levRampage(l) ? 'crimson' : 'violet'} size={size} glow={card !== 'lev'} on={card === 'lev'} badge={card === 'lev' ? undefined : unseen || undefined}
+      onClick={() => { feel('light'); if (me) toggle('lev'); else { markSeen(l); useLevUi.getState().open(); } }}
+      aria-label={unseen ? `The Leviathan — ${unseen} new` : 'The Leviathan'} data-testid="lev-disc">
       <span className="text-[20px] leading-none lv-lev-bob">🐉</span>
     </GameDisc>
   );
@@ -103,23 +112,45 @@ export function LeviathanDisc() {
 export function LeviathanCard({ onClose }: { onClose(): void }) {
   const q = useLeviathan();
   const l = q.data?.lev;
+  // what was new when you opened it keeps its NEW mark while the card is open; it all counts as seen now
+  const unseen = useLevUnseen(l);
+  const [fresh] = useState(() => new Set(unseen.map((x) => x.key)));
+  useEffect(() => { markSeen(l); }, [l ? levNews(l).map((x) => x.key).join() : '']); // eslint-disable-line react-hooks/exhaustive-deps
+  // gone (fallen, escaped): the card closes, so the row and everything under it settle back
+  useEffect(() => { if (q.data && !l) onClose(); }, [!!q.data, !!l]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!l) return null;
+  // (that it rose, and where it is, the card's header already says: listed only while it's news)
+  const news = levNews(l).filter((x) => !/:(risen|warning)$/.test(x.key) || fresh.has(x.key));
   return (
-    <motion.div className={cn('lv-mcard pointer-events-auto w-[min(360px,100%)]', l.status === 'enraged' ? 't-crimson' : 't-violet')} data-testid="lev-card"
+    <motion.div className={cn('lv-mcard pointer-events-auto max-h-[calc(100dvh-300px)] min-h-[200px] w-[min(360px,100%)] overflow-y-auto overscroll-contain no-scrollbar', l.status === 'enraged' || l.hunting ? 't-crimson' : 't-violet')} data-testid="lev-card"
       initial={{ opacity: 0, scale: 0.7, y: -14 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -10, transition: { duration: 0.14 } }} transition={{ type: 'spring', stiffness: 520, damping: 34 }}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><div className="kicker">🐉 Leviathan #{l.gen}{Number(l.strength) > 1 ? ` · ×${l.strength} stronger` : ''}</div>
           <div className="font-display text-[20px] font-black leading-tight">{l.status === 'warning' ? 'Something is rising…' : `It ${STATUS_TEXT[l.status]}`}</div>
-          <div className="text-[12px] font-semibold text-white/65">{l.status === 'warning' ? <>{l.origin} · <Countdown to={l.rise_at} /></> : levNow(l) ?? l.place}</div></div>
+          <div className="text-[12px] font-semibold text-white/65">{l.status === 'warning' ? <>{l.origin} · rises in <Countdown to={l.rise_at} /></> : l.place ?? l.origin}</div></div>
         <button className="lv-x" onClick={onClose} aria-label="Close">×</button>
       </div>
-      <div className="relative mx-auto my-2 h-28 w-40"><LeviathanArt status={l.status} className="h-full w-full" /></div>
+      <div className={cn('relative mx-auto my-1.5', news.length > 2 ? 'h-14 w-20' : 'h-24 w-36')}><LeviathanArt status={l.status} className="h-full w-full" /></div>
       {l.status !== 'warning' && <HpBar l={l} big />}
-      <div className="mt-2.5 grid grid-cols-2 gap-2">
-        <div className="lv-mstat"><b className="tnum">{l.fighters}</b><i>fighting</i></div>
-        <div className="lv-mstat"><b className="tnum">{fmtDmg(q.data?.me?.dmg ?? 0)}</b><i>your damage</i></div>
-      </div>
-      <button className="lv-cta gold mt-3 w-full" onClick={() => { onClose(); useLevUi.getState().open(); }} data-testid="lev-open">{l.status === 'warning' ? '🐉 Watch it rise' : '⚔️ FIGHT IT'}<span>bombs, your enchantments, the live feed</span></button>
+      {/* what's going on: the reason for the number on the button */}
+      {news.length > 0 && <ul className="mt-2 grid gap-1.5" data-testid="lev-news">
+        {news.map((x) => (
+          <li key={x.key} className={cn('flex items-start gap-2 rounded-xl px-2.5 py-1.5', x.hot ? 'bg-[#FF2D55]/15' : 'bg-white/[0.06]')} data-testid="lev-news-item">
+            <span className="text-[17px] leading-tight">{x.emoji}</span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="flex items-center gap-1.5 text-[13px] font-black">{x.title}{fresh.has(x.key) && <span className="rounded-full bg-[#FF2D55] px-1.5 py-px text-[9px] font-black text-white" data-testid="lev-news-new">NEW</span>}</span>
+              <span className="block text-[11px] font-semibold text-white/65">{x.desc}</span>
+            </span>
+          </li>
+        ))}
+      </ul>}
+      {l.status !== 'warning' && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="lv-mstat"><b className="tnum">{l.fighters}</b><i>fighting</i></div>
+          <div className="lv-mstat"><b className="tnum">{fmtDmg(q.data?.me?.dmg ?? 0)}</b><i>your damage</i></div>
+        </div>
+      )}
+      <button className="lv-mcta gold mt-2.5 w-full flex-col !gap-1 py-2" onClick={() => { onClose(); useLevUi.getState().open(); }} data-testid="lev-open">{l.status === 'warning' ? '🐉 Watch it rise' : '⚔️ FIGHT IT'}<span>bombs, your enchantments, the live feed</span></button>
     </motion.div>
   );
 }
@@ -333,31 +364,6 @@ export function LeviathanMoments() {
     else if (l && l.status !== 'warning' && seen[seenKey] !== 'risen') { setMoment({ kind: 'risen', id: seenKey }); quake(); }
     else if (!l && st.last?.loot?.loot && !st.last.loot.seen) setMoment({ kind: st.last.status === 'fallen' ? 'fallen' : 'escaped', id: st.last.id });
   }, [st?.lev?.id, st?.lev?.status, st?.lev?.returns, st?.last?.id, st?.last?.loot?.seen]); // eslint-disable-line react-hooks/exhaustive-deps
-  // its powers and the owner's tricks, as they happen (a toast each, once — not for what was already going on when you came)
-  const powers = useRef<Record<string, string>>({});
-  const mountedAt = useRef(Date.now());
-  useEffect(() => {
-    if (!l || l.status === 'warning') return;
-    const said = powers.current;
-    const tell = (key: string, at: string | null | undefined, text: string, desc: string) => {
-      if (!at || Date.parse(at) <= serverNow()) return;
-      const k = `${l.id}:${key}:${at}`;
-      if (said[key] === k) return;
-      const first = said[key] === undefined && Date.now() - mountedAt.current < 4000;
-      said[key] = k;
-      if (!first) { toast(text, { description: desc }); feel('medium'); }
-    };
-    tell('tiny', l.tiny_until, '🔬 The Leviathan shrank itself!', 'It’s tiny — half the ink bombs miss. A Size Ray move blows it back up.');
-    tell('hidden', l.hidden_until, '🫥 The Leviathan vanished!', 'It’s hiding somewhere on the map — zoom in and search to find it (and fight it).');
-    tell('rampage', l.rampage_until, '⚡ The Leviathan is on a RAMPAGE!', l.target?.owner_name ? `It’s charging at @${l.target.owner_name}.` : 'It’s charging across the map.');
-    // ENRAGED: once when it starts hunting (not for a hunt that was already on when you came)
-    const hk = `${l.id}:hunt`;
-    if (l.hunting && said.hunt !== hk) {
-      const first = said.hunt === undefined && Date.now() - mountedAt.current < 4000;
-      said.hunt = hk;
-      if (!first) { toast('😡 The Leviathan is ENRAGED!', { description: 'It’s hunting players and plots nonstop — get your enchantments ready.' }); feel('heavy'); }
-    } else if (!l.hunting && said.hunt === hk) said.hunt = '';
-  }, [l?.id, l?.tiny_until, l?.hidden_until, l?.rampage_until, l?.status, l?.hunting]); // eslint-disable-line react-hooks/exhaustive-deps
   const done = () => {
     if (!moment) return;
     if (moment.kind === 'warning' || moment.kind === 'risen') saveStorage('landvas.leviathan.seen', { ...seen, [moment.id]: moment.kind });

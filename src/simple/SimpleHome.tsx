@@ -2,7 +2,7 @@
 // rarity roll, and watch your rent tick up. Earn Ink in the minigames to buy more. The full game is one tap away.
 import { TicketsDialog, ticketTitle, useMyTickets } from '../daily/Tickets';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ChevronRight, Gamepad2, Map as MapIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -30,8 +30,9 @@ import { currentRate, formatRate } from '../shared/rent';
 import type { PlotTypeId } from '../shared/grid';
 import { PlayerAvatar, ResourcePill, Spinner } from '../ui';
 import { NotificationBell } from '../updates/Notifications';
-import { LeviathanBanner, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
+import { LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
 import { WarpTunnel } from '../enchant/scenes/WormholeScene';
+import { useHudCard } from '../app/radial';
 import { readable } from '../lib/readable';
 
 type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean; today_mult?: number | null };
@@ -49,6 +50,8 @@ export default function SimpleHome() {
   const [streak, setStreak] = useState(false);
   const [album, setAlbum] = useState(false);
   const quick = useQuickRoll();
+  const levCard = useHudCard((st) => st.card);
+  const closeLev = useHudCard((st) => st.close);
   const quote = quick.quote;
   useStreakPrompt(() => setStreak(true));
   const plots = useQuery({ queryKey: qk.myPlots, queryFn: api.myPlots, enabled: !!me });
@@ -116,13 +119,14 @@ export default function SimpleHome() {
         </div>
       </motion.button>
 
-      {/* the Altar of Luck: sacrifice for a better roll · the Grimoire: your enchantments */}
+      {/* the Altar of Luck: sacrifice for a better roll · the Leviathan's button while one walks the Earth (a number on it
+          when something happens; its card opens under the row) · the Grimoire: your enchantments */}
       <div className="flex items-center justify-between gap-3">
         <LuckChip />
+        <span className="ml-auto"><LeviathanDisc /></span>
         <GrimoireButton />
       </div>
-      {/* the Leviathan, when one walks the Earth (no map here: the fight opens over the home) */}
-      <div className="flex justify-center"><LeviathanBanner /></div>
+      <AnimatePresence>{levCard === 'lev' && <div key="lev" className="flex justify-center"><LeviathanCard onClose={closeLev} /></div>}</AnimatePresence>
       <LeviathanFight />
       <LeviathanMoments />
       <WarpTunnel />

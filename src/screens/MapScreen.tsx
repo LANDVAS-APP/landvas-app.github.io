@@ -56,7 +56,7 @@ import { FlyParam, RayTargeting, useRayTarget } from '../enchant/sizeray';
 import { PlotPickOverlay } from '../enchant/PlotPickOverlay';
 import { usePlotPick } from '../enchant/plotPick';
 import { WarpTunnel } from '../enchant/scenes/WormholeScene';
-import { LeviathanBanner, LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
+import { LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
 import { EyesDisc, openEyes } from '../eyes/EyesDisc';
 import { usePageOff } from '../app/LiveControl';
 
@@ -166,7 +166,6 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         </div>
       ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
-        <div className="flex justify-center"><LeviathanBanner /></div>
         <div className="flex items-start gap-2">
           {me ? <PlayerBadge /> : !session ? <div className="pointer-events-auto"><SignInChip /></div> : null}
           <div className="pointer-events-auto ml-auto flex items-center gap-1.5">
@@ -189,11 +188,14 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
             <div className="lv-classic-dock pointer-events-auto flex flex-col items-center gap-3 rounded-[28px] px-2 py-2.5" data-testid="classic-dock">
               {me && <GrimoireButton />}
               {me && !away && <EyesDisc size={48} />}
+              <LeviathanDisc size={48} />
               <ModeButton />
               {me && <StreakChip onOpen={() => setStreak(true)} />}
               {me && <DailyChip />}
             </div>
-            {me && !away && !joystick && <JoystickSpot />}
+            {/* the Leviathan's card, beside the dock (its button is in it) */}
+            {me && <AnimatePresence>{card === 'lev' && <LeviathanCard key="lev" onClose={closeCard} />}</AnimatePresence>}
+            {me && !away && !joystick && card !== 'lev' && <JoystickSpot />}
           </div>
         </>) : (<>
         {/* one tidy row of round buttons (as in the app), on phones and desktop alike; whichever is open shows as a

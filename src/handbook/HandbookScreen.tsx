@@ -7,7 +7,6 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Page } from '../app/Shell';
 import { CHAPTERS } from './chapters';
 import { useHandbook, type Ctx } from './live';
-import { HandbookUpdates } from './Updates';
 import type { Chapter, Topic } from './types';
 import './handbook.css';
 
@@ -40,12 +39,13 @@ function search(c: Ctx, q: string) {
     .slice(0, 24);
 }
 
+// numbered in the logo's colours, in its order: red, orange, yellow, green, blue
 const START: { to: string; t: string; s: string; c: string }[] = [
-  { to: '/handbook/start#what', t: 'What LANDVAS is', s: 'The whole game in one minute', c: '#8B6BFF' },
-  { to: '/handbook/start#first', t: 'Your first ten minutes', s: 'Free plots, your first Ink, the boost', c: '#34C3FF' },
-  { to: '/handbook/world#claim', t: 'Claiming a plot', s: 'Reach, price, and what a plot becomes', c: '#3DDC97' },
-  { to: '/handbook/ink#pay', t: 'Exactly what a win pays', s: 'Levels, rarity bonuses and paid wins', c: '#FFC93D' },
-  { to: '/handbook/strategy#daily', t: 'The daily checklist', s: 'Everything worth doing, every day', c: '#FF4D6D' },
+  { to: '/handbook/start#what', t: 'What LANDVAS is', s: 'The whole game in one minute', c: '#FF4D6D' },
+  { to: '/handbook/start#first', t: 'Your first ten minutes', s: 'Free plots, your first Ink, the boost', c: '#FF9F1C' },
+  { to: '/handbook/world#claim', t: 'Claiming a plot', s: 'Reach, price, and what a plot becomes', c: '#FFE14D' },
+  { to: '/handbook/ink#pay', t: 'Exactly what a win pays', s: 'Levels, rarity bonuses and paid wins', c: '#3DDC97' },
+  { to: '/handbook/strategy#daily', t: 'The daily checklist', s: 'Everything worth doing, every day', c: '#34C3FF' },
 ];
 const POPULAR: [string, string][] = [
   ['/handbook/roll#rarities', '💎 Rarity odds'], ['/handbook/luck#rerolls', '🍀 How Luck works'], ['/handbook/luck#hot', '🔥 Hot Zone'], ['/handbook/rent#boost', '⚡ The ×20 boost'],
@@ -71,8 +71,6 @@ function HandbookIndex({ c }: { c: Ctx }) {
   return (
     <Page>
       <div ref={root} className="mx-auto max-w-3xl" data-testid="handbook">
-        {/* right at the top: what's changed in the game lately */}
-        <HandbookUpdates />
         <section className="hb-hero hb-rise">
           <div className="flex items-center gap-3"><img src="/brand/landvas-mark.svg" width={44} height={44} alt="" className="h-11 w-11" /><span className="kick">📖 The handbook</span></div>
           <h1 className="mt-4">Everything in LANDVAS, explained.</h1>

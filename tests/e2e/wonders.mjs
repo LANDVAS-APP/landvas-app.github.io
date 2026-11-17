@@ -389,17 +389,13 @@ async function run(mode) {
     ok('Leviathan: the warning comes, full screen', await waitFor('[data-testid=lev-moment-warning]', 30000));
     await page.waitForTimeout(1600); await shot('29-lev-warning');
     await page.click('[data-testid=lev-moment-ok]'); await page.waitForTimeout(700);
-    if (app) {
-      ok('…the app has the Leviathan disc on the map', await waitFor('[data-testid=lev-disc]', 10000));
-      await shot('30-lev-disc');
-      await page.click('[data-testid=lev-disc]');
-      ok('…which opens its premium card', await waitFor('[data-testid=lev-card]', 8000));
-      await page.waitForTimeout(700); await shot('31-lev-card');
-      await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-    } else {
-      ok('…the website shows the banner with the countdown', await waitFor('[data-testid=lev-banner]', 10000), (await page.textContent('[data-testid=lev-banner]').catch(() => ''))?.replace(/\s+/g, ' ').slice(0, 80));
-      await shot('30-lev-banner');
-    }
+    // app and website alike: its button in the map's row (no banner over the map), which opens its card
+    ok('…the Leviathan’s button is on the map, no banner', await waitFor('[data-testid=lev-disc]', 10000) && (await page.locator('[data-testid=lev-banner]').count()) === 0);
+    await shot('30-lev-disc');
+    await page.click('[data-testid=lev-disc]');
+    ok('…which opens its card, with the countdown', await waitFor('[data-testid=lev-card]', 8000) && /rises in/.test(await page.textContent('[data-testid=lev-card]')));
+    await page.waitForTimeout(700); await shot('31-lev-card');
+    await page.click('[data-testid=lev-disc]'); await page.waitForTimeout(400);
     // it rises
     await sql(`update leviathans set rise_at = now() - interval '1 second', walk_at = now() - interval '1 second' where status = 'warning'`);
     let risen = false;

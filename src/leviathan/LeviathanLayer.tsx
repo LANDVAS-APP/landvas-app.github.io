@@ -160,10 +160,14 @@ function useSeek(ready: boolean, l: Leviathan | null) {
     const map = mapHandle.current;
     if (!ready || !map || !hidden) { setHint(null); return; }
     let t = 0, alive = true;
+    // (zoomed out it says nothing: "it vanished — zoom in and search" is in the Leviathan's card, behind its button; the
+    // hot/cold chip only shows while you're zoomed in, searching)
     const look = () => {
       clearTimeout(t);
+      if (map.getZoom() < 7.5) { setHint(null); return; }
+      setHint((h) => h ?? 'looking');
       t = window.setTimeout(async () => {
-        if (map.getZoom() < 7.5) { setHint('zoom'); return; }
+        if (map.getZoom() < 7.5) { setHint(null); return; }
         const b = map.getBounds();
         try {
           const r = await api.leviathanSeek(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
@@ -172,13 +176,12 @@ function useSeek(ready: boolean, l: Leviathan | null) {
             setHint(null); feel('success');
             toast.success(r.first ? `🐉 You found the Leviathan first! +${r.ink ?? 0} Ink` : `🐉 You found the Leviathan!${r.ink ? ` +${r.ink} Ink` : ''}`, { description: 'You can see it and fight it now (you’ll lose sight of it in 15 minutes).' });
             void qc.invalidateQueries({ queryKey: LEV_KEY });
-          } else if (r.too_wide) setHint('zoom');
+          } else if (r.too_wide) setHint(null);
           else if (r.hint) setHint(r.hint);
           else if (r.hidden === false) void qc.invalidateQueries({ queryKey: LEV_KEY });
         } catch { /* the map carries on */ }
       }, 650);
     };
-    setHint('looking');
     look(); map.on('moveend', look);
     return () => { alive = false; clearTimeout(t); map.off('moveend', look); };
   }, [ready, hidden, l?.id]); // eslint-disable-line react-hooks/exhaustive-deps

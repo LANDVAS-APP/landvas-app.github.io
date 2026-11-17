@@ -223,6 +223,7 @@ export const enchant: Chapter = {
           </Figure>
           <Steps items={[
             'A warning goes out an hour before it rises. Then it walks inland from the sea for about 48 hours, on a route the whole world shares.',
+            <>While it’s out, a <B>🐉 button</B> sits in the map’s row of buttons. <B>A number on it</B> means something just happened (it got enraged, went on a rampage, vanished, shrank): tap it to see what, and to fight.</>,
             <><B>Tap to throw ink bombs</B> (60 banked, one back every minute), and use each enchantment’s own move (every 3 hours).</>,
             'At half health it enrages and heads for the nearest giant plot or the rarest land. At 10% it flees for the sea.',
             'Sometimes it shrinks (bombs miss more) or hides: search the map, “cold… warm… HOT!”. Finding it pays Ink and lets you hit it.',

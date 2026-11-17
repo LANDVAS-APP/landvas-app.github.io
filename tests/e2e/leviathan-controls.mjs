@@ -176,18 +176,27 @@ async function run(mode) {
       console.log('DEBUG moment re-adds in 3s:', JSON.stringify(d)); console.log('DEBUG errors:', errors.slice(0, 5).join(' | ')); console.log('DEBUG console:', consoleLog.slice(-10).join('\n'));
     }
     await later(); await relev(); await page.waitForTimeout(2500); await later();
-    if (app) ok('the app: its disc is on the map', await waitFor('[data-testid=lev-disc]', 15000));
-    else {
-      ok('the banner says it’s hiding (and on a rampage)', await waitFor('[data-testid=lev-banner].veiled', 15000), (await page.textContent('[data-testid=lev-banner]').catch(() => ''))?.replace(/\s+/g, ' ').slice(0, 100));
-      ok('…the banner is shown (not display:none)', await visible('[data-testid=lev-banner]'));
-    }
+    // nothing stands over the map: just its button, with a number for what's new — the card behind it says what
+    ok('its button is on the map (no banner over it)', await waitFor('[data-testid=lev-disc]', 15000) && (await page.locator('[data-testid=lev-banner]').count()) === 0);
+    const badge = await page.locator('[data-testid=lev-disc] .lv-bang').textContent({ timeout: 8000 }).catch(() => '');
+    ok('…with a number on it for what happened (hidden, rampage, tiny…)', Number(badge) >= 3, `${badge}`);
+    await page.click('[data-testid=lev-disc]');
+    ok('…which opens its card: it vanished, it’s on a rampage, it shrank', await waitFor('[data-testid=lev-card]', 8000)
+      && /vanished/.test(await page.textContent('[data-testid=lev-news]')) && /RAMPAGE/.test(await page.textContent('[data-testid=lev-news]')) && /shrank/.test(await page.textContent('[data-testid=lev-news]')));
+    ok('…each marked NEW', (await page.locator('[data-testid=lev-news-new]').count()) >= 3);
+    const cardBox = await page.locator('[data-testid=lev-card]').boundingBox();
+    const vh = page.viewportSize().height;
+    ok('…and it stays on the screen', !!cardBox && cardBox.y + cardBox.height <= vh - 150, cardBox ? `${Math.round(cardBox.y + cardBox.height)} of ${vh}` : '');
+    await shot('03b-lev-card');
+    ok('…and the number is gone once you’ve looked', (await page.locator('[data-testid=lev-disc] .lv-bang').count()) === 0);
+    await page.click('[data-testid=lev-disc]'); await page.waitForTimeout(500);
     const state = await api('leviathanState');
     ok('its path and place are kept from players', state.lev && state.lev.path === null && state.lev.hidden === true && state.lev.pos?.haze === true, state.lev?.place);
     ok('the hazy area is on the map', await page.waitForFunction(() => !!window.__landvasMap?.getLayer('lv-lev-haze'), null, { timeout: 15000 }).then(() => true, () => false));
     ok('…with its “?” to fly to', await waitFor('[data-testid=map-lev-haze]', 10000));
     ok('…and no creature to see', (await page.locator('[data-testid=map-leviathan]').count()) === 0);
     await fly(state.lev.pos, app ? 6.5 : 6); await page.waitForTimeout(3000);
-    ok('zoomed out: “zoom in on the haze and look around”', await page.waitForFunction(() => document.querySelector('[data-testid=lev-seek]')?.getAttribute('data-hint') === 'zoom', null, { timeout: 10000 }).then(() => true, () => false));
+    ok('zoomed out: no search chip standing over the map (the card says “zoom in and search”)', (await page.locator('[data-testid=lev-seek]').count()) === 0);
     await shot('04-map-haze');
     // the fight: fog until you find it
     await later();
@@ -199,7 +208,9 @@ async function run(mode) {
     await shot('05-fight-fog');
     const hitHidden = await api('leviathanHit', 'bomb', 1).then(() => 'hit', (e) => String(e?.message ?? e));
     ok('…bombs can’t hit what you can’t see', /hiding|lev_hidden/i.test(hitHidden), hitHidden.slice(0, 60));
-    await page.click('[data-testid=lev-search]').catch(() => page.click('[data-testid=lev-close]')); await page.waitForTimeout(1500); await later();
+    // (closed, not "Search the map": that flies to the haze, where it's often found at once — the search far away comes first)
+    ok('…with a “Search the map” button', await visible('[data-testid=lev-search]'));
+    await page.click('[data-testid=lev-close]').catch(() => page.keyboard.press('Escape')); await page.waitForTimeout(1500); await later();
     // search somewhere it isn't (cold), then right on it (found)
     const tp = await truePos();
     await fly({ lng: tp.lng + 3.5, lat: tp.lat + 2 }, 11.5); await page.waitForTimeout(3500);
