@@ -197,6 +197,43 @@ try {
     await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), $4, 'graphite')
                on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = excluded.rarity`, [gx, gy, ned, r]).catch((e) => console.log('plot insert:', String(e).slice(0, 200)));
   }
+  // what the plots around have been made into: places standing on them
+  const places = [
+    ['farm', [[6, -4]]], ['business', [[-2, 4]]], ['habitat', [[1, 5]]], ['home', [[-6, -2]]], ['mine', [[9, 2]]], ['sky', [[-5, 6]]],
+    ['diner', [[4, 7]]], ['dungeon', [[-9, -5]]], ['workshop', [[7, -8]]], ['brawl', [[-2, -9]]], ['train', [[11, -3]]], ['landlord', [[-11, 3]]],
+    ['boardwalk', [[12, 6], [13, 6], [12, 7], [13, 7]]], ['exchange', [[3, 11], [4, 11], [3, 12], [4, 12]]],
+    ['kingdom', [[-15, -3], [-14, -3], [-13, -3], [-15, -2], [-14, -2], [-13, -2], [-15, -1], [-14, -1], [-13, -1]]],
+  ];
+  for (const [kind, cells] of places) {
+    const abs = cells.map(([dx, dy]) => [START.gx + dx, START.gy + dy]);
+    for (const [gx, gy] of abs) await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), 'common', 'graphite')
+               on conflict (gx, gy) do update set owner_id = excluded.owner_id`, [gx, gy, ned]).catch((e) => console.log('place plot:', String(e).slice(0, 160)));
+    const xs = abs.map((c) => c[0]), ys = abs.map((c) => c[1]);
+    const g = await sql(`insert into canvas_groups (owner_id, name, kind, plot_count, min_gx, min_gy, max_gx, max_gy) values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+      [ned, `Ned's ${kind}`, kind, abs.length, Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]).catch((e) => { console.log('place group:', kind, String(e).slice(0, 160)); return []; });
+    if (g[0]) for (const [gx, gy] of abs) await sql(`insert into canvas_group_members (group_id, gx, gy) values ($1, $2, $3) on conflict (gx, gy) do update set group_id = excluded.group_id`, [g[0].id, gx, gy]).catch((e) => { if (!/type json/.test(String(e))) console.log('place member:', String(e).slice(0, 300)); });
+  }
+  // what plots have been made into, all around: one of every kind (and an Estate and a Domain), and my plot an arcade
+  const placeAt = async (cells, kind) => {
+    for (const [gx, gy] of cells) await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), 'rare', 'graphite')
+      on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now()`, [gx, gy, ned]).catch((e) => console.log('place plot:', String(e).slice(0, 160)));
+    const xs = cells.map((c) => c[0]), ys = cells.map((c) => c[1]);
+    // (the group is made as plain land and given its kind once its plots are in: the Estate bookkeeping isn't what's tested)
+    const g = (await sql(`insert into canvas_groups (owner_id, name, kind, plot_count, min_gx, min_gy, max_gx, max_gy) values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+      [ned, `Ned's ${kind}`, 'canvas', cells.length, Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]).catch((e) => { console.log('place group:', kind, String(e).slice(0, 160)); return []; }))[0]?.id;
+    if (g) for (const [gx, gy] of cells) await sql(`insert into canvas_group_members (group_id, gx, gy) values ('${g}'::uuid, ${gx | 0}, ${gy | 0}) on conflict (gx, gy) do update set group_id = excluded.group_id`).catch((e) => { if (!/type json/.test(String(e))) console.log('place member:', String(e).slice(0, 300)); });
+    if (g) await sql(`update canvas_groups set kind = $2 where id = $1`, [g, kind]).catch((e) => console.log('place kind:', kind, String(e).slice(0, 160)));
+  };
+  const one = (dx, dy) => [[START.gx + dx, START.gy + dy]];
+  const sq2 = (dx, dy, n) => { const out = []; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) out.push([START.gx + dx + i, START.gy + dy + j]); return out; };
+  for (const [cells, kind] of [
+    [one(6, -4), 'farm'], [one(-2, 4), 'business'], [one(1, 5), 'habitat'], [one(-6, -2), 'home'], [one(9, 2), 'mine'], [one(-5, 6), 'sky'],
+    [one(4, 7), 'diner'], [one(-9, -5), 'dungeon'], [one(7, -8), 'workshop'], [one(-2, -9), 'brawl'], [one(11, -3), 'train'], [one(-11, 3), 'landlord'],
+    [sq2(12, 6, 2), 'boardwalk'], [sq2(-15, -3, 3), 'kingdom'], [sq2(3, 11, 2), 'exchange'],
+  ]) await placeAt(cells, kind);
+  const myGroup = (await sql(`select group_id from canvas_group_members where gx = $1 and gy = $2`, [mine.gx, mine.gy]))[0]?.group_id;
+  const madeArcade = myGroup ? await as(me, 'set_group_kind', { p_group_id: myGroup, p_kind: 'arcade' }).catch((e) => ({ err: String(e).slice(0, 160) })) : null;
+  if (madeArcade?.err) console.log('my arcade:', madeArcade.err);
   const prim = { gx: START.gx + 900, gy: START.gy - 1400 }; // ~12 km NNE
   await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), 'heart_world', 'graphite')
              on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = 'heart_world'`, [prim.gx, prim.gy, ned]).catch((e) => console.log('primordial insert:', String(e).slice(0, 200)));
@@ -387,6 +424,64 @@ try {
   check('it feels like walking: steps (and their sound) as you go', dw?.steps > 2, `${dw?.steps} steps`);
   console.log('frame', JSON.stringify({ calls: dw?.calls, tris: dw?.tris, ms: dw?.frameMs, dpr: dw?.dpr, trees: dw?.trees, grass: dw?.grass, street: dw?.street, close: dw?.close }));
   await shot('13-walked');
+
+  // ---- the places plots have been made into, standing on them; walk up to one and go in ---------------------------------
+  {
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh(); await page.waitForTimeout(1500);
+    // (the plots reload as you go: give them a moment)
+    let b = null;
+    for (let k = 0; k < 20; k++) { b = (await eyes('debug'))?.builds; if ((b?.sites ?? 0) >= 12) break; await page.waitForTimeout(500); }
+    check('the plots stand as what they’ve been made into (an arcade, a farm, a castle…)', (b?.sites ?? 0) >= 12, JSON.stringify(b));
+    for (const [k, yaw] of [['n', 0], ['e', Math.PI / 2], ['s', Math.PI], ['w', Math.PI * 1.5]]) { await eyes('lookAt', yaw, 0.02); await page.waitForTimeout(1300); await shot(`16-places-${k}`); }
+    // walk up to the farm (6 east, 4 north): stand just south of it, facing north
+    const farm = ll(START.gx + 6, START.gy - 3);
+    await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, farm.lng, farm.lat + 0.000002]);
+    await refresh(); await eyes('lookAt', 0, -0.05); await page.waitForTimeout(1600);
+    check('walk up to a place: a way in appears', await waitFor('[data-testid=eyes-enter]', 6000));
+    await shot('16b-farm-up-close');
+    const label = await page.locator('[data-testid=eyes-enter]').innerText().catch(() => '');
+    check('…and it says what it is', /farm/i.test(label), label.replace(/\s+/g, ' '));
+    // look away: it goes
+    await eyes('lookAt', Math.PI, -0.05); await page.waitForTimeout(1200);
+    check('…facing away, it goes', (await page.locator('[data-testid=eyes-enter]').count()) === 0);
+    // the castle up close
+    const castle = ll(START.gx - 14, START.gy + 1);
+    await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, castle.lng, castle.lat]);
+    await refresh(); await eyes('lookAt', 0, 0.12); await page.waitForTimeout(1800);
+    await shot('16c-castle');
+    // the carnival (a turning Ferris wheel)
+    const carn = ll(START.gx + 12, START.gy + 9);
+    await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, carn.lng, carn.lat]);
+    await refresh(); await eyes('lookAt', 0, 0.15); await page.waitForTimeout(1800);
+    await shot('16d-carnival');
+  }
+
+  // ---- going in: my arcade -------------------------------------------------------------------------------------------
+  {
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh(); await page.waitForTimeout(1500);
+    let dp = null;
+    for (let k = 0; k < 20; k++) { dp = await eyes('debug'); if ((dp?.places ?? []).some((p) => p.kind === 'arcade')) break; await page.waitForTimeout(500); }
+    // stand at my arcade's door, facing it
+    const arc = (dp?.places ?? []).find((p) => p.kind === 'arcade');
+    const toLngLat = (f, x, z) => { const X = f.X0 + x / f.S, Y = f.Y0 + z / f.S; return { lng: X * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(Math.PI * (1 - 2 * Y))) }; };
+    if (arc) {
+      const fx = arc.x + Math.sin(arc.rot) * (arc.d / 2 + 2.2), fz = arc.z + Math.cos(arc.rot) * (arc.d / 2 + 2.2);
+      const ll2 = toLngLat(dp.frame, fx, fz);
+      await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, ll2.lng, ll2.lat]);
+      await refresh(); await page.waitForTimeout(1500);
+      await eyes('lookAt', Math.atan2(arc.x - fx, -(arc.z - fz)), -0.05); await page.waitForTimeout(1500);
+      check('walk up to a place: the way in appears', await waitFor('[data-testid=eyes-enter]', 5000));
+      await shot('17-at-the-door');
+      await page.click('[data-testid=eyes-enter]');
+      await page.waitForTimeout(1200); await shot('17b-door-opening');
+      const went = await page.waitForFunction(() => window.__landvasPath().startsWith('/arcade/'), null, { timeout: 9000 }).then(() => true).catch(() => false);
+      check('…and through the door you go, into the place', went && await waitFor('[data-testid=arcade]', 8000), await page.evaluate(() => window.__landvasPath()));
+      await page.waitForTimeout(1500); await shot('17c-inside');
+      await page.evaluate(() => window.__landvasNav(-1)); await waitFor('[data-testid=eyes]', 8000); await page.waitForTimeout(3000);
+    } else check('my arcade stands on my plot', false, JSON.stringify((dp?.places ?? []).map((p) => p.kind)));
+  }
 
   // ---- down on a real street: pavement, kerb, markings, parked cars, lamps, trees, shopfronts ------------------------
   {

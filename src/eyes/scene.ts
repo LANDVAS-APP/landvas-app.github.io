@@ -15,11 +15,15 @@ import { bearingDistance, cellToLocal, curveDrop, lngLatToLocal, localToCell, pl
 import { hex, type BuildingMesh, type StreetThings, type Terrain, type TreePt } from './world';
 import { createNature } from './nature';
 import { createStreet } from './street';
+import { createBuilds, PLACE_WORD, type BuildSite } from './builds';
+import { REALM_META, isRealm } from '../realms/kinds';
+import { isEstate, kindFamily, TIERS } from '../realms/estates/meta';
+import { isDomain } from '../realms/estates/domains';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyLook, type BodyVehicle } from './body';
 import { createEyesSound, type Surface } from './sound';
 
-export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null };
+export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null };
 export type Beacon = { id: string; lng: number; lat: number; color: string; emoji: string };
 export type LevPlace = { lng: number; lat: number; heading: number; walking: boolean; look: LevLook };
 export type SkyDrop = { id: string; kind: 'balloon' | 'lantern' | 'meteor'; seed: number };
@@ -87,10 +91,22 @@ export type Eyes = {
   debug(): Record<string, unknown>;
   /** (tests) the sharpest ground's own painting */ closeCanvas(): HTMLCanvasElement | null;
   /** (tests) hide or show one layer of the view */ debugShow(layer: string, on: boolean): void;
+  /** the place (a plot that's been made into something) you're standing at and facing, if any */ placeHere(): BuildSite | null;
+  /** knock on its door (or open its gate): ms until it's open */ knock(key: string): number;
+  /** the plot you tapped: a hologram card over it, its outline lit (null: none) */ setSelected(s: { gx: number; gy: number; card: HTMLCanvasElement | null } | null): void;
+  /** a painting on the ground lifts up and hangs in front of you (true if there's one there) */ liftArt(gx: number, gy: number): boolean;
+  /** …and goes back down onto its plot */ dropArt(): void;
+  artFloating(): boolean;
+  /** walk through its door: ms until you're in */ walkIn(key: string): number;
   dispose(): void;
 };
 
 const SKY_R = 110_000;
+/** each place's own colour (as in the Handbook) */
+const KIND_COLOR: Record<string, string> = {
+  habitat: '#3DDC97', farm: '#E0A800', business: '#D4A500', arcade: '#FF3D9A', mine: '#7C5CFF', sky: '#38BDF8', workshop: '#F59E0B',
+  diner: '#EF4444', dungeon: '#A855F7', brawl: '#FF4FD8', home: '#E0745C', landlord: '#E0745C', train: '#2FA4D9', plane: '#2FA4D9',
+};
 const NEAR_FAR = 4200;
 const NEAR_LIMIT = 2400; // nearer than this, the Leviathan and beacons stand in the near pass
 const FOG = 1.6e-5;
@@ -510,6 +526,8 @@ export function createEyes(o: EyesOpts): Eyes {
   // ---- trees, grass, and what stands on the street ----------------------------------------------------------------
   const nature = createNature(near, { phone });
   const street = createStreet(near);
+  const builds = createBuilds(near, { phone });
+  let occ: ((x: number, z: number) => number) | null = null;
 
   // ---- plots ------------------------------------------------------------------------------------------------------------
   const plotsGroup = new THREE.Group();
@@ -581,7 +599,7 @@ export function createEyes(o: EyesOpts): Eyes {
         float d = length(vL - uCam); float fade = 1.0 - smoothstep(14.0, 52.0, d);
         float aim = (id == uAim) ? 1.0 : 0.0; float here = (id == uHere) ? 1.0 : 0.0;
         vec3 c = mix(vec3(1.0), vec3(0.55, 0.45, 1.0), uDay * 0.6);
-        float a = line * 0.32 * fade + aim * (0.22 + line * 0.6) + here * 0.12;
+        float a = line * 0.26 * fade + aim * (0.06 + line * 0.5) + here * 0.04;
         vec3 col = mix(c, vec3(0.13, 0.89, 1.0), max(aim, here));
         gl_FragColor = vec4(col, a);
         #include <colorspace_fragment>
@@ -789,7 +807,7 @@ export function createEyes(o: EyesOpts): Eyes {
 
   const setTrees = (list: TreePt[], lat: number) => { nature.setTrees(list, lat, new Date(clock ?? Date.now())); shadowDirty = true; };
   const setStreet: Eyes['setStreet'] = (st, roofs) => { street.set(st, roofs); shadowDirty = true; };
-  const setOccupancy: Eyes['setOccupancy'] = (fn) => nature.setGround(fn);
+  const setOccupancy: Eyes['setOccupancy'] = (fn) => { occ = fn; nature.setGround(fn); if (plots.length) placeBuilds(plots); };
 
   const setTerrain: Eyes['setTerrain'] = (t, cl) => {
     if (terrain) { far.remove(terrain); terrain.geometry.dispose(); terrain = null; }
@@ -845,6 +863,67 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     return t;
   };
+  /** a cell's gaps to its neighbours: none toward a cell of the same merged group */
+  const cellInsets = (p: PlotPlace, at: Map<string, PlotPlace>, ps: number) => {
+    const inset = ps * 0.04;
+    const same = (dx: number, dy: number) => { const o2 = at.get(key(p.gx + dx, p.gy + dy)); return !!o2 && !!p.group && o2.group === p.group; };
+    return { l: same(-1, 0) ? 0 : inset, r: same(1, 0) ? 0 : inset, t: same(0, -1) ? 0 : inset, b: same(0, 1) ? 0 : inset };
+  };
+  /** the height a cell's art lies at (one for a whole merged painting) */
+  const artHeight = (p: PlotPlace | undefined) => {
+    let tier = p?.tier ?? 0;
+    if (p?.group) for (const o2 of plots) if (o2.group === p.group) tier = Math.max(tier, o2.tier);
+    return 0.17 + tier * 0.02 + 0.005;
+  };
+
+  /** what each plot (or merged group of plots) has been made into, as 3D places standing on them */
+  const placeBuilds = (list: PlotPlace[]) => {
+    if (!frame) return;
+    const ps = plotSize(frame);
+    const groups = new Map<string, PlotPlace[]>();
+    for (const p of list) {
+      const k = p.kind ?? 'canvas';
+      if (k === 'canvas' || k === 'base') continue;
+      const id = p.group ?? key(p.gx, p.gy);
+      (groups.get(id) ?? groups.set(id, []).get(id)!).push(p);
+    }
+    const sites: BuildSite[] = [];
+    const R = phone ? 230 : 320;
+    for (const [id, cells] of groups) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const c of cells) { x0 = Math.min(x0, c.gx); y0 = Math.min(y0, c.gy); x1 = Math.max(x1, c.gx); y1 = Math.max(y1, c.gy); }
+      // (a long straggly group gets its place on a square of it)
+      if (x1 - x0 > 3) x1 = x0 + 3;
+      if (y1 - y0 > 3) y1 = y0 + 3;
+      const [ax, az] = cellToLocal(frame, x0, y0);
+      const wx = (x1 - x0 + 1) * ps, wz = (y1 - y0 + 1) * ps;
+      const cx = ax + wx / 2, cz = az + wz / 2;
+      if (Math.hypot(cx - pos.x, cz - pos.z) > R) continue;
+      const p0 = cells[0];
+      const kind = p0.kind ?? 'canvas';
+      const tier: 0 | 1 | 2 = isDomain(kind) ? 2 : isEstate(kind) ? 1 : 0;
+      // face the nearest street (or, with none close, where you are)
+      let rot = Math.atan2(pos.x - cx, pos.z - cz);
+      if (occ) {
+        let best = Infinity;
+        for (const [dx, dz, a] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const) {
+          const half = dx ? wx / 2 : wz / 2;
+          for (let s2 = half + 1; s2 < half + 16; s2 += 1.5) { if (occ(cx + dx * s2, cz + dz * s2) === 2) { if (s2 < best) { best = s2; rot = a; } break; } }
+        }
+      }
+      rot = Math.round(rot / (Math.PI / 2)) * (Math.PI / 2);
+      const side = Math.abs(Math.sin(rot)) > 0.5;
+      sites.push({
+        key: id, kind, family: kindFamily(kind) as string, tier, x: cx, z: cz, w: side ? wz : wx, d: side ? wx : wz, rot,
+        color: TIERS[kind as keyof typeof TIERS]?.color ?? KIND_COLOR[kindFamily(kind) as string] ?? p0.color,
+        gx: p0.gx, gy: p0.gy, owner: p0.owner ?? null, name: p0.name,
+        label: isRealm(kind) ? REALM_META[kind].name : PLACE_WORD[kind]?.[1] ?? kind, emoji: isRealm(kind) ? REALM_META[kind].emoji : PLACE_WORD[kind]?.[0] ?? '📍',
+      });
+    }
+    builds.set(sites, pos);
+    shadowDirty = true;
+  };
+
   const setPlots = (list: PlotPlace[]) => {
     if (!frame) return;
     plots = list;
@@ -860,10 +939,14 @@ export function createEyes(o: EyesOpts): Eyes {
     type E = { x: number; z: number; rot: number; h: number; color: string };
     const edgeList: E[] = [];
     const beamList: { x: number; z: number; h: number; r: number; color: string }[] = [];
+    // merged plots (one painting, one estate) are one seamless piece: no gaps between their cells, one height
+    const groupTier = new Map<string, number>();
+    for (const p of list) if (p.group) groupTier.set(p.group, Math.max(groupTier.get(p.group) ?? 0, p.tier));
     list.forEach((p, i) => {
       const [x, z] = cellToLocal(frame!, p.gx, p.gy);
-      const inset = ps * 0.04;
-      m.compose(v.set(x + inset, 0, z + inset), q.identity(), s.set(ps - inset * 2, 0.16 + p.tier * 0.02, ps - inset * 2));
+      const ins = cellInsets(p, at, ps);
+      const tier = p.group ? groupTier.get(p.group)! : p.tier;
+      m.compose(v.set(x + ins.l, 0, z + ins.t), q.identity(), s.set(ps - ins.l - ins.r, 0.16 + tier * 0.02, ps - ins.t - ins.b));
       slabs!.setMatrixAt(i, m);
       slabs!.setColorAt(i, c.set(p.color));
       const h = Math.max(auraHeight(p.tier), p.mine ? 1.4 : 0);
@@ -917,6 +1000,7 @@ export function createEyes(o: EyesOpts): Eyes {
       beams.computeBoundingSphere();
       plotsGroup.add(beams);
     }
+    placeBuilds(list);
     // art that's no longer in range goes
     const keep = new Set(list.map((p) => key(p.gx, p.gy)));
     for (const [k, mesh] of artPlanes) if (!keep.has(k)) { plotsGroup.remove(mesh); (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); artPlanes.delete(k); }
@@ -935,12 +1019,119 @@ export function createEyes(o: EyesOpts): Eyes {
     const mesh = new THREE.Mesh(artGeo, mat);
     const ps = plotSize(frame);
     const [x, z] = cellToLocal(frame, gx, gy);
-    const inset = ps * 0.04;
-    mesh.scale.set(ps - inset * 2, 1, ps - inset * 2);
-    mesh.position.set(x + inset, 0.17 + (p?.tier ?? 0) * 0.02 + 0.005, z + inset);
+    const ins = p ? cellInsets(p, new Map(plots.map((o2) => [key(o2.gx, o2.gy), o2])), ps) : { l: ps * 0.04, r: ps * 0.04, t: ps * 0.04, b: ps * 0.04 };
+    // (the painting's own pixels run right to the shared edges: crop the texture by the same insets)
+    tex.offset.set(ins.l / ps, ins.b / ps);
+    tex.repeat.set((ps - ins.l - ins.r) / ps, (ps - ins.t - ins.b) / ps);
+    mesh.scale.set(ps - ins.l - ins.r, 1, ps - ins.t - ins.b);
+    mesh.position.set(x + ins.l, artHeight(p), z + ins.t);
+    mesh.userData.cell = { gx, gy };
     artPlanes.set(k, mesh);
     plotsGroup.add(mesh);
   };
+  // ---- the plot you tapped: a hologram card over it, its outline lit ---------------------------------------------------
+  const holo = new THREE.Group();
+  near.add(holo);
+  const holoGlowM = T(new THREE.MeshBasicMaterial({ color: '#22e3ff', transparent: true, opacity: 0.9, depthWrite: false }));
+  let holoSprite: THREE.Sprite | null = null;
+  const setSelected: Eyes['setSelected'] = (sel) => {
+    for (const c of [...holo.children]) { holo.remove(c); if (c instanceof THREE.Sprite) { c.material.map?.dispose(); c.material.dispose(); } else (c as THREE.Mesh).geometry?.dispose(); }
+    holoSprite = null;
+    if (!sel || !frame) return;
+    const ps = plotSize(frame);
+    const p = plots.find((x) => x.gx === sel.gx && x.gy === sel.gy);
+    const cells = p?.group ? plots.filter((x) => x.group === p.group) : [{ gx: sel.gx, gy: sel.gy }];
+    let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+    for (const c of cells) { gx0 = Math.min(gx0, c.gx); gy0 = Math.min(gy0, c.gy); gx1 = Math.max(gx1, c.gx); gy1 = Math.max(gy1, c.gy); }
+    const [x0, z0] = cellToLocal(frame, gx0, gy0);
+    const W = (gx1 - gx0 + 1) * ps, D = (gy1 - gy0 + 1) * ps;
+    holoGlowM.color.set(p?.glow || p?.color || '#22e3ff');
+    // the outline: four glowing rails and corner posts round the plot (the whole merged group)
+    const y = artHeight(p) + 0.03;
+    for (const [w, d, x, z] of [[W, 0.14, x0 + W / 2, z0], [W, 0.14, x0 + W / 2, z0 + D], [0.14, D, x0, z0 + D / 2], [0.14, D, x0 + W, z0 + D / 2]] as const) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), holoGlowM); m.position.set(x, y, z); holo.add(m);
+    }
+    for (const [x, z] of [[x0, z0], [x0 + W, z0], [x0, z0 + D], [x0 + W, z0 + D]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.1).translate(0, 0.6, 0), holoGlowM); m.position.set(x, y, z); holo.add(m); }
+    if (sel.card) {
+      const tex = new THREE.CanvasTexture(sel.card);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      holoSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));
+      const h = Math.min(4, Math.max(2.2, Math.max(W, D) * 0.4));
+      holoSprite.scale.set(h * (sel.card.width / sel.card.height), h, 1);
+      holoSprite.position.set(x0 + W / 2, y + Math.max(3, (builds.list().find((b) => Math.abs(b.x - (x0 + W / 2)) < W / 2 && Math.abs(b.z - (z0 + D / 2)) < D / 2) ? 7 : 2.6)) + h / 2, z0 + D / 2);
+      holoSprite.renderOrder = 10;
+      holoSprite.userData.y = holoSprite.position.y;
+      holo.add(holoSprite);
+    }
+  };
+
+  // ---- a painting lifts off its plot and hangs in front of you (tap again: back down it goes) --------------------------
+  let floating: { obj: THREE.Group; hidden: THREE.Mesh[]; back: THREE.Mesh; ground: THREE.Matrix4; t: number; dir: 1 | -1; w: number; d: number } | null = null;
+  const liftArt = (gx: number, gy: number): boolean => {
+    if (!frame) return false;
+    if (floating) endFloat();
+    const p = plots.find((x) => x.gx === gx && x.gy === gy);
+    const cells = (p?.group ? plots.filter((x) => x.group === p.group) : [{ gx, gy }]).filter((c) => artPlanes.has(key(c.gx, c.gy)));
+    if (!cells.length) return false;
+    const ps = plotSize(frame);
+    let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+    for (const c of cells) { gx0 = Math.min(gx0, c.gx); gy0 = Math.min(gy0, c.gy); gx1 = Math.max(gx1, c.gx); gy1 = Math.max(gy1, c.gy); }
+    const [x0, z0] = cellToLocal(frame, gx0, gy0);
+    const W = (gx1 - gx0 + 1) * ps, D = (gy1 - gy0 + 1) * ps;
+    const cx = x0 + W / 2, cz = z0 + D / 2;
+    const obj = new THREE.Group();
+    const hidden: THREE.Mesh[] = [];
+    let y = 0;
+    for (const c of cells) {
+      const m = artPlanes.get(key(c.gx, c.gy))!;
+      const copy = m.clone();
+      copy.position.set(m.position.x - cx, 0, m.position.z - cz);
+      y = m.position.y;
+      obj.add(copy);
+      // a frame behind it, so it reads as a canvas in the air
+      m.visible = false;
+      hidden.push(m);
+    }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, 0.12, D + 0.3), new THREE.MeshBasicMaterial({ color: p?.glow || p?.color || '#ffffff' }));
+    back.position.y = -0.07;
+    obj.add(back);
+    obj.matrixAutoUpdate = false;
+    const ground = new THREE.Matrix4().makeTranslation(cx, y, cz);
+    obj.matrix.copy(ground);
+    near.add(obj);
+    floating = { obj, hidden, back, ground, t: 0, dir: 1, w: W + 0.3, d: D + 0.3 };
+    sound.whoosh();
+    return true;
+  };
+  const dropArt = () => { if (floating && floating.dir > 0) { floating.dir = -1; sound.whoosh(); } };
+  const endFloat = () => {
+    if (!floating) return;
+    for (const m of floating.hidden) m.visible = true;
+    near.remove(floating.obj);
+    floating.back.geometry.dispose(); (floating.back.material as THREE.Material).dispose();
+    floating = null;
+  };
+  const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), pA = new THREE.Vector3(), pB = new THREE.Vector3(), sA = new THREE.Vector3(), mAir = new THREE.Matrix4();
+  const updateFloating = (dt: number, t: number) => {
+    if (holoSprite) holoSprite.position.y = (holoSprite.userData.y as number) + Math.sin(t * 1.6) * 0.12;
+    if (!floating) return;
+    floating.t = Math.max(0, Math.min(1, floating.t + (dt / 0.85) * floating.dir));
+    const e = floating.t * floating.t * (3 - 2 * floating.t);
+    // in the air: facing you, upright (north at the top), sized to fill most of the view
+    const tanH = Math.tan((cam.fov * RAD) / 2) * cam.aspect;
+    const dist = Math.max(1.6, (Math.max(floating.w, floating.d * (cam.aspect < 1 ? cam.aspect : 1)) / 2) / (tanH * 0.82));
+    const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+    const at = cam.position.clone().addScaledVector(fwd, dist).add(new THREE.Vector3(0, Math.sin(t * 1.3) * 0.04 * e, 0));
+    mAir.makeBasis(right, fwd.clone().negate(), new THREE.Vector3(0, -1, 0)).setPosition(at);
+    floating.ground.decompose(pA, qA, sA);
+    mAir.decompose(pB, qB, sA);
+    // (it rises first, then swings up to face you)
+    const rise = new THREE.Vector3().lerpVectors(pA, pB, e).add(new THREE.Vector3(0, Math.sin(e * Math.PI) * 1.2, 0));
+    floating.obj.matrix.compose(rise, qA.clone().slerp(qB, Math.min(1, e * 1.25)), new THREE.Vector3(1, 1, 1));
+    floating.obj.matrixWorldNeedsUpdate = true;
+    if (floating.t <= 0 && floating.dir < 0) endFloat();
+  };
+
   const setMine: Eyes['setMine'] = (cards) => {
     for (const s of [...cardSprites.children]) { cardSprites.remove(s); const mm = (s as THREE.Sprite).material; mm.map?.dispose(); mm.dispose(); }
     if (!frame) return;
@@ -1219,6 +1410,7 @@ export function createEyes(o: EyesOpts): Eyes {
     if (!p) return;
     if (pointers.size === 0 && performance.now() - p.t0 < 320 && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10) {
       vyaw = vpitch = 0;
+      if (floating && floating.dir > 0) { dropArt(); return; }
       o.onPick(pick(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
     }
     if (pointers.size < 2) pinch0 = 0;
@@ -1307,6 +1499,8 @@ export function createEyes(o: EyesOpts): Eyes {
   // ---- the loop -----------------------------------------------------------------------------------------------------
   const pace = framePacer({ ambient: () => !throws.length && !levPlace });
   let frames = 0, frameMs = 16;
+  /** walking through a door: the camera glides from where you stand, through it */
+  let dolly: { from: THREE.Vector3; to: THREE.Vector3; t0: number; dur: number; yaw0: number; yaw1: number } | null = null;
   const tune = adaptiveDpr((d) => { dpr = d; renderer.setPixelRatio(d); starU.uPx.value = d; resize(); }, dpr, pace);
   let raf = 0, last = performance.now(), t0 = performance.now(), disposed = false;
   let w = 0, h = 0;
@@ -1361,7 +1555,18 @@ export function createEyes(o: EyesOpts): Eyes {
       else if (t > nextRoar) { nextRoar = t + 25 + Math.random() * 35; sound.roar(1 - levDist / 4000); shake = Math.max(shake, 1 - levDist / 4000); }
     }
     if (now - lastDrive > 250) { lastDrive = now; sound.drive(veh, speed, false); }
+    if (dolly) {
+      const k = Math.min(1, (now - dolly.t0) / dolly.dur), e = k * k * (3 - 2 * k);
+      let dy = dolly.yaw1 - dolly.yaw0; dy = ((dy + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      yaw = dolly.yaw0 + dy * Math.min(1, e * 1.6); pitch += (0.02 - pitch) * 0.15;
+    }
     applyCamera();
+    if (dolly) {
+      const k = Math.min(1, (now - dolly.t0) / dolly.dur), e = k * k * (3 - 2 * k);
+      cam.position.lerpVectors(dolly.from, dolly.to, e);
+      farCam.position.copy(cam.position);
+      if (k >= 1 && now - dolly.t0 > dolly.dur + 2500) dolly = null;
+    }
     cam.updateProjectionMatrix();
     farCam.updateProjectionMatrix();
     body.update({
@@ -1391,6 +1596,8 @@ export function createEyes(o: EyesOpts): Eyes {
       if (d.userData.at) d.position.copy(d.userData.at as THREE.Vector3);
     }
     nature.update(o.reduceMotion ? 0 : t, pos, o.eye());
+    builds.update(o.reduceMotion ? 0 : t);
+    updateFloating(dt, t);
     street.update(bldU.uNight.value);
     groundU.uTime.value = o.reduceMotion ? 0 : t;
     // the sharpest ground follows you: ask for a new patch near its edge
@@ -1662,15 +1869,27 @@ export function createEyes(o: EyesOpts): Eyes {
       el.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
     }),
     closeCanvas: () => closeCanvas,
+    placeHere: () => (o.eye() > 6 || dolly ? null : builds.at(pos.x, pos.z, yaw)),
+    knock: (k) => builds.knock(k, () => sound.knock(), () => sound.creak()),
+    setSelected, liftArt, dropArt, artFloating: () => !!floating && floating.dir > 0,
+    walkIn: (k) => {
+      const e = builds.entryOf(k);
+      if (!e) return 0;
+      const to = e.at.clone().addScaledVector(e.dir, 1.6).setY(cam.position.y);
+      const dur = Math.max(700, Math.min(1600, cam.position.distanceTo(to) * 260));
+      dolly = { from: cam.position.clone(), to, t0: performance.now(), dur, yaw0: yaw, yaw1: Math.atan2(e.dir.x, -e.dir.z) };
+      return dur;
+    },
     debugShow: (layer, on) => {
       const all: Record<string, THREE.Object3D | null> = { ground, grid, plots: plotsGroup, buildings, terrain, body: body.body, shadow: body.shadow, lev: lev.group };
+      if (layer === 'builds') near.children.forEach((c) => { if (c.userData.layer === 'builds') c.visible = on; });
       if (layer === 'shadows') { lightsNear.dir.castShadow = on; return; }
       const x = all[layer]; if (x) x.visible = on;
       if (layer === 'nature' || layer === 'street') near.children.forEach((c) => { if (c.userData.layer === layer) c.visible = on; });
     },
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
-      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
+      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
       beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
@@ -1694,7 +1913,7 @@ export function createEyes(o: EyesOpts): Eyes {
       for (const [, mesh] of artPlanes) { (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); }
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
-      nature.dispose(); street.dispose(); closeTex?.dispose();
+      nature.dispose(); street.dispose(); builds.dispose(); closeTex?.dispose();
       nearTex?.dispose(); farTex?.dispose();
       for (const t of emojiTex.values()) t.dispose();
       for (const d of own) d.dispose();

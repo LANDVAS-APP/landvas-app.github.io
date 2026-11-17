@@ -61,7 +61,11 @@ export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: Plo
   return <canvas ref={ref} style={{ width: size, height: size }} className={cn('shrink-0 rounded-xl', className)} aria-hidden />;
 }
 
-export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number } }) {
+/**
+ * `variant="eyes"`: in the first-person view it rises from the bottom middle of the screen as a see-through visor
+ * card, on every screen size (the plot itself is lit up in the view behind it).
+ */
+export function PlotPanel({ cell: selected, variant }: { cell: { gx: number; gy: number }; variant?: 'eyes' }) {
   const select = useUi((s) => s.select);
   const session = useSession();
   const q = useQuery({ queryKey: qk.plot(selected.gx, selected.gy), queryFn: () => api.plotDetails(selected.gx, selected.gy) });
@@ -75,12 +79,14 @@ export function PlotPanel({ cell: selected }: { cell: { gx: number; gy: number }
   return (
     <motion.aside
       initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-      className={NATIVE
+      className={variant === 'eyes'
+        ? cn('lv-eyes-sheet fixed inset-x-0 bottom-[max(10px,env(safe-area-inset-bottom,0px))] z-30 mx-auto max-h-[58dvh] w-[min(440px,calc(100%-20px))] overflow-y-auto overscroll-contain rounded-[26px] px-4 pb-4 pt-3 scroll-thin', unowned && 'lv-claimsheet')
+        : NATIVE
         ? cn(unowned ? 'lv-claimsheet' : 'lv-plotsheet', 'fixed inset-x-0 bottom-0 z-30 max-h-[66dvh] overflow-y-auto overscroll-contain rounded-t-[28px] px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-3')
         : cn(unowned ? 'lv-claimsheet' : 'glass', 'fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-y-auto rounded-t-[28px] px-[max(16px,env(safe-area-inset-left,0px))] pb-[calc(84px+env(safe-area-inset-bottom,0px))] pt-4 scroll-thin md:absolute md:bottom-auto md:left-auto md:right-6 md:top-[116px] md:max-h-[calc(100%-140px)] md:w-[400px] md:rounded-[28px] md:p-5')}
-      style={NATIVE && d?.rarity_info ? { ['--glow' as string]: d.rarity_info.glow } : undefined}
+      style={(NATIVE || variant === 'eyes') && d?.rarity_info ? { ['--glow' as string]: d.rarity_info.glow } : undefined}
       aria-label="Plot details" data-testid="plot-panel">
-      <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong md:hidden" />
+      <div className={cn('mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong', variant === 'eyes' ? '' : 'md:hidden')} />
       {unowned && <ClaimHeader d={d} onClose={() => select(null)} onOdds={() => setOdds(true)} />}
       <div className={cn('flex items-start gap-3', unowned && 'hidden')}>
         {NATIVE && d?.owned ? null : d?.plot_type ? <PlotSwatch type={d.plot_type} className="ring-2" /> : d ? <MysterySwatch /> : <div className="h-14 w-14 rounded-xl bg-surface-2" />}

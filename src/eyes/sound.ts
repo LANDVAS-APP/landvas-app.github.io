@@ -100,6 +100,13 @@ export function createEyesSound() {
       notes.forEach((f, i) => tone(c, { f0: f, dur: 0.5, gain: 0.07, type: 'sine', at: i * 0.07 }));
       nap.poke(1);
     },
+    /** knock knock knock on a wooden door (a door creak to follow is `creak`) */
+    knock() {
+      const c = get(); if (!c) return;
+      for (let i = 0; i < 3; i++) { burst(c, { dur: 0.09, gain: 0.38, type: 'bandpass', freq: 420 + i * 25, q: 2.2, at: i * 0.28 }); tone(c, { f0: 150, f1: 90, dur: 0.1, gain: 0.16, at: i * 0.28 }); }
+      nap.poke(1.2);
+    },
+    creak() { const c = get(); if (!c) return; tone(c, { f0: 230, f1: 330, dur: 0.6, gain: 0.035, type: 'sawtooth' }); burst(c, { dur: 0.6, gain: 0.05, type: 'bandpass', freq: 1300, q: 5 }); nap.poke(0.9); },
     pop() { const c = get(); if (!c) return; tone(c, { f0: 900, f1: 1800, dur: 0.08, gain: 0.12, type: 'square' }); burst(c, { dur: 0.15, gain: 0.12, type: 'highpass', freq: 2500 }); nap.poke(0.4); },
     /** the Leviathan, louder the nearer it is (0…1) */
     roar(near: number) {

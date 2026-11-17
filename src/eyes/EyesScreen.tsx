@@ -23,6 +23,8 @@ import { ArtIndex } from '../map/artTiles';
 import { PlotBlocks } from '../map/plotTiles';
 import { mapTheme, streetPalette } from '../map/basemap';
 import { PlotPanel } from '../plot/PlotPanel';
+import { qk } from '../lib/queries';
+const qkPlot = (gx: number, gy: number) => qk.plot(gx, gy) as unknown as readonly unknown[];
 import { ClaimCelebration } from '../plot/ClaimCelebration';
 import { LeviathanFight, useLevUi } from '../leviathan/Leviathan';
 import { LEV_KEY, fmtDmg, levPos, levRampage, levTiny, useLeviathan } from '../leviathan/useLeviathan';
@@ -34,6 +36,8 @@ import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
 import { bearingDistance, fmtDistance, makeFrame, type Frame } from './geo';
 import { buildBuildings, drawGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
+import type { BuildSite } from './builds';
+import { REALM_META, isRealm, realmRoute } from '../realms/kinds';
 
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
 const FAR_HALF = 2600; // the softer ground of the town around
@@ -126,6 +130,56 @@ export default function EyesScreen() {
     window.addEventListener('pointerup', stop);
   };
   useEffect(() => () => { if (climb.current) cancelAnimationFrame(climb.current); }, []);
+
+  // the place you've walked up to (a plot made into an arcade, a farm, a house…), and going in
+  const [place, setPlace] = useState<BuildSite | null>(null);
+  useEffect(() => {
+    if (!eyes) return;
+    const t = setInterval(() => { const p = eyes.placeHere(); setPlace((old) => (old?.key === p?.key ? old : p)); }, 350);
+    return () => clearInterval(t);
+  }, [eyes]);
+  const [going, setGoing] = useState<{ key: string; fade: boolean } | null>(null);
+  const enterPlace = async (s: BuildSite) => {
+    if (!eyes || going) return;
+    if (useUi.getState().settings?.haptics) buzz('light');
+    setGoing({ key: s.key, fade: false });
+    // where it leads (looked up while you knock)
+    const route = (async (): Promise<string | null> => {
+      try {
+        if (s.kind === 'home' || s.kind === 'landlord') return s.owner ? `/u/${s.owner}/home` : null;
+        if (s.family === 'arcade') { const a = await api.arcadeForPlot(s.gx, s.gy); if (a) return `/arcade/${a.arcade_id}`; }
+        if (s.tier === 0 && s.family === 'farm') { const f = await api.farmForPlot(s.gx, s.gy); if (f) return `/farm/${f.farm_id}`; }
+        if (s.tier === 0 && s.family === 'business') { const b = await api.bizForPlot(s.gx, s.gy); if (b) return `/business/${b.business_id}`; }
+        if (s.tier === 0 && s.family === 'habitat') { const h = await api.habitatForPlot(s.gx, s.gy); if (h) return `/habitat/${h.habitat_id}`; }
+        if (s.kind !== 'train' && s.kind !== 'plane') { const r = await api.realmForPlot(s.gx, s.gy); if (r) return realmRoute(r.realm_id); }
+      } catch (e) { toast.error(toGameError(e).message); }
+      return null;
+    })();
+    // knock (the door shakes, it creaks open) or open the gate, then walk through
+    await new Promise((r) => setTimeout(r, eyes.knock(s.key)));
+    const to = await route;
+    if (!to) {
+      // nothing to walk into (a station, an airfield): its plot's card has what it offers
+      setGoing(null);
+      select({ gx: s.gx, gy: s.gy });
+      return;
+    }
+    const ms = eyes.walkIn(s.key);
+    setTimeout(() => setGoing((g) => (g ? { ...g, fade: true } : g)), Math.max(0, ms - 450));
+    await new Promise((r) => setTimeout(r, ms + 120));
+    // inside, still in first person (leave first person and you're in its usual view)
+    nav(`${to}${to.includes('?') ? '&' : '?'}fp=1`);
+  };
+
+  // the plot you tapped: its card floats over it in the world, its outline lights up, and a painting lifts up to you
+  const selQ = useQuery({ queryKey: selected ? qkPlot(selected.gx, selected.gy) : ['plot', 'none'], queryFn: () => api.plotDetails(selected!.gx, selected!.gy), enabled: !!selected && !!eyes });
+  useEffect(() => {
+    if (!eyes) return;
+    if (!selected) { eyes.setSelected(null); eyes.dropArt(); return; }
+    const row = rowsRef.current.find((r) => r[0] === selected.gx && r[1] === selected.gy);
+    eyes.setSelected({ ...selected, card: plotCard(selQ.data ?? null, row ?? null) });
+  }, [eyes, selected, selQ.data]);
+  useEffect(() => { if (eyes && selected) eyes.liftArt(selected.gx, selected.gy); }, [eyes, selected]);
 
   // WASD / arrows walk too (the stick opens if it's closed)
   useDriveKeys(!!me && hasExplorer, () => setSteer(true));
@@ -250,7 +304,7 @@ export default function EyesScreen() {
       rowsRef.current = rows;
       const list: PlotPlace[] = rows.map((r) => {
         const info = rarityInfo(r[9]);
-        return { gx: r[0], gy: r[1], rarity: r[9], color: info.color, glow: info.glow, tier: rarityTier(r[9]), mine: !!r[4], group: r[5], shiny: !!r[12], emoji: info.emoji ?? null, name: r[10] ?? null };
+        return { gx: r[0], gy: r[1], rarity: r[9], color: info.color, glow: info.glow, tier: rarityTier(r[9]), mine: !!r[4], group: r[5], shiny: !!r[12], emoji: info.emoji ?? null, name: r[10] ?? null, kind: r[11] ?? 'canvas', owner: r[7] };
       });
       eyes.setPlots(list);
       // the art on the nearest plots that have some (and the drawings on your floating cards)
@@ -593,6 +647,28 @@ export default function EyesScreen() {
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>
 
+      {/* walking through a door */}
+      <div className={cn('pointer-events-none absolute inset-0 z-30 bg-black transition-opacity duration-500', going?.fade ? 'opacity-100' : 'opacity-0')} />
+      {/* walked up to a place: go in */}
+      <AnimatePresence>
+        {place && !going && (
+          <motion.button
+            key={place.key}
+            initial={{ opacity: 0, y: 10, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }}
+            className="absolute left-1/2 top-[57%] z-20 flex -translate-x-1/2 items-center gap-2.5 rounded-2xl border-2 bg-black/60 px-4 py-2.5 text-left shadow-2xl"
+            style={{ borderColor: place.color }}
+            onClick={() => void enterPlace(place)}
+            data-testid="eyes-enter"
+          >
+            <span className="text-2xl leading-none">{place.emoji}</span>
+            <span className="grid leading-tight">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">{place.owner ? `@${place.owner}’s ${place.label}` : place.name || place.label}</span>
+              <span className="text-[15px] font-black text-white">{placeGo(place)} →</span>
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* the jetpack: up and down */}
       {vehicle === 'jet' && (
         <div className="absolute left-[max(12px,env(safe-area-inset-left,0px))] top-1/2 z-20 grid -translate-y-1/2 justify-items-center gap-2" data-testid="eyes-jet">
@@ -654,7 +730,7 @@ export default function EyesScreen() {
       </AnimatePresence>
 
       <div className="relative z-40">
-        <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
+        <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} variant="eyes" />}</AnimatePresence>
       </div>
       <ClaimCelebration />
       <LeviathanFight />
@@ -773,3 +849,38 @@ function drawCard(r: PlotRow, art: ImageBitmap | null): HTMLCanvasElement {
   return c;
 }
 
+/** what going in is called: knock on a house, open a farm's gate, go down a mine… */
+function placeGo(s: BuildSite): string {
+  if (s.kind === 'home' || s.kind === 'landlord') return '🚪 Knock';
+  if (isRealm(s.kind)) return REALM_META[s.kind].enter;
+  return ({ arcade: 'Walk in & play', farm: 'Open the gate', business: 'Buy a lemonade', habitat: 'Step into the glade', train: 'See the trains', plane: 'See the flights' } as Record<string, string>)[s.kind] ?? 'Go in';
+}
+
+/** the card that floats over a tapped plot: what it is, whose, what it earns */
+function plotCard(d: import('../backend/types').PlotDetails | null, row: PlotRow | null): HTMLCanvasElement {
+  const c = Object.assign(document.createElement('canvas'), { width: 640, height: 360 });
+  const g = c.getContext('2d')!;
+  const rarity = d?.rarity ?? row?.[9] ?? null;
+  const info = rarity ? rarityInfo(rarity) : null;
+  const col = info?.color ?? '#22E3FF';
+  g.fillStyle = 'rgba(10,8,28,0.82)'; g.beginPath(); g.roundRect(8, 8, 624, 344, 36); g.fill();
+  const grad = g.createLinearGradient(0, 0, 640, 360); grad.addColorStop(0, col); grad.addColorStop(1, info?.glow || '#ffffff');
+  g.strokeStyle = grad; g.lineWidth = 8; g.stroke();
+  g.font = '96px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; g.textBaseline = 'middle';
+  const owned = d ? d.owned : !!row;
+  g.fillText(owned ? info?.emoji ?? '🟩' : '✨', 36, 104);
+  g.fillStyle = '#ffffff'; g.font = 'bold 50px system-ui, sans-serif';
+  const title = d?.name || row?.[10] || (owned ? 'A plot' : 'Unclaimed land');
+  g.fillText(title.length > 16 ? `${title.slice(0, 15)}…` : title, 150, 82);
+  g.font = 'bold 34px system-ui, sans-serif'; g.fillStyle = col;
+  g.fillText(owned ? (info?.name ?? 'Plot') : 'Yours to claim', 150, 136);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = '32px system-ui, sans-serif';
+  const owner = d?.owner?.username ?? row?.[7] ?? null;
+  const lines = [
+    owned ? (owner ? `@${owner}` : '') : 'Its rarity is a surprise',
+    d?.type_info ? `${d.type_info.name} · ${d.type_info.minigame_name}` : '',
+    d?.rent ? `$${(d.rent.usd_per_second * 3600).toFixed(4)} an hour` : '',
+  ].filter(Boolean);
+  lines.forEach((t, i) => g.fillText(t, 40, 214 + i * 46));
+  return c;
+}
