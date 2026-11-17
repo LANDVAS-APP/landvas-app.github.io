@@ -481,6 +481,7 @@ export function createHome(o: HomeOpts) {
   // speech bubbles over whoever's talking
   const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
   const say = (id: string, text: string) => {
+    if (id !== 'me' && !others.has(id)) return; // (only over someone who's here: the global chat is everyone's)
     const old = bubbles.get(id); if (old) { scene.remove(old.s); old.s.material.map?.dispose(); old.s.material.dispose(); }
     const c = document.createElement('canvas'); c.width = 512; c.height = 160; const g = c.getContext('2d')!;
     g.font = '600 30px ui-rounded, system-ui, sans-serif';

@@ -22,9 +22,9 @@ import { cn, fmt } from '../lib/utils';
 import { buzz } from '../native/native';
 import { Button, PlayerAvatar, Spinner } from '../ui';
 import { confettiCannons } from '../ui/confetti';
-import { ChatDock, type DockChannel } from '../party/ChatDock';
+import { ChatDock, globalChannel, partyChannel, type DockChannel } from '../party/ChatDock';
 import { useParty, usePartyUi } from '../party/party';
-import { usePartyChat } from '../party/usePartyChat';
+import { useGlobalChat, usePartyChat } from '../party/usePartyChat';
 import { bubbleFor } from '../party/chat';
 import { svgUrl, useHomeChat, useHomeLive } from '../home/HomeScreen';
 import { PartyGame } from '../home/party/PartyGame';
@@ -95,10 +95,12 @@ function Keep({ c, k }: { c: Clan; k: ClanKeep }) {
   // your party's chat sits beside the clan's, and what anyone says pops up over them in the Keep
   const inParty = !!useParty().data?.group;
   const partyChat = usePartyChat({ onLine: bubbleFor(keep, me?.user_id) });
+  const globalChat = useGlobalChat({ onLine: bubbleFor(keep, me?.user_id) });
   const showParty = usePartyUi((st) => st.show);
   const channels: DockChannel[] = [
+    ...globalChannel(globalChat),
+    ...partyChannel(partyChat, inParty),
     { id: 'clan', label: 'Clan', chat, placeholder: 'Message your clan…', empty: 'Say hi to your clan 👋', notHere: 'One moment — still riding in…' },
-    ...(inParty ? [{ id: 'party', label: 'Party', chat: partyChat, placeholder: 'Message your party…', empty: 'Only your party sees this — wherever they are.', notHere: 'You’re not in a party right now.' }] : []),
   ];
   chatIn.current = chat.onChat;
   const live = room.live;

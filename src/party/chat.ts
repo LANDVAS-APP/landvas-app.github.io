@@ -18,6 +18,7 @@ export function useRoomChat(opts: {
   send(body: string): Promise<PlanetChatMsg>;
   myId?: string;
   /** a new message came in, or you sent one (not the backlog) */ onLine?(m: PlanetChatMsg): void;
+  /** at most one look per this long, however many nudges (a busy room: the global chat) */ gapMs?: number;
 }): RoomChat {
   const { key, myId } = opts;
   const [msgs, setMsgs] = useState<PlanetChatMsg[]>([]);
@@ -54,7 +55,7 @@ export function useRoomChat(opts: {
     } catch { /* next time */ }
   }, [key, add]);
 
-  useNudge(key && topic ? topic : null, tick, { enabled: !!key, safetyMs: live(45_000), fallbackMs: live(6000), gapMs: 900 });
+  useNudge(key && topic ? topic : null, tick, { enabled: !!key, safetyMs: live(45_000), fallbackMs: live(6000), gapMs: opts.gapMs ?? 900 });
   // until the server says where to listen (you've only just walked in), look every few seconds
   useEffect(() => {
     if (!key || topic) return;

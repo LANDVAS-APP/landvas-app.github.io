@@ -463,6 +463,7 @@ export function createKeep(o: KeepOpts) {
   const moveOther = (id: string, x: number, z: number, face?: number) => { const ot = others.get(id); if (!ot) return; ot.tx = x * SCALE; ot.tz = z * SCALE; ot.fresh = performance.now(); if (face) ot.face = face; };
   const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
   const say = (id: string, text: string) => {
+    if (id !== 'me' && !others.has(id)) return; // (only over someone who's here: the global chat is everyone's)
     const old = bubbles.get(id); if (old) { scene.remove(old.s); old.s.material.map?.dispose(); old.s.material.dispose(); }
     const c = document.createElement('canvas'); c.width = 512; c.height = 160; const g = c.getContext('2d')!;
     g.font = '600 30px ui-rounded, system-ui, sans-serif';

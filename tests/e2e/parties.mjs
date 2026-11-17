@@ -115,6 +115,7 @@ try {
   await lobby.locator('[data-testid=lobby-join]').click(); await page.waitForTimeout(2000);
   check('ben joins with one tap', await visible('my-party'));
   check('…and both are listed', (await page.locator('[data-testid=party-member]').count()) === 2);
+  await tid('party-chat-tab-party').click(); await page.waitForTimeout(300);
   await tid('party-chat-input').fill('hi from ben 👋');
   await tid('party-chat-send').click(); await page.waitForTimeout(1200);
   const log = (await tid('party-chat-log').textContent()) ?? '';
@@ -126,6 +127,7 @@ try {
   await nav('/world'); await page.waitForTimeout(2500);
   check('the map shows the party chat', await visible('map-party-chat-open'));
   await tid('map-party-chat-open').click(); await page.waitForTimeout(600);
+  await tid('map-party-chat-tab-party').click(); await page.waitForTimeout(300);
   await tid('map-party-chat-input').fill('meet at the arcade');
   await tid('map-party-chat-send').click(); await page.waitForTimeout(1200);
   check('…and sends from there', ((await tid('map-party-chat-log').textContent()) ?? '').includes('meet at the arcade'));
@@ -175,7 +177,8 @@ try {
     check('the arcade has a Party button', await visible('arcade-party-btn'));
     check('the arcade has a chat', await visible('arcade-chat-open'));
     await tid('arcade-chat-open').click(); await page.waitForTimeout(500);
-    check('…with Arcade and Party tabs', (await visible('arcade-chat-tab-arcade')) && (await visible('arcade-chat-tab-party')));
+    check('…with Global, Arcade and Party tabs', (await visible('arcade-chat-tab-global')) && (await visible('arcade-chat-tab-arcade')) && (await visible('arcade-chat-tab-party')));
+    await tid('arcade-chat-tab-arcade').click(); await page.waitForTimeout(300);
     await tid('arcade-chat-input').fill('anyone up for skeeball?');
     await tid('arcade-chat-send').click(); await page.waitForTimeout(1500);
     check('…and the room chat sends', ((await tid('arcade-chat-log').textContent()) ?? '').includes('skeeball'));

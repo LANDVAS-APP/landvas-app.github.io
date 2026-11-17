@@ -5,6 +5,9 @@
 //  - the party page: where your party is, to join them
 //  - an arcade, its Mirror Arcade and the Live Arena: a room chat each, popping up over you in the hall
 //  - the map: your party's chat pops up over your explorer
+//  - the global chat everywhere: a Global tab first (and picked) in every chat box, then Party, then the place's own;
+//    something new in it pops up as a notification (which can be turned off), and a line can be reported
+//  - a clan hall and a planet: the same chat box
 // Run: npm run build:artifact && node tests/e2e/chat-bubbles.mjs
 import { serve, launch } from './browser.mjs';
 import fs from 'node:fs';
@@ -57,6 +60,15 @@ async function say(dock, tab, body) {
   await page.waitForTimeout(900);
 }
 const closeDock = (dock) => tid(`${dock}-close`).first().click().catch(() => {});
+/** the tabs of an open chat box, in order, and the one picked (by its placeholder) */
+const tabsOf = (dock) => page.locator(`[data-testid^=${dock}-tab-]:visible`).evaluateAll((els, d) => els.map((e) => e.dataset.testid.slice(d.length + 5)), dock);
+const picked = (dock) => tid(`${dock}-input`).first().getAttribute('placeholder').catch(() => '');
+/** someone says something in the global chat (locally the test nudges the topic the server would) */
+async function globalSay(uid, body) {
+  await sql(`delete from private.rate_limits where action like '%chat%'`);
+  await as(uid, 'send_chat_message', { p_body: body });
+  await page.evaluate(() => { const bc = new BroadcastChannel('landvas-live:global-chat'); bc.postMessage({ t: 'chat' }); setTimeout(() => bc.close(), 500); });
+}
 
 try {
   await page.goto(`http://localhost:${PORT}/?e2e=1`, { waitUntil: 'load' });
@@ -85,7 +97,9 @@ try {
   await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['travel-group'] }));
   await page.waitForTimeout(1500);
   await tid('home-chat-open').first().click();
-  check('the house chat has House and Party tabs', await waitFor('[data-testid=home-chat-tab-house]', 8000) && await page.locator('[data-testid=home-chat-tab-party]').count() > 0);
+  await waitFor('[data-testid=home-chat-tab-house]', 8000);
+  const homeTabs = await tabsOf('home-chat');
+  check('the house chat: Global first (and picked), then Party, then House', JSON.stringify(homeTabs) === '["global","party","house"]' && await picked('home-chat') === 'Message everyone…', `${JSON.stringify(homeTabs)} ${await picked('home-chat')}`);
   await say('home-chat', 'house', 'hello house!');
   const t1 = await page.evaluate(() => window.__landvasHome?.talking?.() ?? []);
   check('what you say pops up over you', t1.includes('me'), JSON.stringify(t1));
@@ -124,6 +138,7 @@ try {
   check('a game at the table', await waitFor('[data-testid=party-game]', 15000));
   await page.waitForTimeout(4500);
   check('…has the chat', await waitFor('[data-testid=game-chat-open]', 5000));
+  check('…with the global chat too', /^Global · Party · House/.test((await text('[data-testid=game-chat-open]')).trim()), await text('[data-testid=game-chat-open]'));
   await say('game-chat', 'house', 'good luck bot');
   check('…and what you say pops up under your seat', await waitFor('[data-testid=party-seat-say]', 5000) && /good luck/.test(await text('[data-testid=party-seat-say]')));
   await shot('04-game-say');
@@ -145,6 +160,7 @@ try {
   const arc = (await as(me, 'set_group_kind', { p_group_id: g.id, p_kind: 'arcade' })).arcade_id;
   await nav(`/arcade/${arc}`);
   check('the arcade', await waitFor('[data-testid=arcade-chat-open]', 30000));
+  check('…its chat: Global, Party, Arcade', /^Global · Party · Arcade/.test((await text('[data-testid=arcade-chat-open]')).trim()), await text('[data-testid=arcade-chat-open]'));
   await page.waitForTimeout(3500);
   await say('arcade-chat', 'arcade', 'anyone up for a round?');
   const ta = await page.evaluate(() => window.__landvasArcade?.talking?.() ?? []);
@@ -181,10 +197,69 @@ try {
   const r0 = await page.evaluate(([a, b]) => window.__landvasApi.reportPosition(a, b, 8), [p0.longitude, p0.latitude]).catch(() => null);
   if (r0) await page.evaluate((r) => window.__landvasExplorer?.getState().set(r), r0);
   await page.waitForTimeout(5000);
-  check('the map: your party’s chat', await waitFor('[data-testid=map-party-chat-open]', 15000));
-  await say('map-party-chat', null, 'meet at the fountain');
-  check('…pops up over your explorer', await waitFor('.lv-explorer[data-me] [data-testid=map-say]', 5000) && /fountain/.test(await text('.lv-explorer[data-me] [data-testid=map-say]')));
+  check('the map: the chat', await waitFor('[data-testid=map-party-chat-open]', 15000));
+  await tid('map-party-chat-open').first().click();
+  const mapTabs = await tabsOf('map-party-chat');
+  check('…Global first (and picked), then your party', JSON.stringify(mapTabs) === '["global","party"]' && await picked('map-party-chat') === 'Message everyone…', `${JSON.stringify(mapTabs)} ${await picked('map-party-chat')}`);
+  await say('map-party-chat', null, 'hello everyone!');
+  check('…saying something there goes to everyone', (await sql(`select count(*)::int n from chat_messages where room = 'global' and player_id = '${me}' and body = 'hello everyone!'`))[0].n === 1);
+  check('…and pops up over your explorer', await waitFor('.lv-explorer[data-me] [data-testid=map-say]', 5000) && /hello everyone/.test(await text('.lv-explorer[data-me] [data-testid=map-say]')));
+  await say('map-party-chat', 'party', 'meet at the fountain');
+  check('…the Party tab is just your party', (await sql(`select count(*)::int n from party_chat where body = 'meet at the fountain'`).catch(() => [{ n: -1 }]))[0].n !== 0 && /fountain/.test(await text('[data-testid=map-party-chat-log]')));
   await shot('09-map-say');
+  await closeDock('map-party-chat');
+  // someone says something in the global chat: it pops up
+  await globalSay(sam, 'hi from sam, anyone up for a duel?');
+  check('a new global message pops up as a notification', await waitFor('[data-testid=chat-popup]', 15000) && /anyone up for a duel/.test(await text('[data-testid=chat-popup]')), await text('[data-testid=chat-popup]'));
+  await shot('10-global-popup');
+  // (the shot can outlast the pop-up: another message, tapped straight away)
+  await globalSay(sam, 'still there?');
+  await page.waitForSelector('[data-testid=chat-popup]:has-text("still there")', { timeout: 15000 });
+  await tid('chat-popup').first().click();
+  check('…tap it: the chat opens on Global', await waitFor('[data-testid=map-party-chat-log]', 5000) && /anyone up for a duel/.test(await text('[data-testid=map-party-chat-log]')) && await picked('map-party-chat') === 'Message everyone…');
+  // report a line
+  await page.locator('[data-testid=map-party-chat-line]:visible', { hasText: 'anyone up for a duel' }).first().click();
+  await tid('map-party-chat-report').first().click(); await page.waitForTimeout(1200);
+  check('…a line can be reported', (await sql(`select count(*)::int n from moderation_cases where reporter_id = '${me}'`))[0].n >= 1);
+  await shot('11-global-open');
+  // pop-ups off
+  await tid('map-party-chat-popups').first().click(); await page.waitForTimeout(400);
+  await closeDock('map-party-chat'); await page.waitForTimeout(4800);
+  await globalSay(sam, 'second message from sam');
+  await page.waitForTimeout(8000);
+  check('…pop-ups can be turned off', !(await page.locator('[data-testid=chat-popup]', { hasText: 'second message' }).count()) && await page.evaluate(() => localStorage.getItem('landvas.chatPopups')) === 'off');
+  await page.evaluate(() => localStorage.setItem('landvas.chatPopups', 'on'));
+
+  // ---- the Party page: Global first there too ----
+  await nav('/party'); await page.waitForTimeout(2500);
+  check('the Party page chat: Global first (and picked), then Party', await waitFor('[data-testid=party-chat-tab-global]', 8000)
+    && JSON.stringify(await tabsOf('party-chat')) === '["global","party"]' && await picked('party-chat') === 'Message everyone…', JSON.stringify(await tabsOf('party-chat')));
+  check('…showing the global chat', /anyone up for a duel/.test(await text('[data-testid=party-chat-log]')));
+  await tid('party-chat-tab-party').first().click(); await page.waitForTimeout(500);
+  check('…and the party’s', /fountain/.test(await text('[data-testid=party-chat-log]')));
+  await shot('12-party-page-chat');
+
+  // ---- a clan hall ----
+  await sql(`update resource_balances set amount = amount + 5000 where player_id = '${me}' and resource = 'ink'`);
+  await as(me, 'clan_found', { p_name: 'Chatters', p_tag: 'CHAT', p_emblem: '🏰', p_color: '#7B5CFF' });
+  await page.evaluate(() => window.__landvasQc.invalidateQueries());
+  await nav('/clan/hall');
+  check('a clan hall: Global, Party, Clan', await waitFor('[data-testid=clan-chat-open]', 30000) && /^Global · Party · Clan/.test((await text('[data-testid=clan-chat-open]')).trim()), await text('[data-testid=clan-chat-open]'));
+  await page.waitForTimeout(2500);
+  await say('clan-chat', 'clan', 'clan hello');
+  check('…the clan tab still works', /clan hello/.test(await text('[data-testid=clan-chat-log]')));
+  await shot('13-clan-chat');
+  await closeDock('clan-chat');
+
+  // ---- a planet ----
+  await sql(`insert into space_pilots (player_id, location) values ('${me}', 'moon') on conflict (player_id) do update set location = 'moon', dest = null, depart_at = null, arrive_at = null`);
+  await page.evaluate(() => window.__landvasQc.invalidateQueries());
+  await nav('/space/surface');
+  check('a planet: Global, Party, Group', await waitFor('[data-testid=planet-chat-open]', 60000) && /^Global · Party · Group/.test((await text('[data-testid=planet-chat-open]')).trim()), await text('[data-testid=planet-chat-open]'));
+  await page.waitForTimeout(6000);
+  await say('planet-chat', 'group', 'moon hello');
+  check('…the group tab still works', /moon hello/.test(await text('[data-testid=planet-chat-log]')), await text('[data-testid=planet-chat-log]'));
+  await shot('14-planet-chat');
 } catch (e) {
   check('no crash', false, String(e?.stack ?? e).slice(0, 400));
   await shot('zz-crash');

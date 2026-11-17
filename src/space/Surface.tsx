@@ -29,7 +29,11 @@ import { NotificationBell } from '../updates/Notifications';
 import { savedPose, usePlanetLive } from './live';
 import { DigPanel } from './Dig';
 import { RoverControls, RoverGarage, useRover } from './Rover';
-import { PlanetChatBox, usePlanetChat } from './PlanetChat';
+import { usePlanetChat } from './PlanetChat';
+import { ChatDock, globalChannel, partyChannel, type DockChannel } from '../party/ChatDock';
+import { bubbleFor } from '../party/chat';
+import { useParty, usePartyUi } from '../party/party';
+import { useGlobalChat, usePartyChat } from '../party/usePartyChat';
 import { QuestsChip, QuestsDialog, questsKey, useQuests } from './Quests';
 import { BaseBuilder, BaseVisit } from './BaseBuilder';
 import { createPlanetScene, type FindKind, type PlanetScene, type ZoomInfo } from './planet3d';
@@ -219,6 +223,17 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
 
   // walk together with your live group (the same group from the World tab or full screen)
   const chat = usePlanetChat(world, me?.profile.id, ready, scene);
+  // the chat box: the global chat, your party's, and your group's here (what anyone here says pops up over them)
+  const inParty = !!useParty().data?.group;
+  const showParty = usePartyUi((st) => st.show);
+  const partyChat = usePartyChat({ onLine: bubbleFor(scene, me?.profile.id) });
+  const globalChat = useGlobalChat({ onLine: bubbleFor(scene, me?.profile.id) });
+  const chatChannels: DockChannel[] = [
+    ...globalChannel(globalChat),
+    ...partyChannel(partyChat, inParty),
+    { id: 'group', label: 'Group', chat: { msgs: chat.msgs, unread: chat.unread, ready: true, send: chat.send, setOpen: chat.setOpen }, maxLength: 140,
+      placeholder: 'Message your group…', empty: 'Say hi to your group 👋 — it pops up over you', notHere: 'Join a group first — walk around for a moment.' },
+  ];
   const live = usePlanetLive({
     sendRef: chat.sendRef, onChat: chat.onChat,
     world, enabled: ready, myId: me?.profile.id,
@@ -377,8 +392,8 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
         {!embedded && <button className="lv-gbtn round pointer-events-auto" onClick={() => nav('/space')} aria-label="Your rocket"><RocketIcon className="h-5 w-5" /></button>}
       </div>
 
-      {/* group chat (your live group of up to 10) */}
-      {ready && !high && <PlanetChatBox chat={chat} myId={me?.profile.id} className={cn('absolute left-3 z-10', embedded ? 'top-[40%]' : 'top-[38%]')} />}
+      {/* chat: global, your party, and your live group of up to 10 here */}
+      {ready && !high && <ChatDock channels={chatChannels} myId={me?.profile.id} onInvite={() => showParty('invite')} testid="planet-chat" className={cn('absolute left-3 z-10', embedded ? 'top-[40%]' : 'top-[38%]')} />}
 
       {/* the plot under you (or the one you tapped from above) */}
       <div className={cn('pointer-events-none absolute inset-x-0 z-10 flex justify-center pl-3 pr-[68px] sm:px-3', embedded ? 'bottom-[calc(84px+env(safe-area-inset-bottom,0px)+140px)] md:bottom-[150px]' : 'bottom-[calc(max(16px,env(safe-area-inset-bottom,0px))+140px)] sm:bottom-[max(16px,env(safe-area-inset-bottom,0px))]')}>

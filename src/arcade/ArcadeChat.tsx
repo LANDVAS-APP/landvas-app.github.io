@@ -1,12 +1,12 @@
-// Chat in the arcade: everyone in your room (up to 10 walking about), and your party wherever they are. What anyone
-// in the room says pops up over their head in the hall. The Mirror Arcade has rooms (and a chat) of its own, and so
+// Chat in the arcade: the global chat, your party wherever they are, and everyone in your room (up to 10 walking about).
+// What anyone in the room says pops up over their head in the hall. The Mirror Arcade has rooms (and a chat) of its own, and so
 // does the Live Arena.
 import type { RefObject } from 'react';
 import { cn } from '../lib/utils';
-import { ChatDock, type DockChannel } from '../party/ChatDock';
+import { ChatDock, globalChannel, partyChannel, type DockChannel } from '../party/ChatDock';
 import { bubbleFor, type Talker } from '../party/chat';
 import { useParty, usePartyUi } from '../party/party';
-import { useArcadeChat, useArenaChat, usePartyChat } from '../party/usePartyChat';
+import { useArcadeChat, useArenaChat, useGlobalChat, usePartyChat } from '../party/usePartyChat';
 
 
 export function ArcadeChatDock({ arcadeId, inRoom, myId, raised, side = 'front', arena = false, hall }: {
@@ -17,14 +17,16 @@ export function ArcadeChatDock({ arcadeId, inRoom, myId, raised, side = 'front',
   const room = useArcadeChat(arcadeId, !arena && inRoom, { side, onLine });
   const arenaRoom = useArenaChat(arena && inRoom, { onLine });
   const party = usePartyChat({ onLine });
+  const global = useGlobalChat({ onLine });
   const inParty = !!useParty().data?.group;
   const show = usePartyUi((s) => s.show);
   const label = arena ? 'Arena' : side === 'mirror' ? 'Mirror' : 'Arcade';
   const channels: DockChannel[] = [
+    ...globalChannel(global),
+    ...partyChannel(party, inParty),
     { id: 'arcade', label, chat: arena ? arenaRoom : room, placeholder: 'Say something to the room…',
       empty: arena ? 'Everyone in this arena room sees what you say here ⚔️' : side === 'mirror' ? 'Everyone through the glass here sees what you say 🪞' : 'Everyone in this room sees what you say here 🕹️',
       notHere: arena ? 'Step into the arena first — you’ll be in a room in a moment.' : 'Step into the arcade first — you’ll be in a room in a moment.' },
-    ...(inParty ? [{ id: 'party', label: 'Party', chat: party, placeholder: 'Message your party…', empty: 'Only your party sees this — wherever they are.', notHere: 'You’re not in a party right now.' }] : []),
   ];
   return (
     <ChatDock channels={channels} myId={myId} onInvite={() => show('invite')} testid="arcade-chat"

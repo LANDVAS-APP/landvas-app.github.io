@@ -16,9 +16,9 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import type { ExplorerStyle, HomeData, RealmKind, HomeGame, HomeLive, HomePlaced, HomeStyleData, PlanetChatMsg } from '../backend/types';
-import { ChatDock, type DockChannel } from '../party/ChatDock';
+import { ChatDock, globalChannel, partyChannel, type DockChannel } from '../party/ChatDock';
 import { useParty, usePartyUi } from '../party/party';
-import { usePartyChat } from '../party/usePartyChat';
+import { useGlobalChat, usePartyChat } from '../party/usePartyChat';
 import { bubbleFor, type Talker } from '../party/chat';
 import { HousePeople, HousePeopleButton } from './HousePeople';
 import { TRACKS, music } from '../arcade/music';
@@ -301,11 +301,14 @@ function HomeView({ h, profile }: { h: HomeData; profile: Prof }) {
   const chat = useHomeChat(host.id, me?.user_id, talk, room.send);
   chatIn.current = chat.onChat;
   const partyChat = usePartyChat({ onLine: bubbleFor(talk, me?.user_id) });
+  // the global chat too (anyone here who says something there pops up over them as well)
+  const globalChat = useGlobalChat({ onLine: bubbleFor(talk, me?.user_id) });
   const showParty = usePartyUi((st) => st.show);
   const [people, setPeople] = useState(false);
   const channels: DockChannel[] = [
+    ...globalChannel(globalChat),
+    ...partyChannel(partyChat, !!partyG),
     { id: 'house', label: 'House', chat, placeholder: 'Say something to the house…', empty: 'Say hi to everyone here 👋 — it pops up over you', notHere: 'One moment — still stepping inside…' },
-    ...(partyG ? [{ id: 'party', label: 'Party', chat: partyChat, placeholder: 'Message your party…', empty: 'Only your party sees this — wherever they are.', notHere: 'You’re not in a party right now.' }] : []),
   ];
   const live = room.live;
   const here = (live?.members.length ?? 0) + 1;

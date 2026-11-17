@@ -6,14 +6,15 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
+import type { PlanetChatMsg } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
 import { Button, Emblem, GameDisc } from '../ui';
-import { ChatDock } from './ChatDock';
+import { ChatDock, globalChannel, partyChannel } from './ChatDock';
 import { sayOnMap } from '../travel/live';
 import { LOBBIES_KEY, PARTY_KEY, activityOf, useParty, usePartyUi } from './party';
-import { usePartyChat } from './usePartyChat';
+import { useGlobalChat, usePartyChat } from './usePartyChat';
 
 /** games waiting for players right now (house tables, arcade matches, arena lobbies) */
 export function useLfg() {
@@ -126,18 +127,21 @@ export function PartyHubCard() {
   );
 }
 
-/** the map: your party's chat (when you're in one) */
+/** the map: the global chat (everyone playing) and your party's (when you're in one) */
 export function MapPartyChat({ className }: { className?: string }) {
   const me = useOnboardedMe();
   const g = useParty().data?.group;
   const show = usePartyUi((s) => s.show);
-  // what anyone says pops up over them on the map (you, and your party out there with you)
-  const chat = usePartyChat({ onLine: (m) => { if ((m.kind ?? 'chat') === 'chat' && m.player?.id) sayOnMap(m.player.id, m.body, m.player.id === me?.user_id); } });
+  // what anyone says pops up over them on the map (you, your party out there with you, anyone on the map in the global chat)
+  const onLine = (m: PlanetChatMsg) => { if ((m.kind ?? 'chat') === 'chat' && m.player?.id) sayOnMap(m.player.id, m.body, m.player.id === me?.user_id); };
+  const global = useGlobalChat({ onLine });
+  const chat = usePartyChat({ onLine });
+  const party = partyChannel(chat, !!g);
+  if (party[0]) party[0].empty = 'Say hi to your party 👋 — it goes with you on the map and in arcades.';
   return (
     <div className={cn('pointer-events-none flex flex-col items-start gap-1.5', className)}>
       <LfgPill className="max-w-[min(72vw,310px)]" />
-      {g && <ChatDock myId={me?.user_id} onInvite={() => show('invite')} testid="map-party-chat"
-        channels={[{ id: 'party', label: 'Party', chat, placeholder: 'Message your party…', empty: 'Say hi to your party 👋 — it goes with you on the map and in arcades.', notHere: 'You’re not in a party right now.' }]} />}
+      {me && <ChatDock myId={me.user_id} onInvite={() => show('invite')} testid="map-party-chat" channels={[...globalChannel(global), ...party]} />}
     </div>
   );
 }

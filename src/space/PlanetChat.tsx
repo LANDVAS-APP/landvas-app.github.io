@@ -1,15 +1,11 @@
-// Group chat for your live group (up to 10) on a world: a small chat box on screen, and every message
-// pops up as a speech bubble over the explorer who said it. When someone says something the server nudges the
+// Group chat for your live group (up to 10) on a world (a tab in the planet's chat box, beside Global and Party): every
+// message pops up as a speech bubble over the explorer who said it. When someone says something the server nudges the
 // group's topic and phones fetch the new messages; a slow safety check catches anything missed.
 import { live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
-import { MessageCircle, Send, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { api } from '../backend/api';
-import { toGameError } from '../backend/backend';
 import type { PlanetChatMsg } from '../backend/types';
-import { cn } from '../lib/utils';
 import type { PlanetScene } from './planet3d';
 
 export function usePlanetChat(world: string, myId: string | undefined, enabled: boolean, scene: { current: PlanetScene | null }) {
@@ -66,84 +62,4 @@ export function usePlanetChat(world: string, myId: string | undefined, enabled: 
     onChat: () => nudge.current?.soon(0),
     setOpen: (o: boolean) => { open.current = o; if (o) setUnread(0); },
   };
-}
-
-type ChatLike = Pick<ReturnType<typeof usePlanetChat>, 'msgs' | 'unread' | 'send' | 'setOpen'>;
-export function PlanetChatBox({ chat, myId, className, title = 'Group chat', sub = 'your group', placeholder = 'Message your group…', empty = 'Say hi to your group 👋', notHere = 'Join a group first — walk around for a moment.' }:
-  { chat: ChatLike; myId?: string; className?: string; title?: string; sub?: string; placeholder?: string; empty?: string; notHere?: string }) {
-  const [open, setOpenState] = useState(false);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState(Date.now());
-  const list = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const setOpen = (o: boolean) => { setOpenState(o); chat.setOpen(o); if (o) setTimeout(() => input.current?.focus(), 50); };
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 2000); return () => clearInterval(t); }, []);
-  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [chat.msgs.length, open]);
-  // Enter opens the chat (unless you're typing somewhere else)
-  useEffect(() => {
-    if (open) return;
-    const k = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' || e.repeat || e.isComposing) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.tagName === 'BUTTON' || t.isContentEditable)) return;
-      if (document.querySelector('[role=dialog]')) return;
-      e.preventDefault(); setOpen(true);
-    };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  });
-  const submit = async () => {
-    const b = text.trim(); if (!b || busy) return;
-    setBusy(true);
-    try { await chat.send(b); setText(''); }
-    catch (e) { const c = toGameError(e).code; toast.error(c === 'not_in_group' || c === 'not_in_home' ? notHere : toGameError(e).message); }
-    finally { setBusy(false); input.current?.focus(); }
-  };
-  // closed: the last few lines float on screen for a little while
-  const recent = chat.msgs.filter((m) => now - new Date(m.at).getTime() < 15000).slice(-3);
-  return (
-    <div className={cn('pointer-events-none flex w-[min(68vw,300px)] flex-col items-start gap-1.5', className)} data-testid="planet-chat">
-      {open ? (
-        <div className="pointer-events-auto w-full overflow-hidden rounded-2xl border border-white/10 bg-black/65 text-white shadow-xl backdrop-blur">
-          <div className="flex items-center gap-2 border-b border-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white/70">
-            <MessageCircle className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{title} <span className="font-semibold normal-case tracking-normal text-white/45">· {sub}</span></span>
-            <button className="ml-auto rounded-lg p-1 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close chat" data-testid="planet-chat-close"><X className="h-4 w-4" /></button>
-          </div>
-          <div ref={list} className="grid max-h-44 gap-1 overflow-y-auto px-3 py-2 text-[13px] scroll-thin" data-testid="planet-chat-log">
-            {!chat.msgs.length && <div className="py-2 text-center text-xs text-white/55">{empty}</div>}
-            {chat.msgs.map((m) => <Line key={m.id} m={m} mine={m.player.id === myId} />)}
-          </div>
-          <form className="flex items-center gap-1.5 border-t border-white/10 p-1.5" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-            <input ref={input} autoFocus value={text} onChange={(e) => setText(e.target.value.slice(0, 140))} maxLength={140} placeholder={placeholder} enterKeyHint="send"
-              className="h-9 min-w-0 flex-1 rounded-xl bg-white/10 px-3 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-[#7B5CFF]" data-testid="planet-chat-input"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setOpen(false);
-                // Enter on an empty box closes the chat (and hands the keys back to walking)
-                if (e.key === 'Enter' && !text.trim()) { e.preventDefault(); setOpen(false); input.current?.blur(); }
-              }} />
-            <button type="submit" disabled={!text.trim() || busy} className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#7B5CFF] disabled:opacity-40" aria-label="Send" data-testid="planet-chat-send"><Send className="h-4 w-4" /></button>
-          </form>
-        </div>
-      ) : (
-        <>
-          {recent.map((m) => (
-            <div key={m.id} className="max-w-full rounded-2xl bg-black/55 px-2.5 py-1 text-[12px] text-white backdrop-blur animate-[lv-fade-in_.25s_ease-out]"><Line m={m} mine={m.player.id === myId} /></div>
-          ))}
-          <button className="pointer-events-auto relative flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-bold text-white backdrop-blur hover:bg-black/70" onClick={() => setOpen(true)} data-testid="planet-chat-open">
-            <MessageCircle className="h-4 w-4" /> Chat <span className="hidden rounded bg-white/15 px-1 text-[9px] font-semibold text-white/70 sm:inline">Enter</span>
-            {chat.unread > 0 && <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-hot px-1 text-center text-[10px] leading-[18px] text-white tnum">{chat.unread > 9 ? '9+' : chat.unread}</span>}
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Line({ m, mine }: { m: PlanetChatMsg; mine: boolean }) {
-  return (
-    <div className="break-words">
-      <b style={{ color: mine ? '#FFE36B' : m.player.accent_color ?? '#9FD3FF' }}>{mine ? 'You' : `@${m.player.username}`}</b> <span className="text-white/90">{m.body}</span>
-    </div>
-  );
 }

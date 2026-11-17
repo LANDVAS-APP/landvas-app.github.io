@@ -810,6 +810,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const bubbles = new Map<string, { s: THREE.Sprite; until: number }>();
   const dropBubble = (id: string) => { const b = bubbles.get(id); if (b) { scene.remove(b.s); disposeSprite(b.s); bubbles.delete(id); } };
   const say = (id: string, text: string) => {
+    if (id !== 'me' && !others.has(id)) return; // (only over someone who's here: the global chat is everyone's)
     dropBubble(id);
     const t = String(text).replace(/\s+/g, ' ').trim().slice(0, 140); if (!t) return;
     const s = bubbleSprite(t); scene.add(s); bubbles.set(id, { s, until: performance.now() + Math.min(10000, 4500 + t.length * 60) });

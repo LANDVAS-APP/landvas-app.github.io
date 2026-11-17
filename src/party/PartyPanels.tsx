@@ -17,8 +17,8 @@ import { cn, timeAgo } from '../lib/utils';
 import { buzz } from '../native/native';
 import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
 import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
-import { ChatLine } from './ChatDock';
-import { usePartyChat } from './usePartyChat';
+import { ChatLine, StrangerLine, globalReaders } from './ChatDock';
+import { useGlobalChat, usePartyChat } from './usePartyChat';
 import {
   ACTIVITIES, ACTIVITY_IDS, LOBBIES_KEY, PARTY_KEY, activityOf, goTarget, goTo, memberAt, memberStatus, partyLink, savePendingParty,
   useParty, usePartyJoin, type PartyTab,
@@ -368,15 +368,28 @@ function ShareLinkButtons({ g }: { g: Group }) {
   );
 }
 
-/** the party's chat, in full (on the Party page and sheet) */
+/** the chat, in full (on the Party page and sheet): the global chat first, then your party's */
 function PartyChatInline() {
   const me = useOnboardedMe();
-  const chat = usePartyChat();
+  const party = usePartyChat();
+  const global = useGlobalChat();
+  const tabs = [
+    ...(global.enabled ? [{ id: 'global', label: 'Global', chat: global, sub: 'everyone playing', placeholder: 'Message everyone…', empty: 'Everyone playing LANDVAS sees this 🌍 Say hi!' }] : []),
+    { id: 'party', label: 'Party', chat: party, sub: 'goes with you on the map and in arcades', placeholder: 'Message your party…', empty: 'Say hi to your party 👋' },
+  ];
+  const [tabId, setTab] = useState(tabs[0].id);
+  const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
+  const chat = tab.chat;
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState<number | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => { chat.setOpen(true); return () => chat.setOpen(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [chat.msgs.length]);
+  // the tab you're reading counts as read
+  useEffect(() => { for (const t of tabs) t.chat.setOpen(t.id === tab.id); return () => { for (const t of tabs) t.chat.setOpen(false); }; }, [tab.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [chat.msgs.length, tab.id]);
+  // reading the global chat here: no pop-ups for it meanwhile
+  useEffect(() => { if (tab.id !== 'global') return; globalReaders.n++; return () => { globalReaders.n--; }; }, [tab.id]);
   const submit = async () => {
     const b = text.trim(); if (!b || busy) return;
     setBusy(true);
@@ -384,13 +397,25 @@ function PartyChatInline() {
   };
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-surface/40" data-testid="party-chat">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted"><MessageCircle className="h-3.5 w-3.5" /> Party chat <span className="font-semibold normal-case tracking-normal text-faint">· goes with you on the map and in arcades</span></div>
+      <div className="flex items-center gap-1.5 border-b border-line px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">
+        <MessageCircle className="mx-1 h-3.5 w-3.5 shrink-0" />
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} data-testid={`party-chat-tab-${t.id}`}
+            className={cn('relative rounded-lg px-2 py-0.5 uppercase tracking-wider', t.id === tab.id ? 'bg-surface-2 text-fg' : 'text-muted hover:text-fg')}>
+            {t.label}{t.id !== tab.id && t.chat.unread > 0 && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-hot" />}
+          </button>
+        ))}
+        <span className="truncate font-semibold normal-case tracking-normal text-faint">· {tab.sub}</span>
+      </div>
       <div ref={list} className="grid max-h-64 min-h-[96px] content-start gap-1 overflow-y-auto px-4 py-3 text-[13.5px] scroll-thin" data-testid="party-chat-log">
-        {!chat.msgs.length && <div className="py-4 text-center text-xs text-muted">Say hi to your party 👋</div>}
-        {chat.msgs.map((m) => <ChatLine key={m.id} m={m} mine={m.player.id === me?.user_id} dark={false} />)}
+        {!chat.msgs.length && <div className="py-4 text-center text-xs text-muted">{tab.empty}</div>}
+        {chat.msgs.filter((m) => !hidden.has(m.player.id)).map((m) => (tab.id === 'global' && m.player.id !== me?.user_id
+          ? <StrangerLine key={m.id} m={m} dark={false} open={menu === m.id} onTap={() => setMenu(menu === m.id ? null : m.id)} onDone={() => setMenu(null)}
+              onBlocked={(id) => setHidden((h) => new Set(h).add(id))} testid="party-chat" />
+          : <ChatLine key={m.id} m={m} mine={m.player.id === me?.user_id} dark={false} />))}
       </div>
       <form className="flex items-center gap-2 border-t border-line p-2" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <input value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} maxLength={200} placeholder="Message your party…" enterKeyHint="send" className={cn(inputCls, 'h-10 flex-1')} data-testid="party-chat-input" />
+        <input value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} maxLength={200} placeholder={tab.placeholder} enterKeyHint="send" className={cn(inputCls, 'h-10 flex-1')} data-testid="party-chat-input" />
         <Button type="submit" variant="primary" size="icon" disabled={!text.trim()} loading={busy} aria-label="Send" data-testid="party-chat-send"><Send className="h-4 w-4" /></Button>
       </form>
     </section>

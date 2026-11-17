@@ -1,4 +1,6 @@
-// Your party's chat (members only; it starts from when you joined). Used by the Party page, the map and arcades.
+// The chats every chat box offers: the global chat (everyone playing), your party's (members only; it starts from when
+// you joined), and the room you're in (an arcade's, the Live Arena's).
+import { useState } from 'react';
 import { api } from '../backend/api';
 import { useOnboardedMe } from '../lib/queries';
 import { useRoomChat } from './chat';
@@ -27,4 +29,19 @@ export function useArcadeChat(arcadeId: string, inRoom: boolean, opts: { side?: 
 export function useArenaChat(inRoom: boolean, opts: { onLine?: OnLine } = {}) {
   const me = useOnboardedMe();
   return useRoomChat({ key: inRoom ? 'arena' : null, list: api.arenaChatList, send: api.arenaChatSend, myId: me?.user_id, onLine: opts.onLine });
+}
+
+/** the global chat (everyone playing LANDVAS; the Social page's chat), as a tab in every chat box. `enabled`: the
+    global switch (staff can turn it off) */
+export function useGlobalChat(opts: { onLine?: OnLine } = {}) {
+  const me = useOnboardedMe();
+  const [enabled, setEnabled] = useState(true);
+  const chat = useRoomChat({
+    key: me ? 'global' : null,
+    list: async (after) => { const r = await api.globalChatList(after); setEnabled(r.enabled); return r; },
+    send: api.globalChatSend, myId: me?.user_id, onLine: opts.onLine,
+    // (everyone's in it: one look every couple of seconds at most, however busy)
+    gapMs: 2000,
+  });
+  return { ...chat, enabled: enabled && !!me };
 }
