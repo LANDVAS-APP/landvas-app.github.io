@@ -6,7 +6,7 @@
 // animates in, and games and 3D places are never paused (they pace themselves; see framePacer in gfx.ts).
 const REST_AFTER = 20_000;
 /** screens you look around in, where decorations may rest (games, the editor and 3D places never do) */
-const RESTFUL = /^\/($|world$|hub$|play$|me$|plots$|canvases$|inventory$|social$|players$|clans$|events$|challenges$|leaderboards$|achievements$|explorer$|gallery$|invite$|settings$|support$|space$|grimoire$|inkborn$|badges$|guide$|u\/[^/]+$)/;
+const RESTFUL = /^\/($|world$|hub$|play$|me$|plots$|canvases$|inventory$|social$|players$|clans$|events$|challenges$|leaderboards$|achievements$|explorer$|gallery$|invite$|settings$|support$|space$|grimoire$|inkborn$|badges$|guide$|together$|magic$|ultras$|new$|u\/[^/]+$)/;
 
 let path = '/';
 let timer: ReturnType<typeof setTimeout> | null = null;

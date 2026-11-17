@@ -31,11 +31,13 @@ import { Z_PLOT, cellCenter } from '../shared/grid';
 import { UltraTracker } from '../ultra/UltraTracker';
 import { PlotWorlds } from '../play/PlotWorlds';
 import { activeBoost, fullClearInk } from '../play/rates';
-import { Atom, Clapperboard, Footprints, GraduationCap, PartyPopper } from 'lucide-react';
+import { Atom, Clapperboard, Eye, Footprints, Gem, GraduationCap, Megaphone, PartyPopper, WandSparkles } from 'lucide-react';
 import { PartyHubCard } from '../party/PartyButtons';
 import GameHud from './GameHud';
-import { Page, SECTIONS } from './Shell';
+import { APP_ME_PAGES, APP_SECTIONS, Page, SECTIONS } from './Shell';
 import { NATIVE_APP } from './buildFlags';
+import { isNative } from '../native/native';
+import { HubFeatures, WhatsNewRibbon } from './hubs/HubFeatures';
 import { FirstLightCard } from '../rarity/FirstLight';
 
 type Card = { to: string; title: string; sub: string; icon: LucideIcon; tone: DiscTone };
@@ -50,14 +52,29 @@ const CARDS: Card[] = [
   { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, tone: 'gold' },
 ];
 
+// the app: Together, Magic and Ultras have their own big banners, so the cards are the rest of the game
+const APP = NATIVE_APP || isNative();
+const APP_CARDS: Card[] = [
+  { to: '/canvases', title: 'Create', sub: 'Paint your plots', icon: Brush, tone: 'rose' },
+  { to: '/inkborn', title: 'Inkborn', sub: 'Hatch & raise creatures', icon: PawPrint, tone: 'emerald' },
+  { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, tone: 'ember' },
+  { to: '/pvp', title: 'PvP', sub: 'Duel other players', icon: Swords, tone: 'crimson' },
+  { to: '/space', title: 'Space', sub: 'Fly missions', icon: Rocket, tone: 'violet' },
+  { to: '/events', title: 'Events', sub: 'Limited-time fun', icon: CalendarDays, tone: 'azure' },
+  { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, tone: 'gold' },
+  { to: '/clips', title: 'Clips', sub: 'Your best rolls & moments', icon: Clapperboard, tone: 'teal' },
+];
+
 const PAGE_ICON: Record<string, LucideIcon> = {
   '/world': Globe2, '/plots': LayoutGrid, '/canvases': Palette, '/challenges': Trophy, '/sketch': PenLine, '/duet': Theater, '/inventory': Package,
   '/inkborn': PawPrint, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen, '/space': Rocket, '/space/play/asteroids': Zap,
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/party': PartyPopper, '/me': Smile, '/achievements': Award, '/explorer': Compass,
   '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/handbook': GraduationCap, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
+  '/together': Users, '/magic': WandSparkles, '/ultras': Gem, '/rankings/rarities': Trophy, '/new': Megaphone, '/eyes': Eye,
 };
-const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold' };
+const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold',
+  '/together': 'emerald', '/magic': 'violet', '/ultras': 'gold' };
 const YOU = { to: '/me', label: 'You', pages: [
   { to: '/me', label: 'Profile' }, { to: '/achievements', label: 'Badges' }, { to: '/explorer', label: 'Explorer' }, { to: '/grimoire', label: 'Grimoire' }, { to: '/primordials', label: 'Primordials' }, { to: '/fusion', label: 'Fusion Lab' }, { to: '/clips', label: 'Clips' },
   { to: '/royalty', label: 'Royalty' }, { to: '/handbook', label: 'Handbook' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
@@ -106,6 +123,9 @@ export default function GameHub() {
           )}
         </motion.div>
 
+        {/* the app: the latest update, one tap from What's new */}
+        {APP && me && <motion.div {...rise(n++)}><WhatsNewRibbon /></motion.div>}
+
         {/* today's rewards: always here, lit up when there's something to grab */}
         {me && (d?.enabled || wheel.data?.enabled) && (
           <motion.div {...rise(n++)} className="mb-3 grid grid-cols-2 gap-2.5" data-testid="hub-daily">
@@ -149,12 +169,15 @@ export default function GameHub() {
           </Link>
         </motion.div>
 
+        {/* the app: its own hubs — Together, Magic and Ultras — as big banners */}
+        {APP && me && <HubFeatures />}
+
         {/* your party: lobbies, invites, the party you're in — one tap from the menu */}
         {me && <motion.div {...rise(n++)}><PartyHubCard /></motion.div>}
 
         {/* every part of the game */}
         <div className="mb-6 grid grid-cols-2 gap-2.5" data-testid="hub-cards">
-          {CARDS.map((c) => {
+          {(APP ? APP_CARDS : CARDS).map((c) => {
             const Icon = c.icon;
             const sub = c.to === '/play' && earned > 0 ? `+${fmt(earned)} Ink today` : c.sub;
             return (
@@ -194,7 +217,8 @@ export default function GameHub() {
         {/* everything, at a glance */}
         <motion.h2 {...rise(n++)} className="mb-2.5 px-0.5 font-display text-[17px] font-black">Everything</motion.h2>
         <div className="grid gap-3" data-testid="hub-all">
-          {[...SECTIONS.map((s) => ({ to: s.to, label: s.label, pages: s.pages })), YOU].map((g) => {
+          {(APP ? [...APP_SECTIONS.map((s) => ({ to: s.to, label: s.label, pages: s.pages })), { to: '/me', label: 'You', pages: [{ to: '/me', label: 'Profile' }, ...APP_ME_PAGES.filter((p) => p.to !== '/me')] }]
+            : [...SECTIONS.map((s) => ({ to: s.to, label: s.label, pages: s.pages })), YOU]).map((g) => {
             const tone = GROUP_TONE[g.to] ?? 'steel';
             return (
               <motion.section key={g.label} {...rise(n++)} className={cn('lv-allgroup', `t-${tone}`)}>

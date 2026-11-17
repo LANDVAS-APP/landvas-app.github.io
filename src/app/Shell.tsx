@@ -3,7 +3,7 @@ import { loadEnchantTexts } from '../enchant/texts';
 import { AscendHost } from '../roll/Ascend';
 import { useTimerNotifications } from '../native/notify';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile, PartyPopper } from 'lucide-react';
+import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile, PartyPopper, WandSparkles, Gem, Megaphone, BookOpen, Clapperboard, Atom, Crown, GraduationCap, Eye } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -56,6 +56,30 @@ export const ME_PAGES = [
 // the app gets chunkier, game-style tabs
 const NATIVE = isNative();
 const under = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
+type NavSection = { to: string; label: string; icon: typeof Globe2; pages: { to: string; label: string }[]; /** deeper addresses that belong here too */ also?: string[] };
+/** The app's own map of the game: the website's sections, plus the app-only hubs — Together (everything social),
+ *  Magic (enchantments) and Ultras (the Ultra Expansion) — each with the screens that belong to it. */
+export const APP_SECTIONS: NavSection[] = [
+  { ...SECTIONS[0], pages: [...SECTIONS[0].pages, { to: '/eyes', label: 'Explorer’s Eyes' }] }, SECTIONS[1], SECTIONS[2], SECTIONS[3], SECTIONS[4],
+  { to: '/together', label: 'Together', icon: Users, pages: [
+    { to: '/together', label: 'Together' }, { to: '/social', label: 'Feed & chat' }, { to: '/party', label: 'Parties' }, { to: '/clans', label: 'Clans' },
+    { to: '/gallery', label: 'Gallery' }, { to: '/players', label: 'Players' }, { to: '/invite', label: 'Invite friends' },
+  ], also: ['/watch', '/clan'] },
+  { to: '/magic', label: 'Magic', icon: WandSparkles, pages: [
+    { to: '/magic', label: 'Magic' }, { to: '/grimoire', label: 'Grimoire' },
+  ] },
+  { to: '/ultras', label: 'Ultras', icon: Gem, pages: [
+    { to: '/ultras', label: 'Ultras' }, { to: '/fusion', label: 'Fusion Lab' }, { to: '/primordials', label: 'Primordials' }, { to: '/royalty', label: 'Royalty' },
+    { to: '/rankings/rarities', label: 'Rarity ranks' },
+  ], also: ['/powers'] },
+];
+export const APP_ME_PAGES = [
+  { to: '/me', label: 'Me' }, { to: '/new', label: 'What’s new' }, { to: '/achievements', label: 'Badges' }, { to: '/clips', label: 'Clips' }, { to: '/explorer', label: 'Explorer' },
+  { to: '/handbook', label: 'Handbook' }, { to: '/guide', label: 'Guide' }, { to: '/settings', label: 'Settings' }, { to: '/support', label: 'Help' },
+];
+/** the sections this copy of the game navigates by (the app's own, or the website's) */
+const NAV_SECTIONS: NavSection[] = NATIVE ? APP_SECTIONS : SECTIONS;
+const NAV_ME = NATIVE ? APP_ME_PAGES : ME_PAGES;
 /** A top-level place (a tab, a section page or a menu page): no back button there, just tabs. */
 export function isRootPage(path: string) {
   // the app: only the tabs (and the hub) are top level — everything else opens full screen with a back button
@@ -79,23 +103,29 @@ const SECTION_LOOK: Record<string, { tone: DiscTone; icon: typeof Globe2; glow: 
   '/space': { tone: 'violet', icon: Rocket, glow: 'rgba(138, 107, 255, 0.36)' },
   '/play': { tone: 'ember', icon: Gamepad2, glow: 'rgba(255, 122, 47, 0.3)' },
   '/social': { tone: 'teal', icon: MessagesSquare, glow: 'rgba(34, 199, 181, 0.28)' },
+  '/together': { tone: 'emerald', icon: Users, glow: 'rgba(47, 212, 147, 0.3)' },
+  '/magic': { tone: 'violet', icon: WandSparkles, glow: 'rgba(196, 107, 255, 0.36)' },
+  '/ultras': { tone: 'gold', icon: Gem, glow: 'rgba(255, 201, 61, 0.3)' },
   '/me': { tone: 'gold', icon: Smile, glow: 'rgba(233, 178, 63, 0.26)' },
 };
 /** Which section (and its pages) a path belongs to. */
 function sectionOf(path: string) {
-  if (ME_PAGES.some((p) => under(path, p.to))) return { to: '/me', label: 'Me', pages: ME_PAGES };
-  return SECTIONS.find((s) => under(path, s.to) || s.pages.some((p) => under(path, p.to))) ?? null;
+  if (NAV_ME.some((p) => under(path, p.to))) return { to: '/me', label: 'Me', pages: NAV_ME };
+  return NAV_SECTIONS.find((s) => under(path, s.to) || s.pages.some((p) => under(path, p.to)) || s.also?.some((a) => under(path, a))) ?? null;
 }
 
 // the phone tab bar: five tabs the player picks (Settings → Phone navigation), then Me
-// (the app: Play first, then Community — the World in the middle — then Inkborn and Create)
-export const DEFAULT_TABS = NATIVE ? ['/play', '/social', '/world', '/inkborn', '/canvases'] : ['/world', '/canvases', '/inkborn', '/play', '/social'];
+// (the app: Play first, then Together — the World in the middle — then Magic and Create)
+export const DEFAULT_TABS = NATIVE ? ['/play', '/together', '/world', '/magic', '/canvases'] : ['/world', '/canvases', '/inkborn', '/play', '/social'];
 export const MAX_TABS = 5;
 /** simple mode's tab bar */
 const SIMPLE_TABS = [{ to: '/world', label: 'Home', icon: Home }, { to: '/play', label: 'Play', icon: Gamepad2 }];
 /** Everything that can sit in the phone tab bar: the sections, or a favourite page. */
 export const TAB_CHOICES = [
-  ...SECTIONS.map(({ to, label, icon }) => ({ to, label, icon })),
+  ...NAV_SECTIONS.map(({ to, label, icon }) => ({ to, label, icon })),
+  // the app: its own screens can be tabs too (the website doesn't have them)
+  ...(NATIVE ? [{ to: '/social', label: 'Feed & chat', icon: MessagesSquare }, { to: '/grimoire', label: 'Grimoire', icon: BookOpen }, { to: '/new', label: 'What’s new', icon: Megaphone },
+    { to: '/clips', label: 'Clips', icon: Clapperboard }, { to: '/handbook', label: 'Handbook', icon: GraduationCap }] : []),
   { to: '/plots', label: 'My plots', icon: LayoutGrid }, { to: '/gallery', label: 'Gallery', icon: Images }, { to: '/players', label: 'Players', icon: Users }, { to: '/invite', label: 'Invite', icon: Gift },
   { to: '/pvp', label: 'PvP', icon: Swords }, { to: '/challenges', label: 'Challenges', icon: Trophy }, { to: '/sketch', label: 'Sketch', icon: PenLine },
   { to: '/events', label: 'Events', icon: CalendarDays }, { to: '/leaderboards', label: 'Ranks', icon: Trophy }, { to: '/achievements', label: 'Badges', icon: Award },
@@ -123,9 +153,13 @@ export function Shell() {
   useEffect(() => { startRest(); restRoute(loc.pathname); }, [loc.pathname]);
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.myFriends, enabled: !!me, refetchInterval: poll(120_000), staleTime: 60_000 });
   const claim = useClaimables();
-  const badge = (to: string) => (to === '/social' ? friends.data?.incoming.length ?? 0 : to === (NATIVE && !simple ? '/hub' : '/world') ? claim.count : 0);
   const chosen = useUi((s) => s.settings.mobileTabs);
   const chosenTabs = chosen?.length ? chosen : DEFAULT_TABS;
+  // the app's Magic tab lights up with the enchantments that have something waiting (read from the Grimoire's own
+  // cache — no extra polling of its own)
+  const magic = useQuery({ queryKey: ['enchantments'], queryFn: api.myEnchantments, enabled: NATIVE && !!me && chosenTabs.includes('/magic'), staleTime: 60_000 });
+  const magicReady = (magic.data ?? []).filter((e) => e.attention).length;
+  const badge = (to: string) => (to === '/social' || to === '/together' ? friends.data?.incoming.length ?? 0 : to === '/magic' ? magicReady : to === (NATIVE && !simple ? '/hub' : '/world') ? claim.count : 0);
   const sec = sectionOf(loc.pathname);
   // the server is struggling: say so (background refreshes are paused for a moment; taps still go through)
   const [busy, setBusy] = useState(false);
@@ -184,7 +218,7 @@ export function Shell() {
         : busy && <div className="pointer-events-none fixed left-1/2 top-[max(8px,env(safe-area-inset-top,0px))] z-[60] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur" role="status" data-testid="server-busy">🐢 The server is busy — background updates are paused for a moment</div>}
       <nav className="hidden w-[88px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg-2/70 py-4 md:flex" aria-label="Main">
         <NavLink to="/" className="mb-3" aria-label="LANDVAS home"><LogoMark size={36} /></NavLink>
-        {(simple ? SIMPLE_TABS : SECTIONS).map((i) => <RailItem key={i.to} {...i} active={simple ? under(loc.pathname, i.to) : sec?.to === i.to} badge={badge(i.to)} />)}
+        {(simple ? SIMPLE_TABS : NAV_SECTIONS).map((i) => <RailItem key={i.to} {...i} active={simple ? under(loc.pathname, i.to) : sec?.to === i.to} badge={badge(i.to)} />)}
         {admin ? <RailItem to="/admin" label="Admin" icon={Shield} active={loc.pathname.startsWith('/admin')} /> : null}
         <div className="flex-1" />
         <PartyNavButton className="mb-1" />
@@ -383,6 +417,8 @@ const PAGE_ICON: Record<string, typeof Globe2> = {
   '/plots': LayoutGrid, '/challenges': Trophy, '/sketch': PenLine, '/duet': Users, '/inventory': Package, '/inkborn/create': Sparkles, '/habitat': Trees, '/inkborn/visit': DoorOpen,
   '/space/play/asteroids': Rocket, '/space/play/lander': Moon, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Trophy, '/clans': Shield, '/gallery': Images,
   '/players': Users, '/invite': Gift, '/party': PartyPopper, '/achievements': Award, '/explorer': Compass, '/settings': Settings, '/support': LifeBuoy,
+  '/social': MessagesSquare, '/grimoire': BookOpen, '/fusion': Atom, '/primordials': Sparkles, '/royalty': Crown, '/rankings/rarities': Trophy, '/new': Megaphone,
+  '/clips': Clapperboard, '/handbook': GraduationCap, '/guide': BookOpen, '/eyes': Eye,
 };
 function SectionShortcuts({ pages, tone }: { pages: { to: string; label: string }[]; tone: DiscTone }) {
   const ref = useEdgeFade<HTMLDivElement>();

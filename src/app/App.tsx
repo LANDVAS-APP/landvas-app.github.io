@@ -75,6 +75,13 @@ const FusionLab = lazy(() => import('../rarity/FusionLab'));
 const PrimordialsScreen = lazy(() => import('../rarity/PrimordialsScreen'));
 const RarityRankingsScreen = lazy(() => import('../screens/RarityRankings'));
 const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
+// the app's own hubs (Together, Magic, Ultras, What's new): only the iOS/Android app has these screens — the website
+// keeps its own pages and navigation
+const APP_HUBS = NATIVE_APP || isNative();
+const TogetherHub = lazy(() => import('./hubs/TogetherHub'));
+const MagicHub = lazy(() => import('./hubs/MagicHub'));
+const UltrasHub = lazy(() => import('./hubs/UltrasHub'));
+const WhatsNew = lazy(() => import('./hubs/WhatsNew'));
 // the mobile apps never contain the admin tools (staff use the admin portal, admin.landvas.app): the native build has
 // no /admin page at all and the admin screens' code is left out of the app entirely
 const AdminScreen = NATIVE_APP ? null : lazy(() => import('../admin/AdminScreen'));
@@ -128,7 +135,7 @@ const PlanetGame = lazy(() => import('../space/PlanetGame'));
 // the app: once the first screen is up, quietly load the main tabs' code so switching tabs is instant
 if (isNative()) {
   setTimeout(() => {
-    for (const load of [() => import('./GameHub'), () => import('../play/PlayEarn'), () => import('../canvases/CanvasesScreen'), () => import('../inkborn/Hub'), () => import('../social/SocialScreen'),
+    for (const load of [() => import('./GameHub'), () => import('./hubs/TogetherHub'), () => import('./hubs/MagicHub'), () => import('../play/PlayEarn'), () => import('../canvases/CanvasesScreen'), () => import('../inkborn/Hub'), () => import('../social/SocialScreen'),
       () => import('../profile/MeHub'), () => import('../screens/Settings'), () => import('./GameHud')]) void load().catch(() => {});
   }, 3000);
 }
@@ -180,6 +187,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/handbook/, 'The LANDVAS Handbook — every feature, explained'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/i\//, 'You’re invited'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
+  [/^\/together/, 'Together'], [/^\/magic/, 'Magic — enchantments'], [/^\/ultras/, 'Ultras'], [/^\/new$/, 'What’s new'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -318,6 +326,12 @@ const routes: RouteObject[] = [
           { path: '/duels', element: <Navigate to="/pvp" replace /> },
           { path: '/legal/:doc', element: p(<LegalScreen />) },
           ...(AdminScreen ? [{ path: '/admin', element: player(<AdminScreen />) }] : []),
+          ...(APP_HUBS ? [
+            { path: '/together', element: player(<TogetherHub />) },
+            { path: '/magic', element: player(<MagicHub />) },
+            { path: '/ultras', element: player(<UltrasHub />) },
+            { path: '/new', element: player(<WhatsNew />) },
+          ] : []),
           { path: '*', element: <Navigate to="/world" replace /> },
         ]),
       },
@@ -351,7 +365,7 @@ if (config.router !== 'memory' && !getBackend().session()) {
 }
 
 if (config.e2e || import.meta.env.DEV) {
-  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasBackend: getBackend(), __landvasQc: queryClient, __landvasUi: __ui });
+  Object.assign(window as any, { __landvasApi: api, __landvasNav: (p: string) => router.navigate(p), __landvasPath: () => router.state.location.pathname, __landvasBackend: getBackend(), __landvasQc: queryClient, __landvasUi: __ui });
 }
 
 export function App() {

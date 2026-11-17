@@ -3,7 +3,7 @@
 // screen without it. Tapping your avatar drops down everything you can do with your profile.
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Award, Bell, ChevronRight, Copy, Gift, Home, LayoutGrid, LifeBuoy, LogOut, Package, Pencil, Settings, Shirt, Sparkles, User } from 'lucide-react';
+import { Award, Bell, ChevronRight, Copy, Gem, Gift, Home, LayoutGrid, LifeBuoy, LogOut, Megaphone, Package, Pencil, Settings, Shirt, Sparkles, User } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -183,10 +183,12 @@ export function ProfileMenu() {
   ];
   const rows: Item[] = [
     { to: '/me', label: 'Edit profile', icon: Pencil, tone: 'steel' },
+    { to: '/new', label: 'What’s new', sub: 'The latest features', icon: Megaphone, tone: 'rose', testid: 'menu-new' },
     { to: '/achievements', label: 'Badges', sub: `${fmt(me.achievement_count)} earned`, icon: Award, tone: 'gold' },
     { to: '/inventory', label: 'Studio & shop', icon: Package, tone: 'ember' },
     { to: '/invite', label: 'Invite friends', sub: 'Up to 1,500 Ink each', icon: Gift, tone: 'teal' },
-    { to: '/grimoire', label: 'Grimoire', icon: Sparkles, tone: 'violet' },
+    { to: '/magic', label: 'Magic', sub: 'Your enchantments', icon: Sparkles, tone: 'violet' },
+    { to: '/ultras', label: 'Ultras', sub: 'Fusions, Primordials, Crowns', icon: Gem, tone: 'gold' },
     { to: '/settings', label: 'Settings', icon: Settings, tone: 'steel' },
     { to: '/support', label: 'Help & support', icon: LifeBuoy, tone: 'steel' },
   ];
@@ -217,7 +219,7 @@ export function ProfileMenu() {
       </div>
       <div className="mt-2 grid">
         {rows.map((i) => (
-          <button key={i.label} className="lv-menurow" onClick={() => go(i.to!)}>
+          <button key={i.label} className="lv-menurow" onClick={() => go(i.to!)} data-testid={i.testid}>
             <Emblem tone={i.tone} size={30}><i.icon className="h-[15px] w-[15px]" /></Emblem>
             <span className="min-w-0 flex-1 text-left"><b>{i.label}</b>{i.sub && <i>{i.sub}</i>}</span>
             <ChevronRight className="h-4 w-4 text-white/35" />

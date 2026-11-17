@@ -88,6 +88,14 @@ jobs:
           path: |
             android/app/build/outputs/bundle/release/*.aab
             android/app/build/outputs/apk/debug/*.apk
+      # the installable test APK on its own, not zipped: tap it on the run's page (signed in to GitHub) and the phone
+      # downloads the .apk itself. It's a test build (debug-signed), so uninstall it before installing from Google Play.
+      - name: Name the test APK
+        run: cp "$(ls android/app/build/outputs/apk/debug/*.apk | head -1)" "landvas-${LANDVAS_VERSION_NAME}-${{ github.run_number }}-test.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          path: landvas-${{ env.LANDVAS_VERSION_NAME }}-${{ github.run_number }}-test.apk
+          archive: false
       - name: Upload to Google Play (internal testing)
         if: ${{ inputs.release && env.LANDVAS_KEYSTORE_PATH != '' }}
         env:

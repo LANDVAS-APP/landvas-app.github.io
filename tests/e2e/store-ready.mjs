@@ -122,7 +122,7 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   check(await page.locator('[data-testid="tab-/hub"][aria-current=page]').count() > 0, 'app: the Play tab is the hub and lights up for its places');
   check(await page.locator('[data-testid="tab-/play"]').count() === 0, 'app: no separate Play & Earn tab');
   const order = await page.locator('[data-testid=game-tabbar] a').evaluateAll((as) => as.map((a) => a.getAttribute('data-testid')));
-  check(order.join(',') === 'tab-/hub,tab-/social,tab-/world,tab-/inkborn,tab-/canvases', 'app: tabs are Play, Community, World, Inkborn, Create', order.join(','));
+  check(order.join(',') === 'tab-/hub,tab-/together,tab-/world,tab-/magic,tab-/canvases', 'app: tabs are Play, Together, World, Magic, Create', order.join(','));
   // the map: the HUD (boost next to Ink), one row under the avatar: Hot Zone, Luck, View, Grimoire
   await go(page, '/world');
   await page.waitForSelector('[data-testid=map-row]', { timeout: 60000 }).catch(() => {});
