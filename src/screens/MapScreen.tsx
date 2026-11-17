@@ -57,6 +57,8 @@ import { PlotPickOverlay } from '../enchant/PlotPickOverlay';
 import { usePlotPick } from '../enchant/plotPick';
 import { WarpTunnel } from '../enchant/scenes/WormholeScene';
 import { LeviathanBanner, LeviathanCard, LeviathanDisc, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
+import { EyesDisc, openEyes } from '../eyes/EyesDisc';
+import { usePageOff } from '../app/LiveControl';
 
 
 /** The World tab: Earth — or, while your rocket is parked on another world, that world in 3D. */
@@ -143,6 +145,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
             {me && <TicketsButton disc onRoll={(o) => void quick.roll(o)} />}
             {me && <GrimoireButton rail />}
             <LeviathanDisc />
+            {me && !away && <EyesDisc />}
             <ModeButton rail />
           </div>
           {/* whichever of them is open, as a card right under the row */}
@@ -185,6 +188,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           <div className="flex items-start gap-3">
             <div className="lv-classic-dock pointer-events-auto flex flex-col items-center gap-3 rounded-[28px] px-2 py-2.5" data-testid="classic-dock">
               {me && <GrimoireButton />}
+              {me && !away && <EyesDisc size={48} />}
               <ModeButton />
               {me && <StreakChip onOpen={() => setStreak(true)} />}
               {me && <DailyChip />}
@@ -333,6 +337,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const narrow = useNarrow();
   const classic = useUi((s) => s.settings.mapHud === 'classic');
   const flyOn = useFlyUi((f) => f.pinMode);
+  const eyesOff = usePageOff()('/eyes');
   // a live trip, flight or group comes out of the tray onto the rail by itself
   const trip = travel.data?.trip;
   const tripLive = !!travel.data?.away || (!!trip && !trip.arrived);
@@ -425,6 +430,11 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
           <span className="lbl">{more ? 'Close' : 'More'}</span>
           {nudge && !more && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-[#0b0e24] bg-hot" />}
         </button>
+        {has && !eyesOff && (
+          <button className="lv-gbtn round" onClick={() => { tap(); openEyes(nav); }} title="Explorer’s Eyes: step into your explorer and look around" data-testid="eyes-rail">
+            <span className="text-[19px] leading-none">👁️</span><span className="lbl">Eyes</span>
+          </button>
+        )}
         {has && joy?.enabled !== false && (
           <button className={cn('lv-gbtn round', joystick && 'on')} onClick={() => { tap(); onJoystick(); }} aria-pressed={joystick} title="Steer your explorer with the joystick" data-testid="joystick-toggle">
             <Gamepad className="h-5 w-5" /><span className="lbl tnum">{ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : 'Move'}</span>

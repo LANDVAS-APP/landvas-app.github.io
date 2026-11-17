@@ -3,7 +3,7 @@ import { GAME_INFO } from '../../shared/minigames';
 import type { PlotTypeId } from '../../shared/grid';
 import type { Chapter } from '../types';
 import { fmtN } from '../live';
-import { B, Bullets, CardGrid, Combo, Facts, Figure, GoRow, Note, P, Pro, Steps, Table, Tip, Warn } from '../ui';
+import { B, Bullets, CardGrid, Combo, Facts, Figure, GoRow, H, Note, P, Pro, Steps, Table, Tip, Warn } from '../ui';
 import { ClaimMock, MergeLadder, PlotScale, RangeRings, ReachGrid, Swatch } from '../visuals';
 import { ExplorerFigure } from '../../explorer/ExplorerFigure';
 
@@ -135,6 +135,45 @@ export const world: Chapter = {
               'Walking and biking never use fuel.',
             ]} />
             <Pro>A Bike is the best early buy after a few plots: four times the range for 250 Ink, and it never needs fuel. It turns your whole neighbourhood into claimable land.</Pro>
+          </>
+        );
+      },
+    },
+    {
+      id: 'eyes', emoji: '👁️', title: 'Explorer’s Eyes (first person)',
+      summary: 'Step into your explorer and look around the real place it’s standing in: real streets, buildings, sky and mountains, with every plot glowing around you.',
+      keys: 'first person 3d view eyes look around sky stars moon sun planets street view leviathan beacons treasures balloons lanterns shooting stars gyro photo jetpack',
+      body: (c) => {
+        const cap = c.n('eyes.sky.daily_cap', 12), per = c.n('eyes.sky.per_window', 3), mins = c.n('eyes.sky.window_min', 15);
+        return (
+          <>
+            <P>Tap <B>👁️ Eyes</B> on the map and the map dives into your explorer: you’re standing where it stands, in the real place, at the real time of day.</P>
+            <Steps items={[
+              <>Look around by dragging. On a phone, tap <B>📱</B> and move your phone like a window into the world. <B>Sky</B> tilts you up at the sky and back.</>,
+              <>Walk with the stick: forward is wherever you’re looking (W A S D work too). On GPS, walking for real moves you as well.</>,
+              <>Tap anything: a plot on the ground or the building on it (its panel opens, so you can claim it right there), the Leviathan, a beacon, the moon, a star.</>,
+            ]} />
+            <H>What’s around you</H>
+            <Bullets items={[
+              <>The <B>real streets, parks, water and buildings</B> (from OpenStreetMap), buildings at their real heights. At night their windows light up.</>,
+              <>The <B>real land to the horizon</B>, from real elevation data: if there are mountains 40 km away, they’re on your skyline.</>,
+              <>Every <B>plot around you</B>, glowing by rarity (the rarer, the taller the glow; ultras send up a beam). <B>Your</B> plots float a card with their art.</>,
+              <>Every <B>Primordial</B> within a couple of hundred km stands as a pillar of light in its true direction.</>,
+              <>The <B>Leviathan</B>, colossal on the skyline when it’s out. Tap it to throw your ink bombs: they really hit it.</>,
+              <>Your <B>party</B>, walking beside you, and <B>falling stars</B> from a Fallen Star shower, to catch.</>,
+            ]} />
+            <H>The sky is the real one</H>
+            <P>The sun and the moon are exactly where they are in your sky right now, and the moon shows its real phase. At night: the real stars, the planets and the Milky Way. Tap a star to learn its name and how long its light took to reach you.</P>
+            <H>Sky treasures</H>
+            <Facts items={[
+              { k: 'In your sky', v: `${per} every ${mins} min`, hint: 'balloons by day, lanterns at dusk, wishing stars at night' },
+              { k: 'Catch up to', v: `${cap} a day` },
+              { k: 'Each one', v: 'Ink, Luck or a ticket', hint: 'mostly a little Ink; sometimes Luck; rarely a Rare+ roll ticket' },
+            ]} />
+            <P>Tap one to catch it. Wishing stars only streak by for a moment, so be quick.</P>
+            <Pro>On the <B>Jetpack</B> your eyes are about 38 m up: you see over the rooftops to the mountains, and the Leviathan from far away.</Pro>
+            <Tip>📸 takes a picture of exactly what you see, to share.</Tip>
+            <GoRow links={[['/eyes', 'Open Explorer’s Eyes']]} />
           </>
         );
       },

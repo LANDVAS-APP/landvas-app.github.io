@@ -59,6 +59,10 @@ let freshPress = false; // a key went down with none held: start measuring a new
 let lastDrive = 0;
 /** Steered in the last few seconds: a slower server snapshot of the explorer mustn't pull it back. */
 export const recentlyDriven = () => performance.now() - lastDrive < 4000;
+// "up" on the stick is north on the map; in the first-person view it's wherever you're looking
+let driveBearing: (() => number) | null = null;
+/** Steer relative to a compass bearing (radians clockwise from north), or null for north-up. */
+export function setDriveBearing(fn: (() => number) | null) { driveBearing = fn; }
 export function keyVector() {
   let x = 0, y = 0;
   for (const k of held.keys()) { const v = DRIVE_KEYS[k]; if (v) { x += v[0]; y += v[1]; } }
@@ -116,7 +120,7 @@ export function useLandscapePhone() {
 type Layout = 'stick' | 'wheel' | 'dpad';
 const LAYOUT_KEY = 'landvas.joystick.layout';
 
-export function Joystick({ onClose }: { onClose(): void }) {
+export function Joystick({ onClose, minimal }: { onClose(): void; /** just the stick (the first-person view) */ minimal?: boolean }) {
   const world = useWorld();
   const ex = useExplorer();
   const settings = useUi((s) => s.settings);
@@ -125,7 +129,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
   const landscape = useLandscapePhone();
   // the D-pad is the default sideways; either layout can be picked (and is remembered per orientation)
   const [pref, setPref] = useState<Record<'portrait' | 'landscape', Layout>>(() => ({ portrait: 'stick', landscape: 'dpad', ...safeStorage<Partial<Record<'portrait' | 'landscape', Layout>>>(LAYOUT_KEY, {}) }));
-  const layout: Layout = pref[landscape ? 'landscape' : 'portrait'];
+  const layout: Layout = minimal ? 'stick' : pref[landscape ? 'landscape' : 'portrait'];
   const setLayout = (l: Layout) => { const p = { ...pref, [landscape ? 'landscape' : 'portrait']: l }; setPref(p); saveStorage(LAYOUT_KEY, p); };
   const [refilling, setRefilling] = useState(false);
   // your vehicle sets the speed; only the Car burns the tank (fuel)
@@ -227,6 +231,10 @@ export function Joystick({ onClose }: { onClose(): void }) {
           const step = !pressing ? stepRef.current : null;
           if (step) { dist = Math.min(dist, step.left); step.left -= dist; if (step.left <= 0.05) stepRef.current = null; }
           else if (pressing) { press.current.moved += dist; stepRef.current = null; }
+          if (driveBearing) {
+            const b = driveBearing(), c = Math.cos(b), s = Math.sin(b);
+            [mx, my] = [mx * c - my * s, mx * s + my * c];
+          }
           const m = Math.hypot(mx, my) || 1;
           local.current = offset(local.current, (mx / m) * dist, (-my / m) * dist);
           if (fuel) secsRef.current = Math.max(0, secsRef.current - mag * dt);
@@ -357,6 +365,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
         className="pointer-events-none flex w-full items-end justify-start gap-3" data-testid="joystick" data-layout="stick">
         <div className="pointer-events-auto grid justify-items-start gap-2">
+          {!minimal && (<>
           <div className="glass flex items-center gap-2 rounded-2xl py-1.5 pl-3 pr-1.5">
             <div className="text-[11px] leading-tight text-muted" data-testid="joystick-speed"><b className="text-fg">{Math.round(speed * 3.6)} km/h</b> · up to {fmtRange(veh?.range_m ?? 600)}<br />{ex.state?.mode === 'travel' ? 'from the station' : 'from where you are'}</div>
             {fuel && <div className={cn('text-[11px] font-bold tnum', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
@@ -365,6 +374,8 @@ export function Joystick({ onClose }: { onClose(): void }) {
           </div>
           {fuel && <div className="flex flex-wrap gap-1">{controls}</div>}
           {vehicles}
+          </>)}
+          {minimal && fuel && <div className={cn('rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-bold tnum text-white', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
           <div ref={pad} role="slider" aria-label="Joystick: drag to move your explorer (or use WASD / the arrow keys)" aria-valuetext={fuel ? `${fmtTank(secs)} of fuel left` : 'walk freely'} tabIndex={0}
             className={cn('relative h-36 w-36 touch-none select-none rounded-full border border-white/25 bg-black/35 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur', empty ? 'opacity-50' : '')}
             onPointerDown={(e) => {
@@ -373,7 +384,7 @@ export function Joystick({ onClose }: { onClose(): void }) {
               feel(); setFromPointer(e);
             }}
             onPointerMove={(e) => knob.active && setFromPointer(e)} onPointerUp={release} onPointerCancel={release} data-testid="joystick-pad">
-            <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-extrabold tracking-widest text-white/35"><span className="absolute top-2">N</span></span>
+            <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-extrabold tracking-widest text-white/35"><span className="absolute top-2">{minimal ? '▲' : 'N'}</span></span>
             {fuel && (
               <svg viewBox="0 0 144 144" className="pointer-events-none absolute inset-0" aria-hidden>
                 <circle cx="72" cy="72" r="68" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="4" />

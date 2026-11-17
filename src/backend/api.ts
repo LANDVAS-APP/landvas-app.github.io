@@ -154,6 +154,7 @@ export type RxMapMine = { gx: number; gy: number; rarity: string; family: string
   zone?: { gx: number; gy: number } | null; rift?: { gx: number; gy: number; until: string } | null; from?: [number, number] | null; cells?: number | null; area_m?: number | null; m?: number | null; flip_until?: string | null };
 export type RxMap = { mine: RxMapMine[]; spots: { id: number; kind: 'obsidian' | 'trail' | 'mushroom' | 'glint'; gx: number; gy: number; rarity?: string | null; in: number }[];
   stars: { id: number; gx: number; gy: number; in: number }[]; genesis: [number, number][] };
+export type EyesSky = { enabled: boolean; win?: number; drops?: { i: number; seed: number }[]; today?: number; cap?: number; window_s?: number; next_at?: string };
 export type RxWorldPlot = { gx: number; gy: number; rarity: string; owner_name: string | null; mine: boolean; open: boolean | null };
 export type RxMoment = { id: number; gx: number; gy: number; rarity: string; how: string; place: string | null; owner_name: string | null; mine: boolean; ago: number };
 export type RxTier = { tier_one_in: number; list: { id: string; name: string; emoji: string; color: string; glow: string; ability: string; one_in: number; world: number; mine: number }[];
@@ -277,6 +278,9 @@ export const api = {
   rarityPower: (gx: number, gy: number) => rpc<RxPower | null>('rarity_power', { p_gx: gx, p_gy: gy }),
   rarityAct: (gx: number, gy: number, action: string, args: Record<string, unknown> = {}) => rpc<{ result: Record<string, any>; view: RxPower }>('rarity_act', { p_gx: gx, p_gy: gy, p_action: action, p_args: args }),
   rarityCatch: (id: number) => rpc<{ ink?: number; luck?: number; golden?: boolean }>('rarity_catch', { p_id: id }),
+  /** Explorer's Eyes: the treasures drifting through your sky right now, and catching one */
+  eyesSky: () => rpc<EyesSky>('eyes_sky'),
+  eyesCatch: (win: number, i: number) => rpc<{ ink?: number; luck?: number; ticket?: string; today: number; cap: number }>('eyes_catch', { p_win: win, p_i: i }),
   myPowers: () => rpc<RxPower[]>('my_powers'),
   rarityMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<RxMap>('rarity_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   primordialsWorld: () => rpc<{ plots: RxWorldPlot[]; last: number }>('primordials_world'),

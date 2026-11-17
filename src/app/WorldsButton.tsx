@@ -98,6 +98,7 @@ function WorldsSheet({ open, onOpenChange }: { open: boolean; onOpenChange(o: bo
         <div className="grid grid-cols-2 gap-2">
           <Tile big p={{ key: 'home', emoji: '🏠', title: 'Home', sub: 'Your house', route: '/home' }} />
           <Tile big p={{ key: 'plots', emoji: '🗂️', title: 'My plots', sub: 'Every plot and place', route: '/plots' }} />
+          <div className="col-span-2"><Tile big p={{ key: 'eyes', emoji: '👁️', title: 'Explorer’s Eyes', sub: 'Stand where your explorer is and look around', route: '/eyes' }} /></div>
         </div>
         <section className="grid gap-2">
           <div className="eyebrow">Your places{places.length ? ` · ${places.length}` : ''}</div>

@@ -108,6 +108,7 @@ const Sanctuary = lazy(() => import('../inkborn/Sanctuary'));
 const KeeperScreen = lazy(() => import('../inkborn/Keeper'));
 const FarmScreen = lazy(() => import('../farm/FarmScreen'));
 const WatchScreen = lazy(() => import('../watch/WatchScreen'));
+const EyesScreen = lazy(() => import('../eyes/EyesScreen'));
 const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
@@ -244,6 +245,7 @@ const routes: RouteObject[] = [
       { path: '/inkborn/playdate/:theirs', element: player(<Playdate />) },
       { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/watch/:username', element: player(<WatchScreen />) },
+      { path: '/eyes', element: player(<EyesScreen />) }, // Explorer's Eyes: the first-person view
       { path: '/farm/:id', element: player(<FarmScreen />) },
       { path: '/landlord/:id', element: player(<EstateScreen />) },
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },

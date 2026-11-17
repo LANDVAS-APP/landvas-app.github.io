@@ -1,0 +1,367 @@
+// Real-browser test of Explorer's Eyes, the first-person view (local-mode build, a phone; then the simulated iOS app).
+// The street tiles and the elevation tiles are served from here (a made-up town of streets, blocks, towers, a park and a
+// pond on every tile; a mountain ridge 30 km east), so the whole pipeline runs without the internet:
+//  - the map's 👁️ button dives in; the view opens: the streets on the ground, the buildings standing, trees, the land
+//    to the horizon, every plot around you (yours floating its card), a Primordial's beacon in its true direction
+//  - the real sky: by day the sun, at night stars, and a tapped star says what it is
+//  - the Leviathan, 3 km off, on the skyline: tap it and an ink bomb flies (and really hits it)
+//  - a sky treasure: tap it and it's caught (Ink / Luck / a ticket), the count goes up
+//  - tap the ground: that plot's panel opens; walk with W: forward is where you look
+//  - a picture; back to the map
+// Build: VITE_STREETS=https://tiles.openfreemap.org/planet npx vite build --mode artifact --outDir dist-eyes
+// Run:   node tests/e2e/eyes.mjs
+import { serve, launch } from './browser.mjs';
+import { encode, decode } from 'fast-png';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const MODE = process.argv[2] || '';
+if (!MODE) {
+  let bad = 0;
+  for (const m of ['web', 'app']) bad += spawnSync(process.execPath, [fileURLToPath(import.meta.url), m], { stdio: 'inherit' }).status ? 1 : 0;
+  process.exit(bad ? 1 : 0);
+}
+const app = MODE === 'app';
+const OUT = process.env.E2E_OUT || path.resolve(`test-results/e2e-eyes-${MODE}`); fs.mkdirSync(OUT, { recursive: true });
+const PORT = app ? 4291 : 4290;
+const G = 2 ** 22;
+const results = [];
+const check = (name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  [${MODE}] ${name}${extra ? ' — ' + extra : ''}`); };
+const START = { gx: 12398 * 64 + 20, gy: 24628 * 64 + 44 }; // Salt Lake City
+const ll = (gx, gy) => { const n = Math.PI * (1 - (2 * (gy + 0.5)) / G); return { lng: ((gx + 0.5) / G) * 360 - 180, lat: (180 / Math.PI) * Math.atan(Math.sinh(n)) }; };
+const HERE = ll(START.gx, START.gy);
+
+// ---- a made-up town as vector tiles --------------------------------------------------------------------------------
+class W {
+  constructor() { this.b = []; }
+  varint(n) { while (n > 127) { this.b.push((n & 127) | 128); n = Math.floor(n / 128); } this.b.push(n); return this; }
+  tag(f, w) { return this.varint((f << 3) | w); }
+  bytes(f, u) { this.tag(f, 2).varint(u.length); for (const x of u) this.b.push(x); return this; }
+  str(f, s) { return this.bytes(f, [...new TextEncoder().encode(s)]); }
+  packed(f, xs) { const w = new W(); xs.forEach((x) => w.varint(x)); return this.bytes(f, w.b); }
+}
+const zz = (n) => (n << 1) ^ (n >> 31);
+function geom(rings, close) {
+  const out = []; let x = 0, y = 0;
+  for (const r of rings) {
+    out.push(1 | (1 << 3), zz(r[0][0] - x), zz(r[0][1] - y)); x = r[0][0]; y = r[0][1];
+    out.push(2 | ((r.length - 1) << 3));
+    for (const [px, py] of r.slice(1)) { out.push(zz(px - x), zz(py - y)); x = px; y = py; }
+    if (close) out.push(7 | (1 << 3));
+  }
+  return out;
+}
+function mvt(layers) {
+  const t = new W();
+  for (const L of layers) {
+    const keys = [], vals = [];
+    const l = new W().tag(15, 0).varint(2).str(1, L.name);
+    for (const f of L.features) {
+      const tags = [];
+      for (const [k, v] of Object.entries(f.props)) {
+        let ki = keys.indexOf(k); if (ki < 0) { keys.push(k); ki = keys.length - 1; }
+        let vi = vals.indexOf(v); if (vi < 0) { vals.push(v); vi = vals.length - 1; }
+        tags.push(ki, vi);
+      }
+      l.bytes(2, new W().packed(2, tags).tag(3, 0).varint(f.type).packed(4, geom(f.rings, f.type === 3)).b);
+    }
+    for (const k of keys) l.str(3, k);
+    for (const v of vals) l.bytes(4, (typeof v === 'string' ? new W().str(1, v) : new W().tag(5, 0).varint(v)).b);
+    l.tag(5, 0).varint(4096);
+    t.bytes(3, l.b);
+  }
+  return Buffer.from(t.b);
+}
+const sq = (x0, y0, x1, y1) => [[[x0, y0], [x1, y0], [x1, y1], [x0, y1]]];
+// where you stand, in a tile's units (your block is a little square with trees: room to look around)
+const hereIn = (z, x, y) => { const n = 2 ** z; const X = (HERE.lng + 180) / 360, r = (HERE.lat * Math.PI) / 180, Y = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; return [(X * n - x) * 4096, (Y * n - y) * 4096]; };
+function town(z, x, y) {
+  const step = 512, roads = [], blds = [], parks = [], water = [], wood = [];
+  const [hu, hv] = hereIn(z, x, y);
+  for (let k = 0; k <= 4096; k += step) {
+    const cls = (k / step) % 4 === 0 ? 'primary' : (k / step) % 2 === 0 ? 'secondary' : 'minor';
+    roads.push({ type: 2, props: { class: cls }, rings: [[[k, -64], [k, 4160]]] }, { type: 2, props: { class: cls }, rings: [[[-64, k], [4160, k]]] });
+  }
+  let seed = (x * 73856093) ^ (y * 19349663) ^ z;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let bx = 0; bx < 4096; bx += step) for (let by = 0; by < 4096; by += step) {
+    const pick = rnd();
+    const mine = z >= 14 && Math.abs(bx + step / 2 - hu) < step * 0.75 && Math.abs(by + step / 2 - hv) < step * 0.75;
+    if (mine || pick < 0.1) { parks.push({ type: 3, props: { class: 'park' }, rings: sq(bx + 40, by + 40, bx + step - 40, by + step - 40) }); continue; }
+    if (pick < 0.14) { water.push({ type: 3, props: { class: 'lake' }, rings: sq(bx + 60, by + 60, bx + step - 60, by + step - 60) }); continue; }
+    if (pick < 0.18) { wood.push({ type: 3, props: { class: 'wood' }, rings: sq(bx + 30, by + 30, bx + step - 30, by + step - 30) }); continue; }
+    const tall = rnd() < 0.12;
+    for (const [ox, oy] of [[60, 60], [270, 60], [60, 270], [270, 270]]) {
+      const h = tall && ox === 60 && oy === 60 ? 60 + Math.floor(rnd() * 120) : 6 + Math.floor(rnd() * 24);
+      blds.push({ type: 3, props: { render_height: h, render_min_height: 0 }, rings: sq(bx + ox, by + oy, bx + ox + 170, by + oy + 170) });
+    }
+  }
+  return mvt([
+    { name: 'landuse', features: [{ type: 3, props: { class: 'residential' }, rings: sq(0, 0, 4096, 4096) }] },
+    { name: 'landcover', features: wood },
+    { name: 'park', features: parks },
+    { name: 'water', features: water },
+    { name: 'transportation', features: roads },
+    { name: 'building', features: blds },
+  ]);
+}
+// ---- a mountain ridge 30 km east, as terrarium elevation tiles --------------------------------------------------------
+function dem(z, x, y) {
+  const n = 2 ** z, size = 256, data = new Uint8Array(size * size * 4);
+  const kmE = 111.32 * Math.cos((HERE.lat * Math.PI) / 180);
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const lng = ((x + (i + 0.5) / size) / n) * 360 - 180;
+    const yy = Math.PI * (1 - (2 * (y + (j + 0.5) / size)) / n);
+    const lat = (180 / Math.PI) * Math.atan(Math.sinh(yy));
+    const east = (lng - HERE.lng) * kmE, north = (lat - HERE.lat) * 111.32;
+    const h = 1300 + 2400 * Math.exp(-(((east - 30) / 7) ** 2)) * (0.7 + 0.3 * Math.sin(north / 6)) + 500 * Math.exp(-(((north - 25) / 9) ** 2));
+    const v = h + 32768;
+    const k = (j * size + i) * 4;
+    data[k] = Math.floor(v / 256); data[k + 1] = Math.floor(v) % 256; data[k + 2] = Math.floor((v - Math.floor(v)) * 256); data[k + 3] = 255;
+  }
+  return Buffer.from(encode({ width: size, height: size, data, channels: 4 }));
+}
+
+const server = await serve(process.env.E2E_DIST || 'dist-eyes', PORT);
+const browser = await launch();
+const ctx = await browser.newContext({ viewport: { width: 430, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark', geolocation: { latitude: HERE.lat, longitude: HERE.lng, accuracy: 8 }, permissions: ['geolocation'] });
+if (app) await ctx.addInitScript(() => { window.CapacitorCustomPlatform = { name: 'ios', plugins: {} }; });
+let tilesServed = 0, demServed = 0;
+await ctx.route('https://tiles.openfreemap.org/**', (route) => {
+  const u = route.request().url();
+  if (/\/planet$/.test(u)) return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ tiles: ['https://tiles.openfreemap.org/planet/test/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 14 }) });
+  const m = /\/(\d+)\/(\d+)\/(\d+)\.pbf/.exec(u);
+  if (m) { tilesServed++; return route.fulfill({ status: 200, contentType: 'application/x-protobuf', headers: { 'access-control-allow-origin': '*' }, body: town(+m[1], +m[2], +m[3]) }); }
+  return route.fulfill({ status: 404, body: '' });
+});
+await ctx.route('https://s3.amazonaws.com/elevation-tiles-prod/**', (route) => {
+  const m = /terrarium\/(\d+)\/(\d+)\/(\d+)\.png/.exec(route.request().url());
+  if (!m) return route.fulfill({ status: 404, body: '' });
+  demServed++;
+  return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: dem(+m[1], +m[2], +m[3]) });
+});
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|fonts.g|WebGL|net::|Content Security Policy|glyphs|pbf/.test(m.text())) errors.push(m.text()); });
+const shot = (n) => page.screenshot({ path: path.join(OUT, `${n}.png`), timeout: 45000 }).catch(() => {});
+const api = (f, ...a) => page.evaluate(([f, a]) => window.__landvasApi[f](...a), [f, a]);
+const sql = (q, p = []) => page.evaluate(([q, p]) => window.__landvasBackend.db.query(q, p).then((r) => r.rows), [q, p]);
+const nav = (p) => page.evaluate((p) => window.__landvasNav(p), p);
+const waitFor = (sel, timeout = 20000) => page.waitForSelector(sel, { timeout }).then(() => true, () => false);
+const eyes = (fn, ...a) => page.evaluate(([fn, a]) => { const e = window.__landvasEyes; return e ? e[fn](...a) : null; }, [fn, a]);
+const as = (uid, fn, args = {}) => page.evaluate(async ([uid, fn, args]) => {
+  const keys = Object.keys(args);
+  return window.__landvasBackend.db.transaction(async (tx) => {
+    await tx.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: uid, role: 'authenticated' })]);
+    await tx.query('set local role authenticated');
+    const r = await tx.query(`select public.${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(', ')}) as r`, keys.map((k) => (args[k] !== null && typeof args[k] === 'object' ? JSON.stringify(args[k]) : args[k])));
+    return r.rows[0]?.r;
+  });
+}, [uid, fn, args]);
+async function someone(name) {
+  const id = (await sql(`insert into auth.users (email) values ('${name}@example.test') returning id`))[0].id;
+  const terms = (await sql(`select value->>'terms_version' v from game_config where key = 'legal'`))[0].v;
+  await as(id, 'complete_onboarding', { p_username: name, p_accept_terms_version: terms });
+  await sql(`update players set created_at = now() - interval '3 days', last_active_at = now() where id = '${id}'`);
+  return id;
+}
+/** a local hour today (the page's clock) as a timestamp */
+const at = (h) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.getTime(); };
+
+try {
+  await page.goto(`http://localhost:${PORT}/?e2e=1`, { waitUntil: 'load' });
+  await page.waitForSelector('[data-testid=title-play], #email', { timeout: 90000 });
+  if (await page.locator('[data-testid=title-play]').count()) await page.click('[data-testid=title-play]', { force: true });
+  await page.waitForSelector('#email', { timeout: 30000 });
+  await page.fill('#email', `eyes-${MODE}@example.test`); await page.fill('#password', 'paint-the-world'); await page.click('button[type=submit]');
+  await page.waitForSelector('#username', { timeout: 30000 }); await page.fill('#username', `eyes_${MODE}`); await page.check('input[type=checkbox]'); await page.click('button[type=submit]');
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => window.__landvasUi.getState().updateSettings({ simpleMode: false }));
+  const me = (await sql(`select id from players order by created_at desc limit 1`))[0].id;
+  await sql(`update players set created_at = now() - interval '3 days' where id = '${me}'`);
+  await sql(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
+  const r0 = await api('reportPosition', HERE.lng, HERE.lat, 8).catch(() => null);
+  if (r0) await page.evaluate((r) => window.__landvasExplorer?.getState().set(r), r0);
+
+  // the land around: my plot (a Legendary), the neighbours' (a Mythic, a Rare, a Solar), a Primordial across town
+  const mine = { gx: START.gx + 3, gy: START.gy - 4 };
+  await as(me, 'claim_starter_plot', { p_gx: mine.gx, p_gy: mine.gy });
+  await sql(`update world_plots set rarity = 'legendary' where gx = $1 and gy = $2`, [mine.gx, mine.gy]);
+  const ned = await someone('eyes_ned');
+  const spots = [[START.gx - 3, START.gy - 6, 'mythic'], [START.gx + 6, START.gy + 2, 'rare'], [START.gx - 8, START.gy + 1, 'solar']];
+  for (const [gx, gy, r] of spots) {
+    await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), $4, 'graphite')
+               on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = excluded.rarity`, [gx, gy, ned, r]).catch((e) => console.log('plot insert:', String(e).slice(0, 200)));
+  }
+  const prim = { gx: START.gx + 900, gy: START.gy - 1400 }; // ~12 km NNE
+  await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), 'heart_world', 'graphite')
+             on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = 'heart_world'`, [prim.gx, prim.gy, ned]).catch((e) => console.log('primordial insert:', String(e).slice(0, 200)));
+  // the Leviathan, walking 3 km west of here
+  await sql(`insert into admin_roles (player_id, role) values ('${me}', 'owner') on conflict do nothing`);
+  const s0 = await as(me, 'admin_leviathan', { p_action: 'summon', p_args: { warn_min: 0 } }).catch((e) => ({ err: String(e) }));
+  const levId = (await sql(`select id from leviathans where status in ('warning','walking','enraged') order by spawned_at desc limit 1`))[0]?.id;
+  if (levId) {
+    const path = [[HERE.lng - 0.036, HERE.lat + 0.004], [HERE.lng - 0.03, HERE.lat], [HERE.lng - 0.5, HERE.lat - 0.2]];
+    await sql(`update leviathans set status = 'walking', path = $2::jsonb, path_km = 60, walk_s = 0, walk_at = now(), rise_at = now() - interval '1 minute', pause_until = null, speed_kmh = 4, data = data - 'hunt' where id = $1`, [levId, JSON.stringify(path)]);
+  }
+  check('set-up: a Leviathan out there', !!levId, JSON.stringify(s0).slice(0, 120));
+  // (its "it has risen" moment was seen already)
+  await page.evaluate((id) => localStorage.setItem('landvas.leviathan.seen', JSON.stringify({ [id]: 'risen' })), levId);
+
+  // ---- the way in ------------------------------------------------------------------------------------------------
+  await nav('/world'); await page.waitForTimeout(3500);
+  for (let i = 0; i < 3 && (await page.locator('[data-state=open][aria-hidden=true]').count()); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
+  const btn = app ? '[data-testid=map-row] [data-testid=eyes-disc]' : '[data-testid=eyes-rail]';
+  check('the map has the 👁️ way in', await waitFor(btn, 15000));
+  await shot('00-map');
+  await page.click(btn);
+  check('it opens the first-person view', await waitFor('[data-testid=eyes]', 40000));
+  await page.waitForSelector('[data-testid=eyes-loading]', { state: 'detached', timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(2500);
+  // the middle of the day, looking along the street
+  await eyes('setClock', at(12));
+  await eyes('lookAt', Math.PI / 2, 0.02);
+  await page.waitForTimeout(1500);
+  let d = await eyes('debug');
+  check('the ground: real streets painted at your feet', d?.ground === true && tilesServed > 0, `${tilesServed} tiles`);
+  check('…buildings stand at their real heights', d?.buildings > 500, `${d?.buildings} triangles`);
+  check('…trees in the parks and woods', d?.trees > 10, `${d?.trees}`);
+  check('…and the land rolls out to the horizon from real elevation', d?.terrain === true && demServed > 0, `${demServed} elevation tiles`);
+  check('the plots around you, glowing by rarity (and yours floats its card)', d?.plots >= 4 && d?.edges > 8 && d?.cards >= 1, JSON.stringify({ plots: d?.plots, edges: d?.edges, cards: d?.cards, beams: d?.beams }));
+  const png = decode(await page.screenshot({ timeout: 45000 }));
+  const pixels = (() => {
+    let lit = 0; const colours = new Set(); const ch = png.channels;
+    for (let i = 0; i < png.data.length; i += ch * 37) { const r = png.data[i], g = png.data[i + 1], b = png.data[i + 2]; if (r + g + b > 60) lit++; colours.add(`${r >> 4}${g >> 4}${b >> 4}`); }
+    return { lit, colours: colours.size };
+  })();
+  check('it draws (a lit, colourful frame)', pixels.lit > 20000 && pixels.colours > 40, JSON.stringify(pixels));
+  await shot('01-street-day');
+  await page.click('[data-testid=eyes-hint-ok]').catch(() => {});
+  // the ridge to the east, from up on a jetpack (eyes 38 m up)
+  const exState = await page.evaluate(() => window.__landvasExplorer.getState().state);
+  await page.evaluate((s) => window.__landvasExplorer.getState().set({ ...s, vehicle: { ...(s.vehicle ?? {}), current: 'jet' } }), exState);
+  await eyes('lookAt', Math.PI / 2, -0.02); await page.waitForTimeout(1200); await shot('02-mountains-east');
+  check('up on a jetpack the eyes rise above the rooftops', (await eyes('debug'))?.pos?.[1] > 30);
+  await eyes('lookAt', Math.PI * 1.5, -0.05); await page.waitForTimeout(900); await shot('02b-jetpack-west');
+  await page.evaluate((s) => window.__landvasExplorer.getState().set(s), exState);
+  // the Primordial's beacon, in its true direction (NNE)
+  const pr = await eyes('debug');
+  check('a Primordial stands as a beacon on the skyline', pr?.beacons >= 1, `${pr?.beacons}`);
+  await eyes('lookAt', 0.5, 0.15); await page.waitForTimeout(800); await shot('03-beacon');
+  const bId = `${prim.gx}_${prim.gy}`;
+  const bAt = await eyes('screenOf', { beacon: bId });
+  if (bAt) {
+    await page.mouse.click(bAt.x, bAt.y); await page.waitForTimeout(600);
+    check('tap the beacon: what it is and how far', (await page.locator('[data-testid=eyes-card-title]').textContent().catch(() => '')).includes('Heart of the World'));
+    await shot('04-beacon-card');
+    await page.locator('[data-testid=eyes-card] button[aria-label=Close]').click().catch(() => {});
+  } else check('the beacon is in view when you face it', false);
+
+  // ---- the Leviathan -------------------------------------------------------------------------------------------------
+  await page.click('[data-testid=eyes-face-lev]').catch(() => {});
+  await page.waitForTimeout(1400);
+  d = await eyes('debug');
+  check('the Leviathan is out there, colossal on the skyline', !!d?.lev && d.lev.dist > 1500 && d.lev.dist < 5000, JSON.stringify(d?.lev));
+  await shot('05-leviathan');
+  const lAt = await eyes('screenOf', { lev: true });
+  const hits0 = Number((await sql(`select coalesce(sum(hits), 0) n from leviathan_players where player_id = $1`, [me]))[0].n);
+  if (lAt) {
+    for (let i = 0; i < 3; i++) { await page.mouse.click(lAt.x, lAt.y); await page.waitForTimeout(250); }
+    await page.waitForTimeout(600); await shot('06-bombs-flying');
+    await page.waitForTimeout(2500);
+  }
+  const hits1 = Number((await sql(`select coalesce(sum(hits), 0) n from leviathan_players where player_id = $1`, [me]))[0].n);
+  check('tap it: ink bombs fly and really hit it', !!lAt && hits1 > hits0, `${hits0} → ${hits1}`);
+
+  // ---- a sky treasure ----------------------------------------------------------------------------------------------
+  const sky = await api('eyesSky');
+  check('the sky has treasures for you', sky?.enabled === true && (sky.drops ?? []).length >= 1, JSON.stringify(sky).slice(0, 160));
+  await page.waitForTimeout(1500);
+  const drop = sky?.drops?.[0] ? `${sky.win}:${sky.drops[0].i}` : null;
+  let dAt = null;
+  if (drop) {
+    // turn until it's in view (it floats somewhere around you)
+    const clear = (a) => a && a.y > 250 && a.y < 640 && a.x > 70 && a.x < 340 ? a : null;
+    for (const pitch of [0.35, 0.2, 0.55]) for (let k = 0; k < 16 && !dAt; k++) { await eyes('lookAt', (k / 16) * Math.PI * 2, pitch); await page.waitForTimeout(250); dAt = clear(await eyes('screenOf', { drop })); }
+    if (dAt) dAt = clear(await eyes('screenOf', { drop })) ?? dAt;
+  }
+  if (dAt) {
+    await shot('07-treasure');
+    await page.mouse.click(dAt.x, dAt.y); await page.waitForTimeout(1800);
+    const n = Number((await sql(`select count(*) n from eyes_catches where player_id = $1`, [me]))[0].n);
+    check('tap it: caught (and the count goes up)', n === 1 && (await page.locator('[data-testid=eyes-treasures]').textContent()).includes('1/'), `${n} caught`);
+    await shot('08-caught');
+  } else check('a treasure floats in view somewhere around you', false);
+
+  // ---- night: the stars --------------------------------------------------------------------------------------------
+  await eyes('setClock', at(23));
+  await page.waitForTimeout(4500);
+  await eyes('lookAt', 0, 0.75); await page.waitForTimeout(1200);
+  const sk = await eyes('sky');
+  check('at night the sky goes dark', sk?.day < 0.1, JSON.stringify(sk));
+  await shot('09-night-north');
+  // tap the Pole Star (north, at your latitude)
+  await eyes('lookAt', 0, (HERE.lat * Math.PI) / 180); await page.waitForTimeout(900);
+  const box = await page.locator('[data-testid=eyes-canvas]').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); await page.waitForTimeout(700);
+  const starName = await page.locator('[data-testid=eyes-card-title]').textContent().catch(() => '');
+  check('tap a star: it says which one (the Pole Star, due north)', /Polaris|Kochab|Dubhe|Merak/.test(starName ?? ''), starName);
+  await shot('10-polaris');
+  await eyes('lookAt', 3.3, 0.05); await page.waitForTimeout(800); await shot('11-night-street');
+  await eyes('setClock', at(12)); await page.waitForTimeout(4500);
+
+  // ---- the ground: tap a plot, walk ------------------------------------------------------------------------------------
+  await page.locator('[data-testid=eyes-card] button[aria-label=Close]').click().catch(() => {});
+  const look = await eyes('look');
+  void look;
+  // look down at your own plot and tap it
+  // (somewhere in the middle of the screen, clear of the buttons)
+  const cellAt = await (async () => { for (const pitch of [-0.12, -0.25, -0.4]) for (let k = 0; k < 24; k++) { await eyes('lookAt', (k / 24) * Math.PI * 2, pitch); await page.waitForTimeout(120); const a = await eyes('screenOf', { cell: [mine.gx, mine.gy] }); if (a && a.y > 250 && a.y < 640 && a.x > 70 && a.x < 340) return a; } return null; })();
+  if (cellAt) {
+    console.log('cell at', JSON.stringify(cellAt), JSON.stringify(await eyes('look')));
+    await page.mouse.click(cellAt.x, cellAt.y); await page.waitForTimeout(1500);
+    console.log('after', JSON.stringify(await eyes('look')), JSON.stringify(await page.evaluate(() => window.__landvasUi.getState().selected)));
+    check('tap the ground: that plot’s panel opens', (await page.locator('aside').count()) > 0);
+    await shot('12-plot-panel');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+    await page.evaluate(() => window.__landvasUi.getState().select(null)); await page.waitForTimeout(600);
+  } else check('your plot is in view when you look down at it', false);
+  // walk: face east and hold W
+  await eyes('lookAt', Math.PI / 2, 0);
+  const p0 = await page.evaluate(() => window.__landvasExplorer.getState().state);
+  await page.keyboard.down('w'); await page.waitForTimeout(1800); await page.keyboard.up('w'); await page.waitForTimeout(1200);
+  const p1 = await page.evaluate(() => window.__landvasExplorer.getState().state);
+  check('walk with W: forward is where you look (east)', p1.lng > p0.lng && Math.abs(p1.lat - p0.lat) < Math.abs(p1.lng - p0.lng), `${(p1.lng - p0.lng).toFixed(6)} east, ${(p1.lat - p0.lat).toFixed(6)} north`);
+  await shot('13-walked');
+
+  // ---- a picture, and back -------------------------------------------------------------------------------------------
+  // (the app's share sheet is the phone's own: here it just takes the picture)
+  if (app) await page.evaluate(() => {
+    window.__shared = null;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__shared = { files: d.files?.length ?? 0, type: d.files?.[0]?.type ?? null, size: d.files?.[0]?.size ?? 0 }; } });
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
+  });
+  const dl = page.waitForEvent('download', { timeout: 8000 }).catch(() => null);
+  await page.click('[data-testid=eyes-snap]');
+  const shared = app ? await page.waitForFunction(() => window.__shared, null, { timeout: 8000 }).then((h) => h.jsonValue()).catch(() => null) : null;
+  check('a picture of the view', app ? shared?.files === 1 && shared.type === 'image/jpeg' && shared.size > 5000 : !!(await dl) || (await page.locator('text=Saved your picture').count()) > 0, JSON.stringify(shared));
+  await page.click('[data-testid=eyes-back]'); await page.waitForTimeout(2500);
+  check('back to the map', (await page.locator('[data-testid=eyes]').count()) === 0);
+  await shot('14-back');
+  const dbg = d;
+  console.log('debug', JSON.stringify({ calls: dbg?.calls, tris: dbg?.tris, dpr: dbg?.dpr }));
+  check('no errors in the page', errors.length === 0, errors.slice(0, 3).join(' | '));
+} catch (e) {
+  console.error(e);
+  check('ran to the end', false, String(e).slice(0, 300));
+  await shot('zz-crash');
+} finally {
+  await browser.close();
+  server.close();
+}
+const failed = results.filter((r) => !r).length;
+console.log(`\n[${MODE}] ${results.length - failed}/${results.length} passed`);
+process.exit(failed ? 1 : 0);
