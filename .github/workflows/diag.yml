@@ -16,4 +16,5 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
+          LOGS_ONLY: "1"
         run: node scripts/diag-top.mjs
