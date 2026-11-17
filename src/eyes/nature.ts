@@ -255,6 +255,8 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime, uWind;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 ip = vec3(instanceMatrix[3][0], 0.0, instanceMatrix[3][2]);
+        // (the tufts right at your feet shrink away: up close they'd fill the view)
+        transformed *= smoothstep(0.9, 2.4, length(ip.xz - cameraPosition.xz));
         float bend = uv.y * uv.y * uWind;
         transformed.x += sin(uTime * 2.1 + ip.x * 0.5 + ip.z * 0.3) * 0.04 * bend;
         transformed.z += cos(uTime * 1.7 + ip.x * 0.3 + ip.z * 0.6) * 0.03 * bend;`);

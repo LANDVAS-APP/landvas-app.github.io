@@ -5,7 +5,8 @@
 // Walk with the stick (forward is where you look), look by dragging or by moving the phone, tap anything.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Smartphone, X } from 'lucide-react';
+import { Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Smartphone, Users, X } from 'lucide-react';
+import { useParty, usePartyUi } from '../party/party';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -29,7 +30,6 @@ import { ClaimCelebration } from '../plot/ClaimCelebration';
 import { LeviathanFight, useLevUi } from '../leviathan/Leviathan';
 import { LEV_KEY, fmtDmg, levPos, levRampage, levTiny, useLeviathan } from '../leviathan/useLeviathan';
 import { cellCenter, plotMetres } from '../shared/grid';
-import { SKIN, auraColor, outfitColor, styleOf } from '../explorer/character';
 import { isPrimordial, rarityInfo, rarityTier, setRarities } from '../shared/rarity';
 import { toMap } from '../lib/toMap';
 import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
@@ -37,6 +37,8 @@ import { bearingDistance, fmtDistance, makeFrame, type Frame } from './geo';
 import { buildBuildings, drawGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
 import type { BuildSite } from './builds';
+import { FirstPersonSelf } from './FirstPersonSelf';
+import { silhouette } from './selfView';
 import { REALM_META, isRealm, realmRoute } from '../realms/kinds';
 
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
@@ -58,6 +60,12 @@ type Card =
   | { kind: 'beacon'; title: string; body: string; emoji: string; gx: number; gy: number }
   | { kind: 'buddy'; title: string; username: string }
   | { kind: 'lev'; title: string; body: string };
+
+/** what someone in your party is up to, as they'd look to you: on their bike, driving, up on a jetpack, walking… */
+const buddyTag = (b: { how: string; traveling: boolean; vehicle?: string | null; trip?: { mode?: string } | null }) =>
+  b.how === 'travel' && b.traveling ? (b.trip?.mode === 'plane' ? '✈️ flying' : '🚆 on a train')
+    : b.vehicle === 'bike' ? '🚲 riding a bike' : b.vehicle === 'car' ? '🚗 driving' : b.vehicle === 'jet' ? '🚀 up on a jetpack'
+    : b.how === 'travel' ? '🧳 travelling' : b.traveling ? '🚶 walking' : '🕹️ exploring';
 
 export default function EyesScreen() {
   const me = useOnboardedMe();
@@ -110,14 +118,16 @@ export default function EyesScreen() {
     };
   }, [hasExplorer]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // your hands, your sleeves, your tool: the explorer you are
+  // your hands, your sleeves, what you hold: the explorer you are, in its own art (and its silhouette is your shadow)
   const style = me?.profile.explorer_style;
   const accent = me?.profile.accent_color || '#8B5CFF';
+  const selfLook = useMemo(() => ({ style, accent }), [JSON.stringify(style ?? {}), accent]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!eyes) return;
-    const s = styleOf(style);
-    eyes.setBodyLook({ skin: SKIN[s.skin] ?? '#FFE2C4', outfit: outfitColor(style, accent), pants: '#2B2F4A', shoes: '#F4F6FF', accent, hold: s.hold, aura: auraColor(style, accent) });
-  }, [eyes, style, accent]);
+    let live = true;
+    void silhouette(selfLook).then((c) => { if (live) eyes.setShadowImage(c); });
+    return () => { live = false; };
+  }, [eyes, selfLook]);
   // the jetpack: hold ▲ / ▼ to rise and sink (2–80 m)
   const vehicle = ex.state?.vehicle?.current ?? 'walk';
   const [alt, setAlt] = useState(jetAlt);
@@ -130,6 +140,10 @@ export default function EyesScreen() {
     window.addEventListener('pointerup', stop);
   };
   useEffect(() => () => { if (climb.current) cancelAnimationFrame(climb.current); }, []);
+
+  // your party (up to 10 explore with you, standing in the view as their own explorers); invite from right here
+  const party = useParty();
+  const partySize = party.data?.group?.members.length ?? 0;
 
   // the place you've walked up to (a plot made into an arcade, a farm, a house…), and going in
   const [place, setPlace] = useState<BuildSite | null>(null);
@@ -412,7 +426,7 @@ export default function EyesScreen() {
     enabled: !!frame && !!me, refetchInterval: 8000, staleTime: 5000,
   });
   useEffect(() => {
-    eyes?.setBuddies((buddiesQ.data?.items ?? []).filter((b) => b.id !== me?.profile.id).map((b) => ({ id: b.id, lng: b.lng, lat: b.lat, name: b.display_name || b.username, color: b.accent_color || '#8B6BFF' })));
+    eyes?.setBuddies((buddiesQ.data?.items ?? []).filter((b) => b.id !== me?.profile.id).slice(0, 10).map((b) => ({ id: b.id, lng: b.lng, lat: b.lat, name: b.display_name || b.username, color: b.accent_color || '#8B6BFF', style: b.explorer_style ?? null, vehicle: b.vehicle, tag: buddyTag(b) })));
   }, [eyes, buddiesQ.data, me?.profile.id]);
 
   // ---- sky treasures ------------------------------------------------------------------------------------------------
@@ -620,6 +634,8 @@ export default function EyesScreen() {
       </AnimatePresence>
       <AnimatePresence>{flash > 0 && <motion.div key={flash} className="pointer-events-none absolute inset-0 z-40 bg-white" initial={{ opacity: 0.85 }} animate={{ opacity: 0 }} transition={{ duration: 0.45 }} />}</AnimatePresence>
 
+      {/* you: your hands, what you hold, your seat (in your explorer's own art) */}
+      {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade} />}
       {/* the middle of your view */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/25" />
 
@@ -643,6 +659,9 @@ export default function EyesScreen() {
       <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-1/2 z-20 grid -translate-y-1/2 gap-2.5">
         <RoundBtn label="Sky" onClick={() => glide(null, headingPitch > 0.9 ? 0.05 : 1.25)} testid="eyes-sky"><CloudSun className="h-5 w-5" /></RoundBtn>
         {canGyro && <RoundBtn label={gyro ? 'Gyro on' : 'Gyro'} on={gyro} onClick={() => void toggleGyro()} testid="eyes-gyro"><Smartphone className="h-5 w-5" /></RoundBtn>}
+        <RoundBtn label="Party" onClick={() => usePartyUi.getState().show(partySize > 1 ? 'party' : 'invite')} testid="eyes-party">
+          <span className="relative"><Users className="h-5 w-5" />{partySize > 1 && <span className="absolute -right-2.5 -top-2 rounded-full bg-[#22E3FF] px-1 text-[10px] font-black text-[#0b0b1e]">{partySize}</span>}</span>
+        </RoundBtn>
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>

@@ -243,7 +243,7 @@ try {
   const levId = (await sql(`select id from leviathans where status in ('warning','walking','enraged') order by spawned_at desc limit 1`))[0]?.id;
   if (levId) {
     const path = [[HERE.lng - 0.036, HERE.lat + 0.004], [HERE.lng - 0.03, HERE.lat], [HERE.lng - 0.5, HERE.lat - 0.2]];
-    await sql(`update leviathans set status = 'walking', path = $2::jsonb, path_km = 60, walk_s = 0, walk_at = now(), rise_at = now() - interval '1 minute', pause_until = null, speed_kmh = 4, data = data - 'hunt' where id = $1`, [levId, JSON.stringify(path)]);
+    await sql(`update leviathans set status = 'walking', path = $2::jsonb, path_km = 60, walk_s = 0, walk_at = now(), rise_at = now() - interval '1 minute', pause_until = null, hidden_until = null, tiny_until = null, speed_kmh = 4, data = data - 'hunt' where id = $1`, [levId, JSON.stringify(path)]);
   }
   check('set-up: a Leviathan out there', !!levId, JSON.stringify(s0).slice(0, 120));
   // (its "it has risen" moment was seen already)
@@ -339,7 +339,7 @@ try {
   await page.click('[data-testid=eyes-face-lev]').catch(() => {});
   await page.waitForTimeout(1400);
   d = await eyes('debug');
-  if (!d?.lev) console.log('leviathan now', JSON.stringify(await sql(`select status, path_km, walk_s, data->'hunt' hunt, pause_until from leviathans order by spawned_at desc limit 1`)));
+  if (!d?.lev) console.log('leviathan now', JSON.stringify(await sql(`select status, path_km, walk_s, data->'hunt' hunt, pause_until, hidden_until, tiny_until, rise_at from leviathans order by spawned_at desc limit 1`)));
   check('the Leviathan is out there, colossal on the skyline', !!d?.lev && d.lev.dist > 1500 && d.lev.dist < 5000, JSON.stringify(d?.lev));
   await shot('05-leviathan');
   const lAt = await eyes('screenOf', { lev: true });
@@ -455,6 +455,39 @@ try {
     await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, carn.lng, carn.lat]);
     await refresh(); await eyes('lookAt', 0, 0.15); await page.waitForTimeout(1800);
     await shot('16d-carnival');
+  }
+
+  // ---- your party, standing in the view as their own explorers --------------------------------------------------------
+  {
+    const pia = await someone('eyes_pia');
+    await sql(`update profiles set explorer_style = $2::jsonb, accent_color = '#FF3D9A' where id = $1`, [pia, JSON.stringify({ hat: 'crown', hold: 'wand', outfit: 'galaxy', hair: 'long', hairc: 'pink', skin: 'caramel', sex: 'f' })]);
+    await sql(`insert into player_activity (player_id, kind, detail, at) values ($1, 'map', '{}', now() + interval '10 minutes') on conflict (player_id) do update set at = excluded.at`, [pia]);
+    await sql(`insert into player_activity (player_id, kind, detail, at) values ($1, 'map', '{}', now() + interval '10 minutes') on conflict (player_id) do update set at = excluded.at`, [me]);
+    const trip = (await sql(`insert into travel_trips (player_id, mode, arrives_at) values ($1, 'train', now() + interval '2 hours') returning id`, [pia]))[0].id;
+    const pAt = { lng: HERE.lng + 0.00006, lat: HERE.lat + 0.00004 }, far = { lng: HERE.lng - 1.2, lat: HERE.lat + 0.8 };
+    await sql(`insert into explorers (player_id, mode, lng, lat, gps_lng, gps_lat, gps_at, trip_id, home_lng, home_lat, fixed_at) values ($1, 'travel', $2, $3, $4, $5, now(), $6, $4, $5, now())
+               on conflict (player_id) do update set mode = excluded.mode, lng = excluded.lng, lat = excluded.lat, gps_lng = excluded.gps_lng, gps_lat = excluded.gps_lat, trip_id = excluded.trip_id, home_lng = excluded.home_lng, home_lat = excluded.home_lat`,
+      [pia, pAt.lng, pAt.lat, far.lng, far.lat, trip]);
+    const grp = (await sql(`insert into travel_groups (leader_id, code) values ($1, 'EYESTT') returning id`, [me]))[0].id;
+    await sql(`insert into travel_group_members (group_id, player_id) values ($1, $2), ($1, $3) on conflict do nothing`, [grp, me, pia]);
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh();
+    await page.evaluate(() => window.__landvasQc.invalidateQueries()); await page.waitForTimeout(3000);
+    let n = 0;
+    for (let k = 0; k < 24 && !n; k++) { n = (await eyes('debug'))?.buddies ?? 0; if (!n) await page.waitForTimeout(500); }
+    check('your party stands in the view as their own explorers', n >= 1, `${n} in view`);
+    await eyes('lookAt', Math.atan2(pAt.lng - HERE.lng, (pAt.lat - HERE.lat) * 1.3), -0.04); await page.waitForTimeout(1800);
+    await shot('18-party-pia');
+    // she gets on her bike, then up on her jetpack: you see it
+    for (const v of ['bike', 'jet']) {
+      await sql(`update explorers set vehicle = $2 where player_id = $1`, [pia, v]);
+      await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['eyes-buddies'] })); await page.waitForTimeout(2500);
+      await eyes('lookAt', Math.atan2(pAt.lng - HERE.lng, (pAt.lat - HERE.lat) * 1.3), v === 'jet' ? 0.5 : -0.04); await page.waitForTimeout(1500);
+      await shot(`18b-party-pia-${v}`);
+      const tags = (await eyes('debug'))?.buddyTags ?? [];
+      check(`…and you see her ${v === 'bike' ? 'riding her bike' : 'up on her jetpack'}`, tags.some((x) => x.includes(v === 'bike' ? 'riding a bike' : 'jetpack')), JSON.stringify(tags));
+    }
+    check('invite people right from the view', await waitFor('[data-testid=eyes-party]', 3000));
   }
 
   // ---- going in: my arcade -------------------------------------------------------------------------------------------

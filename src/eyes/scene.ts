@@ -16,11 +16,12 @@ import { hex, type BuildingMesh, type StreetThings, type Terrain, type TreePt } 
 import { createNature } from './nature';
 import { createStreet } from './street';
 import { createBuilds, PLACE_WORD, type BuildSite } from './builds';
+import { explorerPicture } from './selfView';
 import { REALM_META, isRealm } from '../realms/kinds';
 import { isEstate, kindFamily, TIERS } from '../realms/estates/meta';
 import { isDomain } from '../realms/estates/domains';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
-import { createBody, type BodyLook, type BodyVehicle } from './body';
+import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
 
 export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null };
@@ -28,7 +29,7 @@ export type Beacon = { id: string; lng: number; lat: number; color: string; emoj
 export type LevPlace = { lng: number; lat: number; heading: number; walking: boolean; look: LevLook };
 export type SkyDrop = { id: string; kind: 'balloon' | 'lantern' | 'meteor'; seed: number };
 export type FallingStar = { id: number; gx: number; gy: number };
-export type Buddy = { id: string; lng: number; lat: number; name: string; color: string };
+export type Buddy = { id: string; lng: number; lat: number; name: string; color: string; style?: import('../backend/types').ExplorerStyle | null; vehicle?: string | null; tag?: string | null };
 export type HotDome = { lng: number; lat: number; radiusM: number };
 
 export type Pick =
@@ -75,7 +76,8 @@ export type Eyes = {
   /** look somewhere: compass bearing and pitch (radians) */ lookAt(yaw: number, pitch: number): void;
   look(): { yaw: number; pitch: number; fov: number };
   setGyro(on: boolean): void;
-  /** your explorer's skin, outfit and tool (the hands and body you see) */ setBodyLook(l: BodyLook): void;
+  /** your explorer's silhouette (its shadow on the ground) */ setShadowImage(c: HTMLCanvasElement | null): void;
+  /** how your explorer is moving this frame (for the first-person drawing of it) */ selfPose(): SelfPose;
   /** what's underfoot where you stand */ surface(): Surface;
   sound(): ReturnType<typeof createEyesSound>;
   /** throw an ink bomb at the Leviathan (lands in ~0.6 s) */ throwAtLev(onLand?: () => void): boolean;
@@ -643,9 +645,8 @@ export function createEyes(o: EyesOpts): Eyes {
   let drops: { d: SkyDrop; obj: THREE.Object3D; pos: THREE.Vector3; visible: boolean; anchor: THREE.Vector3; born: number }[] = [];
   const lastDrop = new Map<string, THREE.Vector3>(); // where caught ones were (for the reward floating up)
   const buddyGroup = new THREE.Group();
-  const capsuleGeo = T(new THREE.CapsuleGeometry(0.32, 0.9, 4, 10)), headGeo = T(new THREE.SphereGeometry(0.28, 14, 10));
   near.add(buddyGroup);
-  let buddies: { b: Buddy; obj: THREE.Group }[] = [];
+  let buddies: { b: Buddy; obj: THREE.Group; sprite: THREE.Sprite; tag: THREE.Sprite; look: string; tagText: string; at: THREE.Vector3 | null; moving: number }[] = [];
 
   // ---- effects: bursts, thrown ink, damage numbers -----------------------------------------------------------------
   const MAXP = 700;
@@ -1270,27 +1271,56 @@ export function createEyes(o: EyesOpts): Eyes {
     }
   };
 
+  /** the people in your party, standing in the world as their own explorers (the game's own 2D art), named */
+  const tagCanvas = (name: string, tag: string | null | undefined, color: string) => {
+    const c = Object.assign(document.createElement('canvas'), { width: 320, height: 96 });
+    const g = c.getContext('2d')!;
+    g.fillStyle = 'rgba(10,12,40,0.8)'; g.beginPath(); g.roundRect(4, 4, 312, tag ? 88 : 56, 24); g.fill();
+    g.strokeStyle = color; g.lineWidth = 4; g.stroke();
+    g.fillStyle = '#fff'; g.font = 'bold 30px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name.slice(0, 16), 160, 31);
+    if (tag) { g.font = 'bold 22px system-ui, sans-serif'; g.fillStyle = '#9FE8FF'; g.fillText(tag.slice(0, 26), 160, 68); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
   const setBuddies = (list: Buddy[]) => {
-    for (const b of buddies) { buddyGroup.remove(b.obj); b.obj.traverse((x) => { const mm = (x as THREE.Mesh).material as THREE.Material | undefined; if (mm) { (mm as THREE.SpriteMaterial).map?.dispose(); mm.dispose(); } }); }
-    buddies = [];
+    const keep = new Set(list.map((b) => b.id));
+    for (const b of buddies.filter((x) => !keep.has(x.b.id))) { buddyGroup.remove(b.obj); for (const sp of [b.sprite, b.tag]) { sp.material.map?.dispose(); sp.material.dispose(); } }
+    buddies = buddies.filter((x) => keep.has(x.b.id));
     for (const b of list) {
-      const g = new THREE.Group();
-      const bodyM = new THREE.Mesh(capsuleGeo, new THREE.MeshLambertMaterial({ color: b.color, emissive: b.color, emissiveIntensity: 0.25 }));
-      bodyM.position.y = 0.8;
-      const headM = new THREE.Mesh(headGeo, new THREE.MeshLambertMaterial({ color: '#FFE0C2' }));
-      headM.position.y = 1.65;
-      const c = Object.assign(document.createElement('canvas'), { width: 256, height: 64 });
-      const gg = c.getContext('2d')!;
-      gg.fillStyle = 'rgba(10,12,40,0.75)'; gg.beginPath(); gg.roundRect(4, 8, 248, 48, 24); gg.fill();
-      gg.fillStyle = '#fff'; gg.font = 'bold 28px system-ui, sans-serif'; gg.textAlign = 'center'; gg.textBaseline = 'middle'; gg.fillText(b.name.slice(0, 16), 128, 33);
-      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-      const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
-      tag.scale.set(2.4, 0.6, 1);
-      tag.position.y = 2.4;
-      g.add(bodyM, headM, tag);
-      g.userData.id = b.id;
-      buddyGroup.add(g);
-      buddies.push({ b, obj: g });
+      let o = buddies.find((x) => x.b.id === b.id);
+      if (!o) {
+        const g = new THREE.Group();
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: b.color, transparent: true, alphaTest: 0.1 }));
+        sprite.center.set(0.5, 0);
+        sprite.scale.set(1.75 * (46 / 68), 1.75, 1);
+        const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagCanvas(b.name, b.tag, b.color), transparent: true, depthWrite: false, fog: false }));
+        tag.scale.set(2.2, 0.66, 1);
+        tag.position.y = 2.25;
+        g.add(sprite, tag);
+        g.userData.id = b.id;
+        buddyGroup.add(g);
+        o = { b, obj: g, sprite, tag, look: '', tagText: `${b.name}|${b.tag ?? ''}`, at: null, moving: 0 };
+        buddies.push(o);
+      }
+      // their own explorer, as drawn everywhere in the game (redrawn when they change their look)
+      // (on foot, on their bike, in their car or astride their rocket, as the map shows them)
+      const veh = b.vehicle && ['bike', 'car', 'jet'].includes(b.vehicle) ? b.vehicle : null;
+      const look = JSON.stringify([b.style ?? {}, b.color, veh]);
+      if (look !== o.look) {
+        o.look = look;
+        const target = o;
+        void explorerPicture(b.style, b.color, veh).then((c) => {
+          if (!c || !buddies.includes(target) || target.look !== look) return;
+          const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+          target.sprite.material.map?.dispose();
+          target.sprite.material.map = tex; target.sprite.material.color.set('#ffffff'); target.sprite.material.needsUpdate = true;
+          const h = veh === 'car' ? 1.9 : veh ? 2.1 : 1.75;
+          target.sprite.scale.set(h * (c.width / c.height), h, 1);
+        });
+      }
+      const tagText = `${b.name}|${b.tag ?? ''}`;
+      if (tagText !== o.tagText) { o.tagText = tagText; o.tag.material.map?.dispose(); o.tag.material.map = tagCanvas(b.name, b.tag, b.color); o.tag.material.needsUpdate = true; }
+      o.b = b;
     }
   };
 
@@ -1509,7 +1539,6 @@ export function createEyes(o: EyesOpts): Eyes {
     w = nw; h = nh;
     renderer.setSize(nw, nh, false);
     cam.aspect = farCam.aspect = nw / nh;
-    body.resize(nw / nh);
     cam.updateProjectionMatrix();
     farCam.updateProjectionMatrix();
   };
@@ -1570,8 +1599,7 @@ export function createEyes(o: EyesOpts): Eyes {
     cam.updateProjectionMatrix();
     farCam.updateProjectionMatrix();
     body.update({
-      dt, t, speed, turn, yaw, pitch, vehicle: veh, eye: pos, eyeHeight: o.eye(), day: sky.day, sun: sunV, camQ: cam.quaternion,
-      light: { dir: lightsNear.dir.color, dirI: lightsNear.dir.intensity, sky: lightsNear.hemi.color, ground: lightsNear.hemi.groundColor, hemiI: lightsNear.hemi.intensity },
+      dt, t, speed, turn, yaw, pitch, vehicle: veh, eye: pos, eyeHeight: o.eye(), day: sky.day, sun: sunV,
     });
     if (o.onLook && now - lastLookSent > 120) { lastLookSent = now; o.onLook(((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch); }
     if (now - lastSky > 4000 || lastSky < 0) updateSky(now);
@@ -1714,10 +1742,21 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     // your party
     for (const b of buddies) {
+      // (they glide to where they are, and their explorer walks while they move)
       const [x, z] = lngLatToLocal(frame, b.b.lng, b.b.lat);
-      b.obj.position.set(x, 0, z);
-      b.obj.lookAt(pos.x, 0, pos.z);
-      b.obj.children[0].position.y = 0.8 + Math.abs(Math.sin(t * 3 + x)) * 0.05;
+      if (!b.at) b.at = new THREE.Vector3(x, 0, z);
+      const gap = Math.hypot(x - b.at.x, z - b.at.z);
+      if (gap > 400) b.at.set(x, 0, z);
+      else b.at.lerp(new THREE.Vector3(x, 0, z), Math.min(1, dt * 1.2));
+      b.moving += ((gap > 0.4 ? 1 : 0) - b.moving) * Math.min(1, dt * 4);
+      b.obj.position.copy(b.at);
+      const ph = t * 7 + b.at.x;
+      // up on a jetpack they're up in the air (bobbing on the flames); on wheels they roll, on foot they step
+      const veh = b.b.vehicle;
+      const air = veh === 'jet' ? 9 + Math.sin(t * 1.6 + b.at.z) * 0.6 : 0;
+      b.obj.position.y = air;
+      b.sprite.position.y = veh === 'jet' ? 0 : veh === 'bike' || veh === 'car' ? Math.abs(Math.sin(ph * 2)) * 0.03 * b.moving : Math.abs(Math.sin(ph)) * 0.08 * b.moving;
+      b.sprite.material.rotation = veh === 'jet' ? Math.sin(t * 1.3) * 0.08 : veh ? 0 : Math.sin(ph) * 0.05 * b.moving;
     }
     // thrown ink
     for (let i = throws.length - 1; i >= 0; i--) {
@@ -1765,9 +1804,7 @@ export function createEyes(o: EyesOpts): Eyes {
     renderer.render(far, farCam);
     renderer.clearDepth();
     renderer.render(near, cam);
-    // your hands (and the bike's bars, the car's dashboard, the jetpack's grips) on top of everything
-    renderer.clearDepth();
-    renderer.render(body.overlay, body.ocam);
+    // (your hands, what you hold and your seat are drawn over the view in your explorer's own art: FirstPersonSelf)
   };
   raf = requestAnimationFrame(tick);
 
@@ -1845,7 +1882,8 @@ export function createEyes(o: EyesOpts): Eyes {
       el.parentElement?.appendChild(div);
       floaters.push({ el: div, t: 0, at });
     },
-    setBodyLook: (l) => body.setLook(l),
+    setShadowImage: (c) => body.setShadowImage(c),
+    selfPose: () => body.pose(),
     surface: () => surfaceAt(pos.x, pos.z),
     sound: () => sound,
     sky: () => ({ ...sky }),
@@ -1865,7 +1903,7 @@ export function createEyes(o: EyesOpts): Eyes {
     },
     snapshot: () => new Promise((resolve) => {
       // draw a fresh frame and copy it straight away (the drawing buffer isn't kept between frames)
-      renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam); renderer.clearDepth(); renderer.render(body.overlay, body.ocam);
+      renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam);
       el.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
     }),
     closeCanvas: () => closeCanvas,
@@ -1881,7 +1919,7 @@ export function createEyes(o: EyesOpts): Eyes {
       return dur;
     },
     debugShow: (layer, on) => {
-      const all: Record<string, THREE.Object3D | null> = { ground, grid, plots: plotsGroup, buildings, terrain, body: body.body, shadow: body.shadow, lev: lev.group };
+      const all: Record<string, THREE.Object3D | null> = { ground, grid, plots: plotsGroup, buildings, terrain, shadow: body.shadow, lev: lev.group };
       if (layer === 'builds') near.children.forEach((c) => { if (c.userData.layer === 'builds') c.visible = on; });
       if (layer === 'shadows') { lightsNear.dir.castShadow = on; return; }
       const x = all[layer]; if (x) x.visible = on;
@@ -1891,7 +1929,7 @@ export function createEyes(o: EyesOpts): Eyes {
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
       buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
-      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, sky: { ...sky },
+      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
       dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, frames, frameMs: Math.round(frameMs),
     }),

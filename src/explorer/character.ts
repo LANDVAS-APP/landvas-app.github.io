@@ -191,6 +191,15 @@ function hold(id: string): string {
   }
 }
 
+/** The held cosmetic's own drawing (in the character's 46 x 68 coordinates), for the first-person view. */
+export function heldMarkup(style: ExplorerStyle | null | undefined): string {
+  return hold(styleOf(style).hold);
+}
+/** The outfit's own paint (fill, defs and pattern), for the first-person view's sleeves. `k` keeps its ids unique. */
+export function outfitPaint(style: ExplorerStyle | null | undefined, accent: string, k: string): { defs: string; fill: string; extra: string } {
+  return outfit(styleOf(style).outfit, accent, k);
+}
+
 /** The outfit's main colour (for the first-person view's sleeves and torso): the fill, or a gradient's first stop. */
 export function outfitColor(style: ExplorerStyle | null | undefined, accent: string): string {
   const o = outfit(styleOf(style).outfit, accent, 'fp');
