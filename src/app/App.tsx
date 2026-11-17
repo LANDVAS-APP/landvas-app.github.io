@@ -33,6 +33,7 @@ function WorldRoute() {
   return <Suspense fallback={<div className="absolute inset-0 bg-bg" />}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
 }
 import { WatchHost } from '../watch/WatchHost';
+import { FpInside } from '../eyes/FpInside';
 import { Welcome } from '../screens/Welcome';
 import { ResetPassword } from '../screens/ResetPassword';
 import { AuthConfirm } from '../screens/AuthConfirm';
@@ -240,7 +241,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><PeekHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

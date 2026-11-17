@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Rocket, Smartphone, Users, X } from 'lucide-react';
 import { useParty, usePartyUi } from '../party/party';
+import { EMOTES, sendGroup, useGroupLive, type Emote } from '../travel/live';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -48,6 +49,8 @@ import './eyes.css';
 import { silhouette } from './selfView';
 import { hoursFromHere, kmBetween, localDay, localTime, sunTimes, utcOffset, whereabouts, type Whereabouts } from './whereabouts';
 import { REALM_META, isRealm, realmRoute } from '../realms/kinds';
+import { kindFamily } from '../realms/estates/meta';
+import { useCompanion } from '../inkborn/companion';
 
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
 const FAR_HALF = 2600; // the softer ground of the town around
@@ -57,6 +60,12 @@ const REFRAME = 1600; // walked this far from where the world was built: build i
 // eye height by what you're riding (the jetpack's is yours to raise and lower)
 const EYE: Record<string, number> = { walk: 1.62, bike: 1.74, car: 1.22 };
 let jetAlt = 24;
+/** a plane's height over the world as you fly across it (high enough to see the land roll by, low enough to see it) */
+const PLANE_ALT = 700;
+const rideEye = { h: 0, t: performance.now() };
+/** what you're riding across the world right now, if anything */
+const rideOf = (st: ReturnType<typeof useExplorer.getState>['state']) =>
+  st?.mode === 'travel' && st.trip && !st.trip.arrived && st.dest && st.speed_mps ? (st.trip.mode === 'plane' ? 'plane' : st.trip.mode === 'train' ? 'train' : null) : null;
 
 // the camera's bearing, for the compass and the stick (outside React: it changes many times a second)
 let heading = 0, headingPitch = 0;
@@ -104,7 +113,16 @@ export default function EyesScreen() {
     const s = createEyes({
       canvas: canvas.current,
       pose: () => { const st = useExplorer.getState(); const p = explorerNow(st.state, st.offset); return p ? { lng: p.lng, lat: p.lat } : null; },
-      eye: () => { const v = useExplorer.getState().state?.vehicle?.current ?? 'walk'; return v === 'jet' ? jetAlt : EYE[v] ?? 1.62; },
+      eye: () => {
+        const st = useExplorer.getState().state;
+        // flying across the world: up at a plane's height (eased up after takeoff and down for landing)
+        const ride = rideOf(st);
+        const want = ride === 'plane' ? PLANE_ALT : ride === 'train' ? 2.6 : null;
+        const now = performance.now(), dt = Math.min(0.1, (now - rideEye.t) / 1000); rideEye.t = now;
+        rideEye.h += ((want ?? 0) - rideEye.h) * Math.min(1, dt * (want ? 0.35 : 1.2));
+        if (want || rideEye.h > 3) return Math.max(want ? 1.62 : 0, rideEye.h);
+        const v = st?.vehicle?.current ?? 'walk'; return v === 'jet' ? jetAlt : EYE[v] ?? 1.62;
+      },
       vehicle: () => (useExplorer.getState().state?.vehicle?.current ?? 'walk') as 'walk' | 'bike' | 'car' | 'jet',
       onPick: (p) => onPick.current(p),
       onLook: (y, p) => { heading = y; headingPitch = p; lookSubs.forEach((f) => f()); },
@@ -329,6 +347,12 @@ export default function EyesScreen() {
         return { gx: r[0], gy: r[1], rarity: r[9], color: info.color, glow: info.glow, tier: rarityTier(r[9]), mine: !!r[4], group: r[5], shiny: !!r[12], emoji: info.emoji ?? null, name: r[10] ?? null, kind: r[11] ?? 'canvas', owner: r[7] };
       });
       eyes.setPlots(list);
+      // the Inkborn living in the habitats round you, to roam their glades
+      void (async () => {
+        const groups = [...new Set(list.filter((p) => p.group && (p.kind ?? '').length && kindFamily(p.kind ?? '') === 'habitat').map((p) => p.group!))].slice(0, 16);
+        if (!groups.length) { eyes.setResidents({}); return; }
+        try { const got = await api.habitatResidents(groups); if (live) eyes.setResidents(got); } catch { /* the glades just stand empty for now */ }
+      })();
       // the art on the nearest plots that have some (and the drawings on your floating cards)
       const withArt = rows.filter((r) => r[6]).map((r) => ({ r, d: Math.hypot(r[0] - c.gx, r[1] - c.gy) })).sort((a, b) => a.d - b.d).slice(0, isPhone() ? 60 : 140);
       const bitmaps = new Map<string, ImageBitmap>();
@@ -449,9 +473,33 @@ export default function EyesScreen() {
     queryFn: () => api.mapExplorers({ w: frame!.lng0 - 0.03, s: frame!.lat0 - 0.03, e: frame!.lng0 + 0.03, n: frame!.lat0 + 0.03 }),
     enabled: !!frame && !!me, refetchInterval: 8000, staleTime: 5000,
   });
+  // (out travelling together, their positions stream live: they move smoothly, not every few seconds)
+  const livePos = useGroupLive((st) => st.pos);
   useEffect(() => {
-    eyes?.setBuddies((buddiesQ.data?.items ?? []).filter((b) => b.id !== me?.profile.id).slice(0, 10).map((b) => ({ id: b.id, lng: b.lng, lat: b.lat, name: b.display_name || b.username, color: b.accent_color || '#8B6BFF', style: b.explorer_style ?? null, vehicle: b.vehicle, tag: buddyTag(b) })));
-  }, [eyes, buddiesQ.data, me?.profile.id]);
+    const now = Date.now();
+    eyes?.setBuddies((buddiesQ.data?.items ?? []).filter((b) => b.id !== me?.profile.id).slice(0, 10).map((b) => {
+      const lp = livePos[b.id], fresh = lp && now - lp.at < 30_000;
+      return { id: b.id, lng: fresh ? lp.lng : b.lng, lat: fresh ? lp.lat : b.lat, name: b.display_name || b.username, color: b.accent_color || '#8B6BFF', style: b.explorer_style ?? null, vehicle: (fresh && lp.v) || b.vehicle, tag: buddyTag(b) };
+    }));
+  }, [eyes, buddiesQ.data, me?.profile.id, livePos]);
+  // their emotes pop up over their heads
+  const liveEmotes = useGroupLive((st) => st.emotes);
+  const seenEmote = useRef<Record<string, number>>({});
+  useEffect(() => {
+    for (const [id, e] of Object.entries(liveEmotes)) {
+      if (seenEmote.current[id] === e.at || Date.now() - e.at > 6000) continue;
+      seenEmote.current[id] = e.at;
+      const em = EMOTES.find((x) => x.id === e.e);
+      if (em) eyes?.emoteAt(id, em.emoji);
+    }
+  }, [eyes, liveEmotes]);
+  const [myEmote, setMyEmote] = useState<{ k: number; emoji: string } | null>(null);
+  const sendEmote = (e: Emote) => {
+    const em = EMOTES.find((x) => x.id === e)!;
+    const sent = sendGroup({ t: 'emote', e });
+    setMyEmote({ k: Date.now(), emoji: em.emoji });
+    if (!sent) toast('Only your party sees emotes while you’re out travelling together', { description: 'At home, nothing about you is sent to anyone.' });
+  };
 
   // ---- sky treasures ------------------------------------------------------------------------------------------------
   const skyQ = useQuery({ queryKey: ['eyes-sky'], queryFn: api.eyesSky, enabled: !!me, refetchInterval: 60_000, staleTime: 20_000 });
@@ -484,6 +532,10 @@ export default function EyesScreen() {
   const [summoned, setSummoned] = useState<Summoned | null>(null);
   const [enchPage, setEnchPage] = useState(0);
   const [space, setSpace] = useState(false);
+  const ride = rideOf(ex.state);
+  // your companion Inkborn walks with you
+  const comp = useCompanion();
+  useEffect(() => { eyes?.setCompanion(comp ? { id: comp.c.id, name: comp.c.name, genome: comp.g } : null); }, [eyes, comp?.c.id, comp?.g]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { eyes?.setPaused(space); }, [eyes, space]);
   const onPick = useRef<(p: Pick | null) => void>(() => {});
   onPick.current = (p) => {
@@ -544,6 +596,13 @@ export default function EyesScreen() {
       return;
     }
     if (p.kind === 'manifest') { feel(); eyes?.manifestFlare(); setEnchPage((n) => n + 1); return; }
+    if (p.kind === 'critter') {
+      const k = eyes?.critter(p.id);
+      if (!k) return;
+      feel('success'); eyes?.pet(p.id); eyes?.sound().chime();
+      setCard({ kind: 'sky', emoji: '🐾', title: k.name, body: p.id === 'companion' ? 'Your companion — it goes everywhere with you. It loved that.' : `${k.mine ? 'One of your Inkborn' : k.owner ? `@${k.owner}’s Inkborn` : 'An Inkborn'}, at home in this glade${k.personality ? ` · ${k.personality}` : ''}.` });
+      return;
+    }
     if (p.kind === 'buddy') {
       const b = buddiesQ.data?.items.find((x) => x.id === p.id);
       if (b) setCard({ kind: 'buddy', title: b.display_name || b.username, username: b.username });
@@ -679,11 +738,16 @@ export default function EyesScreen() {
       <AnimatePresence>{flash > 0 && <motion.div key={flash} className="pointer-events-none absolute inset-0 z-40 bg-white" initial={{ opacity: 0.85 }} animate={{ opacity: 0 }} transition={{ duration: 0.45 }} />}</AnimatePresence>
 
       {/* you: your hands, what you hold, your seat (in your explorer's own art) */}
-      {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade || book} />}
+      {/* flying (or riding a train) across the world: your seat by the window */}
+      {ride === 'plane' && <PlaneWindow trip={ex.state?.trip ?? null} />}
+      {ride === 'train' && <TrainWindow trip={ex.state?.trip ?? null} />}
+      {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade || book || !!ride} />}
       {/* to space: your rocket, from right here */}
       <AnimatePresence>{space && <Suspense key="space" fallback={null}><SpaceFlight look={selfLook} onClose={() => setSpace(false)} /></Suspense>}</AnimatePresence>
       {/* your Grimoire, held open; what you've summoned from it */}
       {me && <FpGrimoire eyes={eyes} look={selfLook} open={book} onClose={() => setBook(false)} summoned={summoned} setSummoned={setSummoned} openPage={enchPage} />}
+      {/* your own emote, rising in front of you */}
+      <AnimatePresence>{myEmote && <motion.div key={myEmote.k} className="pointer-events-none absolute left-1/2 top-[46%] z-20 -translate-x-1/2 text-6xl" initial={{ opacity: 0, y: 30, scale: 0.5 }} animate={{ opacity: [0, 1, 1, 0], y: -60, scale: 1.1 }} transition={{ duration: 2.2 }} onAnimationComplete={() => setMyEmote(null)}>{myEmote.emoji}</motion.div>}</AnimatePresence>
       {/* the middle of your view */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/25" />
 
@@ -804,6 +868,7 @@ export default function EyesScreen() {
                   {card.kind === 'beacon' && <Link to={`/powers/${card.gx}_${card.gy}`} className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">Its powers</Link>}
                   {card.kind === 'beacon' && <button className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold" onClick={() => { const [lng, lat] = cellCenter(card.gx, card.gy); toMap(nav, { lng, lat, zoom: 17 }); }}>On the map</button>}
                   {card.kind === 'buddy' && <Link to={`/u/${card.username}`} className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">Profile</Link>}
+                  {card.kind === 'buddy' && EMOTES.slice(0, 5).map((e) => <button key={e.id} className="rounded-full bg-white/15 px-2.5 py-1 text-sm" onClick={() => sendEmote(e.id)} aria-label={e.label} data-testid={`eyes-emote-${e.id}`}>{e.emoji}</button>)}
                   {card.kind === 'lev' && <button className="rounded-full bg-[#B026FF]/70 px-3 py-1 text-xs font-bold" onClick={() => { setCard(null); useLevUi.getState().open(); }} data-testid="eyes-open-fight">Open the fight</button>}
                 </div>
               </div>
@@ -1002,4 +1067,70 @@ function plotCard(d: import('../backend/types').PlotDetails | null, row: PlotRow
   ].filter(Boolean);
   lines.forEach((t, i) => g.fillText(t, 40, 214 + i * 46));
   return c;
+}
+
+/** where a trip's going and how long is left (ticking) */
+function TripChip({ trip, icon }: { trip: { to?: { name?: string } | null; arrives_at?: string } | null; icon: string }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 1000); return () => clearInterval(t); }, []);
+  const left = trip?.arrives_at ? Math.max(0, (Date.parse(trip.arrives_at) - Date.now()) / 1000) : 0;
+  const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
+  return (
+    <div className="absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+104px)] z-20 -translate-x-1/2 rounded-full bg-black/60 px-3.5 py-1.5 text-[12.5px] font-black shadow-lg" data-testid="eyes-trip">
+      {icon} {trip?.to?.name ? `To ${trip.to.name}` : 'On your way'}{left > 0 ? ` · ${mm}:${String(ss).padStart(2, '0')} to go` : ''}
+    </div>
+  );
+}
+
+/** a window seat on the plane: the cabin wall round an oval window, the wing out there, the blind half up */
+function PlaneWindow({ trip }: { trip: Parameters<typeof TripChip>[0]['trip'] }) {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 z-[12]" data-testid="eyes-plane">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+          <defs>
+            <mask id="lvpw"><rect width="100" height="100" fill="#fff" /><rect x="14" y="14" width="72" height="64" rx="30" ry="24" fill="#000" /></mask>
+            <linearGradient id="lvcab" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9ecf2" /><stop offset="0.55" stop-color="#cfd4de" /><stop offset="1" stop-color="#9ea6b6" /></linearGradient>
+            <radialGradient id="lvsh" cx="0.5" cy="0.46" r="0.6"><stop offset="0.72" stop-color="#000" stop-opacity="0" /><stop offset="1" stop-color="#000" stop-opacity="0.35" /></radialGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#lvcab)" mask="url(#lvpw)" />
+          <rect x="14" y="14" width="72" height="64" rx="30" ry="24" fill="url(#lvsh)" />
+          <rect x="14" y="14" width="72" height="64" rx="30" ry="24" fill="none" stroke="#f7f8fb" strokeWidth="2.6" />
+          <rect x="11.5" y="11.5" width="77" height="69" rx="32" ry="26" fill="none" stroke="#b6bdca" strokeWidth="1.2" />
+          {/* the blind, pulled half way */}
+          <path d="M14 14 h72 v9 a30 24 0 0 0 -72 0 Z" fill="#dfe3ea" />
+          <rect x="44" y="21.5" width="12" height="2" rx="1" fill="#9aa2b2" />
+        </svg>
+        {/* the wing: out over the land, a winglet at its tip */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" style={{ clipPath: 'inset(14% 14% 22% 14% round 30% / 24%)' }} aria-hidden>
+          <path d="M8 86 L 70 63 L 74 64 L 30 92 Z" fill="#f4f6fa" stroke="#aab2c0" strokeWidth="0.4" />
+          <path d="M18 86 L 70 64.5" stroke="#2F6FE4" strokeWidth="1.4" />
+          <path d="M70 63 L 73 52 L 75.5 52.5 L 74 64 Z" fill="#2F6FE4" />
+          <path d="M12 90 L 30 92 L 26 95 Z" fill="#d8dde6" />
+        </svg>
+      </div>
+      <TripChip trip={trip} icon="✈️" />
+    </>
+  );
+}
+
+/** a seat by the train's window: the frame, the little table and a drink on it */
+function TrainWindow({ trip }: { trip: Parameters<typeof TripChip>[0]['trip'] }) {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 z-[12]" data-testid="eyes-train">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+          <defs><mask id="lvtw"><rect width="100" height="100" fill="#fff" /><rect x="7" y="16" width="86" height="54" rx="5" fill="#000" /></mask></defs>
+          <rect width="100" height="100" fill="#3d4253" mask="url(#lvtw)" />
+          <rect x="7" y="16" width="86" height="54" rx="5" fill="none" stroke="#1d2030" strokeWidth="2.4" />
+          <rect x="49.4" y="16" width="1.2" height="54" fill="#1d2030" />
+          <rect x="0" y="76" width="100" height="6" fill="#8a5a2e" />
+          <rect x="0" y="82" width="100" height="18" fill="#2a2e3d" />
+          <path d="M62 76 v-7 h7 v7 Z" fill="#fff" opacity="0.92" />
+          <path d="M69 71 q3 0 3 2.5 t-3 2.5" fill="none" stroke="#fff" strokeWidth="0.8" />
+        </svg>
+      </div>
+      <TripChip trip={trip} icon="🚆" />
+    </>
+  );
 }

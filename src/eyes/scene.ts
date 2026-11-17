@@ -19,6 +19,9 @@ import { createBuilds, PLACE_WORD, type BuildSite } from './builds';
 import { explorerPicture } from './selfView';
 import { REALM_META, isRealm } from '../realms/kinds';
 import { isEstate, kindFamily, TIERS } from '../realms/estates/meta';
+import { drawCreature, type CreatureState } from '../inkborn/rig';
+import type { Genome } from '../inkborn/genome';
+import type { Resident } from '../backend/types';
 import { isDomain } from '../realms/estates/domains';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyVehicle, type SelfPose } from './body';
@@ -40,6 +43,7 @@ export type Pick =
   | { kind: 'drop'; id: string }
   | { kind: 'buddy'; id: string }
   | { kind: 'manifest' }
+  | { kind: 'critter'; id: string }
   | { kind: 'sky'; what: 'sun' | 'moon' | 'star' | 'planet'; name: string; ly?: number; group?: string };
 
 export type EyesOpts = {
@@ -111,6 +115,16 @@ export type Eyes = {
   manifest(m: { emoji: string; a: string; b: string; seed: number; sigil: HTMLCanvasElement | null; name: string } | null): void;
   /** …and it flares as you use it */
   manifestFlare(): void;
+  /** the Inkborn living in each habitat (by its group), to roam their glades */
+  setResidents(byGroup: Record<string, Resident[]>): void;
+  /** your companion, walking with you */
+  setCompanion(c: { id: string; name: string; genome: Genome } | null): void;
+  /** a tapped Inkborn's happy hop */
+  pet(id: string): void;
+  /** someone in your party emotes: the emoji pops up over their head */
+  emoteAt(id: string, emoji: string): void;
+  /** who an Inkborn in the view is */
+  critter(id: string): { name: string; owner: string | null; mine: boolean; personality: string } | null;
   dispose(): void;
 };
 
@@ -860,6 +874,125 @@ export function createEyes(o: EyesOpts): Eyes {
     manG.visible = true;
   };
   const manifestFlare = () => { if (man && !man.endT) man.burstT = performance.now(); };
+
+  // ---- Inkborn in the world: the creatures living in each habitat roam their glade (wandering, stopping to look round,
+  // napping at night), drawn in the game's own art, frame by frame while they're near you; your companion walks with
+  // you. Tap one: who it is (and a happy hop) ----------------------------------------------------------------------------
+  type Critter = { id: string; name: string; gen: Genome; owner: string | null; mine: boolean; personality: string;
+    sprite: THREE.Sprite; c: HTMLCanvasElement; tex: THREE.CanvasTexture; x: number; z: number; tx: number; tz: number;
+    state: CreatureState; until: number; dir: 1 | -1; seed: number; drawnAt: number; happyUntil: number; site: string | null };
+  const critters = new Map<string, Critter>();
+  let companion: Critter | null = null;
+  const critterSprite = (gen: Genome) => {
+    const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 });
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
+    sprite.center.set(0.5, 0.04);
+    const s = 0.85 * Math.max(0.6, Math.min(1.6, gen.size || 1));
+    sprite.scale.set(s, s, 1);
+    near.add(sprite);
+    return { sprite, c, tex };
+  };
+  const dropCritter = (k: Critter) => { near.remove(k.sprite); k.tex.dispose(); k.sprite.material.dispose(); };
+  /** a spot to wander to in its glade: inside the hedge, clear of the burrow and the pond */
+  const gladeSpot = (site: BuildSite, seed: number) => {
+    const R = Math.min(site.w, site.d) * 0.46;
+    for (let i = 0; i < 12; i++) {
+      const a = hashN(seed + i * 7.3) * Math.PI * 2, d = Math.sqrt(hashN(seed + i * 3.1)) * R * 0.72;
+      const lx = Math.cos(a) * d, lz = Math.sin(a) * d;
+      if (Math.hypot(lx + R * 0.25, lz + R * 0.2) < R * 0.46 || Math.hypot(lx - R * 0.35, lz - R * 0.25) < R * 0.34) continue;
+      const co = Math.cos(site.rot), si = Math.sin(site.rot);
+      return [site.x + lx * co + lz * si, site.z - lx * si + lz * co] as const;
+    }
+    return [site.x, site.z + R * 0.5] as const;
+  };
+  const hashN = (x: number) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  const setResidents: Eyes['setResidents'] = (byGroup) => {
+    const sites = new Map(builds.list().filter((s2) => kindFamily(s2.kind) === 'habitat').map((s2) => [s2.key, s2]));
+    const keep = new Set<string>();
+    let n = 0;
+    for (const [group, list] of Object.entries(byGroup)) {
+      const site = sites.get(group);
+      if (!site) continue;
+      for (const r of list.slice(0, 6)) {
+        if (n++ >= (phone ? 18 : 30)) break;
+        keep.add(r.id);
+        if (critters.has(r.id)) continue;
+        const gen = r.genome;
+        const { sprite, c, tex } = critterSprite(gen);
+        const seed = hashN(r.id.length * 13.7 + r.id.charCodeAt(0)) * 1000;
+        const [x, z] = gladeSpot(site, seed);
+        critters.set(r.id, { id: r.id, name: r.name, gen, owner: site.owner, mine: r.mine, personality: r.personality, sprite, c, tex, x, z, tx: x, tz: z,
+          state: 'idle', until: 0, dir: 1, seed, drawnAt: -1, happyUntil: 0, site: group });
+      }
+    }
+    for (const [id, k] of critters) if (!keep.has(id)) { dropCritter(k); critters.delete(id); }
+  };
+  const setCompanion: Eyes['setCompanion'] = (c) => {
+    if (companion && (!c || companion.id !== c.id)) { dropCritter(companion); companion = null; }
+    if (!c || companion) return;
+    const { sprite, c: cv, tex } = critterSprite(c.genome);
+    companion = { id: c.id, name: c.name, gen: c.genome, owner: null, mine: true, personality: '', sprite, c: cv, tex, x: pos.x + 1.5, z: pos.z + 1.5, tx: pos.x, tz: pos.z,
+      state: 'idle', until: 0, dir: 1, seed: 7, drawnAt: -1, happyUntil: 0, site: null };
+  };
+  const camRight = new THREE.Vector3();
+  /** move, pose and draw each one (drawing only the near ones, ~12 times a second) */
+  const critterTick = (t: number, dt: number) => {
+    critterT = t;
+    if (!critters.size && !companion) return;
+    camRight.set(1, 0, 0).applyQuaternion(cam.quaternion);
+    const sites = critters.size ? new Map(builds.list().map((s2) => [s2.key, s2])) : null;
+    const night = skyU.uDay.value < 0.2;
+    const step = (k: Critter, speed: number) => {
+      const dx = k.tx - k.x, dz = k.tz - k.z, d = Math.hypot(dx, dz);
+      if (d < 0.05) return false;
+      const m = Math.min(d, speed * dt);
+      k.x += (dx / d) * m; k.z += (dz / d) * m;
+      // (facing: left or right as you see it)
+      const side = dx * camRight.x + dz * camRight.z;
+      if (Math.abs(side) > 0.01) k.dir = side > 0 ? 1 : -1;
+      return true;
+    };
+    const draw = (k: Critter) => {
+      const dist = Math.hypot(k.x - pos.x, k.z - pos.z);
+      k.sprite.visible = dist < 140;
+      k.sprite.position.set(k.x, 0.05, k.z);
+      if (!k.sprite.visible || dist > 60) return;
+      if (t - k.drawnAt < (dist < 20 ? 1 / 14 : 1 / 6)) return;
+      k.drawnAt = t;
+      const g = k.c.getContext('2d')!;
+      g.clearRect(0, 0, 128, 128);
+      const state: CreatureState = t < k.happyUntil ? 'happy' : k.state;
+      drawCreature(g, k.gen, 64, 124, 68, { t, state, dir: k.dir, seed: k.seed });
+      k.tex.needsUpdate = true;
+    };
+    for (const k of critters.values()) {
+      if (t > k.until) {
+        // what next: a wander, a look round, a nap (at night)
+        const site = sites?.get(k.site ?? '');
+        const r = hashN(t * 3.7 + k.seed);
+        if (night && r < 0.55) { k.state = 'sleep'; k.until = t + 8 + r * 10; }
+        else if (r < 0.5 && site) { const [x, z] = gladeSpot(site, k.seed + t); k.tx = x; k.tz = z; k.state = 'walk'; k.until = t + 12; }
+        else { k.state = r < 0.75 ? 'idle' : 'look'; k.until = t + 2 + r * 4; }
+      }
+      if (k.state === 'walk' && !step(k, 0.7)) { k.state = 'idle'; k.until = t + 1.5 + hashN(k.seed + t) * 3; }
+      draw(k);
+    }
+    if (companion) {
+      // your companion keeps at your side, a little ahead, and catches up when you walk
+      const k = companion;
+      const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+      const want = new THREE.Vector3(pos.x, 0, pos.z).addScaledVector(fwd, 2.2).addScaledVector(camRight.clone().setY(0).normalize(), 1.1);
+      k.tx = want.x; k.tz = want.z;
+      const far2 = Math.hypot(k.tx - k.x, k.tz - k.z);
+      if (far2 > 25) { k.x = k.tx; k.z = k.tz; }
+      const moving = far2 > 0.4 && step(k, Math.min(9, 1.2 + far2 * 1.6));
+      k.state = moving ? 'walk' : night ? 'idle' : t % 9 < 2 ? 'look' : 'idle';
+      draw(k);
+    }
+  };
+  let critterT = 0;
+  const petCritter = (id: string) => { const k = id === 'companion' ? companion : critters.get(id); if (k) k.happyUntil = critterT + 2.2; };
   const manTick = (now: number, t: number) => {
     if (!man) return;
     const m = man;
@@ -1546,6 +1679,28 @@ export function createEyes(o: EyesOpts): Eyes {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     return t;
   };
+  /** emotes over your party's heads: an emoji that pops up, bobs and fades */
+  const emotes: { id: string; s: THREE.Sprite; t0: number }[] = [];
+  const emoteAt = (id: string, emoji: string) => {
+    const b = buddies.find((x) => x.b.id === id);
+    if (!b) return;
+    for (const e of emotes.filter((x) => x.id === id)) { b.obj.remove(e.s); e.s.material.dispose(); }
+    for (let i = emotes.length - 1; i >= 0; i--) if (emotes[i].id === id) emotes.splice(i, 1);
+    const s2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(emoji), transparent: true, depthWrite: false, fog: false }));
+    s2.renderOrder = 12;
+    b.obj.add(s2);
+    emotes.push({ id, s: s2, t0: performance.now() });
+  };
+  const emoteTick = (now: number) => {
+    for (let i = emotes.length - 1; i >= 0; i--) {
+      const e = emotes[i], k = (now - e.t0) / 3600;
+      if (k >= 1) { e.s.parent?.remove(e.s); e.s.material.dispose(); emotes.splice(i, 1); continue; }
+      const pop = Math.min(1, k * 8), fade = k > 0.8 ? 1 - (k - 0.8) / 0.2 : 1;
+      e.s.scale.setScalar(0.9 * (0.4 + pop * 0.6 + Math.sin(k * 30) * 0.03 * (1 - k)));
+      e.s.position.set(0, 2.9 + k * 0.5 + Math.sin(k * 12) * 0.05, 0);
+      e.s.material.opacity = fade;
+    }
+  };
   const setBuddies = (list: Buddy[]) => {
     const keep = new Set(list.map((b) => b.id));
     for (const b of buddies.filter((x) => !keep.has(x.b.id))) { buddyGroup.remove(b.obj); for (const sp of [b.sprite, b.tag]) { sp.material.map?.dispose(); sp.material.dispose(); } }
@@ -1742,6 +1897,8 @@ export function createEyes(o: EyesOpts): Eyes {
     for (const f of falling) consider(angle(dir, f.obj.position), tol * 1.2, { kind: 'star', id: f.s.id });
     for (const b of buddies) consider(angle(dir, b.obj.position.clone().setY(1.2)), tol, { kind: 'buddy', id: b.b.id });
     if (man && !man.endT) consider(angle(dir, manBeast.getWorldPosition(new THREE.Vector3())), tol * 1.8, { kind: 'manifest' });
+    for (const k of critters.values()) if (k.sprite.visible) consider(angle(dir, k.sprite.position.clone().setY(0.45)), tol * 1.4, { kind: 'critter', id: k.id });
+    if (companion) consider(angle(dir, companion.sprite.position.clone().setY(0.45)), tol * 1.6, { kind: 'critter', id: 'companion' });
     if (best) return (best as { p: Pick }).p;
     // the Leviathan
     if (lev.group.visible) {
@@ -1932,6 +2089,8 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     rollTick(now, dt);
     manTick(now, t);
+    critterTick(t, dt);
+    emoteTick(now);
     // the Leviathan
     lev.group.visible = false;
     levDist = Infinity;
@@ -2090,6 +2249,8 @@ export function createEyes(o: EyesOpts): Eyes {
     setFallingStars, setDrops, setBuddies, setHotZone,
     setClock: (ms) => { clock = ms; lastSky = -1e9; },
     rollAt, rollMoment, manifest, manifestFlare, setPaused: (p: boolean) => { paused = p; },
+    setResidents, setCompanion, pet: petCritter, emoteAt,
+    critter: (id) => { const k = id === 'companion' ? companion : critters.get(id); return k ? { name: k.name, owner: k.owner, mine: k.mine, personality: k.personality } : null; },
     lookAt: (y, p) => {
       yaw = y; pitch = Math.max(-1.45, Math.min(1.52, p)); vyaw = vpitch = 0; if (gyro) gyroQ = null;
       // (turn the camera now, not at the next frame: where things are on screen is right straight away)
@@ -2204,7 +2365,7 @@ export function createEyes(o: EyesOpts): Eyes {
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
       buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
-      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), roll: roll ? { landed: !!roll.landT, spin: !!roll.spinT, reveal: !!roll.revealT, tier: roll.tier } : rollDone, manifest: man ? { name: man.name, flared: !!man.burstT, gone: !!man.endT } : null, sky: { ...sky },
+      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), roll: roll ? { landed: !!roll.landT, spin: !!roll.spinT, reveal: !!roll.revealT, tier: roll.tier } : rollDone, manifest: man ? { name: man.name, flared: !!man.burstT, gone: !!man.endT } : null, critters: critters.size, companion: !!companion, emotes: emotes.length, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
       dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, frames, frameMs: Math.round(frameMs),
     }),
@@ -2227,6 +2388,8 @@ export function createEyes(o: EyesOpts): Eyes {
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
       nature.dispose(); street.dispose(); builds.dispose(); closeTex?.dispose();
+      for (const k of critters.values()) dropCritter(k);
+      if (companion) dropCritter(companion);
       for (const o2 of [manCircle, manSigil, manBeast, manHalo, manRing] as (THREE.Mesh | THREE.Sprite)[]) { const mt = o2.material as THREE.MeshBasicMaterial; if (o2 !== manBeast && o2 !== manHalo) mt.map?.dispose(); mt.dispose(); }
       nearTex?.dispose(); farTex?.dispose();
       for (const t of emojiTex.values()) t.dispose();

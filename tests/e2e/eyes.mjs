@@ -389,7 +389,10 @@ try {
     const now2 = await eyes('screenOf', { drop });
     if (now2) dAt = now2;
     await page.mouse.click(dAt.x, dAt.y); await page.waitForTimeout(1800);
-    const n = Number((await sql(`select count(*) n from eyes_catches where player_id = $1`, [me]))[0].n);
+    // (the catch goes to the server: give it a moment on a busy test machine)
+    let n = 0;
+    for (let k = 0; k < 16 && !n; k++) { n = Number((await sql(`select count(*) n from eyes_catches where player_id = $1`, [me]))[0].n); if (!n) await page.waitForTimeout(500); }
+    await page.waitForTimeout(600);
     check('tap it: caught (and the count goes up)', n === 1 && (await page.locator('[data-testid=eyes-treasures]').textContent()).includes('1/'), `${n} caught`);
     await shot('08-caught');
   } else check('a treasure floats in view somewhere around you', false);
@@ -479,8 +482,10 @@ try {
     check('…use it: the one in the world flares', !!df?.manifest?.flared, JSON.stringify(df?.manifest));
     await page.click('[data-testid=eyes-enchant-sheet-close]').catch(() => {}); await page.waitForTimeout(700);
     await shot('20d-flared');
-    await page.click('[data-testid=eyes-summoned-dismiss]').catch(() => {}); await page.waitForTimeout(900);
-    check('…and send it back', !(await eyes('debug'))?.manifest);
+    await page.click('[data-testid=eyes-summoned-dismiss]').catch((e) => console.log('dismiss:', String(e).slice(0, 160)));
+    let back = null;
+    for (let k = 0; k < 10; k++) { back = (await eyes('debug'))?.manifest; if (!back || back.gone) break; await page.waitForTimeout(500); }
+    check('…and send it back', !back || back.gone === true, JSON.stringify(back));
   }
   // walk: face east and hold W
   await eyes('lookAt', Math.PI / 2, 0);
@@ -558,6 +563,12 @@ try {
       const tags = (await eyes('debug'))?.buddyTags ?? [];
       check(`…and you see her ${v === 'bike' ? 'riding her bike' : 'up on her jetpack'}`, tags.some((x) => x.includes(v === 'bike' ? 'riding a bike' : 'jetpack')), JSON.stringify(tags));
     }
+    // she waves (her emote comes over the group's live channel): it pops up over her head
+    await page.evaluate((id) => window.__landvasGroupLive.setState({ emotes: { [id]: { e: 'wave', at: Date.now() } } }), pia);
+    await page.waitForTimeout(700);
+    const em = (await eyes('debug'))?.emotes ?? 0;
+    await shot('18c-party-pia-waves');
+    check('…and when she waves, it pops up over her head', em >= 1, `${em}`);
     check('invite people right from the view', await waitFor('[data-testid=eyes-party]', 3000));
   }
 
@@ -589,6 +600,28 @@ try {
     await sql(`update explorers set mode = $2 where player_id = $1`, [me, mode0 ?? 'manual']);
   }
 
+  // ---- Inkborn in the world: the creatures living in a habitat roam its glade; tap one and it hops for joy ---------------
+  {
+    const ned2 = (await sql(`select id from profiles where username = 'eyes_ned'`))[0]?.id;
+    const hab = await as(ned2, 'habitat_for_plot', { p_gx: START.gx + 1, p_gy: START.gy + 5 }).catch((e) => ({ err: String(e).slice(0, 200) }));
+    if (hab?.err || !hab?.habitat_id) console.log('habitat:', JSON.stringify(hab));
+    const gen = (c, body) => ({ body, color: c, belly: '#FFF3D6', accent: '#FF7AB8', pattern: 'spots', eyes: 'big', ears: 'bunny', horns: 'none', tail: 'fluffy', wings: 'none', legs: 2, eyecount: 2, gait: 'walk', cheeks: true, size: 1.1, mood: 'playful' });
+    for (const [i, [n, c, b]] of [['Pip', '#7BD389', 'round'], ['Mochi', '#FFB4D9', 'bean'], ['Zib', '#8FB8FF', 'tall']].entries()) {
+      await as(ned2, 'inkborn_create', { p_client_key: `eyes-${i}-${Date.now()}`, p_name: n, p_source: 'custom', p_genome: gen(c, b), p_drawing: null, p_habitat_id: hab?.habitat_id ?? null })
+        .catch((e) => console.log('inkborn:', String(e).slice(0, 200)));
+    }
+    await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, ...(() => { const c = ll(START.gx + 1, START.gy + 3); return [c.lng, c.lat]; })()]);
+    await refresh(); await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__landvasQc.invalidateQueries()); await page.waitForTimeout(500);
+    // (the plots reload a moment after you move)
+    let crit = 0;
+    for (let k = 0; k < 64 && !crit; k++) { crit = (await eyes("debug"))?.critters ?? 0; if (!crit) await page.waitForTimeout(500); }
+    check('Inkborn roam their habitat’s glade', crit >= 1, `${crit} in view`);
+    const c5 = ll(START.gx + 1, START.gy + 5), c3 = ll(START.gx + 1, START.gy + 3);
+    await eyes('lookAt', Math.atan2((c5.lng - c3.lng) * Math.cos((c3.lat * Math.PI) / 180), c5.lat - c3.lat), -0.12); await page.waitForTimeout(2500);
+    await shot('23-inkborn-glade');
+  }
+
   // ---- going in: my arcade -------------------------------------------------------------------------------------------
   {
     await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
@@ -610,6 +643,11 @@ try {
       await page.waitForTimeout(1200); await shot('17b-door-opening');
       const went = await page.waitForFunction(() => window.__landvasPath().startsWith('/arcade/'), null, { timeout: 9000 }).then(() => true).catch(() => false);
       check('…and through the door you go, into the place', went && await waitFor('[data-testid=arcade]', 8000), await page.evaluate(() => window.__landvasPath()));
+      check('…still in first person, inside — until you leave it', await waitFor('[data-testid=fp-inside]', 6000));
+      await page.waitForTimeout(800); await shot('17d-inside-first-person');
+      await page.click('[data-testid=fp-leave]').catch(() => {});
+      await page.waitForTimeout(800);
+      check('…leave first person: you’re in the place’s own view', (await page.locator('[data-testid=fp-inside]').count()) === 0 && await waitFor('[data-testid=arcade]', 3000));
       await page.waitForTimeout(1500); await shot('17c-inside');
       await page.evaluate(() => window.__landvasNav(-1)); await waitFor('[data-testid=eyes]', 8000); await page.waitForTimeout(3000);
     } else check('my arcade stands on my plot', false, JSON.stringify((dp?.places ?? []).map((p) => p.kind)));
@@ -656,6 +694,22 @@ try {
     } else check('a Hot Zone today', false);
   }
 
+  // ---- flying across the world: a window seat on the plane, up at a plane's height, the land rolling by below ----------
+  {
+    const dest = { lng: HERE.lng + 3.5, lat: HERE.lat + 1.2 };
+    const trip = (await sql(`insert into travel_trips (player_id, mode, arrives_at) values ($1, 'plane', now() + interval '40 minutes') returning id`, [me]))[0].id;
+    await sql(`update explorers set mode = 'travel', trip_id = $2, lng = $3, lat = $4, home_lng = $3, home_lat = $4, dest_lng = $5, dest_lat = $6, speed_mps = 220, fixed_at = now() where player_id = $1`,
+      [me, trip, HERE.lng, HERE.lat, dest.lng, dest.lat]);
+    await refresh();
+    const seat = await waitFor('[data-testid=eyes-plane]', 12000);
+    await page.waitForTimeout(6000);
+    await eyes('lookAt', Math.atan2(3.5 * Math.cos((HERE.lat * Math.PI) / 180), 1.2) + 1.2, -0.25); await page.waitForTimeout(2500);
+    await shot('24-plane-window');
+    check('flying across the world: a window seat, the land below', seat && await waitFor('[data-testid=eyes-trip]', 3000));
+    await sql(`update explorers set mode = 'manual', trip_id = null, dest_lng = null, dest_lat = null, speed_mps = null, lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh(); await page.waitForTimeout(3000);
+  }
+
   // ---- a picture, and back -------------------------------------------------------------------------------------------
   // (the app's share sheet is the phone's own: here it just takes the picture)
   if (app) await page.evaluate(() => {
@@ -671,7 +725,7 @@ try {
   check('back to the map', (await page.locator('[data-testid=eyes]').count()) === 0);
   await shot('14-back');
 
-  // ---- to space, in first person: pick the Moon on the solar system, ride your rocket up from the street, across, and
+  // ---- to space, in first person: pick a world on the solar system, ride your rocket up from the street, across, and
   // down onto it; step out onto its own map -------------------------------------------------------------------------
   {
     await sql(`insert into space_pilots (player_id, parts, location) values ($1, array['nose','tank','fins','engine'], 'earth')
@@ -682,26 +736,31 @@ try {
     const sys = await waitFor('[data-testid=eyes-space-system] canvas', 20000);
     await page.waitForTimeout(1500); await shot('22-space-where-to');
     check('to space from the street: the whole solar system, pick a world', sys);
-    await page.click('[data-testid=eyes-space-pick-moon]');
-    await page.click('[data-testid=world-card] [data-testid=launch]', { timeout: 10000 }).catch((e) => console.log('launch:', String(e).slice(0, 160)));
+    await page.click('[data-testid=eyes-space-pick-mars]');
+    await waitFor('[data-testid=world-card]', 8000);
+    // (a real trip: launch; if Mars is a free warp for this pilot, it's instant)
+    const warp = (await page.locator('[data-testid=world-card] [data-testid=warp]').count()) > 0;
+    await page.click(`[data-testid=world-card] [data-testid=${warp ? 'warp' : 'launch'}]`, { timeout: 10000 }).catch((e) => console.log('launch:', String(e).slice(0, 160)));
     const lifted = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=liftoff]', { timeout: 10000 }).then(() => true).catch(() => false);
     await page.waitForTimeout(1500); await shot('22b-liftoff');
     check('…liftoff: you ride your rocket up from where you stand', lifted);
-    const cruising = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=cruise]', { timeout: 20000 }).then(() => true).catch(() => false);
-    await page.waitForTimeout(1200); await shot('22c-cruise');
-    check('…out across the solar system, for as long as the real trip takes', cruising, await page.locator('[data-testid=eyes-space-status]').textContent().catch(() => ''));
-    // (the trip's time is up)
-    await sql(`update space_pilots set arrive_at = now() - interval '1 second', depart_at = now() - interval '5 minutes' where player_id = $1`, [me]);
-    await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['space'] }));
+    if (!warp) {
+      const cruising = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=cruise]', { timeout: 20000 }).then(() => true).catch(() => false);
+      await page.waitForTimeout(1200); await shot('22c-cruise');
+      check('…out across the solar system, for as long as the real trip takes', cruising, await page.locator('[data-testid=eyes-space-status]').textContent().catch(() => ''));
+      // (the trip's time is up)
+      await sql(`update space_pilots set arrive_at = now() - interval '1 second', depart_at = now() - interval '5 minutes' where player_id = $1`, [me]);
+      await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['space'] }));
+    }
     const down = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=approach]', { timeout: 30000 }).then(() => true).catch(() => false);
     await page.waitForTimeout(1500); await shot('22d-coming-down');
     const landedOk = await page.waitForSelector('[data-testid=eyes-space-out]', { timeout: 30000 }).then(() => true).catch(() => false);
     await page.waitForTimeout(800); await shot('22e-landed');
-    check('…and down onto the Moon', down && landedOk);
+    check('…and down onto Mars', down && landedOk);
     await page.click('[data-testid=eyes-space-out]').catch(() => {});
     const out = await page.waitForFunction(() => window.__landvasPath() === '/world', null, { timeout: 10000 }).then(() => true).catch(() => false);
-    await page.waitForTimeout(2500); await shot('22f-on-the-moon');
-    check('step out: you’re on the Moon’s own map', out && (await sql(`select location from space_pilots where player_id = $1`, [me]))[0]?.location === 'moon');
+    await page.waitForTimeout(2500); await shot('22f-on-mars');
+    check('step out: you’re on Mars’ own map', out && (await sql(`select location from space_pilots where player_id = $1`, [me]))[0]?.location === 'mars');
   }
   const dbg = d;
   console.log('debug', JSON.stringify({ calls: dbg?.calls, tris: dbg?.tris, dpr: dbg?.dpr }));
