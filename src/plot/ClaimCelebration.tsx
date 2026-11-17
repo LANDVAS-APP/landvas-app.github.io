@@ -4,7 +4,7 @@
 import { AscendOffer, useAscend } from '../roll/Ascend';
 import { AnimatePresence } from 'motion/react';
 import { Brush, TreePine, Upload } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
 import type { PlotTypeId } from '../shared/grid';
 import type { RarityId } from '../shared/rarity';
@@ -58,6 +58,8 @@ export function ClaimCelebration() {
 
 function Show({ c }: { c: Celebration }) {
   const nav = useNavigate();
+  // bought in first person: the roll plays out in the world, in front of you
+  const inEyes = useLocation().pathname === '/eyes';
   const qc = useQueryClient();
   const close = () => useCelebration.getState().close();
   const go = (start: 'draw' | 'upload') => { close(); nav(`/create/${c.groupId}?start=${start}`); };
@@ -75,7 +77,7 @@ function Show({ c }: { c: Celebration }) {
     </div>
   );
   return (
-    <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close}
+    <RollReveal testId="claim-celebration" rarityTestId="claim-rarity" name={c.name} onClose={close} variant={inEyes ? 'eyes' : undefined}
       result={{ rarity: c.rarity, usd: c.usd, type: c.type, first: c.first, shiny: c.shiny, lucky: c.lucky, choices: c.choices, choiceTypes: c.choiceTypes, choiceShiny: c.choiceShiny, enchant: c.enchant ?? null, dowsed: c.dowsed ?? null, godroll: c.godroll ?? null, choiceEnchants: c.choiceEnchants ?? null }}
       luck={(qc.getQueryData(['luck']) as { luck?: number } | undefined)?.luck}
       onPick={async (i) => { const p = await api.luckPick(c.gx, c.gy, i); celebrate(p.achievements); invalidateGame(qc); void qc.invalidateQueries({ queryKey: qk.myPlots }); void qc.invalidateQueries({ queryKey: ['ascend'] }); }}

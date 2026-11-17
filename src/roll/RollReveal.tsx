@@ -70,11 +70,20 @@ export function RollReveal(props: {
   luck?: number;
   onClose(): void;
   actions: ReactNode;
+  /** 'eyes': rolled in first person — the world stays in view behind it, the card stands in it, tilted back in 3D,
+   *  and the roll's moments go out (as `lv-roll` events) for the world to play its part: the drop falling on the plot,
+   *  the ink column, the beam */
+  variant?: 'eyes';
 }) {
   return createPortal(<Roll {...props} />, document.body);
 }
 
-function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions, onPick, luck = 0 }: Parameters<typeof RollReveal>[0]) {
+/** a moment of the roll, for anyone who wants to play along (Explorer's Eyes does it in 3D) */
+export type RollMoment = { phase?: Phase; color?: string; tier?: number };
+const emit = (m: RollMoment) => dispatchEvent(new CustomEvent<RollMoment>('lv-roll', { detail: m }));
+
+function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions, onPick, luck = 0, variant }: Parameters<typeof RollReveal>[0]) {
+  const eyes = variant === 'eyes';
   const reduce = useUi((s) => s.settings.reduceMotion);
   const haptics = useUi((s) => s.settings.haptics);
   const present = useIsPresent();
@@ -86,6 +95,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   const rootRef = useRef<HTMLDivElement>(null);
   const cvRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const trembleRef = useRef<HTMLDivElement>(null);
   const inkRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -114,7 +124,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
     dirRef.current = new Director(layRef.current, {
       reduce, quickRerolls: () => rerollSpeed() === 'quick', user: me ? { username: me.profile.username, accent: me.profile.accent_color ?? undefined } : undefined,
       hooks: {
-        phase: (p) => setPhase(p),
+        phase: (p) => { setPhase(p); emit({ phase: p }); },
         step: (i) => setRollIdx(i),
         lock: (i) => setTagged(i),
         landed: (_i, r) => setRolled((x) => [...x, r]),
@@ -151,6 +161,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
    *  the card, whose animations can leave it holding an old colour (Chromium keeps an animating element's style) */
   const tint = (c: string, g: string) => {
     for (const el of [rootRef.current, inkRef.current, glowRef.current]) { el?.style.setProperty('--c', c); el?.style.setProperty('--g', g); }
+    emit({ color: c });
   };
   /** where the card is on screen (particles burst from it, in the roll and in its clip) */
   const measure = (): Layout => {
@@ -166,7 +177,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   // one loop: the director moves the roll on; the drum, the ink's colour and the charge go straight to the DOM; the
   // particles onto their canvas
   useLayoutEffect(() => {
-    const box = boxRef.current!, cv = cvRef.current!, g = cv.getContext('2d')!;
+    // (the build-up trembles what's inside the card's box, so it never fights the box's own placing)
+    const box = trembleRef.current ?? boxRef.current!, cv = cvRef.current!, g = cv.getContext('2d')!;
     const dpr = Math.min(2, devicePixelRatio || 1);
     const size = () => {
       cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
@@ -240,7 +252,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   // the roll starts to leave, so it fades back in underneath
   useEffect(() => {
     const root = document.getElementById('root');
-    if (!root) return;
+    if (!root || eyes) return;
     if (!present) { root.style.visibility = ''; return; }
     const tm = setTimeout(() => { root.style.visibility = 'hidden'; }, 260);
     return () => { clearTimeout(tm); root.style.visibility = ''; };
@@ -277,7 +289,9 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
 
   // once it lands, the ink is the rarity's colour (set straight on the element, after every other write)
   useLayoutEffect(() => {
-    if (revealed) tint(ench ? '#B26BFF' : info.color, ench ? '#F0DBFF' : info.glow);
+    if (!revealed) return;
+    tint(ench ? '#B26BFF' : info.color, ench ? '#F0DBFF' : info.glow);
+    emit({ phase: 'reveal', color: ench ? '#B26BFF' : info.color, tier: ench ? 5 : tier });
   }, [revealed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the name always fits on one line (measured — fonts and emoji vary by phone)
@@ -318,14 +332,16 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <motion.div ref={rootRef} className="lv-rr fixed inset-0 z-[200] grid touch-none select-none place-items-center overflow-hidden" data-testid={testId} data-phase={phase}
+    <motion.div ref={rootRef} className={cn('lv-rr fixed inset-0 z-[200] grid touch-none select-none overflow-hidden', eyes ? 'items-end justify-items-center pb-[max(10px,env(safe-area-inset-bottom,0px))]' : 'place-items-center')} data-testid={testId} data-phase={phase}
       style={{ ['--c' as string]: INK, ['--g' as string]: '#2A1F5C', pointerEvents: present ? undefined : 'none' }}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }} transition={{ duration: 0.22 }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => { if (e.pointerType === 'mouse' && e.button !== 0) return; if (phase !== 'reveal' && phase !== 'pick' && phase !== 'enchant') d.skip(); }}>
-      {/* the room */}
-      <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_50%_42%,#2A1F5C_0%,#0B0820_62%,#05040F_100%)]" />
-      <div className="lv-rr-room absolute inset-0" style={{ opacity: phase === 'drop' ? 0 : revealed ? 1 : 0.55 }} />
+      {/* the room (in first person: the world, darkened round the edges) */}
+      {eyes
+        ? <div className="absolute inset-0 bg-[radial-gradient(64%_52%_at_50%_44%,rgba(11,8,32,0.08)_0%,rgba(11,8,32,0.5)_58%,rgba(5,4,15,0.86)_100%)]" />
+        : <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_50%_42%,#2A1F5C_0%,#0B0820_62%,#05040F_100%)]" />}
+      <div className="lv-rr-room absolute inset-0" style={{ opacity: phase === 'drop' ? 0 : (revealed ? 1 : 0.55) * (eyes ? 0.45 : 1) }} />
       {/* rays once it lands (rotating on the compositor) */}
       {revealed && !reduce && (tier >= 1 || ench) && (
         <div className="lv-rr-rays pointer-events-none absolute left-1/2 top-[42%]"
@@ -356,8 +372,12 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
           )}
         </div>
 
-        {/* the canvas */}
-        <div ref={boxRef} className="relative">
+        {/* the canvas (in first person it stands in the world before you, tilted back, risen from the plot) */}
+        <motion.div ref={boxRef} className="relative" style={eyes ? { transformPerspective: 900, transformStyle: 'preserve-3d' } : undefined}
+          initial={eyes && !reduce ? { y: 220, rotateX: 64, opacity: 0 } : false} animate={eyes ? { y: 0, rotateX: revealed ? 6 : 16, opacity: 1 } : undefined}
+          transition={eyes ? { type: 'spring', stiffness: 120, damping: 17 } : undefined}>
+          {eyes && <div className="pointer-events-none absolute -bottom-10 left-1/2 h-10 w-[86%] -translate-x-1/2 rounded-[50%] bg-black/45" style={{ transform: 'rotateX(70deg)' }} />}
+          <div ref={trembleRef} className="relative">
           {revealed && finalShiny && !reduce && (
             <div className="pointer-events-none absolute -inset-8 z-10" data-testid="roll-shiny-fx">
               {Array.from({ length: 16 }, (_, i) => {
@@ -369,7 +389,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
               </motion.div>
             </div>
           )}
-          <motion.div className="relative aspect-square w-[min(72vw,310px)]" style={{ willChange: 'transform' }}
+          <motion.div className={cn('relative aspect-square', eyes ? 'w-[min(52vw,240px)]' : 'w-[min(72vw,310px)]')} style={{ willChange: 'transform' }}
             initial={reduce ? false : { scale: 0.55, rotate: -6, opacity: 0 }} animate={{ scale: revealed && !reduce ? [0.92, 1.06, 1] : 1, rotate: 0, opacity: 1 }}
             transition={revealed ? { duration: 0.5, times: [0, 0.45, 1] } : { type: 'spring', stiffness: 260, damping: 19 }}>
             <div ref={glowRef} className="lv-rr-glow absolute -inset-12 rounded-full" style={{ opacity: phase === 'drop' ? 0 : revealed ? 1 : 0.6, ['--c' as string]: INK, ['--g' as string]: '#2A1F5C' }} />
@@ -417,7 +437,8 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
               )}
             </AnimatePresence>
           </div>
-        </div>
+          </div>
+        </motion.div>
 
         {/* what you got */}
         <div className="mt-7 min-h-[170px] w-full max-w-[340px]">

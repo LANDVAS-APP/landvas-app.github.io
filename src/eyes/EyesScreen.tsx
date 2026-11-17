@@ -5,7 +5,7 @@
 // Walk with the stick (forward is where you look), look by dragging or by moving the phone, tap anything.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Smartphone, Users, X } from 'lucide-react';
+import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Smartphone, Users, X } from 'lucide-react';
 import { useParty, usePartyUi } from '../party/party';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -26,7 +26,8 @@ import { mapTheme, streetPalette } from '../map/basemap';
 import { PlotPanel } from '../plot/PlotPanel';
 import { qk } from '../lib/queries';
 const qkPlot = (gx: number, gy: number) => qk.plot(gx, gy) as unknown as readonly unknown[];
-import { ClaimCelebration } from '../plot/ClaimCelebration';
+import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
+import type { RollMoment } from '../roll/RollReveal';
 import { LeviathanFight, useLevUi } from '../leviathan/Leviathan';
 import { LEV_KEY, fmtDmg, levPos, levRampage, levTiny, useLeviathan } from '../leviathan/useLeviathan';
 import { cellCenter, plotMetres } from '../shared/grid';
@@ -38,7 +39,11 @@ import { buildBuildings, drawGround, fetchTile, loadTerrain, occupancy, realPale
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
 import type { BuildSite } from './builds';
 import { FirstPersonSelf } from './FirstPersonSelf';
+import { FpGrimoire, type Summoned } from './FpGrimoire';
+import { MeetNearby } from './MeetNearby';
+import './eyes.css';
 import { silhouette } from './selfView';
+import { hoursFromHere, kmBetween, localDay, localTime, sunTimes, utcOffset, whereabouts, type Whereabouts } from './whereabouts';
 import { REALM_META, isRealm, realmRoute } from '../realms/kinds';
 
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
@@ -420,6 +425,22 @@ export default function EyesScreen() {
   }, [hotQ.data]);
   useEffect(() => { eyes?.setHotZone(hotZone); }, [eyes, hotZone]);
 
+  // ---- where you are: arriving somewhere new (a new city, after a trip), its name, its country, its local time ---------
+  const [where, setWhere] = useState<(Whereabouts & { lng: number; lat: number }) | null>(null);
+  const [arrived, setArrived] = useState(0);
+  const [showWhere, setShowWhere] = useState(false);
+  useEffect(() => { if (arrived) setShowWhere(true); }, [arrived]);
+  const lastWhere = useRef<{ lng: number; lat: number } | null>(null);
+  useEffect(() => {
+    if (!frame) return;
+    const l = lastWhere.current;
+    if (l && kmBetween(l.lng, l.lat, frame.lng0, frame.lat0) < 12) return;
+    lastWhere.current = { lng: frame.lng0, lat: frame.lat0 };
+    let live = true;
+    void whereabouts(frame.lng0, frame.lat0).then((w) => { if (live) { setWhere({ ...w, lng: frame.lng0, lat: frame.lat0 }); setArrived((n) => n + 1); } });
+    return () => { live = false; };
+  }, [frame]);
+
   const buddiesQ = useQuery({
     queryKey: ['eyes-buddies', frame?.lng0, frame?.lat0],
     queryFn: () => api.mapExplorers({ w: frame!.lng0 - 0.03, s: frame!.lat0 - 0.03, e: frame!.lng0 + 0.03, n: frame!.lat0 + 0.03 }),
@@ -455,6 +476,10 @@ export default function EyesScreen() {
   }, [eyes, skyData, caught, dropKind]);
 
   // ---- taps ---------------------------------------------------------------------------------------------------------
+  // ---- the Grimoire: pulled out and held open; an enchantment summoned in front of you ----------------------------------
+  const [book, setBook] = useState(false);
+  const [summoned, setSummoned] = useState<Summoned | null>(null);
+  const [enchPage, setEnchPage] = useState(0);
   const onPick = useRef<(p: Pick | null) => void>(() => {});
   onPick.current = (p) => {
     if (hint) { setHint(false); saveStorage('landvas.eyes.hinted', true); }
@@ -513,6 +538,7 @@ export default function EyesScreen() {
       setCard({ kind: 'beacon', emoji: b.emoji, title: b.name, body: `A Primordial ${fmtDistance(bd.m)} ${bearingName(bd.bearing)} of you${b.owner ? ` · held by ${b.owner}` : ''}`, gx: b.gx, gy: b.gy });
       return;
     }
+    if (p.kind === 'manifest') { feel(); eyes?.manifestFlare(); setEnchPage((n) => n + 1); return; }
     if (p.kind === 'buddy') {
       const b = buddiesQ.data?.items.find((x) => x.id === p.id);
       if (b) setCard({ kind: 'buddy', title: b.display_name || b.username, username: b.username });
@@ -555,6 +581,19 @@ export default function EyesScreen() {
     };
     requestAnimationFrame(step);
   };
+  // a plot you bought here rolls right there on the ground in front of you: turn to it, and let the world play along
+  // with the roll (the drop, the ink column in the drum's colours, the beam when it lands)
+  const rolling = useCelebration((s) => s.c);
+  useEffect(() => {
+    if (!eyes) return;
+    if (!rolling) { eyes.rollAt(null); return; }
+    const look = eyes.rollAt({ gx: rolling.gx, gy: rolling.gy });
+    // (look a little below it: the plot stands in the upper part of the view, above the card)
+    if (look) glide(look.yaw, look.pitch - 0.27);
+    const on = (e: Event) => eyes.rollMoment((e as CustomEvent<RollMoment>).detail);
+    addEventListener('lv-roll', on);
+    return () => removeEventListener('lv-roll', on);
+  }, [eyes, rolling]); // eslint-disable-line react-hooks/exhaustive-deps
   // first look: toward the Leviathan if it's out there, else the nearest Primordial, else the moon at night
   const firstLook = useRef(false);
   useEffect(() => {
@@ -635,7 +674,9 @@ export default function EyesScreen() {
       <AnimatePresence>{flash > 0 && <motion.div key={flash} className="pointer-events-none absolute inset-0 z-40 bg-white" initial={{ opacity: 0.85 }} animate={{ opacity: 0 }} transition={{ duration: 0.45 }} />}</AnimatePresence>
 
       {/* you: your hands, what you hold, your seat (in your explorer's own art) */}
-      {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade} />}
+      {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade || book} />}
+      {/* your Grimoire, held open; what you've summoned from it */}
+      {me && <FpGrimoire eyes={eyes} look={selfLook} open={book} onClose={() => setBook(false)} summoned={summoned} setSummoned={setSummoned} openPage={enchPage} />}
       {/* the middle of your view */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/25" />
 
@@ -644,7 +685,7 @@ export default function EyesScreen() {
         <div className="flex w-full items-center gap-2">
           <button className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full bg-black/45 text-white shadow-lg" onClick={back} aria-label="Back" data-testid="eyes-back"><ChevronLeft className="h-5 w-5" /></button>
           <Compass markers={markers} sky={eyes} />
-          <SkyChip eyes={eyes} />
+          <SkyChip eyes={eyes} zone={where?.zone ?? null} onClick={() => setArrived((n) => n + 1)} />
         </div>
         {levDist && levDist.m < 120_000 && (
           <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-[#1A0B3D]/80 px-3 py-1 text-[12px] font-bold shadow-lg" data-testid="eyes-lev-chip">
@@ -653,8 +694,21 @@ export default function EyesScreen() {
             <button className="rounded-full bg-white/15 px-2 py-0.5 text-[11px]" onClick={() => glide(levDist.bearing, 0.12)} data-testid="eyes-face-lev">Face it</button>
           </div>
         )}
+        {inHot && (
+          <div className="lv-eyes-hotchip flex items-center gap-1.5 rounded-full bg-[linear-gradient(90deg,#FF3D3D,#FF8A1F)] px-3 py-1 text-[12px] font-black text-white shadow-[0_0_24px_rgba(255,106,31,0.55)]" data-testid="eyes-hot-chip">
+            🔥 You’re in the Hot Zone{hotZone?.name ? ` · ${hotZone.name}` : ''}
+          </div>
+        )}
       </div>
 
+      {/* arriving somewhere new: where you are, and the time there */}
+      <AnimatePresence>{where && showWhere && <Arrival key={arrived} w={where} n={arrived} hot={inHot ? hotZone?.name ?? 'Hot Zone' : null} onClose={() => setShowWhere(false)} />}</AnimatePresence>
+      {/* in the Hot Zone: it says so, and the heat rises round you */}
+      {inHot && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[11] h-[38%] overflow-hidden" data-testid="eyes-hot">
+          {Array.from({ length: 14 }, (_, i) => <span key={i} className="lv-eyes-ember absolute bottom-0 h-1.5 w-1.5 rounded-full bg-[#FFB04A]" style={{ left: `${(i * 37) % 96 + 2}%`, animationDelay: `${(i * 0.53) % 4}s`, animationDuration: `${3.2 + (i % 5) * 0.6}s` }} />)}
+        </div>
+      )}
       {/* right: look up, the phone as a window, a picture, the map */}
       <div className="absolute right-[max(12px,env(safe-area-inset-right,0px))] top-1/2 z-20 grid -translate-y-1/2 gap-2.5">
         <RoundBtn label="Sky" onClick={() => glide(null, headingPitch > 0.9 ? 0.05 : 1.25)} testid="eyes-sky"><CloudSun className="h-5 w-5" /></RoundBtn>
@@ -662,6 +716,7 @@ export default function EyesScreen() {
         <RoundBtn label="Party" onClick={() => usePartyUi.getState().show(partySize > 1 ? 'party' : 'invite')} testid="eyes-party">
           <span className="relative"><Users className="h-5 w-5" />{partySize > 1 && <span className="absolute -right-2.5 -top-2 rounded-full bg-[#22E3FF] px-1 text-[10px] font-black text-[#0b0b1e]">{partySize}</span>}</span>
         </RoundBtn>
+        {me && <RoundBtn label="Grimoire" on={book} onClick={() => setBook((b) => !b)} testid="eyes-grimoire-btn"><BookOpen className="h-5 w-5" /></RoundBtn>}
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>
@@ -700,6 +755,8 @@ export default function EyesScreen() {
       {/* bottom: walking, and what's in the sky */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 px-[max(14px,env(safe-area-inset-left,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))]">
         <div className="pointer-events-auto">
+          {/* out on GPS for real: players near you who play too */}
+          {me && <MeetNearby onGps={ex.gps === 'on'} />}
           {me && ex.state?.joystick?.enabled !== false && (steer
             ? <Joystick minimal onClose={() => setSteer(false)} />
             : <button className="flex items-center gap-2 rounded-full bg-black/50 px-4 py-2.5 text-sm font-bold shadow-lg" onClick={() => setSteer(true)} data-testid="eyes-steer"><Gamepad2 className="h-4 w-4" /> Steer</button>)}
@@ -749,7 +806,7 @@ export default function EyesScreen() {
       </AnimatePresence>
 
       <div className="relative z-40">
-        <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} variant="eyes" />}</AnimatePresence>
+        <AnimatePresence>{selected && !rolling && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} variant="eyes" />}</AnimatePresence>
       </div>
       <ClaimCelebration />
       <LeviathanFight />
@@ -801,17 +858,52 @@ function Compass({ markers, sky }: { markers: { at: number; emoji: string; label
 }
 
 /** the time where you are and the moon's phase */
-function SkyChip({ eyes }: { eyes: Eyes | null }) {
+function SkyChip({ eyes, zone, onClick }: { eyes: Eyes | null; zone: string | null; onClick(): void }) {
   const [, tick] = useState(0);
-  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 5_000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 5_000); return () => clearInterval(t); }, []);
   const s = eyes?.sky();
   const night = s ? s.day < 0.35 : false;
+  const ms = eyes?.now() ?? Date.now();
   return (
-    <div className="pointer-events-auto flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[12px] font-bold shadow-lg" data-testid="eyes-skychip">
+    <button className="pointer-events-auto flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[12px] font-bold shadow-lg" onClick={onClick} data-testid="eyes-skychip" aria-label="Where am I">
       <span>{night ? '🌙' : s && s.day < 0.7 ? '🌅' : '☀️'}</span>
-      <span className="tnum">{new Date(eyes?.now() ?? Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+      {/* (the time there, not on your phone) */}
+      <span className="tnum">{zone ? localTime(zone, ms) : new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
       {night && s && <span className="hidden text-white/60 sm:inline">· {moonPhaseName(s.moonPhase)}</span>}
-    </div>
+    </button>
+  );
+}
+
+/** arriving somewhere: the city's name, big, its country and flag, the time there and its sun — then out of the way */
+function Arrival({ w, n, hot, onClose }: { w: Whereabouts & { lng: number; lat: number }; n: number; hot: string | null; onClose(): void }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setTimeout(onClose, 8_000); const i = setInterval(() => tick((k) => k + 1), 15_000); return () => { clearTimeout(t); clearInterval(i); }; }, [n]); // eslint-disable-line react-hooks/exhaustive-deps
+  const zone = w.zone ?? 'UTC';
+  const ahead = hoursFromHere(zone);
+  const sun = sunTimes(w.lng, w.lat);
+  const title = w.city ?? w.country ?? 'Somewhere new';
+  const capital = w.capital === 2 ? `Capital of ${w.country ?? 'the country'}` : w.capital > 2 ? 'A state capital' : null;
+  const sub = [w.area && w.area !== w.city ? w.area : null, w.city && w.country ? `${w.country}${w.flag ? ` ${w.flag}` : ''}` : w.flag].filter(Boolean).join(' · ');
+  return (
+    <motion.button
+      key={n}
+      className="lv-eyes-arrive pointer-events-auto absolute left-1/2 top-[15%] z-20 grid w-[min(92vw,380px)] -translate-x-1/2 justify-items-center gap-1.5 rounded-[26px] px-5 pb-4 pt-3 text-center shadow-2xl"
+      initial={{ opacity: 0, y: -18, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.97, transition: { duration: 0.25 } }}
+      transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+      onClick={onClose} data-testid="eyes-arrival"
+    >
+      <span className="text-[10.5px] font-black uppercase tracking-[0.32em] text-[#22E3FF]">{w.kind === 'city' || w.kind === 'town' ? 'Welcome to' : 'You’re in'}</span>
+      <span className="font-display text-[clamp(26px,8vw,38px)] font-black leading-none text-white" data-testid="eyes-arrival-city">{title}</span>
+      {capital && <span className="rounded-full bg-[#FFD23F]/15 px-2.5 py-0.5 text-[11px] font-black text-[#FFE28A]">★ {capital}</span>}
+      {sub && <span className="text-[13px] font-bold text-white/80" data-testid="eyes-arrival-country">{sub}</span>}
+      <span className="mt-1 flex flex-wrap justify-center gap-1.5 text-[12px] font-bold">
+        <span className="rounded-full bg-white/10 px-2.5 py-1" data-testid="eyes-arrival-time">🕒 {localTime(zone)} {localDay(zone)} <span className="text-white/55">{utcOffset(zone)}</span></span>
+        {ahead !== 0 && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/75">{Math.abs(ahead)}h {ahead > 0 ? 'ahead of' : 'behind'} you</span>}
+        {sun.rise != null && <span className="rounded-full bg-white/10 px-2.5 py-1">🌅 {localTime(zone, sun.rise)}</span>}
+        {sun.set != null && <span className="rounded-full bg-white/10 px-2.5 py-1">🌇 {localTime(zone, sun.set)}</span>}
+        {hot && <span className="rounded-full bg-[#FF6A1F]/25 px-2.5 py-1 text-[#FFB27A]">🔥 {hot}</span>}
+      </span>
+    </motion.button>
   );
 }
 

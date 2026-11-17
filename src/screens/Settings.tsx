@@ -1,3 +1,4 @@
+import { MeetSwitch } from '../eyes/MeetNearby';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Satellite, Shield, Trash2 } from 'lucide-react';
@@ -293,6 +294,7 @@ function PrivacySettings() {
         </div>
       )}
       {PROFILE_KEYS.map((x) => <Switch key={x.k} id={`pv-${x.k}`} label={x.label} hint={x.hint} checked={p[x.k]} onCheckedChange={(v) => void set(x.k, v)} />)}
+      <div className="rounded-2xl border border-line p-3"><MeetSwitch /></div>
     </div>
   );
 }

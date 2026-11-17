@@ -331,6 +331,25 @@ export function jetLayers(l: SelfLook): SelfLayers {
   };
 }
 
+/**
+ * A hand holding the Grimoire open by its bottom corner (the right hand; mirror it for the left): the thumb lies on the
+ * page, the rest of the hand is under the cover, the sleeve comes up from below. Drawn in a 120×160 box whose y = 60 is
+ * the book's bottom edge and x = 60 its corner.
+ */
+export function bookHand(l: SelfLook) {
+  const t = skinOf(l), k = `g${++uid}`;
+  return `<svg viewBox="0 0 120 160" overflow="visible" xmlns="http://www.w3.org/2000/svg"><defs>${SHADOW(k)}</defs><g filter="url(#sh${k})">
+    ${sleeve(l, k, 'M40 118 C 52 108 78 106 96 114 L 132 230 L 10 230 Z', [10, 106, 122, 124], 'M38 120 C 52 108 80 106 98 114 L 101 128 C 82 120 56 121 42 134 Z')}
+    <path d="M40 70 C 34 82 36 104 50 116 C 62 124 84 122 94 112 C 104 100 104 82 98 70 Z" fill="${t.base}" stroke="${t.line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M98 74 C 102 88 100 104 92 112 C 84 119 70 121 60 119 C 76 112 88 98 90 76 Z" fill="${t.lo}" opacity="0.85"/>
+    <path d="M44 62 L 100 62" stroke="rgba(0,0,0,0.35)" stroke-width="5" stroke-linecap="round"/>
+    <path d="M58 64 C 50 52 42 36 38 22 C 35 12 44 6 52 12 C 60 20 68 40 76 60 Z" fill="${t.base}" stroke="${t.line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M70 58 C 64 44 56 28 50 16 C 56 16 60 22 64 32 C 68 42 72 52 76 60 Z" fill="${t.lo}" opacity="0.8"/>
+    <path d="M40 18 C 40 12 46 9 51 13 C 54 17 53 22 49 24 C 45 26 41 23 40 18 Z" fill="${mix(t.base, '#ffffff', 0.55)}" stroke="${t.line}" stroke-width="1.6"/>
+    <path d="M46 34 C 48 44 52 52 56 58" stroke="${t.hi}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g></svg>`;
+}
+
 // ---- pictures of explorers (for the shadow, and for the people in your party) ---------------------------------------
 const toImage = async (svg: string) => {
   const img = new Image();

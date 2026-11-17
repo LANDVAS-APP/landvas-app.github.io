@@ -47,6 +47,16 @@ export default function GrimoireScreen() {
   );
 }
 
+/** one enchantment's page, on its own (in a sheet over Explorer's Eyes): use its powers without leaving the view */
+export function EnchantDetailSheet({ id }: { id: string }) {
+  return (
+    <div className="lv-grim-page min-h-full">
+      <EnchantFxLayer />
+      <Detail id={id} />
+    </div>
+  );
+}
+
 // ---- the book ---------------------------------------------------------------------------------------------------------
 // One clear home: what it is (for a new player), what's ready to tend right now (with one button to start), your odds,
 // then five tabs that always fit on a phone. Your enchantments are tiles: the ready ones first and glowing.

@@ -47,6 +47,7 @@ function geom(rings, close) {
   const out = []; let x = 0, y = 0;
   for (const r of rings) {
     out.push(1 | (1 << 3), zz(r[0][0] - x), zz(r[0][1] - y)); x = r[0][0]; y = r[0][1];
+    if (r.length === 1) continue; // (a point)
     out.push(2 | ((r.length - 1) << 3));
     for (const [px, py] of r.slice(1)) { out.push(zz(px - x), zz(py - y)); x = px; y = py; }
     if (close) out.push(7 | (1 << 3));
@@ -98,7 +99,14 @@ function town(z, x, y) {
       blds.push({ type: 3, props: { render_height: h, render_min_height: 0 }, rings: sq(bx + ox, by + oy, bx + ox + 170, by + oy + 170) });
     }
   }
+  // the town's name on the map (and the quarter you're in), where the map's labels are
+  const labels = [];
+  if (z <= 12 && hu >= -200 && hu <= 4296 && hv >= -200 && hv <= 4296) {
+    labels.push({ type: 1, props: { class: 'city', name: 'Eyesville', capital: 4 }, rings: [[[Math.round(hu + 140), Math.round(hv - 90)]]] });
+    labels.push({ type: 1, props: { class: 'suburb', name: 'Lantern Quarter' }, rings: [[[Math.round(hu - 30), Math.round(hv + 25)]]] });
+  }
   return mvt([
+    ...(labels.length ? [{ name: 'place', features: labels }] : []),
     { name: 'landuse', features: [{ type: 3, props: { class: 'residential' }, rings: sq(0, 0, 4096, 4096) }] },
     { name: 'landcover', features: wood },
     { name: 'park', features: parks },
@@ -257,6 +265,11 @@ try {
   await shot('00-map');
   await page.click(btn, { timeout: 15000 }).catch(() => page.click(btn, { force: true }));
   check('it opens the first-person view', await waitFor('[data-testid=eyes]', 40000));
+  // arriving: the town's name, its country and flag, the time there
+  const arrived = await waitFor('[data-testid=eyes-arrival]', 15000);
+  const arrText = arrived ? await page.locator('[data-testid=eyes-arrival]').textContent().catch(() => '') : '';
+  check('arriving: the town you’re in, its country and the time there', /Eyesville/.test(arrText) && /United States/.test(arrText) && /\d:\d\d/.test(arrText), arrText.replace(/\s+/g, ' '));
+  await shot('00b-arrival');
   await page.waitForSelector('[data-testid=eyes-loading]', { state: 'detached', timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
   // the middle of the day, looking along the street
@@ -372,6 +385,9 @@ try {
   }
   if (dAt) {
     await shot('07-treasure');
+    // (it drifts: where is it now, after the picture)
+    const now2 = await eyes('screenOf', { drop });
+    if (now2) dAt = now2;
     await page.mouse.click(dAt.x, dAt.y); await page.waitForTimeout(1800);
     const n = Number((await sql(`select count(*) n from eyes_catches where player_id = $1`, [me]))[0].n);
     check('tap it: caught (and the count goes up)', n === 1 && (await page.locator('[data-testid=eyes-treasures]').textContent()).includes('1/'), `${n} caught`);
@@ -411,6 +427,61 @@ try {
     await page.keyboard.press('Escape'); await page.waitForTimeout(400);
     await page.evaluate(() => window.__landvasUi.getState().select(null)); await page.waitForTimeout(600);
   } else check('your plot is in view when you look down at it', false);
+
+  // ---- buy a plot in first person: the sheet comes up from below, and the roll plays out right there in the world ------
+  {
+    const buy = { gx: mine.gx - 2, gy: mine.gy + 1 };
+    await sql(`delete from world_plots where gx = $1 and gy = $2`, [buy.gx, buy.gy]).catch(() => {});
+    await refresh(); await page.waitForTimeout(1200);
+    const bAt = await (async () => { for (const pitch of [-0.12, -0.25, -0.4]) for (let k = 0; k < 24; k++) { await eyes('lookAt', (k / 24) * Math.PI * 2, pitch); await page.waitForTimeout(120); const a = await eyes('screenOf', { cell: [buy.gx, buy.gy] }); if (a && a.y > 250 && a.y < 640 && a.x > 70 && a.x < 340) return a; } return null; })();
+    if (bAt) {
+      await page.mouse.click(bAt.x, bAt.y); await page.waitForTimeout(1500);
+      if (await page.locator('[data-testid=buy-as-canvas]').count()) await page.click('[data-testid=buy-as-canvas]').catch(() => {});
+      await shot('12b-buy-sheet');
+      await page.click('[data-testid=claim-plot]', { timeout: 8000 }).catch((e) => console.log('claim:', String(e).slice(0, 160)));
+      const rolled = await page.waitForSelector('[data-testid=claim-celebration]', { timeout: 15000 }).then(() => true).catch(() => false);
+      await page.waitForTimeout(600);
+      const mid = await eyes('debug');
+      const worldShown = await page.evaluate(() => document.getElementById('root')?.style.visibility !== 'hidden');
+      check('buy a plot in first person: it rolls right there in the world', rolled && !!mid?.roll && worldShown, JSON.stringify({ rolled, roll: mid?.roll, worldShown }));
+      await shot('12c-roll-drop');
+      await page.waitForTimeout(1300); await shot('12d-roll-spin');
+      await page.waitForFunction(() => /Incredible|solid start|Nice/.test(document.querySelector('[data-testid=claim-celebration]')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const end = await eyes('debug');
+      check('…and lands, its beam shooting into the sky', end?.roll?.reveal === true, JSON.stringify(end?.roll));
+      await shot('12e-roll-landed');
+      await page.keyboard.press('Escape'); await page.waitForTimeout(900);
+      await page.evaluate(() => window.__landvasUi.getState().select(null)); await page.waitForTimeout(400);
+    } else check('a free plot is in view to buy', false);
+  }
+  // ---- the Grimoire: pull it out, summon an enchantment into the world before you, use its powers right there ----------
+  {
+    const given = await as(me, 'admin_give_enchantment', { p_player: me, p_kind: 'goose', p_reason: 'eyes test', p_near_gx: mine.gx, p_near_gy: mine.gy }).catch((e) => ({ err: String(e).slice(0, 200) }));
+    if (given?.err) console.log('give enchantment:', given.err);
+    await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['enchantments'] }));
+    await eyes('lookAt', 0.4, -0.05); await page.waitForTimeout(500);
+    await page.click('[data-testid=eyes-grimoire-btn]');
+    const opened = await waitFor('[data-testid=eyes-grimoire-item]', 12000);
+    await page.waitForTimeout(1000); await shot('20-grimoire-open');
+    check('pull out your Grimoire: your enchantments, in the book in your hands', opened);
+    await page.click('[data-testid=eyes-grimoire-summon]').catch(() => {});
+    await page.waitForTimeout(1800);
+    const dm = await eyes('debug');
+    check('…summon one: it stands in the world in front of you', !!dm?.manifest && await waitFor('[data-testid=eyes-summoned]', 5000), JSON.stringify(dm?.manifest));
+    await shot('20b-summoned');
+    await page.click('[data-testid=eyes-summoned-use]').catch(() => {});
+    check('…its powers open right over the view', await waitFor('[data-testid=eyes-enchant-sheet] [data-testid=ench-header]', 12000));
+    await page.waitForTimeout(800); await shot('20c-its-powers');
+    const polish = page.locator('[data-testid=eyes-enchant-sheet] [data-testid=goose-polish]');
+    if (await polish.count()) { await polish.scrollIntoViewIfNeeded().catch(() => {}); await polish.click().catch(() => {}); await page.waitForTimeout(1500); }
+    const df = await eyes('debug');
+    check('…use it: the one in the world flares', !!df?.manifest?.flared, JSON.stringify(df?.manifest));
+    await page.click('[data-testid=eyes-enchant-sheet-close]').catch(() => {}); await page.waitForTimeout(700);
+    await shot('20d-flared');
+    await page.click('[data-testid=eyes-summoned-dismiss]').catch(() => {}); await page.waitForTimeout(900);
+    check('…and send it back', !(await eyes('debug'))?.manifest);
+  }
   // walk: face east and hold W
   await eyes('lookAt', Math.PI / 2, 0);
   const p0 = await page.evaluate(() => window.__landvasExplorer.getState().state);
@@ -490,6 +561,34 @@ try {
     check('invite people right from the view', await waitFor('[data-testid=eyes-party]', 3000));
   }
 
+  // ---- out on GPS for real: players near you who turned on "Meet nearby" pop up — a name and a rough distance, never a spot
+  {
+    const pia = (await sql(`select id from profiles where username = 'eyes_pia'`))[0]?.id;
+    const mode0 = (await sql(`select mode from explorers where player_id = $1`, [me]))[0]?.mode;
+    await sql(`update explorers set mode = 'gps', lng = $2, lat = $3, gps_lng = $2, gps_lat = $3, gps_at = now(), dest_lng = null, dest_lat = null, speed_mps = null where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await sql(`update explorers set mode = 'gps', lng = $2, lat = $3, gps_lng = $2, gps_lat = $3, gps_at = now(), trip_id = null where player_id = $1`, [pia, HERE.lng + 0.0035, HERE.lat]);
+    await as(pia, 'meet_set', { p_enabled: true, p_adult: true });
+    await page.evaluate(() => window.__landvasExplorer.setState({ gps: 'on' }));
+    const chip = await waitFor('[data-testid=meet-chip]', 8000);
+    check('out on GPS: “Meet players nearby” is right there', chip);
+    await page.click('[data-testid=meet-chip]').catch(() => {});
+    await waitFor('[data-testid=meet-adult]', 5000);
+    await shot('21-meet-off');
+    await page.check('[data-testid=meet-adult]').catch(() => {});
+    await page.click('[data-testid=meet-on]').catch(() => {});
+    const seen = await waitFor('[data-testid=meet-panel] [data-testid=meet-gps]', 15000);
+    const row = seen ? await page.locator('[data-testid=meet-panel] [data-testid=meet-gps]').first().textContent() : '';
+    check('…turn it on (18+): a player out on GPS near you shows — on GPS, roughly how far', /eyes_pia/.test(row) && /on GPS/.test(row) && /short walk/.test(row), row.replace(/\s+/g, ' '));
+    await shot('21b-meet-nearby');
+    await page.click('[data-testid=meet-panel] [data-testid=meet-wave]').catch(() => {});
+    await page.waitForTimeout(1200);
+    const wv = await sql(`select count(*) n from player_notifications where player_id = $1 and kind = 'meet_wave'`, [pia]);
+    check('…and wave: they get it in their notifications', Number(wv[0].n) === 1);
+    await page.click('[data-testid=meet-close]').catch(() => {}); await page.waitForTimeout(500);
+    await page.evaluate(() => window.__landvasExplorer.setState({ gps: 'off' }));
+    await sql(`update explorers set mode = $2 where player_id = $1`, [me, mode0 ?? 'manual']);
+  }
+
   // ---- going in: my arcade -------------------------------------------------------------------------------------------
   {
     await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
@@ -538,6 +637,23 @@ try {
     await eyes('setClock', at(21)); await page.waitForTimeout(4500);
     await eyes('lookAt', 0, -0.03); await page.waitForTimeout(1500); await shot('15d-street-night');
     await eyes('setClock', at(12)); await page.waitForTimeout(4500);
+  }
+
+  // ---- off to another city (today's Hot Zone): the arrival says where you are now and the time there; the Hot Zone shows
+  {
+    const hz = (await api('hotZone'))?.today;
+    if (hz) {
+      const at2 = ll(hz.gx, hz.gy);
+      await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, at2.lng, at2.lat]);
+      await refresh();
+      const again = await page.waitForFunction(() => !!document.querySelector('[data-testid=eyes-arrival]') && !/Eyesville/.test(document.querySelector('[data-testid=eyes-arrival]')?.textContent ?? ''), null, { timeout: 25000 }).then(() => true).catch(() => false);
+      const txt = again ? await page.locator('[data-testid=eyes-arrival]').textContent().catch(() => '') : '';
+      check('travel somewhere new: it says where you are now, and the time there', again && /\d:\d\d/.test(txt), `${hz.name} (${hz.country}) → ${txt.replace(/\s+/g, ' ')}`);
+      check('in the Hot Zone, the view says so', await waitFor('[data-testid=eyes-hot-chip]', 8000));
+      await eyes('lookAt', 0.3, 0.02); await page.waitForTimeout(1500); await shot('19-hot-zone-arrival');
+      await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, HERE.lng, HERE.lat]);
+      await refresh(); await page.waitForTimeout(2500);
+    } else check('a Hot Zone today', false);
   }
 
   // ---- a picture, and back -------------------------------------------------------------------------------------------

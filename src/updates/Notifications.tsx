@@ -3,7 +3,7 @@ import { ultraOfRarity } from '../explorer/ultra';
 import { rarityInfo } from '../shared/rarity';
 import { RULES } from '../rarity/powers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench, CornerUpLeft } from 'lucide-react';
+import { Bell, CalendarDays, DoorOpen, Hand, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench, CornerUpLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -175,6 +175,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
     icon: Heart, color: '#FF7EB6', to: () => '/inkborn',
     text: (a) => <>had a playdate with your <b>{a.data.mine}</b>{a.data.tip ? <span className="text-ok"> · +{a.data.tip} Ink</span> : null}{a.data.egg ? <> · 🥚 you got an egg!</> : null}</>,
   },
+  meet_wave: { icon: Hand, color: '#22E3FF', text: (a) => <>waved at you 👋 — they’re out on GPS {a.data.band === 'here' ? 'right by you' : a.data.band === 'walk' ? 'a short walk away' : a.data.band === 'near' ? 'nearby' : 'in your area'}, a LANDVAS player like you</>, to: () => '/eyes' },
   warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
   base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },
   core: { icon: Sparkles, color: '#FF7A1A', text: (a) => <>💖 You reached <b>the core</b> of {worldName(a.data.world)}! A Core heart is yours{a.data.ink ? <span className="text-ok"> · +{Number(a.data.ink).toLocaleString()} Ink</span> : null}</>, to: () => '/world' },

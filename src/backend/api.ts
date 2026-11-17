@@ -830,6 +830,11 @@ export const api = {
   profileByUsername: (u: string) => rpc<any>('profile_by_username', { p_username: u }),
   setShowcaseBadge: (key: string | null) => rpc<{ showcase_badge: string | null }>('set_showcase_badge', { p_key: key }),
   myPrivacy: () => rpc<Record<string, boolean>>('my_privacy'),
+  /** 📡 Meet nearby: players out on GPS near you (both opted in) — a name and a rough distance band, never a spot */
+  meetSettings: () => rpc<import('./types').MeetSettings>('meet_settings'),
+  meetSet: (enabled: boolean, adult = false) => rpc<import('./types').MeetSettings>('meet_set', { p_enabled: enabled, p_adult: adult }),
+  meetNearby: () => rpc<import('./types').MeetNearby>('meet_nearby'),
+  meetWave: (player: string) => rpc<{ ok: boolean; again?: boolean }>('meet_wave', { p_player: player }),
   setPrivacy: (patch: Record<string, boolean>) => rpc<Record<string, boolean>>('set_privacy', { p_patch: patch }),
   royalty: () => rpc<any>('royalty'),
   bannedPlayers: (q: string) => rpc<{ total: number; rows: any[] }>('banned_players', { p_q: q || null, p_limit: 100 }),

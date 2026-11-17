@@ -47,6 +47,8 @@ export function useAct(id: string) {
       if ((r as any).achievements?.length) celebrate((r as any).achievements);
       const pay = r.result?.pay;
       if (pay && pay.paid > 0 && !opts.silent) efx.pay(pay, r.reflect_kind ?? r.kind, opts.at);
+      // (for anyone watching: Explorer's Eyes flares the one standing in the world)
+      dispatchEvent(new CustomEvent('lv-enchant-act', { detail: { id, kind: r.kind, action } }));
       return r;
     } catch (e) {
       const g = toGameError(e);

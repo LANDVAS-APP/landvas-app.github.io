@@ -39,6 +39,7 @@ export type Pick =
   | { kind: 'star'; id: number }
   | { kind: 'drop'; id: string }
   | { kind: 'buddy'; id: string }
+  | { kind: 'manifest' }
   | { kind: 'sky'; what: 'sun' | 'moon' | 'star' | 'planet'; name: string; ly?: number; group?: string };
 
 export type EyesOpts = {
@@ -100,6 +101,14 @@ export type Eyes = {
   /** …and goes back down onto its plot */ dropArt(): void;
   artFloating(): boolean;
   /** walk through its door: ms until you're in */ walkIn(key: string): number;
+  /** a plot you just bought rolls right there in the world (null: it's over); gives where to look to watch it */
+  rollAt(cell: { gx: number; gy: number } | null): { yaw: number; pitch: number } | null;
+  /** the roll's moments as they come (the drop, the drum's colours, the landing) */
+  rollMoment(m: { phase?: string; color?: string; tier?: number }): void;
+  /** an enchantment summoned from your Grimoire, standing in front of you (null: sent back) */
+  manifest(m: { emoji: string; a: string; b: string; seed: number; sigil: HTMLCanvasElement | null; name: string } | null): void;
+  /** …and it flares as you use it */
+  manifestFlare(): void;
   dispose(): void;
 };
 
@@ -633,6 +642,259 @@ export function createEyes(o: EyesOpts): Eyes {
       }`,
   }));
   let beacons: { b: Beacon; obj: THREE.Group; dist: number; bearing: number }[] = [];
+
+  // ---- a plot rolled in the world: the ink drop falls onto the plot you bought and splashes, a column of ink swirls up
+  // off it in the drum's colours while it spins, and when it lands the rarity's beam shoots into the sky, a shockwave
+  // runs over the ground and sparks fly (the card itself is on the screen: RollReveal's 'eyes' variant)
+  const INK = new THREE.Color('#1B1240');
+  const rollG = new THREE.Group();
+  rollG.visible = false;
+  near.add(rollG);
+  const rollU = { uC: { value: new THREE.Color('#1B1240') }, uTime: auraU.uTime, uK: { value: 0 }, uB: { value: 0 } };
+  const rollShader = (frag: string) => T(new THREE.ShaderMaterial({
+    uniforms: rollU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: frag,
+  }));
+  // (the drum's colours, swirling up the column)
+  const swirlMat = rollShader(/* glsl */ `uniform vec3 uC; uniform float uTime, uK; varying vec2 vUv;
+    void main() { float s = sin(vUv.x * 6.2832 * 3.0 + vUv.y * 10.0 - uTime * 7.0); float band = smoothstep(0.1, 1.0, s);
+      float a = pow(1.0 - vUv.y, 1.4) * (0.2 + 0.8 * band) * uK;
+      gl_FragColor = vec4(mix(uC, vec3(1.0), band * 0.3), min(1.0, a));
+      #include <colorspace_fragment>
+    }`);
+  // (the rarity's beam)
+  const rollBeamMat = rollShader(/* glsl */ `uniform vec3 uC; uniform float uTime, uB; varying vec2 vUv;
+    void main() { float a = pow(1.0 - vUv.y, 0.7) * uB; a *= 0.75 + 0.25 * sin(vUv.y * 40.0 - uTime * 9.0); float edge = 1.0 - abs(vUv.x * 2.0 - 1.0);
+      gl_FragColor = vec4(mix(uC, vec3(1.0), 0.35 * edge), min(1.0, a * (0.3 + 0.7 * edge)));
+      #include <colorspace_fragment>
+    }`);
+  // the drop: a glossy bead of ink, round at the bottom, drawn out to a point above
+  const dropMat = T(new THREE.MeshPhongMaterial({ color: '#1B1240', specular: '#bfb6ff', shininess: 90 }));
+  const dropProfile = [[0, 0], [0.3, 0.04], [0.45, 0.17], [0.5, 0.38], [0.46, 0.62], [0.36, 0.88], [0.24, 1.14], [0.11, 1.4], [0, 1.66]].map(([x, y]) => new THREE.Vector2(x, y));
+  const rollDrop = new THREE.Mesh(T(new THREE.LatheGeometry(dropProfile, 20)), dropMat);
+  const dropletGeo = T(new THREE.SphereGeometry(1, 10, 8));
+  const rollDroplets = Array.from({ length: 14 }, (_, i) => {
+    const m = new THREE.Mesh(dropletGeo, dropMat);
+    const a = (i / 14) * Math.PI * 2 + (i % 3) * 0.2, v = 2.2 + (i % 4) * 0.8;
+    m.userData = { vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 3.5 + (i % 5) * 0.9, r: 0.08 + (i % 3) * 0.05 };
+    return m;
+  });
+  const ringGeo = T(new THREE.RingGeometry(0.86, 1, 64).rotateX(-Math.PI / 2));
+  const splashMat = T(new THREE.MeshBasicMaterial({ color: '#1B1240', transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  const rollSplash = new THREE.Mesh(ringGeo, splashMat);
+  const shockMat = T(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+  const rollShock = new THREE.Mesh(ringGeo, shockMat);
+  const floodMat = T(new THREE.MeshBasicMaterial({ color: '#1B1240', transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  const rollFlood = new THREE.Mesh(T(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), floodMat);
+  const rollColumn = new THREE.Mesh(beamGeo, swirlMat);
+  const rollBeam = new THREE.Mesh(beamGeo, rollBeamMat);
+  const sparkMat = T(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const rollSparks = Array.from({ length: 30 }, (_, i) => {
+    const sp = new THREE.Sprite(sparkMat);
+    const a = (i / 30) * Math.PI * 2 + i * 0.37, v = 1.5 + (i % 5) * 0.7;
+    sp.userData = { vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 7 + (i % 7) * 1.6, s: 0.35 + (i % 4) * 0.18 };
+    return sp;
+  });
+  rollG.add(rollDrop, rollSplash, rollShock, rollFlood, rollColumn, rollBeam, ...rollDroplets, ...rollSparks);
+  const WHITE = new THREE.Color('#ffffff');
+  /** (tests) how the last roll went, once it's over */
+  let rollDone: { landed: boolean; spin: boolean; reveal: boolean; tier: number } | null = null;
+  let roll: { ps: number; t0: number; landT: number; spinT: number; revealT: number; endT: number; tier: number; col: THREE.Color; want: THREE.Color } | null = null;
+  const rollAt = (cell: { gx: number; gy: number } | null) => {
+    if (!cell || !frame) { if (roll && !roll.endT) roll.endT = performance.now(); return null; }
+    const ps = plotSize(frame);
+    const [x, z] = cellToLocal(frame, cell.gx, cell.gy);
+    rollG.position.set(x + ps / 2, 0.02, z + ps / 2);
+    roll = { ps, t0: performance.now(), landT: 0, spinT: 0, revealT: 0, endT: 0, tier: 0, col: INK.clone(), want: INK.clone() };
+    rollG.visible = true;
+    const dx = rollG.position.x - cam.position.x, dz = rollG.position.z - cam.position.z;
+    return { yaw: Math.atan2(dx, -dz), pitch: -Math.atan2(Math.max(0.5, cam.position.y - ps * 0.6), Math.max(1, Math.hypot(dx, dz))) * 0.85 };
+  };
+  const rollMoment = (m: { phase?: string; color?: string; tier?: number }) => {
+    if (!roll) return;
+    const now = performance.now();
+    if (m.color) roll.want.set(m.color);
+    if (m.phase === 'spin' && !roll.spinT) { roll.spinT = now; if (!roll.landT) roll.landT = now; }
+    if (m.phase === 'reveal') {
+      if (!roll.revealT) roll.revealT = now;
+      if (!roll.landT) roll.landT = now;
+      if (m.tier != null) roll.tier = Math.max(roll.tier, m.tier);
+      if (m.color) roll.col.set(m.color);
+    }
+  };
+  /** the roll's effects, frame by frame */
+  const rollTick = (now: number, dt: number) => {
+    if (!roll) return;
+    const r = roll, ps = r.ps;
+    r.col.lerp(r.want, Math.min(1, dt * 10));
+    rollU.uC.value.copy(r.col);
+    // the drop falls (and lands by itself if the roll is slow to say so)
+    const fall = (now - r.t0) / 1000;
+    const yDrop = Math.max(14, ps * 3.2) - 16 * fall * fall;
+    if (!r.landT && yDrop <= 0) r.landT = now;
+    rollDrop.visible = !r.landT;
+    if (!r.landT) { const k = Math.max(0.6, ps * 0.09); rollDrop.scale.set(k, k * (1 + Math.min(0.5, fall * 0.6)), k); rollDrop.position.set(0, Math.max(0, yDrop), 0); }
+    // the splash: a ring of ink running out over the plot, droplets flying
+    const sp = r.landT ? (now - r.landT) / 1000 : -1;
+    rollSplash.visible = sp >= 0 && sp < 0.9;
+    if (rollSplash.visible) { const k = ps * (0.15 + sp * 1.2); rollSplash.scale.set(k, 1, k); splashMat.opacity = 0.9 * (1 - sp / 0.9); }
+    for (const d of rollDroplets) {
+      d.visible = sp >= 0 && sp < 1.1;
+      if (!d.visible) continue;
+      const u = d.userData as { vx: number; vz: number; vy: number; r: number }, k = ps * 0.12;
+      d.position.set(u.vx * sp * k, Math.max(0, (u.vy * sp - 4.9 * sp * sp) * k * 0.6), u.vz * sp * k);
+      d.scale.setScalar(u.r * ps * 0.09 * (1 - sp / 1.2));
+    }
+    // the flood: the plot itself takes the ink, then the drum's colours
+    const ending = r.endT ? Math.max(0, 1 - (now - r.endT) / 700) : 1;
+    const flood = sp < 0 ? 0 : Math.min(1, sp * 2.5) * ending;
+    rollFlood.visible = flood > 0.01;
+    rollFlood.scale.set(ps * 0.98, 1, ps * 0.98);
+    floodMat.color.copy(r.col);
+    floodMat.opacity = flood * (r.revealT ? 0.75 : 0.45 + 0.15 * Math.sin(now / 90));
+    // the column of ink, swirling up while the drum spins (gone as it lands)
+    const colK = r.spinT && !r.revealT ? Math.min(1, (now - r.spinT) / 400) : r.revealT ? Math.max(0, 1 - (now - r.revealT) / 500) : 0;
+    rollU.uK.value = colK * ending;
+    rollColumn.visible = colK * ending > 0.01;
+    rollColumn.scale.set(ps * 0.46, ps * (1.6 + colK * 1.2), ps * 0.46);
+    rollColumn.rotation.y += dt * 3;
+    // the landing: the beam into the sky, the shockwave, the sparks (rarer: longer and wider)
+    const rv = r.revealT ? (now - r.revealT) / 1000 : -1;
+    const life = 3.5 + r.tier * 0.6;
+    const beamK = rv < 0 ? 0 : Math.min(1, rv / 0.3) * Math.max(0, 1 - Math.max(0, rv - life * 0.6) / (life * 0.4));
+    rollU.uB.value = beamK;
+    rollBeam.visible = beamK > 0.01;
+    const bw = ps * (0.16 + r.tier * 0.03);
+    rollBeam.scale.set(bw, Math.max(0.01, Math.min(1, rv / 0.35)) * (90 + r.tier * 40), bw);
+    rollShock.visible = rv >= 0 && rv < 1.1;
+    if (rollShock.visible) { const k = ps * (0.4 + rv * (3.5 + r.tier * 0.8)); rollShock.scale.set(k, 1, k); shockMat.color.copy(r.col).lerp(WHITE, 0.4); shockMat.opacity = 1 - rv / 1.1; }
+    sparkMat.color.copy(r.col).lerp(WHITE, 0.5);
+    for (const s2 of rollSparks) {
+      s2.visible = rv >= 0 && rv < 2.4;
+      if (!s2.visible) continue;
+      const u = s2.userData as { vx: number; vz: number; vy: number; s: number }, k = Math.max(0.6, ps * 0.14);
+      s2.position.set(u.vx * rv * k, Math.max(0, (u.vy * rv - 4.9 * rv * rv) * k * 0.5), u.vz * rv * k);
+      s2.scale.setScalar(u.s * k * 1.6 * (1 - rv / 2.6));
+    }
+    // all done (the roll closed and everything has faded): away
+    if ((r.endT && now - r.endT > 800 && (rv < 0 || rv > life)) || rv > life + 1) { rollDone = { landed: !!r.landT, spin: !!r.spinT, reveal: !!r.revealT, tier: r.tier }; roll = null; rollG.visible = false; }
+  };
+
+  // ---- an enchantment summoned from your Grimoire, standing in the world before you: a summoning circle burns into the
+  // ground in its colours, a column of light rises, its sigil turns in the air and the creature itself floats up out of
+  // the circle; when you use it, it flares (sparks, a shockwave, a hop) ----------------------------------------------------
+  const manG = new THREE.Group();
+  manG.visible = false;
+  near.add(manG);
+  const manU = { uC: { value: new THREE.Color('#FFD23F') }, uTime: auraU.uTime, uB: { value: 0 } };
+  const manBeamMat = T(new THREE.ShaderMaterial({
+    uniforms: manU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `uniform vec3 uC; uniform float uTime, uB; varying vec2 vUv;
+      void main() { float a = pow(1.0 - vUv.y, 1.6) * uB; a *= 0.7 + 0.3 * sin(vUv.y * 22.0 - uTime * 5.0 + vUv.x * 12.566);
+        float edge = 1.0 - abs(vUv.x * 2.0 - 1.0);
+        gl_FragColor = vec4(mix(uC, vec3(1.0), 0.3), min(1.0, a * (0.25 + 0.75 * edge)));
+        #include <colorspace_fragment>
+      }`,
+  }));
+  /** the circle on the ground, in the enchantment's colours: rings, a star, runes */
+  const circleCanvas = (a: string, b: string, seed: number) => {
+    const S = 512, c = Object.assign(document.createElement('canvas'), { width: S, height: S }), g = c.getContext('2d')!;
+    let s = (seed >>> 0) || 7; const r = () => ((s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x6d2b79f5) >>> 0) / 4294967296);
+    g.translate(S / 2, S / 2);
+    const glow = (col: string, w: number, f: () => void) => { g.strokeStyle = col; g.lineWidth = w; g.shadowColor = col; g.shadowBlur = 18; g.beginPath(); f(); g.stroke(); };
+    glow(a, 10, () => g.arc(0, 0, 236, 0, Math.PI * 2));
+    glow(b, 4, () => g.arc(0, 0, 214, 0, Math.PI * 2));
+    glow(a, 4, () => g.arc(0, 0, 150, 0, Math.PI * 2));
+    // a star of lines across the inner ring
+    const pts = 5 + Math.floor(r() * 4), tw = r() * Math.PI;
+    glow(b, 5, () => { for (let i = 0; i <= pts * 2; i++) { const t = tw + (i * Math.PI * 2 * 2) / (pts * 2), x = Math.cos(t) * 150, y = Math.sin(t) * 150; if (i) g.lineTo(x, y); else g.moveTo(x, y); } });
+    // runes round the band
+    g.shadowBlur = 10; g.fillStyle = '#FFF4D0'; g.font = 'bold 34px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const RUNES = 'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ';
+    for (let i = 0; i < 16; i++) { const t = (i / 16) * Math.PI * 2; g.save(); g.rotate(t); g.translate(0, -182); g.fillText(RUNES[Math.floor(r() * RUNES.length)], 0, 0); g.restore(); }
+    // little orbs on the outer ring
+    for (let i = 0; i < 6; i++) { const t = r() * Math.PI * 2; g.fillStyle = i % 2 ? a : b; g.shadowColor = g.fillStyle; g.beginPath(); g.arc(Math.cos(t) * 236, Math.sin(t) * 236, 12, 0, Math.PI * 2); g.fill(); }
+    return c;
+  };
+  const manCircle = new THREE.Mesh(T(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const manColumn = new THREE.Mesh(beamGeo, manBeamMat);
+  const manSigil = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, fog: false }));
+  const manBeast = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, fog: false }));
+  const manHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const manRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+  const manSparkMat = T(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const manSparks = Array.from({ length: 24 }, (_, i) => {
+    const sp = new THREE.Sprite(manSparkMat);
+    const a = (i / 24) * Math.PI * 2 + i * 0.41, v = 1.2 + (i % 4) * 0.5;
+    sp.userData = { vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 3.5 + (i % 6) * 0.8, s: 0.18 + (i % 3) * 0.1 };
+    return sp;
+  });
+  manG.add(manCircle, manColumn, manHalo, manSigil, manBeast, manRing, ...manSparks);
+  let man: { t0: number; endT: number; burstT: number; name: string } | null = null;
+  const manifest: Eyes['manifest'] = (m) => {
+    const now = performance.now();
+    if (!m) { if (man && !man.endT) man.endT = now; return; }
+    // a few steps ahead of you, on the ground, where you're looking
+    const f = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+    manG.position.set(cam.position.x + f.x * 6.5, 0.03, cam.position.z + f.z * 6.5);
+    (manCircle.material as THREE.MeshBasicMaterial).map?.dispose();
+    const ct = new THREE.CanvasTexture(circleCanvas(m.a, m.b, m.seed));
+    ct.colorSpace = THREE.SRGBColorSpace;
+    (manCircle.material as THREE.MeshBasicMaterial).map = ct;
+    (manCircle.material as THREE.MeshBasicMaterial).needsUpdate = true;
+    manU.uC.value.set(m.a);
+    (manHalo.material as THREE.SpriteMaterial).color.set(m.a);
+    (manRing.material as THREE.MeshBasicMaterial).color.set(m.b);
+    manSparkMat.color.set(m.a).lerp(new THREE.Color('#ffffff'), 0.4);
+    const em = manBeast.material as THREE.SpriteMaterial;
+    em.map = emojiTexture(m.emoji); em.needsUpdate = true;
+    const sg = manSigil.material as THREE.SpriteMaterial;
+    sg.map?.dispose(); sg.map = null;
+    if (m.sigil) { const st = new THREE.CanvasTexture(m.sigil); st.colorSpace = THREE.SRGBColorSpace; sg.map = st; }
+    sg.needsUpdate = true;
+    man = { t0: now, endT: 0, burstT: 0, name: m.name };
+    manG.visible = true;
+  };
+  const manifestFlare = () => { if (man && !man.endT) man.burstT = performance.now(); };
+  const manTick = (now: number, t: number) => {
+    if (!man) return;
+    const m = man;
+    const k = Math.min(1, (now - m.t0) / 900), e = 1 - (1 - k) ** 3;
+    const out = m.endT ? Math.max(0, 1 - (now - m.endT) / 600) : 1;
+    const s = e * out;
+    manCircle.scale.set(3.2 * s, 1, 3.2 * s);
+    manCircle.rotation.y = t * 0.35;
+    (manCircle.material as THREE.MeshBasicMaterial).opacity = 0.9 * out;
+    manU.uB.value = 0.55 * s * (m.burstT ? 1 + Math.max(0, 1 - (now - m.burstT) / 600) * 1.5 : 1);
+    manColumn.scale.set(0.9 * s, 4 * s, 0.9 * s);
+    // the creature rises out of the circle and floats, bobbing; its sigil turns behind it
+    const rise = Math.min(1, Math.max(0, (now - m.t0 - 250) / 800)), re = 1 - (1 - rise) ** 3;
+    const hop = m.burstT ? Math.sin(Math.min(1, (now - m.burstT) / 500) * Math.PI) : 0;
+    const bob = Math.sin(t * 1.6) * 0.08;
+    manBeast.position.set(0, 0.15 + re * 0.95 + bob + hop * 0.5, 0);
+    manBeast.scale.setScalar((0.15 + re * 0.95) * out * (1 + hop * 0.25));
+    manSigil.position.set(0, 1.25 + bob * 0.5, -0.4);
+    manSigil.scale.setScalar(1.7 * e * out);
+    (manSigil.material as THREE.SpriteMaterial).rotation = t * 0.4;
+    (manSigil.material as THREE.SpriteMaterial).opacity = 0.75 * out;
+    manHalo.position.set(0, 1.15, -0.5);
+    manHalo.scale.setScalar(2.4 * s * (1 + hop * 0.5));
+    (manHalo.material as THREE.SpriteMaterial).opacity = 0.55 * s;
+    // used: sparks fly, a ring runs out over the ground
+    const bt = m.burstT ? (now - m.burstT) / 1000 : -1;
+    manRing.visible = bt >= 0 && bt < 0.9;
+    if (manRing.visible) { const r = 0.6 + bt * 6; manRing.scale.set(r, 1, r); (manRing.material as THREE.MeshBasicMaterial).opacity = 1 - bt / 0.9; }
+    for (const p of manSparks) {
+      p.visible = bt >= 0 && bt < 1.6;
+      if (!p.visible) continue;
+      const u = p.userData as { vx: number; vz: number; vy: number; s: number };
+      p.position.set(u.vx * bt, 1.2 + u.vy * bt - 4.9 * bt * bt, u.vz * bt);
+      p.scale.setScalar(u.s * 2 * (1 - bt / 1.7));
+    }
+    if (m.endT && now - m.endT > 650) { man = null; manG.visible = false; }
+  };
   const hotGroup = new THREE.Group();
   const domeGeo = T(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2));
   far.add(hotGroup);
@@ -1413,7 +1675,8 @@ export function createEyes(o: EyesOpts): Eyes {
   const el = o.canvas;
   const down = (e: PointerEvent) => {
     try { el.setPointerCapture(e.pointerId); } catch { /* gone */ }
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    // (the events' own times: a busy frame between the press and the lift doesn't turn a tap into a long press)
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: e.timeStamp });
     vyaw = vpitch = 0;
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); fov0 = fov; }
   };
@@ -1438,7 +1701,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const p = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
     if (!p) return;
-    if (pointers.size === 0 && performance.now() - p.t0 < 320 && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10) {
+    if (pointers.size === 0 && e.timeStamp - p.t0 < 320 && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 10) {
       vyaw = vpitch = 0;
       if (floating && floating.dir > 0) { dropArt(); return; }
       o.onPick(pick(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
@@ -1476,6 +1739,7 @@ export function createEyes(o: EyesOpts): Eyes {
     for (const d of drops) if (d.visible) consider(angle(dir, d.pos), tol * 1.3, { kind: 'drop', id: d.d.id });
     for (const f of falling) consider(angle(dir, f.obj.position), tol * 1.2, { kind: 'star', id: f.s.id });
     for (const b of buddies) consider(angle(dir, b.obj.position.clone().setY(1.2)), tol, { kind: 'buddy', id: b.b.id });
+    if (man && !man.endT) consider(angle(dir, manBeast.getWorldPosition(new THREE.Vector3())), tol * 1.8, { kind: 'manifest' });
     if (best) return (best as { p: Pick }).p;
     // the Leviathan
     if (lev.group.visible) {
@@ -1527,7 +1791,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   // ---- the loop -----------------------------------------------------------------------------------------------------
-  const pace = framePacer({ ambient: () => !throws.length && !levPlace });
+  const pace = framePacer({ ambient: () => !throws.length && !levPlace && !roll && !man });
   let frames = 0, frameMs = 16;
   /** walking through a door: the camera glides from where you stand, through it */
   let dolly: { from: THREE.Vector3; to: THREE.Vector3; t0: number; dur: number; yaw0: number; yaw1: number } | null = null;
@@ -1663,6 +1927,8 @@ export function createEyes(o: EyesOpts): Eyes {
       s.position.y = 0.4 + k * 2.6;
       s.scale.setScalar((s.userData.ps as number) * 0.18 * Math.sin(k * Math.PI));
     }
+    rollTick(now, dt);
+    manTick(now, t);
     // the Leviathan
     lev.group.visible = false;
     levDist = Infinity;
@@ -1820,6 +2086,7 @@ export function createEyes(o: EyesOpts): Eyes {
     setFrame, frame: () => frame, setGround, setClose, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots, setArt, setMine, setLeviathan, setBeacons,
     setFallingStars, setDrops, setBuddies, setHotZone,
     setClock: (ms) => { clock = ms; lastSky = -1e9; },
+    rollAt, rollMoment, manifest, manifestFlare,
     lookAt: (y, p) => { yaw = y; pitch = Math.max(-1.45, Math.min(1.52, p)); vyaw = vpitch = 0; if (gyro) gyroQ = null; },
     look: () => ({ yaw: ((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch, fov }),
     setGyro,
@@ -1929,7 +2196,7 @@ export function createEyes(o: EyesOpts): Eyes {
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
       buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: !!closeTex, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
-      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), sky: { ...sky },
+      beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), roll: roll ? { landed: !!roll.landT, spin: !!roll.spinT, reveal: !!roll.revealT, tier: roll.tier } : rollDone, manifest: man ? { name: man.name, flared: !!man.burstT, gone: !!man.endT } : null, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
       dropsAt: drops.map((d) => { const v = d.pos.clone().sub(cam.position); return { id: d.d.id, kind: d.d.kind, visible: d.visible, yaw: (Math.atan2(v.x, -v.z) + Math.PI * 2) % (Math.PI * 2), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)) }; }), steps, surface: surfaceAt(pos.x, pos.z), fovNow: Math.round(cam.fov), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, frames, frameMs: Math.round(frameMs),
     }),
@@ -1952,6 +2219,7 @@ export function createEyes(o: EyesOpts): Eyes {
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
       nature.dispose(); street.dispose(); builds.dispose(); closeTex?.dispose();
+      for (const o2 of [manCircle, manSigil, manBeast, manHalo, manRing] as (THREE.Mesh | THREE.Sprite)[]) { const mt = o2.material as THREE.MeshBasicMaterial; if (o2 !== manBeast && o2 !== manHalo) mt.map?.dispose(); mt.dispose(); }
       nearTex?.dispose(); farTex?.dispose();
       for (const t of emojiTex.values()) t.dispose();
       for (const d of own) d.dispose();

@@ -539,7 +539,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join' | 'chat_reply'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join' | 'chat_reply' | 'meet_wave'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -1022,3 +1022,12 @@ export type EnchantEditor = {
   global: { enabled: boolean; base_pct: number; luck_pct: number; luck_ink: number; luck_max: number; level_bonus: number; max_level: number };
   history: { at: string; action: string; kind: string; details: any; by: string | null }[];
 };
+
+// ---- 📡 meet nearby (Explorer's Eyes) ---------------------------------------------------------------------------------
+export type MeetSettings = { available: boolean; enabled: boolean; adult: boolean; on_gps: boolean };
+/** how far, roughly: right here (<150 m), a short walk (<500 m), nearby (<1.5 km), in the area */
+export type MeetBand = 'here' | 'walk' | 'near' | 'area';
+export type MeetPlayer = Pick<Profile, 'id' | 'username' | 'display_name' | 'accent_color' | 'explorer_style'> & {
+  /** gps: out walking for real; game: their explorer is out in the game near you (not on GPS) */ how: 'gps' | 'game';
+  band: MeetBand; waved_me?: boolean; vehicle?: string | null; traveling?: boolean };
+export type MeetNearby = { available: boolean; enabled?: boolean; on_gps?: boolean; items: MeetPlayer[] };
