@@ -24,7 +24,7 @@ const key = (p: { gx: number; gy: number }) => `${p.gx}:${p.gy}`;
 export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
   const qc = useQueryClient();
   const pickOnMap = usePickOnMapFor();
-  const show = view.show as { on: boolean; plots: [number, number][]; encore: boolean; waiting?: string | null } | null;
+  const show = view.show as { on: boolean; plots: [number, number][]; encore: boolean; waiting?: string | null; str?: unknown[] } | null;
   const runs: PuppetRun[] = view.runs ?? [];
   const calls: PuppetRun[] = view.curtain_calls ?? [];
   const max = Number(view.playlist_max ?? 3), slots = Number(view.slots ?? 1);
@@ -118,7 +118,10 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
     hint: reach == null ? 'Tap any plot with a game on it — yours or anyone’s, anywhere' : `Tap any plot with a game on it — yours, or anyone’s within ${reach >= 1000 ? `${Math.round(reach / 1000)} km` : `${reach} m`}`,
     allowed: [...all.values()].map((p) => ({ gx: p.gx, gy: p.gy, rarity: p.rarity, name: p.name, plot_type: p.plot_type, note: `${p.own ? 'yours' : `@${p.owner_name}`} · ${gameName(p.game)}` })),
     free: { anchors: reach == null ? [] : anchors, radiusM: reach, use: 'Add it to the show' } });
-  const strings = Number(view.strings ?? 0);
+  const strings = Number(view.strings ?? 0), smax = Number(view.max ?? 10);
+  const per = Number(view.per_string ?? 10), snapAt = Number(view.snaps_at ?? 3);
+  // the string each puppet is on: how many of its ten levels it has cleared
+  const strOf = (s: number) => { const x = show?.str?.[s]; return x && typeof x === 'object' ? (x as { clears?: number; tangles?: number; n?: number }) : null; };
 
   return (
     <section className="grid gap-2.5 rounded-3xl border border-[#FFB703]/30 bg-[linear-gradient(160deg,#3A0D1255,#1C060755)] p-3" data-testid="puppet-theatre">
@@ -126,6 +129,31 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
         <span className="font-display text-[17px] font-black text-[#FFE8A3]">🎭 The show</span>
         <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black text-white/70">{view.pay_pct ?? 75}% of a level’s Ink · {slots > 1 ? 'two puppets at once' : 'one act at a time'}</span>
         {on && <span className="ml-auto rounded-full bg-[#3DDC97]/20 px-2 py-0.5 text-[11px] font-black text-[#3DDC97]" data-testid="puppet-on">● LIVE</span>}
+      </div>
+
+      {/* the strings in hand: each one is ten levels the puppet plays by itself */}
+      <div className="grid gap-1 rounded-2xl bg-black/30 px-3 py-2" data-testid="puppet-strings">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-black text-[#FFE8A3]">🧵 {strings}/{smax} strings</span>
+          <span className="flex flex-1 flex-wrap gap-[3px]" aria-hidden>{Array.from({ length: smax }, (_, i) => (
+            <span key={i} className="h-2 w-2 rounded-full" style={{ background: i < strings ? '#FFD166' : 'rgba(255,255,255,0.15)', boxShadow: i < strings ? '0 0 4px #FFB703' : undefined }} />
+          ))}</span>
+          {strings < smax && view.next_in != null && <span className="text-[10.5px] font-bold text-white/55">+1 in {dur(view.next_in)}</span>}
+        </div>
+        <div className="text-[11px] text-white/60">Each string: the puppet plays {per} levels in a row by itself ({snapAt} tangles and it snaps).{view.grand_ready ? ' 🎪 Today’s first string is free — a Grand Show.' : ''}</div>
+        {[0, 1].slice(0, slots).map((s) => {
+          const x = strOf(s);
+          if (!x) return null;
+          return (
+            <div key={s} className="flex items-center gap-2" data-testid="puppet-string-progress" data-clears={x.clears ?? 0}>
+              <span className="w-[4.5rem] text-[10.5px] font-black text-white/70">{slots > 1 ? `Puppet ${s + 1}` : 'This string'}</span>
+              <span className="flex flex-1 gap-[3px]">{Array.from({ length: per }, (_, i) => (
+                <span key={i} className="h-1.5 flex-1 rounded-full" style={{ background: i < (x.clears ?? 0) ? '#3DDC97' : i === (x.clears ?? 0) && runs.some((r) => r.slot === s) ? 'rgba(255,232,163,0.75)' : 'rgba(255,255,255,0.12)' }} />
+              ))}</span>
+              <span className="text-[10.5px] font-black text-white/70">{x.clears ?? 0}/{per}{x.tangles ? ` · 🪢${x.tangles}` : ''}</span>
+            </div>
+          );
+        })}
       </div>
 
       {(on || runs.length > 0 || stage) && (
@@ -182,7 +210,7 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
 
       <div className="flex gap-2">
         <Button variant="rainbow" size="lg" className="flex-1" disabled={!!busy || !list.length} onClick={() => void start()} data-testid="puppet-show-go">
-          {on ? '🎭 Update the show' : strings < 1 && !view.grand_ready && !view.medley ? `🎭 Start the show (strings in ${dur(view.next_in)})` : '🎭 Start the show'}
+          {on ? '🎭 Update the show' : strings < 1 && !view.grand_ready && !strOf(0) ? `🎭 Start the show (a string in ${dur(view.next_in)})` : '🎭 Start the show — the puppet plays'}
         </Button>
         {on && <Button size="lg" variant="ghost" disabled={!!busy} onClick={() => void act('stop')} data-testid="puppet-show-stop">Stop</Button>}
       </div>
@@ -199,7 +227,7 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
           ))}
         </div>
       )}
-      <p className="text-center text-[11px] text-white/50">One string an act. Your plots climb their own levels; anyone else’s climb your puppet’s own ladder there (theirs never move — they get a tip). The show plays on while you’re away, and closes a day after you were last around.</p>
+      <p className="text-center text-[11px] text-white/50">The puppet plays every level itself — you just watch. A string is {per} levels on one plot (with Encore it keeps climbing it; without, the next string moves down the playlist). Your plots climb their own levels; anyone else’s climb your puppet’s own ladder there (theirs never move — they get a tip). The show plays on while you’re away, and closes a day after you were last around.</p>
     </section>
   );
 }

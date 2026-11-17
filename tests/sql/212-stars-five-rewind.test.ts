@@ -265,7 +265,7 @@ describe('⭐ the forty new powers', () => {
     expect(r2.result.starforged).toBe(false);
   });
 
-  it('🃏 Deck ★5: one more card a day; 🎭 Puppeteer ★4: two more strings; 📜 Origami ★4: anywhere on Earth', async () => {
+  it('🃏 Deck ★5: one more card a day; 🎭 Puppeteer ★4: two puppets at once (strings stack to 10 for everyone); 📜 Origami ★4: anywhere on Earth', async () => {
     const d = await enchant(ann, 'deck');
     const p0 = (await get(ann, d)).view.picks;
     await setStars(d, 5);
@@ -273,7 +273,8 @@ describe('⭐ the forty new powers', () => {
     const pp = await enchant(ann, 'puppeteer');
     const m0 = (await get(ann, pp)).view.max;
     await setStars(pp, 4);
-    expect((await get(ann, pp)).view.max).toBe(m0 + 2);
+    expect(m0).toBe(10);
+    expect((await get(ann, pp)).view).toMatchObject({ max: 10, slots: 2 });
     const o = await enchant(ann, 'origami'); await setStars(o, 4);
     expect((await get(ann, o)).view.far_m).toBe(40100000);
   });

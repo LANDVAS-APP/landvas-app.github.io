@@ -207,15 +207,14 @@ async function run(mode) {
     // ---- 🎭 Puppeteer ----
     if (part('puppet')) {
     await nav(`/grimoire/${ids.puppeteer}`);
-    ok('the Puppeteer’s curtains part on someone else’s plot nearby', await waitFor('[data-testid=puppeteer-scene]') && await waitFor('[data-testid=puppeteer-plot]', 10000));
+    ok('the Puppeteer’s curtains part, and its theatre lists someone else’s plot nearby', await waitFor('[data-testid=puppeteer-scene]') && await waitFor('[data-testid=puppet-theatre]', 10000));
     await page.waitForTimeout(1300); await shot('12-puppeteer'); await scene('puppeteer', 'puppeteer-scene');
-    await tap('[data-testid=puppeteer-plot]'); await tap('[data-testid=puppeteer-pull]');
-    const strung = await waitFor('[data-testid=puppet-banner]', 15000);
-    ok('…pulling the strings opens their plot’s game, on strings', strung);
-    if (!strung) await shot('12b-no-banner');
-    await tap('[data-testid=game-start]');
-    await page.waitForTimeout(2500);
-    ok('…a real session starts on their plot', Number((await sql(`select count(*) n from minigame_sessions where puppet_id = '${ids.puppeteer}' and gx = ${bx + 30}`))[0].n) === 1);
+    ok('…no playing by hand: the puppet plays', (await page.locator('[data-testid=puppeteer-pull]').count()) === 0);
+    await tap('[data-testid=puppet-add-near]'); await tap('[data-testid=puppet-add-pick]');
+    await tap('[data-testid=puppet-show-go]');
+    ok('…the show starts on their plot — the puppet plays it by itself', await waitFor('[data-testid=puppet-stage]', 15000));
+    ok('…an act on the server: their plot, no session of yours', Number((await sql(`select count(*) n from puppet_runs where enchant_id = '${ids.puppeteer}' and gx = ${bx + 30}`))[0].n) === 1
+      && Number((await sql(`select count(*) n from minigame_sessions where puppet_id = '${ids.puppeteer}'`))[0].n) === 0);
     await shot('13-puppet-game');
     }
 

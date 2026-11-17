@@ -145,8 +145,10 @@ async function run(mode) {
       ok('…your plot climbed a level', Number(lvl) >= 1, `highest ${lvl}`);
     }
     const open = (await sql(`select count(*)::int n from puppet_runs where enchant_id = '${pup}' and finished_at is null`))[0].n;
-    const waiting = (await sql(`select state->'show'->>'waiting' w from enchantments where id = '${pup}'`))[0].w;
-    ok('…encore: the next act is on stage (or waits for a string)', open === 1 || waiting === 'no_strings', `${open} on stage, waiting ${waiting}`);
+    const str = (await sql(`select state->'show'->'str'->0 s from enchantments where id = '${pup}'`))[0].s;
+    const acts = (await sql(`select count(*)::int n from puppet_runs where enchant_id = '${pup}'`))[0].n;
+    ok('…the string plays on by itself: the next level is on stage, on the same string', open === 1 && acts >= 2 && Number(str?.n) === acts, `${acts} acts on string #1 (${str?.clears ?? 0} cleared)`);
+    ok('…the theatre shows the string’s ten levels filling in', await waitFor('[data-testid=puppet-string-progress]', 8000), await attr('[data-testid=puppet-string-progress]', 'data-clears'));
     const ev = (await sql(`select kind from enchant_events where enchant_id = '${pup}'`)).map((x) => x.kind);
     ok('…the chronicle has the show and its curtain call', ev.includes('show_on') && ev.includes('auto_show'), ev.join(','));
 

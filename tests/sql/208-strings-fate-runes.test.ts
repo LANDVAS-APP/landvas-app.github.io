@@ -62,7 +62,7 @@ describe('🎭 Puppeteer', () => {
   it('lists other players’ plots nearby, and plays one of them on strings — a real session', async () => {
     const v = await get(ann, pup);
     // (the strings reach 25 km since the theatre — 100 km from level 5, anywhere at ★2)
-    expect(v.view).toMatchObject({ strings: 2, max: 2, range_m: 25000 });
+    expect(v.view).toMatchObject({ strings: 2, max: 10, range_m: 25000 });
     expect(v.view.nearby.some((p: any) => p.gx === theirs.gx && p.gy === theirs.gy && p.game === 'blocksplash')).toBe(true);
     const s = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
     expect(s).toMatchObject({ game: 'blocksplash', level: 1, puppet: { id: pup } });
@@ -106,7 +106,7 @@ describe('🎭 Puppeteer', () => {
 
   it('★2 any plot on Earth; ★3 a Grand Show that pays ×3 once a day', async () => {
     await setStars(pup, 3);
-    await db.sql(`update enchantments set state = state || '{"strings": 2}'::jsonb where id = $1`, [pup]);
+    await db.sql(`update enchantments set state = state || jsonb_build_object('strings', 2, 'string_at', extract(epoch from now())) where id = $1`, [pup]);
     const far = (await db.sql(`select gx, gy from world_plots where owner_id = $1 order by gx desc limit 1`, [bob]))[0];
     await db.sql(`update world_plots set plot_type = 'stencil' where gx = $1 and gy = $2`, [far.gx, far.gy]);
     // ★3 Grand Show: a three-plot medley, each run ×3 and free of strings

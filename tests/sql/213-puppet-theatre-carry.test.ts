@@ -81,6 +81,9 @@ describe('🎭 the Puppeteer plays by itself', () => {
     expect(await inkOf(ann)).toBeGreaterThan(before);
     expect((await db.sql(`select highest_level from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [mine.gx, mine.gy, ann]))[0].highest_level).toBe(1);
     expect(r.view.runs[0]).toMatchObject({ level: 2, gx: mine.gx });
+    // (the same string plays on: no new string spent, one level cleared on it)
+    expect(r.view.strings).toBe((await get(ann, pup)).view.strings);
+    expect(r.view.show.str[0]).toMatchObject({ clears: 1, tangles: 0, gx: mine.gx });
     expect(r.view.auto_levels).toBe(1);
     expect((await db.sql(`select count(*)::int n from player_achievements where player_id = $1 and achievement_key = 'pp_auto_1'`, [ann]))[0].n).toBe(1);
     // a fall: no Ink, and the plot stays where it was
@@ -91,8 +94,43 @@ describe('🎭 the Puppeteer plays by itself', () => {
     // the chronicle: the show going on, then each curtain call (not every curtain rising)
     const ev = (await db.sql(`select kind, data from enchant_events where enchant_id = $1 order by id`, [pup])).map((x: any) => x.kind);
     expect(ev.filter((x: string) => x === 'show_on')).toHaveLength(1);
+    expect(ev.filter((x: string) => x === 'string_on')).toHaveLength(1);
     expect(ev.filter((x: string) => x === 'auto_show')).toHaveLength(2);
+    expect(f.view.show.str[0]).toMatchObject({ clears: 1, tangles: 1 });
     expect(ev).not.toContain('curtain');
+  });
+
+  it('a string plays through 10 levels by itself (and snaps at 3 tangles); strings stack to 10', async () => {
+    const pz = await enchant(ann, 'puppeteer');
+    const a = await gamePlot(ann, 280, 5);
+    expect((await get(ann, pz)).view).toMatchObject({ max: 10, per_string: 10, snaps_at: 3 });
+    await setState(pz, { strings: 2, string_at: now() });
+    await act(ann, pz, 'show', { plots: [[a.gx, a.gy]] });
+    for (let i = 1; i <= 10; i++) { await due(pz, true); await act(ann, pz, 'tick'); }
+    let v = (await get(ann, pz)).view;
+    // ten levels cleared on one string — the eleventh act is the next string
+    expect((await db.sql(`select coalesce(max(highest_level), 0) n from plot_game_progress where gx = $1 and gy = $2 and player_id = $3`, [a.gx, a.gy, ann]))[0].n).toBe(10);
+    expect(v.strings).toBe(0);
+    expect(v.runs[0]).toMatchObject({ level: 11 });
+    expect(v.show.str[0]).toMatchObject({ clears: 0, tangles: 0, n: 1 });
+    expect((await row(pz)).stats.strings_played).toBe(1);
+    // three tangles and the string snaps — no strings left, so the show waits
+    for (let i = 1; i <= 3; i++) { await due(pz, false); await act(ann, pz, 'tick'); }
+    v = (await get(ann, pz)).view;
+    expect(v.runs).toHaveLength(0);
+    expect(v.show.waiting).toBe('no_strings');
+    const done = (await db.sql(`select data from enchant_events where enchant_id = $1 and kind = 'string_done' order by id`, [pz])).map((x: any) => x.data);
+    expect(done).toEqual([expect.objectContaining({ clears: 10, snapped: false }), expect.objectContaining({ clears: 0, tangles: 3, snapped: true })]);
+    // a stopped show keeps the string in hand for next time
+    await setState(pz, { strings: 1, string_at: now() });
+    await act(ann, pz, 'tick');
+    await due(pz, true); await act(ann, pz, 'tick');
+    await act(ann, pz, 'stop');
+    await db.sql(`update puppet_runs set finished_at = now(), result = '{"passed": true}' where enchant_id = $1 and finished_at is null`, [pz]);
+    const again = await act(ann, pz, 'show', { plots: [[a.gx, a.gy]] });
+    expect(again.view.strings).toBe(0);
+    expect(again.view.runs).toHaveLength(1);
+    expect(again.view.show.str[0].clears).toBeGreaterThanOrEqual(1);
   });
 
   it('someone else’s plot: the puppet’s own ladder there, theirs never moves, and they’re tipped and told', async () => {
@@ -193,10 +231,26 @@ describe('🎭 the Puppeteer plays by itself', () => {
     await db.sql(`update players set last_active_at = now() where id = $1`, [cat]);
   });
 
-  it('a Mirror Shard can’t run the show', async () => {
+  it('a Mirror Shard reflecting a Puppeteer runs a show too — and stays a Shard', async () => {
     const s = await enchant(bob, 'shard');
-    await setState(s, { reflect: { kind: 'puppeteer', until: now() + 3600 }, r: {} });
-    await expectError(act(bob, s, 'show', { plots: [[theirs.gx, theirs.gy]] }), 'invalid_action');
+    const b2 = await gamePlot(bob, 300, 35);
+    await db.sql(`update enchantments set state = state || jsonb_build_object('reflect', jsonb_build_object('kind', 'puppeteer', 'dream', true, 'from', extract(epoch from now()), 'until', extract(epoch from now()) + 3600),
+      'r', private.ench_init('puppeteer', now()), 'cracks', 2) where id = $1`, [s]);
+    const r = await act(bob, s, 'show', { plots: [[b2.gx, b2.gy]] });
+    expect(r.reflect_kind).toBe('puppeteer');
+    expect(r.reflected.runs).toHaveLength(1);
+    let st = (await row(s)).state;
+    expect(st.reflect.kind).toBe('puppeteer'); expect(st.cracks).toBe(2);
+    expect(st.r.show.on).toBe(true); expect(st.show).toBeUndefined();
+    // the heartbeat plays it on, level after level, on the reflection
+    await due(s, true);
+    await db.sql(`select private.pup_tick_all()`);
+    st = (await row(s)).state;
+    expect(st.reflect.kind).toBe('puppeteer');
+    expect(st.r.show.str[0]).toMatchObject({ clears: 1 });
+    expect(st.show).toBeUndefined();
+    expect((await runs(s)).filter((x: any) => !x.finished_at)).toMatchObject([{ level: 2 }]);
+    expect((await db.rpc(bob, 'puppet_live', {})).shows.some((x: any) => x.id === s)).toBe(true);
   });
 });
 
