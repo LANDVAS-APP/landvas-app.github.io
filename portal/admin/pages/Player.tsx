@@ -13,6 +13,7 @@ import { PlayerPlots } from '../../../src/admin/PlayerPlots';
 import { rarityInfo } from '../../../src/shared/rarity';
 import { portal, type WhoAmI } from '../../shared/api';
 import { EggLoopPlayer, PlayerUltras } from './FairPlay';
+import PlayerAccount, { ConfirmBadge, confirmedHow, useAccount } from './PlayerAccount';
 import { HBars, Split, TimeChart, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
 import { DataTable, type Col } from '../../shared/table';
@@ -20,7 +21,7 @@ import { ago, compact, date, dateTime, duration, int, perDay, perMonth, plotLabe
 import { Badge, Cell, CopyText, Empty, ErrorBox, Json, KV, Loading, Panel, Q, Rarity, Seg, Stat, statusTone, useTicker } from '../../shared/ui';
 
 const TABS = [
-  { value: 'overview', label: 'Overview' }, { value: 'manage', label: 'Manage' }, { value: 'gifts', label: 'Gifts' }, { value: 'plots', label: 'Plots' }, { value: 'ledger', label: 'Ink ledger' },
+  { value: 'overview', label: 'Overview' }, { value: 'account', label: 'Account' }, { value: 'manage', label: 'Manage' }, { value: 'gifts', label: 'Gifts' }, { value: 'plots', label: 'Plots' }, { value: 'ledger', label: 'Ink ledger' },
   { value: 'usd', label: 'USD ledger' }, { value: 'games', label: 'Minigames' }, { value: 'fairplay', label: 'Fair play' }, { value: 'data', label: 'All data' }, { value: 'audit', label: 'History' },
 ];
 
@@ -36,6 +37,7 @@ export default function Player() {
           <Header d={d} id={id} />
           <Tabs value={tab} onValueChange={(t) => nav(`/players/${id}/${t}`, { replace: true })} className="mb-4 mt-5" items={TABS} />
           {tab === 'overview' && <Overview d={d} id={id} />}
+          {tab === 'account' && <PlayerAccount id={id} />}
           {tab === 'manage' && <div className="max-w-5xl"><PlayerDetail id={id} /></div>}
           {tab === 'gifts' && <div className="grid max-w-5xl gap-2"><RollGrants playerId={id} /><PlayerGifts playerId={id} /></div>}
           {tab === 'plots' && <Plots id={id} username={d.profile.username} />}
@@ -117,7 +119,7 @@ function Overview({ d, id }: { d: any; id: string }) {
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel title="Account">
           <KV items={[
-            ['Email', d.auth.email], ['Email confirmed', d.auth.email_confirmed_at ? date(d.auth.email_confirmed_at) : 'not yet'], ['Last sign-in', dateTime(d.auth.last_sign_in_at)],
+            ['Email', d.auth.email], ['Email confirmed', <EmailConfirmed key="ec" id={id} />], ['Last sign-in', dateTime(d.auth.last_sign_in_at)],
             ['Sign-in methods', (d.auth.providers ?? []).join(', ') || 'email'], ['Terms accepted', d.player.terms_version ? `${d.player.terms_version} on ${date(d.player.terms_accepted_at)}` : 'not yet'],
             ['Starter plot', d.player.starter_plot_claimed ? 'claimed' : 'not claimed'], ['Clan', d.clan ? `${d.clan.name} [${d.clan.tag}] · ${d.clan.role}` : 'none'],
             ['Invited by', d.referred_by ? <Link className="text-accent-2" to={`/players/${d.referred_by.id}`}>@{d.referred_by.username}</Link> : 'nobody'], ['Players they invited', int(d.invited)],
@@ -148,6 +150,13 @@ function Overview({ d, id }: { d: any; id: string }) {
       )}
     </div>
   );
+}
+
+/** LANDVAS's own confirmation (an email link opened, or staff), not Supabase's auto-confirm from before Nov 13 */
+function EmailConfirmed({ id }: { id: string }) {
+  const a = useAccount(id).data;
+  if (!a) return <span className="text-faint">…</span>;
+  return <Link to={`/players/${id}/account`} className="inline-flex items-center gap-1.5 hover:underline" title={confirmedHow(a) ?? undefined}><ConfirmBadge a={a} /></Link>;
 }
 
 function Plots({ id, username }: { id: string; username: string }) {

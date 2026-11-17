@@ -1,7 +1,65 @@
 // The portal's own database calls (supabase/migrations/…_portal.sql). Every one is authorised in SQL.
-import { getBackend } from '../../src/backend/backend';
+import { GameError, getBackend } from '../../src/backend/backend';
+import { config } from '../../src/env';
 
 const rpc = <T = any>(fn: string, args: Record<string, unknown> = {}) => getBackend().rpc<T>(fn, args);
+
+// ---- account help (player → Account): the account-help Edge Function, which checks the caller in SQL -------------
+export type AccountAction = 'send_reset' | 'send_link' | 'change_email' | 'confirm' | 'recheck' | 'signout' | 'make_link';
+export type AccountHelpBody = { action: AccountAction; player: string; reason?: string | null; email?: string; then?: 'link' | 'confirmed'; kind?: 'signin' | 'reset' };
+export type AccountHelpResult = {
+  ok: true; sent_to?: string | null; send_error?: string | null; kind?: 'signin' | 'signup'; changed?: boolean; verified?: boolean;
+  sessions?: number; fresh_start_ink?: number; link?: string;
+};
+export type AccountInfo = {
+  id: string; username: string | null; email: string | null; pending_email: string | null; has_password: boolean; providers: string[];
+  auth_confirmed: boolean; required: boolean; verified: boolean; verified_via: { via: string; at: string } | null;
+  recheck: { since: string; email: string | null; by: string | null } | null;
+  sent: { confirmation: string | null; link: string | null; email_change: string | null };
+  created_at: string | null; last_sign_in_at: string | null; banned_until: string | null; staff_target: boolean;
+  sessions: { device: string; started_at: string; active_at: string; two_step: boolean; how: string[] }[];
+  history: { id: number; at: string; action: string; details: Record<string, any>; by: string | null }[];
+  can: { send: boolean; signout: boolean; change: boolean; confirm: boolean; link: boolean };
+};
+
+const ACCOUNT_ERRORS: Record<string, string> = {
+  forbidden: 'Your staff role can’t do that.',
+  'forbidden:staff_account': 'Only the owner can change a staff account’s email or confirmation.',
+  mfa_required: 'Two-step sign-in is required: verify your authenticator code first (Security & staff).',
+  reason_required: 'Add a short reason first (it goes in the audit log).',
+  reason_too_long: 'Keep the reason under 500 characters.',
+  email_invalid: 'That email address doesn’t look right.',
+  email_same: 'That’s already their email.',
+  no_email: 'This account has no email address to send to.',
+  player_not_found: 'That account doesn’t exist any more.',
+  invalid_action: 'That isn’t something account help can do.',
+  not_signed_in: 'Your sign-in ran out. Sign in again.',
+  rate_limited: 'That’s a lot of account changes in an hour. Try again a little later.',
+};
+
+function accountError(code: string, message?: string | null, detail?: string | null) {
+  if (code === 'email_taken') return new GameError(code, `Another account already uses that email${detail ? ` (@${detail})` : ''}.`, detail ?? undefined);
+  return new GameError(code, message || ACCOUNT_ERRORS[`${code}:${detail}`] || ACCOUNT_ERRORS[code] || 'Something went wrong. Try again.', detail ?? undefined);
+}
+
+export async function accountHelp(body: AccountHelpBody): Promise<AccountHelpResult> {
+  const b = getBackend() as any;
+  let res: Response;
+  if (import.meta.env.VITE_PORTAL_DEV_API) {
+    // dev: scripts/portal-dev-bridge.mjs stands in for the Edge Function (no emails are sent)
+    res = await fetch(`${import.meta.env.VITE_PORTAL_DEV_API}/fn/account-help`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ uid: b.session()?.userId, aal: b.devAal?.(), body }) });
+  } else {
+    const { data } = await b.authClient().getSession();
+    const token = data.session?.access_token;
+    if (!token) throw accountError('not_signed_in');
+    res = await fetch(`${config.supabaseUrl}/functions/v1/account-help`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, apikey: config.supabaseAnonKey }, body: JSON.stringify(body),
+    });
+  }
+  const j = await res.json().catch(() => ({ error: 'server_error', message: `The server answered ${res.status}.` }));
+  if (!res.ok || j.error) throw accountError(String(j.error ?? 'server_error'), j.message, j.detail);
+  return j as AccountHelpResult;
+}
 
 export type WhoAmI = { user_id: string; username: string | null; onboarded: boolean; roles: string[]; staff: boolean; owner: boolean; aal: 'aal1' | 'aal2'; require_mfa: boolean; server_time: string };
 export type Day = {
@@ -34,6 +92,7 @@ export const portal = {
       p_q: a.q || null, p_status: a.status ?? null, p_role: a.role ?? null, p_sort: a.sort ?? 'last_active_at', p_desc: a.desc ?? true, p_limit: a.limit ?? 50, p_offset: a.offset ?? 0,
     }),
   player: (id: string) => rpc<any>('portal_admin_player', { p_player: id }),
+  account: (id: string) => rpc<AccountInfo>('admin_account', { p_player: id }),
   playerTables: (id: string) => rpc<{ schema: string; table: string; column: string; rows: number }[]>('portal_admin_player_tables', { p_player: id }),
   playerSeries: (id: string, days: number, tz: string) => rpc<Day[]>('portal_admin_player_series', { p_player: id, p_days: days, p_tz: tz }),
   ledger: (a: { player?: string | null; kind?: 'resource' | 'usd'; resource?: string | null; reason?: string | null; before?: number | null; limit?: number }) =>

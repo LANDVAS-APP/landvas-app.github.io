@@ -9,6 +9,12 @@ Two small websites that are **not** part of the game or the mobile apps, on the 
 
 - Database side: `supabase/migrations/20261119000173_portal.sql` (`portal_*` functions; every one checks the caller in SQL).
   Tests: `tests/sql/188-portal.test.ts`.
+- Account help (a player → Account): send a password reset or sign-in link, change a mistyped email, mark it confirmed or
+  ask them to confirm again, sign them out everywhere, and (owner) make a one-time link to copy. The Supabase Auth part is
+  the `account-help` Edge Function (`supabase/functions-src/account-help.ts`); it checks the caller in SQL as themselves
+  (`admin_account_check`) and records through `svc_account_done` (migration `…_account_help.sql`, tests
+  `tests/sql/460-account-help.test.ts`, browser check `tests/e2e/portal-account-help.mjs`). The dev bridge fakes the Auth
+  part and sends no email.
 - Optional two-step sign-in for staff: `game_config.portal.require_mfa` (turned on from Security & staff). When on,
   `private.require_admin` needs an `aal2` session, so the game's own admin screen needs it too.
 - Hosting: the deploy workflow builds both into `dist/portal/…`; `deploy/portal-worker.js` (a Cloudflare Worker with the
