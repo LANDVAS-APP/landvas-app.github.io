@@ -122,9 +122,11 @@ const LAYOUT_KEY = 'landvas.joystick.layout';
 
 export function Joystick({ onClose, minimal }: { onClose(): void; /** just the stick (the first-person view) */ minimal?: boolean }) {
   const world = useWorld();
-  const ex = useExplorer();
+  // (piece by piece: the explorer's position changes every frame while you steer, the stick needn't redraw for it)
+  const joy = useExplorer((s) => s.state?.joystick);
+  const veh = useExplorer((s) => s.state?.vehicle);
+  const fromStation = useExplorer((s) => s.state?.mode === 'travel');
   const settings = useUi((s) => s.settings);
-  const joy = ex.state?.joystick;
   const qc = useQueryClient();
   const landscape = useLandscapePhone();
   // the D-pad is the default sideways; either layout can be picked (and is remembered per orientation)
@@ -133,7 +135,6 @@ export function Joystick({ onClose, minimal }: { onClose(): void; /** just the s
   const setLayout = (l: Layout) => { const p = { ...pref, [landscape ? 'landscape' : 'portrait']: l }; setPref(p); saveStorage(LAYOUT_KEY, p); };
   const [refilling, setRefilling] = useState(false);
   // your vehicle sets the speed; only the Car burns the tank (fuel)
-  const veh = ex.state?.vehicle;
   const speed = Number(veh?.speed_kmh ?? joy?.speed_kmh ?? world.data?.explorer?.joystick?.speed_kmh ?? 6) / 3.6;
   const fuel = veh ? veh.fuel : true;
   const [garage, setGarage] = useState(false);
@@ -141,7 +142,7 @@ export function Joystick({ onClose, minimal }: { onClose(): void; /** just the s
   const [secs, setSecs] = useState(Number(joy?.seconds_left ?? tank));
   const [knob, setKnob] = useState({ x: 0, y: 0, active: false });
   const [dir, setDir] = useState<{ x: number; y: number } | null>(null); // the D-pad arrow being pressed
-  const [gpsWasOn] = useState(() => ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused');
+  const [gpsWasOn] = useState(() => { const g = useExplorer.getState().gps; return g === 'on' || g === 'asking' || g === 'paused'; });
   const back = useRef(true); // resume GPS when the joystick closes (unless the player stays manual)
   const vec = useRef({ x: 0, y: 0, active: false });
   // a tap on the D-pad (or a quick key press) walks one plot: how far is left of that step
@@ -367,7 +368,7 @@ export function Joystick({ onClose, minimal }: { onClose(): void; /** just the s
         <div className="pointer-events-auto grid justify-items-start gap-2">
           {!minimal && (<>
           <div className="glass flex items-center gap-2 rounded-2xl py-1.5 pl-3 pr-1.5">
-            <div className="text-[11px] leading-tight text-muted" data-testid="joystick-speed"><b className="text-fg">{Math.round(speed * 3.6)} km/h</b> · up to {fmtRange(veh?.range_m ?? 600)}<br />{ex.state?.mode === 'travel' ? 'from the station' : 'from where you are'}</div>
+            <div className="text-[11px] leading-tight text-muted" data-testid="joystick-speed"><b className="text-fg">{Math.round(speed * 3.6)} km/h</b> · up to {fmtRange(veh?.range_m ?? 600)}<br />{fromStation ? 'from the station' : 'from where you are'}</div>
             {fuel && <div className={cn('text-[11px] font-bold tnum', empty && 'text-bad')} data-testid="joystick-tank">⛽ {fmtTank(secs)}</div>}
             {switcher}
             <button className="grid h-8 w-8 place-items-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg" onClick={onClose} aria-label="Close the joystick" data-testid="joystick-close"><X className="h-4 w-4" /></button>

@@ -17,6 +17,8 @@ import { Button } from '../ui';
 export type Celebration = {
   gx: number; gy: number; rarity: RarityId; type: PlotTypeId; name?: string | null; usd: number;
   groupId: string; first: boolean; onDone?: () => void;
+  /** what the plot was bought as (a farm, an arcade…; 'base' for a plain plot): first person puts it up straight away */
+  kind?: string;
   /** set when the plot was bought as an Inkborn Habitat */
   habitatId?: string | null;
   /** a Base plot (no extras): no painting buttons; `again` offers another buy (simple mode) */

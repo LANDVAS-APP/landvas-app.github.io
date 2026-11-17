@@ -97,7 +97,7 @@ const ROAD_W: Record<string, [number, keyof Palette]> = {
 const PAVED = new Set(['primary', 'secondary', 'tertiary', 'minor', 'busway']);
 const CROSSABLE = new Set(['primary', 'secondary', 'tertiary', 'minor']);
 /** real streets: pavements and kerbs, asphalt, the painted lines (double yellow in the Americas), zebra crossings */
-function drawRealRoads(g: CanvasRenderingContext2D, roads: MvtFeature[], bridge: (f: MvtFeature) => boolean, p: Palette, mw: (m: number) => number, detail: boolean, close: boolean, americas: boolean) {
+function drawRealRoads(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, roads: MvtFeature[], bridge: (f: MvtFeature) => boolean, p: Palette, mw: (m: number) => number, detail: boolean, close: boolean, americas: boolean) {
   g.lineCap = 'round'; g.lineJoin = 'round';
   const W = (ft: MvtFeature) => ROAD_W[String(ft.props.class)];
   for (const pass of [0, 1] as const) {
@@ -135,7 +135,7 @@ function drawRealRoads(g: CanvasRenderingContext2D, roads: MvtFeature[], bridge:
   }
 }
 /** zebra crossings on each arm of a junction, a few metres back from the middle, and a stop line behind each */
-function drawCrossings(g: CanvasRenderingContext2D, set: MvtFeature[], mw: (m: number) => number) {
+function drawCrossings(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, set: MvtFeature[], mw: (m: number) => number) {
   const arms = new Map<string, number>();
   const key = (x: number, y: number) => `${x},${y}`;
   for (const ft of set) for (const part of ft.parts) {
@@ -169,7 +169,7 @@ function drawCrossings(g: CanvasRenderingContext2D, set: MvtFeature[], mw: (m: n
   }
 }
 
-function tracePoly(g: CanvasRenderingContext2D, f: MvtFeature) {
+function tracePoly(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, f: MvtFeature) {
   g.beginPath();
   for (const ring of f.parts) {
     if (ring.length < 4) continue;
@@ -178,7 +178,7 @@ function tracePoly(g: CanvasRenderingContext2D, f: MvtFeature) {
     g.closePath();
   }
 }
-function traceLine(g: CanvasRenderingContext2D, f: MvtFeature) {
+function traceLine(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, f: MvtFeature) {
   g.beginPath();
   for (const part of f.parts) {
     if (part.length < 4) continue;
@@ -187,10 +187,32 @@ function traceLine(g: CanvasRenderingContext2D, f: MvtFeature) {
   }
 }
 
+/** a feature's bounds in its tile's units (worked out once) */
+const bounds = new WeakMap<MvtFeature, [number, number, number, number]>();
+function boundsOf(ft: MvtFeature) {
+  let b = bounds.get(ft);
+  if (!b) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const part of ft.parts) for (let i = 0; i < part.length; i += 2) { const x = part[i], y = part[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    b = [x0, y0, x1, y1];
+    bounds.set(ft, b);
+  }
+  return b;
+}
+
+export type GroundOpts = { buildings?: boolean; detail?: boolean; real?: boolean; close?: boolean };
 /** Paint the ground of a local square from vector tiles (`px` pixels across). Plain land where there's no data. */
-export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Palette, opts: { buildings?: boolean; detail?: boolean; real?: boolean; close?: boolean } = {}): HTMLCanvasElement {
+export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Palette, opts: GroundOpts = {}): HTMLCanvasElement {
   const c = Object.assign(document.createElement('canvas'), { width: px, height: px });
-  const g = c.getContext('2d')!;
+  paintGround(c.getContext('2d')!, f, tiles, r, px, p, opts);
+  return c;
+}
+/**
+ * The same, into a canvas of your own. With `cull`, only what reaches the square (or comes within `cull` metres of
+ * it) is traced, so painting a small square of a big town costs about what's in that square.
+ */
+export function paintGround(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, f: Frame, tiles: Tile[], r: Region, px: number, p: Palette, opts: GroundOpts & { cull?: number } = {}) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = p.land;
   g.fillRect(0, 0, px, px);
   const s = px / r.size; // canvas px per metre
@@ -198,11 +220,19 @@ export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Pa
     const ext = Object.values(t.layers)[0]?.extent ?? 4096;
     const { lx, lz, k } = tileXf(f, t, ext);
     const m = k * s; // canvas px per tile unit
+    let L = t.layers;
+    if (opts.cull != null) {
+      // the square (and a margin) in this tile's units
+      const u0 = (r.x0 - opts.cull - lx) / k, u1 = (r.x0 + r.size + opts.cull - lx) / k, v0 = (r.z0 - opts.cull - lz) / k, v1 = (r.z0 + r.size + opts.cull - lz) / k;
+      if (u1 < 0 || v1 < 0 || u0 > ext || v0 > ext) continue;
+      const near: Record<string, MvtLayer> = {};
+      for (const [name, layer] of Object.entries(L)) near[name] = { ...layer, features: layer.features.filter((ft) => { const b = boundsOf(ft); return b[2] >= u0 && b[0] <= u1 && b[3] >= v0 && b[1] <= v1; }) };
+      L = near;
+    }
     g.save();
     g.setTransform(m, 0, 0, m, (lx - r.x0) * s, (lz - r.z0) * s);
     // keep each tile to its own square (tiles overlap a little at the edges)
     g.beginPath(); g.rect(0, 0, ext, ext); g.clip();
-    const L = t.layers;
     const mw = (metres: number) => metres / k; // metres → tile units
     for (const ft of L.landcover?.features ?? []) { if (ft.type !== 3) continue; g.fillStyle = p[LANDCOVER[String(ft.props.class)] ?? 'park'] as string; tracePoly(g, ft); g.fill('evenodd'); }
     for (const ft of L.landuse?.features ?? []) { if (ft.type !== 3) continue; g.fillStyle = landuseColor(p, String(ft.props.class ?? '')); tracePoly(g, ft); g.fill('evenodd'); }
@@ -269,7 +299,6 @@ export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Pa
     }
     g.restore();
   }
-  return c;
 }
 
 // ---- buildings ------------------------------------------------------------------------------------------------------

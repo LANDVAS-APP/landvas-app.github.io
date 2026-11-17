@@ -478,7 +478,9 @@ try {
     await page.waitForTimeout(800); await shot('20c-its-powers');
     const polish = page.locator('[data-testid=eyes-enchant-sheet] [data-testid=goose-polish]');
     if (await polish.count()) { await polish.scrollIntoViewIfNeeded().catch(() => {}); await polish.click().catch(() => {}); await page.waitForTimeout(1500); }
-    const df = await eyes('debug');
+    // (it flares once the power's been used: the server answers first)
+    let df = await eyes('debug');
+    for (let k = 0; k < 12 && !df?.manifest?.flared; k++) { await page.waitForTimeout(500); df = await eyes('debug'); }
     check('…use it: the one in the world flares', !!df?.manifest?.flared, JSON.stringify(df?.manifest));
     await page.click('[data-testid=eyes-enchant-sheet-close]').catch(() => {}); await page.waitForTimeout(700);
     await shot('20d-flared');
@@ -500,6 +502,43 @@ try {
   check('it feels like walking: steps (and their sound) as you go', dw?.steps > 2, `${dw?.steps} steps`);
   console.log('frame', JSON.stringify({ calls: dw?.calls, tris: dw?.tris, ms: dw?.frameMs, dpr: dw?.dpr, trees: dw?.trees, grass: dw?.grass, street: dw?.street, close: dw?.close }));
   await shot('13-walked');
+
+  // ---- (E2E_PROFILE=1) driving through town in first person: every long frame, and what the main thread spent it on --
+  if (process.env.E2E_PROFILE) {
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh(); await page.waitForTimeout(4000);
+    await page.click('[data-testid=eyes] [data-testid=vehicle-car]').catch(() => {});
+    await page.waitForTimeout(3000);
+    await eyes('lookAt', Math.PI / 2, -0.02);
+    await page.evaluate(() => {
+      const w = window; w.__frames = []; let last = performance.now();
+      const loop = (t) => { w.__frames.push(t - last); last = t; if (!w.__stopFrames) requestAnimationFrame(loop); };
+      requestAnimationFrame(loop);
+      w.__long = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__long.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false }); } catch { /* */ }
+    });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 500 }); await cdp.send('Profiler.start');
+    await page.keyboard.down('w'); await page.waitForTimeout(Number(process.env.E2E_PROFILE) > 1 ? Number(process.env.E2E_PROFILE) * 1000 : 15000); await page.keyboard.up('w');
+    const { profile } = await cdp.send('Profiler.stop');
+    const fr = await page.evaluate(() => { window.__stopFrames = true; const f = window.__frames.slice(5); return { n: f.length, over34: f.filter((x) => x > 34).length, over50: f.filter((x) => x > 50).length, over100: f.filter((x) => x > 100).length, max: Math.round(Math.max(...f)), avg: Math.round(f.reduce((a, b) => a + b, 0) / f.length), long: window.__long }; });
+    console.log('frames', JSON.stringify(fr));
+    const dbgP = await eyes('debug');
+    console.log('debug', JSON.stringify({ calls: dbgP?.calls, tris: dbgP?.tris, ms: dbgP?.frameMs, dpr: dbgP?.dpr }));
+    // self time by function
+    const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+    const self = new Map();
+    profile.samples.forEach((id, i) => { const n = byId.get(id); const dt = profile.timeDeltas[i] || 0; const cf = n.callFrame; const k = `${cf.functionName || '(anon)'} ${cf.url.split('/').pop()}:${cf.lineNumber + 1}`; self.set(k, (self.get(k) || 0) + dt); });
+    const total = [...self.values()].reduce((a, b) => a + b, 0);
+    console.log('self time (ms), top 40 of', Math.round(total / 1000));
+    for (const [k, v] of [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) console.log(String(Math.round(v / 1000)).padStart(7), k);
+    // inclusive time by function (what each one calls, too)
+    const parent = new Map(); for (const n of profile.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+    const incl = new Map();
+    profile.samples.forEach((id, i) => { const dt = profile.timeDeltas[i] || 0; const seen = new Set(); let cur = id; while (cur != null) { const n = byId.get(cur); const k = `${n.callFrame.functionName || '(anon)'} ${n.callFrame.url.split('/').pop()}:${n.callFrame.lineNumber + 1}`; if (!seen.has(k)) { incl.set(k, (incl.get(k) || 0) + dt); seen.add(k); } cur = parent.get(cur); } });
+    console.log('inclusive (ms), top 50');
+    for (const [k, v] of [...incl.entries()].sort((a, b) => b[1] - a[1]).slice(0, 50)) console.log(String(Math.round(v / 1000)).padStart(7), k);
+    await browser.close(); server.close(); process.exit(0);
+  }
 
   // ---- the places plots have been made into, standing on them; walk up to one and go in ---------------------------------
   {

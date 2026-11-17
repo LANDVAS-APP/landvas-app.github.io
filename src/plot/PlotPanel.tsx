@@ -243,7 +243,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const qc = useQueryClient();
   const world = useWorld();
   const nav = useNavigate();
-  const ex = useExplorer();
+  const gps = useExplorer((s) => s.gps);
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [naming, setNaming] = useState(false);
@@ -265,7 +265,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
   const canAfford = Number(me.balances.ink) >= cost;
   const reach = d.reach;
   const inReach = reach?.in_reach ?? false;
-  const gpsOn = ex.gps === 'on';
+  const gpsOn = gps === 'on';
   // what the new plot becomes is the player's choice; a habitat is the same plot at the same price
   const becomeHabitat = async (groupId: string) => {
     if (kind === 'base') return null;
@@ -286,7 +286,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const r = await api.claimStarter(d.gx, d.gy, name);
         celebrate(r.achievements);
         const hab = await becomeHabitat(r.group_id);
-        useCelebration.getState().show({ gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null });
+        useCelebration.getState().show({ gx: d.gx, gy: d.gy, kind, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: true, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null });
       } else {
         const r = await api.acquirePlot(d.gx, d.gy, name);
         celebrate(r.achievements);
@@ -296,7 +296,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         const kindOf = (id: string) => groups.find((g) => g.id === id)?.kind ?? 'canvas';
         const mineAdjacent = [...new Set(d.neighbors.filter((n) => n.is_mine && n.group_id).map((n) => n.group_id!))].filter((id) => kindFamily(kindOf(id)) === kindFamily(kind));
         useCelebration.getState().show({
-          gx: d.gx, gy: d.gy, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null,
+          gx: d.gx, gy: d.gy, kind, rarity: r.rarity, type: r.plot_type as PlotTypeId, name: r.name, usd: Number(r.usd_per_second), groupId: r.group_id, first: false, habitatId: hab, base: kind === 'base', shiny: !!(r as { shiny?: boolean }).shiny, lucky: !!(r as { lucky?: boolean }).lucky, choices: (r as { choices?: RarityId[] | null }).choices ?? null, choiceTypes: (r as { choice_types?: string[] | null }).choice_types ?? null, choiceShiny: (r as { choice_shiny?: boolean[] | null }).choice_shiny ?? null, enchant: (r as { enchant?: any }).enchant ?? null, dowsed: (r as { dowsed?: any }).dowsed ?? null, godroll: (r as { godroll?: 'echo' | 'pantheon' | null }).godroll ?? null, choiceEnchants: (r as { choice_enchants?: any }).choice_enchants ?? null,
           onDone: mineAdjacent.length && !NATIVE ? () => setGrow({ newGroup: r.group_id, neighbors: mineAdjacent, habitat: kind === 'habitat' }) : undefined,
         });
       }
@@ -323,7 +323,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
         <div className="big"><MapPin className="h-6 w-6" /></div>
         <h3>Turn on your location</h3>
         <p>You claim the land right around where you really are.</p>
-        <Button className="mt-1 w-full" variant="primary" size="lg" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
+        <Button className="mt-1 w-full" variant="primary" size="lg" loading={gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Use my location</Button>
       </div>
     );
   }
@@ -340,7 +340,7 @@ function AcquireBlock({ d, signedIn, onClaimed: setClaimed, onGrow: setGrow }: {
           <MapPin className="ml-1 h-3.5 w-3.5 text-[#FFE14D]" />
         </div>
         <p>Walk within {reach.max} plot{reach.max === 1 ? '' : 's'} to claim it — your explorer follows you.</p>
-        {!gpsOn && <Button className="mt-1 w-full" variant="primary" loading={ex.gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
+        {!gpsOn && <Button className="mt-1 w-full" variant="primary" loading={gps === 'asking'} onClick={() => enableGps()} data-testid="plot-use-gps"><MapPin className="h-4 w-4" /> Turn on my location</Button>}
       </div>
     );
   }

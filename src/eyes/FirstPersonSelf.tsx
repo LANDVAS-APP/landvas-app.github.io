@@ -11,9 +11,12 @@ import { CAR_ARMS, bikeLayers, carArm, carFrame, carLayers, jetLayers, lookDownL
 const at = (x: number, y: number) => `${(x / 4).toFixed(2)}% ${(y / 3).toFixed(2)}%`;
 const armT = (side: 'armR' | 'armL', deg: number) => { const a = carArm(side, deg); return `rotate(${a.angle.toFixed(2)}deg) scale(1, ${a.stretch.toFixed(4)})`; };
 const ORIGIN: Record<string, string> = {
-  bars: '50% 100%', hands: '50% 100%', wheel: '50% 100%', flames: '50% 100%', left: '22% 85%',
-  armR: at(CAR_ARMS.armR.e[0], CAR_ARMS.armR.e[1]), armL: at(CAR_ARMS.armL.e[0], CAR_ARMS.armL.e[1]),
+  bars: '50% 100%', hands: '50% 100%', wheel: '50% 100%', tread: '50% 100%', wheelTop: '50% 100%', flames: '50% 100%', left: '22% 85%',
+  armR: at(CAR_ARMS.armR.e[0], CAR_ARMS.armR.e[1]), armL: at(CAR_ARMS.armL.e[0], CAR_ARMS.armL.e[1]), needle: at(162, 244),
 };
+/** the car's wheel and your hands on it turn about the wheel's hub (just below the picture) */
+const originOf = (vehicle: string, k: string) => (vehicle === 'car' && (k === 'wheel' || k === 'grip') ? '50% 108.7%' : ORIGIN[k] ?? '75% 85%');
+const startOf = (vehicle: string, k: string) => (k === 'left' ? 'translate3d(-60px, 420px, 0) rotate(-20deg)' : k === 'armR' || k === 'armL' ? armT(k, 0) : vehicle === 'car' && k === 'needle' ? 'rotate(-120deg)' : undefined);
 
 type Vehicle = 'walk' | 'bike' | 'car' | 'jet';
 
@@ -52,27 +55,26 @@ export function FirstPersonSelf({ eyes, look, vehicle, hidden }: { eyes: Eyes | 
         set('left', `translate3d(${(-60 + r * 120).toFixed(1)}px, ${(420 - r * 530 + down * 170).toFixed(1)}px, 0) rotate(${(r * 18 - 20).toFixed(2)}deg)`);
       } else if (p.vehicle === 'bike') {
         // the tyre's tread runs toward you as you ride; the bars (and your hands) turn as you steer
+        // (one knob's spacing is 13 of the tread layer's 325: 4% of it)
         wheel = (wheel + p.speed * dt * 60) % 13;
-        const tr = L.wheel?.querySelector<SVGGElement>('.lv-fp-tread');
-        if (tr && p.speed > 0.2) tr.setAttribute('transform', `translate(0 ${wheel.toFixed(1)})`);
+        const tr = L.tread?.querySelector<HTMLElement>('.lv-fp-tread');
+        if (tr && p.speed > 0.2) tr.style.transform = `translate3d(0, ${((wheel / 13) * 4).toFixed(3)}%, 0)`;
         const turn = `rotate(${(-p.turn * 7).toFixed(2)}deg)`;
-        set('bars', turn); set('hands', turn); set('wheel', turn);
+        set('bars', turn); set('hands', turn); set('wheel', turn); set('tread', turn); set('wheelTop', turn);
       } else if (p.vehicle === 'car') {
-        // the wheel turns about its hub, your hands with it, your forearms following them
+        // the wheel turns about its hub, your hands with it, your forearms following them (each its own layer: only
+        // their transforms change, nothing is drawn again)
         const deg = -p.turn * 55;
         if (Math.abs(deg - steer) > 0.05) {
           steer = deg;
-          for (const key of ['wheel', 'grip']) {
-            const st = L[key]?.firstElementChild as SVGSVGElement | null;
-            if (st) { st.style.transformOrigin = '50% 108.7%'; st.style.transform = `rotate(${deg.toFixed(2)}deg)`; }
-          }
+          const r = `rotate(${deg.toFixed(2)}deg)`;
+          set('wheel', r); set('grip', r);
           set('armR', armT('armR', deg)); set('armL', armT('armL', deg));
         }
         const kmh = Math.round(p.speed * 3.6);
         if (kmh !== lastKmh) {
           lastKmh = kmh;
-          const n = L.dash?.querySelector<SVGPathElement>('.lv-fp-needle');
-          if (n) n.style.transform = `rotate(${(-120 + Math.min(1, kmh / 160) * 240).toFixed(1)}deg)`;
+          set('needle', `rotate(${(-120 + Math.min(1, kmh / 160) * 240).toFixed(1)}deg)`);
           if (speedo.current) speedo.current.textContent = String(kmh);
         }
       } else {
@@ -118,7 +120,7 @@ export function FirstPersonSelf({ eyes, look, vehicle, hidden }: { eyes: Eyes | 
         <div ref={root} className="absolute inset-0" style={{ willChange: 'transform' }}>
           {Object.entries(layers).map(([k, svg]) => (
             <div key={`${vehicle}-${k}`} ref={(el) => { refs.current[k] = el; }} className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
-              style={{ willChange: 'transform', transformOrigin: ORIGIN[k] ?? '75% 85%', transform: k === 'left' ? 'translate3d(-60px, 420px, 0) rotate(-20deg)' : k === 'armR' || k === 'armL' ? armT(k, 0) : undefined }}
+              style={{ willChange: 'transform', transformOrigin: originOf(vehicle, k), transform: startOf(vehicle, k) }}
               dangerouslySetInnerHTML={{ __html: svg }} />
           ))}
           {vehicle === 'car' && <span ref={speedo} className="absolute font-black tabular-nums text-[#22E3FF]" style={{ left: '24.5%', top: '83.5%', fontSize: 'min(3.2vw, 16px)', transform: 'translate(-50%, 0)' }}>0</span>}

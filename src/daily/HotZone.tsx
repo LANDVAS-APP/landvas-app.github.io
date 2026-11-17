@@ -31,7 +31,8 @@ export function HotZoneFact({ gx, gy }: { gx: number; gy: number }) {
 export function useInHotZone() {
   const q = useHotZone();
   const z = q.data?.today ?? null;
-  const st = useExplorer((s) => s.state);
+  // (re-checked when you've moved a little or set off somewhere: not every frame of steering)
+  const st = useExplorer((s) => (s.state ? `${s.state.mode}:${s.state.dest ? 'go' : ''}:${Math.round(s.state.lng * 2000)}:${Math.round(s.state.lat * 2000)}` : ''));
   const [inside, setInside] = useState(false);
   useEffect(() => {
     if (!z) { setInside(false); return; }

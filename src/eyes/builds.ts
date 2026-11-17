@@ -109,47 +109,117 @@ class Kit {
   }
 }
 
-/** a moving part (only for places near you): its own mesh, turned or bobbed each frame */
-type Anim = { obj: THREE.Object3D; kind: 'spin' | 'bob' | 'flicker'; axis?: THREE.Vector3; speed: number; phase: number; base?: THREE.Vector3 };
+/** a moving part: built round its own pivot; it turns (about an axis) or bobs up and down */
+type PartKind = 'spin' | 'bob';
+type PartFn = (at: THREE.Vector3, kind: PartKind, speed: number, fill: (k: Kit) => void, axis?: THREE.Vector3) => void;
 
-export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
+/**
+ * The moving parts are drawn by the graphics chip: every vertex knows its part's pivot, axis, speed and phase, and the
+ * shader turns (or bobs) it. Nothing moves on the main thread, so a whole town's Ferris wheels, windmills, gears,
+ * portals and floating islands cost nothing per frame, near or far.
+ */
+const ROT = `
+  attribute vec3 aPivot; attribute vec3 aAxis; attribute vec4 aAnim;
+  uniform float uTime;
+  mat3 lvRot(vec3 k, float a) {
+    float c = cos(a), s = sin(a), t = 1.0 - c;
+    return mat3(t * k.x * k.x + c, t * k.x * k.y + s * k.z, t * k.x * k.z - s * k.y,
+                t * k.x * k.y - s * k.z, t * k.y * k.y + c, t * k.y * k.z + s * k.x,
+                t * k.x * k.z + s * k.y, t * k.y * k.z - s * k.x, t * k.z * k.z + c);
+  }`;
+function moving<M extends THREE.Material>(m: M, uTime: { value: number }): M {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = uTime;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>\n${ROT}`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        if (aAnim.x > 0.5 && aAnim.x < 1.5) objectNormal = lvRot(aAxis, uTime * aAnim.y + aAnim.z) * objectNormal;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          float lvA = uTime * aAnim.y + aAnim.z;
+          if (aAnim.x > 1.5) transformed.y += sin(lvA) * aAnim.w;
+          else if (aAnim.x > 0.5) transformed = aPivot + lvRot(aAxis, lvA) * (transformed - aPivot);
+        }`);
+  };
+  m.customProgramCacheKey = () => 'lv-builds-moving';
+  return m;
+}
+
+/** one place, built (cached until what it is changes) */
+type Place = {
+  key: string; sig: string; signSig: string; site: BuildSite; chunk: string;
+  solid: THREE.BufferGeometry | null; glow: THREE.BufferGeometry | null;
+  mSolid: THREE.BufferGeometry | null; mGlow: THREE.BufferGeometry | null;
+  entry: Entry | null; parts: number;
+  /** near you: its door and its sign */
+  close: boolean; sign: THREE.Mesh | null;
+};
+/** what a place looks like (its sign aside) */
+const sigOf = (s: BuildSite) => `${s.kind}|${s.family}|${s.tier}|${s.x.toFixed(2)}|${s.z.toFixed(2)}|${s.w.toFixed(2)}|${s.d.toFixed(2)}|${s.rot.toFixed(3)}|${s.color}|${s.gx}|${s.gy}`;
+const signSigOf = (s: BuildSite) => `${s.owner}|${s.name}|${s.label}|${s.emoji}|${s.color}`;
+/** places are drawn a square of ground at a time (so changing one only draws its square again) */
+const CHUNK = 96;
+const chunkOf = (s: BuildSite) => `${Math.floor(s.x / CHUNK)}_${Math.floor(s.z / CHUNK)}`;
+
+const merge = (list: THREE.BufferGeometry[]) => {
+  if (!list.length) return null;
+  const g = list.length === 1 ? list[0] : mergeGeometries(list)!;
+  if (list.length > 1) for (const x of list) x.dispose();
+  return g;
+};
+/** the extra numbers a moving part's vertices carry (see ROT) */
+function markPart(g: THREE.BufferGeometry, pivot: THREE.Vector3, axis: THREE.Vector3, kind: PartKind, speed: number, phase: number) {
+  const n = (g.attributes.position as THREE.BufferAttribute).count;
+  const P = new Float32Array(n * 3), X = new Float32Array(n * 3), A = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    P[i * 3] = pivot.x; P[i * 3 + 1] = pivot.y; P[i * 3 + 2] = pivot.z;
+    X[i * 3] = axis.x; X[i * 3 + 1] = axis.y; X[i * 3 + 2] = axis.z;
+    A[i * 4] = kind === 'spin' ? 1 : 2; A[i * 4 + 1] = speed; A[i * 4 + 2] = phase; A[i * 4 + 3] = 0.45;
+  }
+  g.setAttribute('aPivot', new THREE.BufferAttribute(P, 3));
+  g.setAttribute('aAxis', new THREE.BufferAttribute(X, 3));
+  g.setAttribute('aAnim', new THREE.BufferAttribute(A, 4));
+  return g;
+}
+
+export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange?: () => void }) {
   const group = new THREE.Group();
   group.userData.layer = 'builds';
   near.add(group);
+  const uTime = { value: 0 };
   const solidM = new THREE.MeshLambertMaterial({ vertexColors: true });
   const glowM = new THREE.MeshBasicMaterial({ vertexColors: true });
-  let meshes: THREE.Mesh[] = [];
-  let anims: Anim[] = [];
-  let sites: BuildSite[] = [];
-  let signs: THREE.Mesh[] = [];
-  type Door = { site: BuildSite; entry: Entry; obj: THREE.Group; openAt: number; knockAt: number };
-  let doors = new Map<string, Door>();
+  const mSolidM = moving(new THREE.MeshLambertMaterial({ vertexColors: true }), uTime);
+  const mGlowM = moving(new THREE.MeshBasicMaterial({ vertexColors: true }), uTime);
   const doorM = new THREE.MeshLambertMaterial({ vertexColors: true });
+  let sites: BuildSite[] = [];
+  const places = new Map<string, Place>();
+  type Chunk = { key: string; keys: Set<string>; meshes: THREE.Mesh[]; dirty: boolean };
+  const chunks = new Map<string, Chunk>();
+  type Door = { site: BuildSite; entry: Entry; obj: THREE.Group; openAt: number; knockAt: number };
+  const doors = new Map<string, Door>();
+  /** places still to build (nearest first), and how many each square is waiting for */
+  let queue: BuildSite[] = [];
+  const waiting = new Map<string, number>();
+  let at = { x: 0, z: 0 };
 
-  const clear = () => {
-    for (const m of meshes) { group.remove(m); m.geometry.dispose(); }
-    for (const s of signs) { group.remove(s); (s.material as THREE.MeshBasicMaterial).map?.dispose(); (s.material as THREE.Material).dispose(); s.geometry.dispose(); }
-    for (const a of anims) { group.remove(a.obj); (a.obj as THREE.Mesh).geometry?.dispose(); }
-    for (const d of doors.values()) { group.remove(d.obj); d.obj.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); }
-    meshes = []; anims = []; signs = []; doors = new Map();
-  };
-
-  /** a moving part: built by `fill` around its own pivot, then placed */
-  const animPart = (site: THREE.Matrix4, at: THREE.Vector3, kind: Anim['kind'], speed: number, fill: (k: Kit) => void, axis?: THREE.Vector3) => {
-    const k = new Kit(new THREE.Matrix4());
-    fill(k);
-    const objs: THREE.Mesh[] = [];
-    if (k.solid.length) objs.push(new THREE.Mesh(mergeGeometries(k.solid)!, solidM));
-    if (k.glow.length) objs.push(new THREE.Mesh(mergeGeometries(k.glow)!, glowM));
-    const holder = new THREE.Group();
-    objs.forEach((o) => holder.add(o));
-    const p = at.clone().applyMatrix4(site);
-    holder.position.copy(p);
-    holder.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(site));
-    holder.scale.setFromMatrixScale(site);
-    for (const o of objs) o.castShadow = true;
-    group.add(holder);
-    anims.push({ obj: holder, kind, speed, phase: hash(p.x * 0.1 + p.z), axis, base: holder.position.clone() });
+  /** a moving part's geometry, in world space, marked with its pivot and how it moves */
+  const partsOf = (M: THREE.Matrix4, s: BuildSite) => {
+    const solid: THREE.BufferGeometry[] = [], glow: THREE.BufferGeometry[] = [];
+    let n = 0;
+    const rot = new THREE.Matrix4().extractRotation(M);
+    const fn: PartFn = (p, kind, speed, fill, axis) => {
+      const pivot = p.clone().applyMatrix4(M);
+      const k = new Kit(M.clone().multiply(new THREE.Matrix4().makeTranslation(p.x, p.y, p.z)));
+      fill(k);
+      const ax = (axis ?? new THREE.Vector3(0, 1, 0)).clone().applyMatrix4(rot).normalize();
+      const phase = hash(pivot.x * 0.1 + pivot.z + s.gx * 0.01) * 6;
+      const sg = merge(k.solid), gg = merge(k.glow);
+      if (sg) solid.push(markPart(sg, pivot, ax, kind, speed, phase));
+      if (gg) glow.push(markPart(gg, pivot, ax, kind, speed, phase));
+      n++;
+    };
+    return { fn, solid, glow, count: () => n };
   };
 
   /** a sign on the front: a name (and emoji) on a board */
@@ -170,11 +240,11 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
     m.position.copy(at.clone().applyMatrix4(site));
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(site));
     group.add(m);
-    signs.push(m);
+    return m;
   };
 
   // ---- the places ------------------------------------------------------------------------------------------------------
-  const build = (s: BuildSite, k: Kit, M: THREE.Matrix4, close: boolean): Entry | null => {
+  const build = (s: BuildSite, k: Kit, M: THREE.Matrix4, part: PartFn): Entry | null => {
     const W = s.w * 0.84, D = s.d * 0.84, A = s.color;
     let entry: Entry | null = null;
     const way = (x: number, z: number, w: number, h: number, door: Entry['door'], color: string, signY = h + 0.7, signW = Math.min(4.4, Math.max(2.6, w * 2.2)), y = y0) => { entry = { x, y, z, w, h, door, color, signY: y + signY, signW }; };
@@ -192,7 +262,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
             k.ball(0.18, tx, y0 + 3.7, tz, '#ffe14d', { glow: true });
           }
           k.box(0.5, R + 1, 0.5, -0.9, y0, 0, '#3a3f5c', { rz: -0.12 }).box(0.5, R + 1, 0.5, 0.9, y0, 0, '#3a3f5c', { rz: 0.12 });
-          if (close) animPart(M, new THREE.Vector3(0, y0 + R + 1, 0), 'spin', 0.25, (w) => {
+          part(new THREE.Vector3(0, y0 + R + 1, 0), 'spin', 0.25, (w) => {
             w.ring(R, 0.12, 0, 0, 0, '#ffffff').ring(R * 0.97, 0.07, 0, 0, 0, A, { glow: true });
             for (let i = 0; i < 10; i++) {
               const a = (i / 10) * Math.PI * 2;
@@ -230,7 +300,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
           k.box(W * 0.3, 10, D * 0.3, 0, y0, -D * 0.05, '#b8af9b').roof(W * 0.34, D * 0.34, 3.5, 0, y0 + 10, -D * 0.05, A);
           k.box(2.8, 3.6, 0.1, 0, y0, D * 0.35 + 0.01, '#14100c');
           way(0, D * 0.35 + 0.08, 2.6, 3.4, 'lift', '#3b2617', 5.4, 5);
-          if (close) animPart(M, new THREE.Vector3(0, y0 + 15.5, -D * 0.05), 'spin', 0.6, (w) => { w.cyl(0.05, 0.05, 2.2, 0, 0, 0, '#ddd').box(1.6, 0.9, 0.04, 0.85, 1.2, 0, A); }, new THREE.Vector3(0, 1, 0));
+          part(new THREE.Vector3(0, y0 + 15.5, -D * 0.05), 'spin', 0.6, (w) => { w.cyl(0.05, 0.05, 2.2, 0, 0, 0, '#ddd').box(1.6, 0.9, 0.04, 0.85, 1.2, 0, A); }, new THREE.Vector3(0, 1, 0));
           break;
         }
         const bw = W * (T ? 0.36 : 0.46), bd = D * (T ? 0.3 : 0.4), bh = T ? 4.2 : 3.2;
@@ -250,11 +320,11 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
         for (let i = 0; i <= 8; i++) { const t = i / 8 - 0.5; if (Math.abs(t) < 0.13) continue; k.box(0.1, 0.9, 0.1, t * W, y0, D / 2, '#e9e1cf').box(0.1, 0.9, 0.1, W / 2, y0, t * D, '#e9e1cf').box(0.1, 0.9, 0.1, -W / 2, y0, t * D, '#e9e1cf'); }
         for (const sx of [-1, 1]) k.box(W / 2 - 1.05, 0.08, 0.06, sx * (W / 4 + 0.53), y0 + 0.7, D / 2, '#e9e1cf');
         k.box(0.06, 0.08, D, W / 2, y0 + 0.7, 0, '#e9e1cf').box(0.06, 0.08, D, -W / 2, y0 + 0.7, 0, '#e9e1cf');
-        if (T && close) {
+        if (T) {
           // a ranch's windmill
           const mx = W * 0.32, mz = -D * 0.3;
           k.cyl(0.5, 0.18, 7, mx, y0, mz, '#d8d2c4', { seg: 6 });
-          animPart(M, new THREE.Vector3(mx, y0 + 7, mz + 0.3), 'spin', 1.2, (w) => { for (let i = 0; i < 4; i++) w.box(0.35, 2.4, 0.05, 0, 0, 0, '#f4efe4', { rz: (i / 4) * Math.PI * 2 }); w.ball(0.2, 0, 0, 0, '#555'); }, new THREE.Vector3(0, 0, 1));
+          part(new THREE.Vector3(mx, y0 + 7, mz + 0.3), 'spin', 1.2, (w) => { for (let i = 0; i < 4; i++) w.box(0.35, 2.4, 0.05, 0, 0, 0, '#f4efe4', { rz: (i / 4) * Math.PI * 2 }); w.ball(0.2, 0, 0, 0, '#555'); }, new THREE.Vector3(0, 0, 1));
         }
         break;
       }
@@ -368,7 +438,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
         k.box(1.2, 0.7, 0.9, 0.1, y0 + 0.2, R * 0.3 + 1.8, '#5a5f66').ball(0.32, -0.15, y0 + 0.95, R * 0.3 + 1.8, '#ffd34d', { seg: 6 }).ball(0.26, 0.3, y0 + 0.92, R * 0.3 + 1.7, '#7c5cff', { glow: true, seg: 6 });
         for (const sx of [-1.5, 1.5]) k.box(0.18, 0.28, 0.18, sx, y0 + 2.1, R * 0.32, '#ffb347', { glow: true });
         if (T >= 1) for (let i = 0; i < 6; i++) { const a = r(i + 20) * 6.28, d2 = R * 0.7; k.cone(0.4 + r(i) * 0.3, 1.6 + r(i + 1) * 1.6, Math.cos(a) * d2, y0, Math.sin(a) * d2, '#19d3c5', { glow: true, seg: 5, rz: (r(i + 2) - 0.5) * 0.6 }); }
-        if (T >= 2 && close) animPart(M, new THREE.Vector3(0, y0 + R * 1.5, -R * 0.25), 'spin', 0.3, (w) => { w.cone(1.6, 9, 0, 0, 0, '#7c5cff', { glow: true, seg: 6 }).cone(1.6, 4, 0, 0, 0, '#c4b5ff', { glow: true, seg: 6, rx: Math.PI }); }, new THREE.Vector3(0, 1, 0));
+        if (T >= 2) part(new THREE.Vector3(0, y0 + R * 1.5, -R * 0.25), 'spin', 0.3, (w) => { w.cone(1.6, 9, 0, 0, 0, '#7c5cff', { glow: true, seg: 6 }).cone(1.6, 4, 0, 0, 0, '#c4b5ff', { glow: true, seg: 6, rx: Math.PI }); }, new THREE.Vector3(0, 1, 0));
         break;
       }
       case 'sky': {
@@ -383,11 +453,10 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
           w.box(0.5, 1.2, 0.5, R * 0.25, 0, R * 0.2, '#f4efe4').roof(0.7, 0.7, 0.5, R * 0.25, 1.2, R * 0.2, '#38bdf8');
           if (T >= 2) w.cyl(1.6, 1.6, 1.6, 0, 0, R * 0.1, '#e8ecff').dome(1.6, 0, 1.6, R * 0.1, '#c9d3ff').cyl(0.25, 0.25, 2.2, 0.5, 2.1, R * 0.1, '#3a3f5c', { rz: -0.8 });
         };
-        if (close) animPart(M, new THREE.Vector3(0, y0 + 7 + T * 3, 0), 'bob', 0.6, fill);
-        else { const sub = new Kit(M.clone().multiply(new THREE.Matrix4().makeTranslation(0, y0 + 7 + T * 3, 0))); fill(sub); k.solid.push(...sub.solid); k.glow.push(...sub.glow); }
-        if (T >= 1 && close) for (let i = 0; i < 3; i++) {
+        part(new THREE.Vector3(0, y0 + 7 + T * 3, 0), 'bob', 0.6, fill);
+        if (T >= 1) for (let i = 0; i < 3; i++) {
           const a = (i / 3) * 6.28 + 0.5;
-          animPart(M, new THREE.Vector3(Math.cos(a) * R * 1.4, y0 + 12 + i * 2.5, Math.sin(a) * R * 1.4), 'bob', 0.4 + i * 0.1, (w) => {
+          part(new THREE.Vector3(Math.cos(a) * R * 1.4, y0 + 12 + i * 2.5, Math.sin(a) * R * 1.4), 'bob', 0.4 + i * 0.1, (w) => {
             w.ball(1.4, 0, 1.6, 0, ['#ff4d6d', '#ffe14d', '#8a7cff'][i], { seg: 12, sy: 1.15 }).box(0.6, 0.5, 0.6, 0, 0, 0, '#8a5a2e');
           });
         }
@@ -418,7 +487,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
         way(0, -D * 0.12 + sd / 2 + 0.06, sw * 0.45, 2.3, 'lift', '#3a3f4a', 4.6, Math.min(4.2, W * 0.8));
         k.cyl(0.35, 0.3, 2.4, sw * 0.32, y0 + 3, -D * 0.2, '#5a5f66', { seg: 8 });
         k.box(1.8, 0.9, 0.7, -sw * 0.25, y0, D * 0.3, '#7a5432').box(0.3, 0.3, 0.3, -sw * 0.25, y0 + 0.9, D * 0.3, '#ffb347', { glow: true });
-        if (close) animPart(M, new THREE.Vector3(0, y0 + 3.6, -D * 0.12 + sd / 2 + 0.15), 'spin', 0.8, (w) => {
+        part(new THREE.Vector3(0, y0 + 3.6, -D * 0.12 + sd / 2 + 0.15), 'spin', 0.8, (w) => {
           w.ring(0.7, 0.18, 0, 0, 0, '#f59e0b', { seg: 16 });
           for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; w.box(0.3, 0.3, 0.25, Math.cos(a) * 0.9, Math.sin(a) * 0.9 - 0.15, 0, '#f59e0b', { rz: a }); }
         }, new THREE.Vector3(0, 0, 1));
@@ -452,7 +521,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
           for (const [x, z, w, d] of [[0, -D / 2, W, 0.8], [0, D / 2, W, 0.8], [-W / 2, 0, 0.8, D], [W / 2, 0, 0.8, D]] as const) k.box(w, 4, d, x, y0, z, '#57525e');
           for (const sx of [-1, 1]) for (const sz of [-1, 1]) k.cyl(1.4, 1.4, 7, sx * W / 2, y0, sz * D / 2, '#5f5a66', { seg: 8 }).cone(1.7, 2.6, sx * W / 2, y0 + 7, sz * D / 2, '#b23cff', { seg: 8 });
         }
-        if (T >= 2 && close) animPart(M, new THREE.Vector3(0, y0 + 5, -D * 0.2), 'spin', 1.4, (w) => { w.ring(3, 0.35, 0, 0, 0, '#b23cff', { glow: true, seg: 32 }).ring(2.2, 0.2, 0, 0, 0, '#ff4fd8', { glow: true, seg: 28 }).ring(1.3, 0.15, 0, 0, 0, '#22e3ff', { glow: true, seg: 24 }); }, new THREE.Vector3(0, 0, 1));
+        if (T >= 2) part(new THREE.Vector3(0, y0 + 5, -D * 0.2), 'spin', 1.4, (w) => { w.ring(3, 0.35, 0, 0, 0, '#b23cff', { glow: true, seg: 32 }).ring(2.2, 0.2, 0, 0, 0, '#ff4fd8', { glow: true, seg: 28 }).ring(1.3, 0.15, 0, 0, 0, '#22e3ff', { glow: true, seg: 24 }); }, new THREE.Vector3(0, 0, 1));
         break;
       }
       case 'brawl': {
@@ -500,6 +569,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
     }
     // (the panels are a lighter shade of the door)
     const geo = mergeGeometries(k.solid)!;
+    for (const g of k.solid) g.dispose();
     const C = geo.attributes.color as THREE.BufferAttribute;
     const base = new THREE.Color(e.color);
     for (let i = 0; i < C.count; i++) if (C.getX(i) === 1 && C.getY(i) === 1 && C.getZ(i) === 1) C.setXYZ(i, Math.min(1, base.r * 1.25), Math.min(1, base.g * 1.25), Math.min(1, base.b * 1.25));
@@ -514,37 +584,137 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
     group.add(obj);
     doors.set(s.key, { site: s, entry: e, obj, openAt: -1, knockAt: -1 });
   };
+  const siteM = (s: BuildSite) => new THREE.Matrix4().makeRotationY(s.rot).setPosition(s.x, 0, s.z);
 
-  const set = (list: BuildSite[], at: { x: number; z: number }) => {
-    clear();
-    sites = list;
-    if (!list.length) return;
-    const solid: THREE.BufferGeometry[] = [], glow: THREE.BufferGeometry[] = [];
-    const closeR = opts.phone ? 110 : 170;
-    // the places nearest you get their moving parts, their doors and their signs
-    const order = [...list].sort((a, b) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(b.x - at.x, b.z - at.z));
-    let near2 = 0;
-    for (const s of order) {
-      const M = new THREE.Matrix4().makeRotationY(s.rot).setPosition(s.x, 0, s.z);
-      const k = new Kit(M);
-      const close = Math.hypot(s.x - at.x, s.z - at.z) < closeR && near2 < (opts.phone ? 14 : 30);
-      if (close) near2++;
-      const e = build(s, k, M, close && anims.length < (opts.phone ? 24 : 60));
-      if (close && e) {
-        if (e.door !== 'none') makeDoor(s, e, M);
-        sign(M, s.owner ? `@${s.owner}’s ${s.label}` : s.name || s.label, s.emoji, s.color, new THREE.Vector3(e.x, e.signY, e.z + 0.12), e.signW);
-      }
-      solid.push(...k.solid); glow.push(...k.glow);
+  // ---- near you: doors and signs (only the places close by have them) ---------------------------------------------------
+  const closeR = opts.phone ? 110 : 170, maxClose = opts.phone ? 14 : 30;
+  const dropClose = (p: Place) => {
+    p.close = false;
+    if (p.sign) { group.remove(p.sign); (p.sign.material as THREE.MeshBasicMaterial).map?.dispose(); (p.sign.material as THREE.Material).dispose(); p.sign.geometry.dispose(); p.sign = null; }
+    const d = doors.get(p.key);
+    if (d) { group.remove(d.obj); d.obj.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); doors.delete(p.key); }
+  };
+  const makeClose = (p: Place) => {
+    p.close = true;
+    const s = p.site, e = p.entry;
+    if (!e) return;
+    const M = siteM(s);
+    if (e.door !== 'none') makeDoor(s, e, M);
+    p.sign = sign(M, s.owner ? `@${s.owner}’s ${s.label}` : s.name || s.label, s.emoji, s.color, new THREE.Vector3(e.x, e.signY, e.z + 0.12), e.signW);
+  };
+  /** which places are near enough to have their doors and signs (a few more each time: no burst of work) */
+  const refreshClose = (burst = 4) => {
+    const list = [...places.values()].map((p) => ({ p, d: Math.hypot(p.site.x - at.x, p.site.z - at.z) })).sort((a, b) => a.d - b.d);
+    let n = 0, made = 0;
+    for (const { p, d } of list) {
+      // (a little further to leave than to arrive, so walking along the edge doesn't flicker)
+      const want = n < maxClose && d < (p.close ? closeR * 1.2 : closeR);
+      if (want) n++;
+      if (want && !p.close) { if (made < burst) { makeClose(p); made++; } }
+      else if (!want && p.close) dropClose(p);
     }
-    if (solid.length) { const m = new THREE.Mesh(mergeGeometries(solid)!, solidM); m.castShadow = m.receiveShadow = true; group.add(m); meshes.push(m); }
-    if (glow.length) { const m = new THREE.Mesh(mergeGeometries(glow)!, glowM); group.add(m); meshes.push(m); }
-    for (const g of [...solid, ...glow]) g.dispose();
   };
 
+  // ---- building: a place at a time, a square at a time --------------------------------------------------------------
+  const buildPlace = (s: BuildSite) => {
+    const M = siteM(s);
+    const k = new Kit(M);
+    const parts = partsOf(M, s);
+    const entry = build(s, k, M, parts.fn);
+    const p: Place = {
+      key: s.key, sig: sigOf(s), signSig: signSigOf(s), site: s, chunk: chunkOf(s),
+      solid: merge(k.solid), glow: merge(k.glow), mSolid: merge(parts.solid), mGlow: merge(parts.glow),
+      entry, parts: parts.count(), close: false, sign: null,
+    };
+    places.set(s.key, p);
+    let c = chunks.get(p.chunk);
+    if (!c) { c = { key: p.chunk, keys: new Set(), meshes: [], dirty: true }; chunks.set(p.chunk, c); }
+    c.keys.add(s.key); c.dirty = true;
+  };
+  const dropPlace = (p: Place) => {
+    dropClose(p);
+    for (const g of [p.solid, p.glow, p.mSolid, p.mGlow]) g?.dispose();
+    places.delete(p.key);
+    const c = chunks.get(p.chunk);
+    if (c) { c.keys.delete(p.key); c.dirty = true; }
+  };
+  /** a square's meshes, made again from its places (each already built: this only joins them up) */
+  const drawChunk = (c: Chunk) => {
+    for (const m of c.meshes) { group.remove(m); m.geometry.dispose(); }
+    c.meshes = []; c.dirty = false;
+    if (!c.keys.size) { chunks.delete(c.key); return; }
+    const ps = [...c.keys].map((k) => places.get(k)!).filter(Boolean);
+    const join = (list: (THREE.BufferGeometry | null)[]) => { const l = list.filter((g): g is THREE.BufferGeometry => !!g); return l.length ? (l.length === 1 ? l[0].clone() : mergeGeometries(l)!) : null; };
+    const add = (g: THREE.BufferGeometry | null, m: THREE.Material, cast: boolean, receive: boolean, pad = 0) => {
+      if (!g) return;
+      g.computeBoundingSphere();
+      if (pad && g.boundingSphere) g.boundingSphere.radius += pad;
+      const mesh = new THREE.Mesh(g, m);
+      mesh.castShadow = cast; mesh.receiveShadow = receive;
+      mesh.matrixAutoUpdate = false;
+      group.add(mesh); c.meshes.push(mesh);
+    };
+    add(join(ps.map((p) => p.solid)), solidM, true, true);
+    add(join(ps.map((p) => p.glow)), glowM, false, false);
+    add(join(ps.map((p) => p.mSolid)), mSolidM, true, false, 1.5);
+    add(join(ps.map((p) => p.mGlow)), mGlowM, false, false, 1.5);
+  };
+  /** build what's waiting, for at most `ms` milliseconds; draw the squares that are ready */
+  const work = (ms: number) => {
+    const t0 = performance.now();
+    let changed = false;
+    while (queue.length && performance.now() - t0 < ms) {
+      const s = queue.shift()!;
+      const ck = chunkOf(s);
+      waiting.set(ck, (waiting.get(ck) ?? 1) - 1);
+      if (!places.has(s.key)) buildPlace(s);
+    }
+    for (const c of [...chunks.values()]) {
+      if (!c.dirty || (waiting.get(c.key) ?? 0) > 0) continue;
+      drawChunk(c); changed = true;
+      if (performance.now() - t0 > ms) break;
+    }
+    if (changed) { refreshClose(); opts.onChange?.(); }
+    return queue.length > 0 || [...chunks.values()].some((c) => c.dirty);
+  };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const kick = () => {
+    if (timer) return;
+    const step = () => { timer = null; if (work(opts.phone ? 5 : 7)) timer = setTimeout(step, 12); };
+    timer = setTimeout(step, 0);
+  };
+
+  const set = (list: BuildSite[], here: { x: number; z: number }) => {
+    sites = list;
+    at = { x: here.x, z: here.z };
+    const want = new Map(list.map((s) => [s.key, s]));
+    // gone, or changed into something else: taken down
+    for (const p of [...places.values()]) {
+      const s = want.get(p.key);
+      if (!s || sigOf(s) !== p.sig) dropPlace(p);
+      else {
+        p.site = s;
+        // (renamed, or someone new owns it: just its sign)
+        if (signSigOf(s) !== p.signSig) { p.signSig = signSigOf(s); if (p.close) { dropClose(p); makeClose(p); } }
+      }
+    }
+    // new: built nearest first, a few at a time
+    queue = list.filter((s) => !places.has(s.key)).sort((a, b) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(b.x - at.x, b.z - at.z));
+    waiting.clear();
+    for (const s of queue) waiting.set(chunkOf(s), (waiting.get(chunkOf(s)) ?? 0) + 1);
+    // (one or two new places, like a plot just bought: there and then)
+    if (queue.length <= 3) work(Infinity);
+    else if (work(opts.phone ? 6 : 10)) kick();
+    if (!queue.length && ![...chunks.values()].some((c) => c.dirty)) refreshClose();
+  };
+
+  let lastClose = 0;
   return {
     set,
-    update: (t: number) => {
+    update: (t: number, here?: { x: number; z: number }) => {
+      uTime.value = t;
       const now = performance.now();
+      if (here && now - lastClose > 400) { lastClose = now; at = { x: here.x, z: here.z }; refreshClose(2); }
       for (const d of doors.values()) {
         let open = d.openAt < 0 ? 0 : Math.min(1, (now - d.openAt) / 750);
         open = open * open * (3 - 2 * open);
@@ -552,10 +722,6 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
         const mesh = d.obj.children[0];
         if (d.entry.door === 'lift') { mesh.position.y = open * d.entry.h * 0.92; mesh.position.z = 0; }
         else { mesh.rotation.y = open * 1.75 * (d.entry.door === 'gate' ? 1.1 : 1); mesh.position.z = -shake; }
-      }
-      for (const a of anims) {
-        if (a.kind === 'spin' && a.axis) a.obj.children.forEach((c) => c.setRotationFromAxisAngle(a.axis!, t * a.speed + a.phase * 6));
-        else if (a.kind === 'bob' && a.base) a.obj.position.y = a.base.y + Math.sin(t * a.speed + a.phase * 6) * 0.45;
       }
     },
     /** the place you're at: close enough to walk in, and more or less in front of you */
@@ -578,7 +744,10 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
     },
     /** knock (on a door) or just open up (a gate, a portcullis): how long until it's open (ms), or -1 */
     knock: (key: string, onKnock?: () => void, onOpen?: () => void): number => {
-      const d = doors.get(key);
+      let d = doors.get(key);
+      // (walked straight up to it before its door was hung: hang it now)
+      const p = places.get(key);
+      if (!d && p && !p.close && p.entry && p.entry.door !== 'none') { makeClose(p); d = doors.get(key); }
       if (!d) return 0;
       const now = performance.now();
       if (d.entry.door === 'swing') {
@@ -593,18 +762,31 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean }) {
     /** where its way in is (world), and which way you go through it */
     entryOf: (key: string): { at: THREE.Vector3; dir: THREE.Vector3 } | null => {
       const s = sites.find((x) => x.key === key);
-      const d = doors.get(key);
       if (!s) return null;
-      const M = new THREE.Matrix4().makeRotationY(s.rot).setPosition(s.x, 0, s.z);
-      const e = d?.entry;
-      const at = new THREE.Vector3(e?.x ?? 0, 0, e ? e.z : s.d / 2).applyMatrix4(M);
+      const M = siteM(s);
+      const e = places.get(key)?.entry ?? null;
+      const at2 = new THREE.Vector3(e?.x ?? 0, 0, e ? e.z : s.d / 2).applyMatrix4(M);
       const dir = new THREE.Vector3(0, 0, -1).applyMatrix4(new THREE.Matrix4().extractRotation(M));
-      return { at, dir };
+      return { at: at2, dir };
     },
     list: () => sites,
+    has: (key: string) => places.has(key) || queue.some((s) => s.key === key),
+    /** still building some (or drawing their squares) */
+    busy: () => queue.length > 0 || [...chunks.values()].some((c) => c.dirty),
     entryKind: (key: string): Entry['door'] | null => doors.get(key)?.entry.door ?? null,
-    counts: () => ({ sites: sites.length, meshes: meshes.length, moving: anims.length, signs: signs.length, doors: doors.size }),
-    dispose: () => { clear(); near.remove(group); solidM.dispose(); glowM.dispose(); doorM.dispose(); },
+    counts: () => {
+      let meshes = 0, moving = 0, signs = 0;
+      for (const c of chunks.values()) meshes += c.meshes.length;
+      for (const p of places.values()) { if (p.parts) moving++; if (p.sign) signs++; }
+      return { sites: sites.length, built: places.size, chunks: chunks.size, meshes, moving, signs, doors: doors.size, waiting: queue.length };
+    },
+    dispose: () => {
+      if (timer) clearTimeout(timer);
+      for (const p of [...places.values()]) dropPlace(p);
+      for (const c of chunks.values()) for (const m of c.meshes) { group.remove(m); m.geometry.dispose(); }
+      chunks.clear();
+      near.remove(group); solidM.dispose(); glowM.dispose(); mSolidM.dispose(); mGlowM.dispose(); doorM.dispose();
+    },
   };
 }
 export type Builds = ReturnType<typeof createBuilds>;

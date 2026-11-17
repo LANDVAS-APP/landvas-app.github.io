@@ -103,6 +103,18 @@ export class PlotBlocks {
     this.blocks.clear();
   }
 
+  /** Put a row into its block, if that block is loaded (a plot just bought shows straight away; the server's copy
+   *  replaces it when the block is loaded again). */
+  upsert(row: PlotRow) {
+    const k = `${row[0] >> BLOCK_SHIFT}_${row[1] >> BLOCK_SHIFT}`;
+    const rows = this.blocks.get(k);
+    if (!rows) return;
+    const i = rows.findIndex((r) => r[0] === row[0] && r[1] === row[1]);
+    const next = rows.slice();
+    if (i >= 0) next[i] = row; else next.push(row);
+    this.blocks.set(k, next);
+  }
+
   /** What a plot is used as (from blocks already loaded): undefined when that block isn't loaded. */
   kindAt(gx: number, gy: number): PlotKind | null | undefined {
     const rows = this.blocks.get(`${gx >> BLOCK_SHIFT}_${gy >> BLOCK_SHIFT}`);

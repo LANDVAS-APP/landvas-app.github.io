@@ -165,22 +165,27 @@ export function lookDownLayers(l: SelfLook): SelfLayers {
 export function bikeLayers(l: SelfLook): SelfLayers {
   const t = skinOf(l), k = `b${++uid}`, A = l.accent;
   const grip = (x: number) => `<rect x="${x - 34}" y="196" width="68" height="30" rx="15" fill="url(#rb${k})" stroke="#0b0c10" stroke-width="2.5"/>${[0, 1, 2, 3, 4, 5].map((i) => `<rect x="${x - 26 + i * 9.5}" y="199" width="3" height="24" rx="1.5" fill="#000" opacity="0.35"/>`).join('')}`;
-  // the tyre's tread: a ridge down the middle and knobs either side, in a layer of its own that rolls toward you
-  // (down the picture) as you ride
-  const tread = Array.from({ length: 24 }, (_, i) => {
-    const y = 201 + i * 13, w = 18 + (y - 214) * 0.006;
-    return `<rect x="${200 - w}" y="${y}" width="${w - 3}" height="7" rx="2.5" fill="#3d4250"/><rect x="${203}" y="${y + 6.5}" width="${w - 3}" height="7" rx="2.5" fill="#3d4250"/>`;
+  // the tyre's tread: knobs either side of the ridge, in a layer of its own that rolls toward you (down the picture)
+  // as you ride. It's a picture that only slides (the phone moves it, nothing is drawn again), clipped to the tyre.
+  const tread = Array.from({ length: 25 }, (_, i) => {
+    const y = 188 + i * 13, w = 18 + (y - 214) * 0.006;
+    return `<rect x="${(200 - w).toFixed(2)}" y="${y}" width="${(w - 3).toFixed(2)}" height="7" rx="2.5" fill="#3d4250"/><rect x="203" y="${y + 6.5}" width="${(w - 3).toFixed(2)}" height="7" rx="2.5" fill="#3d4250"/>`;
   }).join('');
   const TYRE = 'M181 222 C 181 208 219 208 219 222 L 220 500 L 180 500 Z';
   return {
     // the front wheel, seen from the saddle: the top of the tyre, edge-on, standing up under the bars and running
     // down and away to the road
     wheel: `<svg ${VB}><defs>
-        <linearGradient id="ty${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0a0b0e"/><stop offset="0.28" stop-color="#262a33"/><stop offset="0.5" stop-color="#343946"/><stop offset="0.72" stop-color="#262a33"/><stop offset="1" stop-color="#0a0b0e"/></linearGradient>
+        <linearGradient id="ty${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0a0b0e"/><stop offset="0.28" stop-color="#262a33"/><stop offset="0.5" stop-color="#343946"/><stop offset="0.72" stop-color="#262a33"/><stop offset="1" stop-color="#0a0b0e"/></linearGradient></defs>
+      <path d="${TYRE}" fill="url(#ty${k})" stroke="#050608" stroke-width="2.5"/></svg>`,
+    // (the tyre runs from x 180 to 220 and from y 208 down past the picture's foot at 500: 40 × 292 of its 400 × 300)
+    tread: `<div style="position:absolute;left:45.25%;width:9.5%;top:69.33%;height:97.33%;overflow:hidden;border-radius:50% 50% 0 0 / 4.5% 4.5% 0 0">
+        <div class="lv-fp-tread" style="position:absolute;left:0;width:100%;top:-6.85%;height:111.3%;will-change:transform">
+          <svg viewBox="181 188 38 325" preserveAspectRatio="none" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">${tread}</svg></div></div>`,
+    wheelTop: `<svg ${VB}><defs>
         <linearGradient id="tf${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="0.75" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.35"/></linearGradient>
         <clipPath id="tc${k}"><path d="${TYRE}"/></clipPath></defs>
-      <path d="${TYRE}" fill="url(#ty${k})" stroke="#050608" stroke-width="2.5"/>
-      <g clip-path="url(#tc${k})"><g class="lv-fp-tread">${tread}</g>
+      <g clip-path="url(#tc${k})">
         <rect x="198.5" y="200" width="3" height="300" fill="#4a505f" opacity="0.6"/>
         <path d="M186 214 L 186 500" stroke="#fff" stroke-width="2.4" opacity="0.12"/>
         <rect x="170" y="200" width="60" height="300" fill="url(#tf${k})"/></g></svg>`,
@@ -264,12 +269,13 @@ export function carLayers(l: SelfLook): SelfLayers {
       <path d="M118 236 C 140 210 260 210 282 236 L 282 262 L 118 262 Z" fill="#0d0f17" stroke="#3b4058" stroke-width="2.4"/>
       <circle cx="162" cy="244" r="26" fill="url(#dl${k})" stroke="#59607c" stroke-width="2"/>${ticks(162, 244, 26)}
       <circle cx="238" cy="244" r="26" fill="url(#dl${k})" stroke="#59607c" stroke-width="2"/>${ticks(238, 244, 26)}
-      <path class="lv-fp-needle" d="M162 244 L162 224" stroke="#ff4a3d" stroke-width="3" stroke-linecap="round" style="transform-origin:162px 244px;transform:rotate(-120deg)"/>
       <path class="lv-fp-rev" d="M238 244 L238 224" stroke="#ff4a3d" stroke-width="3" stroke-linecap="round" style="transform-origin:238px 244px;transform:rotate(-110deg)"/>
       <circle cx="162" cy="244" r="4" fill="#ff4a3d"/><circle cx="238" cy="244" r="4" fill="#ff4a3d"/>
       <!-- the steering column, down from behind the wheel -->
       <path d="M168 330 L 160 640 L 240 640 L 232 330 Z" fill="#101219" stroke="#262a3d" stroke-width="2"/>
     </svg>`,
+    // the speedometer's needle: a layer of its own, so it turns without the whole dashboard being drawn again
+    needle: `<svg ${VB}><path d="M162 244 L162 224" stroke="#ff4a3d" stroke-width="3" stroke-linecap="round"/><circle cx="162" cy="244" r="4" fill="#ff4a3d"/></svg>`,
     // the steering wheel: a leather rim (its stitching catching the light), three spokes, the hub with its badge
     wheel: `<svg ${VB}><defs>${SHADOW(k)}
         <linearGradient id="lw${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4f5469"/><stop offset="0.35" stop-color="#262938"/><stop offset="1" stop-color="#121319"/></linearGradient>

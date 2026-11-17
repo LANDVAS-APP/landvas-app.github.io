@@ -13,7 +13,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, type LevState } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
-import type { PlotRow } from '../backend/types';
+import type { PlotKind, PlotRow } from '../backend/types';
 import { explorerNow, useExplorer } from '../explorer/explorer';
 import { Joystick, setDriveBearing, useDriveKeys } from '../explorer/Joystick';
 import { isPhone } from '../lib/gfx';
@@ -36,7 +36,7 @@ import { isPrimordial, rarityInfo, rarityTier, setRarities } from '../shared/rar
 import { toMap } from '../lib/toMap';
 import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
 import { bearingDistance, fmtDistance, makeFrame, type Frame } from './geo';
-import { buildBuildings, drawGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
+import { buildBuildings, drawGround, paintGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
 import type { BuildSite } from './builds';
 import { FirstPersonSelf } from './FirstPersonSelf';
@@ -93,7 +93,12 @@ export default function EyesScreen() {
   const settings = useUi((s) => s.settings);
   const selected = useUi((s) => s.selected);
   const select = useUi((s) => s.select);
-  const ex = useExplorer();
+  // (what's needed from your explorer, piece by piece: its position changes every frame while you steer, and this
+  // screen mustn't draw itself again for that)
+  const gps = useExplorer((s) => s.gps);
+  const ride = useExplorer((s) => rideOf(s.state));
+  const trip = useExplorer((s) => s.state?.trip ?? null);
+  const joyOn = useExplorer((s) => s.state?.joystick?.enabled !== false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [eyes, setEyes] = useState<Eyes | null>(null);
   const [frame, setFrame] = useState<Frame | null>(null);
@@ -101,11 +106,11 @@ export default function EyesScreen() {
   const [ready, setReady] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [gyro, setGyro] = useState(false);
-  const [steer, setSteer] = useState(() => ex.gps !== 'on' && ex.gps !== 'asking');
+  const [steer, setSteer] = useState(() => { const g = useExplorer.getState().gps; return g !== 'on' && g !== 'asking'; });
   const steerRef = useRef(steer); steerRef.current = steer;
   const [hint, setHint] = useState(() => !safeStorage('landvas.eyes.hinted', false));
   const [flash, setFlash] = useState(0);
-  const start = useRef(explorerNow(ex.state, ex.offset));
+  const start = useRef((() => { const st = useExplorer.getState(); return explorerNow(st.state, st.offset); })());
   const hasExplorer = !!start.current;
 
   // ---- the scene ----------------------------------------------------------------------------------------------------
@@ -128,7 +133,6 @@ export default function EyesScreen() {
       vehicle: () => (useExplorer.getState().state?.vehicle?.current ?? 'walk') as 'walk' | 'bike' | 'car' | 'jet',
       onPick: (p) => onPick.current(p),
       onLook: (y, p) => { heading = y; headingPitch = p; lookSubs.forEach((f) => f()); },
-      onNeedClose: (x, z) => closeAsk.current?.(x, z),
       reduceMotion: !!settings.reduceMotion,
     });
     const f = makeFrame(start.current.lng, start.current.lat);
@@ -157,7 +161,7 @@ export default function EyesScreen() {
     return () => { live = false; };
   }, [eyes, selfLook]);
   // the jetpack: hold ▲ / ▼ to rise and sink (2–80 m)
-  const vehicle = ex.state?.vehicle?.current ?? 'walk';
+  const vehicle = useExplorer((s) => s.state?.vehicle?.current ?? 'walk');
   const [alt, setAlt] = useState(jetAlt);
   const climb = useRef<number | null>(null);
   const hold = (dir: 1 | -1) => {
@@ -244,9 +248,6 @@ export default function EyesScreen() {
     return () => clearInterval(t);
   }, [eyes, frame]);
 
-  // the sharpest ground right round you is painted again as you move (the scene asks)
-  const closeAsk = useRef<((x: number, z: number) => void) | null>(null);
-
   // ---- the real place: streets, buildings, trees, land out to the horizon ---------------------------------------------
   useEffect(() => {
     if (!eyes || !frame) return;
@@ -283,15 +284,9 @@ export default function EyesScreen() {
       if (!live) return;
       const big = isPhone() ? 1536 : 2048;
       eyes.setGround({ canvas: drawGround(frame, near, nearR, big, pal, { detail: true, real }), region: nearR, glow }, null);
-      // the sharpest ground, right round you: kerbs, road markings, zebra crossings
-      const CLOSE = isPhone() ? 150 : 200;
-      closeAsk.current = (x, z) => {
-        if (!live) return;
-        const r = { x0: Math.round(x - CLOSE / 2), z0: Math.round(z - CLOSE / 2), size: CLOSE };
-        eyes.setClose({ canvas: drawGround(frame, near, r, isPhone() ? 1536 : 2048, pal, { detail: true, real, close: true }), region: r });
-      };
-      const at0 = eyes.debug().pos as number[] | undefined;
-      closeAsk.current(at0?.[0] ?? 0, at0?.[2] ?? 0);
+      // the sharpest ground, right round you: kerbs, road markings, zebra crossings (painted a small square at a time
+      // as you go: only what's in or near each square is traced)
+      eyes.setClosePainter((g, r, px) => { if (live) paintGround(g, frame, near, r, px, pal, { detail: true, real, close: true, cull: 25 }); });
       // what the ground is, metre by metre (trees and lamps go on open ground, grass grows on lawns)
       const occ = occupancy(frame, near, nearR, isPhone() ? 0.9 : 0.75);
       const bld = buildBuildings(frame, near, pal, { near: NEAR_HALF * 1.1, far: NEAR_HALF * 1.1, skylineMin: 999, budget: isPhone() ? 70_000 : 160_000, real });
@@ -313,7 +308,7 @@ export default function EyesScreen() {
         eyes.setStreet(st, all.roofBits);
       }
     })().catch(() => setSteps((s) => ({ ...s, streets: 'none' })));
-    return () => { live = false; closeAsk.current = null; };
+    return () => { live = false; eyes.setClosePainter(null); };
   }, [eyes, frame]);
 
   useEffect(() => { if (steps.streets !== 'wait') { const t = setTimeout(() => setReady(true), 350); return () => clearTimeout(t); } }, [steps.streets]);
@@ -324,12 +319,16 @@ export default function EyesScreen() {
   const art = useMemo(() => new ArtIndex(), []);
   const plotsAt = useRef<{ gx: number; gy: number; at: number } | null>(null);
   const rowsRef = useRef<PlotRow[]>([]);
-  const reload = useRef<((force: boolean) => void) | null>(null);
+  const reload = useRef<((force: boolean, reset?: boolean) => void) | null>(null);
   useEffect(() => {
     if (!eyes || !frame) return;
     let live = true;
     const artDone = new Set<string>();
-    const load = async (force = false) => {
+    // the cards over your own plots, drawn once each (again only when the plot or its painting changes)
+    const cards = new Map<string, HTMLCanvasElement>();
+    const revs = new Map<string, number | string>();
+    const pics = new Map<string, { rev: number; bmp: ImageBitmap }>();
+    const load = async (force = false, reset = force) => {
       if (document.hidden && !force) return;
       const st = useExplorer.getState();
       const p = explorerNow(st.state, st.offset);
@@ -339,7 +338,7 @@ export default function EyesScreen() {
       if (!force && prev && Math.max(Math.abs(prev.gx - c.gx), Math.abs(prev.gy - c.gy)) < 8 && Date.now() - prev.at < 25_000) return;
       plotsAt.current = { ...c, at: Date.now() };
       const n = Math.ceil(PLOT_R / plotMetres(p.lat));
-      if (force) blocks.reset();
+      if (reset) blocks.reset();
       let rows: PlotRow[] = [];
       try { rows = await blocks.rowsIn(c.gx - n, c.gy - n, c.gx + n, c.gy + n, 16); } catch { return; }
       if (!live) return;
@@ -363,34 +362,63 @@ export default function EyesScreen() {
         try {
           const rev = await art.rev(22, r[0], r[1]);
           if (!rev) return;
-          const buf = await getBackend().artTile(22, r[0], r[1], rev);
-          if (!buf || !live) return;
-          const bmp = await createImageBitmap(new Blob([buf], { type: 'image/png' }));
+          revs.set(k, rev);
+          // (the same painting as last time: no fetching or decoding it again)
+          const had = pics.get(k);
+          let bmp: ImageBitmap;
+          if (had && had.rev === rev) bmp = had.bmp;
+          else {
+            const buf = await getBackend().artTile(22, r[0], r[1], rev);
+            if (!buf || !live) return;
+            bmp = await createImageBitmap(new Blob([buf], { type: 'image/png' }));
+            pics.set(k, { rev, bmp });
+            if (pics.size > 260) pics.delete(pics.keys().next().value!);
+          }
           bitmaps.set(k, bmp);
-          if (!artDone.has(`${k}:${rev}`) || force) { artDone.add(`${k}:${rev}`); eyes.setArt(r[0], r[1], bmp); }
+          // (a painting that's already hanging there, unchanged, stays: no sending it to the graphics chip again)
+          if (!artDone.has(`${k}:${rev}`) || !eyes.hasArt(r[0], r[1])) { artDone.add(`${k}:${rev}`); eyes.setArt(r[0], r[1], bmp); }
         } catch { /* no art there after all */ }
       }));
       if (!live) return;
       // your own plots float a card over them
       const mine = rows.filter((r) => r[4]).map((r) => ({ r, d: Math.hypot(r[0] - c.gx, r[1] - c.gy) })).sort((a, b) => a.d - b.d).slice(0, 16);
-      eyes.setMine(mine.map(({ r }) => ({ gx: r[0], gy: r[1], card: drawCard(r, bitmaps.get(`${r[0]}_${r[1]}`) ?? null) })));
+      eyes.setMine(mine.map(({ r }) => {
+        const k = `${r[0]}_${r[1]}`, ck = `${k}:${r[9]}:${r[10] ?? ''}:${r[12] ? 1 : 0}:${revs.get(k) ?? ''}:${bitmaps.has(k) ? 1 : 0}`;
+        let card = cards.get(ck);
+        if (!card) { card = drawCard(r, bitmaps.get(k) ?? null); cards.set(ck, card); if (cards.size > 64) cards.delete(cards.keys().next().value!); }
+        return { gx: r[0], gy: r[1], card };
+      }));
     };
-    reload.current = (force) => void load(force);
+    reload.current = (force, reset) => void load(force, reset);
     void load(true);
     const t = setInterval(() => void load(), 3000);
     const full = setInterval(() => void load(true), 45_000);
     return () => { live = false; reload.current = null; clearInterval(t); clearInterval(full); };
   }, [eyes, frame, blocks, art]);
-  // a plot's panel closed (you may have claimed it, painted it or let it go): draw the plots again
-  const hadPanel = useRef(false);
+  // a plot's panel closed (you may have claimed it, painted it or let it go): load its corner of the map again (only
+  // that: the rest is as it was)
+  const hadPanel = useRef<{ gx: number; gy: number } | null>(null);
   useEffect(() => {
-    if (selected) { hadPanel.current = true; return; }
-    if (hadPanel.current) { hadPanel.current = false; reload.current?.(true); }
-  }, [selected]);
+    if (selected) { hadPanel.current = { gx: selected.gx, gy: selected.gy }; return; }
+    const c = hadPanel.current;
+    if (c) { hadPanel.current = null; blocks.invalidate(c.gx - 4, c.gy - 4, c.gx + 4, c.gy + 4); reload.current?.(true, false); }
+  }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- the Leviathan --------------------------------------------------------------------------------------------------
   const levQ = useLeviathan(true);
   const lev = levQ.data?.lev ?? null;
+  // where you are, for the distances written on screen (once a second is plenty for those)
+  const [here, setHere] = useState<{ lng: number; lat: number } | null>(null);
+  useEffect(() => {
+    const look = () => {
+      const st = useExplorer.getState();
+      const p = explorerNow(st.state, st.offset);
+      if (p) setHere((h) => (h && Math.abs(h.lng - p.lng) < 2e-5 && Math.abs(h.lat - p.lat) < 2e-5 ? h : { lng: p.lng, lat: p.lat }));
+    };
+    look();
+    const t = setInterval(look, 1000);
+    return () => clearInterval(t);
+  }, []);
   useEffect(() => {
     if (!eyes) return;
     if (!lev || !lev.path || lev.hidden) { eyes.setLeviathan(null); return; }
@@ -534,7 +562,6 @@ export default function EyesScreen() {
   const [summoned, setSummoned] = useState<Summoned | null>(null);
   const [enchPage, setEnchPage] = useState(0);
   const [space, setSpace] = useState(false);
-  const ride = rideOf(ex.state);
   // your companion Inkborn walks with you
   const comp = useCompanion();
   useEffect(() => { eyes?.setCompanion(comp ? { id: comp.c.id, name: comp.c.name, genome: comp.g } : null); }, [eyes, comp?.c.id, comp?.g]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -591,7 +618,8 @@ export default function EyesScreen() {
     if (p.kind === 'beacon') {
       const b = beaconList.find((x) => x.id === p.id);
       if (!b || !frame) return;
-      const here = explorerNow(ex.state, ex.offset) ?? { lng: frame.lng0, lat: frame.lat0 };
+      const st = useExplorer.getState();
+      const here = explorerNow(st.state, st.offset) ?? { lng: frame.lng0, lat: frame.lat0 };
       const bd = bearingDistance(here.lng, here.lat, b.lng, b.lat);
       feel();
       setCard({ kind: 'beacon', emoji: b.emoji, title: b.name, body: `A Primordial ${fmtDistance(bd.m)} ${bearingName(bd.bearing)} of you${b.owner ? ` · held by ${b.owner}` : ''}`, gx: b.gx, gy: b.gy });
@@ -650,6 +678,24 @@ export default function EyesScreen() {
   // a plot you bought here rolls right there on the ground in front of you: turn to it, and let the world play along
   // with the roll (the drop, the ink column in the drum's colours, the beam when it lands)
   const rolling = useCelebration((s) => s.c);
+  // the plot you've just bought stands there at once (plain while its rarity rolls, in its colours once it lands), and
+  // what you bought it as goes up on it straight away
+  const stillRolling = useCelebration((s) => !!s.hidden && !!s.c && s.hidden.gx === s.c.gx && s.hidden.gy === s.c.gy);
+  useEffect(() => {
+    if (!eyes || !rolling) return;
+    const c = rolling, kind = !c.kind || c.kind === 'base' ? 'canvas' : c.kind;
+    const owner = me?.profile.username ?? null;
+    const info = rarityInfo(c.rarity);
+    eyes.upsertPlots([stillRolling
+      ? { gx: c.gx, gy: c.gy, rarity: c.rarity, color: '#E9E4F7', glow: '#FFFFFF', tier: 0, mine: true, group: c.groupId, shiny: false, emoji: null, name: c.name ?? null, kind, owner }
+      : { gx: c.gx, gy: c.gy, rarity: c.rarity, color: info.color, glow: info.glow, tier: rarityTier(c.rarity), mine: true, group: c.groupId, shiny: !!c.shiny, emoji: info.emoji ?? null, name: c.name ?? null, kind, owner }]);
+    if (!stillRolling) {
+      // (and it stays when the plots round you load again, until the server's own copy comes)
+      const row: PlotRow = [c.gx, c.gy, c.type, 1, true, c.groupId, false, owner, null, c.rarity, c.name ?? null, kind as PlotKind, !!c.shiny];
+      blocks.upsert(row);
+      rowsRef.current = [...rowsRef.current.filter((r) => r[0] !== c.gx || r[1] !== c.gy), row];
+    }
+  }, [eyes, rolling, stillRolling]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!eyes) return;
     if (!rolling) { eyes.rollAt(null); return; }
@@ -708,7 +754,7 @@ export default function EyesScreen() {
       </div>
     );
   }
-  const levDist = lev?.path && !lev.hidden && frame ? (() => { const p = levPos(lev); const here = explorerNow(ex.state, ex.offset) ?? { lng: frame.lng0, lat: frame.lat0 }; return bearingDistance(here.lng, here.lat, p.lng, p.lat); })() : null;
+  const levDist = lev?.path && !lev.hidden && frame ? (() => { const p = levPos(lev); const h = here ?? { lng: frame.lng0, lat: frame.lat0 }; return bearingDistance(h.lng, h.lat, p.lng, p.lat); })() : null;
   const markers: { at: number; emoji: string; label: string; key: string }[] = [];
   if (levDist) markers.push({ key: 'lev', at: levDist.bearing, emoji: '🐉', label: fmtDistance(levDist.m) });
   if (hotZone && frame) { const bd = bearingDistance(frame.lng0, frame.lat0, hotZone.lng, hotZone.lat); if (bd.m > hotZone.radiusM && bd.m < 400_000) markers.push({ key: 'hot', at: bd.bearing, emoji: '🔥', label: fmtDistance(bd.m) }); }
@@ -741,8 +787,8 @@ export default function EyesScreen() {
 
       {/* you: your hands, what you hold, your seat (in your explorer's own art) */}
       {/* flying (or riding a train) across the world: your seat by the window */}
-      {ride === 'plane' && <PlaneWindow trip={ex.state?.trip ?? null} />}
-      {ride === 'train' && <TrainWindow trip={ex.state?.trip ?? null} />}
+      {ride === 'plane' && <PlaneWindow trip={trip} />}
+      {ride === 'train' && <TrainWindow trip={trip} />}
       {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade || book || !!ride} />}
       {/* to space: your rocket, from right here */}
       <AnimatePresence>{space && <Suspense key="space" fallback={null}><SpaceFlight look={selfLook} onClose={() => setSpace(false)} /></Suspense>}</AnimatePresence>
@@ -830,11 +876,11 @@ export default function EyesScreen() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 px-[max(14px,env(safe-area-inset-left,0px))] pb-[max(14px,env(safe-area-inset-bottom,0px))]">
         <div className="pointer-events-auto">
           {/* out on GPS for real: players near you who play too */}
-          {me && <MeetNearby onGps={ex.gps === 'on'} />}
-          {me && ex.state?.joystick?.enabled !== false && (steer
+          {me && <MeetNearby onGps={gps === 'on'} />}
+          {me && joyOn && (steer
             ? <Joystick minimal onClose={() => setSteer(false)} />
             : <button className="flex items-center gap-2 rounded-full bg-black/50 px-4 py-2.5 text-sm font-bold shadow-lg" onClick={() => setSteer(true)} data-testid="eyes-steer"><Gamepad2 className="h-4 w-4" /> Steer</button>)}
-          {ex.gps === 'on' && !steer && <div className="mt-1.5 text-[11px] font-semibold text-white/70">📡 Walking for real moves you too</div>}
+          {gps === 'on' && !steer && <div className="mt-1.5 text-[11px] font-semibold text-white/70">📡 Walking for real moves you too</div>}
         </div>
         {skyData?.enabled && (
           <div className="pointer-events-auto mb-1 rounded-2xl bg-black/50 px-3 py-2 text-right text-[11.5px] leading-tight shadow-lg" data-testid="eyes-treasures">
