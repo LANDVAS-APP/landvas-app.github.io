@@ -21,6 +21,7 @@ import { feel } from '../living';
 import { Radar, plotLabel } from '../sizeray';
 import { pickedFor, usePlotPick } from '../plotPick';
 import { usePickOnMapFor } from '../PlotPickOverlay';
+import { readable } from '../../lib/readable';
 
 const DROP = { chest: { e: '🧰', t: 'A chest!' }, star: { e: '⭐', t: 'A falling star (+5 Luck)' }, fox: { e: '🦊', t: 'A fox — chase it back!' }, spores: { e: '🍄', t: 'Spores…' } } as const;
 const away = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m away` : `${fmt(Math.round(km))} km away`);
@@ -193,7 +194,7 @@ export function WormholeScene({ v, view, act, busy, at }: SceneProps) {
               <div key={i} className="flex items-center gap-2 text-[12.5px]">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-[#7B5CFF]/30">{e.home ? '🏠' : '🌀'}</span>
                 <span className="min-w-0 flex-1 truncate font-bold">{e.name ?? (e.home ? 'The wormhole’s plot' : 'Your plot')}{e.place ? ` · ${e.place}` : ''}</span>
-                {e.rarity && <span className="text-[11px] font-black" style={{ color: rarityInfo(e.rarity).color }}>{rarityInfo(e.rarity).name}</span>}
+                {e.rarity && <span className="text-[11px] font-black" style={{ color: readable(rarityInfo(e.rarity).color) }}>{rarityInfo(e.rarity).name}</span>}
                 {!e.home && <Button size="sm" variant="secondary" onClick={() => useWarp.getState().go({ gx: e.gx, gy: e.gy })} data-testid="wormhole-travel">Fly through</Button>}
               </div>
             ))}
@@ -215,7 +216,7 @@ export function WormholeScene({ v, view, act, busy, at }: SceneProps) {
           )}
           {!simple && <div className="text-center text-[11px] font-bold text-white/45">…or tap it on the radar</div>}
           <Radar plots={reachable} picked={far} onPick={(p) => { setFar({ gx: p.gx, gy: p.gy }); if (third?.gx === p.gx && third.gy === p.gy) setThird(null); }} />
-          {pfar && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(pfar.rarity).color }} data-testid="wormhole-far">{plotLabel(pfar)} · {away(pfar.km)}</div>}
+          {pfar && <div className="text-center text-[12px] font-black" style={{ color: readable(rarityInfo(pfar.rarity).color) }} data-testid="wormhole-far">{plotLabel(pfar)} · {away(pfar.km)}</div>}
           {list.length > reachable.length && <p className="text-center text-[11px] text-white/50">{list.length - reachable.length} of your plots are too far for a young wormhole.</p>}
           {view.three && far && (
             <details className="rounded-2xl bg-white/[0.04] p-2"><summary className="cursor-pointer text-[12px] font-black text-[#9BE7FF]">⭐ Constellation: add a third plot</summary>
@@ -228,7 +229,7 @@ export function WormholeScene({ v, view, act, busy, at }: SceneProps) {
                   })}>🗺️ Pick it on the map</Button>
                 )}
                 <Radar plots={reachable.filter((p) => !(p.gx === far.gx && p.gy === far.gy))} picked={third} onPick={(p) => setThird({ gx: p.gx, gy: p.gy })} />
-                {third && (() => { const pt = list.find((p) => p.gx === third.gx && p.gy === third.gy); return pt ? <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(pt.rarity).color }}>⭐ {plotLabel(pt)} · {away(pt.km)}</div> : null; })()}
+                {third && (() => { const pt = list.find((p) => p.gx === third.gx && p.gy === third.gy); return pt ? <div className="text-center text-[12px] font-black" style={{ color: readable(rarityInfo(pt.rarity).color) }}>⭐ {plotLabel(pt)} · {away(pt.km)}</div> : null; })()}
               </div></details>
           )}
           <Button variant="rainbow" size="lg" disabled={!far || !!busy || (canIn ?? 0) > 0} onClick={() => void start()} data-testid="wormhole-open">

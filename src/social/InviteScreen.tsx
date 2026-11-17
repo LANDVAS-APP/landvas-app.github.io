@@ -22,6 +22,7 @@ import { clearPendingReferral } from './referralStore';
 import { poll } from '../lib/poll';
 import { ReferralPackages, bundleLines, stackInk, tierName } from './ReferralPackages';
 import { InviteCardEditor } from './InviteCardEditor';
+import { readable } from '../lib/readable';
 
 type Stack = NonNullable<Referrals['perks']>['stack'];
 
@@ -242,7 +243,7 @@ function Ladder({ count }: { count: number }) {
           <div className="eyebrow">Your crew rank</div>
           <div className="font-display text-xl font-bold">{prev ? prev.name : 'Just getting started'}</div>
         </div>
-        <div className="text-sm text-muted">{next ? <><b className="text-fg tnum">{next.at - count}</b> more friend{next.at - count === 1 ? '' : 's'} to <b style={{ color: next.color }}>{next.name}</b></> : 'Top rank — legendary.'}</div>
+        <div className="text-sm text-muted">{next ? <><b className="text-fg tnum">{next.at - count}</b> more friend{next.at - count === 1 ? '' : 's'} to <b style={{ color: readable(next.color) }}>{next.name}</b></> : 'Top rank — legendary.'}</div>
       </div>
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-surface-2">
         <motion.div className="h-full rounded-full bg-gradient-to-r from-accent via-gold to-accent-2" initial={{ width: 0 }} animate={{ width: `${Math.max(4, pct)}%` }} transition={{ duration: 1.1, ease: 'easeOut' }} />

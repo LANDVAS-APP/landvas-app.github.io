@@ -17,6 +17,7 @@ import { Button } from '../ui';
 import { feel } from './living';
 import { usePlotPick, type PickSpec } from './plotPick';
 import { plotLabel } from './sizeray';
+import { readable } from '../lib/readable';
 
 /** "Pick it on the map": start picking and go to the map (closing the Grimoire if it's a sheet over the map) */
 export function usePickOnMapFor() {
@@ -43,7 +44,8 @@ function Picking({ spec }: { spec: PickSpec }) {
   const bbox = useUi((s) => s.bbox);
   const markers = useRef<maplibregl.Marker[]>([]);
   const list = spec.allowed;
-  const plot = tapped ? (spec.free ? { gx: tapped.gx, gy: tapped.gy, rarity: 'common', name: null, note: 'this spot' } : list.find((p) => p.gx === tapped.gx && p.gy === tapped.gy) ?? null) : null;
+  const listed = tapped ? list.find((p) => p.gx === tapped.gx && p.gy === tapped.gy) ?? null : null;
+  const plot = tapped ? (listed ?? (spec.free ? { gx: tapped.gx, gy: tapped.gy, rarity: 'common', name: null, note: 'this spot' } : null)) : null;
   // dim the map; fly to the plots if none is on screen
   useEffect(() => {
     document.documentElement.classList.add('lv-targeting');
@@ -142,9 +144,9 @@ function Picking({ spec }: { spec: PickSpec }) {
             <div className={cn('pointer-events-auto grid w-[min(420px,100%)] gap-2.5 p-3', app ? 'lv-mcard' : 'rounded-3xl border border-white/15 bg-[#0B0820]/94 shadow-2xl backdrop-blur')} style={app ? tint(spec.color) : undefined} data-testid="pick-sheet">
               {plot ? (
                 <>
-                  {spec.free ? <div className="text-[13px] font-black">{spec.emoji} This spot <span className="text-[11px] font-bold text-white/60">({plot.gx}, {plot.gy})</span></div> : (
+                  {spec.free && !listed ? <div className="text-[13px] font-black">{spec.emoji} This spot <span className="text-[11px] font-bold text-white/60">({plot.gx}, {plot.gy})</span></div> : (
                   <div className="flex items-center gap-2 text-[13px] font-black"><span className="h-3 w-3 rounded" style={{ background: rarityInfo(plot.rarity).color }} />
-                    <span className="min-w-0 flex-1 truncate">{plotLabel(plot)} · <span style={{ color: rarityInfo(plot.rarity).color }}>{rarityInfo(plot.rarity).name}</span></span>
+                    <span className="min-w-0 flex-1 truncate">{plotLabel(plot)} · <span style={{ color: readable(rarityInfo(plot.rarity).color) }}>{rarityInfo(plot.rarity).name}</span></span>
                     {plot.note && <span className="shrink-0 text-[11px] font-bold text-white/60">{plot.note}</span>}</div>)}
                   <Button variant="rainbow" size="lg" onClick={use} data-testid="pick-use">{spec.emoji} {spec.free?.use ?? 'Use this plot'}</Button>
                 </>

@@ -13,6 +13,7 @@ import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
 import type { Moment } from '../../clips/moments';
+import { readable } from '../../lib/readable';
 
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const dir = (b: number) => DIRS[Math.round(((b % 360) + 360) % 360 / 45) % 8];
@@ -102,7 +103,7 @@ export function MapScene({ v, view, act, busy, at }: SceneProps) {
               <div key={i} className={cn('flex items-center gap-2.5 rounded-2xl border p-2.5', p.found_at ? 'border-[#E9C46A]/30 bg-[#E9C46A]/10' : near ? 'border-[#3DDC97]/60 bg-[#3DDC97]/10' : 'border-white/10 bg-white/[0.04]')}>
                 <motion.span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#2B1A08] text-lg" animate={{ rotate: p.bearing }} transition={{ type: 'spring', stiffness: 80 }}>{p.found_at ? '✅' : '🧭'}</motion.span>
                 <span className="grid min-w-0 flex-1 leading-tight">
-                  <span className="truncate text-[13px] font-black">{p.found_at ? `Piece ${i + 1} found` : p.wild ? `Piece ${i + 1} · buried in the wild` : <>Piece {i + 1} · on <b>@{p.owner_name}</b>’s <span style={{ color: rarityInfo(p.rarity).color }}>{rarityInfo(p.rarity).name}</span> plot</>}</span>
+                  <span className="truncate text-[13px] font-black">{p.found_at ? `Piece ${i + 1} found` : p.wild ? `Piece ${i + 1} · buried in the wild` : <>Piece {i + 1} · on <b>@{p.owner_name}</b>’s <span style={{ color: readable(rarityInfo(p.rarity).color) }}>{rarityInfo(p.rarity).name}</span> plot</>}</span>
                   <span className="text-[11px] text-white/55">{km(p.m)} {dir(p.bearing)} of your plot{!p.found_at ? ` · you’re ${km(p.dist)} away` : ''}</span>
                 </span>
                 {!p.found_at && (near

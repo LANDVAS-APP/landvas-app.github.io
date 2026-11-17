@@ -19,6 +19,7 @@ import { Dialog, GameDisc, ResourceIcon } from '../ui';
 import { confetti, confettiCannons } from '../ui/confetti';
 import type { RollOpts } from '../simple/useQuickRoll';
 import { UltraStrip, ultrasKey } from '../ultra/UltraTracker';
+import { readable } from '../lib/readable';
 
 export function useDaily() {
   const me = useOnboardedMe();
@@ -56,7 +57,7 @@ function DayCell({ d, state }: { d: StreakReward; state: 'done' | 'today' | 'nex
       t && state !== 'done' && 'border-2')} style={t && state !== 'done' ? { borderColor: t.color } : undefined} data-testid={`streak-day-${d.day}`}>
       <span className="absolute left-1 top-0.5 text-[8px] font-black text-white/45">{d.day}</span>
       {state === 'done' ? <span className="text-[15px]">✅</span>
-        : t ? <span className="grid gap-0.5"><span className="text-[15px]">{d.day % 30 === 0 ? '👑' : '🎟️'}</span><span className="text-[7px] font-black uppercase" style={{ color: t.color }}>{t.name}+</span></span>
+        : t ? <span className="grid gap-0.5"><span className="text-[15px]">{d.day % 30 === 0 ? '👑' : '🎟️'}</span><span className="text-[7px] font-black uppercase" style={{ color: readable(t.color) }}>{t.name}+</span></span>
         : <span className="grid gap-0.5"><ResourceIcon r="ink" className="mx-auto h-3 w-3" /><span className="text-[9px] font-bold tnum">{d.ink}</span></span>}
     </div>
   );

@@ -40,6 +40,7 @@ import { CATALOG, CATS, ITEM, swatches, colorOf, type Cat } from './furniture';
 import { levelName } from '../residential/ladder';
 import { DEFAULT_STYLE, createHome, type HomeDoor, type HomeScene, type HomeSpot, type Placed } from './home3d';
 import { config } from '../env';
+import { readable } from '../lib/readable';
 
 export const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 type Kind = 'arcade' | 'habitat' | 'farm' | 'business' | RealmKind;
@@ -469,10 +470,10 @@ function DoorPanel({ kind, h, onGo }: { kind: Kind; h: HomeData; onGo(id: string
         <div className="grid gap-1.5">
           {d.places.slice(0, 6).map((p) => (
             <button key={p.id} onClick={() => onGo(p.id)} className="flex items-center gap-3 rounded-2xl bg-white/10 px-3 py-2.5 text-left hover:bg-white/15" data-testid="home-door-go">
-              <DoorOpen className="h-5 w-5 shrink-0" style={{ color: m.color }} />
+              <DoorOpen className="h-5 w-5 shrink-0" style={{ color: readable(m.color) }} />
               <span className="min-w-0 flex-1"><span className="block truncate font-bold">{p.name}</span>
                 <span className="text-[11px] text-white/60">{p.plots} plot{p.plots === 1 ? '' : 's'}{p.rarity ? ` · ${p.rarity}` : ''}{p.level ? ` · level ${p.level}` : ''}{p.here ? ` · ${p.here} playing` : ''}</span></span>
-              <span className="text-sm font-black" style={{ color: m.color }}>Go →</span>
+              <span className="text-sm font-black" style={{ color: readable(m.color) }}>Go →</span>
             </button>
           ))}
         </div>

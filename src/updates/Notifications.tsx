@@ -20,6 +20,8 @@ import { Button, Dialog, PlayerAvatar } from '../ui';
 import { poll } from '../lib/poll';
 import { NATIVE_APP } from '../app/buildFlags';
 import { kindInfo } from '../enchant/kinds';
+import { gameName } from '../enchant/puppet/names';
+import { readable } from '../lib/readable';
 
 export const KIND: Record<Announcement['kind'], { label: string; icon: typeof Sparkles; color: string }> = {
   update: { label: 'Update', icon: Sparkles, color: '#22E3FF' },
@@ -185,6 +187,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'parasite_shrunk': return <>zapped your 🦠 Parasite with a Size Ray — it shrank right off</>;
       case 'spy_refund': return <>claimed a plot your 🔭 Spyglass had sighted — your look came back</>;
       case 'puppet_played': return <>played your plot’s game on 🎭 strings{d.ink ? ` — you were tipped ${d.ink} Ink` : ''}</>;
+      case 'puppet_auto': return <>’s 🎭 <b>Puppeteer</b> put on a show at your plot — {d.passed ? <>its puppet cleared <b>level {d.level}</b> of your {gameName(d.game)}{d.ink ? <span className="text-ok"> · +{d.ink} Ink tip</span> : null}</> : <>the strings tangled on level {d.level} of your {gameName(d.game)}</>}</>;
       case 'far_sighted': return <>🔭 <b>Farsight:</b> one of your enchantments spotted {d.n > 1 ? `${d.n} unclaimed plots` : 'an unclaimed plot'} nearby — the best reads <b>{d.rarity === 'enchanted' ? '✨ something stirs' : String(d.rarity ?? '').replace('_', ' ')}</b>. Only you can see it; claim it within a day</>;
       case 'glyph_found': return <>📜 A page fluttered out {d.source === 'minigame' ? 'of a minigame win' : d.source === 'leviathan' ? 'of the Leviathan’s loot' : d.source === 'chest' ? 'of a chest' : d.source === 'treasure' ? 'of a treasure chest' : d.source === 'plot' ? 'of a rare plot' : 'somewhere'}: your ✍️ Glyphcaster found <b>{d.name}</b></>;
       case 'treasure_piece': return <>found a 🗺️ treasure map piece on your plot <span className="text-ok">· +{d.ink} Ink finder’s tip</span></>;
@@ -206,7 +209,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
       case 'wish_gift': return <>spent a 🧞 Genie’s wish on you <span className="text-ok">· +{d.ink} Ink</span></>;
       default: return <>did something with an enchantment</>;
     }
-  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.sub === 'far_sighted' ? '/world' : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet', 'glyph_found'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
+  }, to: (a) => (a.data?.sub === 'size_prank' ? `/world?fly=${a.data.gx},${a.data.gy}&z=${a.data.mode === 'grow' ? 15 : 21.5}` : a.data?.sub === 'far_sighted' ? '/world' : a.data?.sub === 'puppet_auto' ? `/world?fly=${a.data.gx},${a.data.gy}&z=19` : a.data?.id && ['coil_bitten', 'coil_closed', 'homu_greet', 'glyph_found'].includes(a.data?.sub) ? `/grimoire/${a.data.id}` : '/grimoire?tab=visitors') },
   leviathan: { icon: Sparkles, color: '#FF5CDB', text: (a) => {
     const d = a.data as Record<string, any>;
     switch (d.sub) {
@@ -291,8 +294,8 @@ export function AlertPopups() {
         <button data-testid="alert-popup" data-kind={a.kind} onClick={() => { toast.dismiss(id); if (to) nav(to); }}
           className="glass flex w-[min(92vw,380px)] items-center gap-3 rounded-2xl border border-line p-3 text-left text-sm text-fg shadow-xl">
           <span className="relative shrink-0">
-            {a.actor ? <PlayerAvatar p={a.actor} size={36} /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2"><k.icon className="h-4 w-4" style={{ color: k.color }} /></span>}
-            {a.actor && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-2"><k.icon className="h-3 w-3" style={{ color: k.color }} /></span>}
+            {a.actor ? <PlayerAvatar p={a.actor} size={36} /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2"><k.icon className="h-4 w-4" style={{ color: readable(k.color) }} /></span>}
+            {a.actor && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-2"><k.icon className="h-3 w-3" style={{ color: readable(k.color) }} /></span>}
           </span>
           <span className="min-w-0 flex-1 break-words">{a.actor ? <b>@{a.actor.username} </b> : null}{k.text(a)}</span>
         </button>
@@ -317,8 +320,8 @@ function ActivityList({ onLink }: { onLink(to: string): void }) {
         return (
           <button key={a.id} onClick={() => to && onLink(to)} className={cn('flex items-center gap-3 rounded-2xl p-2.5 text-left text-sm transition hover:bg-surface-2', !a.read && 'bg-accent/10')}>
             <span className="relative shrink-0">
-              {a.actor ? <PlayerAvatar p={a.actor} size={36} /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2"><k.icon className="h-4 w-4" style={{ color: k.color }} /></span>}
-              {a.actor && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-2"><k.icon className="h-3 w-3" style={{ color: k.color }} /></span>}
+              {a.actor ? <PlayerAvatar p={a.actor} size={36} /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2"><k.icon className="h-4 w-4" style={{ color: readable(k.color) }} /></span>}
+              {a.actor && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-2"><k.icon className="h-3 w-3" style={{ color: readable(k.color) }} /></span>}
             </span>
             <span className="min-w-0 flex-1"><span className="break-words">{a.actor ? <b>@{a.actor.username} </b> : null}{k.text(a)}</span><span className="block text-[11px] text-faint">{timeAgo(a.created_at)}</span></span>
             {!a.read && <span className="h-2 w-2 shrink-0 rounded-full bg-hot" />}

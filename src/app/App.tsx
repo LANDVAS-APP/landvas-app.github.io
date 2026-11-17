@@ -65,6 +65,7 @@ import { NATIVE_APP } from './buildFlags';
 import { ElevenBanner } from '../rarity/ElevenBanner';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
+const PuppetMini = lazy(() => import('../enchant/puppet/PuppetMini'));
 const ClipsScreen = lazy(() => import('../clips/ClipsScreen'));
 const GuideScreen = lazy(() => import('../screens/Guide'));
 const HandbookScreen = lazy(() => import('../handbook/HandbookScreen'));
@@ -229,7 +230,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

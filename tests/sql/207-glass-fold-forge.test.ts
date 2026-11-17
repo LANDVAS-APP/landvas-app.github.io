@@ -243,7 +243,7 @@ describe('🦢 Origami Pocket', () => {
     home = to;
   });
 
-  it('won’t land on a taken cell, and won’t fold a Crown, an enchanted plot (until ★3) or its own plot', async () => {
+  it('won’t land on a taken cell, and won’t fold a Crown or its own plot (an enchanted plot folds from the start)', async () => {
     await db.sql(`update enchantments set state = state || '{"folds": 1}'::jsonb where id = $1`, [ori]);
     await act(ann, ori, 'fold', home);
     const bobs = (await db.sql(`select gx, gy from world_plots where owner_id = $1 limit 1`, [bob]))[0];
@@ -255,8 +255,12 @@ describe('🦢 Origami Pocket', () => {
     const e = await row(ori);
     await db.sql(`update enchantments set state = state || '{"folds": 1}'::jsonb where id = $1`, [ori]);
     await expectError(act(ann, ori, 'fold', { gx: e.gx, gy: e.gy }), 'own_plot');
+    // an enchanted plot folds, creature and all (since the carry) — and smooths back out
     const g = await enchant(ann, 'goose'); const ge = await row(g);
-    await expectError(act(ann, ori, 'fold', { gx: ge.gx, gy: ge.gy }), 'enchanted');
+    await act(ann, ori, 'fold', { gx: ge.gx, gy: ge.gy });
+    expect((await plot(ge.gx, ge.gy)).folded_at).not.toBeNull();
+    await act(ann, ori, 'smooth', { gx: ge.gx, gy: ge.gy });
+    await db.sql(`update enchantments set state = state || '{"folds": 1}'::jsonb where id = $1`, [ori]);
     const c = await claim(ann, 410, 0);
     await db.sql(`update world_plots set rarity = 'crown' where gx = $1 and gy = $2`, [c.gx, c.gy]);
     await expectError(act(ann, ori, 'fold', { gx: c.gx, gy: c.gy }), 'crown');

@@ -9,6 +9,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { Empty, PlayerAvatar, Spinner } from '../ui';
 import { cn, fmt } from '../lib/utils';
+import { readable } from '../lib/readable';
 
 export default function RarityRankings() {
   const [params, setParams] = useSearchParams();
@@ -36,7 +37,7 @@ export default function RarityRankings() {
               className={cn('flex shrink-0 flex-col items-center gap-1 rounded-2xl px-2.5 py-2 text-[11px] font-bold transition', id === r ? 'bg-surface-2 ring-2' : 'bg-surface/60 opacity-80 hover:opacity-100')}
               style={id === r ? { ['--tw-ring-color' as any]: rarityInfo(id).color } : undefined}>
               <BasePlotArt rarity={id as any} size={34} />
-              <span style={{ color: rarityInfo(id).color }}>{rarityInfo(id).name}</span>
+              <span style={{ color: readable(rarityInfo(id).color) }}>{rarityInfo(id).name}</span>
               <span className="tnum text-faint">{s ? fmt(s.owned) : '·'}</span>
             </button>
           );
@@ -48,7 +49,7 @@ export default function RarityRankings() {
         <div className="min-w-0 flex-1">
           <RarityBadge r={r} />
           <div className="mt-1 text-sm text-muted">{summary ? <>{fmt(summary.owned)} owned by {fmt(summary.owners)} player{summary.owners === 1 ? '' : 's'}{summary.shiny ? ` · ${fmt(summary.shiny)} ✨ shiny` : ''}</> : '…'}</div>
-          {one.data?.me != null && <div className="text-xs font-bold" style={{ color: info.color }}>You own {fmt(one.data.me)}</div>}
+          {one.data?.me != null && <div className="text-xs font-bold" style={{ color: readable(info.color) }}>You own {fmt(one.data.me)}</div>}
         </div>
       </section>
 
@@ -64,7 +65,7 @@ export default function RarityRankings() {
                 <div className="truncate font-semibold">{x.player.display_name || x.player.username}</div>
                 <div className="truncate text-xs text-muted">@{x.player.username}{x.shiny ? ` · ${x.shiny} ✨` : ''}</div>
               </Link>
-              <span className="font-display font-semibold tnum" style={{ color: info.color }}>{fmt(x.value)}</span>
+              <span className="font-display font-semibold tnum" style={{ color: readable(info.color) }}>{fmt(x.value)}</span>
             </li>
           ))}
         </ol>
@@ -78,7 +79,7 @@ export default function RarityRankings() {
               <button key={s.rarity} onClick={() => { pick(s.rarity); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="glass flex items-center gap-3 rounded-2xl p-3 text-left">
                 <BasePlotArt rarity={s.rarity} size={36} />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold" style={{ color: rarityInfo(s.rarity).color }}>{rarityInfo(s.rarity).name}</div>
+                  <div className="font-bold" style={{ color: readable(rarityInfo(s.rarity).color) }}>{rarityInfo(s.rarity).name}</div>
                   <div className="truncate text-xs text-muted">{fmt(s.owned)} owned{s.top ? ` · top: @${s.top.player.username} (${fmt(s.top.value)})` : ' · none yet'}</div>
                 </div>
               </button>

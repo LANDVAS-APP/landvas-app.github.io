@@ -48,10 +48,11 @@ export function ShardScene(p: SceneProps) {
                 body: <>You’ll leave this reflection now, with {dur(leftR)} of it left. The glass clouds over again and you’ll have to wait before you can step into another one.</> })) void act('release');
             }}>Step back</Button>
         </div>
-        <div className="relative rounded-[30px] p-[3px]" style={{ background: 'linear-gradient(135deg,#C0F5FF,#7DD3FC 40%,#fff 60%,#7DD3FC)' }}>
-          <div className="relative overflow-hidden rounded-[28px]">
+        {/* the glass is the frame; behind the reflection it's the deep, dark side of the mirror, so every word stays readable */}
+        <div className="lv-shard-frame relative rounded-[30px] p-[3px]">
+          <div className="lv-shard-inside relative isolate overflow-hidden rounded-[28px] p-2 sm:p-3" data-testid="shard-inside">
             <SceneFor kind={reflect.kind} {...p} view={v.reflected} mirror />
-            <div className="lv-glass pointer-events-none absolute inset-0 opacity-25 mix-blend-screen" />
+            <div className="lv-shard-sheen pointer-events-none absolute inset-x-0 top-0 h-40" aria-hidden />
           </div>
         </div>
       </div>

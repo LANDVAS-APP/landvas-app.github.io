@@ -14,6 +14,7 @@ import { PARTY } from './index';
 import { SEAT_COLORS, type Places, type Seat } from './kit';
 import { botProfiles, isBot, partyBots } from './bots';
 import { ChatDock, type GameTalk } from '../../party/ChatDock';
+import { readable } from '../../lib/readable';
 
 type Msg = { t: 'gs'; k: number; s: unknown; now: number } | { t: 'gm'; id: string; m: unknown } | { t: 'end'; r: Places };
 
@@ -112,7 +113,7 @@ export function PartyGame({ game, myId, onClose, talk }: { game: HomeGame; myId:
           <div key={x.id} ref={(el) => { if (el) seatEls.current.set(x.id, el); else seatEls.current.delete(x.id); }} data-testid="party-seat" data-seat={x.id} className={cn('flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-1 pr-3 text-xs font-bold', turn === x.id ? 'bg-white/25 ring-2' : 'bg-white/10')} style={{ ['--tw-ring-color' as string]: x.color }}>
             <span className="rounded-full p-0.5" style={{ background: x.color }}><PlayerAvatar p={x.p} size={22} /></span>
             <span className="max-w-[80px] truncate">{x.id === myId ? 'You' : x.name}</span>
-            {score && <span className="tabular-nums" style={{ color: x.color }}>{score[x.id] ?? 0}</span>}
+            {score && <span className="tabular-nums" style={{ color: readable(x.color) }}>{score[x.id] ?? 0}</span>}
           </div>
         ))}
       </div>
@@ -128,7 +129,7 @@ export function PartyGame({ game, myId, onClose, talk }: { game: HomeGame; myId:
             <div className="grid max-w-xs justify-items-center gap-2 text-center">
               <div className="text-6xl">{def.emoji}</div><div className="font-display text-3xl font-black">{def.name}</div>
               <p className="text-sm text-white/80">{def.how}</p>
-              <motion.div key={count} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-7xl font-black" style={{ color: def.color }}>{count}</motion.div>
+              <motion.div key={count} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-7xl font-black" style={{ color: readable(def.color) }}>{count}</motion.div>
             </div>
           </motion.div>
         )}

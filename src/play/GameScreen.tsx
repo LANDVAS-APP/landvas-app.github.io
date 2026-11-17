@@ -16,31 +16,12 @@ import { PLOT_TYPES } from '../map/plotStyle';
 import { GAME_INFO, type GameId } from '../shared/minigames';
 import { rarityInfo } from '../shared/rarity';
 import { Button, ResourceIcon, Spinner } from '../ui';
-import { ColorBurstGame } from './games/ColorBurst';
-import { LightLinesGame } from './games/LightLines';
-import { PaintPopGame } from './games/PaintPop';
-import { TraceCraftGame } from './games/TraceCraft';
-import { boardsGame } from './games/Boards';
-import { RollerMuralBoard } from './games/RollerMural';
-import { MemoryMuralBoard } from './games/MemoryMural';
-import { MirrorlineBoard } from './games/Mirrorline';
-import { BlockSplashBoard } from './games/BlockSplash';
-import type { GameProps } from './common';
+import { GAMES } from './gameRegistry';
 import { RarityBadge } from '../plot/RarityBadge';
 import { buzz, isNative } from '../native/native';
 
 const APP = isNative();
 
-const GAMES: Record<GameId, (p: GameProps) => React.ReactElement | null> = {
-  lightlines: boardsGame('lightlines', LightLinesGame),
-  paintpop: boardsGame('paintpop', PaintPopGame),
-  colorburst: ColorBurstGame,
-  tracecraft: TraceCraftGame,
-  memorymural: boardsGame('memorymural', MemoryMuralBoard),
-  blocksplash: boardsGame('blocksplash', BlockSplashBoard),
-  rollermural: boardsGame('rollermural', RollerMuralBoard),
-  mirrorline: boardsGame('mirrorline', MirrorlineBoard),
-};
 const TYPE_OF = Object.fromEntries(Object.entries(GAME_INFO).map(([g, i]) => [g, i.plotType])) as Record<GameId, keyof typeof PLOT_TYPES>;
 
 type Phase = { k: 'intro' } | { k: 'starting' } | { k: 'playing'; s: MinigameStart; t0: number } | { k: 'submitting' } | { k: 'results'; r: MinigameFinish; level: number };

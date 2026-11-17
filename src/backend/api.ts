@@ -63,7 +63,14 @@ export type MapSun = { id: string; i: number; gx: number; gy: number; r_m: numbe
   flare_until: number | null; until: number; party: boolean; mine: boolean; owner_name: string | null; spots: [number, number][]; reflected: boolean };
 export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
   bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
-export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: number };
+export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: number;
+  /** 🦢 your folded plots riding along with your explorer (their powers work from where you are) */
+  carried?: { gx: number; gy: number; rarity: string; at: [number, number] | null; kind: string | null }[] };
+/** 🎭 one act of a Puppeteer's show: the real game, on strings (decided when the curtain rose) */
+export type PuppetRun = { id: string; slot: number; gx: number; gy: number; game: string; level: number; rounds: number; own: boolean; grand: boolean; seed: number;
+  started_at: number; due_at: number; finished: boolean; cleared: number; passed: boolean; secs: number[]; name: string | null; rarity: string | null; owner_name: string | null;
+  result: { passed: boolean; cleared: number; rounds: number; level: number; ink: number; tip: number | null; grand: boolean } | null };
+export type PuppetLive = { server_now: number; shows: { id: string; serial: number; nickname: string | null; on: boolean; waiting: string | null; runs: PuppetRun[]; calls: PuppetRun[] }[] };
 export type MapSighting = { id: number; gx: number; gy: number; rarity: string; kind: string | null; hot: boolean; second: boolean; at: string; expires_at: string; expires_in: number };
 export type EnchantMap3 = {
   sightings: MapSighting[];
@@ -251,6 +258,7 @@ export const api = {
   enchantMap2: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap2>('enchant_map2', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   enchantMap3: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap3>('enchant_map3', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   /** 🎭 a Puppeteer's run on someone else's plot (a real minigame session) */
+  puppetLive: () => rpc<PuppetLive>('puppet_live', {}),
   puppetStart: (id: string, gx: number, gy: number) => rpc<MinigameStart & { puppet: { id: string; owner: any; rarity: string; name: string | null; grand: boolean } }>('puppet_start', { p_id: id, p_gx: gx, p_gy: gy }),
   stormCatch: (id: string, i: number) => rpc<{ caught: boolean; ink: number }>('storm_catch', { p_id: id, p_i: i }),
   sizeGiantVisit: (gx: number, gy: number) => rpc<{ tipped: boolean; you: number; them: number }>('size_giant_visit', { p_gx: gx, p_gy: gy }),

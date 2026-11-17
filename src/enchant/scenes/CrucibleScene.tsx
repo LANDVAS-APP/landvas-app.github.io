@@ -13,6 +13,7 @@ import { PlotRow, plotName, sleep, useCraftClip, type PlotLite } from '../craft'
 import { feel } from '../living';
 import { MapPickButton, useMapPick, usePlotChoice } from '../pickers';
 import { ARTIFACTS, ARTIFACT_ORDER, ArtifactArt, LevelPips } from '../artifacts';
+import { readable } from '../../lib/readable';
 
 const METALS: Record<string, { name: string; c: string; hi: string; lo: string; from: string }> = {
   iron: { name: 'Iron', c: '#8A8F98', hi: '#D5D9E0', lo: '#4A4E55', from: 'Common' }, copper: { name: 'Copper', c: '#C46A35', hi: '#F3B08A', lo: '#6E3418', from: 'Uncommon' },
@@ -355,7 +356,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
         <div className="grid gap-2">
           <div className="grid grid-cols-4 gap-1 text-center sm:grid-cols-7" data-testid="crucible-chances">
             {(['uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ultra', 'crown'] as const).map((r) => (
-              <div key={r} className={cn('rounded-xl p-1.5', r === 'ultra' || r === 'crown' ? 'bg-[linear-gradient(135deg,#FF5CDB22,#FFD23F22)] ring-1 ring-[#FFD23F]/30' : 'bg-white/5')}><div className="text-[10px] font-black" style={{ color: tier(r).color }}>→ {tier(r).name}</div><div className="text-[13px] font-black text-white">{pct(view.chances?.[r] ?? 0)}</div></div>
+              <div key={r} className={cn('rounded-xl p-1.5', r === 'ultra' || r === 'crown' ? 'bg-[linear-gradient(135deg,#FF5CDB22,#FFD23F22)] ring-1 ring-[#FFD23F]/30' : 'bg-white/5')}><div className="text-[10px] font-black" style={{ color: readable(tier(r).color) }}>→ {tier(r).name}</div><div className="text-[13px] font-black text-white">{pct(view.chances?.[r] ?? 0)}</div></div>
             ))}
           </div>
           {bellows === 'on' ? <Bellows onDone={(s) => { setBellows(s); void strike(s); }} /> : (
@@ -364,7 +365,7 @@ export function CrucibleScene({ v, view, act, busy, mirror }: SceneProps) {
               <div className="grid max-h-[220px] gap-1.5 overflow-y-auto pr-1" data-testid="crucible-strikeable">
                 {!strikeable.length && <p className="rounded-xl bg-white/5 p-2.5 text-[12px] text-white/70" data-testid="crucible-none">None of your plots can go on the anvil right now (locked, folded, enchanted and Crown plots can’t). Claim or roll more plots and they’ll show up here.</p>}
                 {strikeable.slice(0, 60).map((p) => <PlotRow key={`${p.gx},${p.gy}`} p={p} on={target?.gx === p.gx && target?.gy === p.gy} onClick={() => setTarget(p)} testId="crucible-target"
-                  right={<span className="text-right text-[11px] font-black leading-tight"><span style={{ color: tier(p.to).color }}>→ {tier(p.to).name}</span><br /><span className="text-white/70">{pct(p.chance)}</span></span>} />)}
+                  right={<span className="text-right text-[11px] font-black leading-tight"><span style={{ color: readable(tier(p.to).color) }}>→ {tier(p.to).name}</span><br /><span className="text-white/70">{pct(p.chance)}</span></span>} />)}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <span className="lvx-label w-full">Temper rune{view.free_rune ? ' · ★2: free every strike' : ''}</span>

@@ -61,7 +61,8 @@ describe('🎭 Puppeteer', () => {
 
   it('lists other players’ plots nearby, and plays one of them on strings — a real session', async () => {
     const v = await get(ann, pup);
-    expect(v.view).toMatchObject({ strings: 2, max: 2, range_m: 5000 });
+    // (the strings reach 25 km since the theatre — 100 km from level 5, anywhere at ★2)
+    expect(v.view).toMatchObject({ strings: 2, max: 2, range_m: 25000 });
     expect(v.view.nearby.some((p: any) => p.gx === theirs.gx && p.gy === theirs.gy && p.game === 'blocksplash')).toBe(true);
     const s = await db.rpc(ann, 'puppet_start', { p_id: pup, p_gx: theirs.gx, p_gy: theirs.gy });
     expect(s).toMatchObject({ game: 'blocksplash', level: 1, puppet: { id: pup } });

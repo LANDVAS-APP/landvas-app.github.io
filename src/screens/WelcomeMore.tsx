@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { ArrowRight, Brush, ChevronDown, CircleDollarSign, Gamepad2, Lightbulb, MapPinned, PawPrint, Swords, Trophy, Users, Wand2 } from 'lucide-react';
 import { ArtMarquee, Earnings, HowItWorks, Minigames, Social, Footer } from '../home/HomePage';
 import { FAQ } from '../home/faq';
+import { readable } from '../lib/readable';
 
 const FEATURES = [
   { icon: MapPinned, color: '#34C3FF', title: 'Claim real places', text: 'Your first 4 plots are free. Every plot is a square of the real world map — house-sized, rare or legendary.' },
@@ -29,7 +30,7 @@ export default function WelcomeMore({ art, artLoading, toForm }: { art: Paramete
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f, i) => (
             <motion.article key={f.title} className="glass rounded-3xl p-5" initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }} transition={{ delay: (i % 4) * 0.08 }}>
-              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: `${f.color}22`, color: f.color, boxShadow: `0 0 30px -8px ${f.color}` }}><f.icon className="h-5 w-5" /></div>
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: `${f.color}22`, color: readable(f.color), boxShadow: `0 0 30px -8px ${f.color}` }}><f.icon className="h-5 w-5" /></div>
               <h3 className="font-display text-base font-semibold">{f.title}</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted">{f.text}</p>
             </motion.article>

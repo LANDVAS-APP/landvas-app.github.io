@@ -35,6 +35,7 @@ import { useNudge } from '../lib/nudge';
 import { KINDS as ENCH } from '../enchant/kinds';
 import { NATIVE_APP } from '../app/buildFlags';
 import { WatchButton } from '../watch/LiveNow';
+import { readable } from '../lib/readable';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -261,13 +262,13 @@ function FeedRow({ e }: { e: FeedEvent }) {
         body = <>{who} hit a <b className="lv-godroll-title">⚡ {d.godroll === 'echo' ? 'Echo' : 'Pantheon'} Godroll</b> — <b>{d.of}</b> rolls, every one an ultra{d.godroll === 'echo' && rs[0] ? <> ({rarityInfo(rs[0]).name} ×{d.of})</> : null}</>;
         extra = rs.length ? <span className="flex flex-wrap gap-0.5">{(d.godroll === 'echo' ? rs.slice(0, 1) : rs.slice(0, 4)).map((r, i) => <RarityBadge key={i} r={r} small />)}</span> : null;
       } else if (d.sub === 'ascend') {
-        body = <>{who} Ascended a plot from <b style={{ color: rarityInfo(d.from).color }}>{rarityInfo(d.from).name}</b> to <b style={{ color: rarityInfo(d.to ?? d.rarity).color }}>{rarityInfo(d.to ?? d.rarity).emoji ?? ''} {rarityInfo(d.to ?? d.rarity).name}</b>{(d.try ?? d.tries) ? <span className="text-muted"> on try {d.try ?? d.tries}</span> : null}</>;
+        body = <>{who} Ascended a plot from <b style={{ color: readable(rarityInfo(d.from).color) }}>{rarityInfo(d.from).name}</b> to <b style={{ color: readable(rarityInfo(d.to ?? d.rarity).color) }}>{rarityInfo(d.to ?? d.rarity).emoji ?? ''} {rarityInfo(d.to ?? d.rarity).name}</b>{(d.try ?? d.tries) ? <span className="text-muted"> on try {d.try ?? d.tries}</span> : null}</>;
         extra = <RarityBadge r={d.to ?? d.rarity} small />;
       } else if (d.sub === 'pick') {
-        body = <>{who} {d.godroll ? <>kept a <b>⚡ Godroll</b>:</> : <>rolled <b>{d.of}</b> times with Luck and kept</>} a <b style={{ color: rarityInfo(d.rarity).color }}>{rarityInfo(d.rarity).emoji ?? ''} {rarityInfo(d.rarity).name}</b></>;
+        body = <>{who} {d.godroll ? <>kept a <b>⚡ Godroll</b>:</> : <>rolled <b>{d.of}</b> times with Luck and kept</>} a <b style={{ color: readable(rarityInfo(d.rarity).color) }}>{rarityInfo(d.rarity).emoji ?? ''} {rarityInfo(d.rarity).name}</b></>;
         extra = <RarityBadge r={d.rarity} small />;
       } else {
-        const what = d.what === 'ink' ? <><b className="tnum">{fmt(Number(d.ink))} Ink</b></> : d.what === 'inkborn' ? <>their Inkborn <b>{d.name}</b> 🐾</> : d.what === 'egg' ? <>a <b>{d.egg}</b> egg 🥚</> : <>a <b style={{ color: rarityInfo(d.rarity).color }}>{rarityInfo(d.rarity).name}</b>{d.shiny ? ' ✨' : ''} plot</>;
+        const what = d.what === 'ink' ? <><b className="tnum">{fmt(Number(d.ink))} Ink</b></> : d.what === 'inkborn' ? <>their Inkborn <b>{d.name}</b> 🐾</> : d.what === 'egg' ? <>a <b>{d.egg}</b> egg 🥚</> : <>a <b style={{ color: readable(rarityInfo(d.rarity).color) }}>{rarityInfo(d.rarity).name}</b>{d.shiny ? ' ✨' : ''} plot</>;
         if (d.sub === 'enchant') { body = <>{who} bought <b className="text-[#C9A0FF]">✨ {d.gained} Enchanted Luck</b> — their next roll is {d.pct}% Enchanted</>; break; }
         body = <>{who} sacrificed {what} at the Altar of Luck <span className="text-[#3DDC97]">· +{d.gained} 🍀</span>{d.luck != null ? <span className="text-muted"> (Luck {d.luck})</span> : null}</>;
       }
@@ -315,7 +316,7 @@ function FeedRow({ e }: { e: FeedEvent }) {
       const d = e.data as Record<string, any>;
       const tier = d.tier === 'crown_country' ? 'Country' : d.tier === 'crown_state' ? 'State' : 'City';
       icon = <span className="text-[12px] leading-none">👑</span>;
-      body = <>{who} claimed the <b style={{ color: rarityInfo(d.tier).color }}>{tier} Crown of {d.place}</b>{d.tier !== 'crown_country' && d.country ? <span className="text-muted"> · {d.country}</span> : null} 👑</>;
+      body = <>{who} claimed the <b style={{ color: readable(rarityInfo(d.tier).color) }}>{tier} Crown of {d.place}</b>{d.tier !== 'crown_country' && d.country ? <span className="text-muted"> · {d.country}</span> : null} 👑</>;
       extra = <RarityBadge r={d.tier} small />;
       break;
     }

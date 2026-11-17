@@ -29,6 +29,7 @@ function WrapPreview({ stage, feeds }: { stage: number; feeds: number }) {
 }
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
 import type { Moment } from '../../clips/moments';
+import { readable } from '../../lib/readable';
 
 const STAGES = [
   { name: 'Larva', c: '#E6FFB3', g: '#9BE15D', text: 'A hungry little thing. 3 feeds to grow.' },
@@ -112,7 +113,7 @@ export function ParasiteScene({ v, view, act, busy, at }: SceneProps) {
               <div className="absolute inset-[12%]"><WrapPreview stage={stage} feeds={Number(view.feeds)} /></div>
             </div>
             <div className="grid min-w-0 flex-1 leading-tight">
-              <span className="truncate text-[13px] font-black text-white">Feeding on @{host.owner_name}’s <span style={{ color: rarityInfo(host.rarity).color }}>{rarityInfo(host.rarity).name}</span> plot</span>
+              <span className="truncate text-[13px] font-black text-white">Feeding on @{host.owner_name}’s <span style={{ color: readable(rarityInfo(host.rarity).color) }}>{rarityInfo(host.rarity).name}</span> plot</span>
               <span className="text-[11px] text-white/60">{(readyIn ?? 0) > 0 ? `${Math.round(fed)}% fed · ready in ${dur(readyIn)}` : 'Fully fed!'}{host.welcomed ? ' · 💚 welcomed' : ''}</span>
             </div>
             <button onClick={showHost} className="shrink-0 rounded-full bg-[#7CFF6B] px-2.5 py-1.5 text-[11px] font-black text-[#0B1F08]" data-testid="parasite-show">📍 Show on map</button>

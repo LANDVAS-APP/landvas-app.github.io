@@ -19,6 +19,7 @@ import { LAVA, SIMS3, paintCounts, snap3, type ChairW, type GemW, type HSW, type
 import { createWorld3D, type World3D } from './worlds';
 import { ChatDock, type GameTalk } from '../../party/ChatDock';
 import { framePacer } from '../../lib/gfx';
+import { readable } from '../../lib/readable';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 const STEP = 1 / 30, SNAP_MS = 100, DELAY = 0.14;
@@ -281,7 +282,7 @@ export function Live3D({ game, myId, onClose, talk }: { game: HomeGame; myId: st
             <motion.div initial={{ scale: 3, opacity: 1 }} animate={{ scale: 0, opacity: 0.6 }} transition={{ duration: 1.6, ease: 'easeIn' }} className="absolute h-[140vmax] w-[140vmax] rounded-full" style={{ background: `radial-gradient(circle, transparent 30%, ${sim.color} 31%, #120C1C 45%)` }} />
             <div className="relative grid max-w-xs justify-items-center gap-2 rounded-3xl bg-black/55 px-6 py-5 text-center backdrop-blur">
               <div className="text-xs font-bold uppercase tracking-widest text-white/70">off to</div>
-              <div className="font-display text-3xl font-black" style={{ color: sim.color }}>{sim.place}</div>
+              <div className="font-display text-3xl font-black" style={{ color: readable(sim.color) }}>{sim.place}</div>
               <div className="text-5xl">{sim.emoji}</div>
               <p className="text-sm text-white/85">{sim.how}</p>
               <motion.div key={count} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-6xl font-black">{count}</motion.div>

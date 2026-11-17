@@ -41,6 +41,7 @@ import { PlotPowerCard } from '../rarity/PlotPowerCard';
 import { buzz, isNative } from '../native/native';
 import { PlotWonders } from '../enchant/PlotWonders';
 import { ClaimFacts, ClaimHeader, OddsSheet, TypePicker, type KindOpt } from './ClaimPreview';
+import { readable } from '../lib/readable';
 const NATIVE = isNative();
 
 const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
@@ -615,7 +616,7 @@ function HabitatVisit({ d }: { d: PlotDetails }) {
         <div className="eyebrow">{m.name} · level {rlm.level}</div>
         <div className="truncate text-sm font-semibold">{rlm.name || m.name} · @{rlm.owner.username}</div>
       </div>
-      <span className="text-xs font-bold" style={{ color: m.color }}>{arc ? `${m.enter} →` : 'Visit & play →'}</span>
+      <span className="text-xs font-bold" style={{ color: readable(m.color) }}>{arc ? `${m.enter} →` : 'Visit & play →'}</span>
     </Link>
   ); }
   if (arc) return (

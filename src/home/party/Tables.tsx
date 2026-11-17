@@ -14,6 +14,7 @@ import { sfx } from '../../arcade/sfx';
 import { GAME_META, PARTY_ORDER } from './index';
 import { SEAT_COLORS } from './kit';
 import { botProfiles, isBot } from './bots';
+import { readable } from '../../lib/readable';
 
 export function GamePicker({ home, here, onClose, onMade }: { home: string; here: number; onClose(): void; onMade(): void }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,7 +36,7 @@ export function GamePicker({ home, here, onClose, onMade }: { home: string; here
                 <button key={d.id} disabled={!!busy} onClick={() => void make(d.id)} className="grid gap-1 rounded-2xl bg-white/10 p-3 text-left hover:bg-white/15 disabled:opacity-60" style={{ boxShadow: `inset 0 0 0 1.5px ${d.color}66` }} data-testid={`party-new-${d.id}`}>
                   <div className="flex items-center gap-2"><span className="text-3xl">{d.emoji}</span><span className="min-w-0"><b className="block truncate">{busy === d.id ? '…' : d.name}</b><span className="text-[10px] text-white/60">{d.min === d.max ? `${d.min} players` : `${d.min}–${d.max} players`}</span></span></div>
                   <span className="text-[11px] leading-snug text-white/70">{d.blurb}</span>
-                  {d.place && <span className="text-[10px] font-bold" style={{ color: d.color }}>📍 {d.place}</span>}
+                  {d.place && <span className="text-[10px] font-bold" style={{ color: readable(d.color) }}>📍 {d.place}</span>}
                 </button>
               ))}
             </div>

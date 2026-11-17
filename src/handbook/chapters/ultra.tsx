@@ -4,6 +4,7 @@ import type { Chapter } from '../types';
 import { fmtN, oddsText, usd } from '../live';
 import { B, CardGrid, Combo, Facts, GoRow, Note, P, Steps, Table, Tip, Warn } from '../ui';
 import { Recipe } from '../visuals';
+import { readable } from '../../lib/readable';
 
 /** what each of the newest ultras does each day (the plots' daily deeds) */
 const DEEDS: Record<string, string> = {
@@ -75,7 +76,7 @@ export const ultra: Chapter = {
         <>
           <CardGrid items={NEW_ULTRAS.map((id) => {
             const r = rarityInfo(id);
-            return { key: id, art: <BasePlotArt rarity={id as RarityId} size={46} />, c: r.color, title: <span style={{ color: r.color }}>{r.emoji} {r.name}</span>, sub: oddsText((r.ppm ?? 0) / 1e6), body: DEEDS[id] ?? r.ability };
+            return { key: id, art: <BasePlotArt rarity={id as RarityId} size={46} />, c: r.color, title: <span style={{ color: readable(r.color) }}>{r.emoji} {r.name}</span>, sub: oddsText((r.ppm ?? 0) / 1e6), body: DEEDS[id] ?? r.ability };
           })} />
           <Combo title="Tier-higher spots">Volcano obsidian, Wanderer trails, Mycelium mushrooms and Leyline beams all roll a tier higher for you. Arm Luck when you claim them and you’re stacking upgrades on upgrades.</Combo>
         </>
@@ -125,7 +126,7 @@ export const ultra: Chapter = {
               { k: 'Rent', v: `${usd((prim[0]?.usd_per_second ?? 1e-7) * 86400 * 30)} a month`, hint: `×${fmtN(Number(prim[0]?.ink_reward_multiplier ?? 6))} Ink, plus its power` },
             ]} />
             <P>Primordials are <B>only ever rolled</B> (the Fusion Lab can’t make them). When anyone rolls or hatches one, a shockwave crosses every open map in the world and it goes on the feed. Primordials show on everyone’s map as living emblems (beacons when zoomed out). Most powers reach <B>5 km</B> around the plot.</P>
-            <CardGrid items={prim.map((r) => ({ key: r.id, art: <BasePlotArt rarity={r.id} size={46} />, c: r.color, title: <span style={{ color: r.color }}>{r.emoji} {r.name}</span>, body: POWERS[r.id] ?? r.ability }))} />
+            <CardGrid items={prim.map((r) => ({ key: r.id, art: <BasePlotArt rarity={r.id} size={46} />, c: r.color, title: <span style={{ color: readable(r.color) }}>{r.emoji} {r.name}</span>, body: POWERS[r.id] ?? r.ability }))} />
             <Combo>Some Primordials help everyone nearby (Heart of the World, Void Gate, Fallen Star, Genesis Well, Throne of Ink). Owning land near one is worth a trip.</Combo>
             <GoRow links={[['/primordials', 'Every Primordial in the world']]} />
             {!c.live && <Note>Odds are shown from the game’s defaults until the live numbers load.</Note>}

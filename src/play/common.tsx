@@ -11,8 +11,12 @@ export type GameProps = {
   now(): number;
   /** Called once with the move log; the server replays it to score the run. */
   onDone(log: unknown): void;
-  /** Register an automated solver (e2e tests only; makes human-paced moves). */
+  /** Register an automated solver (e2e tests, and the 🎭 Puppeteer's shows: human-paced moves). */
   registerSolver(fn: () => Promise<void>): void;
+  /** 🎭 on strings: the solver stops after this many rounds (the puppet tangles in the next one) */
+  stopAt?: number;
+  /** each round as it's cleared or missed (the Puppeteer's stage cheers it) */
+  onRound?(i: number, ok: boolean): void;
 };
 
 export function haptic(ms = 8) {

@@ -7,7 +7,7 @@ import { Hud, haptic, useBoardSize, useLatest, type GameProps } from '../common'
 
 type Stroke = [number, number, number][];
 
-export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolver }: GameProps) {
+export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolver, stopAt, onRound }: GameProps) {
   const L = useMemo(() => generateTraceCraft(seed, level, rounds), [seed, level, rounds]);
   const [idx, setIdx] = useState(0);
   const [results, setResults] = useState<{ score: number; passed: boolean; accuracy: number; coverage: number }[]>([]);
@@ -91,6 +91,7 @@ export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolve
     strokes.current.push({ points: s });
     const r = scoreStroke(shape, L.tolerance, pts);
     setResults((x) => [...x, { score: r.score, passed: r.passed, accuracy: r.accuracy, coverage: r.coverage }]);
+    onRound?.(idxRef.current, r.passed);
     haptic(r.passed ? 18 : 40);
     await sleep(700);
     if (idxRef.current + 1 >= L.shapes.length) {
@@ -122,6 +123,7 @@ export function TraceCraftGame({ seed, level, rounds, now, onDone, registerSolve
 
   registerSolver(async () => {
     for (let k = idxRef.current; k < L.shapes.length; k++) {
+      if (stopAt != null && k >= stopAt) return;
       while (idxRef.current !== k || busy.current) await sleep(40);
       const pts = resample(L.shapes[k].points, 110);
       current.current = [];

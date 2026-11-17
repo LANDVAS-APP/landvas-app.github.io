@@ -58,6 +58,12 @@
 .lv-frost { background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(180, 230, 255, 0.55) 100%);
   box-shadow: inset 0 0 40px rgba(200, 240, 255, 0.8); }
 .lv-glass { background: linear-gradient(125deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.04) 40%, rgba(255, 255, 255, 0.25) 60%, rgba(255, 255, 255, 0.02)); }
+/* 🪞 a Mirror Shard reflecting: a bright glass rim, and the dark side of the mirror behind the reflection (never the bright
+   glass — white words on it vanish). Only a faint sheen at the very top, above everything else, fading out before any text. */
+.lv-shard-frame { background: linear-gradient(135deg, #C0F5FF, #7DD3FC 40%, #fff 60%, #7DD3FC); box-shadow: 0 0 28px rgba(125, 211, 252, 0.25); }
+.lv-shard-inside { background: radial-gradient(120% 60% at 50% 0%, #17324A 0%, #0C1A2B 55%, #08111D 100%); color: #fff; }
+.lv-shard-sheen { z-index: 1; background: linear-gradient(115deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 35%, rgba(192, 245, 255, 0.07) 55%, rgba(255, 255, 255, 0) 70%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent); mask-image: linear-gradient(to bottom, #000, transparent); }
 .lv-mirror-world { transform: scaleX(-1); }
 .lv-mirror-world .lv-unmirror { transform: scaleX(-1); }
 
@@ -406,6 +412,15 @@ html.reduce-motion .lv-lev-marker::before, html.reduce-motion .lv-lev-marker::af
   background: radial-gradient(circle, rgba(8, 16, 50, 0.5), rgba(8, 16, 50, 0.25) 45%, transparent 70%); }
 .lv-storm-mk .cl { position: absolute; inset: 0; font-size: 56px; line-height: 70px; text-align: center; filter: drop-shadow(0 6px 10px rgba(0, 0, 40, 0.6)); animation: lv-storm-drift 6s ease-in-out infinite; }
 .lv-storm-mk b { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); white-space: nowrap; padding: 1px 8px; border-radius: 999px; font: 900 10px/1.4 system-ui; color: #04102E; background: #7DF9FF; }
+/* 🎒 Origami: a folded plot carried where you stand */
+.lv-carry-mk { position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.lv-carry-mk .crane { display: block; font-size: 24px; line-height: 1; font-style: normal; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55)); animation: lv-carry-bob 2.4s ease-in-out infinite; }
+.lv-carry-mk b { margin-top: 2px; white-space: nowrap; padding: 1px 8px; border-radius: 999px; font: 900 10px/1.4 system-ui; color: #10202A; background: #FFE8B8; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7); text-transform: capitalize; }
+.lv-carry-mk.r-kraken b, .lv-carry-mk.r-krakatoa b { background: #7DD3FC; }
+.lv-carry-mk.r-enchanted b { background: #E3C8FF; }
+.lv-carry-mk.r-chaos b { background: #FFB3E6; }
+@keyframes lv-carry-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-5px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .lv-carry-mk .crane { animation: none; } }
 .lv-storm-bolt-mk { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; opacity: 0; transition: opacity 0.2s; }
 .lv-storm-bolt-mk.charging, .lv-storm-bolt-mk.strike { opacity: 1; }
 .lv-storm-bolt-mk .ret { position: absolute; inset: 0; border-radius: 999px; border: 3px solid #7DF9FF; box-shadow: 0 0 16px #7DF9FF; }

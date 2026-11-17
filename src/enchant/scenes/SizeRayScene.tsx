@@ -17,6 +17,7 @@ import { dur, enchantName } from '../kinds';
 import { feel } from '../living';
 import { ModeDial, NeedleMeter, RAY, Radar, gradeLine, plotLabel, usePickOnMap, useRayShot, type RayMode } from '../sizeray';
 import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
+import { readable } from '../../lib/readable';
 
 type Quick = { type: 'enchant' | 'fox' | 'parasite'; id: string; label: string; e?: any };
 const GRADE_C: Record<string, string> = { PERFECT: '#B6FF3D', GREAT: '#39FF14', GOOD: '#FFD23F', WIDE: '#FF9F1C', MISS: '#FF4D6D' };
@@ -108,7 +109,7 @@ export function SizeRayScene({ v, view, act, busy, at }: SceneProps) {
                 <summary className="cursor-pointer text-[12px] font-black text-white/70">{simple ? 'Pick a plot of yours on the radar' : '…or pick it on the radar'}</summary>
                 <div className="mt-2 grid gap-2">
                   <Radar plots={list} picked={picked} onPick={(x) => setPicked({ gx: x.gx, gy: x.gy })} sizes={sizes} />
-                  {p && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(p.rarity).color }}>{plotLabel(p)} · {rarityInfo(p.rarity).name}</div>}
+                  {p && <div className="text-center text-[12px] font-black" style={{ color: readable(rarityInfo(p.rarity).color) }}>{plotLabel(p)} · {rarityInfo(p.rarity).name}</div>}
                   <Button variant="secondary" onClick={() => void aimNow()} disabled={!picked || !!busy || Number(view.shots) < 1} data-testid="ray-aim">{Number(view.shots) < 1 ? `Recharging · ${dur(nextIn)}` : `🎯 Aim · ${RAY[mode].label}`}</Button>
                 </div>
               </details>

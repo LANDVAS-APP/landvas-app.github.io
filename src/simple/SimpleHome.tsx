@@ -32,6 +32,7 @@ import { PlayerAvatar, ResourcePill, Spinner } from '../ui';
 import { NotificationBell } from '../updates/Notifications';
 import { LeviathanBanner, LeviathanFight, LeviathanMoments } from '../leviathan/Leviathan';
 import { WarpTunnel } from '../enchant/scenes/WormholeScene';
+import { readable } from '../lib/readable';
 
 type MyPlot = { gx: number; gy: number; plot_type: string; rarity: RarityId; level: number; group_id: string | null; name: string | null; usd_per_second: number; claimed_at: string; shiny?: boolean; today_mult?: number | null };
 
@@ -133,7 +134,7 @@ export default function SimpleHome() {
           const ultra = isUltra(id);
           return (
             <div key={id} className={cn('rounded-2xl border px-2 py-1.5 text-center', ultra ? 'border-white/15 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]' : 'border-white/10 bg-white/[0.04]')}>
-              <div className="truncate text-[11px] font-black uppercase" style={{ color: r.color }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</div>
+              <div className="truncate text-[11px] font-black uppercase" style={{ color: readable(r.color) }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</div>
               <div className="text-[10px] font-semibold text-white/50 tnum">{rarityOdds(id)}</div>
             </div>
           );

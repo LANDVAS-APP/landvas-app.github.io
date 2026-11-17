@@ -7,7 +7,7 @@ import { cn, sleep } from '../../lib/utils';
 import { Button } from '../../ui';
 import { Hud, fmtClock, haptic, useLatest, useTicker, type GameProps } from '../common';
 
-export function ColorBurstGame({ seed, level, rounds, now, onDone, registerSolver }: GameProps) {
+export function ColorBurstGame({ seed, level, rounds, now, onDone, registerSolver, stopAt, onRound }: GameProps) {
   const L = useMemo(() => generateColorBurst(seed, level, rounds), [seed, level, rounds]);
   const [round, setRound] = useState(0);
   const [actions, setActions] = useState<ColorBurstAction[]>([]);
@@ -44,6 +44,7 @@ export function ColorBurstGame({ seed, level, rounds, now, onDone, registerSolve
     const c = replayDrops(acts, L.pigments.length, L.maxDrops) ?? L.pigments.map(() => 0);
     const s = scoreRound(L, L.rounds[roundRef.current], c, submit_t - roundStart.current);
     setFeedback({ matched: s.matched, dE: s.dE });
+    onRound?.(roundRef.current, s.matched);
     haptic(s.matched ? 20 : 40);
     await sleep(650);
     setFeedback(null);
@@ -66,6 +67,7 @@ export function ColorBurstGame({ seed, level, rounds, now, onDone, registerSolve
 
   registerSolver(async () => {
     for (let k = roundRef.current; k < L.rounds.length; k++) {
+      if (stopAt != null && k >= stopAt) return;
       while (roundRef.current !== k) await sleep(50);
       const recipe = L.rounds[k].recipe;
       for (let p = 0; p < recipe.length; p++)

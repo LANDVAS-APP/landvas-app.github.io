@@ -21,6 +21,7 @@ import { CardView } from './CardView';
 import { LabBar } from './Lab';
 import { MusicButton } from './brawlMusic';
 import type { MatchView, Rewards } from './types';
+import { readable } from '../lib/readable';
 
 type Mode = { kind: 'idle' } | { kind: 'card'; uid: number } | { kind: 'flourish'; lane: number };
 const asState = (v: View) => v as unknown as State;
@@ -368,7 +369,7 @@ export function Match({ id, board, me0, onLeave, onPack }: { id: string; board: 
       {banner && (
         <div className="pointer-events-none absolute inset-x-0 top-[34%] z-20 grid justify-items-center" data-testid="brawl-banner">
           <div className="animate-[lv-pop_0.35s_ease-out] rounded-3xl bg-black/75 px-6 py-3 text-center backdrop-blur" style={{ boxShadow: `0 0 40px -6px ${banner.color}` }}>
-            <div className="font-display text-3xl font-black" style={{ color: banner.color }}>{banner.text}</div>
+            <div className="font-display text-3xl font-black" style={{ color: readable(banner.color) }}>{banner.text}</div>
             {banner.sub && <div className="mt-1 max-w-xs text-sm text-white/80">{banner.sub}</div>}
           </div>
         </div>

@@ -16,6 +16,7 @@ import { confettiCannons } from '../ui/confetti';
 import { sfx } from '../arcade/sfx';
 import { REALM_GAMES } from './games';
 import { REALM_META } from './kinds';
+import { readable } from '../lib/readable';
 
 export const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : Math.floor(n).toLocaleString());
 export const RARITY: Record<string, string> = { common: '#9AA0B0', uncommon: '#3DDC97', rare: '#22B8FF', epic: '#B57BFF', legendary: '#FFB13D' };
@@ -179,7 +180,7 @@ export function useRealmCore({ r, setR, burst = () => {}, extraGames = {} }: { r
             <b className="text-sm">🗺️ Zones</b>
             {cfg.zones.map((z) => (
               <div key={z.id} className={cn('flex items-center gap-2 rounded-xl border border-line p-2 text-sm', r.level.level < z.level && 'opacity-60')}>
-                <span className="w-12 text-xs font-bold" style={{ color: cfg.color }}>Lv {z.level}</span>
+                <span className="w-12 text-xs font-bold" style={{ color: readable(cfg.color) }}>Lv {z.level}</span>
                 <div className="min-w-0 flex-1"><b>{z.name}</b><div className="text-xs text-muted">{z.blurb}</div></div>
                 {r.level.level >= z.level ? <span>✅</span> : <Lock className="h-4 w-4 text-muted" />}
               </div>

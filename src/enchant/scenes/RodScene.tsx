@@ -15,6 +15,7 @@ import { sleep, useCraftClip } from '../craft';
 import { kindInfo } from '../kinds';
 import { feel } from '../living';
 import './sunrod.css';
+import { readable } from '../../lib/readable';
 
 type Cat = { t: string; id: string; name: string; p: number; stars?: number };
 type Slot = Cat & { depth: number; need: number; h: number; q: number; pct: number; hits?: number; slips?: number };
@@ -161,7 +162,7 @@ export function RodScene({ v, view, act, busy, mirror }: SceneProps) {
             {view.walk_ready ? '🚶 Divining Walk — let it find a spot' : '🚶 It walked today'}</Button>
           {walk && (walk.found ? (
             <div className="flex items-center gap-2 rounded-2xl bg-[#7FE0C3]/15 p-2.5" data-testid="rod-walk-found">
-              <span className="text-[22px]">💧</span><span className="flex-1 text-[12.5px] font-black">It twitched over a spot that reads <b style={{ color: rarityInfo(walk.sighting.rarity === 'enchanted' ? 'epic' : walk.sighting.rarity).color }}>{walk.sighting.rarity === 'enchanted' ? 'Enchanted' : rarityInfo(walk.sighting.rarity).name}</b>.</span>
+              <span className="text-[22px]">💧</span><span className="flex-1 text-[12.5px] font-black">It twitched over a spot that reads <b style={{ color: readable(rarityInfo(walk.sighting.rarity === 'enchanted' ? 'epic' : walk.sighting.rarity).color) }}>{walk.sighting.rarity === 'enchanted' ? 'Enchanted' : rarityInfo(walk.sighting.rarity).name}</b>.</span>
               <Button size="sm" onClick={() => goClaim(walk.sighting)}>Claim →</Button>
             </div>
           ) : <div className="text-center text-[12px] font-bold text-white/60">It walked {walk.walked} spots and found nothing today.</div>)}

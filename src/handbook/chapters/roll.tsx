@@ -5,6 +5,7 @@ import { fmtN, oddsText, perSec, usd, type Ctx } from '../live';
 import { B, Bullets, CardGrid, Facts, Figure, GoRow, Note, P, Pro, Steps, Table, Tip } from '../ui';
 import { Bars, CrownShare, RollStrip } from '../visuals';
 import { Sigil } from '../../enchant/Sigil';
+import { readable } from '../../lib/readable';
 
 /** a day of rent on average with the free boost used every day */
 export const boostAvg = (c: Ctx) => {
@@ -51,10 +52,10 @@ export const roll: Chapter = {
         return (
           <>
             <Figure caption="How often each everyday rarity comes up on a normal claim (live odds).">
-              <Bars rows={rows.map((r) => ({ label: <span className="flex items-center gap-2"><BasePlotArt rarity={r.id as RarityId} size={22} /><span style={{ color: r.color }}>{r.name}</span></span>, v: r.chance, c: r.color }))} unit={(v) => oddsText(v)} />
+              <Bars rows={rows.map((r) => ({ label: <span className="flex items-center gap-2"><BasePlotArt rarity={r.id as RarityId} size={22} /><span style={{ color: readable(r.color) }}>{r.name}</span></span>, v: r.chance, c: r.color }))} unit={(v) => oddsText(v)} />
             </Figure>
             <Table head={['Rarity', 'Chance', 'Rent a day*', 'Ink bonus']} rows={rows.map((r) => [
-              <b key="n" style={{ color: r.color }}>{r.name}</b>, oddsText(r.chance),
+              <b key="n" style={{ color: readable(r.color) }}>{r.name}</b>, oddsText(r.chance),
               <span key="r">{usd(r.usd * 86400 * b.avg)}<span className="block text-[10.5px] text-faint">{perSec(r.usd)}/s</span></span>, `×${r.ink.toFixed(2)}`,
             ])} note={`* using the free daily boost every day (×${fmtN(b.mult)} for ${fmtN(b.hours, 1)} h). The Ink bonus multiplies every minigame win on that plot.`} />
             <Bullets items={[
@@ -94,7 +95,7 @@ export const roll: Chapter = {
             <P>Every claim first rolls for an <B>ultra</B>, each on its own odds in parts per million. Only if none hits does the everyday table roll. All the ultras together come up about <B>{oddsText(total)}</B> claims. Each one has an ability that changes how it earns, and a big Ink bonus on its minigame.</P>
             <CardGrid items={list.map((r) => ({
               key: r.id, art: <BasePlotArt rarity={r.id} size={46} />, c: r.color,
-              title: <span style={{ color: r.color }}>{r.emoji} {r.name}</span>,
+              title: <span style={{ color: readable(r.color) }}>{r.emoji} {r.name}</span>,
               sub: `${oddsText((r.ppm ?? 0) / 1e6)} · ×${Number(r.ink_reward_multiplier).toFixed(1)} Ink · ${perSec(r.usd_per_second)}/s`,
               body: r.ability,
             }))} />

@@ -3,6 +3,7 @@ import type { Chapter } from '../types';
 import { fmtN } from '../live';
 import { B, Bullets, Combo, Facts, Figure, GoRow, Note, P, Pro, Steps, Table, Tip } from '../ui';
 import { DigLayers, Planets } from '../visuals';
+import { readable } from '../../lib/readable';
 
 export const space: Chapter = {
   id: 'space',
@@ -63,7 +64,7 @@ export const space: Chapter = {
         return (
           <>
             <P>Land on any world and walk its globe to claim plots; everyone exploring there sees your flag. A planet plot costs that world’s price in Ink, plus <B>{fmtN(c.n('planets.price_step', 5))} more</B> for each plot you already own there. Planet plots roll their own space rarities, which multiply their games’ Ink.</P>
-            <Table head={['Space rarity', 'Chance', 'Game Ink']} rows={rar.map((r) => [<b key="n" style={{ color: r.color }}>{r.name}</b>, `${fmtN((Number(r.weight) / tot) * 100, 1)}%`, `×${Number(r.mult).toFixed(2)}`])} />
+            <Table head={['Space rarity', 'Chance', 'Game Ink']} rows={rar.map((r) => [<b key="n" style={{ color: readable(r.color) }}>{r.name}</b>, `${fmtN((Number(r.weight) / tot) * 100, 1)}%`, `×${Number(r.mult).toFixed(2)}`])} />
             <Facts items={[
               { k: 'Paid rounds per plot', v: `${fmtN(c.n('planets.rounds_per_plot', 3))} a day` },
               { k: 'Planet Ink per world', v: `${fmtN(c.n('planets.daily_cap', 100))} a day` },

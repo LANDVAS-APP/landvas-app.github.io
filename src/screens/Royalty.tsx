@@ -15,6 +15,7 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { Empty, PlayerAvatar, Spinner } from '../ui';
 import { cn, fmt } from '../lib/utils';
 import { CrownCelebrations } from '../royalty/CrownCelebrations';
+import { readable } from '../lib/readable';
 
 type Crown = {
   tier: 'crown' | 'crown_state' | 'crown_country'; city: string | null; state: string | null; country: string; country_name: string; kingdom: string;
@@ -45,7 +46,7 @@ function CrownCard({ c }: { c: Crown }) {
           </Link>
         ) : <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-surface-2 text-2xl">🎭</div>}
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: t.color }}>{t.one}{c.shiny ? ' · ✨ Shiny' : ''}</div>
+          <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: readable(t.color) }}>{t.one}{c.shiny ? ' · ✨ Shiny' : ''}</div>
           <div className="truncate font-display text-xl font-black">{flag(c.country)} {c.kingdom}</div>
           {where && <div className="truncate text-xs text-muted">{where}</div>}
         </div>
@@ -56,7 +57,7 @@ function CrownCard({ c }: { c: Crown }) {
       </div>
       <div className="flex items-center justify-between gap-2 rounded-2xl bg-black/20 px-3 py-2 text-[12px]">
         <span className="text-muted">{fmt(c.rivals)} other landholder{c.rivals === 1 ? '' : 's'} in the kingdom</span>
-        <b className="shrink-0" style={{ color: t.color }}>{c.share === 'ink' ? '1% of their Ink' : c.share === 'rent' ? '1% of their rent' : 'a 1% share'}</b>
+        <b className="shrink-0" style={{ color: readable(t.color) }}>{c.share === 'ink' ? '1% of their Ink' : c.share === 'rent' ? '1% of their rent' : 'a 1% share'}</b>
       </div>
     </article>
   );
@@ -81,7 +82,7 @@ export default function Royalty() {
         <div className="mx-auto mt-4 grid max-w-md grid-cols-3 gap-2" data-testid="royalty-totals">
           {(['crown_country', 'crown_state', 'crown'] as const).map((k) => (
             <div key={k} className="rounded-2xl bg-black/20 p-2.5">
-              <div className="font-display text-2xl font-black tnum" style={{ color: TIERS[k].color }}>{fmt(k === 'crown' ? tot.city : k === 'crown_state' ? tot.state : tot.country)}</div>
+              <div className="font-display text-2xl font-black tnum" style={{ color: readable(TIERS[k].color) }}>{fmt(k === 'crown' ? tot.city : k === 'crown_state' ? tot.state : tot.country)}</div>
               <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted">{TIERS[k].one}s</div>
               <div className="text-[10.5px] text-faint">{fmt(left[k])} unclaimed</div>
             </div>
@@ -124,7 +125,7 @@ export default function Royalty() {
           <section key={k} className="mb-8 grid gap-3" data-testid={`royal-section-${k}`}>
             <div className="flex items-center gap-3">
               <BasePlotArt rarity={k} size={40} />
-              <div><h2 className="font-display text-xl font-black" style={{ color: t.color }}>{t.emoji} {t.title}</h2><p className="text-xs text-muted">{t.blurb} {fmt(list.length)} held, {fmt(left[k])} still unclaimed.</p></div>
+              <div><h2 className="font-display text-xl font-black" style={{ color: readable(t.color) }}>{t.emoji} {t.title}</h2><p className="text-xs text-muted">{t.blurb} {fmt(list.length)} held, {fmt(left[k])} still unclaimed.</p></div>
             </div>
             {list.length ? (
               <div className={cn('grid gap-3', k === 'crown_country' ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3')}>{list.map((c, i) => <CrownCard key={`${k}-${c.kingdom}-${i}`} c={c} />)}</div>
@@ -190,7 +191,7 @@ function ShareCard({ c }: { c: CrownShare }) {
       <header className="flex items-center gap-3">
         <BasePlotArt rarity={c.tier} size={44} />
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: t.color }}>{t.one}</div>
+          <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: readable(t.color) }}>{t.one}</div>
           <div className="truncate font-display text-lg font-black">{flag(c.country)} {c.kingdom}</div>
           <div className="text-[11px] text-muted">{fmt(c.members)} other landholder{c.members === 1 ? '' : 's'}{c.ink_total > 0 ? ` · ${fmt(c.ink_total)} Ink paid so far` : ''}</div>
         </div>

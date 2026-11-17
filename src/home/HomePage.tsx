@@ -22,6 +22,7 @@ import { DISCORD, PLAYSTYLES, REDDIT, TAGLINE } from '../brand';
 import { FeaturedToday } from '../gallery/FeaturedToday';
 import { poll } from '../lib/poll';
 import { CrownCelebrations } from '../royalty/CrownCelebrations';
+import { readable } from '../lib/readable';
 
 const signedIn = () => !!getBackend().session();
 const playHref = () => (signedIn() ? '/world' : '/welcome');
@@ -331,7 +332,7 @@ export function Playstyles() {
           <Link key={p.id} to={signedIn() ? p.to : playHref()} className="glass group relative overflow-hidden rounded-3xl p-5 transition hover:-translate-y-1" style={{ boxShadow: `inset 0 0 0 1px ${p.color}33` }}>
             <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-40 blur-2xl transition group-hover:opacity-70" style={{ background: p.color }} />
             <div className="relative text-4xl">{p.emoji}</div>
-            <h3 className="relative mt-3 font-display text-xl font-bold" style={{ color: p.color }}>{p.title}</h3>
+            <h3 className="relative mt-3 font-display text-xl font-bold" style={{ color: readable(p.color) }}>{p.title}</h3>
             <p className="relative mt-1.5 text-[15px] leading-relaxed text-muted">{p.text}</p>
           </Link>
         ))}
@@ -351,7 +352,7 @@ export function HowItWorks() {
         {STEPS.map((s, i) => (
           <article key={s.title} className="lv-step glass relative overflow-hidden rounded-3xl p-6" style={{ ['--c' as string]: s.color }}>
             <div className="font-display text-6xl font-bold text-white/[0.06]">0{i + 1}</div>
-            <div className="-mt-6 mb-4 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${s.color}22`, color: s.color, boxShadow: `0 0 30px -6px ${s.color}` }}><s.icon className="h-6 w-6" /></div>
+            <div className="-mt-6 mb-4 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${s.color}22`, color: readable(s.color), boxShadow: `0 0 30px -6px ${s.color}` }}><s.icon className="h-6 w-6" /></div>
             <h3 className="font-display text-lg font-semibold">{s.title}</h3>
             <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.body}</p>
           </article>

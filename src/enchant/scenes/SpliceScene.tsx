@@ -20,6 +20,7 @@ import { usePickOnMapFor } from '../PlotPickOverlay';
 import { useUi } from '../../lib/store';
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
 import type { Moment } from '../../clips/moments';
+import { readable } from '../../lib/readable';
 
 function Vial({ e, label, onClear, draining, tone }: { e: any | null; label: string; onClear(): void; draining?: boolean; tone?: string }) {
   const k = e ? kindInfo(e.kind) : null;
@@ -240,7 +241,7 @@ export function SpliceScene({ v, view, act, busy, at }: SceneProps) {
               )}
               {!simple && <div className="text-center text-[11px] font-bold text-white/45">…or tap it on the radar</div>}
               <Radar plots={(plots.data ?? []) as any[]} picked={b} onPick={(p) => setB({ plot: true, gx: p.gx, gy: p.gy, rarity: p.rarity, label: plotLabel(p), plot_kind: kindAt(p.gx, p.gy) })} />
-              {b && <div className="text-center text-[12px] font-black" style={{ color: rarityInfo(b.rarity).color }}>{b.label}</div>}
+              {b && <div className="text-center text-[12px] font-black" style={{ color: readable(rarityInfo(b.rarity).color) }}>{b.label}</div>}
             </div>
           )}
           {mode === 'quad' && !quadOk && <p className="rounded-2xl bg-[#FFD23F]/10 px-3 py-2 text-center text-[12px] font-bold text-[#FFE8A3]" data-testid="splice-quad-locked">✳️ The Quad is the ★3 Splice’s power. Pour copies (or Essence) into this Splice to earn its stars.</p>}

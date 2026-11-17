@@ -5,6 +5,7 @@ import { GOLD, N, SPLASH_COLORS, fits, generateBlockSplash, initialState, place,
 import { cn, sleep } from '../../lib/utils';
 import { useUi } from '../../lib/store';
 import { Hud, fmtClock, haptic, useBoardSize, useLatest, useTicker, type GameProps } from '../common';
+import { readable } from '../../lib/readable';
 
 type Drag = { p: number; cx: number; cy: number; lift: number };
 type Pop = { id: number; text: string; color: string; x: number; y: number; big?: boolean };
@@ -167,7 +168,7 @@ export function BlockSplashBoard({ seed, level, now, onDone, registerSolver }: G
           )))}
           {pops.map((p) => (
             <span key={p.id} className={cn('lvbs-pop pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-display font-black', p.big ? 'text-[22px]' : 'text-[15px]')}
-              style={{ left: p.x, top: p.y, color: p.color, textShadow: '0 2px 0 rgba(0,0,0,0.55), 0 0 14px rgba(0,0,0,0.5)' }}>{p.text}</span>
+              style={{ left: p.x, top: p.y, color: readable(p.color), textShadow: '0 2px 0 rgba(0,0,0,0.55), 0 0 14px rgba(0,0,0,0.5)' }}>{p.text}</span>
           ))}
           {end && (
             <div className="lvbs-end pointer-events-none absolute inset-0 grid place-items-center rounded-[16px] bg-black/45" aria-live="polite">

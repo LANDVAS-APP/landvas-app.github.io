@@ -21,6 +21,7 @@ import { poll } from '../lib/poll';
 import { animateWhenVisible } from '../lib/inView';
 import { buzz, isNative } from '../native/native';
 import { Emblem, type DiscTone } from '../ui';
+import { readable } from '../lib/readable';
 
 const APP = isNative();
 
@@ -271,7 +272,7 @@ function EarnCard({ c, i }: { c: Card; i: number }) {
     <>
       {c.status === 'ready' && <motion.span className="pointer-events-none absolute inset-0 rounded-[22px]" style={{ boxShadow: `inset 0 0 0 1.5px ${c.color}` }} animate={{ opacity: [0.35, 1, 0.35] }} transition={{ duration: 2.4, repeat: Infinity }} />}
       <div className="flex items-start gap-3">
-        <motion.span whileHover={{ rotate: -8, scale: 1.08 }} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: `${c.color}22`, color: c.color, boxShadow: `0 0 28px -10px ${c.color}` }}><c.icon className="h-6 w-6" /></motion.span>
+        <motion.span whileHover={{ rotate: -8, scale: 1.08 }} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: `${c.color}22`, color: readable(c.color), boxShadow: `0 0 28px -10px ${c.color}` }}><c.icon className="h-6 w-6" /></motion.span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-display font-semibold">{c.title}</span>

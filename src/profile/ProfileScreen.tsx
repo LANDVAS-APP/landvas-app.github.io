@@ -31,6 +31,7 @@ import { BadgeIcon, tierOf } from '../screens/BadgeIcon';
 import type { PlayerLand } from '../backend/types';
 import { ProfilePlaces } from './Places';
 import { poll } from '../lib/poll';
+import { readable } from '../lib/readable';
 
 type Badge = { key: string; name: string; icon: string; category: string; threshold: number; description?: string; unlocked_at: string };
 type Crown = { tier: RarityId; kingdom: string; country: string; since: string; shiny: boolean };
@@ -147,7 +148,7 @@ export default function ProfileScreen() {
           {sc.rarest && rarest ? (
             <Link to={`/rankings/rarities?r=${rarest.id}`} className="flex flex-col items-center gap-2 text-center">
               <motion.div className="lv-showpiece-art rounded-2xl" whileHover={{ scale: 1.06, rotate: -2 }}><BasePlotArt rarity={rarest.id} shiny={sc.rarest.shiny > 0} size={72} /></motion.div>
-              <div className="font-display text-lg font-black leading-tight" style={{ color: rarest.color, textShadow: `0 0 18px ${rarest.color}88` }}>{rarest.emoji ? `${rarest.emoji} ` : ''}{rarest.name}</div>
+              <div className="font-display text-lg font-black leading-tight" style={{ color: readable(rarest.color), textShadow: `0 0 18px ${rarest.color}88` }}>{rarest.emoji ? `${rarest.emoji} ` : ''}{rarest.name}</div>
               <div className="text-[11px] text-muted">{sc.rarest.count > 1 ? `${sc.rarest.count} plots` : '1 plot'}{sc.rarest.shiny ? ` · ${sc.rarest.shiny} ✨` : ''} · {rarest.ppm ? `1 in ${Math.round(1_000_000 / rarest.ppm).toLocaleString()}` : rarest.id.startsWith('crown') ? 'one per kingdom' : 'rare'}</div>
             </Link>
           ) : <p className="py-6 text-center text-xs text-muted">No plots yet</p>}

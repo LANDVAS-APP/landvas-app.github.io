@@ -21,6 +21,7 @@ import { bonusText } from '../play/rates';
 import { poll } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
 import { isNative } from '../native/native';
+import { readable } from '../lib/readable';
 
 const APP = isNative();
 
@@ -139,7 +140,7 @@ function GameCard({ g, c, busy, onPlay }: { g: PvpGame; c: PvpGameConfig; busy: 
           {c.waiting > 0 && <span className="absolute -right-1.5 -top-1.5 rounded-full bg-ok px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-bg shadow-[0_0_12px_var(--ok)]">Ready</span>}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-lg font-semibold" style={{ color: info.color }}>{info.name}</div>
+          <div className="font-display text-lg font-semibold" style={{ color: readable(info.color) }}>{info.name}</div>
           <div className="text-xs text-muted">{info.tagline}</div>
         </div>
         <div className="text-right">
@@ -214,7 +215,7 @@ function Match({ s, onDone }: { s: PvpStart; onDone(log: unknown): void }) {
     <div className="flex min-h-full flex-col overflow-x-hidden bg-bg">
       <header className="gutter flex items-center gap-3 pb-2 pt-[max(12px,env(safe-area-inset-top,0px))]">
         <div className="min-w-0 flex-1">
-          <div className="eyebrow" style={{ color: info.color }}>PvP · {s.matched ? 'rival found' : 'your rival plays the same boards'}</div>
+          <div className="eyebrow" style={{ color: readable(info.color) }}>PvP · {s.matched ? 'rival found' : 'your rival plays the same boards'}</div>
           <h1 className="font-display text-lg font-semibold">{info.name}</h1>
         </div>
         <span className="glass flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-bold tnum" data-testid="pvp-round">Round {Math.min(round + 1, s.rounds)} of {s.rounds}</span>
@@ -247,7 +248,7 @@ function MatchCard({ m, big, onClose }: { m: PvpMatch; big?: boolean; onClose?()
         {m.result === 'won' ? <Crown className="h-6 w-6 text-gold" /> : <Swords className="h-6 w-6 text-muted" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: `${info.color}22`, color: info.color }}>{info.name}</span>
+            <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: `${info.color}22`, color: readable(info.color) }}>{info.name}</span>
             <span className={cn(big ? 'font-display text-xl' : 'text-sm', 'font-semibold', m.result === 'won' ? 'text-ok' : m.result === 'lost' ? 'text-bad' : '')}>{label}</span>
           </div>
           <div className="text-xs text-muted">{m.rounds} rounds · {timeAgo(m.created_at)}{m.you?.avg_quality != null && m.you.valid ? ` · your rounds averaged ${m.you.avg_quality}%` : ''}{m.you?.valid === false ? ' · your run couldn’t be verified' : ''}</div>

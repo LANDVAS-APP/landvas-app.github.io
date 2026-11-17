@@ -1,6 +1,7 @@
 import { Gem } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { rarityInfo, type RarityId } from '../shared/rarity';
+import { readable } from '../lib/readable';
 
 /** Colored rarity chip; Mythic gets an animated rainbow edge. */
 export function RarityBadge({ r, small, className }: { r: RarityId | string; small?: boolean; className?: string }) {
@@ -11,7 +12,7 @@ export function RarityBadge({ r, small, className }: { r: RarityId | string; sma
       className={cn('inline-flex items-center gap-1 rounded-full font-bold uppercase tracking-wider', small ? 'px-1.5 py-0.5 text-[9.5px]' : 'px-2.5 py-1 text-[11px]', mythic && 'rainbow-edge', className)}
       style={{ background: `${info.color}26`, color: info.glow, boxShadow: `inset 0 0 0 1px ${info.color}88, 0 0 14px -4px ${info.color}` }}
     >
-      <Gem className={small ? 'h-2.5 w-2.5' : 'h-3 w-3'} style={{ color: info.color }} />
+      <Gem className={small ? 'h-2.5 w-2.5' : 'h-3 w-3'} style={{ color: readable(info.color) }} />
       {info.name}
     </span>
   );

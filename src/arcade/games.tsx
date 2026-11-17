@@ -17,6 +17,7 @@ import { MIR, mirDX, mirDY, unflipText } from './mirror/mir';
 import { buzz } from '../native/native';
 import { sfx } from './sfx';
 import { config } from '../env';
+import { readable } from '../lib/readable';
 
 export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
   /** classic: the usual round; endless: keep going until you run out of lives (scores have no top in either) */ mode?: 'classic' | 'endless' };
@@ -35,7 +36,7 @@ export function usePops() {
   const el = (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {pops.map((p) => (
-        <div key={p.id} className={p.big ? 'lv-arc-pop-big' : 'lv-arc-pop'} style={{ left: `${p.x}%`, top: `${p.y}%`, color: p.color }}>{p.text}</div>
+        <div key={p.id} className={p.big ? 'lv-arc-pop-big' : 'lv-arc-pop'} style={{ left: `${p.x}%`, top: `${p.y}%`, color: readable(p.color) }}>{p.text}</div>
       ))}
     </div>
   );

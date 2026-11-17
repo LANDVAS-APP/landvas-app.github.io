@@ -13,6 +13,7 @@ import { Sigil } from '../Sigil';
 import { centerOf, efx, useMyEnchantments, type SceneProps } from '../core';
 import { dur, enchantName, kindInfo } from '../kinds';
 import { MapPickButton, useMapPick } from '../pickers';
+import { readable } from '../../lib/readable';
 
 function Gear({ r, teeth, cls, x, y, c }: { r: number; teeth: number; cls: string; x: number; y: number; c: string }) {
   const d = Array.from({ length: teeth * 2 }, (_, i) => { const a = (i / (teeth * 2)) * Math.PI * 2, rr = i % 2 ? r : r * 0.82; return `${(x + Math.cos(a) * rr).toFixed(1)},${(y + Math.sin(a) * rr).toFixed(1)}`; }).join(' ');
@@ -200,7 +201,7 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
               {rolled && (
                 <motion.div key="rolled" className="grid justify-items-center gap-0.5 rounded-xl bg-black/40 p-2 text-center" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} data-testid="clock-rolled">
                   <span className="text-[11px] text-white/55">{rarityInfo(rolled.was).name} → </span>
-                  <span className="font-display text-[22px] font-black" style={{ color: rarityInfo(rolled.rarity).color, textShadow: `0 0 14px ${rarityInfo(rolled.rarity).color}` }}>{rolled.kind ? `🔮 Enchanted (${kindInfo(rolled.kind).name})` : rarityInfo(rolled.rarity).name}</span>
+                  <span className="font-display text-[22px] font-black" style={{ color: readable(rarityInfo(rolled.rarity).color), textShadow: `0 0 14px ${rarityInfo(rolled.rarity).color}` }}>{rolled.kind ? `🔮 Enchanted (${kindInfo(rolled.kind).name})` : rarityInfo(rolled.rarity).name}</span>
                   {rolled.kept && <span className="text-[11px] font-black text-[#9FE8FF]">♾️ Paradox: the first timeline was better — it stands</span>}
                 </motion.div>
               )}
@@ -208,7 +209,7 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
             {rolls.length ? rolls.map((p) => (
               <div key={`${p.gx}:${p.gy}`} className="flex items-center gap-2 rounded-lg bg-white/[0.04] p-1.5" data-testid="clock-roll">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: rarityInfo(p.rarity).color }} />
-                <span className="min-w-0 flex-1 truncate text-[12px] font-bold">{p.name ?? `Plot ${p.gx}, ${p.gy}`} · <span style={{ color: rarityInfo(p.rarity).color }}>{rarityInfo(p.rarity).name}</span> <span className="text-[10px] text-white/45">{Math.ceil(p.left_s / 60)} min left</span></span>
+                <span className="min-w-0 flex-1 truncate text-[12px] font-bold">{p.name ?? `Plot ${p.gx}, ${p.gy}`} · <span style={{ color: readable(rarityInfo(p.rarity).color) }}>{rarityInfo(p.rarity).name}</span> <span className="text-[10px] text-white/45">{Math.ceil(p.left_s / 60)} min left</span></span>
                 <Button size="sm" variant="rainbow" disabled={!!busy || !!rewinding || rollLeft < 1 || charge < Number(rw.roll_cost ?? 60)} onClick={() => void rollAgain(p)} data-testid="clock-roll-go">⏪ {rw.roll_cost ?? 60}m</Button>
               </div>
             )) : <p className="text-[11px] text-white/45">Claim a plot and it shows here for 10 minutes.</p>}

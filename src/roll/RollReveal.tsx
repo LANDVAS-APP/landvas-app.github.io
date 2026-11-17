@@ -40,6 +40,7 @@ import { GAME_EMOJI } from './stage/assets';
 import { shade } from './stage/math';
 import { saveRoll } from '../clips/history';
 import { framePacer } from '../lib/gfx';
+import { readable } from '../lib/readable';
 
 export type { EnchantBrief };
 export type RollResult = { rarity: RarityId; usd: number; type: string; first: boolean; shiny?: boolean; hot?: boolean; lucky?: boolean; guaranteed?: string | null;
@@ -477,7 +478,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
               <motion.div key={i} className="relative grid justify-items-center gap-0.5" initial={{ y: -260, scale: 1.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }} data-testid="roll-tray-item" data-shiny={sh || undefined} data-type={tyId || undefined}>
                 <span className={cn('relative block overflow-hidden rounded-[22%]', sh && 'lv-shiny-tile')}><BasePlotArt rarity={r} shiny={sh} size={44} /></span>
                 {sh && <span className="absolute -right-1.5 -top-1.5 text-[14px] drop-shadow-[0_0_6px_#fff]">✨</span>}
-                <span className="text-[9px] font-black uppercase" style={{ color: rarityInfo(r).color }}>{rarityInfo(r).name}</span>
+                <span className="text-[9px] font-black uppercase" style={{ color: readable(rarityInfo(r).color) }}>{rarityInfo(r).name}</span>
                 {ty && <span className="text-[8px] font-bold leading-none" style={{ color: ty.a }}>{GAME_EMOJI[tyId] ?? ''} {ty.game}</span>}
               </motion.div>
             );
@@ -507,7 +508,7 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
                       style={{ borderColor: on ? ri.color : 'rgba(255,255,255,0.1)', boxShadow: on ? `0 0 24px ${ri.color}88` : undefined }}
                       initial={{ y: 30, opacity: 0, rotateY: 90 }} animate={{ y: 0, opacity: 1, rotateY: 0, scale: on ? 1.06 : 1 }} transition={{ delay: i * 0.07, type: 'spring', stiffness: 360, damping: 22 }}>
                       <span className={cn('relative block overflow-hidden rounded-[22%]', sh && 'lv-shiny-tile')}><BasePlotArt rarity={r} shiny={sh} size={58} /></span>
-                      <span className="max-w-full truncate px-1 text-[11px] font-black uppercase" style={{ color: ri.color }}>{ri.emoji ? `${ri.emoji} ` : ''}{ri.name}</span>
+                      <span className="max-w-full truncate px-1 text-[11px] font-black uppercase" style={{ color: readable(ri.color) }}>{ri.emoji ? `${ri.emoji} ` : ''}{ri.name}</span>
                       {sh && <span className="rounded-full bg-[linear-gradient(90deg,#FF7AE0,#FFE14D,#22E3FF)] px-1.5 text-[9px] font-black text-[#1a0b2e]" data-testid={`roll-choice-shiny-${i}`}>✨ SHINY ×5</span>}
                       {ty && <span className="max-w-full truncate rounded-full px-1.5 text-[9px] font-black" style={{ background: `${ty.a}26`, color: ty.a }} data-testid={`roll-choice-type-${i}`}>{GAME_EMOJI[tyId] ?? ''} {ty.game} · {ty.name}</span>}
                       {r === 'enchanted' && result?.choiceEnchants?.[i]?.kind && <span className="max-w-full truncate text-[9px] font-black text-[#E6C8FF]" data-testid={`roll-choice-ench-${i}`}>{kindInfo(result.choiceEnchants[i]!.kind!).emoji} {kindInfo(result.choiceEnchants[i]!.kind!).name}{result.choiceEnchants[i]!.stars ? ` ${'★'.repeat(result.choiceEnchants[i]!.stars!)}` : ''}</span>}

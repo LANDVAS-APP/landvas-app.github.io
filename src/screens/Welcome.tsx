@@ -23,6 +23,7 @@ import { NATIVE_APP } from '../app/buildFlags';
 const WelcomeMore = NATIVE_APP ? null : lazy(() => import('./WelcomeMore'));
 import { PITCH, PLAYSTYLES, TAGLINE, TAGLINE_TEXT } from '../brand';
 import { poll } from '../lib/poll';
+import { readable } from '../lib/readable';
 
 /** A living canvas: plots claim themselves, fill with default designs and fuse into murals. */
 export function LivingCanvas() {
@@ -387,7 +388,7 @@ export function PlaystyleChips({ className }: { className?: string }) {
     <div className={`flex flex-wrap gap-1.5 ${className ?? ''}`} data-testid="playstyles">
       {PLAYSTYLES.map((p, i) => (
         <motion.span key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + i * 0.07 }}
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `${p.color}22`, color: p.color, boxShadow: `inset 0 0 0 1px ${p.color}55` }}>
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `${p.color}22`, color: readable(p.color), boxShadow: `inset 0 0 0 1px ${p.color}55` }}>
           {p.emoji} {p.title}
         </motion.span>
       ))}

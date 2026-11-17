@@ -25,6 +25,7 @@ import { GAMES, type GameId } from './games/engines';
 import { cn } from '../lib/utils';
 import { ResourceIcon } from '../ui';
 import { useNavigate } from 'react-router-dom';
+import { readable } from '../lib/readable';
 
 export default function Hub() {
   const me = useOnboardedMe();
@@ -140,7 +141,7 @@ function EarnPanel({ creatures }: { creatures: Inkborn[] }) {
             <span className="text-3xl">{GAMES[g].emoji}</span>
             <b className="font-display">{GAMES[g].name}</b>
             <span className="text-xs text-muted">{GAMES[g].blurb}</span>
-            <span className="mt-1 text-[11px] font-bold" style={{ color: GAMES[g].color }}>{rested ? `Play as ${rested.name} →` : 'Everyone is away'}</span>
+            <span className="mt-1 text-[11px] font-bold" style={{ color: readable(GAMES[g].color) }}>{rested ? `Play as ${rested.name} →` : 'Everyone is away'}</span>
           </motion.button>
         ))}
         <div className="glass grid gap-1 rounded-3xl p-4 text-sm">

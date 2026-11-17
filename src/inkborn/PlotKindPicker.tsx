@@ -19,6 +19,7 @@ import { Button, Dialog } from '../ui';
 import { drawHabitatPlot } from '../map/plotTiles';
 import { CreatureView } from './CreatureView';
 import { randomGenome } from './genome';
+import { readable } from '../lib/readable';
 
 type G = { id: string; kind?: PlotKind; plot_count: number; habitat_id?: string | null; farm_id?: string | null; business_id?: string | null; arcade_id?: string | null; realm_id?: string | null; name: string };
 const RES: PlotKind[] = ['home', 'landlord'];
@@ -36,7 +37,7 @@ export function PlotKindBadge({ kind }: { kind?: PlotKind }) {
   if (kind === 'home') return <span className="inline-flex items-center gap-1 rounded-full bg-[#C8553D]/15 px-2 py-0.5 text-[11px] font-bold text-[#E0745C]">🏠 Residential · Home</span>;
   if (kind === 'train' || kind === 'plane') return <span className="inline-flex items-center gap-1 rounded-full bg-[#2FA4D9]/15 px-2 py-0.5 text-[11px] font-bold text-[#2FA4D9]">{kind === 'train' ? '🚆 Travel · Train' : '✈️ Travel · Plane'}</span>;
   if (kind === 'landlord') return <span className="inline-flex items-center gap-1 rounded-full bg-[#3E6E9C]/20 px-2 py-0.5 text-[11px] font-bold text-[#6FA3D9]">🏘️ Residential · Landlord</span>;
-  if (isRealm(kind)) { const m = REALM_META[kind]; return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `${m.color}26`, color: m.color }}>{m.emoji} {m.name}</span>; }
+  if (isRealm(kind)) { const m = REALM_META[kind]; return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `${m.color}26`, color: readable(m.color) }}>{m.emoji} {m.name}</span>; }
   if (kind === 'arcade') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FF3D9A]/15 px-2 py-0.5 text-[11px] font-bold text-[#FF3D9A]"><Gamepad2 className="h-3 w-3" /> Arcade</span>;
   if (kind === 'business') return <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE14D]/20 px-2 py-0.5 text-[11px] font-bold text-[#D4A500]"><Citrus className="h-3 w-3" /> Business</span>;
   if (kind === 'farm') return <span className="inline-flex items-center gap-1 rounded-full bg-[#F5C842]/20 px-2 py-0.5 text-[11px] font-bold text-[#E0A800]"><Wheat className="h-3 w-3" /> Farm</span>;
@@ -313,9 +314,9 @@ export function PlotKindDialog({ g, open, onOpenChange }: { g: G; open: boolean;
                 style={{ borderColor: sel ? c.color : undefined, boxShadow: sel ? `0 0 40px -12px ${c.color}` : undefined }}>
                 {isCur && <span className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">Current{sg ? ` · ${sg.label[cur]?.replace(/^\S+ /, '') ?? ''}` : ''}</span>}
                 {c.preview}
-                <div className="flex items-center gap-1.5 font-display text-lg font-bold" style={{ color: c.color }}>{c.icon}{c.title}</div>
+                <div className="flex items-center gap-1.5 font-display text-lg font-bold" style={{ color: readable(c.color) }}>{c.icon}{c.title}</div>
                 <div className="text-sm text-muted">{c.body}</div>
-                <ul className="grid gap-1 text-left text-xs">{c.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: c.color }}>✦</span>{p}</li>)}</ul>
+                <ul className="grid gap-1 text-left text-xs">{c.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: readable(c.color) }}>✦</span>{p}</li>)}</ul>
                 {/* Residential's subplots: open when it's picked */}
                 {res && sel && (
                   <div className="grid w-full grid-cols-2 gap-2" role="radiogroup" aria-label={`${c.title} subplot`} data-testid="kind-subplots" onClick={(e) => e.stopPropagation()}>

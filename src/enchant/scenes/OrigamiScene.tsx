@@ -2,7 +2,9 @@
 // folds itself into a crane (a boat, a frog, a lotus as it grows) in real 3D, flaps, and dives into the pocket. Take it
 // out and unfold it on the map: pick a free spot you could claim and the crane flies out of the pocket, opens back up
 // fold by fold and lands flat, its creases still glowing. It keeps its rarity, shine, type, level, game progress and
-// name; the spot it left takes the rarity the new one would have had.
+// name; the spot it left takes the rarity the new one would have had. While it's in the pocket it goes where you go: on
+// real GPS its powers work from where you stand (a Kraken counts the neighbours around you, a Glacier freezes round you,
+// an enchanted plot's creature works from there). ★5 folds a whole merged canvas.
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -68,6 +70,26 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
     const r = cv.current?.getBoundingClientRect(), pr = pocketRef.current?.getBoundingClientRect();
     if (!r || !pr) return { x: 0, y: 0 };
     return { x: pr.left + pr.width / 2 - r.left, y: pr.top + pr.height * 0.25 - r.top };
+  };
+
+  const carry = view.carry as { live: boolean; gps_at: string | null; mode: string | null; plots: { gx: number; gy: number; rarity: string; at: [number, number] | null; power: any }[]; km: number; grace_m: number } | undefined;
+  const groups = (view.groups ?? {}) as Record<string, { id: string; n: number; w: number; h: number }>;
+  const groupOf = (p: { gx: number; gy: number }) => groups[`${p.gx}:${p.gy}`];
+  const powerLine = (c: { rarity: string; power: any }) => {
+    const w = c.power?.what;
+    if (w === 'kraken') return `🐙 Kraken ×${Number(c.power.x).toFixed(2)} where you stand`;
+    if (w === 'chaos') return `🌀 Chaos ×${Number(c.power.x).toFixed(2)} here today`;
+    if (w === 'enchanted') return `🔮 its ${c.power.kind ?? 'creature'} works from where you are`;
+    if (w === 'glacier') return '🧊 freezing the plots around you';
+    if (w === 'throne_ink') return '👑 ruling around you';
+    if (w === 'leyline' || w === 'compass_rose') return '⚡ beaming from you';
+    if (w === 'lodestone') return '🧲 drawing loot to you';
+    if (w === 'volcano' || w === 'krakatoa') return '🌋 its next eruption is around you';
+    if (w === 'world_tree' || w === 'elder_tree') return '🌳 rooting around you';
+    if (w === 'mycelium') return '🍄 spreading from you';
+    if (w === 'hive') return '🐝 pollinating around you';
+    if (w) return `✨ its ${String(w).replace(/_/g, ' ')} works from where you are`;
+    return 'its rent and everything it does, from here';
   };
 
   const doFold = async () => {
@@ -162,13 +184,25 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
         <div className="lvx-grain" />
       </div>
 
+      {pocket.length > 0 && carry && (
+        <div className={`grid gap-1.5 rounded-2xl p-3 ${carry.live ? 'bg-[#3DDC97]/10 ring-1 ring-[#3DDC97]/40' : 'bg-white/[0.04]'}`} data-testid="origami-carry" data-live={carry.live}>
+          <div className="flex items-center gap-2 text-[13px] font-black">
+            <span className={carry.live ? 'text-[#3DDC97]' : 'text-white/60'}>{carry.live ? '🎒 Carrying — live on your GPS' : '🎒 Resting where it was folded'}</span>
+            {carry.km > 0 && <span className="ml-auto text-[11px] font-bold text-white/55" data-testid="origami-carry-km">{carry.km.toFixed(2)} km carried</span>}
+          </div>
+          {carry.live ? carry.plots.map((c) => (
+            <div key={`${c.gx}:${c.gy}`} className="flex items-center gap-2 text-[12px]" data-testid="origami-carry-plot"><RarityChip r={c.rarity} /><span className="text-white/80">{powerLine(c)}</span></div>
+          )) : <p className="text-[11.5px] text-white/60">Folded plots go where you go on real GPS: their powers work from where you stand. {carry.mode && carry.mode !== 'gps' ? 'Your explorer isn’t on GPS right now.' : `No GPS fix in the last ${carry.grace_m} minutes.`}</p>}
+        </div>
+      )}
+
       {pocket.length > 0 && (
         <div className="grid gap-2" data-testid="origami-pocket-list">
           <div className="lvx-label">In your pocket — still yours, still earning</div>
           {pocket.map((p) => (
             <div key={`${p.gx},${p.gy}`} className="lvx-paper-card flex items-center gap-3 p-3">
               <span className="text-[28px]">{SHAPE[shape].emoji}</span>
-              <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[14px] font-black">{plotName(p)}</span><span className="flex items-center gap-1.5 text-[11px]"><RarityChip r={p.rarity} />{p.shiny && '✨'}{p.level ? ` level ${p.level}` : ''}</span></span>
+              <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[14px] font-black">{plotName(p)}</span><span className="flex items-center gap-1.5 text-[11px]"><RarityChip r={p.rarity} />{p.shiny && '✨'}{p.level ? ` level ${p.level}` : ''}{groupOf(p) ? ` · 🏯 a ${groupOf(p).n}-plot canvas (${groupOf(p).w}×${groupOf(p).h})` : ''}</span></span>
               <div className="relative z-[1] grid gap-1">
                 <Button size="sm" variant="rainbow" onClick={() => pickSpot(p)} disabled={!!busy || busyAnim || !!mirror} data-testid="origami-unfold">Unfold →</Button>
                 <button className="text-[11px] font-bold text-[#6A2C4B] underline" onClick={() => void act('smooth', { gx: p.gx, gy: p.gy })} disabled={!!busy} data-testid="origami-smooth">smooth it out here</button>
@@ -179,19 +213,21 @@ export function OrigamiScene({ v, view, act, busy, at, mirror }: SceneProps) {
       )}
 
       <div className="grid gap-2">
-        <div className="flex items-center justify-between"><div className="lvx-label">Fold one of your plots</div>{foldPick.canMap && !sel && <MapPickButton onClick={foldPick.toMap} testId="origami-fold-map" label="Pick it on the map" />}{sel && <button className="text-[11px] font-bold text-white/60" onClick={() => { setSel(null); eng.current?.destroy(); eng.current = null; }}>clear</button>}</div>
+        <div className="flex items-center justify-between"><div className="lvx-label">Fold one of your plots{view.grand ? ' — or a whole merged canvas' : ''}</div>{sel && <button className="text-[11px] font-bold text-white/60" onClick={() => { setSel(null); eng.current?.destroy(); eng.current = null; }}>clear</button>}</div>
+        {/* the map first: tap any plot of yours */}
+        {foldPick.canMap && !sel && <MapPickButton onClick={foldPick.toMap} testId="origami-fold-map" label="Pick the plot to fold on the map" className="w-full justify-center py-2.5 text-[13px]" />}
         {sel ? (
           <Button variant="rainbow" size="lg" onClick={() => void doFold()} disabled={!!busy || busyAnim || folds < 1 || Number(view.pocket) >= Number(view.pocket_max)} data-testid="origami-fold">
-            {Number(view.pocket) >= Number(view.pocket_max) ? 'Your pocket is full' : folds < 1 ? `No folds · +1 in ${dur(nextIn)}` : `🦢 Fold ${plotName(sel)}`}
+            {Number(view.pocket) >= Number(view.pocket_max) ? 'Your pocket is full' : folds < 1 ? `No folds · +1 in ${dur(nextIn)}` : groupOf(sel) ? `🏯 Fold the whole canvas (${groupOf(sel).n} plots)` : `🦢 Fold ${plotName(sel)}`}
           </Button>
         ) : null}
         <div className="grid max-h-[260px] gap-1.5 overflow-y-auto pr-1" data-testid="origami-plots">
           {plots.length ? plots.slice(0, 40).map((p) => (
             <PlotRow key={`${p.gx},${p.gy}`} p={p} on={sel?.gx === p.gx && sel?.gy === p.gy} onClick={() => setSel(p)} testId="origami-plot" />
-          )) : <p className="text-[12px] text-white/60">None of your plots can be folded right now (Crowns, merged canvases and enchanted plots can’t — until ★3).</p>}
+          )) : <p className="text-[12px] text-white/60">None of your plots can be folded right now (Crowns never fold; merged canvases fold whole at ★5).</p>}
         </div>
       </div>
-      <p className="text-center text-[11px] text-white/55">It keeps its rarity, shine, type, level, game progress, name and drawing. The spot it leaves takes the roll the new spot would have had.</p>
+      <p className="text-center text-[11px] text-white/55">It keeps its rarity, shine, type, level, game progress, name and drawing. In your pocket it goes where you go — on real GPS its powers work from where you stand. The spot it leaves takes the roll the new spot would have had.</p>
     </div>
   );
 }

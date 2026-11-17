@@ -20,6 +20,7 @@ import { rarityInfo, type RarityId } from '../shared/rarity';
 import { Button, Empty, Spinner, Tabs } from '../ui';
 import { removeClip, useClips, type ClipEntry } from './history';
 import { momentJob, momentTitle } from './moments';
+import { readable } from '../lib/readable';
 
 type Open = { job: ClipJob; mode: 'video' | 'snip' };
 
@@ -79,7 +80,7 @@ function Card({ e, i, onOpen }: { e: ClipEntry; i: number; onOpen(mode: 'video' 
         <Thumb e={e} />
         {head.badge && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-black text-white">{head.badge}</span>}
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6 text-left">
-          <span className="block truncate font-display text-[14px] font-black" style={{ color: head.color }}>{head.emoji} {head.title}</span>
+          <span className="block truncate font-display text-[14px] font-black" style={{ color: readable(head.color) }}>{head.emoji} {head.title}</span>
           <span className="block truncate text-[10px] font-semibold text-white/70">{head.sub}</span>
         </span>
       </button>
@@ -149,7 +150,7 @@ function PlotList({ loading, list, user, onOpen }: { loading: boolean; list: Plo
           <div key={`${p.gx}_${p.gy}`} className={cn('flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2')}>
             <span className="relative block shrink-0 overflow-hidden rounded-[22%]"><BasePlotArt rarity={p.rarity} shiny={!!p.shiny} size={48} /></span>
             <div className="grid min-w-0 flex-1">
-              <span className="truncate font-display text-[15px] font-black" style={{ color: info.color }}>{p.shiny ? '✨ ' : ''}{info.emoji ? `${info.emoji} ` : ''}{info.name}{p.name ? ` · “${p.name}”` : ''}</span>
+              <span className="truncate font-display text-[15px] font-black" style={{ color: readable(info.color) }}>{p.shiny ? '✨ ' : ''}{info.emoji ? `${info.emoji} ` : ''}{info.name}{p.name ? ` · “${p.name}”` : ''}</span>
               <span className="truncate text-[11px] font-semibold text-white/55">{ty ? `${ty.game} · ${ty.name}` : 'Plot'} · {timeAgo(p.claimed_at)}</span>
             </div>
             <button className="lv-clip-btn h-9 rounded-xl px-3 text-[12px] font-black text-white" onClick={() => onOpen({ job: job(p), mode: 'video' })} data-testid="plot-clip">🎬 Clip</button>

@@ -32,6 +32,7 @@ import DungeonScreen from './dungeon/DungeonScreen';
 import BrawlScreen from '../brawl/BrawlScreen';
 import { createRealm3D, STATIONS, type NearKey, type RealmScene, type Station } from './realm3d';
 import { ESTATE_GAMES } from './estates/games';
+import { readable } from '../lib/readable';
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.includes('xmlns') ? svg : svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
 export const realmKey = (id: string) => ['realm', id] as const;
@@ -111,7 +112,7 @@ function RealmView({ r: initial }: { r: Realm }) {
               <span>📍 {zoneNow.name}</span>
             </div>
             <div className="mt-1 flex items-center gap-2" data-testid="realm-level">
-              <b className="text-xs" style={{ color: cfg.color }}>Lv {r.level.level}</b>
+              <b className="text-xs" style={{ color: readable(cfg.color) }}>Lv {r.level.level}</b>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full" style={{ width: `${r.level.max ? 100 : (r.level.into / Math.max(1, r.level.need)) * 100}%`, background: cfg.color }} /></div>
               {zoneNext && <span className="text-[10px] text-white/60">🔓 {zoneNext.name} at {zoneNext.level}</span>}
             </div>

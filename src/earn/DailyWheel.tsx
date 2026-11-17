@@ -13,6 +13,7 @@ import { Button, Dialog } from '../ui';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { isNative } from '../native/native';
+import { readable } from '../lib/readable';
 
 const R = 140;
 
@@ -152,7 +153,7 @@ export function DailyWheel({ open, onOpenChange }: { open: boolean; onOpenChange
         {slices.length > 0 && (
           <details className="w-full text-xs text-muted">
             <summary className="cursor-pointer font-semibold">Odds</summary>
-            <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 tnum">{slices.map((s, i) => <span key={i} className="flex justify-between gap-2"><span className="flex items-center gap-1.5"><Gift className="h-3 w-3" style={{ color: s.color }} />{s.label}</span><span>{s.chance}%</span></span>)}</div>
+            <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 tnum">{slices.map((s, i) => <span key={i} className="flex justify-between gap-2"><span className="flex items-center gap-1.5"><Gift className="h-3 w-3" style={{ color: readable(s.color) }} />{s.label}</span><span>{s.chance}%</span></span>)}</div>
           </details>
         )}
       </div>

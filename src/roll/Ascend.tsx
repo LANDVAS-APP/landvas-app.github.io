@@ -16,6 +16,7 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { rarityInfo } from '../shared/rarity';
 import { Dialog, ResourceIcon } from '../ui';
 import { endsIn } from '../daily/HotZone';
+import { readable } from '../lib/readable';
 
 export const useAscend = create<{ at: { gx: number; gy: number } | null; open(gx: number, gy: number): void; close(): void }>((set) => ({
   at: null,
@@ -114,7 +115,7 @@ function AscendSheet({ gx, gy, onClose }: { gx: number; gy: number; onClose(): v
                 <div className="grid gap-1">
                   {a.odds.filter((o) => o.pct > 0).map((o) => (
                     <div key={o.rarity} className="flex items-center gap-2 text-[11px]">
-                      <span className="w-24 shrink-0 truncate font-bold" style={{ color: rarityInfo(o.rarity).color }}>{rarityInfo(o.rarity).name}</span>
+                      <span className="w-24 shrink-0 truncate font-bold" style={{ color: readable(rarityInfo(o.rarity).color) }}>{rarityInfo(o.rarity).name}</span>
                       <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full" style={{ width: `${Math.max(2, Math.min(100, o.pct))}%`, background: rarityInfo(o.rarity).color }} /></span>
                       <span className="w-12 text-right tnum text-muted">{o.pct < 1 ? o.pct.toFixed(2) : o.pct.toFixed(1)}%</span>
                     </div>

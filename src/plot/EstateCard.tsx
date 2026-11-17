@@ -20,6 +20,7 @@ import { realmRoute } from '../realms/kinds';
 import { TIERS, estateOf, hasSquare, isTier, kindFamily, squareProgress, tierSize, type TierKind } from '../realms/estates/meta';
 import { domainOf } from '../realms/estates/domains';
 import { KIND_LABEL } from './mergeKind';
+import { readable } from '../lib/readable';
 
 const KEPT = 'landvas.estate.kept';
 
@@ -113,7 +114,7 @@ export function EstateCard({ group }: { group: CanvasGroup }) {
           <div className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: `${e.color}66`, background: `linear-gradient(135deg, ${e.color}22, transparent)` }} data-testid="estate-card" data-state="estate" data-tier={tierName(now).toLowerCase()}>
             <EstatePostcard kind={now} size={56} />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: e.color }}><Crown className="h-3.5 w-3.5" /> {tierName(now)} tier</div>
+              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: readable(e.color) }}><Crown className="h-3.5 w-3.5" /> {tierName(now)} tier</div>
               <div className="truncate font-display font-semibold">{e.name}</div>
               <div className="text-[11px] text-muted">Built on your {KIND_LABEL[base].one}. Every tier keeps its progress.</div>
             </div>
@@ -154,13 +155,13 @@ export function EstateCard({ group }: { group: CanvasGroup }) {
               </motion.div>
             ) : (
               <motion.div key="offer" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="relative overflow-hidden rounded-3xl border-2 p-4" style={{ borderColor: e.color, background: big ? `radial-gradient(circle at 20% 0%, ${e.color}50, transparent 60%), radial-gradient(circle at 100% 100%, #FFE14D22, transparent 50%)` : `radial-gradient(circle at 20% 0%, ${e.color}38, transparent 60%)`, boxShadow: `0 0 ${big ? 60 : 40}px -16px ${e.color}` }} data-testid="estate-card" data-state="offer" data-tier={tierName(ready).toLowerCase()}>
-                <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: e.color }}><Crown className="h-4 w-4" />{big && <Crown className="-ml-1 h-4 w-4" />} {tierName(ready)} unlocked!</div>
+                <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: readable(e.color) }}><Crown className="h-4 w-4" />{big && <Crown className="-ml-1 h-4 w-4" />} {tierName(ready)} unlocked!</div>
                 <div className="mt-2 flex gap-3">
                   <EstatePostcard kind={ready} size={92} />
                   <div className="min-w-0">
                     <div className="font-display text-lg font-bold leading-tight">{e.name}</div>
                     <p className="mt-0.5 text-xs text-muted">{e.tagline}</p>
-                    <ul className="mt-1.5 grid gap-0.5 text-[11px]">{e.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: e.color }}>✦</span>{p}</li>)}</ul>
+                    <ul className="mt-1.5 grid gap-0.5 text-[11px]">{e.perks.map((p) => <li key={p} className="flex gap-1.5"><span style={{ color: readable(e.color) }}>✦</span>{p}</li>)}</ul>
                   </div>
                 </div>
                 <p className="mt-2 text-[11px] text-muted">{e.long}</p>

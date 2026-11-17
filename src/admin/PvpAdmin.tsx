@@ -11,6 +11,7 @@ import { GAME_INFO, type GameId } from '../shared/minigames';
 import { PVP_GAMES, PVP_INFO } from '../shared/pvp';
 import { Button, Spinner, Switch } from '../ui';
 import { poll } from '../lib/poll';
+import { readable } from '../lib/readable';
 
 const num = 'h-9 w-20 rounded-lg border border-line bg-surface px-2 text-sm text-fg tnum';
 const gameName = (g: string) => GAME_INFO[g as GameId]?.name ?? PVP_INFO[g as keyof typeof PVP_INFO]?.name ?? g;
@@ -105,7 +106,7 @@ export function PvpSettings({ value, onSave }: { value: any; onSave(v: any): Pro
           return (
             <details key={g} className="group rounded-2xl border border-line p-3" data-testid={`pvp-cfg-${g}`}>
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2">
-                <span className="font-semibold" style={{ color: PVP_INFO[g].color }}>{PVP_INFO[g].name}</span>
+                <span className="font-semibold" style={{ color: readable(PVP_INFO[g].color) }}>{PVP_INFO[g].name}</span>
                 <span className="text-xs text-faint tnum">{rounds} rounds · win {fmt(Number(c.win_ink ?? 0))} · draw {fmt(Number(c.draw_ink ?? 0))}{(c.bonuses ?? []).length ? ` · ${(c.bonuses as BonusRule[]).map(bonusText).join(', ')}` : ''}</span>
                 {c.enabled === false && <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-bold text-faint">OFF</span>}
               </summary>

@@ -6,6 +6,7 @@ import type { Chapter } from '../types';
 import { fmtN, type Ctx } from '../live';
 import { B, Bullets, Combo, Facts, Figure, Formula, GoRow, H, Note, P, Pro, Steps, Table, Tip, Warn } from '../ui';
 import { LevelTrack, StreakWeek, WheelPie } from '../visuals';
+import { readable } from '../../lib/readable';
 
 const GAME_ORDER: GameId[] = ['tracecraft', 'colorburst', 'paintpop', 'lightlines', 'memorymural', 'blocksplash', 'rollermural', 'mirrorline'];
 const STYLE: Record<GameId, string> = { tracecraft: 'Graphite', colorburst: 'Pigment', paintpop: 'Mosaic', lightlines: 'Lumina', memorymural: 'Fresco', blocksplash: 'Stencil', rollermural: 'Prism', mirrorline: 'Glass' };
@@ -104,7 +105,7 @@ export const ink: Chapter = {
           <>
             <Formula>Ink for a win = <em>the level’s Ink</em> × <em>the plot’s rarity bonus</em> × any bonuses running (Golden Hour, enchantments, ultras…)</Formula>
             <Table head={['Rarity', ...levels.map((l) => `Lv ${l}`)]} rows={rows.map((r) => [
-              <b key="n" style={{ color: r.color }}>{r.name} <span className="text-[10.5px] text-muted">×{r.ink.toFixed(2)}</span></b>,
+              <b key="n" style={{ color: readable(r.color) }}>{r.name} <span className="text-[10.5px] text-muted">×{r.ink.toFixed(2)}</span></b>,
               ...levels.map((l) => fmtN(Math.floor(levelInk(c, l) * r.ink))),
             ])} note="Ink for completing that level (live, averaged over the eight games)." dense />
             <Facts cols={4} items={[
@@ -162,7 +163,7 @@ export const ink: Chapter = {
                   <PvpPreview game={g} className="w-[84px]" />
                   <div>
                     <H>{PVP_INFO[g].name}</H>
-                    <p className="text-[12.5px] font-semibold" style={{ color: PVP_INFO[g].color }}>{PVP_INFO[g].tagline} · {fmtN(Number(games?.[g]?.win_ink ?? 10))} Ink a win</p>
+                    <p className="text-[12.5px] font-semibold" style={{ color: readable(PVP_INFO[g].color) }}>{PVP_INFO[g].tagline} · {fmtN(Number(games?.[g]?.win_ink ?? 10))} Ink a win</p>
                     <Bullets items={PVP_INFO[g].howTo} />
                   </div>
                 </div>

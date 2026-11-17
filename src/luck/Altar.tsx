@@ -15,6 +15,7 @@ import { rarityInfo, type RarityId } from '../shared/rarity';
 import { Dialog, GameDisc } from '../ui';
 import { useHudCard } from '../app/radial';
 import { useRerollSpeed } from '../roll/prefs';
+import { readable } from '../lib/readable';
 
 export function useLuck() {
   const me = useOnboardedMe();
@@ -385,7 +386,7 @@ export function AltarDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                   return (
                     <div key={`${p.gx}_${p.gy}`} className="flex items-center gap-2.5 rounded-2xl bg-white/[0.04] p-2" data-testid="luck-plot">
                       <BasePlotArt rarity={p.rarity} shiny={p.shiny} size={36} />
-                      <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black" style={{ color: info.color }}>{info.emoji} {info.name}{p.shiny ? ' ✨' : ''}</span><span className="truncate text-[11px] text-white/50">{p.name ?? 'Base plot'}</span></span>
+                      <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black" style={{ color: readable(info.color) }}>{info.emoji} {info.name}{p.shiny ? ' ✨' : ''}</span><span className="truncate text-[11px] text-white/50">{p.name ?? 'Base plot'}</span></span>
                       <button disabled={!!busy || l.luck >= l.max} onClick={() => setConfirm(p)} data-testid="luck-sacrifice"
                         className="rounded-xl bg-[linear-gradient(135deg,#FF6A1F,#FF2E63)] px-3 py-1.5 text-[12px] font-black text-white shadow-[0_3px_0_#7a1030] disabled:opacity-40">🔥 +{p.luck}</button>
                     </div>

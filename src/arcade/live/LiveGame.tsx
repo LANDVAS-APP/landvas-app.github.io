@@ -11,6 +11,7 @@ import { Button, PlayerAvatar } from '../../ui';
 import { sfx } from '../sfx';
 import { LIVE_DEFS } from './games';
 import { ARENA_GAMES, MODE_INFO, TEAM_COLORS, TEAM_NAMES, type Inp, type LP, type LiveResult } from './kit';
+import { readable } from '../../lib/readable';
 
 type Msg = { t: 's'; k: number; w: unknown } | { t: 'i'; id: string; i: Inp } | { t: 'end'; r: LiveResult };
 const STEP = 1 / 30, SNAP_MS = 100, HOST_GONE_MS = 6000;
@@ -164,7 +165,7 @@ export function LiveGame({ match, myId, onClose }: { match: ArenaMatch; myId: st
             <div className="font-display text-2xl font-black">{info.name}</div>
             <div className="max-w-xs text-sm text-white/80">{info.how}</div>
             {match.mode === 'teams' && <div className="flex gap-3 text-xs">{[0, 1].map((t) => <span key={t} style={{ color: TEAM_COLORS[t] }}><b>{TEAM_NAMES[t]}:</b> {match.players.filter((p) => p.team === t).map((p) => p.id === myId ? 'You' : `@${p.username}`).join(' & ')}</span>)}</div>}
-            <motion.div key={count} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-7xl font-black" style={{ color: info.color, textShadow: `0 0 30px ${info.color}` }}>{count}</motion.div>
+            <motion.div key={count} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-7xl font-black" style={{ color: readable(info.color), textShadow: `0 0 30px ${info.color}` }}>{count}</motion.div>
           </div>
         </div>
       )}

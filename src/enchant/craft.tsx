@@ -9,6 +9,7 @@ import { rarityInfo } from '../shared/rarity';
 import { usePickOnMapFor } from './PlotPickOverlay';
 import { pickedFor, usePlotPick } from './plotPick';
 import './craft.css';
+import { readable } from '../lib/readable';
 
 export type PlotLite = { gx: number; gy: number; rarity: string; plot_type?: string; name?: string | null; shiny?: boolean; level?: number; owner_name?: string | null; kind?: string | null };
 
@@ -22,7 +23,7 @@ export const grand = (r: string) => !LADDER.includes(r) || LADDER.indexOf(r) >= 
 export function RarityChip({ r, className }: { r: string; className?: string }) {
   if (r === 'enchanted') return <span className={cn('lvx-chip text-[#1a0b2e]', className)} style={{ background: 'linear-gradient(90deg,#B79CFF,#FFE8A3)' }}>✨ Enchanted</span>;
   const ri = rarityInfo(r);
-  return <span className={cn('lvx-chip', className)} style={{ background: `${ri.color}26`, color: ri.color, boxShadow: `inset 0 0 0 1px ${ri.color}66` }}>{ri.name}</span>;
+  return <span className={cn('lvx-chip', className)} style={{ background: `${ri.color}26`, color: readable(ri.color), boxShadow: `inset 0 0 0 1px ${ri.color}66` }}>{ri.name}</span>;
 }
 
 export function PlotRow({ p, on, onClick, right, testId, disabled }: { p: PlotLite; on?: boolean; onClick?: () => void; right?: React.ReactNode; testId?: string; disabled?: boolean }) {

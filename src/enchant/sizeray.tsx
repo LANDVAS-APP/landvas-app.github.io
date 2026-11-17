@@ -25,6 +25,7 @@ import { Button } from '../ui';
 import { efx, useAct, useEnchant, useMyEnchantments } from './core';
 import { dur } from './kinds';
 import { askMotion, feel, useTilt } from './living';
+import { readable } from '../lib/readable';
 
 export type RayMode = 'grow' | 'shrink';
 export const RAY = { grow: { label: 'GROW', emoji: '🔼', c: '#39FF14', c2: '#B6FF3D', text: 'Giant: its drawing goes 100× bigger on everyone’s map. Yours: its minigames pay more — and every Parasite and Leviathan sees it.',
@@ -280,7 +281,7 @@ function Targeting({ id }: { id: string }) {
         {picked && (
           <motion.div className="pointer-events-none fixed inset-x-0 bottom-0 z-[120] flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom,0px)+90px)] md:pb-6" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}>
             <div className={cn('pointer-events-auto grid w-[min(420px,100%)] gap-2.5 p-3', app ? 'lv-mcard t-emerald' : 'rounded-3xl border border-white/15 bg-[#07140B]/94 shadow-2xl backdrop-blur')} data-testid="ray-fire-sheet">
-              {plot && <div className="flex items-center gap-2 text-[13px] font-black"><span className="h-3 w-3 rounded" style={{ background: rarityInfo(plot.rarity).color }} /><span className="truncate">{plotLabel(plot)} · <span style={{ color: rarityInfo(plot.rarity).color }}>{rarityInfo(plot.rarity).name}</span></span>
+              {plot && <div className="flex items-center gap-2 text-[13px] font-black"><span className="h-3 w-3 rounded" style={{ background: rarityInfo(plot.rarity).color }} /><span className="truncate">{plotLabel(plot)} · <span style={{ color: readable(rarityInfo(plot.rarity).color) }}>{rarityInfo(plot.rarity).name}</span></span>
                 <span className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] text-[#0A1A0F]" style={{ background: RAY[mode].c }}>{RAY[mode].emoji} {RAY[mode].label}</span></div>}
               {prank && <div className="grid gap-0.5 rounded-xl bg-[#FF5CDB]/15 px-2.5 py-1.5" data-testid="ray-prank"><span className="text-[13px] font-black text-[#FFC2F1]">🤡 Prank @{ownerName ?? '?'}!</span><span className="text-[11px] font-semibold text-white/60">For show only · up to 3 hours · they’re told, and can undo it</span></div>}
               {empty && <div className="rounded-xl bg-white/10 px-2.5 py-2 text-[12px] font-bold text-white/75">Nobody owns this plot — there’s nothing on it to zap. Pick a claimed one.</div>}

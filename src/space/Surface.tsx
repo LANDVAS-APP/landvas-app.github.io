@@ -41,6 +41,7 @@ import { SPACE_KEY, useFlight, useSpace } from './useSpace';
 import { type World, worldKey, worldOf } from './worlds';
 import { poll, live as liveMs } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
+import { readable } from '../lib/readable';
 
 const APP = isNative();
 export default function Surface() {
@@ -458,7 +459,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
 type RarityInfo = { id: string; name: string; color: string; mult: number; rank: number };
 function RarityBadge({ r }: { r: RarityInfo | undefined }) {
   if (!r) return null;
-  return <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${r.color}33`, color: r.color, boxShadow: `inset 0 0 0 1px ${r.color}88` }} data-testid="cosmic-rarity">{r.name}{r.mult > 1 ? ` ×${r.mult}` : ''}</span>;
+  return <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${r.color}33`, color: readable(r.color), boxShadow: `inset 0 0 0 1px ${r.color}88` }} data-testid="cosmic-rarity">{r.name}{r.mult > 1 ? ` ×${r.mult}` : ''}</span>;
 }
 function PlotCard({ map, cell, plot, high, busy, rows, rarityOf, onClaim, onWalk, onRename, onPlay, onBuild, onVisit }: {
   map: PlanetMap; cell: Cell | null; plot: PlanetPlot | null; high: boolean; busy: boolean; rows: number; rarityOf: Record<string, RarityInfo>;
@@ -549,7 +550,7 @@ function RarityReveal({ r, games, bonus, world, onClose }: { r: RarityInfo | und
         </motion.div>
         {shown ? (
           <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="grid gap-2">
-            <div className="font-display text-3xl font-black" style={{ color: r.color }}>{r.name}</div>
+            <div className="font-display text-3xl font-black" style={{ color: readable(r.color) }}>{r.name}</div>
             <div className="text-sm text-white/80">{r.mult > 1 ? `Its games pay ×${r.mult} Ink.` : 'A solid start — rarer plots pay more.'}</div>
             {unlocked && <div className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold">Bonus game unlocked: {PLANET_GAMES[bonus].emoji} {PLANET_GAMES[bonus].name}</div>}
             <Button variant="rainbow" onClick={onClose} data-testid="reveal-ok">Nice!</Button>

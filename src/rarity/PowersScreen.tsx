@@ -17,6 +17,7 @@ import { useMapPick, MapPickButton } from '../enchant/pickers';
 import { useMyPlotsLite } from '../enchant/myPlots';
 import { RULES, WHY, WISHES, cellKey, dur, logLine, parseCell, usePower } from './powers';
 import './rarity.css';
+import { readable } from '../lib/readable';
 
 const LADDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const TIER_NAME = { ultra: 'Ultra', fusion: 'Fusion', primordial: 'Primordial' } as const;
@@ -155,8 +156,8 @@ function FamilyPanel({ v }: { v: RxPower }) {
       break;
     case 'world_tree': rows.push(['Roots', `${(v.roots ?? []).length} of ${v.max}`], ['Reach', `${v.km} km`]); if (next) rows.push(['Next root', `in ${next}`]); break;
     case 'phantom':
-      if (v.whisper) rows.push(['Last whisper', <span key="w">a <b style={{ color: rarityInfo(v.whisper.rarity).color }}>{rarityInfo(v.whisper.rarity).name}</b> nearby · <Link className="underline" to={`/world?fly=${v.whisper.gx},${v.whisper.gy}&z=19`}>go claim it</Link></span>]);
-      if (v.disguise) rows.push(['The world sees', <b key="d" style={{ color: rarityInfo(v.disguise).color }}>{rarityInfo(v.disguise).name}</b>]);
+      if (v.whisper) rows.push(['Last whisper', <span key="w">a <b style={{ color: readable(rarityInfo(v.whisper.rarity).color) }}>{rarityInfo(v.whisper.rarity).name}</b> nearby · <Link className="underline" to={`/world?fly=${v.whisper.gx},${v.whisper.gy}&z=19`}>go claim it</Link></span>]);
+      if (v.disguise) rows.push(['The world sees', <b key="d" style={{ color: readable(rarityInfo(v.disguise).color) }}>{rarityInfo(v.disguise).name}</b>]);
       if (next) rows.push(['Next whisper', `in ${next}`]);
       break;
     case 'wanderer':
@@ -230,14 +231,14 @@ function Chooser({ a, v, onPick, busy }: { a: RxAction; v: RxPower; onPick(args:
   if (a.needs === 'rarity') {
     const opts = RARITY_ORDER.filter((r) => LADDER.includes(r) || r === 'mythic' || rarityInfo(r).ppm);
     return <div className="flex flex-wrap gap-1.5">{opts.map((r) => (
-      <button key={r} disabled={busy} onClick={() => onPick({ rarity: r })} className="rounded-full border px-2.5 py-1 text-xs font-bold" style={{ borderColor: rarityInfo(r).color, color: rarityInfo(r).color }} data-testid={`disguise-${r}`}>{rarityInfo(r).emoji ?? ''} {rarityInfo(r).name}</button>))}</div>;
+      <button key={r} disabled={busy} onClick={() => onPick({ rarity: r })} className="rounded-full border px-2.5 py-1 text-xs font-bold" style={{ borderColor: rarityInfo(r).color, color: readable(rarityInfo(r).color) }} data-testid={`disguise-${r}`}>{rarityInfo(r).emoji ?? ''} {rarityInfo(r).name}</button>))}</div>;
   }
   if (a.needs === 'plot') {
     const list = plots.filter((p) => LADDER.includes(p.rarity));
     if (!list.length) return <p className="text-sm text-muted">You need a Common to Legendary plot.</p>;
     return <div className="grid max-h-72 gap-1.5 overflow-y-auto">{list.slice(0, 80).map((p) => (
       <button key={cellKey(p.gx, p.gy)} disabled={busy} onClick={() => onPick({ gx: p.gx, gy: p.gy })} className="lvrx-choice flex items-center gap-2 rounded-xl p-2 text-left text-sm" data-testid="pick-plot">
-        <BasePlotArt rarity={p.rarity as RarityId} size={28} /><span className="flex-1">{p.name || `Plot ${p.gx}, ${p.gy}`}</span><b style={{ color: rarityInfo(p.rarity).color }}>{rarityInfo(p.rarity).name}</b></button>))}</div>;
+        <BasePlotArt rarity={p.rarity as RarityId} size={28} /><span className="flex-1">{p.name || `Plot ${p.gx}, ${p.gy}`}</span><b style={{ color: readable(rarityInfo(p.rarity).color) }}>{rarityInfo(p.rarity).name}</b></button>))}</div>;
   }
   if (a.needs === 'cells5') {
     const groups = LADDER.map((r) => ({ r, list: plots.filter((p) => p.rarity === r) })).filter((g) => g.list.length >= 5);
@@ -249,7 +250,7 @@ function Chooser({ a, v, onPick, busy }: { a: RxAction; v: RxPower; onPick(args:
         const k = cellKey(p.gx, p.gy), on = sel.includes(k), off = !!rar && p.rarity !== rar;
         return <button key={k} disabled={busy || off} onClick={() => setSel(on ? sel.filter((x) => x !== k) : sel.length < 5 ? [...sel, k] : sel)}
           className={cn('lvrx-choice flex items-center gap-2 rounded-xl p-2 text-left text-sm disabled:opacity-30', on && 'lvrx-choice-on')} data-testid="pick-five">
-          <BasePlotArt rarity={p.rarity as RarityId} size={26} /><span className="flex-1">{p.name || `Plot ${p.gx}, ${p.gy}`}</span>{on && <b>#{sel.indexOf(k) + 1}</b>}<b style={{ color: rarityInfo(p.rarity).color }}>{rarityInfo(p.rarity).name}</b></button>;
+          <BasePlotArt rarity={p.rarity as RarityId} size={26} /><span className="flex-1">{p.name || `Plot ${p.gx}, ${p.gy}`}</span>{on && <b>#{sel.indexOf(k) + 1}</b>}<b style={{ color: readable(rarityInfo(p.rarity).color) }}>{rarityInfo(p.rarity).name}</b></button>;
       })}</div>
       <button disabled={busy || sel.length !== 5} onClick={() => onPick({ cells: sel.map((k) => k.split('_').map(Number)) })} className="lv-gbtn justify-self-start px-4 py-2 text-sm" data-testid="transmute-go">Transmute {sel.length}/5</button>
     </div>;

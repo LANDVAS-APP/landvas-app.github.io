@@ -16,6 +16,7 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { hasPower, rarityInfo, type RarityId } from '../shared/rarity';
 import { cellKey, powerPath } from './powers';
 import './rarity.css';
+import { readable } from '../lib/readable';
 
 const WHY: Record<string, string> = { starter_plot: 'your starter plot', merged: 'part of a bigger canvas', plot_folded: 'folded away', plot_locked: 'locked' };
 
@@ -59,7 +60,7 @@ export default function FusionLab() {
             <div key={r.to} className="glass flex items-center gap-3 rounded-2xl p-3" style={{ boxShadow: `inset 0 0 0 1.5px ${r.color}44` }} data-testid={`recipe-${r.to}`}>
               <span className="text-lg">{rarityInfo(r.a!).emoji}</span><span className="text-muted">+</span><span className="text-lg">{rarityInfo(r.b!).emoji}</span><span className="text-muted">→</span>
               <BasePlotArt rarity={r.to as RarityId} size={34} />
-              <div className="min-w-0 flex-1"><b style={{ color: r.color }}>{r.name}</b>{(r.made ?? 0) > 0 && <span className="ml-1 text-[10px] font-black text-ok">made ×{r.made}</span>}<div className="truncate text-[11px] text-muted">{r.ability}</div></div>
+              <div className="min-w-0 flex-1"><b style={{ color: readable(r.color) }}>{r.name}</b>{(r.made ?? 0) > 0 && <span className="ml-1 text-[10px] font-black text-ok">made ×{r.made}</span>}<div className="truncate text-[11px] text-muted">{r.ability}</div></div>
             </div>
           ) : (
             <div key={`s${i}`} className="glass flex items-center gap-3 rounded-2xl p-3 text-muted" data-testid="recipe-secret">❔ + ❔ → <b>a secret fusion</b></div>
@@ -82,7 +83,7 @@ export default function FusionLab() {
                   style={{ ['--c' as string]: info.color }} data-testid="fusion-ultra" data-rarity={u.rarity}>
                   {i >= 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-1.5 text-[10px] font-black text-black">{i === 0 ? 'keeps' : `#${i + 1}`}</span>}
                   <BasePlotArt rarity={u.rarity as RarityId} shiny={u.shiny} size={52} />
-                  <b className="text-sm" style={{ color: info.color }}>{info.emoji} {info.name}</b>
+                  <b className="text-sm" style={{ color: readable(info.color) }}>{info.emoji} {info.name}</b>
                   <span className="truncate text-[11px] text-muted">{u.why ? `Can’t: ${WHY[u.why] ?? u.why}` : u.name || `Plot ${u.gx}, ${u.gy}`}</span>
                 </motion.button>
               );
@@ -93,7 +94,7 @@ export default function FusionLab() {
 
       {picked.length >= 2 && (
         <section className="lvrx-preview mb-6 grid justify-items-center gap-2 rounded-3xl p-5 text-center" data-testid="fusion-preview">
- {outcome ? <><BasePlotArt rarity={outcome as RarityId} size={72} /><b className="font-display text-xl" style={{ color: rarityInfo(outcome).color }}>{rarityInfo(outcome).name}</b><p className="text-sm text-white/70">{rarityInfo(outcome).ability}</p></>
+ {outcome ? <><BasePlotArt rarity={outcome as RarityId} size={72} /><b className="font-display text-xl" style={{ color: readable(rarityInfo(outcome).color) }}>{rarityInfo(outcome).name}</b><p className="text-sm text-white/70">{rarityInfo(outcome).ability}</p></>
               : <p className="text-sm text-white/70" data-testid="fusion-no-recipe">Those two don’t fuse (as far as the book knows). Try another pair.</p>}
           {outcome && <button className="lv-gbtn px-5 py-2.5" onClick={() => setConfirm(true)} data-testid="fusion-go">Fuse them</button>}
           {outcome == null && picked.length === 2 && <button className="text-xs font-bold text-white/60 underline" onClick={() => setConfirm(true)} data-testid="fusion-try">Try anyway</button>}

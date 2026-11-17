@@ -12,6 +12,7 @@ import { PlayerAvatar } from '../ui';
 import { confetti } from '../ui/confetti';
 import { celebrations, searchCelebrations, snapshotName, TIER_INFO, type Celebration, type RoyalCrown, type RoyalTotals } from './celebration';
 import { canvasBlob, drawCelebration, loadSnapFonts, SNAP_DIMS, type SnapSize } from './drawCelebration';
+import { readable } from '../lib/readable';
 
 const ROYAL_CONFETTI = ['#FFD84D', '#E8B64A', '#FFF1C2', '#B69CFF', '#7FE3FF', '#FFFFFF'];
 const RECENT = 5;
@@ -152,9 +153,9 @@ function HolderRow({ c, onPick, active }: { c: Celebration; onPick(c: Celebratio
       <PlayerAvatar p={c.holder as any} size={36} frame="gold" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold">{c.holder.display_name || c.handle}</span>
-        <span className="block truncate text-xs text-muted"><span style={{ color: t.color }}>{t.one}</span> · {c.crown.kingdom}{c.fresh ? ' · new' : ''}</span>
+        <span className="block truncate text-xs text-muted"><span style={{ color: readable(t.color) }}>{t.one}</span> · {c.crown.kingdom}{c.fresh ? ' · new' : ''}</span>
       </span>
-      <CrownIcon className="h-4 w-4 shrink-0" style={{ color: t.color }} aria-hidden="true" />
+      <CrownIcon className="h-4 w-4 shrink-0" style={{ color: readable(t.color) }} aria-hidden="true" />
     </button>
   );
 }

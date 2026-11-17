@@ -10,6 +10,7 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { GAME_INFO } from '../shared/minigames';
 import { isUltra, rarityInfo, rarityOdds } from '../shared/rarity';
 import { Dialog } from '../ui';
+import { readable } from '../lib/readable';
 
 export function useCollection() {
   const me = useOnboardedMe();
@@ -55,7 +56,7 @@ function Crowns() {
                 <BasePlotArt rarity={c.tier} size={26} />
                 <span className="grid min-w-0 flex-1 leading-tight">
                   <span className="truncate font-bold">{c.city} <span className="text-white/40">{c.tier === 'crown_country' ? '' : c.country}</span></span>
-                  <span className="truncate text-[10px] font-bold" style={{ color: info.color }}>{TIER_LABEL[c.tier]} Crown · @{c.holder}</span>
+                  <span className="truncate text-[10px] font-bold" style={{ color: readable(info.color) }}>{TIER_LABEL[c.tier]} Crown · @{c.holder}</span>
                 </span>
                 <span className="grid justify-items-end leading-tight">
                   <span className="text-[11px] font-black tnum" style={{ color: c.strength >= 1 ? '#3DDC97' : '#FFD166' }}>{Math.round(c.strength * 100)}%</span>
@@ -104,7 +105,7 @@ export function CollectionDialog({ open, onOpenChange }: { open: boolean; onOpen
                 return (
                   <div key={r.id} className={cn('grid justify-items-center gap-1 rounded-2xl border p-2 text-center', found ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] bg-white/[0.02]')} data-testid={`collect-rarity-${r.id}`}>
                     {found ? <BasePlotArt rarity={r.id} shiny={r.shiny > 0} size={44} /> : <span className="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.06] text-xl text-white/30">{ultra ? '?' : '🔒'}</span>}
-                    <span className="text-[11px] font-black leading-tight" style={{ color: found || !ultra ? info.color : 'rgba(255,255,255,0.45)' }}>{found || !ultra ? `${info.emoji ?? ''} ${info.name}` : '???'}</span>
+                    <span className="text-[11px] font-black leading-tight" style={{ color: readable(found || !ultra ? info.color : 'rgba(255,255,255,0.45)') }}>{found || !ultra ? `${info.emoji ?? ''} ${info.name}` : '???'}</span>
                     <span className="text-[9px] font-semibold text-white/45 tnum">{found ? `×${r.owned}${r.shiny ? ` · ✨${r.shiny}` : ''}` : rarityOdds(r.id)}</span>
                   </div>
                 );

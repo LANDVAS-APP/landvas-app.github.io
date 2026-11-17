@@ -8,6 +8,7 @@ import { Page, PageHeader } from '../app/Shell';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { FUSIONS, PRIMORDIALS, RARITY_ORDER, ULTRA, isFusion, isPrimordial, rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
+import { readable } from '../lib/readable';
 
 type Detail = { what: string; get: string; tip: string };
 const n = (x: unknown, d = 0) => { const v = Number(x); return Number.isFinite(v) ? v : d; };
@@ -105,7 +106,7 @@ export default function Legend() {
               <div key={r} className="glass flex items-center gap-3 rounded-2xl p-3" data-testid={`legend-${r}`}>
                 <BasePlotArt rarity={r} size={44} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2"><b style={{ color: i.color }}>{i.name}</b><span className="text-xs font-bold text-muted tnum">{odds(r)} of claims · <Link to={`/rankings/rarities?r=${r}`} className="text-accent-2 hover:underline">🏆</Link></span></div>
+                  <div className="flex items-baseline justify-between gap-2"><b style={{ color: readable(i.color) }}>{i.name}</b><span className="text-xs font-bold text-muted tnum">{odds(r)} of claims · <Link to={`/rankings/rarities?r=${r}`} className="text-accent-2 hover:underline">🏆</Link></span></div>
                   <div className="text-xs text-muted tnum">{formatRate(rate(r))} rent · ×{(rate(r) / base).toFixed(1)} a Common · ×{ink(r)} Ink</div>
                 </div>
               </div>
@@ -126,7 +127,7 @@ export default function Legend() {
                 <header className="flex items-center gap-3">
                   <BasePlotArt rarity={r} size={52} />
                   <div className="min-w-0 flex-1">
-                    <div className="font-display text-lg font-black" style={{ color: i.color }}>{i.emoji} {i.name}</div>
+                    <div className="font-display text-lg font-black" style={{ color: readable(i.color) }}>{i.emoji} {i.name}</div>
                     <div className="text-xs font-bold text-muted tnum">{odds(r)} · {formatRate(rate(r))} rent · ×{ink(r)} Ink</div>
                   </div>
                 </header>
@@ -149,7 +150,7 @@ export default function Legend() {
             return (
               <div key={r} className="glass flex items-center gap-3 rounded-2xl p-3" style={{ boxShadow: `inset 0 0 0 1.5px ${i.color}44` }} data-testid={`legend-${r}`}>
                 <BasePlotArt rarity={r} size={44} />
-                <div className="min-w-0 flex-1"><b style={{ color: i.color }}>{i.emoji} {i.name}</b><div className="text-xs text-muted">{i.ability}</div></div>
+                <div className="min-w-0 flex-1"><b style={{ color: readable(i.color) }}>{i.emoji} {i.name}</b><div className="text-xs text-muted">{i.ability}</div></div>
               </div>
             );
           })}

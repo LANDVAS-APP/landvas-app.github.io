@@ -20,7 +20,7 @@ const CHECK: Partial<Record<GameId, (seed: number, level: number, log: any) => V
 };
 
 export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement | null) {
-  return function BoardsGame({ seed, level, rounds = 5, now, onDone, registerSolver }: GameProps) {
+  return function BoardsGame({ seed, level, rounds = 5, now, onDone, registerSolver, stopAt, onRound }: GameProps) {
     const [round, setRound] = useState(0);
     const [between, setBetween] = useState(false);
     const [results, setResults] = useState<boolean[]>([]);
@@ -35,6 +35,7 @@ export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement |
       logs.current.push({ t0: t0.current, log });
       const v = CHECK[game]?.(roundSeed(seed, roundRef.current), level, log);
       setResults((r) => [...r, !!v?.passed]);
+      onRound?.(roundRef.current, !!v?.passed);
       if (logs.current.length >= rounds) {
         onDone({ boards: logs.current });
         return;
@@ -45,6 +46,7 @@ export function boardsGame(game: GameId, Inner: (p: GameProps) => ReactElement |
 
     registerSolver(async () => {
       for (let r = roundRef.current; r < rounds; r++) {
+        if (stopAt != null && r >= stopAt) return;
         // wait for this round's board to mount and register its solver
         for (let k = 0; k < 150 && (roundRef.current !== r || innerSolver.current?.r !== r); k++) await sleep(60);
         await innerSolver.current?.fn();

@@ -1,7 +1,8 @@
 // Out on the map, live: your Pocket Suns (and your party's shared ones) — a burning disc and its corona over the zone,
 // the zone itself as a glowing circle, and your sunspots blinking inside it — and storms: a thundercloud over the Storm
 // Coil and every bolt gathering and striking where it lands, on the server's own clock. Tap your own bolts to catch
-// them; anyone can catch a stray that lands on a neighbour's plot.
+// them; anyone can catch a stray that lands on a neighbour's plot. And the plots in your Origami pocket, carried where you
+// stand on real GPS.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type * as maplibregl from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
@@ -86,6 +87,16 @@ export function MapMarvels({ ready }: { ready: boolean }) {
       map.addSource('lv-suns', { type: 'geojson', data: sunGeo(data.suns ?? []) as any });
       map.addLayer({ id: 'lv-suns-fill', type: 'fill', source: 'lv-suns', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['get', 'flare'], 0.28, 0.14] } });
       map.addLayer({ id: 'lv-suns-line', type: 'line', source: 'lv-suns', paint: { 'line-color': ['get', 'c'], 'line-width': 2.5, 'line-opacity': 0.85, 'line-dasharray': [3, 1.5] } });
+    }
+    // 🎒 plots folded in your Origami pocket, carried on your GPS: their powers work from where you stand
+    for (const c of data.carried ?? []) {
+      if (!c.at) continue;
+      const label = c.rarity === 'enchanted' && c.kind ? `🎒 ${esc(c.kind.replace(/_/g, ' '))}` : `🎒 ${esc(c.rarity.replace(/_/g, ' '))}`;
+      const node = wrap(`<span class="lv-carry-mk r-${esc(c.rarity)}"><i class="crane">🦢</i><b>${label} · carried</b></span>`, 'lv-em-carry');
+      node.style.pointerEvents = 'none';
+      node.style.zIndex = '5';
+      node.dataset.testid = 'map-carried';
+      add(far, cellCenter(c.at[0], c.at[1]), node, 'bottom', [0, -18]);
     }
     // ⚡ storms: the cloud, and every bolt where it lands
     const bolts: { node: HTMLElement; s: MapStorm; b: MapStorm['bolts'][number] }[] = [];

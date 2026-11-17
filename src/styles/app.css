@@ -1062,6 +1062,8 @@ button, a, [role="button"] { touch-action: manipulation; }
 .lv-gbtn.on { background: linear-gradient(180deg, #9a7bff, #5b3df5); border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 4px 0 #2c1a8a, 0 12px 26px -10px rgba(123, 92, 255, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 .lv-gbtn.hot { background: linear-gradient(180deg, #ff6fb0, #e8287a); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 0 #8a1247, 0 12px 26px -10px rgba(255, 61, 154, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 .lv-gbtn.go { background: linear-gradient(180deg, #4fe3a8, #16a86b); border-color: rgba(255, 255, 255, 0.5); box-shadow: 0 4px 0 #0b5e3b, 0 12px 26px -10px rgba(61, 220, 151, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+/* (white words on the bright gradients: a soft dark edge keeps them crisp) */
+.lv-gbtn.go, .lv-gbtn.hot, .lv-gbtn.on { text-shadow: 0 1px 2px rgba(4, 30, 20, 0.45), 0 0 1px rgba(0, 0, 0, 0.35); }
 .lv-gbtn.round { width: 52px; height: 52px; border-radius: 999px; flex-direction: column; gap: 0; }
 .lv-gbtn .lbl { font-size: 9.5px; line-height: 1; margin-top: 2px; letter-spacing: 0.02em; opacity: 0.9; }
 

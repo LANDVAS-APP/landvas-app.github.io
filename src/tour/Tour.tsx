@@ -10,6 +10,7 @@ import { useOnboardedMe } from '../lib/queries';
 import { cn, safeStorage, saveStorage } from '../lib/utils';
 import { Button } from '../ui';
 import { confettiCannons } from '../ui/confetti';
+import { readable } from '../lib/readable';
 
 type Step = { icon: typeof Map; color: string; title: string; body: string; to?: string; cta?: string };
 
@@ -75,7 +76,7 @@ export function Tour() {
         <AnimatePresence mode="wait">
           <motion.div key={step} initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -30, opacity: 0 }} transition={{ duration: 0.22 }} className="relative">
             <motion.div initial={{ scale: 0.5, rotate: -15 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}
-              className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: `${s.color}26`, color: s.color, boxShadow: `0 0 50px -10px ${s.color}` }}>
+              className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: `${s.color}26`, color: readable(s.color), boxShadow: `0 0 50px -10px ${s.color}` }}>
               <s.icon className="h-8 w-8" />
             </motion.div>
             <h2 id="tour-title" className="font-display text-2xl font-bold">{step === 0 ? `Welcome, @${me.profile.username}!` : s.title}</h2>

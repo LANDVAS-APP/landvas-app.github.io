@@ -267,6 +267,8 @@ const MESSAGES: Record<string, string> = {
   not_enough_metal: 'Not enough metal for that.', too_many: 'That’s as many as it can take.', hands_full: 'You can carry three — put one away first.',
   plot_has_artifact: 'That plot already has an artifact on it.', no_horseshoe: 'Carry a horseshoe or an Ink Amphora first.', anchored: 'That plot is protected — no pranks there.',
   your_own_plot: 'Pick someone else’s plot — you can play your own anytime.', no_minigame: 'That plot has no game to play.', no_strings: 'No strings left — one comes back soon.',
+  no_plots: 'Put a plot on the playlist first.', playlist_full: 'The playlist is full — take one off first.', puppet_plot_resting: 'That plot is resting (locked or folded away) — pick another.',
+  mirror_cannot: 'A reflection can’t do that — only the real one can.',
   card_waiting: 'A card is waiting — let it come true first.', already_flipped: 'That card is already turned.', no_card: 'Nothing in your hand.',
   hand_full: 'You’re already holding a card — play it first.', unknown_glyph: 'You haven’t found that glyph yet.', no_mana: 'Not enough mana — it refills through the day.',
   no_storm: 'The storm has passed.', missed: 'Missed — catch it just as it strikes.', own_storm: 'That’s your own storm — catch it from your Storm Coil.',

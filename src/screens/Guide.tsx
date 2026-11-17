@@ -14,6 +14,7 @@ import {
   profiles, project, pvpInk, rarityChoices, scoreGames, streakInkPerDay,
   type Guide as GuideData, type Projection,
 } from '../guide/model';
+import { readable } from '../lib/readable';
 
 const num = (x: unknown, d = 0) => { const v = Number(x); return Number.isFinite(v) ? v : d; };
 const fmt = (x: number, d = 0) => x.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -142,7 +143,7 @@ function Rates({ g }: { g: GuideData }) {
               const u = num(r.usd_per_second);
               return (
                 <tr key={r.id} className="border-t border-line/60" data-testid={`guide-rate-${r.id}`}>
-                  <td className="p-2.5 pl-3"><b style={{ color: r.color }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</b><span className="block text-[10.5px] text-faint">×{num(r.ink_mult, 1)} Ink</span></td>
+                  <td className="p-2.5 pl-3"><b style={{ color: readable(r.color) }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</b><span className="block text-[10.5px] text-faint">×{num(r.ink_mult, 1)} Ink</span></td>
                   <td className="p-2.5 tnum">{odds(num(r.chance))}</td>
                   <td className="break-all p-2.5 tnum text-[12px]">{perSec(u)}</td>
                   <td className="p-2.5 pr-3 text-right tnum">{usd(u * 86400 * boost.avg)}<span className="block text-[11px] text-muted">{usd(u * 86400 * 365 * boost.avg)}</span></td>
@@ -158,7 +159,7 @@ function Rates({ g }: { g: GuideData }) {
         <div className="grid gap-1.5 sm:grid-cols-2">
           {ultras.map((r) => (
             <div key={r.id} className="flex items-baseline justify-between gap-2 text-sm" data-testid={`guide-rate-${r.id}`}>
-              <span className="font-bold" style={{ color: r.color }}>{r.emoji} {r.name}</span>
+              <span className="font-bold" style={{ color: readable(r.color) }}>{r.emoji} {r.name}</span>
               <span className="text-xs text-muted tnum">{odds(num(r.chance))} · {perSec(num(r.usd_per_second))}/s · ×{num(r.ink_mult, 1)} Ink</span>
             </div>
           ))}
@@ -369,7 +370,7 @@ function Bars({ rows, unit }: { rows: { name: string; color: string; v: number }
     <div className="grid gap-2">
       {rows.map((r) => (
         <div key={r.name} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-2 text-sm">
-          <span className="font-bold" style={{ color: r.color }}>{r.name}</span>
+          <span className="font-bold" style={{ color: readable(r.color) }}>{r.name}</span>
           <span className="h-4 rounded-full bg-surface-2"><span className="block h-full rounded-full" style={{ width: `${Math.max(1.5, (r.v / max) * 100)}%`, background: r.color }} /></span>
           <span className="tnum text-xs font-bold">{unit(r.v)}</span>
         </div>
@@ -404,7 +405,7 @@ function Compare({ g }: { g: GuideData }) {
     <Section id="compare" title="🏁 LANDVAS vs Atlas Earth vs TerraMine" intro="Three map games where plots earn real-dollar rent. Here’s how fast each one lets a free player grow, using each game’s own published numbers. LANDVAS’s numbers are live; the others were checked in November 2026.">
       <Card className="p-0" >
         <div data-testid="compare-table">
-          <div className="sticky top-0 z-10 grid grid-cols-3 gap-2 rounded-t-3xl bg-bg-2/95 px-3 py-2.5 text-xs font-black backdrop-blur"><span className="text-[#B69CFF]">LANDVAS</span><span style={{ color: T.color }}>{T.emoji} TerraMine</span><span style={{ color: A.color }}>{A.emoji} Atlas Earth</span></div>
+          <div className="sticky top-0 z-10 grid grid-cols-3 gap-2 rounded-t-3xl bg-bg-2/95 px-3 py-2.5 text-xs font-black backdrop-blur"><span className="text-[#B69CFF]">LANDVAS</span><span style={{ color: readable(T.color) }}>{T.emoji} TerraMine</span><span style={{ color: readable(A.color) }}>{A.emoji} Atlas Earth</span></div>
             {row('Free to start', `${A.startPlots} parcel`, `${T.startPlots} mines (1,000 TB)`, `${fmt(num(g.config.economy?.free_plots, 1))} plot${num(g.config.economy?.free_plots, 1) === 1 ? '' : 's'}`)}
             {row('A plot costs', `${A.plotCost} Atlas Bucks`, `${T.plotCost} TerraBucks`, `${fmt(price)} Ink`)}
             {row('Earned per minigame win', 'no minigame currency (2 Atlas Bucks per ad)', `${fmt(T.earn.perWin, 1)} TB (levels 1–34, mine mix)`, `${fmt(mg.perWin, 1)} Ink (levels 1–34, ×${rar.mult.toFixed(2)} rarity)`)}
@@ -439,7 +440,7 @@ function Compare({ g }: { g: GuideData }) {
         <div className="grid grid-cols-3 gap-2" data-testid="compare-results">
           {series.map((p) => (
             <div key={p.id} className="rounded-2xl p-3" style={{ background: `${p.color}1f`, boxShadow: `inset 0 0 0 1.5px ${p.color}55` }} data-testid={`compare-${p.id}`}>
-              <div className="text-xs font-black" style={{ color: p.color }}>{p.name}</div>
+              <div className="text-xs font-black" style={{ color: readable(p.color) }}>{p.name}</div>
               <div className="font-display text-xl font-black tnum">{fmt(end(p))}</div>
               <div className="text-[11px] text-muted">plots · {fmt(p.plotsPerDay, 2)} a day</div>
               <div className="mt-1 text-sm font-bold tnum">{usd(p.monthly[p.monthly.length - 1])}<span className="text-[11px] font-normal text-muted">/mo</span></div>
@@ -499,7 +500,7 @@ function MinigameByRarity({ g }: { g: GuideData }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-line/60" data-testid={`guide-mg-${r.id}`}>
-                <td className="p-2 pl-3"><b style={{ color: r.color }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</b><span className="block text-[10.5px] text-faint">×{num(r.ink_mult, 1)}</span></td>
+                <td className="p-2 pl-3"><b style={{ color: readable(r.color) }}>{r.emoji ? `${r.emoji} ` : ''}{r.name}</b><span className="block text-[10.5px] text-faint">×{num(r.ink_mult, 1)}</span></td>
                 {levels.map((l) => <td key={l} className="p-2 text-right tnum">{fmt(Math.floor(minigameInkAt(g, l, num(r.ink_mult, 1))))}</td>)}
               </tr>
             ))}
@@ -649,7 +650,7 @@ function Progression({ g }: { g: GuideData }) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[340px] text-[12px]" data-testid="progress-table">
-            <thead className="text-left text-[10.5px] uppercase tracking-wide text-muted"><tr><th className="p-1.5">Day</th>{series.map((x) => <th key={x.id} className="p-1.5" style={{ color: x.color }}>{x.name}</th>)}</tr></thead>
+            <thead className="text-left text-[10.5px] uppercase tracking-wide text-muted"><tr><th className="p-1.5">Day</th>{series.map((x) => <th key={x.id} className="p-1.5" style={{ color: readable(x.color) }}>{x.name}</th>)}</tr></thead>
             <tbody>
               {checkpoints.map((d) => (
                 <tr key={d} className="border-t border-line/60">

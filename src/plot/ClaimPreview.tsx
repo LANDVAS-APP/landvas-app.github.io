@@ -13,6 +13,7 @@ import { isFusion, isPrimordial, rarities } from '../shared/rarity';
 import { Dialog } from '../ui';
 import { HotZoneFact } from '../daily/HotZone';
 import './claim.css';
+import { readable } from '../lib/readable';
 
 export type KindOpt = { k: PlotKind; icon: string; title: string; body: string; color: string; perks: string[]; subs?: PlotKind[]; tid?: string };
 export type SubOpt = { icon: string; title: string; body: string; perks: string[] };
@@ -89,7 +90,7 @@ export function TypePicker({ opts, subs, kind, onPick }: { opts: KindOpt[]; subs
         <AnimatePresence mode="wait" initial={false}>
           <motion.p key={kind} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.14 }}
             className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-white/70" data-testid="claim-type-line">
-            <span style={{ color: opt.color }}>{sub ? `${sub.icon} ${sub.title}` : `${opt.icon} ${opt.title}`}</span> — {sub?.body ?? opt.body}
+            <span style={{ color: readable(opt.color) }}>{sub ? `${sub.icon} ${sub.title}` : `${opt.icon} ${opt.title}`}</span> — {sub?.body ?? opt.body}
           </motion.p>
         </AnimatePresence>
         <button type="button" onClick={() => setDetails((v) => !v)} className="lv-cpv-more" aria-expanded={details} data-testid="buy-details-toggle"><Info className="h-3.5 w-3.5" />{details ? 'Less' : 'More'}</button>
@@ -102,9 +103,9 @@ export function TypePicker({ opts, subs, kind, onPick }: { opts: KindOpt[]; subs
                 <div key={o.k} className={cn('lv-cpv-detail', opt.k === o.k && 'on')} style={{ ['--k' as string]: o.color }}>
                   <button type="button" onClick={() => pick(o.subs ? (o.subs.includes(kind) ? kind : o.subs[0]) : o.k)} className="flex w-full items-center gap-2 text-left">
                     <span className="text-xl">{o.icon}</span>
-                    <span className="min-w-0 flex-1"><b className="block text-[13px]" style={{ color: o.color }}>{o.title}</b><span className="block text-[11px] text-white/55">{o.body}</span></span>
+                    <span className="min-w-0 flex-1"><b className="block text-[13px]" style={{ color: readable(o.color) }}>{o.title}</b><span className="block text-[11px] text-white/55">{o.body}</span></span>
                   </button>
-                  <ul className="mt-1 grid gap-0.5 pl-8 text-[11px] text-white/75">{o.perks.map((p) => <li key={p} className="flex gap-1"><span style={{ color: o.color }}>✦</span>{p}</li>)}</ul>
+                  <ul className="mt-1 grid gap-0.5 pl-8 text-[11px] text-white/75">{o.perks.map((p) => <li key={p} className="flex gap-1"><span style={{ color: readable(o.color) }}>✦</span>{p}</li>)}</ul>
                   {o.subs && (
                     <div className="mt-1.5 grid gap-1.5 pl-8">
                       {o.subs.map((k) => { const sp = subs[k]!; return (

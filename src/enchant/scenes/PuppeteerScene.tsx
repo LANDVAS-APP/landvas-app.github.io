@@ -1,7 +1,7 @@
 // 🎭 Puppeteer: a little theatre. The curtains part on a marionette dancing from a wooden cross; its strings are the
-// strings you hold (one comes back every hour). Pick someone else's plot nearby — on the list or on the map — and pull:
-// the game screen opens on their plot, on strings. The run pays like your own games; the owner gets a tip and a note;
-// you climb your own levels there. Every kind of game you play joins your repertoire.
+// strings you hold (one comes back every hour). The show: a playlist of plots — yours or anyone's in reach — and the
+// puppet plays their minigames by itself, live on the stage below, one string an act. Or pull the strings yourself:
+// pick someone else's plot and the game screen opens on it, on strings. Every kind of game joins your repertoire.
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { dur } from '../kinds';
 import { feel } from '../living';
 import { usePickOnMapFor } from '../PlotPickOverlay';
 import { pickedFor, usePlotPick } from '../plotPick';
+import { PuppetTheatre } from '../puppet/PuppetTheatre';
 
 const gameName = (g: string) => (GAME_INFO as Record<string, { name: string }>)[g]?.name ?? g;
 
@@ -45,7 +46,8 @@ function Marionette({ strings, pull }: { strings: number; pull: number }) {
   );
 }
 
-export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
+export function PuppeteerScene(props: SceneProps) {
+  const { v, view, busy, at, mirror } = props;
   const nav = useNavigate();
   const pickOnMap = usePickOnMapFor();
   const [sel, setSel] = useState<PlotLite & { game?: string; m?: number } | null>(null);
@@ -90,7 +92,8 @@ export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
           {Array.from({ length: max }, (_, i) => <span key={i} className="text-[13px]" style={{ opacity: i < strings ? 1 : 0.3 }}>🧵</span>)}
           {strings < max && nextIn != null && <span className="ml-1 text-[10px] font-bold text-white/70">+1 in {dur(nextIn)}</span>}
         </div>
-        {view.grand_ready && <div className="absolute right-3 top-[14%] z-[4] rounded-full bg-[#FFB703] px-2.5 py-1 text-[11px] font-black text-[#2A0509]">🎪 Grand Show ready · ×3</div>}
+        {view.grand_ready && <div className="absolute right-3 top-[14%] z-[4] rounded-full bg-[#FFB703] px-2.5 py-1 text-[11px] font-black text-[#2A0509]">🎪 Grand Show ready · ×{(v.stars ?? 0) >= 5 ? 5 : 3}</div>}
+        {view.show?.on && <div className="absolute inset-x-0 bottom-[2%] z-[4] text-center text-[11px] font-black text-[#FFE8A3]">● the show is on</div>}
         <AnimatePresence>
           {sel && (
             <motion.div className="absolute inset-x-4 bottom-[18%] z-[4] rounded-2xl bg-[#2A0509]/90 p-2.5 text-center" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}>
@@ -102,6 +105,9 @@ export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
         <div className="lvx-grain" />
       </div>
 
+      {!mirror && <PuppetTheatre {...props} />}
+
+      <div className="lvx-label mt-1">Or pull the strings yourself — play someone else’s plot on the game screen</div>
       {(view.medley || view.grand_ready) && (
         <div className="rounded-2xl border border-[#FFB703]/50 bg-[linear-gradient(90deg,#E6394622,#FFB70322)] px-3 py-2 text-[12.5px] font-black text-[#FFE8A3]" data-testid="puppeteer-grand">
           🎪 {view.medley ? `The Grand Show is on: ${view.medley.left} more act${view.medley.left === 1 ? '' : 's'} — each on a different plot, ×3, no strings` : 'Grand Show ready: today’s first pull starts a three-plot medley — every act ×3, no strings'}
@@ -142,7 +148,7 @@ export function PuppeteerScene({ v, view, busy, at, mirror }: SceneProps) {
           {(view.shows as any[]).map((s, i) => <div key={i} className="flex items-center gap-2 text-[12px] text-white/75"><span>{s.passed ? '👏' : '🪢'}</span><span className="flex-1">{gameName(s.game)} · level {s.level}{s.ink ? ` · +${s.ink} Ink` : ''}{s.tip ? ` · tipped ${s.tip}` : ''}</span></div>)}
         </div>
       )}
-      <p className="text-center text-[11px] text-white/55">The owner is tipped and told. You climb your own levels on their plot — theirs never move. Puppet runs count toward your daily wins.</p>
+      <p className="text-center text-[11px] text-white/55">The owner is tipped and told. Runs you play yourself count toward your daily wins.</p>
     </div>
   );
 }
