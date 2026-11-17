@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Coins, Database, FileClock, Flag, Globe2, HeartPulse, LayoutDashboard, LifeBuoy, Map as MapIcon, Megaphone,
-  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles, Power, Dices,
+  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles, Power, Dices, WandSparkles,
 } from 'lucide-react';
 import { api } from '../../src/backend/api';
 import { getBackend } from '../../src/backend/backend';
@@ -34,6 +34,7 @@ const Tool = lazy(() => import('./pages/Tools'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const EarnSwitches = lazy(() => import('./pages/EarnSwitches'));
 const Rolls = lazy(() => import('./pages/Rolls'));
+const Enchantments = lazy(() => import('./pages/Enchantments'));
 
 export function useWho() {
   return useQuery({ queryKey: ['whoami', getBackend().session()?.userId], queryFn: portal.whoami, staleTime: 60_000 });
@@ -85,6 +86,7 @@ function AdminShell({ who }: { who: WhoAmI }) {
     has('economy') && { to: '/tools/earnings', label: 'Rates & rarities', icon: <Coins />, group: 'Economy' },
     has('economy') && { to: '/tools/shop', label: 'Shop', icon: <ShoppingBag />, group: 'Economy' },
     has('economy') && { to: '/rolls', label: 'Rolls & Godrolls', icon: <Dices />, group: 'Economy' },
+    has('economy') && { to: '/enchantments', label: 'Enchantments', icon: <WandSparkles />, group: 'Economy' },
     has('payouts') && { to: '/tools/cashouts', label: 'Cash-outs', icon: <Wallet />, group: 'Economy', count: cash.data?.length },
     has('economy') && { to: '/secrets', label: 'Arcade secrets', icon: <Sparkles />, group: 'Secrets' },
     { to: '/map', label: 'World map', icon: <MapIcon />, group: 'World', short: 'Map' },
@@ -154,6 +156,7 @@ const router = createBrowserRouter([
       { path: 'live', element: page(<Live />) },
       { path: 'earning', element: page(<EarnSwitches />) },
       { path: 'rolls', element: page(<Rolls />) },
+      { path: 'enchantments', element: page(<Enchantments />) },
       { path: 'security', element: page(<Security />) },
       { path: 'tools/:tool', element: page(<Tool />) },
       { path: 'secrets', element: page(<Secrets />) },

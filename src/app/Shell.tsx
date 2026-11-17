@@ -1,4 +1,5 @@
 import { getBackend } from '../backend/backend';
+import { loadEnchantTexts } from '../enchant/texts';
 import { AscendHost } from '../roll/Ascend';
 import { useTimerNotifications } from '../native/notify';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -152,6 +153,8 @@ export function Shell() {
   useEffect(() => { if (NATIVE && me) void initAds(); }, [!!me]); // eslint-disable-line react-hooks/exhaustive-deps
   // the app: the daily streak reminder stays in step with the streak (only if the player turned reminders on)
   useStreakReminder(!!me);
+  // the Enchantment editor's words (taglines, how-it-works lines) — once, when the game starts
+  useEffect(() => { void loadEnchantTexts(); }, []);
   // optional reminders: energy full, crops ready, expeditions home… (Settings → Notifications)
   useTimerNotifications(!!me);
   const online = useOnline();

@@ -993,3 +993,16 @@ export type AscendQuote = { ok: boolean; why: 'disabled' | 'not_on_ladder' | 'to
 export type AscendResult = { up: boolean; from: RarityId; to: RarityId; cost: number; try: number; quote: AscendQuote; balances: Balances; usd_per_second: number; replayed?: boolean };
 export type LandlordStatus = { group_id: string; name: string; houses: number; ready: boolean; rent_day: boolean; next_rent_day: string; inspected_today: boolean; today_done: boolean; tasks: Record<string, any> };
 export type PlayerInkMode = { player_id: string; mode: 'default' | 'off' | 'dynamic' | 'classic'; note: string | null; set_at: string | null; by: string | null; held: number; held_n: number; held_at: string | null; game_flow_on: boolean; today: number };
+
+/** the Enchantment editor (admin) */
+export type EnchantTunable = { key: string; def: number; value?: number | null; fns: string[]; line: string };
+export type EnchantEditorKind = {
+  kind: string; tunables: EnchantTunable[]; dials: EnchantTunable[]; weight: number; pop: { alive: number; minted: number };
+  texts: { tagline?: string; how?: string[]; star_powers?: { name: string; emoji: string; text: string }[] };
+  star_powers: { name: string; emoji: string; text: string }[];
+};
+export type EnchantEditor = {
+  kinds: EnchantEditorKind[];
+  global: { enabled: boolean; base_pct: number; luck_pct: number; luck_ink: number; luck_max: number; level_bonus: number; max_level: number };
+  history: { at: string; action: string; kind: string; details: any; by: string | null }[];
+};

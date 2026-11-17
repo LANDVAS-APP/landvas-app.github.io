@@ -216,6 +216,8 @@ export const api = {
   myLandlordStatus: () => rpc<import('./types').LandlordStatus[]>('my_landlord_status'),
   /** your open roll tickets (with everything on each) */
   myRollTickets: () => rpc<import('./types').RollTicket[]>('my_roll_tickets'),
+  /** the words the owner set in the Enchantment editor (taglines, how-it-works lines) */
+  enchantTexts: () => rpc<Record<string, { tagline?: string; how?: string[] }>>('enchant_texts'),
   /** ⬆️ Ascend: what a try on this plot costs and its odds; one try */
   ascendQuote: (gx: number, gy: number) => rpc<import('./types').AscendQuote>('ascend_quote', { p_gx: gx, p_gy: gy }),
   ascendRoll: (gx: number, gy: number) => rpc<import('./types').AscendResult>('ascend_roll', { p_gx: gx, p_gy: gy, p_idempotency_key: idemKey('ascend') }),
@@ -853,6 +855,11 @@ export const api = {
       rpc<any[]>('admin_grant_godroll', { p_player: player, p_kind: kind, p_rolls: rolls, p_rarity: rarity, p_shiny: shiny, p_note: note }),
     cancelGodroll: (id: number) => rpc<any[]>('admin_cancel_godroll', { p_id: id }),
     rollSettings: () => rpc<any>('admin_roll_settings'),
+    // the Enchantment editor
+    enchantEditor: () => rpc<import('./types').EnchantEditor>('admin_enchant_editor'),
+    setEnchantTuning: (kind: string, values: Record<string, number | boolean | null>) => rpc<import('./types').EnchantEditor>('admin_set_enchant_tuning', { p_kind: kind, p_values: values }),
+    setEnchantTexts: (kind: string, texts: { tagline?: string; how?: string[]; star_powers?: { name: string; emoji: string; text: string }[] } | null) =>
+      rpc<import('./types').EnchantEditor>('admin_set_enchant_texts', { p_kind: kind, p_texts: texts }),
     setRollSettings: (key: 'godrolls' | 'ascend', value: Record<string, unknown>) => rpc<any>('admin_set_roll_settings', { p_key: key, p_value: value }),
     playerInkMode: (player: string) => rpc<import('./types').PlayerInkMode>('admin_player_ink_mode', { p_player: player }),
     setPlayerInkMode: (player: string, mode: 'default' | 'off' | 'dynamic' | 'classic', note: string | null) =>
