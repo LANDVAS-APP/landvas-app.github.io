@@ -222,7 +222,7 @@ const SPEED: Record<string, number> = { mercury: 4.1, venus: 1.6, earth: 1, mars
 
 type MapProps = { s: SpaceState; progress: number; flying: boolean; picked: string | null; onPick(id: string): void; accent: string };
 /** The solar system in 3D (falls back to the flat map where WebGL isn't available). */
-function SystemMap(p: MapProps) {
+export function SystemMap(p: MapProps) {
   const [flat, setFlat] = useState(false);
   return flat ? <SystemMap2D {...p} /> : <SystemMap3D {...p} onFail={() => setFlat(true)} />;
 }
@@ -343,7 +343,7 @@ function SystemMap2D({ s, progress, flying, picked, onPick, accent }: MapProps) 
 }
 
 // ---- a world's card ---------------------------------------------------------------------------
-function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; id: string; busy: string | null; flying: boolean; onLaunch(fast?: boolean): void; onClose(): void }) {
+export function WorldCard({ s, id, busy, flying, onLaunch, onClose }: { s: SpaceState; id: string; busy: string | null; flying: boolean; onLaunch(fast?: boolean): void; onClose(): void }) {
   const key = worldKey(id);
   const cfg = s.config.worlds[key];
   const w: World | null = id === 'exo' ? null : id === 'home' ? exoWorld(s.home_seed!, s.home_name) : worldOf(id);

@@ -105,6 +105,8 @@ export type Eyes = {
   rollAt(cell: { gx: number; gy: number } | null): { yaw: number; pitch: number } | null;
   /** the roll's moments as they come (the drop, the drum's colours, the landing) */
   rollMoment(m: { phase?: string; color?: string; tier?: number }): void;
+  /** stop drawing while another full-screen 3D view is up (the flight to space) */
+  setPaused(p: boolean): void;
   /** an enchantment summoned from your Grimoire, standing in front of you (null: sent back) */
   manifest(m: { emoji: string; a: string; b: string; seed: number; sigil: HTMLCanvasElement | null; name: string } | null): void;
   /** …and it flares as you use it */
@@ -1791,6 +1793,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   // ---- the loop -----------------------------------------------------------------------------------------------------
+  let paused = false;
   const pace = framePacer({ ambient: () => !throws.length && !levPlace && !roll && !man });
   let frames = 0, frameMs = 16;
   /** walking through a door: the camera glides from where you stand, through it */
@@ -1812,7 +1815,7 @@ export function createEyes(o: EyesOpts): Eyes {
   const tmpV = new THREE.Vector3();
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
-    if (disposed || document.hidden) return;
+    if (disposed || document.hidden || paused) return;
     if (!pace.ready(now)) return;
     const rawDt = (now - last) / 1000;
     const dt = Math.min(0.1, rawDt);
@@ -2086,8 +2089,13 @@ export function createEyes(o: EyesOpts): Eyes {
     setFrame, frame: () => frame, setGround, setClose, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots, setArt, setMine, setLeviathan, setBeacons,
     setFallingStars, setDrops, setBuddies, setHotZone,
     setClock: (ms) => { clock = ms; lastSky = -1e9; },
-    rollAt, rollMoment, manifest, manifestFlare,
-    lookAt: (y, p) => { yaw = y; pitch = Math.max(-1.45, Math.min(1.52, p)); vyaw = vpitch = 0; if (gyro) gyroQ = null; },
+    rollAt, rollMoment, manifest, manifestFlare, setPaused: (p: boolean) => { paused = p; },
+    lookAt: (y, p) => {
+      yaw = y; pitch = Math.max(-1.45, Math.min(1.52, p)); vyaw = vpitch = 0; if (gyro) gyroQ = null;
+      // (turn the camera now, not at the next frame: where things are on screen is right straight away)
+      eTmp.set(pitch, -yaw, 0, 'YXZ'); cam.quaternion.setFromEuler(eTmp); farCam.quaternion.copy(cam.quaternion);
+      cam.updateMatrixWorld(); farCam.updateMatrixWorld();
+    },
     look: () => ({ yaw: ((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch, fov }),
     setGyro,
     throwAtLev: (onLand) => {

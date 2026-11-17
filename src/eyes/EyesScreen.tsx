@@ -5,9 +5,9 @@
 // Walk with the stick (forward is where you look), look by dragging or by moving the phone, tap anything.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Smartphone, Users, X } from 'lucide-react';
+import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Rocket, Smartphone, Users, X } from 'lucide-react';
 import { useParty, usePartyUi } from '../party/party';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, type LevState } from '../backend/api';
@@ -41,6 +41,9 @@ import type { BuildSite } from './builds';
 import { FirstPersonSelf } from './FirstPersonSelf';
 import { FpGrimoire, type Summoned } from './FpGrimoire';
 import { MeetNearby } from './MeetNearby';
+
+/** to space, in first person (its own chunk: only when you go) */
+const SpaceFlight = lazy(() => import('./SpaceFlight'));
 import './eyes.css';
 import { silhouette } from './selfView';
 import { hoursFromHere, kmBetween, localDay, localTime, sunTimes, utcOffset, whereabouts, type Whereabouts } from './whereabouts';
@@ -480,6 +483,8 @@ export default function EyesScreen() {
   const [book, setBook] = useState(false);
   const [summoned, setSummoned] = useState<Summoned | null>(null);
   const [enchPage, setEnchPage] = useState(0);
+  const [space, setSpace] = useState(false);
+  useEffect(() => { eyes?.setPaused(space); }, [eyes, space]);
   const onPick = useRef<(p: Pick | null) => void>(() => {});
   onPick.current = (p) => {
     if (hint) { setHint(false); saveStorage('landvas.eyes.hinted', true); }
@@ -675,6 +680,8 @@ export default function EyesScreen() {
 
       {/* you: your hands, what you hold, your seat (in your explorer's own art) */}
       {hasExplorer && <FirstPersonSelf eyes={eyes} look={selfLook} vehicle={vehicle as 'walk' | 'bike' | 'car' | 'jet'} hidden={!!going?.fade || book} />}
+      {/* to space: your rocket, from right here */}
+      <AnimatePresence>{space && <Suspense key="space" fallback={null}><SpaceFlight look={selfLook} onClose={() => setSpace(false)} /></Suspense>}</AnimatePresence>
       {/* your Grimoire, held open; what you've summoned from it */}
       {me && <FpGrimoire eyes={eyes} look={selfLook} open={book} onClose={() => setBook(false)} summoned={summoned} setSummoned={setSummoned} openPage={enchPage} />}
       {/* the middle of your view */}
@@ -717,6 +724,7 @@ export default function EyesScreen() {
           <span className="relative"><Users className="h-5 w-5" />{partySize > 1 && <span className="absolute -right-2.5 -top-2 rounded-full bg-[#22E3FF] px-1 text-[10px] font-black text-[#0b0b1e]">{partySize}</span>}</span>
         </RoundBtn>
         {me && <RoundBtn label="Grimoire" on={book} onClick={() => setBook((b) => !b)} testid="eyes-grimoire-btn"><BookOpen className="h-5 w-5" /></RoundBtn>}
+        {me && <RoundBtn label="To space" on={space} onClick={() => setSpace(true)} testid="eyes-space-btn"><Rocket className="h-5 w-5" /></RoundBtn>}
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>

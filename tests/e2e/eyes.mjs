@@ -670,6 +670,39 @@ try {
   await page.click('[data-testid=eyes-back]'); await page.waitForTimeout(2500);
   check('back to the map', (await page.locator('[data-testid=eyes]').count()) === 0);
   await shot('14-back');
+
+  // ---- to space, in first person: pick the Moon on the solar system, ride your rocket up from the street, across, and
+  // down onto it; step out onto its own map -------------------------------------------------------------------------
+  {
+    await sql(`insert into space_pilots (player_id, parts, location) values ($1, array['nose','tank','fins','engine'], 'earth')
+               on conflict (player_id) do update set parts = excluded.parts, location = 'earth', dest = null, depart_at = null, arrive_at = null`, [me]);
+    await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['space'] }));
+    await nav('/eyes'); await waitFor('[data-testid=eyes]', 30000); await page.waitForTimeout(2500);
+    await page.click('[data-testid=eyes-space-btn]');
+    const sys = await waitFor('[data-testid=eyes-space-system] canvas', 20000);
+    await page.waitForTimeout(1500); await shot('22-space-where-to');
+    check('to space from the street: the whole solar system, pick a world', sys);
+    await page.click('[data-testid=eyes-space-pick-moon]');
+    await page.click('[data-testid=world-card] [data-testid=launch]', { timeout: 10000 }).catch((e) => console.log('launch:', String(e).slice(0, 160)));
+    const lifted = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=liftoff]', { timeout: 10000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1500); await shot('22b-liftoff');
+    check('…liftoff: you ride your rocket up from where you stand', lifted);
+    const cruising = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=cruise]', { timeout: 20000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1200); await shot('22c-cruise');
+    check('…out across the solar system, for as long as the real trip takes', cruising, await page.locator('[data-testid=eyes-space-status]').textContent().catch(() => ''));
+    // (the trip's time is up)
+    await sql(`update space_pilots set arrive_at = now() - interval '1 second', depart_at = now() - interval '5 minutes' where player_id = $1`, [me]);
+    await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['space'] }));
+    const down = await page.waitForSelector('[data-testid=eyes-space-status][data-phase=approach]', { timeout: 30000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1500); await shot('22d-coming-down');
+    const landedOk = await page.waitForSelector('[data-testid=eyes-space-out]', { timeout: 30000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(800); await shot('22e-landed');
+    check('…and down onto the Moon', down && landedOk);
+    await page.click('[data-testid=eyes-space-out]').catch(() => {});
+    const out = await page.waitForFunction(() => window.__landvasPath() === '/world', null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(2500); await shot('22f-on-the-moon');
+    check('step out: you’re on the Moon’s own map', out && (await sql(`select location from space_pilots where player_id = $1`, [me]))[0]?.location === 'moon');
+  }
   const dbg = d;
   console.log('debug', JSON.stringify({ calls: dbg?.calls, tris: dbg?.tris, dpr: dbg?.dpr }));
   check('no errors in the page', errors.length === 0, errors.slice(0, 3).join(' | '));
