@@ -82,6 +82,7 @@ export type Leviathan = { id: string; gen: number; status: 'warning' | 'walking'
   roam: boolean; retreat: boolean; targets: [number, number][] | null;
   /** (the owner's view only) */ next_power_at?: string | null; true_place?: string | null;
   walk_s: number; walk_at: string; pause_until: string | null; rise_at: string; spawned_at: string; origin: string; exit_sea: string | null; place: string | null; trail: [number, number][];
+  /** how many times it has come back from the deep */ returns?: number;
   shrunk_until: string | null; foretold_until: string | null; roar_at: string | null; target: { gx?: number; gy?: number; owner_name: string | null; giant?: boolean; player?: boolean } | null; cities: string[] | null; pos: LevPos; fighters: number };
 export type LevMove = { id: string; kind: string; serial: number; level: number; sigil: number; name: string; move: string; effect: string | null; dmg: number; ready_in: number };
 export type LevState = { server_time: string; lev: Leviathan | null;
@@ -90,7 +91,16 @@ export type LevState = { server_time: string; lev: Leviathan | null;
   me: { dmg: number; hits: number; bombs: number; bombs_max: number; bomb_regen_s: number; next_bomb_in: number | null; moves: LevMove[]; rank: number | null; trampled: number; spotted?: boolean } | null;
   last: { id: string; gen: number; status: 'fallen' | 'escaped'; ended_at: string; place: string | null; hp: number; hp_max: number; strength: number; exit_sea: string | null; fighters: number; top: { player: any; dmg: number }[] | null;
     loot: { loot: { fell: boolean; rank: number; share: number; ink: number; enchant?: number; ticket?: string } | null; seen: boolean; dmg: number } | null } | null;
-  next_at: string | null; bones: { id: number; gen: number; lng: number; lat: number; at: string; place: string | null; players: number; top: string | null }[] };
+  next_at: string | null; bones: { id: number; gen: number; lng: number; lat: number; at: string; place: string | null; players: number; top: string | null }[];
+  /** one sent back to the ocean, waiting to come back stronger (only while none is out) */
+  deep?: LevDeep | null };
+export type LevDeep = { id: string; gen: number; strength: number; hp: number; hp_max: number; sea: string | null; dove_at: string; return_at: string | null; returns: number;
+  next_strength: number; fighters: number; my_dmg: number | null };
+/** (the owner's view) a new Leviathan's health and the numbers behind it */
+export type LevHpCalc = { mode: 'players' | 'fixed' | 'enchant'; hp: number; hp_players: number; hp_enchant: number; hp_fixed: number | null; players: number; enchantments: number;
+  ench_move_sum: number; cd_h: number; bombs_max: number; bomb_regen_s: number; hp_min: number; hours: number; full: number; engage: number; engage_from: 'last' | 'setting';
+  last: { gen: number; status: string; hours: number; dmg: number; dph: number; eng: number; hp_max: number } | null };
+export type LevPace = { dph: number; measured: boolean; over_h: number; eta_h: number | null };
 export type SpliceFriend = { friend: any; enchantments: { id: string; kind: string; serial: number; sigil: number; level: number; nickname: string | null }[] };
 export type SpliceInvite = { id: number; from: any; expires_at: string; theirs: EnchantBrief; yours: EnchantBrief; hybrid: string; perfect: boolean };
 export type LuckState = { enabled: boolean; luck: number; max: number; rolls: number; ultra_x: number; armed: number; can_reroll: number; per_roll: number; max_rerolls: number; ink_per_point: number; ink_left_today: number; sacrificed: number; lucky_rolls: number;
@@ -842,7 +852,8 @@ export const api = {
     inkModes: () => rpc<(import('./types').PlayerInkMode & { player: any })[]>('admin_ink_modes'),
     inkPacing: () => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_ink_pacing'),
     setInkPacing: (config: Record<string, unknown>) => rpc<{ config: Record<string, any>; today: any[]; totals?: { players: number; earned: number; paid: number; over_target: number } }>('admin_set_ink_pacing', { p_config: config }),
-    leviathan: (action: 'summon' | 'dismiss' | 'status' | 'speed' | 'heal' | 'retreat' | 'stay' | 'roam' | 'target' | 'rampage' | 'tiny' | 'hide', args: Record<string, unknown> = {}) => rpc<LevState & { cfg: any; history: any[] }>('admin_leviathan', { p_action: action, p_args: args }),
+    leviathan: (action: 'summon' | 'dismiss' | 'status' | 'speed' | 'heal' | 'retreat' | 'stay' | 'roam' | 'target' | 'rampage' | 'tiny' | 'hide' | 'submerge' | 'resurface' | 'set_hp', args: Record<string, unknown> = {}) =>
+      rpc<LevState & { cfg: any; history: any[]; hp_calc: LevHpCalc; pace: LevPace | null }>('admin_leviathan', { p_action: action, p_args: args }),
     giveEnchantment: (player: string, kind: string, reason: string, near: { gx: number; gy: number } | null) =>
       rpc<EnchantBrief>('admin_give_enchantment', { p_player: player, p_kind: kind, p_reason: reason, p_near_gx: near?.gx ?? null, p_near_gy: near?.gy ?? null }),
     playerPlots: (player: string) => rpc<any[]>('admin_player_plots', { p_player: player }),

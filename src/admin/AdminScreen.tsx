@@ -5,7 +5,7 @@ import { Check, CheckCheck, ChevronDown, DoorOpen, Eye, KeyRound, MapPin, Shield
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { api } from '../backend/api';
+import { api, type LevDeep, type LevHpCalc, type LevPace } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
 import { Page, PageHeader } from '../app/Shell';
 import { invalidateGame, qk, useOnboardedMe } from '../lib/queries';
@@ -868,7 +868,7 @@ function EnchantSettings({ value }: { value: any }) {
   );
 }
 
-/** the Leviathan: when it comes, how tough it is, what it pays — and summon one now, or send it back to the sea */
+/** the Leviathan: when it comes, how tough it is, what it pays — summon one, send it back to the ocean, bring it back stronger */
 function LeviathanSettings({ value }: { value: any }) {
   const save = useSaveConfig();
   const qc = useQueryClient();
@@ -876,26 +876,40 @@ function LeviathanSettings({ value }: { value: any }) {
   useEffect(() => setV(structuredClone(value)), [value]);
   const st = useQuery({ queryKey: ['admin-leviathan'], queryFn: () => api.admin.leviathan('status'), staleTime: 10_000 });
   const [warn, setWarn] = useState(60);
+  const [backIn, setBackIn] = useState(0);
   const dirty = JSON.stringify(v) !== JSON.stringify(value);
-  const run = async (a: 'summon' | 'dismiss') => {
-    try { await api.admin.leviathan(a, { warn_min: warn }); toast.success(a === 'summon' ? `Summoned — it rises in ${warn} min` : 'Sent back to the sea'); void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); }
+  const refresh = () => { void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); };
+  const run = async (a: 'summon' | 'dismiss' | 'submerge', msg: string, args: Record<string, unknown> = {}) => {
+    try { await api.admin.leviathan(a, args); toast.success(msg); refresh(); }
     catch (e) { toast.error(toGameError(e).message); }
   };
   const l = st.data?.lev;
+  const deep = st.data?.deep;
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const comesBack = (d: NonNullable<typeof deep>) => (d.return_at ? `by itself ${new Date(d.return_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : v.enabled !== false ? 'on the weekly schedule (or when you bring it back)' : 'when you bring it back');
   return (
     <Card title="🐉 The Leviathan" actions={<Button size="sm" variant="primary" disabled={!dirty} data-testid="lev-cfg-save" onClick={() => save('leviathan', v, 'Leviathan settings saved')}>Save</Button>}>
       <div className="grid gap-3" data-testid="lev-cfg">
-        <div className="rounded-2xl border border-line bg-surface/50 p-3 text-sm">
-          {l ? <><b>Leviathan #{l.gen}</b> {l.status} · {l.place ?? l.origin} · {fmt(l.hp)} / {fmt(l.hp_max)} HP · {l.fighters} fighting{Number(l.strength) > 1 ? ` · ×${l.strength} strength` : ''}</>
+        <div className="rounded-2xl border border-line bg-surface/50 p-3 text-sm" data-testid="lev-status">
+          {l ? <><b>Leviathan #{l.gen}</b> {l.status} · {l.place ?? l.origin} · {fmt(l.hp)} / {fmt(l.hp_max)} HP · {l.fighters} fighting{Number(l.strength) > 1 ? ` · ×${l.strength} strength` : ''}{l.returns ? ` · back from the deep ×${l.returns}` : ''}</>
+            : deep ? <>🌊 <b>Leviathan #{deep.gen}</b> is under the sea {deep.sea ?? ''} (since {timeAgo(deep.dove_at)}) · ×{deep.strength} · {fmt(deep.hp)} / {fmt(deep.hp_max)} HP · {deep.fighters} fought it. It comes back ×{deep.next_strength} stronger {comesBack(deep)}.</>
             : <>No Leviathan right now.{st.data?.next_at ? ` The next one is warned ${new Date(st.data.next_at).toLocaleString()} (it rises ${v.warn_min ?? 60} min later).` : ''}</>}
         </div>
+        {!l && deep && <LevResurface deep={deep} calc={st.data?.hp_calc ?? null} onDone={refresh} />}
         <div className="flex flex-wrap items-end gap-2">
           {!l && <><NumberField label="Warning before it rises" value={warn} min={0} max={1440} suffix="min" onChange={(n) => setWarn(Math.round(n))} />
-            <Button variant="rainbow" onClick={() => void run('summon')} data-testid="lev-summon">Summon one now</Button></>}
-          {l && <Button variant="danger" onClick={() => void run('dismiss')} data-testid="lev-dismiss">Send it back to the sea (no loot)</Button>}
+            <Button variant={deep ? 'secondary' : 'rainbow'} onClick={() => void run('summon', `Summoned — it rises in ${warn} min`, { warn_min: warn })} data-testid="lev-summon">{deep ? 'Summon a new one instead' : 'Summon one now'}</Button></>}
+          {!l && deep && <Button variant="danger" onClick={() => void run('dismiss', 'It’s gone for good')} data-testid="lev-forget">Let it go for good</Button>}
+          {l && <>
+            <NumberField label="Comes back by itself after" value={backIn} min={0} max={1440} step={1} suffix="h (0 = when you say / weekly)" onChange={(n) => setBackIn(Math.max(0, n || 0))} />
+            <Button variant="secondary" onClick={() => void run('submerge', backIn > 0 ? `It dove into the sea — back in ${backIn} h, stronger` : 'It dove into the sea — bring it back stronger whenever you like', backIn > 0 ? { return_h: backIn } : {})} data-testid="lev-submerge">🌊 Send it back to the ocean</Button>
+            <Button variant="danger" onClick={() => void run('dismiss', 'Ended — no loot')} data-testid="lev-dismiss">End it (no loot)</Button>
+          </>}
         </div>
-        {l && l.status !== 'warning' && <LevLive l={l} cfg={value} onDone={() => { void st.refetch(); void qc.invalidateQueries({ queryKey: ['leviathan'] }); }} />}
+        {l && <p className="-mt-1 text-[11px] text-faint">Back to the ocean: it dives into the nearest sea and waits. Everyone’s damage, bombs and move timers are kept and nobody gets loot yet — bring the same one back, stronger, when you want (or it comes back by itself on the timer / the weekly schedule).</p>}
+        {l && l.status !== 'warning' && <LevLive l={l} cfg={value} hitPace={st.data?.pace ?? null} onDone={refresh} />}
+        <div className="text-xs font-black uppercase tracking-wider text-muted">Its health (new ones, and ones that come back)</div>
+        <LevHealth v={v} setV={setV} calc={st.data?.hp_calc ?? null} />
         <div className="text-xs font-black uppercase tracking-wider text-muted">Every Leviathan (these apply to the one walking now too)</div>
         <Switch id="lev-roam" checked={v.roam !== false} label={v.roam !== false ? 'At the end of its road it turns back inland and keeps roaming' : 'At the end of its road it escapes to the sea'} onCheckedChange={(on) => setV({ ...v, roam: on })} />
         <Switch id="lev-powers" checked={v.powers_auto !== false} label={v.powers_auto !== false ? 'It uses its powers on its own (goes tiny, or hides)' : 'It only uses powers when you tell it to'} onCheckedChange={(on) => setV({ ...v, powers_auto: on })} />
@@ -910,37 +924,132 @@ function LeviathanSettings({ value }: { value: any }) {
           <NumberField label="New ones walk at" value={Number(v.speed_mult ?? 1)} step={0.5} min={0.1} max={50} suffix="× pace" onChange={(n) => setV({ ...v, speed_mult: n })} hint="× the pace that gets it across its road in “Walks for”" />
         </div>
         <div className="text-xs font-black uppercase tracking-wider text-muted">The weekly schedule</div>
-        <Switch id="lev-enabled" checked={v.enabled !== false} label={v.enabled !== false ? 'It comes on its own every week' : 'Only when you summon it'} onCheckedChange={(on) => setV({ ...v, enabled: on })} />
+        <Switch id="lev-enabled" checked={v.enabled !== false} label={v.enabled !== false ? 'It comes on its own every week (one under the sea comes back instead of a new one)' : 'Only when you summon it or bring it back'} onCheckedChange={(on) => setV({ ...v, enabled: on })} />
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1 text-xs font-semibold">Day (UTC)<select className={cn(inputCls, 'h-9')} value={Number(v.weekday ?? 6)} onChange={(e) => setV({ ...v, weekday: Number(e.target.value) })}>{days.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></label>
           <NumberField label="Rises at (UTC hour)" value={Number(v.hour_utc ?? 17)} min={0} max={23} onChange={(n) => setV({ ...v, hour_utc: Math.round(n) })} />
           <NumberField label="Warning" value={Number(v.warn_min ?? 60)} min={0} max={1440} suffix="min" onChange={(n) => setV({ ...v, warn_min: Math.round(n) })} />
           <NumberField label="Walks for" value={Number(v.walk_hours ?? 48)} min={1} max={240} suffix="h" onChange={(n) => setV({ ...v, walk_hours: n })} />
-          <NumberField label="Health per active player" value={Number(v.hp_per_player ?? 2500)} min={1} onChange={(n) => setV({ ...v, hp_per_player: Math.round(n) })} />
-          <NumberField label="Least health" value={Number(v.hp_min ?? 60000)} min={1} onChange={(n) => setV({ ...v, hp_min: Math.round(n) })} />
-          <NumberField label="Stronger after an escape" value={Number(v.strength_step ?? 0.5)} step={0.1} min={0} max={5} suffix="×" onChange={(n) => setV({ ...v, strength_step: n })} />
+          <NumberField label="Stronger each time it comes back" value={Number(v.strength_step ?? 0.5)} step={0.1} min={0} max={5} suffix="×" onChange={(n) => setV({ ...v, strength_step: n })} hint="After an escape, or back from the deep" />
           <NumberField label="Ink bombs per player" value={Number(v.bombs_max ?? 60)} min={1} max={1000} onChange={(n) => setV({ ...v, bombs_max: Math.round(n) })} />
           <NumberField label="Enchantment move cooldown" value={Number(v.move_cd_h ?? 3)} step={0.5} min={0} max={72} suffix="h" onChange={(n) => setV({ ...v, move_cd_h: n })} />
           <NumberField label="Most Ink one player can win" value={Number(v.loot_cap ?? 1500)} min={0} onChange={(n) => setV({ ...v, loot_cap: Math.round(n) })} />
         </div>
-        <p className="text-[11px] text-faint">Loot when it falls: {v.loot_base ?? 25} Ink each, plus a share of {fmt(Math.round(1 / Number(v.loot_pool_div ?? 100) * 100))}% of its health in Ink by damage; the top fighter gets a Legendary+ ticket, the top 10% Epic+, everyone with 1%+ of the damage a charge of Enchanted Luck. An escape pays 10 Ink each, and it comes back stronger. Ink only — never USD.</p>
-        {(st.data?.history ?? []).length > 0 && <div className="grid gap-1 text-xs">{st.data!.history.map((h: any) => <div key={h.spawned_at} className="flex gap-2"><b>#{h.gen}</b><span className="flex-1 truncate">{h.origin}</span><span>{h.status}</span><span className="tnum text-muted">{h.fighters} fought</span></div>)}</div>}
+        <p className="text-[11px] text-faint">Loot when it falls: {v.loot_base ?? 25} Ink each, plus a share of an Ink pool by damage (the pool stays what “{fmt(Number(v.hp_per_player ?? 2500))} per active player” health would give, so a bigger health bar doesn’t print more Ink); the top fighter gets a Legendary+ ticket, the top 10% Epic+, everyone with 1%+ of the damage a charge of Enchanted Luck. An escape pays 10 Ink each, and it comes back stronger. Ink only — never USD.</p>
+        {(st.data?.history ?? []).length > 0 && <div className="grid gap-1 text-xs">{st.data!.history.map((h: any) => <div key={h.spawned_at} className="flex gap-2"><b>#{h.gen}</b><span className="flex-1 truncate">{h.origin}</span><span>{h.status}{h.returns ? ` · back ×${h.returns}` : ''}</span><span className="tnum text-muted">{fmtHp(h.hp_max)} HP · {h.fighters} fought</span></div>)}</div>}
       </div>
     </Card>
   );
 }
 
+const fmtHp = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e8 ? 0 : 1)}M` : fmt(Math.round(n)));
+const fmtHours = (h: number) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${h.toFixed(h < 10 ? 1 : 0)} h` : `${(h / 24).toFixed(1)} days`);
+
+/** a new one's health by the settings being edited (the server's private.lev_hp_calc, with the unsaved numbers) */
+function levHp(v: any, c: LevHpCalc) {
+  const h = Math.min(Math.max(Number(v.last_hours ?? 9), 0.5), 240);
+  const cd = Math.max(Number(v.move_cd_h ?? 3), 0.25), bmax = Number(v.bombs_max ?? 60), regen = Math.max(Number(v.bomb_regen_s ?? 60), 1);
+  const full = c.ench_move_sum * (1 + h / cd) + c.players * 100 * (bmax + (h * 3600) / regen);
+  const learned = v.fight_auto !== false && !!c.last;
+  const eng = Math.min(Math.max(learned ? c.last!.eng : Number(v.fight_pct ?? 40) / 100, 0.02), 1);
+  const min = Number(v.hp_min ?? 60000);
+  const players = Math.max(min, c.players * Number(v.hp_per_player ?? 2500));
+  const ench = Math.max(min, Math.round(full * eng));
+  const mode = v.hp_mode ?? 'players';
+  const hp = mode === 'fixed' ? Math.max(Number(v.hp_fixed ?? players), 1) : mode === 'enchant' ? ench : players;
+  return { h, full, eng, learned, players, ench, hp, mode };
+}
+
+/** how much health it has: by the players about, a set amount, or scaled with the enchantments out to last N hours */
+function LevHealth({ v, setV, calc }: { v: any; setV(v: any): void; calc: LevHpCalc | null }) {
+  const mode: 'players' | 'fixed' | 'enchant' = v.hp_mode ?? 'players';
+  const x = calc ? levHp(v, calc) : null;
+  const modes = [['enchant', '✨ Scales with enchantments'], ['fixed', '🎯 A set amount'], ['players', '👥 By active players']] as const;
+  return (
+    <div className="grid gap-3 rounded-2xl border border-line bg-surface/40 p-3" data-testid="lev-health">
+      <div className="flex flex-wrap gap-1.5">
+        {modes.map(([m, label]) => <Button key={m} size="sm" variant={mode === m ? 'primary' : 'ghost'} onClick={() => setV({ ...v, hp_mode: m })} data-testid={`lev-hp-${m}`}>{label}</Button>)}
+      </div>
+      {mode === 'enchant' && <>
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="Lasts about" value={Number(v.last_hours ?? 9)} step={0.5} min={0.5} max={240} suffix="hours" onChange={(n) => setV({ ...v, last_hours: n })} />
+          <NumberField label="How hard they fight" value={Number(v.fight_pct ?? 40)} min={2} max={100} suffix="%" onChange={(n) => setV({ ...v, fight_pct: Math.round(n) })} hint={v.fight_auto !== false && calc?.last ? 'Used when there’s no recent fight to learn from' : '100% = every move on cooldown, every bomb thrown'} />
+          <NumberField label="Least health" value={Number(v.hp_min ?? 60000)} min={1} onChange={(n) => setV({ ...v, hp_min: Math.round(n) })} />
+        </div>
+        <Switch id="lev-fight-auto" checked={v.fight_auto !== false} label="Learn how hard players fight from the last fight (one that lasted 30 min – 24 h)" onCheckedChange={(on) => setV({ ...v, fight_auto: on })} />
+      </>}
+      {mode === 'fixed' && <NumberField label="Health" value={Number(v.hp_fixed ?? 1_000_000)} step={100000} min={1} onChange={(n) => setV({ ...v, hp_fixed: Math.round(n) })} hint="× its strength (a Leviathan that came back ×2 stronger has twice this)" />}
+      {mode === 'players' && <div className="grid grid-cols-2 gap-3">
+        <NumberField label="Health per active player" value={Number(v.hp_per_player ?? 2500)} min={1} onChange={(n) => setV({ ...v, hp_per_player: Math.round(n) })} />
+        <NumberField label="Least health " value={Number(v.hp_min ?? 60000)} min={1} onChange={(n) => setV({ ...v, hp_min: Math.round(n) })} />
+      </div>}
+      {x && calc && (
+        <div className="grid gap-1 rounded-xl bg-surface-2/60 p-2.5 text-xs" data-testid="lev-hp-preview">
+          <div className="text-sm"><b className="tnum">{fmtHp(x.hp)} HP</b> <span className="text-muted">for a new one now (× its strength)</span></div>
+          {mode === 'enchant' && <div className="text-muted">{fmt(calc.enchantments)} enchantments out · {fmt(calc.players)} players about this week · everything they could throw at it in {fmtHours(x.h)}: {fmtHp(x.full)} × {Math.round(x.eng * 100)}% {x.learned ? `(how hard they fought #${calc.last!.gen})` : '(your setting)'}</div>}
+          {calc.last
+            ? <div className="text-muted">Last fight: #{calc.last.gen} {calc.last.status} after {fmtHours(calc.last.hours)} · {fmtHp(calc.last.dmg)} damage ({fmtHp(calc.last.dph)}/h) · they used {Math.round(calc.last.eng * 100)}% of what they could. At that pace this health lasts <b>~{fmtHours(x.hp / Math.max(calc.last.dph, 1))}</b>.</div>
+            : <div className="text-faint">No fight of 30 min – 24 h to learn from yet: it goes by “how hard they fight”.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** bring back the one under the sea: the same Leviathan, stronger */
+function LevResurface({ deep, calc, onDone }: { deep: LevDeep; calc: LevHpCalc | null; onDone(): void }) {
+  const [step, setStep] = useState(() => Math.round((Number(deep.next_strength) - Number(deep.strength)) * 100) / 100);
+  const [heal, setHeal] = useState(true);
+  const [from, setFrom] = useState<'players' | 'same'>('players');
+  const [warn, setWarn] = useState(30);
+  const [exact, setExact] = useState<number>(NaN);
+  const [busy, setBusy] = useState(false);
+  const str = Math.round((Number(deep.strength) + (Number.isFinite(step) ? step : 0)) * 100) / 100;
+  const hpMax = Number.isFinite(exact) && exact > 0 ? exact : Math.max(Math.round((calc?.hp ?? 0) * str), Math.round((Number(deep.hp_max) * str) / Math.max(Number(deep.strength), 0.1)));
+  const hpNow = heal ? hpMax : Math.max(1, Math.round((hpMax * Number(deep.hp)) / Math.max(Number(deep.hp_max), 1)));
+  const go = async () => {
+    setBusy(true);
+    try {
+      await api.admin.leviathan('resurface', { step, heal, from, warn_min: warn, ...(Number.isFinite(exact) && exact > 0 ? { hp: exact } : {}) });
+      toast.success(`Leviathan #${deep.gen} is coming back ×${str} stronger — it rises in ${warn} min`); onDone();
+    } catch (e) { toast.error(toGameError(e).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="grid gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-3" data-testid="lev-resurface">
+      <div className="text-xs font-black uppercase tracking-wider text-accent">Bring it back — the same one, stronger</div>
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField label="Stronger by" value={step} step={0.25} min={0} max={10} suffix={`× → ×${str}`} onChange={(n) => setStep(Math.max(0, n || 0))} />
+        <NumberField label="Rises after a warning of" value={warn} min={0} max={1440} suffix="min" onChange={(n) => setWarn(Math.round(n || 0))} />
+        <NumberField label="Exact health (blank = by the settings)" value={exact} step={100000} min={1} onChange={(n) => setExact(n)} />
+        <label className="grid gap-1 text-xs font-semibold">Rises from<select className={cn(inputCls, 'h-10')} value={from} onChange={(e) => setFrom(e.target.value as 'players' | 'same')} data-testid="lev-resurface-from">
+          <option value="players">A sea near the players (a new road)</option><option value="same">The sea it dove into ({deep.sea ?? '—'})</option></select></label>
+      </div>
+      <Switch id="lev-resurface-heal" checked={heal} label={heal ? 'Back at full health' : `Keeps its wounds (${Math.round((Number(deep.hp) / Math.max(Number(deep.hp_max), 1)) * 100)}% of its health left)`} onCheckedChange={setHeal} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="rainbow" disabled={busy} onClick={() => void go()} data-testid="lev-resurface-go">🐉 Bring it back ×{str}</Button>
+        <span className="text-xs text-muted tnum">{fmtHp(hpNow)} / {fmtHp(hpMax)} HP (was {fmtHp(deep.hp)} / {fmtHp(deep.hp_max)} at ×{deep.strength})</span>
+      </div>
+      <p className="text-[11px] text-faint">Same number, same fighters: everyone’s damage so far still counts towards the loot when it falls. Everyone is told it’s coming back.</p>
+    </div>
+  );
+}
+
 /** the Leviathan that's walking now: speed, where it goes, its powers, retreat / stay / heal — nothing about it resets */
-function LevLive({ l, cfg, onDone }: { l: any; cfg: any; onDone(): void }) {
+function LevLive({ l, cfg, hitPace, onDone }: { l: any; cfg: any; hitPace: LevPace | null; onDone(): void }) {
   const [kmh, setKmh] = useState(() => Math.round(Number(l.speed_kmh)));
   const [mins, setMins] = useState({ tiny: 20, hide: 30, rampage: 20 });
   const [mult, setMult] = useState(8);
   const [heal, setHeal] = useState(10);
+  const [lastH, setLastH] = useState(9);
+  const [hpSet, setHpSet] = useState(() => Number(l.hp_max));
+  const [keep, setKeep] = useState(true);
   const [who, setWho] = useState('');
   const [player, setPlayer] = useState<any>(null);
   const [plots, setPlots] = useState<[number, number][]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => setKmh(Math.round(Number(l.speed_kmh))), [l.speed_kmh]);
+  useEffect(() => setHpSet(Number(l.hp_max)), [l.hp_max]);
   const found = useQuery({ queryKey: ['admin', 'players', 'lev', who], queryFn: () => api.admin.searchPlayers(who), enabled: who.trim().length >= 2 && !player, staleTime: 10_000 });
   const theirPlots = useQuery({ queryKey: ['admin', 'player-plots', player?.id], queryFn: () => api.admin.playerPlots(player.id), enabled: !!player });
   const act = async (a: Parameters<typeof api.admin.leviathan>[0], args: Record<string, unknown>, msg: string) => {
@@ -967,6 +1076,22 @@ function LevLive({ l, cfg, onDone }: { l: any; cfg: any; onDone(): void }) {
         {left(l.hidden_until) && <span className="rounded-full bg-surface-2 px-2 py-0.5">🫥 hidden · {left(l.hidden_until)}</span>}
         {l.retreat && <span className="rounded-full bg-surface-2 px-2 py-0.5">🌊 retreating to {l.exit_sea ?? 'the sea'}</span>}
         {l.next_power_at && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">next power by itself {new Date(l.next_power_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+      </div>
+
+      <div className="grid gap-2" data-testid="lev-live-health">
+        <div className="text-sm font-bold">❤️ Health</div>
+        <div className="text-xs text-muted tnum">{fmt(Number(l.hp))} / {fmt(Number(l.hp_max))} HP ({Math.round((Number(l.hp) / Math.max(Number(l.hp_max), 1)) * 100)}%)
+          {hitPace && hitPace.dph > 0 ? <> · being hit at ~{fmtHp(hitPace.dph)}/h{hitPace.measured ? ` (the last ${fmtHours(hitPace.over_h)})` : ' (estimated — nobody’s hit it lately)'} → <b>falls in ~{fmtHours(hitPace.eta_h ?? 0)}</b></> : null}</div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Last another" value={lastH} step={0.5} min={0.25} max={240} suffix="h at this pace" onChange={(n) => setLastH(n)} />
+          <Button size="sm" variant="primary" disabled={!!busy || !hitPace} onClick={() => void act('set_hp', { mode: 'hours', hours: lastH }, `It should last about ${fmtHours(lastH)} more`)} data-testid="lev-hp-hours">Make it last that long</Button>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <NumberField label="Its health" value={hpSet} step={100000} min={1} onChange={(n) => setHpSet(Math.round(n))} />
+          <Switch id="lev-hp-keep" checked={keep} label={keep ? 'Keeps its wounds' : 'Full health'} onCheckedChange={setKeep} />
+          <Button size="sm" variant="secondary" disabled={!!busy || !(hpSet >= 1)} onClick={() => void act('set_hp', { mode: 'fixed', hp: hpSet, keep }, `Its health is ${fmtHp(hpSet)} now`)} data-testid="lev-hp-set">Set</Button>
+        </div>
+        <p className="text-[11px] text-faint">“Keeps its wounds” keeps the same share of its health left (so it stays enraged / fleeing where it was). Its health and the fight go on from here — nobody’s damage is lost.</p>
       </div>
 
       <div className="grid gap-2">

@@ -210,7 +210,10 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   leviathan: { icon: Sparkles, color: '#FF5CDB', text: (a) => {
     const d = a.data as Record<string, any>;
     switch (d.sub) {
-      case 'warning': return <>🐉 <b>Something is rising {d.where}.</b> The Leviathan is coming — every player can fight it.</>;
+      case 'warning': return d.back
+        ? <>🐉 <b>The Leviathan is coming back {d.where} — ×{d.strength} stronger.</b> Your damage from before still counts.</>
+        : <>🐉 <b>Something is rising {d.where}.</b> The Leviathan is coming — every player can fight it.</>;
+      case 'submerged': return <>🌊 The Leviathan <b>dove back into the sea</b>{d.sea ? ` ${d.sea}` : ''}… it will be back stronger — your damage still counts</>;
       case 'trampled': return <>🐉 The Leviathan <b>trampled your plots</b> {d.place} — scrub the ink off to get their minigames paying in full</>;
       case 'blocked': return <>📡 Your giant plot <b>stood in the Leviathan’s way</b> and stopped it <span className="text-ok">· {Number(d.dmg).toLocaleString()} damage</span></>;
       case 'scrubbed': return <>scrubbed the Leviathan’s ink off your plot 🧽</>;

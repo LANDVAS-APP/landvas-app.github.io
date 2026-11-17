@@ -196,8 +196,8 @@ function Fight() {
       <EnchantFxLayer />
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 pb-2 pt-[max(14px,env(safe-area-inset-top,0px))]">
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="text-[10.5px] font-black uppercase tracking-[0.16em] text-[#FFC6F3]">Leviathan #{l?.gen ?? ''}{l && Number(l.strength) > 1 ? ` · it came back ×${l.strength} stronger` : ''}</div>
-          <div className="font-display text-[22px] font-black text-white">{l ? `It ${STATUS_TEXT[l.status]}` : st?.last ? (st.last.status === 'fallen' ? 'The Leviathan has fallen' : 'It escaped to the sea') : 'The sea is quiet'}</div>
+          <div className="text-[10.5px] font-black uppercase tracking-[0.16em] text-[#FFC6F3]">Leviathan #{l?.gen ?? st?.deep?.gen ?? st?.last?.gen ?? ''}{l && Number(l.strength) > 1 ? ` · it came back ×${l.strength} stronger` : ''}</div>
+          <div className="font-display text-[22px] font-black text-white">{l ? `It ${STATUS_TEXT[l.status]}` : st?.deep ? 'It dove back into the sea' : st?.last ? (st.last.status === 'fallen' ? 'The Leviathan has fallen' : 'It escaped to the sea') : 'The sea is quiet'}</div>
         </div>
         <button className="lv-x" onClick={() => useLevUi.getState().close()} aria-label="Close" data-testid="lev-close">×</button>
       </div>
@@ -262,10 +262,10 @@ function Fight() {
               {(st?.feed ?? []).slice(0, 12).map((h) => (
                 <motion.div key={h.id} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-[12.5px]">
                   <span>{h.emoji}</span>
-                  {h.move === 'heal'
-                    ? <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-[#9BE7FF]">The Leviathan</b> {h.label.toLowerCase()}</span>
+                  {h.move === 'heal' || h.move === 'dive' || h.move === 'return'
+                    ? <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-[#9BE7FF]">The Leviathan</b> {h.label.charAt(0).toLowerCase() + h.label.slice(1)}</span>
                     : <span className="min-w-0 flex-1 truncate text-white/85"><b className="text-white">@{h.name ?? '?'}</b> {h.move === 'giant' ? '’s giant plot stood in its way' : `· ${h.label}`}</span>}
-                  <b className={cn('shrink-0', h.move === 'heal' ? 'text-[#7CFFB2]' : 'text-[#FF8FD0]')}>{h.move === 'heal' ? '+' : ''}{fmtDmg(h.dmg)}</b>
+                  {h.move !== 'dive' && h.move !== 'return' && <b className={cn('shrink-0', h.move === 'heal' ? 'text-[#7CFFB2]' : 'text-[#FF8FD0]')}>{h.move === 'heal' ? '+' : ''}{fmtDmg(h.dmg)}</b>}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -287,7 +287,14 @@ function Fight() {
       ) : (
         <div className="grid gap-3 px-4 pb-10 text-center">
           <div className="mx-auto h-40 w-56 opacity-60"><LeviathanArt status="warning" paused className="h-full w-full" /></div>
-          {st?.next_at && <p className="text-[14px] font-bold text-white/80">The next one rises in <Countdown to={st.next_at} />.</p>}
+          {st?.deep && (
+            <div className="grid gap-1 rounded-2xl bg-white/10 px-4 py-3" data-testid="lev-deep">
+              <div className="font-display text-[18px] font-black text-[#9BE7FF]">🌊 Leviathan #{st.deep.gen} is waiting under the sea</div>
+              <p className="text-[13px] font-bold text-white/80">It dove {st.deep.sea ?? 'into the sea'} {timeAgo(st.deep.dove_at)}. When it comes back it’ll be <b className="text-white">×{st.deep.next_strength} stronger</b>{st.deep.return_at ? <> — in <Countdown to={st.deep.return_at} /></> : ''}.</p>
+              {Number(st.deep.my_dmg ?? 0) > 0 && <p className="text-[12px] font-bold text-[#FFE8A3]">Your {fmtDmg(Number(st.deep.my_dmg))} damage still counts — finish it when it rises.</p>}
+            </div>
+          )}
+          {!st?.deep && st?.next_at && <p className="text-[14px] font-bold text-white/80">The next one rises in <Countdown to={st.next_at} />.</p>}
           {st?.last && <p className="text-[12px] text-white/60">Last time: Leviathan #{st.last.gen} {st.last.status === 'fallen' ? `fell ${st.last.place ?? ''}` : 'escaped to the sea'} {timeAgo(st.last.ended_at)} · {st.last.fighters} fought it.</p>}
         </div>
       )}
@@ -317,12 +324,14 @@ export function LeviathanMoments() {
   const bones = useLevUi((s) => s.bones);
   const seen = safeStorage<Record<string, string>>('landvas.leviathan.seen', {});
   const [moment, setMoment] = useState<{ kind: 'warning' | 'risen' | 'fallen' | 'escaped'; id: string } | null>(null);
+  // (one that came back from the deep is seen afresh each time it comes back)
+  const seenKey = l ? (l.returns ? `${l.id}:${l.returns}` : l.id) : '';
   useEffect(() => {
     if (!st) return;
-    if (l && l.status === 'warning' && seen[l.id] !== 'warning' && seen[l.id] !== 'risen') { setMoment({ kind: 'warning', id: l.id }); quake(); scheduleRise(l); }
-    else if (l && l.status !== 'warning' && seen[l.id] !== 'risen') { setMoment({ kind: 'risen', id: l.id }); quake(); }
+    if (l && l.status === 'warning' && seen[seenKey] !== 'warning' && seen[seenKey] !== 'risen') { setMoment({ kind: 'warning', id: seenKey }); quake(); scheduleRise(l); }
+    else if (l && l.status !== 'warning' && seen[seenKey] !== 'risen') { setMoment({ kind: 'risen', id: seenKey }); quake(); }
     else if (!l && st.last?.loot?.loot && !st.last.loot.seen) setMoment({ kind: st.last.status === 'fallen' ? 'fallen' : 'escaped', id: st.last.id });
-  }, [st?.lev?.id, st?.lev?.status, st?.last?.id, st?.last?.loot?.seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [st?.lev?.id, st?.lev?.status, st?.lev?.returns, st?.last?.id, st?.last?.loot?.seen]); // eslint-disable-line react-hooks/exhaustive-deps
   // its powers and the owner's tricks, as they happen (a toast each, once — not for what was already going on when you came)
   const powers = useRef<Record<string, string>>({});
   const mountedAt = useRef(Date.now());
@@ -354,12 +363,15 @@ export function LeviathanMoments() {
         <motion.div key={moment.kind} className={cn('lv-lev-moment pointer-events-auto fixed inset-0 z-[260] grid place-items-center px-6 text-center', moment.kind)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-testid={`lev-moment-${moment.kind}`}>
           <motion.div className="grid justify-items-center gap-3" initial={{ scale: 0.6, y: 30 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 16, delay: 0.2 }}>
             <div className="h-44 w-60"><LeviathanArt status={moment.kind === 'fallen' ? 'fleeing' : moment.kind === 'escaped' ? 'fleeing' : 'walking'} paused={moment.kind === 'fallen'} className={cn('h-full w-full', moment.kind === 'fallen' && 'rotate-[18deg] opacity-80')} /></div>
-            {moment.kind === 'warning' && l && <>
+            {moment.kind === 'warning' && l && (l.returns ? <>
+              <div className="font-display text-[30px] font-black leading-tight text-white">It’s coming back — ×{l.strength} stronger.</div>
+              <div className="text-[15px] font-bold text-white/80">Leviathan #{l.gen} rises again {l.origin} in <Countdown to={l.rise_at} />. Everyone’s damage from before still counts.</div>
+            </> : <>
               <div className="font-display text-[30px] font-black leading-tight text-white">Something is rising {l.origin}.</div>
               <div className="text-[15px] font-bold text-white/80">The Leviathan rises in <Countdown to={l.rise_at} />. Every player on Earth will see it — and every player can fight it.</div>
-            </>}
+            </>)}
             {moment.kind === 'risen' && l && <>
-              <div className="font-display text-[32px] font-black leading-tight text-white">THE LEVIATHAN HAS RISEN</div>
+              <div className="font-display text-[32px] font-black leading-tight text-white">{l.returns ? `IT’S BACK — ×${l.strength} STRONGER` : 'THE LEVIATHAN HAS RISEN'}</div>
               <div className="text-[15px] font-bold text-white/80">It came ashore {l.origin} and it’s walking inland{l.place ? ` — ${l.place} now` : ''}. Throw everything you have at it.</div>
             </>}
             {moment.kind === 'fallen' && <>
