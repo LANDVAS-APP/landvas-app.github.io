@@ -1,27 +1,30 @@
 // A chat box that sits on a screen (the map, an arcade, a house…): closed, the last few lines float up for a moment and
 // a pill shows what's unread; open, one tab per room (Global first, then Party, then the place's own) and a box to type
 // in. Enter opens it on a keyboard. Something new in the global chat pops up as a notification (players can mute that).
-import { Bell, BellOff, MessageCircle, Send, UserPlus, X } from 'lucide-react';
+import { Bell, BellOff, CornerUpLeft, MessageCircle, Send, UserPlus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { PlanetChatMsg } from '../backend/types';
 import { cn } from '../lib/utils';
+import { nameStyle } from '../social/nameColor';
 import { PlayerAvatar } from '../ui';
 import type { RoomChat } from './chat';
+import { ChatLine, ReplyBar, StrangerLine, flashLine } from './ChatLines';
+
+export { ChatLine, StrangerLine } from './ChatLines';
 
 export type DockChannel = {
   id: string; label: string; chat: RoomChat; placeholder: string; empty: string; notHere: string;
   /** something new pops up as a notification while you're not reading this tab (the global chat) */ popup?: boolean;
   /** strangers talk here: a line can be reported, or its sender blocked */ report?: boolean;
   /** the longest message this room takes (200) */ maxLength?: number;
+  /** a line can be answered (the global chat) */ reply?: boolean;
 };
 
 /** the global chat's tab (first in every chat box; none while staff have the chat switched off) */
 export const globalChannel = (chat: RoomChat & { enabled?: boolean }): DockChannel[] => (chat.enabled === false ? [] : [{
-  id: 'global', label: 'Global', chat, placeholder: 'Message everyone…', popup: true, report: true,
+  id: 'global', label: 'Global', chat, placeholder: 'Message everyone…', popup: true, report: true, reply: true,
   empty: 'Everyone playing LANDVAS sees this 🌍 Say hi!', notHere: 'Sign in to chat with everyone.',
 }]);
 /** your party's tab (while you're in one) */
@@ -39,7 +42,7 @@ export const chatPopupsOn = () => { try { return localStorage.getItem(POPUPS) !=
 const setChatPopups = (on: boolean) => { try { localStorage.setItem(POPUPS, on ? 'on' : 'off'); } catch { /* private mode */ } };
 
 /** a global chat line, as a notification at the top (one at a time: a newer one takes its place) */
-function popUp(m: PlanetChatMsg, label: string, open: () => void) {
+function popUp(m: PlanetChatMsg, label: string, open: () => void, toMe = false) {
   toast.custom((id) => (
     <button type="button" className="pointer-events-auto flex w-[min(92vw,360px)] items-center gap-2.5 rounded-2xl border border-white/10 bg-[#0B0E24] px-3 py-2 text-left text-white shadow-xl"
       onClick={() => { toast.dismiss(id); open(); }} data-testid="chat-popup">
@@ -47,7 +50,8 @@ function popUp(m: PlanetChatMsg, label: string, open: () => void) {
       <span className="min-w-0 flex-1 leading-tight">
         <span className="flex items-center gap-1.5 text-[11.5px] font-black">
           <span className="rounded bg-[#7B5CFF]/35 px-1 text-[9px] uppercase tracking-wider text-[#D9CCFF]">{label}</span>
-          <span className="truncate" style={{ color: m.player.accent_color ?? '#9FD3FF' }}>@{m.player.username}</span>
+          <span className="truncate" style={nameStyle(m.player, 'dark')}>@{m.player.username}</span>
+          {toMe && <span className="flex shrink-0 items-center gap-0.5 text-[10.5px] text-[#FFE36B]" data-testid="chat-popup-reply"><CornerUpLeft className="h-3 w-3" /> replied to you</span>}
         </span>
         <span className="mt-0.5 block truncate text-[13px] text-white/90" data-testid="chat-popup-body">{m.body}</span>
       </span>
@@ -74,9 +78,12 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
   const [popups, setPopups] = useState(chatPopupsOn);
   const [menu, setMenu] = useState<number | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+  const [replying, setReplying] = useState<PlanetChatMsg | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const ch = channels.find((c) => c.id === tab) ?? channels[0];
+  // a reply belongs to its tab
+  useEffect(() => { setReplying(null); }, [ch?.id]);
   // a channel that went away (you left the party): fall back to the first one
   useEffect(() => { if (channels.length && !channels.some((c) => c.id === tab)) setTab(channels[0].id); }, [channels, tab]);
   const setOpen = (o: boolean) => {
@@ -103,8 +110,10 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
       if (top <= seen) continue;
       popSeen.current[c.id] = top;
       if ((live.current.open && live.current.tab === c.id) || globalReaders.n > 0 || !chatPopupsOn()) continue;
-      const m = [...c.chat.msgs].reverse().find((x) => x.id > seen && x.player.id !== myId && (x.kind ?? 'chat') === 'chat' && !hidden.has(x.player.id));
-      if (m) popUp(m, c.label, () => openRef.current(c.id));
+      const fresh = c.chat.msgs.filter((x) => x.id > seen && x.player.id !== myId && (x.kind ?? 'chat') === 'chat' && !hidden.has(x.player.id));
+      // an answer to you comes first
+      const m = [...fresh].reverse().find((x) => !!myId && x.reply?.player?.id === myId) ?? fresh[fresh.length - 1];
+      if (m) popUp(m, c.label, () => openRef.current(c.id), !!myId && m.reply?.player?.id === myId);
     }
   });
   useEffect(() => {
@@ -123,10 +132,15 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
   const submit = async () => {
     const b = text.trim(); if (!b || busy) return;
     setBusy(true);
-    try { await ch.chat.send(b); setText(''); }
-    catch (e) { const err = toGameError(e); toast.error(err.code === 'not_in_group' || err.code === 'not_in_arcade' ? ch.notHere : err.message); }
+    try { await ch.chat.send(b, ch.reply ? replying?.id : undefined); setText(''); setReplying(null); }
+    catch (e) {
+      const err = toGameError(e);
+      if (err.code === 'reply_not_found') setReplying(null);
+      toast.error(err.code === 'not_in_group' || err.code === 'not_in_arcade' ? ch.notHere : err.message);
+    }
     finally { setBusy(false); input.current?.focus(); }
   };
+  const replyTo = (m: PlanetChatMsg) => { setReplying(m); setMenu(null); setTimeout(() => input.current?.focus(), 30); };
   const unread = channels.reduce((n, c) => n + c.chat.unread, 0);
   // closed: the last few lines (from the rooms here; the global chat pops up at the top instead) float on screen a while
   const recent = quiet ? [] : channels.filter((c) => !c.popup).flatMap((c) => c.chat.msgs.filter((m) => (m.kind ?? 'chat') === 'chat' && now - new Date(m.at).getTime() < 15000).map((m) => ({ m, c })))
@@ -159,18 +173,22 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
             {!ch.chat.msgs.length && <div className="py-2 text-center text-xs text-white/55">{ch.empty}</div>}
             {ch.chat.msgs.filter((m) => !hidden.has(m.player.id)).map((m) => {
               const mine = m.player.id === myId;
-              if (!ch.report || mine || (m.kind ?? 'chat') !== 'chat') return <ChatLine key={m.id} m={m} mine={mine} />;
-              // strangers: tap a line to see their profile, report it or block them
-              return <StrangerLine key={m.id} m={m} open={menu === m.id} onTap={() => setMenu(menu === m.id ? null : m.id)} testid={testid}
-                onDone={() => setMenu(null)} onLeave={() => setOpen(false)} onBlocked={(id) => setHidden((h) => new Set(h).add(id))} />;
+              const onBlocked = (id: string) => setHidden((h) => new Set(h).add(id));
+              const onReply = ch.reply && (m.kind ?? 'chat') === 'chat' && !mine ? () => replyTo(m) : undefined;
+              const onQuote = (id: number) => flashLine(list.current, id);
+              if (!ch.report || mine || (m.kind ?? 'chat') !== 'chat') return <ChatLine key={m.id} m={m} mine={mine} myId={myId} onReply={onReply} onBlocked={onBlocked} onQuote={onQuote} />;
+              // strangers: tap a line to answer it, report it or block them (tap their name or face for a peek)
+              return <StrangerLine key={m.id} m={m} open={menu === m.id} onTap={() => setMenu(menu === m.id ? null : m.id)} testid={testid} myId={myId}
+                onDone={() => setMenu(null)} onBlocked={onBlocked} onReply={onReply} onQuote={onQuote} />;
             })}
           </div>
-          <form className="flex items-center gap-1.5 border-t border-white/10 p-1.5" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-            <input ref={input} value={text} onChange={(e) => setText(e.target.value.slice(0, ch.maxLength ?? 200))} maxLength={ch.maxLength ?? 200} placeholder={ch.placeholder} enterKeyHint="send"
+          {replying && ch.reply && <ReplyBar m={replying} onCancel={() => setReplying(null)} testid={testid} />}
+          <form className={cn('flex items-center gap-1.5 p-1.5', !(replying && ch.reply) && 'border-t border-white/10')} onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+            <input ref={input} value={text} onChange={(e) => setText(e.target.value.slice(0, ch.maxLength ?? 200))} maxLength={ch.maxLength ?? 200} placeholder={replying && ch.reply ? `Reply to @${replying.player.username}…` : ch.placeholder} enterKeyHint="send"
               className="h-9 min-w-0 flex-1 rounded-xl bg-white/10 px-3 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-[#7B5CFF]" data-testid={`${testid}-input`}
               onKeyDown={(e) => {
                 e.stopPropagation();
-                if (e.key === 'Escape') setOpen(false);
+                if (e.key === 'Escape') { if (replying) setReplying(null); else setOpen(false); }
                 // Enter on an empty box closes the chat (and hands the keys back)
                 if (e.key === 'Enter' && !text.trim()) { e.preventDefault(); setOpen(false); input.current?.blur(); }
               }} onKeyUp={(e) => e.stopPropagation()} />
@@ -181,7 +199,7 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
         <>
           {recent.map(({ m, c }) => (
             <div key={`${c.id}:${m.id}`} className="max-w-full rounded-2xl bg-[#0B0E24]/80 px-2.5 py-1 text-[12px] text-white animate-[lv-fade-in_.25s_ease-out]">
-              {channels.length > 1 && <span className="mr-1 rounded bg-white/15 px-1 text-[9px] font-black uppercase">{c.label}</span>}<ChatLine m={m} mine={m.player.id === myId} />
+              {channels.length > 1 && <span className="mr-1 rounded bg-white/15 px-1 text-[9px] font-black uppercase">{c.label}</span>}<ChatLine m={m} mine={m.player.id === myId} myId={myId} />
             </div>
           ))}
           <button className="pointer-events-auto relative flex items-center gap-1.5 rounded-full bg-[#0B0E24]/85 px-3 py-1.5 text-xs font-bold text-white shadow-lg hover:bg-[#0B0E24]" onClick={() => setOpen(true)} data-testid={`${testid}-open`}>
@@ -191,45 +209,6 @@ export function ChatDock({ channels, myId, className, onInvite, hotkey = true, t
           </button>
         </>
       )}
-    </div>
-  );
-}
-
-/** a line from someone else in a chat with strangers (the global chat): tap it for their profile, Report or Block */
-export function StrangerLine({ m, open, onTap, onDone, onLeave, onBlocked, testid, dark = true }: {
-  m: PlanetChatMsg; open: boolean; onTap(): void; onDone(): void; onLeave?(): void; onBlocked(id: string): void; testid: string; dark?: boolean;
-}) {
-  const nav = useNavigate();
-  const chip = dark ? 'bg-white/10 hover:bg-white/20' : 'bg-surface-2 hover:bg-surface-3';
-  return (
-    <div>
-      <button type="button" className={cn('w-full rounded-md text-left', dark ? 'hover:bg-white/5' : 'hover:bg-surface-2/60')} onClick={onTap} data-testid={`${testid}-line`}><ChatLine m={m} mine={false} dark={dark} /></button>
-      {open && (
-        <div className="mt-0.5 flex gap-1 pb-1 text-[11px] font-bold" data-testid={`${testid}-line-menu`}>
-          <button className={cn('rounded-lg px-2 py-0.5', chip)} onClick={() => { onDone(); onLeave?.(); nav(`/u/${m.player.username}`); }}>Profile</button>
-          <button className={cn('rounded-lg px-2 py-0.5', chip)} data-testid={`${testid}-report`} onClick={async () => {
-            onDone();
-            try { await api.reportChat(m.id, 'inappropriate'); toast.success('Thanks — a moderator will take a look'); } catch (e) { toast.error(toGameError(e).message); }
-          }}>Report</button>
-          <button className="rounded-lg bg-[#FF3D6E]/25 px-2 py-0.5 text-[#FF3D6E] hover:bg-[#FF3D6E]/40" data-testid={`${testid}-block`} onClick={async () => {
-            onDone();
-            try { await api.blockPlayer(m.player.id, true); onBlocked(m.player.id); toast.success(`@${m.player.username} is blocked — you won’t see them any more`); } catch (e) { toast.error(toGameError(e).message); }
-          }}>Block</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function ChatLine({ m, mine, dark = true }: { m: PlanetChatMsg; mine: boolean; dark?: boolean }) {
-  const who = mine ? 'You' : `@${m.player.username}`;
-  if (m.kind === 'join' || m.kind === 'leave') {
-    return <div className={cn('text-[12px] italic', dark ? 'text-white/55' : 'text-muted')} data-testid="chat-line-system">{m.kind === 'join' ? '👋' : '🚪'} {who} {m.body}</div>;
-  }
-  return (
-    <div className="break-words" data-testid="chat-line">
-      <b style={{ color: mine ? (dark ? '#FFE36B' : 'var(--gold)') : m.player.accent_color ?? '#9FD3FF' }}>{who}</b>{' '}
-      <span className={dark ? 'text-white/90' : 'text-fg'}>{m.body}</span>
     </div>
   );
 }

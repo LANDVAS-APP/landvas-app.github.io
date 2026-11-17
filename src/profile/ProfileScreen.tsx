@@ -18,6 +18,7 @@ import { BasePlotArt } from '../plot/BasePlotArt';
 import { RARITY_ORDER, rarityInfo, ULTRA, type RarityId } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { LandMosaic } from '../land/LandMosaic';
+import { NameColorPicker } from '../social/NameColorPicker';
 import { FriendButton } from '../social/FriendButton';
 import { InviteToPartyButton } from '../party/PartyButtons';
 import { FindOnMapButton } from '../social/findOnMap';
@@ -165,6 +166,9 @@ export default function ProfileScreen() {
             ) : <p className="py-6 text-center text-xs text-muted">No badges yet</p>}
         </Showpiece>
       </div>
+
+      {/* ---- your name's colour in the chats ---- */}
+      {d.is_me && <div className="mt-3"><NameColorPicker /></div>}
 
       {/* ---- Crowns ---- */}
       {sc.crowns.length > 0 && (

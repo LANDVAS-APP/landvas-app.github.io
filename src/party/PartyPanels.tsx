@@ -9,7 +9,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
-import type { JoinablePlayer, LfgItem, PartyActivity, PartyLobby, PartyPreview, PartyState, PartyTarget, PartyVisibility, TravelGroupMember } from '../backend/types';
+import type { JoinablePlayer, LfgItem, PartyActivity, PartyLobby, PartyPreview, PartyState, PartyTarget, PartyVisibility, PlanetChatMsg, TravelGroupMember } from '../backend/types';
 import { useExplorer } from '../explorer/explorer';
 import { useOnboardedMe } from '../lib/queries';
 import { useUi } from '../lib/store';
@@ -17,7 +17,8 @@ import { cn, timeAgo } from '../lib/utils';
 import { buzz } from '../native/native';
 import { canWarpTo, describeWhereabouts, useWarpTo } from '../social/activity';
 import { Button, Dialog, Empty, PlayerAvatar, Spinner, Tabs, inputCls, useConfirm } from '../ui';
-import { ChatLine, StrangerLine, globalReaders } from './ChatDock';
+import { globalReaders } from './ChatDock';
+import { ChatLine, ReplyBar, StrangerLine, flashLine } from './ChatLines';
 import { useGlobalChat, usePartyChat } from './usePartyChat';
 import {
   ACTIVITIES, ACTIVITY_IDS, LOBBIES_KEY, PARTY_KEY, activityOf, goTarget, goTo, memberAt, memberStatus, partyLink, savePendingParty,
@@ -384,7 +385,10 @@ function PartyChatInline() {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<number | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+  const [replying, setReplying] = useState<PlanetChatMsg | null>(null);
   const list = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => { setReplying(null); }, [tab.id]);
   // the tab you're reading counts as read
   useEffect(() => { for (const t of tabs) t.chat.setOpen(t.id === tab.id); return () => { for (const t of tabs) t.chat.setOpen(false); }; }, [tab.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [chat.msgs.length, tab.id]);
@@ -393,8 +397,10 @@ function PartyChatInline() {
   const submit = async () => {
     const b = text.trim(); if (!b || busy) return;
     setBusy(true);
-    try { await chat.send(b); setText(''); } catch (e) { toast.error(toGameError(e).message); } finally { setBusy(false); }
+    try { await chat.send(b, tab.id === 'global' ? replying?.id : undefined); setText(''); setReplying(null); }
+    catch (e) { const err = toGameError(e); if (err.code === 'reply_not_found') setReplying(null); toast.error(err.message); } finally { setBusy(false); }
   };
+  const replyTo = (m: PlanetChatMsg) => { setReplying(m); setMenu(null); setTimeout(() => input.current?.focus(), 30); };
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-surface/40" data-testid="party-chat">
       <div className="flex items-center gap-1.5 border-b border-line px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">
@@ -409,13 +415,21 @@ function PartyChatInline() {
       </div>
       <div ref={list} className="grid max-h-64 min-h-[96px] content-start gap-1 overflow-y-auto px-4 py-3 text-[13.5px] scroll-thin" data-testid="party-chat-log">
         {!chat.msgs.length && <div className="py-4 text-center text-xs text-muted">{tab.empty}</div>}
-        {chat.msgs.filter((m) => !hidden.has(m.player.id)).map((m) => (tab.id === 'global' && m.player.id !== me?.user_id
-          ? <StrangerLine key={m.id} m={m} dark={false} open={menu === m.id} onTap={() => setMenu(menu === m.id ? null : m.id)} onDone={() => setMenu(null)}
-              onBlocked={(id) => setHidden((h) => new Set(h).add(id))} testid="party-chat" />
-          : <ChatLine key={m.id} m={m} mine={m.player.id === me?.user_id} dark={false} />))}
+        {chat.msgs.filter((m) => !hidden.has(m.player.id)).map((m) => {
+          const mine = m.player.id === me?.user_id;
+          const onBlocked = (id: string) => setHidden((h) => new Set(h).add(id));
+          const onQuote = (id: number) => flashLine(list.current, id);
+          const onReply = tab.id === 'global' && !mine && (m.kind ?? 'chat') === 'chat' ? () => replyTo(m) : undefined;
+          return tab.id === 'global' && !mine
+            ? <StrangerLine key={m.id} m={m} dark={false} open={menu === m.id} onTap={() => setMenu(menu === m.id ? null : m.id)} onDone={() => setMenu(null)}
+                onBlocked={onBlocked} onReply={onReply} onQuote={onQuote} myId={me?.user_id} testid="party-chat" />
+            : <ChatLine key={m.id} m={m} mine={mine} dark={false} myId={me?.user_id} onBlocked={onBlocked} onQuote={onQuote} />;
+        })}
       </div>
-      <form className="flex items-center gap-2 border-t border-line p-2" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <input value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} maxLength={200} placeholder={tab.placeholder} enterKeyHint="send" className={cn(inputCls, 'h-10 flex-1')} data-testid="party-chat-input" />
+      {replying && tab.id === 'global' && <ReplyBar m={replying} dark={false} onCancel={() => setReplying(null)} testid="party-chat" />}
+      <form className={cn('flex items-center gap-2 p-2', !(replying && tab.id === 'global') && 'border-t border-line')} onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <input ref={input} value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} maxLength={200} placeholder={replying && tab.id === 'global' ? `Reply to @${replying.player.username}…` : tab.placeholder} enterKeyHint="send" className={cn(inputCls, 'h-10 flex-1')} data-testid="party-chat-input"
+          onKeyDown={(e) => { if (e.key === 'Escape' && replying) { e.stopPropagation(); setReplying(null); } }} />
         <Button type="submit" variant="primary" size="icon" disabled={!text.trim()} loading={busy} aria-label="Send" data-testid="party-chat-send"><Send className="h-4 w-4" /></Button>
       </form>
     </section>

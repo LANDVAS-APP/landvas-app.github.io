@@ -3,7 +3,7 @@ import { isNative } from '../native/native';
 import { rarityInfo } from '../shared/rarity';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Award, Ban, Brush, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star, PartyPopper } from 'lucide-react';
+import { Award, Ban, Brush, CornerUpLeft, DoorOpen, Flag, Gift, Hand, Loader2, MessageCircle, MoreHorizontal, Radio, Send, ShieldAlert, Sparkles, Trash2, UserPlus, Users, VolumeX, Gamepad2, Swords, Trophy, Star, PartyPopper } from 'lucide-react';
 import { dedupe, reconcile } from './feedList';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -36,6 +36,9 @@ import { KINDS as ENCH } from '../enchant/kinds';
 import { NATIVE_APP } from '../app/buildFlags';
 import { WatchButton } from '../watch/LiveNow';
 import { readable } from '../lib/readable';
+import { ReplyBar, ReplyQuote, flashLine } from '../party/ChatLines';
+import { nameStyle, nameTitle } from './nameColor';
+import { openPeek } from './peek';
 
 registerGameNames(Object.fromEntries([
   ...Object.entries(PLANET_GAMES).map(([k, v]) => [k, v.name]), ...Object.entries(SPACE_GAMES).map(([k, v]) => [k, v.name]),
@@ -432,6 +435,8 @@ function ChatTab() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [report, setReport] = useState<ChatMessage | null>(null);
+  const [replying, setReplying] = useState<ChatMessage | null>(null);
+  const input = useRef<HTMLInputElement>(null);
   const lastId = useRef<number | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -474,17 +479,21 @@ function ChatTab() {
     if (!body || sending) return;
     setSending(true);
     try {
-      const m = await api.sendChat(body);
+      const m = await api.sendChat(body, replying?.id);
       setText('');
+      setReplying(null);
       stick.current = true;
       lastId.current = Math.max(lastId.current ?? 0, m.id);
       setMsgs((x) => dedupe([...(x ?? []), m]).slice(-200));
     } catch (e) {
-      toast.error(toGameError(e).message);
+      const err = toGameError(e);
+      if (err.code === 'reply_not_found') setReplying(null);
+      toast.error(err.message);
     } finally {
       setSending(false);
     }
   };
+  const replyTo = (m: ChatMessage) => { setReplying(m); setTimeout(() => input.current?.focus(), 30); };
   const block = async (m: ChatMessage) => {
     if (!(await confirm({ title: `Block @${m.player.username}?`, body: 'You won’t see their messages or art any more. You can unblock them from their profile or Settings.', confirm: 'Block' }))) return;
     try { await api.blockPlayer(m.player.id, true); toast.success(`@${m.player.username} is blocked`); void load(true); void qc.invalidateQueries({ queryKey: ['profile'] }); } catch (e) { toast.error(toGameError(e).message); }
@@ -512,31 +521,44 @@ function ChatTab() {
             const prev = msgs[i - 1];
             const grouped = prev && prev.player.id === m.player.id && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60_000;
             const mine = m.player.id === me.profile.id;
+            const toMe = !mine && m.reply?.player?.id === me.profile.id;
+            const peek = (e: React.MouseEvent<HTMLElement>) => openPeek(m.player, e.currentTarget, mine ? {} : {
+              message: { id: m.id, body: m.body }, onReply: m.kind ? undefined : () => replyTo(m), onBlocked: () => void load(true) });
             return (
-              <div key={m.id} className={cn('group flex gap-2.5 rounded-xl px-2 hover:bg-surface-2/50', grouped ? 'py-0.5' : 'mt-1.5 py-1', m.deleted && 'opacity-50')} data-testid="chat-message">
-                <div className="w-8 shrink-0">{!grouped && <Link to={`/u/${m.player.username}`}><PlayerAvatar p={m.player} size={32} /></Link>}</div>
+              <div key={m.id} className={cn('group flex gap-2.5 rounded-xl px-2 hover:bg-surface-2/50', grouped && !m.reply ? 'py-0.5' : 'mt-1.5 py-1', m.deleted && 'opacity-50')}
+                style={toMe ? { background: 'rgba(255, 210, 63, 0.09)', boxShadow: 'inset 3px 0 0 rgba(255, 210, 63, 0.7)' } : undefined}
+                data-testid="chat-message" data-msg={m.id} data-to-me={toMe || undefined}>
+                <div className="w-8 shrink-0">{(!grouped || m.reply) && <button type="button" className="rounded-full" onClick={peek} aria-label={`A peek at @${m.player.username}`} data-testid="chat-avatar"><PlayerAvatar p={m.player} size={32} /></button>}</div>
                 <div className="min-w-0 flex-1">
-                  {!grouped && (
+                  {m.reply && <ReplyQuote r={m.reply} dark={false} myId={me.profile.id} onTap={(id) => flashLine(list.current, id)} />}
+                  {(!grouped || m.reply) && (
                     <div className="flex items-baseline gap-2">
-                      <Link to={`/u/${m.player.username}`} className="truncate text-[13px] font-bold hover:underline" style={{ color: m.player.accent_color }}>{m.player.display_name || m.player.username}</Link>
+                      <button type="button" className="truncate text-[13px] font-bold hover:underline" style={nameStyle(m.player)} title={nameTitle(m.player)} onClick={peek} data-testid="chat-name" data-name-rarity={m.player.name_rarity ?? undefined}>{m.player.display_name || m.player.username}</button>
                       <span className="truncate text-[11px] text-faint">@{m.player.username} · {timeAgo(m.created_at)}</span>
                     </div>
                   )}
                   <p className="whitespace-pre-wrap break-words text-[14px] leading-snug">{m.body}{m.deleted ? <span className="ml-1 text-[11px] text-bad">(removed)</span> : null}</p>
                 </div>
+                {!mine && !m.kind && (
+                  <button type="button" className="shrink-0 self-start rounded-lg p-1 text-faint opacity-60 hover:bg-surface-2 hover:text-fg group-hover:opacity-100" onClick={() => replyTo(m)} aria-label="Reply" title="Reply" data-testid="chat-reply">
+                    <CornerUpLeft className="h-4 w-4" />
+                  </button>
+                )}
                 {!mine && (
-                  <MessageMenu mod={mod} onReport={() => setReport(m)} onBlock={() => block(m)} onDelete={() => remove(m)} onMute={() => mute(m)} />
+                  <MessageMenu mod={mod} onReply={m.kind ? undefined : () => replyTo(m)} onReport={() => setReport(m)} onBlock={() => block(m)} onDelete={() => remove(m)} onMute={() => mute(m)} />
                 )}
               </div>
             );
           })}
         </div>
-        <form className="flex items-center gap-2 border-t border-line p-2.5" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+        {replying && info.enabled && !muted && <ReplyBar m={replying} dark={false} onCancel={() => setReplying(null)} testid="chat" />}
+        <form className={cn('flex items-center gap-2 p-2.5', !(replying && info.enabled && !muted) && 'border-t border-line')} onSubmit={(e) => { e.preventDefault(); void send(); }}>
           {!info.enabled ? <p className="flex-1 px-2 text-sm text-muted">The chat is switched off right now.</p> : muted ? (
             <p className="flex flex-1 items-center gap-2 px-2 text-sm text-warn"><VolumeX className="h-4 w-4" /> You’re muted until {new Date(info.muted_until!).toLocaleString()}.</p>
           ) : (
             <>
-              <input className={cn(inputCls, 'h-11 flex-1')} value={text} maxLength={300} onChange={(e) => setText(e.target.value)} placeholder="Message everyone…" aria-label="Chat message" data-testid="chat-input" enterKeyHint="send" />
+              <input ref={input} className={cn(inputCls, 'h-11 flex-1')} value={text} maxLength={300} onChange={(e) => setText(e.target.value)} placeholder={replying ? `Reply to @${replying.player.username}…` : 'Message everyone…'} aria-label="Chat message" data-testid="chat-input" enterKeyHint="send"
+                onKeyDown={(e) => { if (e.key === 'Escape' && replying) setReplying(null); }} />
               <Button type="submit" variant="primary" size="icon" className="h-11 w-11" disabled={!text.trim() || sending} aria-label="Send" data-testid="chat-send">
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
@@ -560,7 +582,7 @@ function ChatTab() {
   );
 }
 
-function MessageMenu({ mod, onReport, onBlock, onDelete, onMute }: { mod: boolean; onReport(): void; onBlock(): void; onDelete(): void; onMute(): void }) {
+function MessageMenu({ mod, onReply, onReport, onBlock, onDelete, onMute }: { mod: boolean; onReply?(): void; onReport(): void; onBlock(): void; onDelete(): void; onMute(): void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative shrink-0 self-start">
@@ -571,6 +593,7 @@ function MessageMenu({ mod, onReport, onBlock, onDelete, onMute }: { mod: boolea
         <>
           <button className="fixed inset-0 z-10 cursor-default" aria-label="Close menu" onClick={() => setOpen(false)} />
           <div className="glass absolute right-0 top-7 z-20 grid w-44 gap-0.5 rounded-2xl p-1.5 text-sm shadow-xl">
+            {onReply && <MenuItem icon={<CornerUpLeft className="h-4 w-4" />} label="Reply" onClick={() => { setOpen(false); onReply(); }} />}
             <MenuItem icon={<Flag className="h-4 w-4" />} label="Report" onClick={() => { setOpen(false); onReport(); }} />
             <MenuItem icon={<Ban className="h-4 w-4" />} label="Block player" onClick={() => { setOpen(false); onBlock(); }} />
             {mod && <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Delete message" danger onClick={() => { setOpen(false); onDelete(); }} />}

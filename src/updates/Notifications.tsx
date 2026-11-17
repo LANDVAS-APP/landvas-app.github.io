@@ -3,7 +3,7 @@ import { ultraOfRarity } from '../explorer/ultra';
 import { rarityInfo } from '../shared/rarity';
 import { RULES } from '../rarity/powers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench } from 'lucide-react';
+import { Bell, CalendarDays, DoorOpen, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench, CornerUpLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -166,6 +166,7 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   duet: { icon: Users, color: '#FF4D6D', text: (a) => <>finished your duet: {a.data.prompt}</>, to: (a) => `/duet/${a.data.duet_id}` },
   doodle: { icon: Sparkles, color: '#FFE14D', text: () => <>guessed your drawing</>, to: () => '/doodle' },
   friend_request: { icon: UserPlus, color: '#22E3FF', text: () => <>sent you a friend request</>, to: () => '/social' },
+  chat_reply: { icon: CornerUpLeft, color: '#9F8BFF', text: (a) => <>replied to you in the global chat: “{a.data.body}”</>, to: () => '/social?tab=chat' },
   party_invite: { icon: Users, color: '#3DDC97', text: (a) => <>invited you to their party{a.data.name ? <> “{a.data.name}”</> : null} 🎉</>, to: () => '/party' },
   party_join: { icon: Users, color: '#3DDC97', text: () => <>joined you — you’re in a party now 🎉</>, to: () => '/party' },
   friend_accept: { icon: UserCheck, color: '#3DDC97', text: () => <>accepted your friend request</>, to: (a) => (a.actor ? `/u/${a.actor.username}` : '/social') },

@@ -53,3 +53,28 @@ export function contrastOnDark(c: string): number {
   const rgb = parse(c);
   return rgb ? contrast(lum(...rgb), BG) : 21;
 }
+
+const LIGHT_BG = lum(0xff, 0xff, 0xff);
+const cacheOn = new Map<string, string>();
+/** this colour made readable on a panel that is always dark (the chat boxes over the map) or always light, whatever
+ *  the page's theme: lightened toward white on the dark, darkened toward black on the light (hue kept). */
+export function readableOn(c: string | null | undefined, bg: 'dark' | 'light', min = 4.5): string {
+  if (!c) return c ?? '';
+  const key = `${c}|${bg}|${min}`;
+  const hit = cacheOn.get(key);
+  if (hit) return hit;
+  const rgb = parse(c);
+  let out = c;
+  const ground = bg === 'dark' ? BG : LIGHT_BG;
+  if (rgb && contrast(lum(...rgb), ground) < min) {
+    for (let t = 0.08; t <= 1.0001; t += 0.04) {
+      const mix = rgb.map((v) => (bg === 'dark' ? v + (255 - v) * t : v * (1 - t))) as [number, number, number];
+      if (contrast(lum(...mix), ground) >= min || t >= 1) { out = `#${hex(mix[0])}${hex(mix[1])}${hex(mix[2])}`; break; }
+    }
+  }
+  cacheOn.set(key, out);
+  return out;
+}
+
+/** is the page dark right now (the app always is) */
+export const pageIsDark = () => isDark();

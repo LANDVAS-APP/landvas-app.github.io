@@ -63,6 +63,7 @@ import { LiveControl } from './LiveControl';
 import { RouteError } from './RouteError';
 import { NATIVE_APP } from './buildFlags';
 import { ElevenBanner } from '../rarity/ElevenBanner';
+import { PeekHost } from '../social/PeekHost';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const PuppetMini = lazy(() => import('../enchant/puppet/PuppetMini'));
@@ -239,7 +240,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><PeekHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

@@ -13,12 +13,15 @@ export const social: Chapter = {
     {
       id: 'feed', emoji: '💬', title: 'The feed, chat and friends',
       summary: 'See what the world is rolling and painting live, chat with everyone, and add friends.',
-      keys: 'feed chat global chat friends add friend social community live feed',
+      keys: 'feed chat global chat friends add friend social community live feed reply replies name colour color peek profile picture avatar',
       body: () => (
         <>
           <Bullets items={[
             <><B>Live feed:</B> big rolls, new art, Primordials, hybrids, Leviathan moments and more, as they happen.</>,
             <><B>Chat:</B> one world chat, plus party, clan, planet and arcade chats. Links aren’t allowed and a word filter keeps it friendly.</>,
+            <><B>Names in colour:</B> everyone’s name wears the colour of their rarest plot (a Primordial’s is a band of two colours). Rather show off another rarity you own? Tap your own name in a chat, or open your profile, and pick it.</>,
+            <><B>Replies:</B> in the world chat, tap someone’s line and <B>Reply</B>. Your message carries a little quote of theirs, and they get an alert. Answers to you are lit up in gold.</>,
+            <><B>A peek at anyone:</B> tap a name or a face in any chat for a card with their rarest plot, a few stats, their clan and buttons to reply, add them, invite them to your party, or report and block.</>,
             <><B>Friends:</B> add anyone from their profile. Friends show what they’re up to, and you can join them, invite them, or visit their land.</>,
             <><B>Players & Gallery:</B> browse every player and the newest art on the map.</>,
           ]} />

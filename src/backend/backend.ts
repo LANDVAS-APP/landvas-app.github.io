@@ -467,6 +467,8 @@ const MESSAGES: Record<string, string> = {
   // chat
   chat_disabled: 'The chat is switched off right now.',
   chat_muted: 'You’re muted in the chat for a while.',
+  reply_not_found: 'That message is gone — it can’t be answered any more.',
+  name_color_not_owned: 'You need a plot of that rarity to wear its colour.',
   chat_empty: 'Type a message first.',
   chat_too_long: 'Messages can be up to 300 characters.',
   chat_invalid: 'That message contains characters that aren’t allowed.',

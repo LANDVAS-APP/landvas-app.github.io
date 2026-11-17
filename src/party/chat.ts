@@ -8,14 +8,15 @@ import { useNudge } from '../lib/nudge';
 
 export type RoomChat = {
   msgs: PlanetChatMsg[]; unread: number; ready: boolean;
-  send(body: string): Promise<PlanetChatMsg>;
+  /** `replyTo`: the message this answers (the global chat takes replies; other rooms ignore it) */
+  send(body: string, replyTo?: number | null): Promise<PlanetChatMsg>;
   setOpen(open: boolean): void;
 };
 
 export function useRoomChat(opts: {
   /** a new key starts the chat over (another party, another arcade); null: no chat */ key: string | null;
   list(after: number): Promise<{ items: PlanetChatMsg[]; topic: string | null }>;
-  send(body: string): Promise<PlanetChatMsg>;
+  send(body: string, replyTo?: number | null): Promise<PlanetChatMsg>;
   myId?: string;
   /** a new message came in, or you sent one (not the backlog) */ onLine?(m: PlanetChatMsg): void;
   /** at most one look per this long, however many nudges (a busy room: the global chat) */ gapMs?: number;
@@ -63,8 +64,8 @@ export function useRoomChat(opts: {
     return () => clearInterval(t);
   }, [key, topic, tick]);
 
-  const send = useCallback(async (body: string) => {
-    const m = await ref.current.send(body);
+  const send = useCallback(async (body: string, replyTo?: number | null) => {
+    const m = await ref.current.send(body, replyTo);
     add([m], false, true);
     ref.current.onLine?.(m); // (your own line pops up over you too)
     return m;

@@ -19,7 +19,23 @@ export type Profile = {
   explorer_style?: ExplorerStyle;
   bio: string | null;
   created_at: string;
+  /** chat lines: the rarity their name wears (the one they show off, else their rarest plot; null: no land yet) */
+  name_rarity?: string | null;
 };
+
+/** the little quote a global chat reply carries (gone: since removed; hidden: from someone you blocked) */
+export type ChatReply = { id: number; body?: string; gone?: boolean; hidden?: boolean;
+  player?: { id: string; username: string; display_name: string | null; accent_color: string; name_rarity?: string | null } };
+/** a peek at a player (tap their name in a chat) */
+export type PlayerPeek = {
+  profile: Profile; is_me: boolean; friend: 'friends' | 'outgoing' | 'incoming' | 'none' | null; blocked: boolean; online: boolean; member_since: string;
+  rarest: { rarity: string; picked: boolean; count: number; shiny: number } | null;
+  stats: { plots: number; ultras: number; artworks: number; artist_level: number } | null;
+  badge: { key: string; name: string; icon: string; category: string; threshold: number } | null; badges: number | null; crowns: number;
+  clan: { id: string; name: string; tag: string; emblem: string | null; color: string | null } | null;
+};
+/** your name colour: what you picked (null: your rarest), what it shows, and what you could pick */
+export type NameColorInfo = { pick: string | null; shown: string | null; auto: string | null; options: { rarity: string; count: number; shiny: number }[]; secret: boolean };
 
 export type ExplorerPart = 'hat' | 'hold' | 'outfit' | 'trail' | 'aura' | 'hair' | 'hairc' | 'skin' | 'body' | 'sex' | 'face';
 export type ExplorerStyle = Partial<Record<ExplorerPart, string>>;
@@ -205,7 +221,7 @@ export type FriendsList = {
   incoming: { player: Profile; at: string }[];
   outgoing: { player: Profile; at: string }[];
 };
-export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean; kind?: 'moderation'; data?: { action?: 'ban' | 'suspend'; until?: string | null } };
+export type ChatMessage = { id: number; body: string; created_at: string; player: Profile; deleted?: boolean; reply?: ChatReply | null; kind?: 'moderation'; data?: { action?: 'ban' | 'suspend'; until?: string | null } };
 /** A player's places, for their profile. */
 export type ArcadeMember = Profile & { explorer_style?: unknown; x: number; z: number; playing: string | null };
 export type ArcadeMatchPlayer = Profile & { explorer_style?: unknown; score: number | null; finished: boolean; bonus: number; session: string | null };
@@ -523,7 +539,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join' | 'chat_reply'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -750,7 +766,7 @@ export type PlanetQuests = {
   crew: (PlanetQuest & { min_share: number; mine: number; can_claim: boolean; crew: (Profile & { amount: number })[]; crew_size: number }) | null;
   claimed_quest?: string; paid?: number; earned?: number; items_got?: Record<string, number>;
 };
-export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile; /** party chat: "joined" / "left" lines */ kind?: 'chat' | 'join' | 'leave' };
+export type PlanetChatMsg = { id: number; body: string; at: string; player: Profile; /** party chat: "joined" / "left" lines */ kind?: 'chat' | 'join' | 'leave'; /** the global chat: what it answers */ reply?: ChatReply | null };
 export type RoverModel = { id: string; name: string; emoji: string; speed: number; tank: number; burn_per_km: number; cost: Record<string, number> };
 export type RoverState = {
   owned: string[]; active: string | null; fuel: number; tank: number; driving: boolean; world: string | null; km: number; km_today: number;

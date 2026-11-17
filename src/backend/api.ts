@@ -444,10 +444,15 @@ export const api = {
 
   // chat & live feed
   chatRecent: (afterId?: number | null) => rpc<{ messages: ChatMessage[]; muted_until: string | null; enabled: boolean }>('chat_recent', { p_after_id: afterId ?? null, p_limit: 80 }),
-  sendChat: (body: string) => rpc<ChatMessage>('send_chat_message', { p_body: body }),
+  sendChat: (body: string, replyTo?: number | null) => rpc<ChatMessage>('send_chat_message', { p_body: body, ...(replyTo ? { p_reply_to: replyTo } : {}) }),
+  /** a peek at a player (tap their name in a chat) */
+  playerPeek: (id: string) => rpc<import('./types').PlayerPeek>('player_peek', { p_player: id }),
+  nameColorInfo: () => rpc<import('./types').NameColorInfo>('name_color_info', {}),
+  setNameColor: (rarity: string | null) => rpc<import('./types').NameColorInfo>('set_name_color', { p_rarity: rarity }),
   /** the global chat as every chat box reads it (like a room chat: since the last message seen, and a topic) */
   globalChatList: (after: number) => rpc<{ items: import('./types').PlanetChatMsg[]; topic: string | null; enabled: boolean; muted_until: string | null }>('global_chat_list', { p_after: after }),
-  globalChatSend: (body: string) => rpc<ChatMessage>('send_chat_message', { p_body: body }).then((m): import('./types').PlanetChatMsg => ({ id: m.id, body: m.body, at: m.created_at, player: m.player, kind: 'chat' })),
+  globalChatSend: (body: string, replyTo?: number | null) => rpc<ChatMessage>('send_chat_message', { p_body: body, ...(replyTo ? { p_reply_to: replyTo } : {}) })
+    .then((m): import('./types').PlanetChatMsg => ({ id: m.id, body: m.body, at: m.created_at, player: m.player, kind: 'chat', reply: m.reply ?? null })),
   reportChat: (id: number, reason: string) => rpc('report_chat_message', { p_message_id: id, p_reason: reason }),
   feed: (afterId?: number | null, beforeId?: number | null, limit = 40) => rpc<FeedEvent[]>('feed_recent', { p_after_id: afterId ?? null, p_before_id: beforeId ?? null, p_limit: limit }),
 
