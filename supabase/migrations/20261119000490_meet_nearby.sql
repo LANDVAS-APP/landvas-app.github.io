@@ -26,6 +26,7 @@ create table if not exists public.meet_waves (
   at timestamptz not null default now()
 );
 create index if not exists meet_waves_pair on public.meet_waves (from_id, to_id, at desc);
+create index if not exists meet_waves_to on public.meet_waves (to_id);
 alter table public.meet_waves enable row level security;
 revoke all on public.meet_waves from anon, authenticated;
 
@@ -55,7 +56,7 @@ create or replace function private.meet_band(p_m float8) returns text language s
 $$;
 
 create or replace function public.meet_settings() returns jsonb
-language plpgsql stable security definer set search_path = public, pg_temp as $$
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := private.require_active_player(); m public.meet_nearby;
 begin
   select * into m from public.meet_nearby where player_id = v_uid;
@@ -81,7 +82,7 @@ end $$;
 
 /** the players near you: on GPS for real (both of you opted in), and explorers out in the game near you */
 create or replace function public.meet_nearby() returns jsonb
-language plpgsql stable security definer set search_path = public, pg_temp as $$
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := private.require_active_player(); c jsonb := private.meet_cfg(); me public.explorers;
   v_r float8 := least(coalesce((c ->> 'radius_m')::float8, 4000), 10000);
   v_fresh interval := make_interval(mins => coalesce((c ->> 'fresh_minutes')::int, 10));
