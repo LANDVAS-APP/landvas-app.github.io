@@ -18,7 +18,7 @@ const WISHES = [
   { id: 'golden', emoji: '⏳', name: 'Golden Hour', text: 'Your next 3 minigame wins pay ×2', c: '#FF9F1C' },
 ];
 
-export function GenieScene({ v, view, act, busy, at, mirror }: SceneProps) {
+export function GenieScene({ v, view, act, busy, at }: SceneProps) {
   const keep = useKeepMoment();
   const [moment, setMoment] = useState<Moment | null>(null);
   const lamp = useRef<HTMLDivElement>(null);
@@ -155,7 +155,7 @@ export function GenieScene({ v, view, act, busy, at, mirror }: SceneProps) {
           </motion.div>
         )}
       </AnimatePresence>
-      {!mirror && (v.stars ?? 0) >= 2 && <GenieStars stars={v.stars ?? 0} view={view} act={act} busy={busy} at={at} wishes={wishes} freed={freed} />}
+      {(v.stars ?? 0) >= 2 && <GenieStars stars={v.stars ?? 0} view={view} act={act} busy={busy} at={at} wishes={wishes} freed={freed} />}
       {!awake && <p className="text-center text-[11px] text-white/55">{view.made} wish{view.made === 1 ? '' : 'es'} granted{view.forbidden ? ` · ${view.forbidden} forbidden` : ''}. {wishes < 3 && !freed && !cold && view.next_in != null ? `Next wish in ${dur(nextIn)}.` : ''}</p>}
     </div>
   );

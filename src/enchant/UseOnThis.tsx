@@ -98,11 +98,11 @@ function Row({ e, title, sub, children, testid }: { e: EnchantView; title: strin
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5" style={{ ['--a' as string]: k.a }} data-testid={testid}>
       <Sigil kind={e.kind} seed={e.sigil} size={36} level={e.level} still />
-      <span className="grid min-w-0 flex-1 leading-tight">
+      <span className="grid min-w-[9rem] flex-1 basis-[9rem] leading-tight">
         <span className="truncate text-[13px] font-black"><span style={{ color: k.a }}>{k.emoji} {enchantName(e)}</span> · {title}</span>
         {sub && <span className="text-[11px] text-white/55">{sub}</span>}
       </span>
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      <div className="ml-auto flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
 }
@@ -158,12 +158,14 @@ function SpliceRow({ v, spliceE, partners, run, busy }: { v: EnchantView; splice
         return (
           <div key={b.id} className={cn('flex flex-wrap items-center gap-2 rounded-xl px-2 py-1.5', b.kind === 'clockwork' ? 'bg-[#D4A373]/15 ring-1 ring-[#D4A373]/40' : 'bg-white/[0.04]')} data-testid="use-splice-partner" data-kind={b.kind}>
             <Sigil kind={b.kind} seed={b.sigil} size={28} still />
-            <span className="grid min-w-0 flex-1 leading-tight">
+            <span className="grid min-w-[11rem] flex-1 basis-[11rem] leading-tight">
               <span className="truncate text-[12.5px] font-black">{swap.name}{swap.perfect ? ' ✦' : ''} <span className="font-bold text-white/50">with {enchantName(b)}</span></span>
               {mine && <span className="text-[11px] text-white/70">This one: {mine.gets}{mineC && mineC.gets !== mine.gets ? ` (Chimera: ${mineC.gets})` : ''}</span>}
             </span>
-            <Button size="sm" variant="secondary" disabled={!!busy || charges < 1} onClick={() => void go(b, 'swap')} data-testid="use-splice-swap">🔁 Swap</Button>
-            <Button size="sm" variant="rainbow" disabled={!!busy || charges < 1} onClick={() => void go(b, 'chimera')} data-testid="use-splice-chimera">🐉 Chimera</Button>
+            <div className="ml-auto flex gap-1.5">
+              <Button size="sm" variant="secondary" disabled={!!busy || charges < 1} onClick={() => void go(b, 'swap')} data-testid="use-splice-swap">🔁 Swap</Button>
+              <Button size="sm" variant="rainbow" disabled={!!busy || charges < 1} onClick={() => void go(b, 'chimera')} data-testid="use-splice-chimera">🐉 Chimera</Button>
+            </div>
           </div>
         );
       })}

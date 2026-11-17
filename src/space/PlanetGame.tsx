@@ -55,7 +55,7 @@ function PlanetGame() {
   const finish = async (session: string, score: number) => {
     try {
       const r = await api.planetGameFinish(session, score);
-      invalidateGame(qc);
+      invalidateGame(qc); void qc.invalidateQueries({ queryKey: ['planet-quests', world] });
       if (r.paid > 0) confettiCannons();
       setPhase({ k: 'done', score: r.score, paid: r.paid, capped: r.capped, rewarded: r.rewarded, best: r.best, mult: r.mult ?? 1 });
     } catch (e) {

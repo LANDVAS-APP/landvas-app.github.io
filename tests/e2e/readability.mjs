@@ -3,7 +3,8 @@
 // contrast between the ink and what's behind it is how readable the words really are (gradients, glass, overlays and
 // blends included). Words whose photos don't differ at all are covered by something (a block, a sticker, a bar) or
 // clipped. Flags: "faint" (ink contrast under 2.2 — hard to read), "covered" (the words don't show) and "blocked" (a solid
-// block from somewhere else — a floating button, a bar, a sticker — sits on part of them).
+// block from somewhere else — a floating button, a bar, a sticker — sits on part of them), and "squeezed" (a long run of
+// words crammed into a column too narrow to read).
 // Includes every enchantment's page and a Mirror Shard reflecting each kind it can reflect.
 // Run: npm run build:artifact && node tests/e2e/readability.mjs   (E2E_ONLY=app|web, ONLY_ROUTES=substring)
 import { serve, launch } from './browser.mjs';
@@ -116,7 +117,13 @@ async function run(mode) {
             }
           }
         }
-        out.push({ text: t.slice(0, 70), over, overPts, tid, tag: el.tagName.toLowerCase(), cls: String(el.className).slice(0, 90), size: parseFloat(s.fontSize), weight: s.fontWeight, rects });
+        // squeezed: a long run of words crammed into a narrow column (a row that left them no room)
+        const lineW = Math.max(...rects.map((q) => q.r - q.l));
+        const words = t.split(' ').length;
+        // (a name cut down to a few letters by a row that gave it no room: "Golde…")
+        const cut = s.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 2 && el.clientWidth < 84 && t.length > 6;
+        const squeezed = cut || (t.length > 60 && rects.length >= 6 && lineW < 130) || (words >= 4 && rects.length >= 3 && lineW < 100);
+        out.push({ text: t.slice(0, 70), over, overPts, squeezed, tid, tag: el.tagName.toLowerCase(), cls: String(el.className).slice(0, 90), size: parseFloat(s.fontSize), weight: s.fontWeight, rects });
       }
       return out;
     });
@@ -129,17 +136,25 @@ async function run(mode) {
     const dpr = A.w / 390;
     for (const it of items) {
       let ink = 0, area = 0; const cs = [];
+      // (and segment by segment, ~40 px at a time: words that run from a dark patch onto a bright one are only as
+      //  readable as their worst stretch)
+      let worst = Infinity;
       for (const q of it.rects) {
         const x0 = Math.floor(q.l * dpr), x1 = Math.ceil(q.r * dpr), y0 = Math.floor(q.t * dpr), y1 = Math.ceil(q.b * dpr);
-        for (let y = Math.max(0, y0); y < Math.min(A.h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(A.w, x1); x++) {
-          const i = (y * A.w + x) * 4; area++;
-          const d = Math.max(Math.abs(A.data[i] - B.data[i]), Math.abs(A.data[i + 1] - B.data[i + 1]), Math.abs(A.data[i + 2] - B.data[i + 2]));
-          if (d > 18) { ink++; cs.push(ratio(lum(A.data[i], A.data[i + 1], A.data[i + 2]), lum(B.data[i], B.data[i + 1], B.data[i + 2]))); }
+        const seg = Math.round(40 * dpr);
+        for (let sx = x0; sx < x1; sx += seg) {
+          const sc = []; let sa = 0;
+          for (let y = Math.max(0, y0); y < Math.min(A.h, y1); y++) for (let x = Math.max(0, sx); x < Math.min(A.w, x1, sx + seg); x++) {
+            const i = (y * A.w + x) * 4; area++; sa++;
+            const d = Math.max(Math.abs(A.data[i] - B.data[i]), Math.abs(A.data[i + 1] - B.data[i + 1]), Math.abs(A.data[i + 2] - B.data[i + 2]));
+            if (d > 18) { ink++; const c = ratio(lum(A.data[i], A.data[i + 1], A.data[i + 2]), lum(B.data[i], B.data[i + 1], B.data[i + 2])); cs.push(c); sc.push(c); }
+          }
+          if (sc.length >= Math.max(12, sa * 0.04)) { sc.sort((a, b) => a - b); worst = Math.min(worst, sc[Math.floor(sc.length * 0.9)]); }
         }
       }
       if (!area) continue;
       cs.sort((a, b) => a - b);
-      const legible = cs.length ? cs[Math.floor(cs.length * 0.9)] : 1;
+      const legible = Math.min(cs.length ? cs[Math.floor(cs.length * 0.9)] : 1, worst);
       const frac = ink / area;
       // blocked: at the points where something solid is on top, the words left no ink (they really are hidden there)
       let hidden = 0;
@@ -152,7 +167,7 @@ async function run(mode) {
         }
         if (k < 3) hidden++;
       }
-      const flag = frac < 0.012 ? 'covered' : hidden >= 2 ? 'blocked' : legible < FAINT ? 'faint' : null;
+      const flag = frac < 0.012 ? 'covered' : hidden >= 2 ? 'blocked' : legible < FAINT ? 'faint' : it.squeezed ? 'squeezed' : null;
       if (!flag) continue;
       const q = it.rects[0];
       const rec = { mode, where, flag, legible: Number(legible.toFixed(2)), ink: Number(frac.toFixed(3)), ...it, rects: undefined, overPts: undefined, at: [Math.round(q.l), Math.round(q.t)] };
@@ -221,7 +236,7 @@ const by = {};
 for (const r of report) (by[`${r.mode} ${r.where}`] ??= []).push(r);
 for (const [w, rs] of Object.entries(by)) {
   console.log(`\n${w}`);
-  for (const r of rs) console.log(`  ${r.flag === 'covered' ? '⬛ covered' : r.flag === 'blocked' ? '🧱 blocked' : '👓 faint  '} ${String(r.legible).padEnd(5)} ${JSON.stringify(r.text)}  [${r.tid || r.tag}] ${r.cls.slice(0, 60)}${r.over ? ` UNDER ${r.over}` : ''} → ${r.crop}`);
+  for (const r of rs) console.log(`  ${r.flag === 'covered' ? '⬛ covered' : r.flag === 'blocked' ? '🧱 blocked' : r.flag === 'squeezed' ? '🗜️ squeezed' : '👓 faint  '} ${String(r.legible).padEnd(5)} ${JSON.stringify(r.text)}  [${r.tid || r.tag}] ${r.cls.slice(0, 60)}${r.over ? ` UNDER ${r.over}` : ''} → ${r.crop}`);
 }
 console.log(`\n${failures} hard-to-read or covered texts`);
 process.exit(failures ? 1 : 0);

@@ -77,7 +77,7 @@ export function CardFace({ card, up = true, foil }: { card: Card | { id: string;
   );
 }
 
-export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
+export function DeckScene({ v, view, act, busy }: SceneProps) {
   const table = useRef<HTMLDivElement>(null);
   const clip = useCraftClip(v);
   const deck: Card[] = view.deck ?? [];
@@ -96,7 +96,6 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
   const col: Record<string, number> = view.collection ?? {};
 
   const flip = async (i: number, grandSpread = false) => {
-    if (mirror) return;
     setLift(i); feel('medium');
     await sleep(380);
     const r = await act('flip', { i, grand: grandSpread }, { silent: true });
@@ -193,7 +192,7 @@ export function DeckScene({ v, view, act, busy, mirror }: SceneProps) {
               <Button size="sm" variant="rainbow" onClick={() => void play()} disabled={!!busy} data-testid="deck-play">Play it</Button>
             </div>
           )}
-          {view.grand_ready && !pending && <Button variant="rainbow" onClick={() => void grandSpread()} disabled={!!busy || !!mirror} data-testid="deck-grand">🌌 Lay the Grand Spread — five cards at once (once a week)</Button>}
+          {view.grand_ready && !pending && <Button variant="rainbow" onClick={() => void grandSpread()} disabled={!!busy} data-testid="deck-grand">🌌 Lay the Grand Spread — five cards at once (once a week)</Button>}
           <AnimatePresence>
             {grandShown && (
               <motion.div className="grid gap-2 rounded-2xl border border-[#FFD166]/50 bg-[#14062A] p-3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} data-testid="deck-grand-result">

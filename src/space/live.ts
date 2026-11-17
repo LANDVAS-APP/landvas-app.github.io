@@ -26,6 +26,7 @@ export function usePlanetLive(opts: {
   onSpawn?(d: number[], who: LiveMember | null): void;
   /** a chat message someone in the group just sent (instant, before the next list fetch) */ onChat?(m: unknown): void;
   /** filled in with a way to broadcast to the group */ sendRef?: { current: ((m: unknown) => void) | null };
+  /** filled in with "check in right now, from where I am" (the server checks pickups against your last check-in) */ checkInRef?: { current: (() => Promise<void>) | null };
 }) {
   const [info, setInfo] = useState<LiveInfo | null>(null);
   const ref = useRef(opts); ref.current = opts;
@@ -82,6 +83,7 @@ export function usePlanetLive(opts: {
       }
     };
     if (opts.sendRef) opts.sendRef.current = (m) => ch?.send(m);
+    if (opts.checkInRef) opts.checkInRef.current = () => beat();
     // a check-in keeps you in your group (each one is a database write): every half minute, and sooner after you've
     // walked a fair way (the server checks what you pick up against where your last check-in put you)
     const pl = pulse(beat, () => false);
@@ -94,7 +96,7 @@ export function usePlanetLive(opts: {
       if (lastBeatD && p.d.length === 3 && now - lastBeatAt > 10_000 && lastBeatD[0] * p.d[0] + lastBeatD[1] * p.d[1] + lastBeatD[2] * p.d[2] < 0.9998) { lastBeatD = null; pl.soon(300); }
     }, 100);
     // no explicit leave: a quick hop between the map and the 3D view keeps your group (and spot)
-    return () => { stopped = true; pl.stop(); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; };
+    return () => { stopped = true; pl.stop(); clearInterval(tx); ch?.close(); if (opts.sendRef) opts.sendRef.current = null; if (opts.checkInRef) opts.checkInRef.current = null; };
   }, [opts.enabled, opts.world, opts.myId]); // eslint-disable-line react-hooks/exhaustive-deps
   return info;
 }

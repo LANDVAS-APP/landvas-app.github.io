@@ -105,7 +105,9 @@ export function PuppeteerScene(props: SceneProps) {
         <div className="lvx-grain" />
       </div>
 
-      {!mirror && <PuppetTheatre {...props} />}
+      {!mirror ? <PuppetTheatre {...props} /> : (
+        <p className="rounded-2xl bg-white/[0.05] px-3 py-2 text-center text-[12px] text-white/75" data-testid="puppet-mirror-note">🪞 A reflection pulls the strings by hand, below — a show that plays by itself needs a Puppeteer of your own.</p>
+      )}
 
       <div className="lvx-label mt-1">Or pull the strings yourself — play someone else’s plot on the game screen</div>
       {(view.medley || view.grand_ready) && (

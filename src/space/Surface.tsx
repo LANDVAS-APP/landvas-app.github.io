@@ -192,26 +192,35 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
   useEffect(() => { if (ready && shower.data) scene.current?.setMeteors(String(shower.data.win), shower.data.meteors); }, [ready, shower.data]);
   const grabbing = useRef(new Set<number>());
   const farUntil = useRef(new Map<number, number>()); // after "too far", wait a moment before trying that one again
+  // the server checks a pickup against where your last check-in put you; walking fast (zoomed out, or in a rover)
+  // you can be past what it allows between check-ins — so on "too far", check in from right here and try again at once
+  const checkIn = useRef<(() => Promise<void>) | null>(null);
   const grab = async (i: number) => {
     if (grabbing.current.has(i) || (farUntil.current.get(i) ?? 0) > Date.now()) return;
     grabbing.current.add(i);
     let far = false;
+    const tryGrab = () => api.planetMeteorGrab(world, i, scene.current?.pose().d ?? null);
     try {
-      const r = await api.planetMeteorGrab(world, i, scene.current?.pose().d ?? null);
+      const r = await tryGrab().catch(async (e) => {
+        if (toGameError(e).code !== 'too_far' || !checkIn.current) throw e;
+        await checkIn.current().catch(() => {});
+        return tryGrab();
+      });
+      void qc.invalidateQueries({ queryKey: questsKey(world) });
       const m = shower.data?.meteors.find((x) => x.i === i);
       if (m) scene.current?.burst(m.d, r.golden ? '#FFE36B' : '#FF9A5C');
       invalidateGame(qc);
       toast.success(r.golden ? `Golden meteorite! +${r.paid} Ink 🌟` : `Meteorite! +${r.paid} Ink ☄️`, { description: r.capped ? 'You’ve hit today’s planet Ink limit.' : undefined, duration: 2200 });
     } catch (e) {
       const err = toGameError(e);
-      if (err.code === 'too_far') { far = true; farUntil.current.set(i, Date.now() + 8000); } else toast(err.message, { duration: 1800 });
+      if (err.code === 'too_far') { far = true; farUntil.current.set(i, Date.now() + 2500); } else toast(err.message, { duration: 1800 });
     } finally {
       grabbing.current.delete(i);
       if (!far) void shower.refetch();
     }
   };
   // weather, hiding aliens and places to discover
-  const disc = useDiscoveries(world, ready && !lost, scene);
+  const disc = useDiscoveries(world, ready && !lost, scene, checkIn);
   latest.current.find = (k, i) => void disc.find(k, i);
   const [discOpen, setDiscOpen] = useState(false);
   const [placesOpen, setPlacesOpen] = useState<'plots' | 'people' | 'worlds' | null>(null);
@@ -235,7 +244,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
       placeholder: 'Message your group…', empty: 'Say hi to your group 👋 — it pops up over you', notHere: 'Join a group first — walk around for a moment.' },
   ];
   const live = usePlanetLive({
-    sendRef: chat.sendRef, onChat: chat.onChat,
+    sendRef: chat.sendRef, onChat: chat.onChat, checkInRef: checkIn,
     world, enabled: ready, myId: me?.profile.id,
     pose: () => scene.current?.pose() ?? null,
     onMembers: (ms) => scene.current?.setLive(ms.map((m) => ({ id: m.id, username: m.username, d: m.d, face: m.face, hop: m.hop, companion: m.companion?.genome ? cleanGenome(m.companion.genome) : null,
@@ -350,7 +359,7 @@ export function PlanetView({ s, w, embedded = false, onPeekEarth }: { s: SpaceSt
           )}
           <StormChip d={disc.data} onOpen={() => setDiscOpen(true)} />
           <FindsChip d={disc.data} onOpen={() => setDiscOpen(true)} />
-          <QuestsChip q={quests.data} onOpen={() => setQuestsOpen(true)} />
+          <QuestsChip q={quests.data} onOpen={() => { setQuestsOpen(true); void quests.refetch(); }} />
           {canPlots && map.data && (
             <button className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px]" onClick={() => setPlacesOpen('plots')} data-testid="my-planet-plots">
               <Flag className="h-3 w-3" /> {mine.length ? `My plots (${mine.length}) · ` : ''}{map.data.claimed.toLocaleString()} claimed

@@ -18,7 +18,7 @@ const RARITY: Record<string, string> = { common: '#B8C0D8', uncommon: '#4FD18B',
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const angle = (a: number[], b: number[]) => Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
 
-export function useDiscoveries(world: string, ready: boolean, scene: React.RefObject<PlanetScene | null>) {
+export function useDiscoveries(world: string, ready: boolean, scene: React.RefObject<PlanetScene | null>, checkIn?: { current: (() => Promise<void>) | null }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['discoveries', world], queryFn: () => api.planetDiscoveries(world), enabled: ready, refetchInterval: poll(60_000) });
   const d = q.data;
@@ -52,7 +52,14 @@ export function useDiscoveries(world: string, ready: boolean, scene: React.RefOb
     busy.current.add(key);
     let far = false;
     try {
-      const r = await api.planetFind(world, kind, i, scene.current?.pose().d ?? null);
+      // (on "too far": check in from right here — the server goes by your last check-in — and try again at once)
+      const tryFind = () => api.planetFind(world, kind, i, scene.current?.pose().d ?? null);
+      const r = await tryFind().catch(async (e) => {
+        if (toGameError(e).code !== 'too_far' || !checkIn?.current) throw e;
+        await checkIn.current().catch(() => {});
+        return tryFind();
+      });
+      void qc.invalidateQueries({ queryKey: ['planet-quests', world] });
       const at = kind === 'shard' ? d.weather.shards.find((s) => s.i === i)?.d : kind === 'alien' ? d.aliens.find((a) => a.i === i)?.d : d.pois.find((p) => p.i === i)?.d;
       if (at) scene.current?.burst(at, kind === 'alien' ? '#9FFFD0' : kind === 'shard' ? '#FFE36B' : '#B69CFF');
       invalidateGame(qc); void qc.invalidateQueries({ queryKey: ['dig'] }); void qc.invalidateQueries({ queryKey: ['base-catalog'] });
@@ -68,7 +75,7 @@ export function useDiscoveries(world: string, ready: boolean, scene: React.RefOb
       } else toast.success(`Storm shard! ${d.weather.emoji}`, { description: `${items}${ink}`, duration: 2400 });
     } catch (e) {
       const err = toGameError(e);
-      if (err.code === 'too_far') { far = true; farUntil.current.set(key, Date.now() + 8000); } else toast(err.message, { duration: 1800 });
+      if (err.code === 'too_far') { far = true; farUntil.current.set(key, Date.now() + 2500); } else toast(err.message, { duration: 1800 });
     } finally {
       busy.current.delete(key);
       if (!far) void q.refetch();

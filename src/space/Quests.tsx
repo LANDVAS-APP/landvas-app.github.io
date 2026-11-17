@@ -15,7 +15,8 @@ import { poll } from '../lib/poll';
 
 export const questsKey = (world: string) => ['planet-quests', world] as const;
 export function useQuests(world: string, enabled: boolean) {
-  return useQuery({ queryKey: questsKey(world), queryFn: () => api.planetQuests(world), enabled, refetchInterval: poll(60_000), staleTime: 20_000 });
+  // (every pickup, find, dig and game refreshes it at once; this is just the safety net — and opening the quests looks again)
+  return useQuery({ queryKey: questsKey(world), queryFn: () => api.planetQuests(world), enabled, refetchInterval: poll(60_000), staleTime: 5_000 });
 }
 
 const fmtAmount = (metric: string, n: number) => (metric.endsWith('_m') ? (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km` : `${Math.floor(n)} m`) : `${Math.floor(n)}`);

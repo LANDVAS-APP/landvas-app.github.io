@@ -38,7 +38,7 @@ export function GlyphMark({ id, size = 56, color = '#9EF6FF', draw, className }:
   );
 }
 
-export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
+export function GlyphScene({ v, view, act, busy, at }: SceneProps) {
   const cv = useRef<HTMLCanvasElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const clip = useCraftClip(v);
@@ -89,7 +89,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
   };
   const pt = (e: React.PointerEvent): Pt => { const r = cv.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const down = (e: React.PointerEvent) => {
-    if (mirror || busy || need) return;
+    if (busy || need) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     if (lift.current) { clearTimeout(lift.current); lift.current = null; }
     if (read) { setRead(null); strokes.current = []; }
@@ -213,7 +213,7 @@ export function GlyphScene({ v, view, act, busy, at, mirror }: SceneProps) {
             {view.triple && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', chain === 3 ? 'border-[#FFD23F] bg-[#FFD23F]/25 text-white' : 'border-white/15 text-white/70')} onClick={() => { setChain(chain === 3 ? 0 : 3); setQueue([]); }} data-testid="glyph-triple">🔯 Triple Cast</button>}
             {view.arch_ready && <button className={cn('rounded-full border px-3 py-1 text-[12px] font-black', arch ? 'border-[#FFE8A3] bg-[#FFE8A3]/20 text-white' : 'border-white/15 text-white/70')} onClick={() => setArch(!arch)} data-testid="glyph-arch">🧙 Archmage</button>}
             <Button size="sm" variant="ghost" onClick={() => { clear(); setRead(null); setQueue([]); setShown(null); }}>Wipe</Button>
-            {view.study_ready && <Button size="sm" variant="rainbow" onClick={() => void study()} disabled={!!busy || !!mirror} data-testid="glyph-study">📖 Study today’s pages</Button>}
+            {view.study_ready && <Button size="sm" variant="rainbow" onClick={() => void study()} disabled={!!busy} data-testid="glyph-study">📖 Study today’s pages</Button>}
           </div>
           <div className="flex flex-wrap gap-1.5" data-testid="glyph-known">
             {pagesKnown.map((g) => (

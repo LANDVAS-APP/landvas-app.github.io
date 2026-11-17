@@ -52,7 +52,7 @@ function RewindFx({ ago, onDone }: { ago: number; onDone(): void }) {
   );
 }
 
-export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
+export function ClockworkScene({ v, view, act, busy }: SceneProps) {
   const [tolled, setTolled] = useState<number | null>(null);
   const toll = async () => {
     const r = await act('toll');
@@ -153,20 +153,21 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
           <span className="absolute -top-5 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-black text-[#FFE8A3]">{left ? (turns ? `${turns} turn${turns > 1 ? 's' : ''} — let go` : '↻ wind me') : 'wound out today'}</span>
         </div>
         {/* stored time */}
-        <div className="absolute left-3 top-3 grid gap-1">
-          <span className="rounded-full bg-black/45 px-3 py-1 font-display text-[16px] font-black text-[#FFE8A3]" data-testid="clock-charge">⏱ {Math.floor(charge)} min stored</span>
-          <div className="h-1.5 w-36 overflow-hidden rounded-full bg-white/15"><div className="h-full bg-[linear-gradient(90deg,#D4A373,#FFE8A3)]" style={{ width: `${(charge / Number(view.cap)) * 100}%` }} /></div>
-          <span className="text-[10px] font-bold text-white/60">{left}/{view.turns_max} turns left today · ticks +3 min an hour</span>
-          <span className="text-[10px] font-bold text-[#FFE8A3]" data-testid="clock-chime">{left ? `🔔 The day’s last turn chimes: +30–50 Ink` : '🔔 Chimed today — wind again tomorrow'}</span>
+        {/* (on a dark card of its own: the small print sits over the bright clock face otherwise) */}
+        <div className="absolute left-3 top-3 z-[2] grid max-w-[min(68%,15rem)] gap-1 rounded-2xl bg-black/60 p-2 shadow-[0_6px_18px_rgba(0,0,0,0.45)]">
+          <span className="font-display text-[16px] font-black leading-tight text-[#FFE8A3]" data-testid="clock-charge">⏱ {Math.floor(charge)} min stored</span>
+          <div className="h-1.5 w-36 max-w-full overflow-hidden rounded-full bg-white/15"><div className="h-full bg-[linear-gradient(90deg,#D4A373,#FFE8A3)]" style={{ width: `${(charge / Number(view.cap)) * 100}%` }} /></div>
+          <span className="text-[10.5px] font-bold leading-snug text-white/80">{left}/{view.turns_max} turns left today · ticks +3 min an hour</span>
+          <span className="text-[10.5px] font-bold leading-snug text-[#FFE8A3]" data-testid="clock-chime">{left ? `🔔 The day’s last turn chimes: +30–50 Ink` : '🔔 Chimed today — wind again tomorrow'}</span>
         </div>
       </div>
-      {!mirror && view.toll && (
+      {view.toll && (
         <div className="grid gap-1 rounded-2xl border border-[#FFD23F]/30 bg-[#FFD23F]/[0.06] p-3" data-testid="clock-toll">
           <Button variant="rainbow" disabled={!!busy || !!view.toll_used} onClick={() => void toll()} data-testid="clock-toll-go">🔔 {view.toll_used ? 'Rung today — again tomorrow' : 'Ring the Toll of Hours'}</Button>
           <div className="text-center text-[11px] text-white/60">{tolled != null ? `The hour struck: ${tolled} enchantment${tolled === 1 ? '' : 's'} jumped 30 minutes ahead.` : '★3: once a day, every other enchantment you own jumps 30 minutes ahead.'}</div>
         </div>
       )}
-      {!mirror && (
+      {(
         <section className="lv-tape grid gap-2 rounded-2xl p-3" data-testid="clock-rewind">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[15px] font-black tracking-wider text-[#FFE8A3] [text-shadow:1px_0_#FF2D55,-1px_0_#00E5FF]">⏪ REWIND</span>
@@ -225,12 +226,13 @@ export function ClockworkScene({ v, view, act, busy, mirror }: SceneProps) {
           return (
             <div key={t.id} className={cn('flex flex-wrap items-center gap-2 rounded-2xl p-2', frozen ? 'bg-[#C0F5FF]/10 ring-1 ring-[#C0F5FF]/40' : 'bg-white/[0.04]', focus === t.id && 'ring-2 ring-[#FFD23F]')} data-testid={focus === t.id ? 'clock-focus' : undefined}>
               <Sigil kind={t.kind} seed={t.sigil} size={36} still />
-              <span className="grid min-w-0 flex-1 leading-tight"><span className="truncate text-[13px] font-black">{enchantName(t)}</span>
+              <span className="grid min-w-[8.5rem] flex-1 basis-[8.5rem] leading-tight"><span className="truncate text-[13px] font-black">{enchantName(t)}</span>
                 <span className="text-[10px] text-white/55">{frozen ? `❄️ frozen for ${dur((Date.parse(t.clock!.frozen_until!) - Date.now()) / 1000)}` : t.attention ?? 'ticking along'}{t.partner ? ` · 🧬 ${t.partner.hybrid}` : ''}</span></span>
-              {frozen ? <Button size="sm" variant="ghost" onClick={() => void act('unfreeze', { target: t.id })} disabled={!!busy}>Thaw</Button> : <>
+              {/* (the buttons stay together, and drop under the name on a narrow phone rather than squeezing it) */}
+              {frozen ? <Button size="sm" variant="ghost" className="ml-auto" onClick={() => void act('unfreeze', { target: t.id })} disabled={!!busy}>Thaw</Button> : <div className="ml-auto flex gap-1.5">
                 {[15, 60].map((m) => <Button key={m} size="sm" variant="secondary" disabled={!!busy || charge < m} onClick={() => void forward(t.id, m)} data-testid={`clock-forward-${t.kind}-${m}`}>⏩ {m < 60 ? `${m}m` : '1h'}</Button>)}
                 <Button size="sm" variant="secondary" disabled={!!busy || charge < 3 * Number(view.freeze_cost)} onClick={() => void freeze(t.id, 3)} data-testid={`clock-freeze-${t.kind}`}>❄️ 3h</Button>
-              </>}
+              </div>}
             </div>
           );
         }) : <p className="text-[12px] text-white/55">Your other enchantments will appear here.</p>}

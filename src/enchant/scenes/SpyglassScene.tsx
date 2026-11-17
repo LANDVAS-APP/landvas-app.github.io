@@ -53,7 +53,7 @@ function Telescope({ out, aim }: { out: number; aim: number }) {
   );
 }
 
-export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
+export function SpyglassScene({ v, view, act, busy, at }: SceneProps) {
   const nav = useNavigate();
   const lens = useRef<HTMLDivElement>(null);
   const clip = useCraftClip(v);
@@ -100,7 +100,6 @@ export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
   }, [spot.done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startLook = () => {
-    if (mirror) return;
     spot.start({ title: 'Look through the Spyglass', emoji: '🔭', color: '#F4C95D', anchors, radiusM: Number(view.range_m ?? 1000), use: 'Look here',
       hint: `Tap an unclaimed spot within ${Math.round(Number(view.range_m ?? 1000) / 100) / 10} km of your explorer or any of your plots` });
   };
@@ -159,7 +158,7 @@ export function SpyglassScene({ v, view, act, busy, at, mirror }: SceneProps) {
         <div className="lvx-grain" />
       </div>
 
-      <Button variant="rainbow" size="lg" onClick={startLook} disabled={!!busy || looks < 1 || phase === 'racking' || !!mirror} data-testid="spyglass-look">
+      <Button variant="rainbow" size="lg" onClick={startLook} disabled={!!busy || looks < 1 || phase === 'racking'} data-testid="spyglass-look">
         {looks < 1 ? `The glass rests · ${dur(nextIn)}` : `🔭 Take a look (${looks} left)`}
       </Button>
 
