@@ -244,6 +244,8 @@ export default function EyesScreen() {
   useEffect(() => () => loader.dispose(), [loader]);
   /** asked every so often with where you are (and which way you're going) in the view's coordinates */
   const onTheMove = useRef<((x: number, z: number, dx: number, dz: number) => void) | null>(null);
+  /** the streets are up (not just the land, as on a fast train or plane) */
+  const streetsOn = useRef(false);
   useEffect(() => {
     if (!eyes || !hard) return;
     let last: { x: number; z: number } | null = null;
@@ -255,7 +257,8 @@ export default function EyesScreen() {
       // (riding a train or a plane: the streets fly by too fast to build; the land is made again every few km instead)
       const fast = Number(st.state?.speed_mps ?? 0) > 30 && !!p.traveling;
       const d = bearingDistance(f.lng0, f.lat0, p.lng, p.lat).m;
-      if (d > (fast ? 12_000 : JUMP)) {
+      // (a jump; or off the train or plane, where only the land was made: the streets are made afresh round you)
+      if (d > (fast ? 12_000 : JUMP) || (!fast && !streetsOn.current && d > 50)) {
         const nf = makeFrame(p.lng, p.lat);
         eyes.setFrame(nf); setFrame(nf); setHard(nf);
         last = null;
@@ -286,11 +289,13 @@ export default function EyesScreen() {
     // the land first (it's the backdrop for everything)
     eyes.setTerrain(null, colors);
     const st0 = useExplorer.getState();
+    streetsOn.current = false;
     if (Number(st0.state?.speed_mps ?? 0) > 30 && explorerNow(st0.state, st0.offset)?.traveling) {
       void loadTerrain(hard, TERRAIN).then((t) => { if (!live) return; if (t) eyes.setTerrain(t, colors); setSteps((s) => ({ ...s, land: t ? 'ok' : 'none' })); });
       setSteps((s) => ({ ...s, streets: 'none' }));
       return () => { live = false; };
     }
+    streetsOn.current = true;
     const painter = (id: number) => (r: { x0: number; z0: number; size: number }, px: number) => loader.close(id, r, px);
     /** the stretch in view (its world's id), and where its land was made round (in the view's coordinates) */
     let cur = 0, landAt = { x: 0, z: 0 };
@@ -356,7 +361,8 @@ export default function EyesScreen() {
     onTheMove.current = (x, z, vx, vz) => {
       if (next || !live) return;
       const S = eyes.closeSpan();
-      if (Math.max(Math.abs(x), Math.abs(z)) < S * 1.5) return;
+      // (every few hundred metres: the stretch in view reaches a good way past you either way till then)
+      if (Math.max(Math.abs(x), Math.abs(z)) < S * 2) return;
       // a little ahead of you, in whole spans
       const v = Math.hypot(vx, vz), ax = x + (v > 1 ? (vx / v) * S : 0), az = z + (v > 1 ? (vz / v) * S : 0);
       const dx = Math.round(ax / S) * S, dz = Math.round(az / S) * S;
@@ -378,6 +384,7 @@ export default function EyesScreen() {
     };
     return () => {
       live = false;
+      streetsOn.current = false;
       onTheMove.current = null;
       loader.drop(cur);
       if (next) loader.drop(next.id);
@@ -423,7 +430,7 @@ export default function EyesScreen() {
       rowsRef.current = rows;
       const list: PlotPlace[] = rows.map((r) => {
         const info = rarityInfo(r[9]);
-        return { gx: r[0], gy: r[1], rarity: r[9], color: info.color, glow: info.glow, tier: rarityTier(r[9]), mine: !!r[4], group: r[5], shiny: !!r[12], emoji: info.emoji ?? null, name: r[10] ?? null, kind: r[11] ?? 'canvas', owner: r[7] };
+        return { gx: r[0], gy: r[1], rarity: r[9], color: info.color, glow: info.glow, tier: rarityTier(r[9]), mine: !!r[4], group: r[5], shiny: !!r[12], emoji: info.emoji ?? null, name: r[10] ?? null, kind: r[11] ?? 'canvas', owner: r[7], type: r[2] ?? null };
       });
       eyes.setPlots(list);
       // the Inkborn living in the habitats round you, to roam their glades

@@ -8,6 +8,7 @@
 // for the places close to you: a whole street of them costs a handful of draws.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { buildMonument } from './monuments';
 
 export type BuildSite = {
   key: string;
@@ -22,6 +23,8 @@ export type BuildSite = {
   gx: number; gy: number; owner: string | null; name: string | null;
   /** how many cells across and down it is ("2x2") */
   cells?: string;
+  /** (an ultra's monument) its light; tier 0 an ultra, 1 a fusion, 2 a Primordial */
+  glow?: string;
   /** what it's called on its sign ("Farm", "Arcade Carnival") and its emoji */
   label: string; emoji: string;
 };
@@ -59,7 +62,7 @@ export const PLACE_WORD: Record<string, [string, string]> = {
 };
 type O = { rx?: number; ry?: number; rz?: number; glow?: boolean; sx?: number; sy?: number; sz?: number };
 /** collects coloured shapes for one place, already moved to where it stands */
-class Kit {
+export class Kit {
   solid: THREE.BufferGeometry[] = [];
   glow: THREE.BufferGeometry[] = [];
   constructor(public m: THREE.Matrix4) {}
@@ -112,8 +115,8 @@ class Kit {
 }
 
 /** a moving part: built round its own pivot; it turns (about an axis) or bobs up and down */
-type PartKind = 'spin' | 'bob';
-type PartFn = (at: THREE.Vector3, kind: PartKind, speed: number, fill: (k: Kit) => void, axis?: THREE.Vector3) => void;
+export type PartKind = 'spin' | 'bob';
+export type PartFn = (at: THREE.Vector3, kind: PartKind, speed: number, fill: (k: Kit) => void, axis?: THREE.Vector3) => void;
 
 /**
  * The moving parts are drawn by the graphics chip: every vertex knows its part's pivot, axis, speed and phase, and the
@@ -545,6 +548,9 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
         }
         break;
       }
+      case 'monument':
+        buildMonument(s, k, part, s.glow ?? '#ffffff', s.tier === 2);
+        break;
       default:
         break;
     }

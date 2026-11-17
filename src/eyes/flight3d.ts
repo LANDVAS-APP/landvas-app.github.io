@@ -6,6 +6,7 @@
 // One scene, one camera, a handful of spheres with painted surfaces (the same paintings as mission control's map), a
 // sky of points. Paced like every other 3D scene here (framePacer); nothing else on the page draws while it's up.
 import * as THREE from 'three';
+import { releaseOnDispose } from '../lib/threeRelease';
 import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { planetTexture } from '../space/system3d';
 import { WORLDS, worldOf, type World } from '../space/worlds';
@@ -42,7 +43,7 @@ const sizeOf = (id: string) => SIZE[id.startsWith('exo:') || id === 'home' ? 'ex
 const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2);
 
 export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }): Flight {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), alpha: false, powerPreference: "high-performance", logarithmicDepthBuffer: true });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), alpha: false, powerPreference: "high-performance", logarithmicDepthBuffer: true }));
   renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

@@ -205,6 +205,15 @@ try {
     await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), $4, 'graphite')
                on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = excluded.rarity`, [gx, gy, ned, r]).catch((e) => console.log('plot insert:', String(e).slice(0, 200)));
   }
+  // ultras near you (each raises its monument) and a row of plots of every type (each with its piece of the type)
+  for (const [dx, dy, r] of [[2, -2, 'volcano'], [-2, 2, 'kraken'], [9, -6, 'crown'], [-4, -3, 'singularity']]) {
+    await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), $4, 'prism')
+               on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), rarity = excluded.rarity`, [START.gx + dx, START.gy + dy, ned, r]).catch((e) => console.log('ultra insert:', String(e).slice(0, 200)));
+  }
+  for (const [i, t] of ['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'stencil', 'prism', 'glass'].entries()) {
+    await sql(`insert into world_plots (gx, gy, owner_id, claimed_at, rarity, plot_type) values ($1, $2, $3, now(), 'rare', $4)
+               on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now(), plot_type = excluded.plot_type`, [START.gx - 4 + i, START.gy - 12, ned, t]).catch((e) => console.log('type insert:', String(e).slice(0, 200)));
+  }
   // what the plots around have been made into: places standing on them
   const places = [
     ['farm', [[6, -4]]], ['business', [[-2, 4]]], ['habitat', [[1, 5]]], ['home', [[-6, -2]]], ['mine', [[9, 2]]], ['sky', [[-5, 6]]],
@@ -592,6 +601,31 @@ try {
     await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, carn.lng, carn.lat]);
     await refresh(); await eyes('lookAt', 0, 0.15); await page.waitForTimeout(1800);
     await shot('16d-carnival');
+  }
+
+  // ---- the ultras stand as monuments; every plot type carries its piece --------------------------------------------------
+  {
+    await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);
+    await refresh(); await page.waitForTimeout(1500);
+    let d = null;
+    for (let k = 0; k < 20; k++) { d = await eyes('debug'); if ((d?.places ?? []).filter((x) => String(x.key).startsWith('m:')).length >= 3 && !(d?.builds?.waiting)) break; await page.waitForTimeout(500); }
+    const mons = (d?.places ?? []).filter((x) => String(x.key).startsWith('m:'));
+    check('the ultras near you stand as monuments (a volcano, a kraken, a crown, a singularity…)', mons.length >= 3, JSON.stringify(mons.map((x) => x.kind)));
+    check('…and the plots near you carry a piece of their type', (d?.accents ?? 0) >= 8, `${d?.accents} pieces`);
+    for (const [name, dx, dy] of [['volcano', 2, -2], ['kraken', -2, 2], ['singularity', -4, -3]]) {
+      const c = ll(START.gx + dx, START.gy + dy);
+      const from = ll(START.gx + dx, START.gy + dy + 3);
+      await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, from.lng, from.lat]);
+      await refresh(); await page.waitForTimeout(900);
+      await eyes('lookAt', Math.atan2(c.lng - from.lng, (c.lat - from.lat) * 1.3), 0.12); await page.waitForTimeout(1500);
+      await shot(`16e-ultra-${name}`);
+    }
+    // the row of plot types, from one end
+    const rowFrom = ll(START.gx - 6, START.gy - 11);
+    await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, rowFrom.lng, rowFrom.lat]);
+    await refresh(); await page.waitForTimeout(1200);
+    await eyes('lookAt', Math.PI / 2 - 0.2, -0.18); await page.waitForTimeout(1800);
+    await shot('16f-plot-types');
   }
 
   // ---- your party, standing in the view as their own explorers --------------------------------------------------------

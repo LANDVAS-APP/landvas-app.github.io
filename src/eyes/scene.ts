@@ -17,6 +17,7 @@ import { createNature } from './nature';
 import { createStreet } from './street';
 import { createBuilds, PLACE_WORD, type BuildSite } from './builds';
 import { createCloseGround, type ClosePainter } from './closeGround';
+import { createTypeAccents } from './typeAccents';
 import { explorerPicture } from './selfView';
 import { REALM_META, isRealm } from '../realms/kinds';
 import { isEstate, kindFamily, TIERS } from '../realms/estates/meta';
@@ -24,6 +25,9 @@ import { drawCreature, type CreatureState } from '../inkborn/rig';
 import type { Genome } from '../inkborn/genome';
 import type { Resident } from '../backend/types';
 import { isDomain } from '../realms/estates/domains';
+import { isFusion, isPrimordial, rarityInfo } from '../shared/rarity';
+import { drawPlotDesign } from '../map/plotStyle';
+import type { PlotTypeId } from '../shared/grid';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
@@ -31,7 +35,8 @@ import { releaseOnDispose } from '../lib/threeRelease';
 
 /** a painting of the ground: a canvas, or a picture from a worker */
 export type GroundImg = HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
-export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null };
+export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null;
+  /** its plot type (graphite, pigment, mosaic…): its design shows on top */ type?: string | null };
 export type Beacon = { id: string; lng: number; lat: number; color: string; emoji: string };
 export type LevPlace = { lng: number; lat: number; heading: number; walking: boolean; look: LevLook };
 export type SkyDrop = { id: string; kind: 'balloon' | 'lantern' | 'meteor'; seed: number };
@@ -565,6 +570,20 @@ export function createEyes(o: EyesOpts): Eyes {
   const nature = createNature(near, { phone });
   const street = createStreet(near);
   const builds = createBuilds(near, { phone, onChange: () => { shadowDirty = true; } });
+  /** a little 3D piece of each plot's type, on the plots near you */
+  const accents = createTypeAccents(near, { phone });
+  const placeAccents = () => {
+    if (!frame) return;
+    const ps = plotSize(frame);
+    const list: { x: number; z: number; ps: number; y: number; type: string | null | undefined }[] = [];
+    for (const p of plots) {
+      const k = p.kind ?? 'canvas';
+      if (p.tier >= 5 || (k !== 'canvas' && k !== 'base') || !p.type) continue;
+      const [x, z] = cellToLocal(frame, p.gx, p.gy);
+      list.push({ x: x + ps / 2, z: z + ps / 2, ps, y: 0.17 + p.tier * 0.02, type: p.type });
+    }
+    accents.set(list, pos);
+  };
   let occ: ((x: number, z: number) => number) | null = null;
 
   // ---- plots ------------------------------------------------------------------------------------------------------------
@@ -572,12 +591,42 @@ export function createEyes(o: EyesOpts): Eyes {
   near.add(plotsGroup);
   const slabGeo = T(new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0.5, 0.5));
   const slabMat = T(new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#000000' }));
+  // each plot type's own design (graphite's pencil grain, pigment's blooms, mosaic's tiles, lumina's neon…), two of
+  // each, in one small picture: it shows on the top of every plot of that type, in its rarity's colours
+  const TYPES = ['graphite', 'pigment', 'mosaic', 'lumina', 'fresco', 'stencil', 'prism', 'glass'];
+  const typeAtlas = T((() => {
+    const c = Object.assign(document.createElement('canvas'), { width: 512, height: 512 });
+    const g = c.getContext('2d')!;
+    TYPES.forEach((t, i) => { for (let v2 = 0; v2 < 2; v2++) { const n = i * 2 + v2; g.save(); g.translate((n % 4) * 128, Math.floor(n / 4) * 128); g.beginPath(); g.rect(0, 0, 128, 128); g.clip(); drawPlotDesign(g, t as PlotTypeId, 128, 7 + v2 * 13); g.restore(); } });
+    const t = new THREE.CanvasTexture(c);
+    t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+  })());
   slabMat.onBeforeCompile = (sh) => {
-    // the slab glows its own colour a little (more at night)
+    // the slab glows its own colour a little (more at night); its top shows its plot type's design
     sh.uniforms.uGlow = auraU.uGlow;
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uGlow;')
+    sh.uniforms.uAtlas = { value: typeAtlas };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aType; varying float vType; varying vec2 vUvT; varying float vTop;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vType = aType; vUvT = uv; vTop = normal.y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uGlow; uniform sampler2D uAtlas; varying float vType; varying vec2 vUvT; varying float vTop;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        if (vTop > 0.5 && vType > -0.5) {
+          float n = floor(vType + 0.5);
+          vec2 cell = vec2(mod(n, 4.0), floor(n / 4.0));
+          vec3 d = texture2D(uAtlas, (cell + clamp(vUvT, 0.02, 0.98)) / 4.0).rgb;
+          float l = dot(d, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb = mix(diffuseColor.rgb * (0.5 + 0.9 * l), d, 0.5);
+        }`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * (0.12 + uGlow * 0.55);');
   };
+  slabMat.customProgramCacheKey = () => 'lv-slab-types';
+  /** which design each slab shows (-1: none), as many as the slabs have room for */
+  const slabTypes = (n: number) => {
+    let a = slabGeo.getAttribute('aType') as THREE.InstancedBufferAttribute | undefined;
+    if (!a || a.count < n) { a = new THREE.InstancedBufferAttribute(new Float32Array(n), 1); slabGeo.setAttribute('aType', a); }
+    return a;
+  };
+  slabTypes(1);
   const auraU = { uTime: { value: 0 }, uGlow: { value: 0.5 } };
   const auraMat = T(new THREE.ShaderMaterial({
     uniforms: auraU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
@@ -1387,6 +1436,22 @@ export function createEyes(o: EyesOpts): Eyes {
         label: isRealm(kind) ? REALM_META[kind].name : PLACE_WORD[kind]?.[1] ?? kind, emoji: isRealm(kind) ? REALM_META[kind].emoji : PLACE_WORD[kind]?.[0] ?? '📍',
       });
     }
+    // the ultras (and the fusions and Primordials): each raises its own monument over its plot (a plot that's been
+    // made into a place has the place instead)
+    for (const p of list) {
+      if (p.tier < 5) continue;
+      const k = p.kind ?? 'canvas';
+      if (k !== 'canvas' && k !== 'base') continue;
+      const [ax, az] = cellToLocal(frame, p.gx, p.gy);
+      const cx = ax + ps / 2, cz = az + ps / 2;
+      const id = `m:${p.gx}_${p.gy}`;
+      if (Math.hypot(cx - pos.x, cz - pos.z) > (builds.has(id) ? R * 1.25 : R * 1.1)) continue;
+      const info = rarityInfo(p.rarity);
+      sites.push({
+        key: id, kind: p.rarity, family: 'monument', tier: isPrimordial(p.rarity) ? 2 : isFusion(p.rarity) ? 1 : 0, x: cx, z: cz, w: ps, d: ps, rot: 0, cells: '1x1',
+        color: info.color ?? p.color, glow: info.glow ?? p.glow, gx: p.gx, gy: p.gy, owner: p.owner ?? null, name: p.name, label: info.name ?? p.rarity, emoji: p.emoji ?? '✨',
+      });
+    }
     builds.set(sites, pos);
   };
 
@@ -1408,7 +1473,7 @@ export function createEyes(o: EyesOpts): Eyes {
   const setPlots = (list: PlotPlace[]) => {
     if (!frame) return;
     // (the same plots as last time, which is most times while you drive about: only the places need a look)
-    const sig = list.map((p) => `${p.gx},${p.gy},${p.rarity},${p.kind},${p.group},${p.mine ? 1 : 0},${p.shiny ? 1 : 0},${p.color},${p.tier},${p.emoji}`).join(';');
+    const sig = list.map((p) => `${p.gx},${p.gy},${p.rarity},${p.kind},${p.group},${p.mine ? 1 : 0},${p.shiny ? 1 : 0},${p.color},${p.tier},${p.emoji},${p.type}`).join(';');
     plots = list;
     if (sig === plotsSig && (slabs || !list.length)) { placeBuilds(list); return; }
     plotsSig = sig;
@@ -1423,6 +1488,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const ps = plotSize(frame);
     const at = new Map(list.map((p) => [key(p.gx, p.gy), p]));
     slabs = room(slabs, slabGeo, slabMat, list.length);
+    const types = slabTypes(slabs.instanceMatrix.count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), c = new THREE.Color();
     type E = { x: number; z: number; rot: number; h: number; color: string };
     const edgeList: E[] = [];
@@ -1437,6 +1503,8 @@ export function createEyes(o: EyesOpts): Eyes {
       m.compose(v.set(x + ins.l, 0, z + ins.t), q.identity(), s.set(ps - ins.l - ins.r, 0.16 + tier * 0.02, ps - ins.t - ins.b));
       slabs!.setMatrixAt(i, m);
       slabs!.setColorAt(i, c.set(p.color));
+      const ti = p.type ? TYPES.indexOf(p.type) : -1;
+      types.setX(i, ti < 0 ? -1 : ti * 2 + ((p.gx * 7 + p.gy * 13) & 1));
       const h = Math.max(auraHeight(p.tier), p.mine ? 1.4 : 0);
       if (h > 0) {
         const color = p.mine && p.tier === 0 ? '#FFFFFF' : p.color;
@@ -1464,6 +1532,7 @@ export function createEyes(o: EyesOpts): Eyes {
       }
     });
     sent(slabs);
+    types.clearUpdateRanges(); types.addUpdateRange(0, list.length); types.needsUpdate = true;
     if (edgeList.length) {
       edges = room(edges, edgeGeo, auraMat, edgeList.length);
       const up = new THREE.Vector3(0, 1, 0);
@@ -1485,6 +1554,7 @@ export function createEyes(o: EyesOpts): Eyes {
       sent(beams);
     } else if (beams) { plotsGroup.remove(beams); beams.dispose(); beams = null; }
     placeBuilds(list);
+    placeAccents();
     // art that's no longer in range goes
     const keep = new Set(list.map((p) => key(p.gx, p.gy)));
     for (const [k, mesh] of artPlanes) if (!keep.has(k)) { plotsGroup.remove(mesh); (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); artPlanes.delete(k); }
@@ -2156,6 +2226,8 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     nature.update(o.reduceMotion ? 0 : t, pos, o.eye());
     builds.update(o.reduceMotion ? 0 : t, pos);
+    accents.update(o.reduceMotion ? 0 : t);
+    { const aa = accents.at(); if (plots.length && (!aa || Math.hypot(aa.x - pos.x, aa.z - pos.z) > 25)) placeAccents(); }
     updateFloating(dt, t);
     street.update(bldU.uNight.value);
     groundU.uTime.value = o.reduceMotion ? 0 : t;
@@ -2475,7 +2547,7 @@ export function createEyes(o: EyesOpts): Eyes {
     },
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
-      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: closeG.state(), rebases, origin: frame ? [frame.lng0, frame.lat0] : null, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
+      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: closeG.state(), accents: accents.counts(), rebases, origin: frame ? [frame.lng0, frame.lat0] : null, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
       beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), roll: roll ? { landed: !!roll.landT, spin: !!roll.spinT, reveal: !!roll.revealT, tier: roll.tier } : rollDone, manifest: man ? { name: man.name, flared: !!man.burstT, gone: !!man.endT } : null, critters: critters.size, companion: !!companion, emotes: emotes.length, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,
@@ -2499,7 +2571,7 @@ export function createEyes(o: EyesOpts): Eyes {
       for (const [, mesh] of artPlanes) { (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); }
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
-      nature.dispose(); street.dispose(); builds.dispose(); closeG.dispose();
+      nature.dispose(); street.dispose(); builds.dispose(); accents.dispose(); closeG.dispose();
       for (const k of critters.values()) dropCritter(k);
       if (companion) dropCritter(companion);
       for (const o2 of [manCircle, manSigil, manBeast, manHalo, manRing] as (THREE.Mesh | THREE.Sprite)[]) { const mt = o2.material as THREE.MeshBasicMaterial; if (o2 !== manBeast && o2 !== manHalo) mt.map?.dispose(); mt.dispose(); }
