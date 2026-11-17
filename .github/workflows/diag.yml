@@ -1,4 +1,4 @@
-# Manual, read-only publishing health check. Results appear as run annotations.
+# Manual, read-only database report (diag/top-usage branch): the top 100 users of the database and the API.
 name: Diagnose publishing
 on:
   workflow_dispatch: {}
@@ -7,23 +7,13 @@ permissions:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Check publishing
+      - name: Top usage
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
-        run: node scripts/diag-publish.mjs
-      - name: Check Inkborn sanctuaries
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
-        run: node scripts/diag-inkborn.mjs
-      - name: Check database disk use
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ojxqarpmreekylwotbdb
-        run: node scripts/diag-io.mjs
+        run: node scripts/diag-top.mjs
