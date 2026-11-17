@@ -78,5 +78,13 @@ What made phones stutter and run hot, and the rules that keep it fixed:
 - Every app screen at phone sizes, with the iPhone's safe areas: `node tests/e2e/app-sweep.mjs` (screenshots in
   `test-results/app-sweep`), and the sheets/pop-ups: `node tests/e2e/app-sheets.mjs`. A grid holding `truncate` text
   needs `grid-cols-1` (an auto column grows to the text's full width and pushes the screen sideways).
+- **Explorer's Eyes (first person) makes its world off the main thread**: a worker (`src/eyes/world.worker.ts` through
+  `worldLoader.ts`) paints the ground, builds the buildings, the occupancy grid, trees, street and the land's mesh, and
+  paints the sharpest ground a square at a time (`closeGround.ts`). As you move, the view's origin moves along in whole
+  spans of the sharp ground (`rebase` in `scene.ts`) and everything standing keeps its place: anything new there that
+  keeps positions in the view's coordinates must be shifted in `rebase`. Places on plots are built once per 16×16-plot
+  square (`builds.ts`); their moving parts turn in the vertex shader. Screens in first person read the explorer store
+  with selectors (`useExplorer((s) => …)`), never the whole store: steering updates it every frame.
+  `E2E_PROFILE=15 node tests/e2e/eyes.mjs web` drives the car and prints frame times and main-thread hot spots.
 - Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) and `node tests/e2e/perf-app.mjs`
   (idle cost, frames, loops, timers per screen in the app shell) after `npm run build:artifact`.

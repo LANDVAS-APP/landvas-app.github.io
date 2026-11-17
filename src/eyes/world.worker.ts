@@ -20,7 +20,7 @@ function moving(s: WorldStage): Transferable[] {
   const add = (x: unknown) => { if (x instanceof ImageBitmap) out.push(x); else if (ArrayBuffer.isView(x)) out.push(x.buffer as ArrayBuffer); };
   if (s.t === 'near') { add(s.ground); add(s.occ.grid); for (const k of ['position', 'normal', 'color', 'wuv', 'index'] as const) add(s.bld[k]); }
   if (s.t === 'far') { add(s.ground); if (s.bld) for (const k of ['position', 'normal', 'color', 'wuv', 'index'] as const) add(s.bld[k]); }
-  if (s.t === 'terrain' && s.terrain) { add(s.terrain.y); add(s.terrain.abs); }
+  if (s.t === 'terrain' && s.terrain) { add(s.terrain.y); add(s.terrain.abs); if (s.terrain.mesh) for (const k of ['position', 'normal', 'color', 'index'] as const) add(s.terrain.mesh[k]); }
   return [...new Set(out)];
 }
 

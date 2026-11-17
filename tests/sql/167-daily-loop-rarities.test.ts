@@ -33,7 +33,7 @@ describe('rarities', () => {
     expect(Number(s.u) / 20000).toBeGreaterThan(0.12); expect(Number(s.u) / 20000).toBeLessThan(0.18);
     expect(Number(s.ra) / 20000).toBeGreaterThan(0.26);
     expect(Number(s.ul)).toBeLessThan(80);
-  });
+  }, 180_000); // (20,000 rolls in the in-process Postgres take about a minute)
 });
 
 describe('rent abilities', () => {

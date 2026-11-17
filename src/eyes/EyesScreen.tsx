@@ -285,7 +285,7 @@ export default function EyesScreen() {
     const glow = neon && night ? 0.55 : 0;
     const colors = { land: pal.land, water: pal.water, rock: pal.rock, snow: '#F4F8FF', wood: pal.wood, neon };
     const TERRAIN = { extent: 90_000, n: isPhone() ? 130 : 190, z: 9, flatten: [1700, 4600] as [number, number] };
-    const opts = (terrain: boolean): WorldOpts => ({ pal, real, phone: isPhone(), nearHalf: NEAR_HALF, farHalf: FAR_HALF, terrain: terrain ? TERRAIN : null });
+    const opts = (terrain: boolean): WorldOpts => ({ pal, real, phone: isPhone(), nearHalf: NEAR_HALF, farHalf: FAR_HALF, terrain: terrain ? TERRAIN : null, land: colors });
     // the land first (it's the backdrop for everything)
     eyes.setTerrain(null, colors);
     const st0 = useExplorer.getState();

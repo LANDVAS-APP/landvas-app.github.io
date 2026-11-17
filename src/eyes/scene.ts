@@ -18,6 +18,7 @@ import { createStreet } from './street';
 import { createBuilds, PLACE_WORD, type BuildSite } from './builds';
 import { createCloseGround, type ClosePainter } from './closeGround';
 import { createTypeAccents } from './typeAccents';
+import { terrainMesh } from './terrainGeo';
 import { explorerPicture } from './selfView';
 import { REALM_META, isRealm } from '../realms/kinds';
 import { isEstate, kindFamily, TIERS } from '../realms/estates/meta';
@@ -1322,36 +1323,15 @@ export function createEyes(o: EyesOpts): Eyes {
 
   const setTerrain: Eyes['setTerrain'] = (t, cl) => {
     if (terrain) { far.remove(terrain); terrain.geometry.dispose(); terrain = null; }
-    const n = t?.n ?? 64, E = t?.extent ?? 90_000;
-    const g = new THREE.PlaneGeometry(E * 2, E * 2, n - 1, n - 1).rotateX(-Math.PI / 2);
-    const P = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < P.count; i++) {
-      const x = P.getX(i), z = P.getZ(i);
-      P.setY(i, t ? t.y[i] : -curveDrop(Math.hypot(x, z)));
-    }
-    g.computeVertexNormals();
-    const N = g.attributes.normal as THREE.BufferAttribute;
-    const col = new Float32Array(P.count * 3);
-    const land = hex(cl.land), water = hex(cl.water), rock = hex(cl.rock), snow = hex(cl.snow), wood = hex(cl.wood);
-    const lat = Math.abs(frame?.lat0 ?? 40);
-    const snowLine = Math.max(600, 4900 - 58 * lat);
-    for (let i = 0; i < P.count; i++) {
-      const h = t ? t.abs[i] : 30;
-      const ny = N.getY(i);
-      let c: number[];
-      if (h <= 0.3) c = water;
-      else {
-        const hi = Math.min(1, Math.max(0, (h - 300) / 2200));
-        c = [wood[0] + (land[0] - wood[0]) * hi, wood[1] + (land[1] - wood[1]) * hi, wood[2] + (land[2] - wood[2]) * hi];
-        const steep = 1 - Math.min(1, Math.max(0, (ny - 0.72) / 0.2));
-        c = c.map((v, k) => v + (rock[k] - v) * steep * 0.85);
-        const sn = Math.min(1, Math.max(0, (h - snowLine) / 350)) * (0.4 + 0.6 * Math.min(1, ny * 1.3));
-        c = c.map((v, k) => v + (snow[k] - v) * sn);
-      }
-      if (cl.neon) c = c.map((v, k) => v * (k === 2 ? 1.15 : 0.9));
-      col.set(c, i * 3);
-    }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    // (made in the worker as plain numbers, when it came from there)
+    const m = t?.mesh ?? terrainMesh(t, cl, frame?.lat0 ?? 40);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(m.position, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(m.color, 3));
+    g.setIndex(new THREE.BufferAttribute(m.index, 1));
+    const E = t?.extent ?? 90_000;
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), E * 1.5);
     terrain = new THREE.Mesh(g, terrMat);
     terrain.renderOrder = -3;
     far.add(terrain);
@@ -1473,7 +1453,12 @@ export function createEyes(o: EyesOpts): Eyes {
   const setPlots = (list: PlotPlace[]) => {
     if (!frame) return;
     // (the same plots as last time, which is most times while you drive about: only the places need a look)
-    const sig = list.map((p) => `${p.gx},${p.gy},${p.rarity},${p.kind},${p.group},${p.mine ? 1 : 0},${p.shiny ? 1 : 0},${p.color},${p.tier},${p.emoji},${p.type}`).join(';');
+    // (a fingerprint of the lot, worked out without building one long string: this runs every time they load)
+    let h1 = 5381, h2 = 52711;
+    const mix = (v: number) => { h1 = Math.imul(h1 ^ v, 2654435761) >>> 0; h2 = Math.imul(h2 ^ v, 1597334677) >>> 0; };
+    const mixS = (str: string | null | undefined) => { if (!str) { mix(7); return; } for (let i = 0; i < str.length; i++) mix(str.charCodeAt(i)); mix(31); };
+    for (const p of list) { mix(p.gx); mix(p.gy); mixS(p.rarity); mixS(p.kind); mixS(p.group); mix((p.mine ? 1 : 0) | (p.shiny ? 2 : 0) | (p.tier << 2)); mixS(p.color); mixS(p.emoji); mixS(p.type); }
+    const sig = `${list.length}:${h1}:${h2}`;
     plots = list;
     if (sig === plotsSig && (slabs || !list.length)) { placeBuilds(list); return; }
     plotsSig = sig;
@@ -2224,7 +2209,7 @@ export function createEyes(o: EyesOpts): Eyes {
       }
       if (d.userData.at) d.position.copy(d.userData.at as THREE.Vector3);
     }
-    nature.update(o.reduceMotion ? 0 : t, pos, o.eye());
+    nature.update(o.reduceMotion ? 0 : t, pos, o.eye(), speed);
     builds.update(o.reduceMotion ? 0 : t, pos);
     accents.update(o.reduceMotion ? 0 : t);
     { const aa = accents.at(); if (plots.length && (!aa || Math.hypot(aa.x - pos.x, aa.z - pos.z) > 25)) placeAccents(); }

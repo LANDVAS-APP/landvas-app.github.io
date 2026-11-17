@@ -196,6 +196,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
   const mSolidM = moving(new THREE.MeshLambertMaterial({ vertexColors: true }), uTime);
   const mGlowM = moving(new THREE.MeshBasicMaterial({ vertexColors: true }), uTime);
   const doorM = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const signBackM = new THREE.MeshBasicMaterial({ color: '#14122a' });
   let sites: BuildSite[] = [];
   const places = new Map<string, Place>();
   /** a square's places are built round its own origin (ox, oz), so moving the view's coordinates only moves that */
@@ -241,7 +242,11 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
     g.fillText(t === text ? t : `${t}…`, 108, 68);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+    // (its back is a plain board: seen from behind, the name isn't written backwards)
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide }));
+    const back = new THREE.Mesh(m.geometry, signBackM);
+    back.rotation.y = Math.PI;
+    m.add(back);
     m.position.copy(at.clone().applyMatrix4(site));
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(site));
     group.add(m);
@@ -810,7 +815,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
       for (const p of [...places.values()]) dropPlace(p);
       for (const c of chunks.values()) for (const m of c.meshes) { group.remove(m); m.geometry.dispose(); }
       chunks.clear();
-      near.remove(group); solidM.dispose(); glowM.dispose(); mSolidM.dispose(); mGlowM.dispose(); doorM.dispose();
+      near.remove(group); solidM.dispose(); glowM.dispose(); mSolidM.dispose(); mGlowM.dispose(); doorM.dispose(); signBackM.dispose();
     },
   };
 }

@@ -819,6 +819,8 @@ try {
   await page.click('[data-testid=eyes-snap]');
   const shared = app ? await page.waitForFunction(() => window.__shared, null, { timeout: 8000 }).then((h) => h.jsonValue()).catch(() => null) : null;
   check('a picture of the view', app ? shared?.files === 1 && shared.type === 'image/jpeg' && shared.size > 5000 : !!(await dl) || (await page.locator('text=Saved your picture').count()) > 0, JSON.stringify(shared));
+  // (the "saved your picture" note sits over the back button for a few seconds: let it go first)
+  await page.waitForFunction(() => !document.querySelector('[data-sonner-toast]'), null, { timeout: 9000 }).catch(() => {});
   await page.click('[data-testid=eyes-back]'); await page.waitForTimeout(2500);
   check('back to the map', (await page.locator('[data-testid=eyes]').count()) === 0);
   await shot('14-back');

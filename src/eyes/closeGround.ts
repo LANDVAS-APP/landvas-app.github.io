@@ -34,6 +34,9 @@ export function createCloseGround(renderer: THREE.WebGLRenderer, o: { px: number
   const mod = (a: number) => ((a % T) + T) % T;
   const id = (i: number, j: number) => `${i},${j}`;
   const ok = (i: number, j: number) => slot[mod(j) * T + mod(i)] === id(i, j);
+  /** slots painted since the mipmaps were last made (not shown till they are: from afar they'd show what was there) */
+  const unmipped = new Set<number>();
+  const shows = (i: number, j: number) => ok(i, j) && !unmipped.has(mod(j) * T + mod(i));
   let paint: ClosePainter | null = null;
   let gen = 0;
   /** what's shown: a rectangle of squares (all painted, in the mipmaps), as world metres x0, z0, x1, z1 */
@@ -52,6 +55,7 @@ export function createCloseGround(renderer: THREE.WebGLRenderer, o: { px: number
     renderer.state.bindTexture(gl.TEXTURE_2D, p.__webglTexture);
     gl.generateMipmap(gl.TEXTURE_2D);
     renderer.state.unbindTexture();
+    unmipped.clear();
   };
   /** a painted square into its slot */
   const put = (img: Img, i: number, j: number) => {
@@ -59,29 +63,27 @@ export function createCloseGround(renderer: THREE.WebGLRenderer, o: { px: number
     src.flipY = false;
     renderer.copyTextureToTexture(src, tex, null, at.set(mod(i) * tp, mod(j) * tp));
     slot[mod(j) * T + mod(i)] = id(i, j);
+    unmipped.add(mod(j) * T + mod(i));
     fresh = true;
     last = img;
   };
   const wanted = (i: number, j: number) => i >= center.i - T / 2 && i < center.i + T / 2 && j >= center.j - T / 2 && j < center.j + T / 2;
-  /** the biggest block of painted squares round the middle of the window */
+  /** the block of painted squares round you: grown out from your square, a side at a time, while each new edge is
+   *  all painted (it never takes in a square that isn't) */
   const fit = () => {
-    const i0 = center.i - T / 2, j0 = center.j - T / 2;
-    let a0 = i0, a1 = i0 + T - 1, b0 = j0, b1 = j0 + T - 1;
-    const col = (i: number) => { for (let j = b0; j <= b1; j++) if (!ok(i, j)) return true; return false; };
-    const row = (j: number) => { for (let i = a0; i <= a1; i++) if (!ok(i, j)) return true; return false; };
-    const all = () => { for (let j = b0; j <= b1; j++) for (let i = a0; i <= a1; i++) if (!ok(i, j)) return false; return true; };
-    const ci = center.i, cj = center.j;
-    while (a0 <= a1 && b0 <= b1 && !all()) {
-      // trim the side with a gap that's furthest from the middle
-      const sides = [
-        { s: 0, d: ci - a0, bad: col(a0) }, { s: 1, d: a1 - ci, bad: col(a1) },
-        { s: 2, d: cj - b0, bad: row(b0) }, { s: 3, d: b1 - cj, bad: row(b1) },
-      ].filter((x) => x.bad).sort((x, y) => y.d - x.d);
-      const cut = sides[0]?.s ?? 0;
-      if (cut === 0) a0++; else if (cut === 1) a1--; else if (cut === 2) b0++; else b1--;
+    const i0 = center.i - T / 2, j0 = center.j - T / 2, i1 = i0 + T - 1, j1 = j0 + T - 1;
+    if (!shows(center.i, center.j)) { shown.set(0, 0, 0, 0); return; }
+    let a0 = center.i, a1 = center.i, b0 = center.j, b1 = center.j;
+    const col = (i: number) => { for (let j = b0; j <= b1; j++) if (!shows(i, j)) return false; return true; };
+    const row = (j: number) => { for (let i = a0; i <= a1; i++) if (!shows(i, j)) return false; return true; };
+    for (let grew = true; grew;) {
+      grew = false;
+      if (a0 > i0 && col(a0 - 1)) { a0--; grew = true; }
+      if (a1 < i1 && col(a1 + 1)) { a1++; grew = true; }
+      if (b0 > j0 && row(b0 - 1)) { b0--; grew = true; }
+      if (b1 < j1 && row(b1 + 1)) { b1++; grew = true; }
     }
-    if (a0 > a1 || b0 > b1) shown.set(0, 0, 0, 0);
-    else shown.set(a0 * tm, b0 * tm, (a1 + 1) * tm, (b1 + 1) * tm);
+    shown.set(a0 * tm, b0 * tm, (a1 + 1) * tm, (b1 + 1) * tm);
   };
 
   return {
@@ -96,6 +98,7 @@ export function createCloseGround(renderer: THREE.WebGLRenderer, o: { px: number
       if (keep && p) return;
       fresh = false;
       slot.fill(null);
+      unmipped.clear();
       shown.set(0, 0, 0, 0);
       center = { i: 1e9, j: 1e9 };
     },
@@ -126,7 +129,7 @@ export function createCloseGround(renderer: THREE.WebGLRenderer, o: { px: number
       const t0 = performance.now();
       let n = 0;
       for (const [i, j] of todo) {
-        if (inflight.size >= 4 || (n && performance.now() - t0 > ms)) break;
+        if (inflight.size >= 6 || (n && performance.now() - t0 > ms)) break;
         n++;
         const out = paint({ x0: i * tm, z0: j * tm, size: tm }, tp);
         if (out && typeof (out as Promise<Img | null>).then === 'function') {

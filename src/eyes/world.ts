@@ -806,6 +806,8 @@ export type Terrain = {
   /** height of each vertex above the start point's ground (m), the Earth's curve already taken off */ y: Float32Array;
   /** height above sea level of each vertex (m), for colouring */ abs: Float32Array;
   /** the ground under the start point, above sea level */ h0: number;
+  /** (made where it was loaded) the mesh, ready to draw */
+  mesh?: import('./terrainGeo').TerrainMesh;
 };
 
 /** Real elevation around the start, `extent` metres each way, as an n×n grid. Null when the tiles can't be reached. */

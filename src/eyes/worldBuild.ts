@@ -3,6 +3,7 @@
 // steps run in a worker (world.worker.ts: nothing of it on the main thread, so the view never stutters while the next
 // stretch of town is made) or, where a worker can't paint, on the main thread a step at a time.
 import type { Frame } from './geo';
+import { terrainMesh, type LandColours } from './terrainGeo';
 import {
   buildBuildings, canvasFor, fetchTile, loadTerrain, occFn, occupancyGrid, paintGround, streetThings, streetsSource, tilesFor, treePoints,
   type AnyCanvas, type BuildingMesh, type OccGrid, type Palette, type StreetThings, type Terrain, type Tile, type TreePt,
@@ -12,8 +13,9 @@ export type WorldOpts = {
   pal: Palette; real: boolean; phone: boolean;
   /** the sharp ground at your feet, this far each way (m); the town's softer ground, this far */
   nearHalf: number; farHalf: number;
-  /** also the land out to the horizon (elevation) */
+  /** also the land out to the horizon (elevation), and its colours */
   terrain?: { extent: number; n: number; z: number; flatten: [number, number] } | null;
+  land?: LandColours;
 };
 type Img = ImageBitmap | AnyCanvas;
 /** what comes back, in the order it's ready */
@@ -47,7 +49,8 @@ export async function buildWorld(frame: Frame, o: WorldOpts, send: (s: WorldStag
   // (handed over as a picture for the graphics chip: painted upside down, as the chip wants it; else a canvas as it is)
   const flip = !!image;
   const img = image ?? ((c: AnyCanvas) => c);
-  const terrain = o.terrain ? loadTerrain(frame, o.terrain).catch(() => null) : null;
+  // (the land's mesh is made here too, so the main thread only hands it over)
+  const terrain = o.terrain ? loadTerrain(frame, o.terrain).then((t) => { if (t && o.land) t.mesh = terrainMesh(t, o.land, frame.lat0); return t; }).catch(() => null) : null;
   const src = await streetsSource();
   const nearR = { x0: -o.nearHalf, z0: -o.nearHalf, size: o.nearHalf * 2 };
   const farR = { x0: -o.farHalf, z0: -o.farHalf, size: o.farHalf * 2 };

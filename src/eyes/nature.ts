@@ -303,12 +303,16 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
     setTrees,
     setGround,
     /** each frame: the wind, and the grass follows you round */
-    update: (t: number, at: THREE.Vector3, eyeHeight: number) => {
+    update: (t: number, at: THREE.Vector3, eyeHeight: number, speed = 0) => {
       U.uTime.value = t;
       U.uWind.value = 0.75 + 0.35 * Math.sin(t * 0.13) + 0.2 * Math.sin(t * 0.41);
-      if (all.length && (!lodAt || lodAt.distanceTo(new THREE.Vector2(at.x, at.z)) > LOD_R * 0.35)) { lodAt = new THREE.Vector2(at.x, at.z); build(lodAt); }
-      grass.visible = eyeHeight < 12;
-      if (grass.visible && (!grassAt || grassAt.distanceTo(new THREE.Vector2(at.x, at.z)) > 7)) scatterGrass(at.x, at.z);
+      // (going fast, the trees' near and far are sorted again less often: the near ones reach further ahead)
+      const fast = speed > 7;
+      if (all.length && (!lodAt || Math.hypot(lodAt.x - at.x, lodAt.y - at.z) > LOD_R * (fast ? 0.6 : 0.35))) { lodAt = new THREE.Vector2(at.x, at.z); build(lodAt); }
+      // the grass round your feet: at a drive's speed it's a blur you'd never see, so it isn't scattered again till
+      // you slow down (that's a few thousand tufts placed every few metres saved)
+      grass.visible = eyeHeight < 12 && !fast;
+      if (grass.visible && (!grassAt || Math.hypot(grassAt.x - at.x, grassAt.y - at.z) > 7)) scatterGrass(at.x, at.z);
     },
     counts: () => ({ trees: all.length, grass: grass.count, meshes: meshes.length }),
     /** the view's coordinates moved (dx, dz) metres: the trees keep their places; the grass is scattered afresh */
