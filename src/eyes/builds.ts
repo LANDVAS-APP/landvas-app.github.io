@@ -197,6 +197,15 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
   const mGlowM = moving(new THREE.MeshBasicMaterial({ vertexColors: true }), uTime);
   const doorM = new THREE.MeshLambertMaterial({ vertexColors: true });
   const signBackM = new THREE.MeshBasicMaterial({ color: '#14122a' });
+  // (each moving-parts material is drawn from the start, as one triangle with no size: its shaders are made while the
+  // view loads, not the moment the first windmill comes into view)
+  {
+    const g = new THREE.BufferGeometry();
+    const z3 = () => new THREE.BufferAttribute(new Float32Array(9), 3);
+    g.setAttribute('position', z3()); g.setAttribute('normal', z3()); g.setAttribute('color', z3());
+    g.setAttribute('aPivot', z3()); g.setAttribute('aAxis', z3()); g.setAttribute('aAnim', new THREE.BufferAttribute(new Float32Array(12), 4));
+    for (const m of [mSolidM, mGlowM]) { const w = new THREE.Mesh(g, m); w.frustumCulled = false; w.castShadow = m === mSolidM; w.position.y = -50; group.add(w); }
+  }
   let sites: BuildSite[] = [];
   const places = new Map<string, Place>();
   /** a square's places are built round its own origin (ox, oz), so moving the view's coordinates only moves that */

@@ -540,6 +540,8 @@ try {
     await page.click('[data-testid=eyes] [data-testid=vehicle-car]').catch(() => {});
     await page.waitForTimeout(3000);
     await eyes('lookAt', Math.PI / 2, -0.02);
+    // (E2E_PROFILE_OFF=shadows,nature…: those layers hidden, to see what each costs)
+    for (const l of (process.env.E2E_PROFILE_OFF ?? '').split(',').filter(Boolean)) await page.evaluate((x) => window.__landvasEyes.debugShow(x, false), l);
     await page.evaluate(() => {
       const w = window; w.__frames = []; let last = performance.now();
       const loop = (t) => { w.__frames.push(t - last); last = t; if (!w.__stopFrames) requestAnimationFrame(loop); };
@@ -552,6 +554,7 @@ try {
     const { profile } = await cdp.send('Profiler.stop');
     const fr = await page.evaluate(() => { window.__stopFrames = true; const f = window.__frames.slice(5); return { n: f.length, over34: f.filter((x) => x > 34).length, over50: f.filter((x) => x > 50).length, over100: f.filter((x) => x > 100).length, max: Math.round(Math.max(...f)), avg: Math.round(f.reduce((a, b) => a + b, 0) / f.length), long: window.__long }; });
     console.log('frames', JSON.stringify(fr));
+    console.log('frame list', JSON.stringify(await page.evaluate(() => window.__frames.map((x) => Math.round(x)))));
     const dbgP = await eyes('debug');
     console.log('debug', JSON.stringify({ calls: dbgP?.calls, tris: dbgP?.tris, ms: dbgP?.frameMs, dpr: dbgP?.dpr }));
     // self time by function

@@ -139,6 +139,17 @@ export function createTypeAccents(near: THREE.Scene, opts: { phone: boolean }) {
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * vGlow * 0.9;');
   };
   mat.customProgramCacheKey = () => 'lv-type-accents';
+  // (drawn from the start as one triangle with no size, so its shaders are made while the view loads)
+  {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(9), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('aGlow', new THREE.BufferAttribute(new Float32Array(3), 1));
+    g.setAttribute('aPivot', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('aSpin', new THREE.BufferAttribute(new Float32Array(6), 2));
+    const w = new THREE.InstancedMesh(g, mat, 1);
+    w.setMatrixAt(0, new THREE.Matrix4().makeTranslation(0, -50, 0));
+    w.frustumCulled = false; w.receiveShadow = true;
+    group.add(w);
+  }
   const geos = new Map<string, THREE.BufferGeometry>();
   const meshes = new Map<string, THREE.InstancedMesh>();
   const R = opts.phone ? 90 : 130, MAX = opts.phone ? 160 : 360;
