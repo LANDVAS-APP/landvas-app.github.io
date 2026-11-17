@@ -167,8 +167,15 @@ function FeedRow({ e }: { e: FeedEvent }) {
     case 'level':
       icon = <Sparkles className="h-4 w-4 text-accent-2" />;
       body = <>{who} reached artist level <b>{e.data.level}</b></>;
-      break;    case 'minigame':
+      break;
+    case 'minigame':
       icon = <Gamepad2 className="h-4 w-4 text-ok" />;
+      // 🎭 a win the Puppeteer played: it brings in that minigame's Ink (an ultra plot's multiplier and all)
+      if (e.data.puppet) {
+        body = <>{who}’s 🎭 puppet cleared <b>{GAME_INFO[e.data.game as GameId]?.name ?? e.data.game}</b> level {e.data.level}{e.data.owner ? <> on @{e.data.owner}’s plot</> : null}{Number(e.data.ink) > 0 ? <> · <b className="tnum text-ok">+{fmt(e.data.ink)} Ink</b></> : null}</>;
+        if (e.data.rarity) extra = <RarityBadge r={e.data.rarity} small />;
+        break;
+      }
       body = <>{who} cleared <b>{GAME_INFO[e.data.game as GameId]?.name ?? e.data.game}</b> level {e.data.level}{Number(e.data.stars) > 0 ? <span className="text-gold"> {'★'.repeat(Math.min(3, Number(e.data.stars)))}</span> : null}</>;
       break;
     case 'challenge':

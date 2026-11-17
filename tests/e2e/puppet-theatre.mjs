@@ -143,6 +143,12 @@ async function run(mode) {
     if (fin?.result?.passed) {
       const lvl = (await sql(`select coalesce(max(highest_level), 0) n from plot_game_progress where gx = ${bx} and gy = ${by} and player_id = '${me}'`))[0].n;
       ok('…your plot climbed a level', Number(lvl) >= 1, `highest ${lvl}`);
+      // the win is that minigame's win on that plot (its Rare ×1.15 and all), paid as minigame Ink
+      ok('…paid as that minigame’s win, with the plot’s multiplier', Number(fin.result.win) > 0 && Number(fin.result.mult) > 1 && !fin.result.held
+        && Number(fin.result.ink) === Math.floor(Number(fin.result.win) * 0.75), `win ${fin.result.win} ×${fin.result.mult} → +${fin.result.ink}`);
+      const led = (await sql(`select reason, ref_type from resource_ledger where player_id = '${me}' and ref_type = 'puppet_run' limit 1`))[0];
+      ok('…as minigame Ink', led?.reason === 'minigame', JSON.stringify(led ?? {}));
+      ok('…the curtain call shows the plot’s multiplier', await waitFor('[data-testid=puppet-call-mult]', 8000), await text('[data-testid=puppet-call-mult]'));
     }
     const open = (await sql(`select count(*)::int n from puppet_runs where enchant_id = '${pup}' and finished_at is null`))[0].n;
     const str = (await sql(`select state->'show'->'str'->0 s from enchantments where id = '${pup}'`))[0].s;
@@ -183,6 +189,14 @@ async function run(mode) {
     await tap('[data-testid=puppet-show-stop]');
     await page.waitForTimeout(1200);
     ok('Stop: the curtain comes down', (await sql(`select (state->'show'->>'on')::boolean b from enchantments where id = '${pup}'`))[0].b === false);
+    // the live feed says it, like a win by hand
+    const won = (await sql(`select count(*)::int n from puppet_runs where enchant_id = '${pup}' and (result->>'passed')::boolean`))[0].n;
+    if (won > 0) {
+      await nav('/social');
+      const line = await page.waitForFunction(() => /puppet cleared/.test(document.querySelector('[data-testid=feed]')?.textContent ?? ''), null, { timeout: 20000 }).then(() => true, () => false);
+      ok('the live feed: “…’s 🎭 puppet cleared … · +N Ink”', line && /puppet cleared .+ · \+[\d,]+ Ink/.test(await text('[data-testid=feed]') ?? ''), (await text('[data-testid=feed]'))?.match(/[^\n]*puppet cleared[^\n]*/)?.[0]?.slice(0, 120));
+      await shot('5-feed');
+    }
 
     // ---- 🦢 the Origami carry ----
     const kr = [bx + 12, by + 6];

@@ -69,7 +69,9 @@ export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: numb
 /** 🎭 one act of a Puppeteer's show: the real game, on strings (decided when the curtain rose) */
 export type PuppetRun = { id: string; slot: number; gx: number; gy: number; game: string; level: number; rounds: number; own: boolean; grand: boolean; seed: number;
   started_at: number; due_at: number; finished: boolean; cleared: number; passed: boolean; secs: number[]; name: string | null; rarity: string | null; owner_name: string | null;
-  result: { passed: boolean; cleared: number; rounds: number; level: number; ink: number; tip: number | null; grand: boolean } | null };
+  result: { passed: boolean; cleared: number; rounds: number; level: number; ink: number; tip: number | null; grand: boolean;
+    /** what the level was worth as a win of that minigame, the plot's multiplier (rarity, level, boosts), and why its Ink is held, if it is */
+    win?: number; mult?: number; rarity?: number; rarity_id?: string | null; held?: 'paused' | 'ink_held' | null } | null };
 export type PuppetLive = { server_now: number; shows: { id: string; serial: number; nickname: string | null; on: boolean; waiting: string | null; runs: PuppetRun[]; calls: PuppetRun[] }[] };
 export type MapSighting = { id: number; gx: number; gy: number; rarity: string; kind: string | null; hot: boolean; second: boolean; at: string; expires_at: string; expires_in: number };
 export type EnchantMap3 = {

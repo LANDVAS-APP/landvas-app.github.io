@@ -21,6 +21,12 @@ import { PuppetStage } from './PuppetStage';
 type Cand = { gx: number; gy: number; rarity: string; name: string | null; game: string; plot_type?: string; owner_name?: string | null; next?: number | null; m?: number; own: boolean };
 const key = (p: { gx: number; gy: number }) => `${p.gx}:${p.gy}`;
 
+/** a multiplier, short: ×1.4, ×12, ×250 */
+const fmtMult = (m: unknown) => { const n = Number(m); return n >= 10 ? Math.round(n).toLocaleString() : (Math.round(n * 10) / 10).toString(); };
+/** what a cleared level was worth as a minigame win, and the plot's multiplier */
+const winWords = (r: { win?: unknown; mult?: unknown }) => (Number(r.win) > 0 ? ` · a ${Math.round(Number(r.win)).toLocaleString()} Ink win${Number(r.mult) > 1 ? ` (×${fmtMult(r.mult)} plot)` : ''}` : '');
+const heldWords = (h: string) => (h === 'ink_held' ? 'your Ink is on hold for now' : 'Ink from this is switched off for now');
+
 export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
   const qc = useQueryClient();
   const pickOnMap = usePickOnMapFor();
@@ -93,7 +99,10 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
       if (seen.current.has(c.id)) continue;
       seen.current.add(c.id);
       if (stage?.id === c.id) continue;
-      if (c.result?.passed) toast.success(`🎭 +1 level complete · +${Math.round(Number(c.result.ink))} Ink`, { description: `${gameName(c.game)} level ${c.level} on ${c.own ? 'your plot' : `@${c.owner_name}’s plot`}` });
+      if (c.result?.passed) {
+        if (c.result.held) toast(`🎭 +1 level complete · Ink paused right now`, { description: `${gameName(c.game)} level ${c.level} — ${heldWords(c.result.held)}` });
+        else toast.success(`🎭 +1 level complete · +${Math.round(Number(c.result.ink))} Ink`, { description: `${gameName(c.game)} level ${c.level} on ${c.own ? 'your plot' : `@${c.owner_name}’s plot`}${winWords(c.result)}` });
+      }
       else toast(`🪢 The strings tangled on ${gameName(c.game)} level ${c.level}`);
     }
   }, [JSON.stringify(calls.map((c) => c.id))]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,7 +136,7 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
     <section className="grid gap-2.5 rounded-3xl border border-[#FFB703]/30 bg-[linear-gradient(160deg,#3A0D1255,#1C060755)] p-3" data-testid="puppet-theatre">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-display text-[17px] font-black text-[#FFE8A3]">🎭 The show</span>
-        <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black text-white/70">{view.pay_pct ?? 75}% of a level’s Ink · {slots > 1 ? 'two puppets at once' : 'one act at a time'}</span>
+        <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black text-white/70">{view.pay_pct ?? 75}% of each minigame win · {slots > 1 ? 'two puppets at once' : 'one act at a time'}</span>
         {on && <span className="ml-auto rounded-full bg-[#3DDC97]/20 px-2 py-0.5 text-[11px] font-black text-[#3DDC97]" data-testid="puppet-on">● LIVE</span>}
       </div>
 
@@ -222,7 +231,8 @@ export function PuppetTheatre({ v, view, act, busy, at }: SceneProps) {
             <div key={c.id} className="flex items-center gap-2 text-[12px] text-white/80" data-testid="puppet-call">
               <span>{c.result?.passed ? '👏' : '🪢'}</span>
               <span className="min-w-0 flex-1 truncate">{gameName(c.game)} · level {c.level} · {c.own ? 'your plot' : `@${c.owner_name}`}{c.grand ? ' · 🎪' : ''}</span>
-              <span className={cn('font-black', c.result?.passed ? 'text-[#3DDC97]' : 'text-white/45')}>{c.result?.passed ? `+${Math.round(Number(c.result.ink))}` : `round ${(c.result?.cleared ?? 0) + 1}`}</span>
+              {c.result?.passed && Number(c.result.mult) > 1 && <span className="rounded-full bg-[#FFB703]/20 px-1.5 text-[10px] font-black text-[#FFE8A3]" title="The plot's Ink multiplier (its rarity, level and boosts)" data-testid="puppet-call-mult">×{fmtMult(c.result.mult)}</span>}
+              <span className={cn('font-black', c.result?.passed ? (c.result.held ? 'text-white/45' : 'text-[#3DDC97]') : 'text-white/45')} data-testid="puppet-call-ink">{c.result?.passed ? (c.result.held ? 'paused' : `+${Math.round(Number(c.result.ink))}`) : `round ${(c.result?.cleared ?? 0) + 1}`}</span>
             </div>
           ))}
         </div>

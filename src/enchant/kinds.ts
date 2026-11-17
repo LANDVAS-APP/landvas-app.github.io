@@ -105,7 +105,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     tagline: 'A puppet that plays your plots’ minigames by itself — ten levels a string.',
     how: ['Put plots on its playlist — yours, or anyone’s within 25 km (100 km from level 5, anywhere at ★2) — and start the show. The puppet plays every level itself, live on its stage: you just watch.',
       'Each string is ten levels in a row on one plot (three tangles and it snaps). Strings stack to 10; one comes back every hour (every half hour at ★1). The show plays on while you’re away.',
-      'A cleared level pays 75% of its Ink (all of it at ★5). Your plots climb their own levels; anyone else’s plot climbs your puppet’s own ladder there and its owner is tipped. ★3: the day’s first string is free, its first three levels ×3.'],
+      'A cleared level brings in that minigame’s win — what the level pays you by hand there, your plot’s level and rarity multiplying it (an ultra’s too) — at 75% (all of it at ★5), and it’s on the live feed. Your plots climb their own levels; anyone else’s plot climbs your puppet’s own ladder there and its owner is tipped. ★3: the day’s first string is free, its first three levels ×3.'],
     gene: 'strings', geneName: 'Strings', geneText: 'gets a puppet: once a day it does one of its chores for you (polishes the egg, winds the key…)' },
   deck: { id: 'deck', name: 'Fated Deck', emoji: '🃏', a: '#B388FF', b: '#FFD166', ink: '#14062A', noun: 'fortunes',
     tagline: 'Turn a card. Let it shape your day.',
