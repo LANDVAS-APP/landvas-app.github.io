@@ -16,7 +16,9 @@ export default function PartyScreen() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS as string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as PartyTab) : 'party';
   const setTab = (t: PartyTab) => setParams((p) => { p.set('tab', t); return p; }, { replace: true });
-  const link = code && PARTY_CODE.test(code) ? code.toUpperCase() : null;
+  // an invite link: /party/join?c=CODE (or the older /party/CODE)
+  const raw = code === 'join' ? params.get('c') : code;
+  const link = raw && PARTY_CODE.test(raw) ? raw.toUpperCase() : null;
   return (
     <Page>
       <PageHeader eyebrow="Together" title="Parties">

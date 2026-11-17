@@ -97,7 +97,7 @@ try {
   check('starting a party goes on to inviting', await visible('party-invite-panel'));
   const link = (await tid('party-link-url').first().textContent()) ?? '';
   const g0 = (await api('travelGroup')).group;
-  check('the party link carries the code and ana’s invite code', link.includes(`/party/${g0.code}`) && /\?ref=/.test(link), link);
+  check('the party link carries the code and ana’s invite code', link.includes(`/party/join?c=${g0.code}`) && /&ref=/.test(link), link);
   check('the party is public, named, and up to the arcade', g0.name === 'Night owls' && g0.visibility === 'public' && g0.activity === 'arcade');
   await shot('03-invite-panel');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
@@ -155,7 +155,7 @@ try {
 
   // ---- the link, for someone who isn't on LANDVAS yet ---------------------------------------------------------------
   await signOut();
-  await nav(`/party/${g0.code}`); await page.waitForTimeout(2500);
+  await nav(`/party/join?c=${g0.code}`); await page.waitForTimeout(2500);
   check('signed out, the link shows the party', ((await tid('party-link-name').textContent()) ?? '') === 'Night owls');
   await shot('09-link-signed-out');
   await tid('party-link-signup').click(); await page.waitForTimeout(1500);

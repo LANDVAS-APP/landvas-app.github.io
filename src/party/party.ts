@@ -56,7 +56,9 @@ export function partyLink(code: string, ref?: string | null) {
   const web = typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && !isNative();
   const sub = (import.meta.env.BASE_URL || '/').startsWith('/') ? (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : '';
   const base = web ? `${location.origin}${sub}` : SITE;
-  return `${base}/party/${encodeURIComponent(code)}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`;
+  // /party/join?c=CODE: a page of its own, so the link shows the party-invite card wherever it's shared
+  // (old /party/CODE links keep working)
+  return `${base}/party/join?c=${encodeURIComponent(code)}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`;
 }
 export { PARTY_CODE } from './link';
 

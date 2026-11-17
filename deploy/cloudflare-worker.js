@@ -52,7 +52,10 @@ async function artPreview(res, id) {
     const title = `${a.title} by ${who} — LANDVAS`;
     const desc = `${a.title}, ${a.plot_count > 1 ? `a ${a.plot_count}-plot mural` : 'a plot painting'} by ${who} on the LANDVAS live world map. Claim a free plot and paint your own.`;
     const p = a.preview_path || a.thumb_path;
-    const img = p ? `${SUPABASE}/storage/v1/object/public/public-art/${p}` : null;
+    // the framed card the deploy drew for it (scripts/prerender-share.mjs), else the painting itself
+    const cardUrl = `/og/art/v2/${id}.jpg`;
+    const card = await fetch(`${ORIGIN}${cardUrl}`, { method: 'HEAD', cf: { cacheTtl: 300 } }).then((x) => x.ok && (x.headers.get('content-type') || '').startsWith('image/')).catch(() => false);
+    const img = card ? `https://landvas.app${cardUrl}` : p ? `${SUPABASE}/storage/v1/object/public/public-art/${p}` : null;
     const page = `https://landvas.app/art/${id}`;
     const content = (v) => ({ element(e) { e.setAttribute('content', v); } });
     let rw = new HTMLRewriter()
@@ -66,8 +69,9 @@ async function artPreview(res, id) {
       .on('meta[name="twitter:description"]', content(desc))
       .on('link[rel="canonical"]', { element(e) { e.setAttribute('href', page); } });
     if (img) {
-      rw = rw.on('meta[property="og:image"]', content(img)).on('meta[name="twitter:image"]', content(img))
-        .on('meta[property="og:image:width"]', { element(e) { e.remove(); } }).on('meta[property="og:image:height"]', { element(e) { e.remove(); } })
+      rw = rw.on('meta[property="og:image"]', content(img)).on('meta[name="twitter:image"]', content(img));
+      if (!card) rw = rw.on('meta[property="og:image:width"]', { element(e) { e.remove(); } }).on('meta[property="og:image:height"]', { element(e) { e.remove(); } }).on('meta[property="og:image:type"]', { element(e) { e.remove(); } });
+      rw = rw
         .on('meta[property="og:image:alt"]', content(esc(`${a.title} by ${who}`)));
     }
     return rw.transform(res);

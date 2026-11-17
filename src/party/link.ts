@@ -7,8 +7,11 @@ const MAX_AGE = 7 * 864e5;
 /** read /party/CODE from the address (call before the router starts); the page itself still shows the party */
 export function capturePartyLink() {
   try {
+    // /party/CODE, or /party/join?c=CODE
     const m = location.pathname.match(/^\/party\/([A-Za-z0-9]{6})\/?$/);
-    if (m) localStorage.setItem(PENDING, JSON.stringify({ code: m[1].toUpperCase(), at: Date.now() }));
+    const q = /^\/party\/join\/?$/.test(location.pathname) ? new URLSearchParams(location.search).get('c') : null;
+    const code = m?.[1] ?? (q && PARTY_CODE.test(q) ? q : null);
+    if (code) localStorage.setItem(PENDING, JSON.stringify({ code: code.toUpperCase(), at: Date.now() }));
   } catch { /* storage blocked */ }
 }
 export function savePendingParty(code: string) {

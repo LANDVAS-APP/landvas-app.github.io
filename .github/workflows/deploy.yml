@@ -144,9 +144,9 @@ jobs:
             npm run build:native
             node scripts/publish-ota.mjs prepare dist-native dist ota-pending
           done
-      - name: Link previews for shared art
+      - name: Link previews (main pages, every artwork and artist)
         continue-on-error: true
-        timeout-minutes: 3
+        timeout-minutes: 12
         run: node scripts/prerender-share.mjs dist || echo "::warning::link previews skipped"
       - name: Publish to GitHub Pages (main branch)
         run: |
