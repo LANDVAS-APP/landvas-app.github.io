@@ -57,6 +57,19 @@ export default function Settings() {
                 className={cn('rounded-xl border px-4 py-2 text-sm font-bold capitalize', settings.theme === t ? 'border-accent-2 bg-accent-2/10' : 'border-line text-muted')}>{t}</button>
             ))}
           </div>}
+          {!isNative() && (
+            <div className="grid gap-1.5" data-testid="settings-map-buttons">
+              <div className="text-sm font-semibold">Map buttons</div>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Map buttons">
+                {([['tidy', 'Tidy', 'One row of round buttons; each opens a card under it'], ['classic', 'Classic', 'The original chips and big buttons, in a toolbar and a side dock']] as const).map(([id, name, hint]) => (
+                  <button key={id} role="radio" aria-checked={(settings.mapHud ?? 'tidy') === id} onClick={() => update({ mapHud: id })} title={hint} data-testid={`settings-map-buttons-${id}`}
+                    className={cn('rounded-xl border px-4 py-2 text-left text-sm font-bold', (settings.mapHud ?? 'tidy') === id ? 'border-accent-2 bg-accent-2/10' : 'border-line text-muted')}>
+                    {name}<span className="block text-[11px] font-semibold text-muted">{hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <Switch id="globe" label="Globe view when zoomed out" checked={settings.globe} onCheckedChange={(v) => update({ globe: v })} />
           <Switch id="crisp" label="Crisp pixel art on the map" hint="Nearest-neighbour scaling for pixel murals" checked={settings.crispPixels} onCheckedChange={(v) => update({ crispPixels: v })} />
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />

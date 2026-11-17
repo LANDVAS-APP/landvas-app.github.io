@@ -32,9 +32,9 @@ import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
 import { WorldsButton } from '../app/WorldsButton';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
-import { LuckCard, LuckDisc } from '../luck/Altar';
+import { LuckCard, LuckChip, LuckDisc } from '../luck/Altar';
 import { GrimoireButton } from '../enchant/GrimoireButton';
-import { PinFlight, useFlyUi } from '../travel/Fly';
+import { FlyChip, PinFlight, useFlyUi } from '../travel/Fly';
 import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
@@ -51,7 +51,7 @@ import { DailyWheel } from '../earn/DailyWheel';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
 import { StreakChip, StreakDialog, useStreakPrompt } from '../daily/Streak';
-import { HotZoneDisc, HotZoneLayer, HotZonePanel } from '../daily/HotZoneMap';
+import { HotZoneChip, HotZoneDisc, HotZoneLayer, HotZonePanel } from '../daily/HotZoneMap';
 import { useQuickRoll } from '../simple/useQuickRoll';
 import { FlyParam, RayTargeting, useRayTarget } from '../enchant/sizeray';
 import { PlotPickOverlay } from '../enchant/PlotPickOverlay';
@@ -115,6 +115,8 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
   const questShown = useQuest((q) => q.shown);
   // (phones on the website get the app's tidy row of round buttons)
   const narrow = useNarrow();
+  // the website's map buttons: the tidy row (default) or the classic chips and big buttons — the player's pick
+  const classic = useUi((s) => s.settings.mapHud === 'classic');
   useEffect(() => () => useUi.getState().setMerge(null), []); // leaving the map ends merge mode
   return (
     <div className={cn('absolute inset-0', away && 'lv-away')}>
@@ -173,6 +175,24 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         </div>
         {/* your earnings and the boost: centred, sharing the row (stretched across it on phones) */}
         {me && <div className="pointer-events-auto mx-auto flex w-full min-w-0 max-w-[460px] items-center justify-center gap-2" data-testid="rent-row"><RentHud className="flex-[3] justify-center" /><BoostButton compact className="flex-[2] justify-center !h-10 !rounded-2xl" /></div>}
+        {classic ? (<>
+          {/* classic: the original chips and big buttons, kept in order — the chips in one toolbar, the buttons in one
+              dock down the side (every button the same size, evenly spaced) */}
+          {me && (
+            <div className="lv-classic-bar pointer-events-auto flex max-w-full items-center gap-1.5 self-start overflow-x-auto rounded-full p-1 no-scrollbar" data-testid="classic-bar">
+              <HotZoneChip onRoll={() => void quick.roll({ hot: true })} /><FlyChip /><LuckChip className="!h-9 !py-0.5" /><TicketsButton onRoll={(o) => void quick.roll(o)} />
+            </div>
+          )}
+          <div className="flex items-start gap-3">
+            <div className="lv-classic-dock pointer-events-auto flex flex-col items-center gap-3 rounded-[28px] px-2 py-2.5" data-testid="classic-dock">
+              {me && <GrimoireButton />}
+              <ModeButton />
+              {me && <StreakChip onOpen={() => setStreak(true)} />}
+              {me && <DailyChip />}
+            </div>
+            {me && !away && !joystick && <JoystickSpot />}
+          </div>
+        </>) : (<>
         {/* one tidy row of round buttons (as in the app), on phones and desktop alike; whichever is open shows as a
             card right under it (on a wide screen the card keeps a phone-ish width, centred under the row) */}
         <div className="lv-maprow flex items-center justify-center gap-2.5 [&>*]:pointer-events-auto" data-testid="map-row">
@@ -196,6 +216,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
           </div>
         )}
         {me && !away && !joystick && !card && <div className={cn('flex', !narrow && 'justify-center')}><JoystickSpot /></div>}
+        </>)}
       </div>
       )}
       {!travelling && <ZoomHint zoom={view.zoom} raised={questShown} />}
@@ -311,6 +332,7 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const [more, setMore] = useState(false);
   const tap = () => { if (haptics) buzz('light'); };
   const narrow = useNarrow();
+  const classic = useUi((s) => s.settings.mapHud === 'classic');
   const flyOn = useFlyUi((f) => f.pinMode);
   // a live trip, flight or group comes out of the tray onto the rail by itself
   const trip = travel.data?.trip;
@@ -343,8 +365,8 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   const tray: { key: string; node: ReactNode; label: string }[] = [
     { key: 'plots', label: 'My plots', node: <Link to="/plots" className="lv-gbtn round" aria-label="My plots" data-testid="hud-plots" onClick={() => { tap(); setMore(false); }}><LayoutGrid className="h-5 w-5" /><span className="lbl">Plots</span></Link> },
     ...(has && !tripLive ? [{ key: 'travel', label: 'Trains & planes', node: <TravelButton /> }] : []),
-    // (the website: Fly lives here, out of the way of the map)
-    ...(has ? [{ key: 'fly', label: flyOn ? 'Cancel flight' : 'Fly to a pin', node: (
+    // (the website's tidy buttons: Fly lives here, out of the way of the map; the classic toolbar has its own)
+    ...(has && !classic ? [{ key: 'fly', label: flyOn ? 'Cancel flight' : 'Fly to a pin', node: (
       <button className={cn('lv-gbtn round', flyOn && 'on')} onClick={() => { tap(); setMore(false); useFlyUi.getState().setPinMode(!flyOn); }} data-testid="fly-chip">
         <span className="text-[19px] leading-none">✈️</span><span className="lbl">{flyOn ? 'Cancel' : 'Fly'}</span>
       </button>) }] : []),

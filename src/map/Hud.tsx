@@ -95,6 +95,38 @@ export function SimpleModeToggle() {
   );
 }
 
+/** the website's map buttons: the tidy row (as in the app) or the classic chips and big buttons, kept in order */
+export function MapButtonsPicker({ className }: { className?: string }) {
+  const cur = useUi((s) => s.settings.mapHud ?? 'tidy');
+  const update = useUi((s) => s.updateSettings);
+  const opts = [
+    { id: 'tidy' as const, name: 'Tidy', hint: 'One row of round buttons; each opens a card under it', dots: [1, 1, 1, 1, 1] },
+    { id: 'classic' as const, name: 'Classic', hint: 'The original chips and big buttons, in a toolbar and a side dock', dots: [] },
+  ];
+  return (
+    <div className={cn('grid gap-1 px-1 pt-1', className)} role="radiogroup" aria-label="Map buttons" data-testid="map-buttons-picker">
+      <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-white/55">Map buttons</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        {opts.map((o) => (
+          <button key={o.id} role="radio" aria-checked={cur === o.id} title={o.hint} onClick={() => { update({ mapHud: o.id }); buzz('light'); }} data-testid={`map-buttons-${o.id}`}
+            className={cn('grid justify-items-center gap-1 rounded-xl border-2 p-1.5 text-[11px] font-bold transition', cur === o.id ? 'border-white/80 bg-white/10' : 'border-transparent opacity-80 hover:opacity-100')}>
+            {/* a little picture of each */}
+            <span className="relative h-8 w-full overflow-hidden rounded-lg bg-[#1b2252]" aria-hidden>
+              {o.id === 'tidy'
+                ? <span className="absolute inset-x-0 top-2 flex justify-center gap-1">{[0, 1, 2, 3, 4].map((i) => <i key={i} className="h-3 w-3 rounded-full bg-white/70" />)}</span>
+                : <>
+                    <span className="absolute left-1 top-1 flex gap-0.5">{[14, 10, 16].map((w, i) => <i key={i} className="h-2 rounded-full bg-white/70" style={{ width: w }} />)}</span>
+                    <span className="absolute bottom-1 left-1 top-4 grid w-3 content-start gap-0.5 rounded bg-white/15 p-0.5">{[0, 1].map((i) => <i key={i} className="h-1.5 w-2 rounded-full bg-white/70" />)}</span>
+                  </>}
+            </span>
+            {o.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** the map's look: Neon, Terrain or Atlas */
 export function MapThemePicker() {
   const cur = useUi((s) => s.settings.mapTheme ?? DEFAULT_MAP_THEME);
@@ -173,6 +205,7 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
               </button>
             ))}
             <MapThemePicker />
+            {!isNative() && <MapButtonsPicker />}
             <HidePlotsToggle />
             <SimpleModeToggle />
             <Link to="/guide" onClick={() => setOpen(false)} data-testid="open-guide"

@@ -13,6 +13,7 @@ export type Settings = { theme: Theme; mapTheme?: MapTheme; hidePlots?: boolean;
   /** minigames: a little symbol on every paint colour */ colorSymbols?: boolean;
   /** minigames: bigger boards */ bigBoards?: boolean;
   /** Paint Pop / Block Splash: shiny, reflective paint (default off: matte) */ glossyBlobs?: boolean;
+  /** the website's map buttons: 'tidy' (one row of round buttons, cards under it — the default) or 'classic' (the original chips and big buttons, in a toolbar and a dock) */ mapHud?: 'tidy' | 'classic';
   /** which reminders to get (Settings → Notifications); missing = the default for that kind */ notify?: Record<string, boolean> };
 
 type View = { lng: number; lat: number; zoom: number };
