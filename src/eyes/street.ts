@@ -90,6 +90,7 @@ export function createStreet(near: THREE.Scene) {
 
   const set = (things: StreetThings | null, roofs: BuildingMesh['roofBits'] | null) => {
     clear();
+    group.position.set(0, 0, 0);
     if (things?.lights.length) {
       const L = things.lights;
       const poles = new THREE.InstancedMesh(poleGeo, poleM, L.length);
@@ -155,6 +156,8 @@ export function createStreet(near: THREE.Scene) {
       haloM.opacity = Math.min(1, night * 1.2) * 0.9;
     },
     counts: () => ({ objects: meshes.length }),
+    /** the view's coordinates moved (dx, dz) metres: the lamps and cars keep their places until new ones arrive */
+    shift: (dx: number, dz: number) => { group.position.x -= dx; group.position.z -= dz; },
     dispose: () => { clear(); near.remove(group); for (const d of own) d.dispose(); },
   };
 }

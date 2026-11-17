@@ -29,6 +29,8 @@ import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
 import { releaseOnDispose } from '../lib/threeRelease';
 
+/** a painting of the ground: a canvas, or a picture from a worker */
+export type GroundImg = HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
 export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null };
 export type Beacon = { id: string; lng: number; lat: number; color: string; emoji: string };
 export type LevPlace = { lng: number; lat: number; heading: number; walking: boolean; look: LevLook };
@@ -62,13 +64,24 @@ export type EyesOpts = {
 export type Eyes = {
   setFrame(f: Frame): void;
   frame(): Frame | null;
-  setGround(near: { canvas: HTMLCanvasElement; region: { x0: number; z0: number; size: number }; glow: number } | null,
-    far: { canvas: HTMLCanvasElement; region: { x0: number; z0: number; size: number }; glow: number } | null): void;
+  setGround(near: { canvas: GroundImg; region: { x0: number; z0: number; size: number }; glow: number } | null,
+    far: { canvas: GroundImg; region: { x0: number; z0: number; size: number }; glow: number } | null): void;
+  /** send a painting of the ground to the graphics chip now (ahead of setGround, so that costs nothing then) */
+  prewarm(img: GroundImg): void;
+  /**
+   * The world's origin moves to `f`, (dx, dz) metres from the old one (whole spans of the sharpest ground): what's
+   * standing stays where it is in the world. The new place's ground, buildings and so on are set straight after.
+   */
+  rebase(f: Frame, dx: number, dz: number): void;
   setBuildings(b: BuildingMesh | null, night: boolean): void;
   /** trees of the right kinds, dressed for the real season at this latitude */ setTrees(t: TreePt[], lat: number): void;
   /** lamps, parked cars, the clutter on the roofs */ setStreet(s: StreetThings | null, roofs: BuildingMesh['roofBits'] | null): void;
   /** what the ground is, metre by metre (for the grass that grows round your feet) */ setOccupancy(fn: ((x: number, z: number) => number) | null): void;
-  /** the sharpest ground, right round you (kerbs, road markings, zebra crossings): what paints a square of it */ setClosePainter(p: ClosePainter | null): void;
+  /** the sharpest ground, right round you (kerbs, road markings, zebra crossings): what paints a square of it */ setClosePainter(p: ClosePainter | null, keep?: boolean): void;
+  /** (tests) how the sharpest ground is coming along */
+  closeState(): ReturnType<ReturnType<typeof createCloseGround>['state']>;
+  /** how far the sharpest ground spans before it wraps round (m): the world's origin moves by whole spans of it */
+  closeSpan(): number;
   setTerrain(t: Terrain | null, colors: { land: string; water: string; rock: string; snow: string; wood: string; neon: boolean }): void;
   setPlots(p: PlotPlace[]): void;
   /** add (or change) a few plots in what's shown, there and then (a plot you've just bought) */
@@ -200,18 +213,10 @@ export function createEyes(o: EyesOpts): Eyes {
   const sound = createEyesSound();
   let steps = 0;
   const body = createBody(near, (kind, strong) => { steps++; sound.step(kind, strong, surfaceAt(pos.x, pos.z)); });
-  // what's underfoot: read from the street's own painting (green: grass, blue: water)
-  let groundRead: { g: CanvasRenderingContext2D; x0: number; z0: number; size: number; px: number } | null = null;
+  // what's underfoot: what the ground is, metre by metre (grass and woods, water; anything else is hard)
   const surfaceAt = (x: number, z: number): Surface => {
-    if (!groundRead) return 'hard';
-    const u = Math.floor(((x - groundRead.x0) / groundRead.size) * groundRead.px), v = Math.floor(((z - groundRead.z0) / groundRead.size) * groundRead.px);
-    if (u < 0 || v < 0 || u >= groundRead.px || v >= groundRead.px) return 'hard';
-    try {
-      const d = groundRead.g.getImageData(u, v, 1, 1).data;
-      if (d[2] > d[0] + 25 && d[2] > d[1] - 10) return 'water';
-      if (d[1] > d[0] + 12 && d[1] > d[2] + 4) return 'grass';
-    } catch { /* tainted: assume pavement */ }
-    return 'hard';
+    const g = occ?.(x, z) ?? 0;
+    return g === 1 ? 'grass' : g === 3 ? 'water' : 'hard';
   };
 
   // ---- the sky dome -------------------------------------------------------------------------------------------------
@@ -373,7 +378,8 @@ export function createEyes(o: EyesOpts): Eyes {
       varying vec3 vPos; varying vec3 vN; varying vec3 vCol; varying float vDist;
       void main() { vec3 c = vCol; vec3 glow = vec3(0.0);
         if (uFarRect.w > 0.5) { vec2 uv = (vPos.xz - uFarRect.xy) / uFarRect.z;
-          if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 1.0) { vec3 t = texture2D(uFar, uv).rgb; vec2 e = min(uv, 1.0 - uv); float w = smoothstep(0.0, 0.08, min(e.x, e.y)); c = mix(c, t, w); glow = t * w * uGlow; } }
+          // (the painting's top row is its north edge: at the top of the texture)
+          if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 1.0) { vec3 t = texture2D(uFar, vec2(uv.x, 1.0 - uv.y)).rgb; vec2 e = min(uv, 1.0 - uv); float w = smoothstep(0.0, 0.08, min(e.x, e.y)); c = mix(c, t, w); glow = t * w * uGlow; } }
         vec3 n = normalize(vN); vec3 col = c * (uAmb + uSunCol * max(dot(n, uSunDir), 0.0)) + glow;
         float f = 1.0 - exp(-pow(fogDensity * vDist, 2.0)); col = mix(col, fogColor, f);
         gl_FragColor = vec4(col, 1.0);
@@ -1152,13 +1158,72 @@ export function createEyes(o: EyesOpts): Eyes {
     }
   };
 
+  /** a painting of the ground as a texture (made once per painting, and sent to the chip early if asked) */
+  const groundTex = new WeakMap<object, THREE.Texture>();
+  const texOf = (img: GroundImg, aniso: number) => {
+    let t = groundTex.get(img);
+    if (!t) {
+      t = new THREE.Texture(img as TexImageSource);
+      // (a worker's painting arrives already turned over: the browser won't turn one of those over itself)
+      t.flipY = !(typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = Math.min(aniso, renderer.capabilities.getMaxAnisotropy());
+      t.needsUpdate = true;
+      groundTex.set(img, t);
+    }
+    return t;
+  };
+  const prewarm: Eyes['prewarm'] = (img) => { renderer.initTexture(texOf(img, 8)); };
+  /**
+   * The world's origin moves (dx, dz) metres: everything standing keeps its place in the world. Places on plots,
+   * paintings, cards, creatures, buddies and the land move with it (nothing is built again); the ground's paintings,
+   * the buildings, the trees and the street are replaced straight after by the caller, before the next frame.
+   */
+  let rebases = 0;
+  const rebase: Eyes['rebase'] = (f, dx, dz) => {
+    if (!frame) { setFrame(f); return; }
+    frame = f;
+    rebases++;
+    gridU.uPs.value = plotSize(f);
+    const sh = (o: THREE.Object3D) => { o.position.x -= dx; o.position.z -= dz; o.updateMatrix(); };
+    const shv = (v: { x: number; z: number } | null | undefined) => { if (v) { v.x -= dx; v.z -= dz; } };
+    builds.shift(dx, dz);
+    closeG.shift(dx, dz);
+    groundU.uCloseRect.value.copy(closeG.shown);
+    for (const m of artPlanes.values()) sh(m);
+    for (const c of cardSprites.children) sh(c);
+    for (const c of holo.children) sh(c);
+    sh(rollG); sh(manG);
+    if (terrain) sh(terrain);
+    for (const k of [...critters.values(), ...(companion ? [companion] : [])]) { k.x -= dx; k.z -= dz; k.tx -= dx; k.tz -= dz; sh(k.sprite); }
+    for (const b of buddies) shv(b.at);
+    for (const fs of falling) { shv(fs.base); sh(fs.obj); }
+    for (const th of throws) { shv(th.from); shv(th.to); shv(th.mid); sh(th.mesh); }
+    for (const fl of floaters) shv(fl.at);
+    for (let i = 0; i < MAXP; i++) { pPos[i * 3] -= dx; pPos[i * 3 + 2] -= dz; }
+    (pGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    if (dolly) { shv(dolly.from); shv(dolly.to); }
+    shv(pos); shv(lastPos); shv(cam.position); shv(farCam.position);
+    // (the ground's paintings move too, until the new ones are set)
+    if (ground.visible) sh(ground);
+    if (farRect.value.w > 0.5) { farRect.value.x -= dx; farRect.value.y -= dz; }
+    if (buildings) sh(buildings);
+    nature.shift(dx, dz); street.shift(dx, dz);
+    // (what the ground is, asked in the new terms, until the new place's own arrives)
+    if (occ) { const o0 = occ; occ = (x, z) => o0(x + dx, z + dz); }
+    // the plots themselves, drawn again in the new place's terms (cheap: no paintings or places are made again)
+    plotsSig = '';
+    setPlots(plots);
+    shadowDirty = true; shadowAt.set(1e9, 1e9);
+  };
+
   const setGround: Eyes['setGround'] = (n, fr) => {
-    nearTex?.dispose(); nearTex = null;
-    groundRead = n ? { g: n.canvas.getContext('2d', { willReadFrequently: true })!, x0: n.region.x0, z0: n.region.z0, size: n.region.size, px: n.canvas.width } : null;
+    // (a picture from a worker is let go of as soon as its texture is: it can be big)
+    const drop = (t: THREE.Texture | null) => { if (!t) return; const im = t.image as { close?: () => void } | null; t.dispose(); if (im && typeof ImageBitmap !== 'undefined' && im instanceof ImageBitmap) im.close?.(); };
+    const keepNear = n && nearTex && groundTex.get(n.canvas) === nearTex;
+    if (!keepNear) { drop(nearTex); nearTex = null; }
     if (n) {
-      nearTex = new THREE.CanvasTexture(n.canvas);
-      nearTex.colorSpace = THREE.SRGBColorSpace;
-      nearTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      nearTex = texOf(n.canvas, 8);
       groundMat.map = nearTex;
       groundMat.emissiveMap = nearTex;
       groundMat.emissiveIntensity = n.glow;
@@ -1167,11 +1232,10 @@ export function createEyes(o: EyesOpts): Eyes {
       ground.position.set(n.region.x0 + n.region.size / 2, 0, n.region.z0 + n.region.size / 2);
       ground.visible = true;
     } else ground.visible = false;
-    farTex?.dispose(); farTex = null;
+    const keepFar = fr && farTex && groundTex.get(fr.canvas) === farTex;
+    if (!keepFar) { drop(farTex); farTex = null; }
     if (fr) {
-      farTex = new THREE.CanvasTexture(fr.canvas);
-      farTex.colorSpace = THREE.SRGBColorSpace;
-      farTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      farTex = texOf(fr.canvas, 4);
       terrU.uFar.value = farTex;
       farRect.value.set(fr.region.x0, fr.region.z0, fr.region.size, 1);
       terrU.uGlow.value = fr.glow;
@@ -1182,7 +1246,7 @@ export function createEyes(o: EyesOpts): Eyes {
   const closeG = createCloseGround(renderer, { px: phone ? 1536 : 2048, metres: phone ? 150 : 200, tiles: 8 });
   groundU.uClose.value = closeG.texture;
   groundU.uCloseSpan.value = closeG.span;
-  const setClosePainter: Eyes['setClosePainter'] = (p) => { closeG.setPainter(p); groundU.uCloseRect.value.set(0, 0, 0, 0); };
+  const setClosePainter: Eyes['setClosePainter'] = (p, keep) => { closeG.setPainter(p, keep); if (!keep) groundU.uCloseRect.value.set(0, 0, 0, 0); };
 
   const setBuildings = (b: BuildingMesh | null, night: boolean) => {
     if (buildings) { near.remove(buildings); buildings.geometry.dispose(); buildings = null; }
@@ -1194,7 +1258,8 @@ export function createEyes(o: EyesOpts): Eyes {
     g.setAttribute('color', new THREE.BufferAttribute(b.color, 3));
     g.setAttribute('wuv', new THREE.BufferAttribute(b.wuv, 4));
     g.setIndex(new THREE.BufferAttribute(b.index, 1));
-    g.computeBoundingSphere();
+    if (b.sphere) g.boundingSphere = new THREE.Sphere(new THREE.Vector3(b.sphere[0], b.sphere[1], b.sphere[2]), b.sphere[3]);
+    else g.computeBoundingSphere();
     buildings = new THREE.Mesh(g, bldMat);
     buildings.castShadow = buildings.receiveShadow = true;
     near.add(buildings);
@@ -1203,7 +1268,8 @@ export function createEyes(o: EyesOpts): Eyes {
 
   const setTrees = (list: TreePt[], lat: number) => { nature.setTrees(list, lat, new Date(clock ?? Date.now())); shadowDirty = true; };
   const setStreet: Eyes['setStreet'] = (st, roofs) => { street.set(st, roofs); shadowDirty = true; };
-  const setOccupancy: Eyes['setOccupancy'] = (fn) => { occ = fn; facing.clear(); nature.setGround(fn); if (plots.length) placeBuilds(plots); };
+  // (the first time the streets are known, the places turn to face them; after that a place keeps the way it faces)
+  const setOccupancy: Eyes['setOccupancy'] = (fn) => { if (!occ) facing.clear(); occ = fn; nature.setGround(fn); if (plots.length) placeBuilds(plots); };
 
   const setTerrain: Eyes['setTerrain'] = (t, cl) => {
     if (terrain) { far.remove(terrain); terrain.geometry.dispose(); terrain = null; }
@@ -1315,7 +1381,7 @@ export function createEyes(o: EyesOpts): Eyes {
       facing.set(fk, rot);
       const side = Math.abs(Math.sin(rot)) > 0.5;
       sites.push({
-        key: id, kind, family: kindFamily(kind) as string, tier, x: cx, z: cz, w: side ? wz : wx, d: side ? wx : wz, rot,
+        key: id, kind, family: kindFamily(kind) as string, tier, x: cx, z: cz, w: side ? wz : wx, d: side ? wx : wz, rot, cells: `${x1 - x0 + 1}x${y1 - y0 + 1}`,
         color: TIERS[kind as keyof typeof TIERS]?.color ?? KIND_COLOR[kindFamily(kind) as string] ?? p0.color,
         gx: p0.gx, gy: p0.gy, owner: p0.owner ?? null, name: p0.name,
         label: isRealm(kind) ? REALM_META[kind].name : PLACE_WORD[kind]?.[1] ?? kind, emoji: isRealm(kind) ? REALM_META[kind].emoji : PLACE_WORD[kind]?.[0] ?? '📍',
@@ -2285,7 +2351,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   return {
-    setFrame, frame: () => frame, setGround, setClosePainter, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots,
+    setFrame, frame: () => frame, setGround, prewarm, rebase, setClosePainter, closeState: () => closeG.state(), closeSpan: () => closeG.span, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots,
     hasArt: (gx, gy) => artPlanes.has(key(gx, gy)),
     upsertPlots: (list) => {
       const at = new Map(plots.map((p) => [key(p.gx, p.gy), p]));
@@ -2388,7 +2454,7 @@ export function createEyes(o: EyesOpts): Eyes {
       renderer.clear(); renderer.render(far, farCam); renderer.clearDepth(); renderer.render(near, cam);
       el.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
     }),
-    closeCanvas: () => closeG.canvas(),
+    closeCanvas: () => { const c = closeG.canvas(); return typeof HTMLCanvasElement !== 'undefined' && c instanceof HTMLCanvasElement ? c : null; },
     placeHere: () => (o.eye() > 6 || dolly ? null : builds.at(pos.x, pos.z, yaw)),
     knock: (k) => builds.knock(k, () => sound.knock(), () => sound.creak()),
     setSelected, liftArt, dropArt, artFloating: () => !!floating && floating.dir > 0,
@@ -2409,7 +2475,7 @@ export function createEyes(o: EyesOpts): Eyes {
     },
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
-      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: closeG.state(), shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
+      buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: closeG.state(), rebases, origin: frame ? [frame.lng0, frame.lat0] : null, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
       lev: lev.group.visible ? { dist: Math.round(levDist), near: lev.group.parent === near, scale: Math.round(lev.group.scale.x) } : null,
       beacons: beacons.filter((b) => b.obj.visible).length, drops: drops.length, falling: falling.length, buddies: buddies.length, buddyTags: buddies.map((x) => x.tagText), roll: roll ? { landed: !!roll.landT, spin: !!roll.spinT, reveal: !!roll.revealT, tier: roll.tier } : rollDone, manifest: man ? { name: man.name, flared: !!man.burstT, gone: !!man.endT } : null, critters: critters.size, companion: !!companion, emotes: emotes.length, sky: { ...sky },
       edges: edges?.count ?? 0, beams: beams?.count ?? 0, dpr, veh: o.vehicle?.() ?? 'walk', speed: Math.round(speed * 10) / 10,

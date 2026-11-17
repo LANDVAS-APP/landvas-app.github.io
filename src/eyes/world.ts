@@ -12,6 +12,13 @@ import { curveDrop, worldToLocal, type Frame } from './geo';
 import type { streetPalette } from '../map/basemap';
 
 export type Palette = ReturnType<typeof streetPalette>;
+/** a canvas to paint into: a page's own, or (in a worker, where there's no page) an offscreen one */
+export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
+export function canvasFor(w: number, h: number): AnyCanvas {
+  if (typeof document !== 'undefined') return Object.assign(document.createElement('canvas'), { width: w, height: h });
+  return new OffscreenCanvas(w, h);
+}
+const ctx2d = (c: AnyCanvas, read = false) => c.getContext('2d', read ? { willReadFrequently: true } : undefined) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 export type Tile = { z: number; x: number; y: number; layers: Record<string, MvtLayer> };
 export type Region = { x0: number; z0: number; size: number };
 
@@ -200,11 +207,13 @@ function boundsOf(ft: MvtFeature) {
   return b;
 }
 
-export type GroundOpts = { buildings?: boolean; detail?: boolean; real?: boolean; close?: boolean };
+export type GroundOpts = { buildings?: boolean; detail?: boolean; real?: boolean; close?: boolean;
+  /** painted upside down (north at the bottom): a worker's picture goes to the graphics chip as it is, unturned */
+  flip?: boolean };
 /** Paint the ground of a local square from vector tiles (`px` pixels across). Plain land where there's no data. */
-export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Palette, opts: GroundOpts = {}): HTMLCanvasElement {
-  const c = Object.assign(document.createElement('canvas'), { width: px, height: px });
-  paintGround(c.getContext('2d')!, f, tiles, r, px, p, opts);
+export function drawGround(f: Frame, tiles: Tile[], r: Region, px: number, p: Palette, opts: GroundOpts = {}): AnyCanvas {
+  const c = canvasFor(px, px);
+  paintGround(ctx2d(c), f, tiles, r, px, p, opts);
   return c;
 }
 /**
@@ -230,7 +239,8 @@ export function paintGround(g: CanvasRenderingContext2D | OffscreenCanvasRenderi
       L = near;
     }
     g.save();
-    g.setTransform(m, 0, 0, m, (lx - r.x0) * s, (lz - r.z0) * s);
+    if (opts.flip) g.setTransform(m, 0, 0, -m, (lx - r.x0) * s, px - (lz - r.z0) * s);
+    else g.setTransform(m, 0, 0, m, (lx - r.x0) * s, (lz - r.z0) * s);
     // keep each tile to its own square (tiles overlap a little at the edges)
     g.beginPath(); g.rect(0, 0, ext, ext); g.clip();
     const mw = (metres: number) => metres / k; // metres → tile units
@@ -312,6 +322,8 @@ export type BuildingMesh = {
   index: Uint32Array; count: number;
   /** air-con units, water tanks and stair huts on the flat roofs near you */
   roofBits: { x: number; z: number; y: number; kind: number; rot: number }[];
+  /** (worked out where it was built) its bounds: centre and radius */
+  sphere?: [number, number, number, number];
 };
 const hash = (x: number) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 function heightColor(p: Palette, h: number): [number, number, number] {
@@ -690,9 +702,23 @@ export function streetThings(f: Frame, tiles: Tile[], o: { radius: number; at?: 
  * Painted once into a small canvas and read back, so asking is just an array lookup.
  */
 export function occupancy(f: Frame, tiles: Tile[], r: Region, cell = 1): (x: number, z: number) => number {
+  return occFn(occupancyGrid(f, tiles, r, cell));
+}
+/** the same, as plain data (it can be sent between threads) */
+export type OccGrid = { grid: Uint8Array; N: number; x0: number; z0: number; s: number };
+/** an occupancy grid as a lookup: what the ground is at (x, z) */
+export function occFn(o: OccGrid): (x: number, z: number) => number {
+  const { grid, N, x0, z0, s } = o;
+  return (x, z) => {
+    const u = Math.floor((x - x0) * s), v = Math.floor((z - z0) * s);
+    if (u < 0 || v < 0 || u >= N || v >= N) return 0;
+    return grid[v * N + u];
+  };
+}
+export function occupancyGrid(f: Frame, tiles: Tile[], r: Region, cell = 1): OccGrid {
   const N = Math.min(1400, Math.ceil(r.size / cell));
-  const c = Object.assign(document.createElement('canvas'), { width: N, height: N });
-  const g = c.getContext('2d', { willReadFrequently: true })!;
+  const c = canvasFor(N, N);
+  const g = ctx2d(c, true);
   g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
   const s = N / r.size;
   for (const pass of [1, 2, 3, 4]) {
@@ -731,11 +757,7 @@ export function occupancy(f: Frame, tiles: Tile[], r: Region, cell = 1): (x: num
   const grid = new Uint8Array(N * N);
   for (let i = 0; i < N * N; i++) grid[i] = Math.min(4, Math.round(data[i * 4] / 60));
   c.width = c.height = 1;
-  return (x, z) => {
-    const u = Math.floor((x - r.x0) * s), v = Math.floor((z - r.z0) * s);
-    if (u < 0 || v < 0 || u >= N || v >= N) return 0;
-    return grid[v * N + u];
-  };
+  return { grid, N, x0: r.x0, z0: r.z0, s };
 }
 function inPoly(poly: number[][], x: number, y: number) {
   let inside = false;
@@ -762,8 +784,8 @@ function fetchDem(z: number, x: number, y: number): Promise<DemTile | null> {
       .then(async (b) => {
         if (!b) return null;
         const bmp = await createImageBitmap(b);
-        const c = Object.assign(document.createElement('canvas'), { width: bmp.width, height: bmp.height });
-        const g = c.getContext('2d', { willReadFrequently: true })!;
+        const c = canvasFor(bmp.width, bmp.height);
+        const g = ctx2d(c, true);
         g.drawImage(bmp, 0, 0);
         bmp.close?.();
         const d = g.getImageData(0, 0, c.width, c.height).data;

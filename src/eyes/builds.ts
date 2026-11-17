@@ -20,6 +20,8 @@ export type BuildSite = {
   color: string;
   /** a cell in it (to look the place up), whose it is, what it's called */
   gx: number; gy: number; owner: string | null; name: string | null;
+  /** how many cells across and down it is ("2x2") */
+  cells?: string;
   /** what it's called on its sign ("Farm", "Arcade Carnival") and its emoji */
   label: string; emoji: string;
 };
@@ -154,12 +156,11 @@ type Place = {
   /** near you: its door and its sign */
   close: boolean; sign: THREE.Mesh | null;
 };
-/** what a place looks like (its sign aside) */
-const sigOf = (s: BuildSite) => `${s.kind}|${s.family}|${s.tier}|${s.x.toFixed(2)}|${s.z.toFixed(2)}|${s.w.toFixed(2)}|${s.d.toFixed(2)}|${s.rot.toFixed(3)}|${s.color}|${s.gx}|${s.gy}`;
+/** what a place looks like (its sign aside): by its cells, not where it is in the view's coordinates (those move) */
+const sigOf = (s: BuildSite) => `${s.kind}|${s.family}|${s.tier}|${s.gx}|${s.gy}|${s.cells ?? `${s.w.toFixed(0)}x${s.d.toFixed(0)}`}|${s.rot.toFixed(3)}|${s.color}`;
 const signSigOf = (s: BuildSite) => `${s.owner}|${s.name}|${s.label}|${s.emoji}|${s.color}`;
-/** places are drawn a square of ground at a time (so changing one only draws its square again) */
-const CHUNK = 96;
-const chunkOf = (s: BuildSite) => `${Math.floor(s.x / CHUNK)}_${Math.floor(s.z / CHUNK)}`;
+/** places are drawn a square of ground at a time (16 × 16 plots: changing one only draws its square again) */
+const chunkOf = (s: BuildSite) => `${Math.floor(s.gx / 16)}_${Math.floor(s.gy / 16)}`;
 
 const merge = (list: THREE.BufferGeometry[]) => {
   if (!list.length) return null;
@@ -194,7 +195,8 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
   const doorM = new THREE.MeshLambertMaterial({ vertexColors: true });
   let sites: BuildSite[] = [];
   const places = new Map<string, Place>();
-  type Chunk = { key: string; keys: Set<string>; meshes: THREE.Mesh[]; dirty: boolean };
+  /** a square's places are built round its own origin (ox, oz), so moving the view's coordinates only moves that */
+  type Chunk = { key: string; keys: Set<string>; meshes: THREE.Mesh[]; dirty: boolean; ox: number; oz: number };
   const chunks = new Map<string, Chunk>();
   type Door = { site: BuildSite; entry: Entry; obj: THREE.Group; openAt: number; knockAt: number };
   const doors = new Map<string, Door>();
@@ -617,18 +619,21 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
 
   // ---- building: a place at a time, a square at a time --------------------------------------------------------------
   const buildPlace = (s: BuildSite) => {
-    const M = siteM(s);
+    const ck = chunkOf(s);
+    let c = chunks.get(ck);
+    if (!c) { c = { key: ck, keys: new Set(), meshes: [], dirty: true, ox: Math.round(s.x), oz: Math.round(s.z) }; chunks.set(ck, c); }
+    // (built round the square's origin)
+    const M = new THREE.Matrix4().makeTranslation(-c.ox, 0, -c.oz).multiply(siteM(s));
     const k = new Kit(M);
     const parts = partsOf(M, s);
     const entry = build(s, k, M, parts.fn);
+    made++;
     const p: Place = {
-      key: s.key, sig: sigOf(s), signSig: signSigOf(s), site: s, chunk: chunkOf(s),
+      key: s.key, sig: sigOf(s), signSig: signSigOf(s), site: s, chunk: ck,
       solid: merge(k.solid), glow: merge(k.glow), mSolid: merge(parts.solid), mGlow: merge(parts.glow),
       entry, parts: parts.count(), close: false, sign: null,
     };
     places.set(s.key, p);
-    let c = chunks.get(p.chunk);
-    if (!c) { c = { key: p.chunk, keys: new Set(), meshes: [], dirty: true }; chunks.set(p.chunk, c); }
     c.keys.add(s.key); c.dirty = true;
   };
   const dropPlace = (p: Place) => {
@@ -651,7 +656,9 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
       if (pad && g.boundingSphere) g.boundingSphere.radius += pad;
       const mesh = new THREE.Mesh(g, m);
       mesh.castShadow = cast; mesh.receiveShadow = receive;
+      mesh.position.set(c.ox, 0, c.oz);
       mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
       group.add(mesh); c.meshes.push(mesh);
     };
     add(join(ps.map((p) => p.solid)), solidM, true, true);
@@ -684,6 +691,8 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
     timer = setTimeout(step, 0);
   };
 
+  /** (tests) how many places have been built, and how many built again because they'd changed */
+  let made = 0, remade = 0;
   const set = (list: BuildSite[], here: { x: number; z: number }) => {
     sites = list;
     at = { x: here.x, z: here.z };
@@ -691,6 +700,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
     // gone, or changed into something else: taken down
     for (const p of [...places.values()]) {
       const s = want.get(p.key);
+      if (s && sigOf(s) !== p.sig) remade++;
       if (!s || sigOf(s) !== p.sig) dropPlace(p);
       else {
         p.site = s;
@@ -770,6 +780,15 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
       return { at: at2, dir };
     },
     list: () => sites,
+    /** the view's coordinates moved (dx, dz) metres: everything here keeps its place in the world */
+    shift: (dx: number, dz: number) => {
+      for (const c of chunks.values()) { c.ox -= dx; c.oz -= dz; for (const m of c.meshes) { m.position.set(c.ox, 0, c.oz); m.updateMatrix(); } }
+      const seen = new Set<BuildSite>();
+      for (const s of [...sites, ...queue, ...[...places.values()].map((p) => p.site)]) { if (seen.has(s)) continue; seen.add(s); s.x -= dx; s.z -= dz; }
+      for (const d of doors.values()) { d.obj.position.x -= dx; d.obj.position.z -= dz; }
+      for (const p of places.values()) if (p.sign) { p.sign.position.x -= dx; p.sign.position.z -= dz; }
+      at = { x: at.x - dx, z: at.z - dz };
+    },
     has: (key: string) => places.has(key) || queue.some((s) => s.key === key),
     /** still building some (or drawing their squares) */
     busy: () => queue.length > 0 || [...chunks.values()].some((c) => c.dirty),
@@ -778,7 +797,7 @@ export function createBuilds(near: THREE.Scene, opts: { phone: boolean; onChange
       let meshes = 0, moving = 0, signs = 0;
       for (const c of chunks.values()) meshes += c.meshes.length;
       for (const p of places.values()) { if (p.parts) moving++; if (p.sign) signs++; }
-      return { sites: sites.length, built: places.size, chunks: chunks.size, meshes, moving, signs, doors: doors.size, waiting: queue.length };
+      return { sites: sites.length, built: places.size, chunks: chunks.size, meshes, moving, signs, doors: doors.size, waiting: queue.length, made, remade };
     },
     dispose: () => {
       if (timer) clearTimeout(timer);

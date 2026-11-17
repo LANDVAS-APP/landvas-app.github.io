@@ -167,6 +167,9 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
   const group = new THREE.Group();
   near.add(group);
   group.userData.layer = 'nature';
+  // (the trees in a group of their own: it's moved when the view's coordinates move, until new trees arrive)
+  const treesG = new THREE.Group();
+  group.add(treesG);
   let meshes: THREE.InstancedMesh[] = [];
 
   // the trees near you are drawn in full; further off, in a few triangles. Re-sorted as you walk.
@@ -176,12 +179,13 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
   let lodAt: THREE.Vector2 | null = null;
   const setTrees = (list: TreePt[], lat: number, when = new Date()) => {
     all = list;
+    treesG.position.set(0, 0, 0);
     state = leafState(lat, when);
     lodAt = null;
     build(null);
   };
   const build = (at: THREE.Vector2 | null) => {
-    for (const m of meshes) { group.remove(m); m.dispose(); }
+    for (const m of meshes) { treesG.remove(m); m.dispose(); }
     meshes = [];
     if (!all.length) return;
     const st = state;
@@ -199,7 +203,7 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
       });
       m.castShadow = true;
       m.frustumCulled = false;
-      group.add(m);
+      treesG.add(m);
       meshes.push(m);
     };
     const pickC = (list2: string[], r: number) => list2[Math.floor(r * list2.length) % list2.length];
@@ -307,6 +311,14 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
       if (grass.visible && (!grassAt || grassAt.distanceTo(new THREE.Vector2(at.x, at.z)) > 7)) scatterGrass(at.x, at.z);
     },
     counts: () => ({ trees: all.length, grass: grass.count, meshes: meshes.length }),
+    /** the view's coordinates moved (dx, dz) metres: the trees keep their places; the grass is scattered afresh */
+    shift: (dx: number, dz: number) => {
+      treesG.position.x -= dx; treesG.position.z -= dz;
+      // (the LOD is worked out in the trees' own terms: keep its spot in those, and ask the ground in the new ones)
+      if (lodAt) { lodAt.x -= dx; lodAt.y -= dz; }
+      if (ground) { const g0 = ground; ground = (x, z) => g0(x + dx, z + dz); }
+      grassAt = null;
+    },
     dispose: () => { for (const m of meshes) m.dispose(); grass.dispose(); near.remove(group); for (const d of own) d.dispose(); },
   };
 }

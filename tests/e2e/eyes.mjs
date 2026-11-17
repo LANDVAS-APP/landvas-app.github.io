@@ -503,6 +503,27 @@ try {
   console.log('frame', JSON.stringify({ calls: dw?.calls, tris: dw?.tris, ms: dw?.frameMs, dpr: dw?.dpr, trees: dw?.trees, grass: dw?.grass, street: dw?.street, close: dw?.close }));
   await shot('13-walked');
 
+  // ---- driving on: the next stretch of town is made ahead of you (off the main thread) and takes over between two
+  // frames, with nothing standing built again ------------------------------------------------------------------------
+  {
+    const nudge = (m) => page.evaluate((m) => { const ex = window.__landvasExplorer; const s = ex.getState().state; const dl = m / (111320 * Math.cos((s.lat * Math.PI) / 180)); const at = { lng: s.lng + dl, lat: s.lat }; ex.getState().set({ ...s, ...at, origin: at, dest: null, speed_mps: null }); }, m);
+    const d0 = await eyes('debug');
+    const r0 = d0?.rebases ?? 0, remade0 = d0?.builds?.remade ?? 0;
+    for (let k = 0; k < 9; k++) { await nudge(50); await page.waitForTimeout(600); }
+    let d1 = await eyes('debug');
+    for (let k = 0; k < 40 && (d1?.rebases ?? 0) <= r0; k++) { await page.waitForTimeout(500); d1 = await eyes('debug'); }
+    check('driving on: the next stretch is made ahead of you and takes over (the view’s origin moves along)', (d1?.rebases ?? 0) > r0, JSON.stringify({ rebases: d1?.rebases, origin: d1?.origin, pos: d1?.pos }));
+    check('…nothing standing is built again', (d1?.builds?.remade ?? 0) === remade0, JSON.stringify(d1?.builds));
+    check('…the sharpest ground is kept, not painted again from nothing', (d1?.close?.painted ?? 0) >= 32, JSON.stringify(d1?.close));
+    check('…and you’re near the middle of the new stretch', Math.hypot(d1?.pos?.[0] ?? 1e9, d1?.pos?.[2] ?? 1e9) < 300, JSON.stringify(d1?.pos));
+    await page.waitForTimeout(800); await eyes('lookAt', Math.PI / 2, -0.05); await page.waitForTimeout(1200); await shot('13b-drove-on');
+    // and back again
+    for (let k = 0; k < 9; k++) { await nudge(-50); await page.waitForTimeout(400); }
+    let d2 = await eyes('debug');
+    for (let k = 0; k < 40 && (d2?.rebases ?? 0) <= (d1?.rebases ?? 0); k++) { await page.waitForTimeout(500); d2 = await eyes('debug'); }
+    check('…and back: it moves along again', (d2?.rebases ?? 0) > (d1?.rebases ?? 0), JSON.stringify({ rebases: d2?.rebases, origin: d2?.origin }));
+  }
+
   // ---- (E2E_PROFILE=1) driving through town in first person: every long frame, and what the main thread spent it on --
   if (process.env.E2E_PROFILE) {
     await sql(`update explorers set lng = $2, lat = $3, dest_lng = null, dest_lat = null, speed_mps = null, fixed_at = now(), vehicle = 'walk' where player_id = $1`, [me, HERE.lng, HERE.lat]);

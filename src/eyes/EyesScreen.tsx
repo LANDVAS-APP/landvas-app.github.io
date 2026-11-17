@@ -35,8 +35,10 @@ import { cellCenter, plotMetres } from '../shared/grid';
 import { isPrimordial, rarityInfo, rarityTier, setRarities } from '../shared/rarity';
 import { toMap } from '../lib/toMap';
 import { bearingName, daylight, moonPhaseName, sunPosition } from './astro';
-import { bearingDistance, fmtDistance, makeFrame, type Frame } from './geo';
-import { buildBuildings, drawGround, paintGround, fetchTile, loadTerrain, occupancy, realPalette, streetThings, streetsSource, tilesFor, treePoints, type Tile } from './world';
+import { bearingDistance, fmtDistance, lngLatToLocal, localToLngLat, makeFrame, type Frame } from './geo';
+import { drawGround, loadTerrain, occFn, realPalette } from './world';
+import { createWorldLoader } from './worldLoader';
+import type { WorldOpts, WorldStage } from './worldBuild';
 import { createEyes, type Eyes, type Pick, type PlotPlace } from './scene';
 import type { BuildSite } from './builds';
 import { FirstPersonSelf } from './FirstPersonSelf';
@@ -55,7 +57,7 @@ import { useCompanion } from '../inkborn/companion';
 const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
 const FAR_HALF = 2600; // the softer ground of the town around
 const PLOT_R = isPhone() ? 210 : 280; // plots drawn this far each way
-const REFRAME = 1600; // walked this far from where the world was built: build it again around you
+const JUMP = NEAR_HALF * 1.5; // this far from the view's origin at once (a jump, not a walk): the world's made afresh
 
 // eye height by what you're riding (the jetpack's is yours to raise and lower)
 const EYE: Record<string, number> = { walk: 1.62, bike: 1.74, car: 1.22 };
@@ -102,6 +104,8 @@ export default function EyesScreen() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [eyes, setEyes] = useState<Eyes | null>(null);
   const [frame, setFrame] = useState<Frame | null>(null);
+  /** where the world was first made round (a new one only after a jump across the world) */
+  const [hard, setHard] = useState<Frame | null>(null);
   const [steps, setSteps] = useState<{ streets: 'wait' | 'ok' | 'none'; land: 'wait' | 'ok' | 'none' }>({ streets: 'wait', land: 'wait' });
   const [ready, setReady] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
@@ -138,6 +142,7 @@ export default function EyesScreen() {
     const f = makeFrame(start.current.lng, start.current.lat);
     s.setFrame(f);
     setFrame(f);
+    setHard(f);
     setEyes(s);
     // walking: up on the stick is wherever you're looking
     setDriveBearing(() => s.look().yaw);
@@ -230,86 +235,155 @@ export default function EyesScreen() {
   // WASD / arrows walk too (the stick opens if it's closed)
   useDriveKeys(!!me && hasExplorer, () => setSteer(true));
 
-  // walked far from where the world was built: build it again around you
+  // ---- the real place: streets, buildings, trees, land out to the horizon ---------------------------------------------
+  // Made off the main thread (a worker), round a spot. As you go, the next stretch is made round a spot a little ahead
+  // of you while you carry on in this one; when it's ready, the view's origin moves there and the new stretch takes
+  // over between two frames: what's standing stays exactly where it is, nothing pops or freezes. Only a jump (a trip
+  // across the world) starts afresh.
+  const loader = useMemo(() => createWorldLoader(), []);
+  useEffect(() => () => loader.dispose(), [loader]);
+  /** asked every so often with where you are (and which way you're going) in the view's coordinates */
+  const onTheMove = useRef<((x: number, z: number, dx: number, dz: number) => void) | null>(null);
   useEffect(() => {
-    if (!eyes || !frame) return;
+    if (!eyes || !hard) return;
+    let last: { x: number; z: number } | null = null;
     const t = setInterval(() => {
       const st = useExplorer.getState();
       const p = explorerNow(st.state, st.offset);
-      if (!p) return;
-      // (riding a train or a plane: the streets fly by too fast to build; the land is rebuilt every few km instead)
+      const f = eyes.frame();
+      if (!p || !f) return;
+      // (riding a train or a plane: the streets fly by too fast to build; the land is made again every few km instead)
       const fast = Number(st.state?.speed_mps ?? 0) > 30 && !!p.traveling;
-      if (bearingDistance(frame.lng0, frame.lat0, p.lng, p.lat).m > (fast ? 12_000 : REFRAME)) {
-        const f = makeFrame(p.lng, p.lat);
-        eyes.setFrame(f);
-        setFrame(f);
+      const d = bearingDistance(f.lng0, f.lat0, p.lng, p.lat).m;
+      if (d > (fast ? 12_000 : JUMP)) {
+        const nf = makeFrame(p.lng, p.lat);
+        eyes.setFrame(nf); setFrame(nf); setHard(nf);
+        last = null;
+        return;
       }
-    }, 1500);
+      if (fast) return;
+      const [x, z] = lngLatToLocal(f, p.lng, p.lat);
+      const dx = last ? x - last.x : 0, dz = last ? z - last.z : 0;
+      last = { x, z };
+      onTheMove.current?.(x, z, dx, dz);
+    }, 600);
     return () => clearInterval(t);
-  }, [eyes, frame]);
+  }, [eyes, hard]);
 
-  // ---- the real place: streets, buildings, trees, land out to the horizon ---------------------------------------------
   useEffect(() => {
-    if (!eyes || !frame) return;
+    if (!eyes || !hard) return;
     let live = true;
     setSteps({ streets: 'wait', land: 'wait' });
-    const sun = sunPosition(Date.now(), frame.lat0, frame.lng0);
+    const sun = sunPosition(Date.now(), hard.lat0, hard.lng0);
     const night = daylight(sun.alt) < 0.35;
     const neon = mapTheme() === 'neon';
     const real = !neon;
     const pal = real ? realPalette(streetPalette(night)) : streetPalette(night);
     const glow = neon && night ? 0.55 : 0;
     const colors = { land: pal.land, water: pal.water, rock: pal.rock, snow: '#F4F8FF', wood: pal.wood, neon };
+    const TERRAIN = { extent: 90_000, n: isPhone() ? 130 : 190, z: 9, flatten: [1700, 4600] as [number, number] };
+    const opts = (terrain: boolean): WorldOpts => ({ pal, real, phone: isPhone(), nearHalf: NEAR_HALF, farHalf: FAR_HALF, terrain: terrain ? TERRAIN : null });
     // the land first (it's the backdrop for everything)
     eyes.setTerrain(null, colors);
-    void loadTerrain(frame, { extent: 90_000, n: isPhone() ? 130 : 190, z: 9, flatten: [1700, 4600] }).then((t) => {
-      if (!live) return;
-      if (t) eyes.setTerrain(t, colors);
-      setSteps((s) => ({ ...s, land: t ? 'ok' : 'none' }));
-    });
     const st0 = useExplorer.getState();
-    if (Number(st0.state?.speed_mps ?? 0) > 30 && explorerNow(st0.state, st0.offset)?.traveling) { setSteps((s) => ({ ...s, streets: 'none' })); return () => { live = false; }; }
-    void (async () => {
-      const src = await streetsSource();
-      const nearR = { x0: -NEAR_HALF, z0: -NEAR_HALF, size: NEAR_HALF * 2 };
-      const farR = { x0: -FAR_HALF, z0: -FAR_HALF, size: FAR_HALF * 2 };
-      if (!src) {
-        if (!live) return;
-        eyes.setGround({ canvas: drawGround(frame, [], nearR, 256, pal), region: nearR, glow }, null);
-        setSteps((s) => ({ ...s, streets: 'none' }));
-        return;
-      }
-      const get = (z: number, r: typeof nearR) => Promise.all(tilesFor(frame, z, r).map((t) => fetchTile(src, z, t.x, t.y))).then((l) => l.filter((x): x is Tile => !!x));
-      const near = await get(Math.min(14, src.maxzoom), nearR);
+    if (Number(st0.state?.speed_mps ?? 0) > 30 && explorerNow(st0.state, st0.offset)?.traveling) {
+      void loadTerrain(hard, TERRAIN).then((t) => { if (!live) return; if (t) eyes.setTerrain(t, colors); setSteps((s) => ({ ...s, land: t ? 'ok' : 'none' })); });
+      setSteps((s) => ({ ...s, streets: 'none' }));
+      return () => { live = false; };
+    }
+    const painter = (id: number) => (r: { x0: number; z0: number; size: number }, px: number) => loader.close(id, r, px);
+    /** the stretch in view (its world's id), and where its land was made round (in the view's coordinates) */
+    let cur = 0, landAt = { x: 0, z: 0 };
+
+    // where you start: put up as it comes (the ground, then the buildings and trees, then the town further out)
+    let nearImg: WorldStage & { t: 'near' } | null = null;
+    cur = loader.build(hard, opts(true), (s) => {
       if (!live) return;
-      const big = isPhone() ? 1536 : 2048;
-      eyes.setGround({ canvas: drawGround(frame, near, nearR, big, pal, { detail: true, real }), region: nearR, glow }, null);
-      // the sharpest ground, right round you: kerbs, road markings, zebra crossings (painted a small square at a time
-      // as you go: only what's in or near each square is traced)
-      eyes.setClosePainter((g, r, px) => { if (live) paintGround(g, frame, near, r, px, pal, { detail: true, real, close: true, cull: 25 }); });
-      // what the ground is, metre by metre (trees and lamps go on open ground, grass grows on lawns)
-      const occ = occupancy(frame, near, nearR, isPhone() ? 0.9 : 0.75);
-      const bld = buildBuildings(frame, near, pal, { near: NEAR_HALF * 1.1, far: NEAR_HALF * 1.1, skylineMin: 999, budget: isPhone() ? 70_000 : 160_000, real });
+      if (s.t === 'none') {
+        const nearR = { x0: -NEAR_HALF, z0: -NEAR_HALF, size: NEAR_HALF * 2 };
+        eyes.setGround({ canvas: drawGround(hard, [], nearR, 256, pal), region: nearR, glow }, null);
+        setSteps((x) => ({ ...x, streets: 'none' }));
+      } else if (s.t === 'near') {
+        nearImg = s;
+        eyes.setGround({ canvas: s.ground, region: s.region, glow }, null);
+        // the sharpest ground, right round you: kerbs, road markings, zebra crossings (painted a square at a time as you go)
+        eyes.setClosePainter(painter(cur));
+        eyes.setOccupancy(occFn(s.occ));
+        eyes.setBuildings(s.bld, night);
+        eyes.setTrees(s.trees, hard.lat0);
+        eyes.setStreet(s.street, s.bld.roofBits);
+        setSteps((x) => ({ ...x, streets: s.tiles ? 'ok' : 'none' }));
+      } else if (s.t === 'far') {
+        if (nearImg && s.ground) eyes.setGround({ canvas: nearImg.ground, region: nearImg.region, glow }, { canvas: s.ground, region: s.region, glow: glow * 0.8 });
+        if (s.bld) { eyes.setBuildings(s.bld, night); if (nearImg) eyes.setStreet(nearImg.street, s.bld.roofBits); }
+      } else if (s.t === 'terrain') {
+        if (s.terrain) eyes.setTerrain(s.terrain, colors);
+        setSteps((x) => ({ ...x, land: s.terrain ? 'ok' : 'none' }));
+      }
+    });
+
+    // on the move: the next stretch, made round a spot ahead of you (whole spans of the sharpest ground away, so that
+    // keeps every square it has painted)
+    type Next = { id: number; frame: Frame; dx: number; dz: number; near?: WorldStage & { t: 'near' }; far?: WorldStage & { t: 'far' }; terrain?: WorldStage & { t: 'terrain' } };
+    let next: Next | null = null;
+    const swap = (n: Next) => {
+      next = null;
+      if (!live) { loader.drop(n.id); return; }
+      if (!n.near) { loader.drop(n.id); return; }
+      const near = n.near, far = n.far;
+      // one frame: the origin moves, and the new ground, buildings and sharpest ground take over at once
+      eyes.rebase(n.frame, n.dx, n.dz);
+      landAt = { x: landAt.x - n.dx, z: landAt.z - n.dz };
+      eyes.setGround({ canvas: near.ground, region: near.region, glow }, far?.ground ? { canvas: far.ground, region: far.region, glow: glow * 0.8 } : null);
+      eyes.setClosePainter(painter(n.id), true);
+      eyes.setOccupancy(occFn(near.occ));
+      const bld = far?.bld ?? near.bld;
       eyes.setBuildings(bld, night);
-      const st = streetThings(frame, near, { radius: isPhone() ? 300 : 420, ground: occ, max: isPhone() ? 260 : 520 });
-      const trees = treePoints(frame, near, { radius: NEAR_HALF, max: isPhone() ? 700 : 1800, free: (x, z) => { const g = occ(x, z); return g === 0 || g === 1; } });
-      eyes.setTrees([...st.trees, ...trees], frame.lat0);
-      eyes.setStreet(st, bld.roofBits);
-      eyes.setOccupancy(occ);
-      setSteps((s) => ({ ...s, streets: near.length ? 'ok' : 'none' }));
-      // further out: the town's ground on the land, and its tall buildings on the skyline
-      const mid = await get(Math.min(13, src.maxzoom), farR);
-      if (!live) return;
-      eyes.setGround({ canvas: drawGround(frame, near, nearR, big, pal, { detail: true, real }), region: nearR, glow },
-        mid.length ? { canvas: drawGround(frame, mid, farR, isPhone() ? 1024 : 2048, pal, { real }), region: farR, glow: glow * 0.8 } : null);
-      if (mid.length) {
-        const all = buildBuildings(frame, [...near, ...mid], pal, { near: NEAR_HALF * 1.05, far: 1700, skylineMin: 24, budget: isPhone() ? 90_000 : 220_000, real });
-        eyes.setBuildings(all, night);
-        eyes.setStreet(st, all.roofBits);
-      }
-    })().catch(() => setSteps((s) => ({ ...s, streets: 'none' })));
-    return () => { live = false; eyes.setClosePainter(null); };
-  }, [eyes, frame]);
+      loader.drop(cur);
+      cur = n.id;
+      setFrame(n.frame);
+      // the next frames: the trees, the street, and (now and then) the land (each moved along till then)
+      const id = n.id;
+      const later = (k: number) => requestAnimationFrame(() => {
+        if (!live || cur !== id) return;
+        if (k === 0) eyes.setTrees(near.trees, n.frame.lat0);
+        else if (k === 1) eyes.setStreet(near.street, bld.roofBits);
+        else if (k === 2 && n.terrain?.terrain) { eyes.setTerrain(n.terrain.terrain, colors); landAt = { x: 0, z: 0 }; }
+        if (k < 2) later(k + 1);
+      });
+      later(0);
+    };
+    onTheMove.current = (x, z, vx, vz) => {
+      if (next || !live) return;
+      const S = eyes.closeSpan();
+      if (Math.max(Math.abs(x), Math.abs(z)) < S * 1.5) return;
+      // a little ahead of you, in whole spans
+      const v = Math.hypot(vx, vz), ax = x + (v > 1 ? (vx / v) * S : 0), az = z + (v > 1 ? (vz / v) * S : 0);
+      const dx = Math.round(ax / S) * S, dz = Math.round(az / S) * S;
+      if (!dx && !dz) return;
+      const f = eyes.frame();
+      if (!f) return;
+      const ll = localToLngLat(f, dx, dz);
+      const nf = makeFrame(ll.lng, ll.lat);
+      const land = Math.hypot(landAt.x - dx, landAt.z - dz) > 1500;
+      const n: Next = { id: 0, frame: nf, dx, dz };
+      next = n;
+      n.id = loader.build(nf, opts(land), (s) => {
+        if (!live || next !== n) return;
+        if (s.t === 'near') { n.near = s; eyes.prewarm(s.ground); }
+        else if (s.t === 'far') { n.far = s; if (s.ground) requestAnimationFrame(() => { if (live && s.ground) eyes.prewarm(s.ground); }); }
+        else if (s.t === 'terrain') n.terrain = s;
+        else if (s.t === 'done') requestAnimationFrame(() => { if (next === n) swap(n); });
+      });
+    };
+    return () => {
+      live = false;
+      onTheMove.current = null;
+      loader.drop(cur);
+      if (next) loader.drop(next.id);
+      eyes.setClosePainter(null);
+    };
+  }, [eyes, hard]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (steps.streets !== 'wait') { const t = setTimeout(() => setReady(true), 350); return () => clearTimeout(t); } }, [steps.streets]);
   useEffect(() => { const t = setTimeout(() => setReady(true), 6000); return () => clearTimeout(t); }, []);
@@ -320,14 +394,18 @@ export default function EyesScreen() {
   const plotsAt = useRef<{ gx: number; gy: number; at: number } | null>(null);
   const rowsRef = useRef<PlotRow[]>([]);
   const reload = useRef<((force: boolean, reset?: boolean) => void) | null>(null);
+  // (kept while the view's origin moves along: the paintings hung, the cards over your plots, the pictures fetched)
+  const keepRef = useRef({
+    artDone: new Set<string>(),
+    /** the cards over your own plots, drawn once each (again only when the plot or its painting changes) */
+    cards: new Map<string, HTMLCanvasElement>(),
+    revs: new Map<string, number | string>(),
+    pics: new Map<string, { rev: number; bmp: ImageBitmap }>(),
+  });
   useEffect(() => {
     if (!eyes || !frame) return;
     let live = true;
-    const artDone = new Set<string>();
-    // the cards over your own plots, drawn once each (again only when the plot or its painting changes)
-    const cards = new Map<string, HTMLCanvasElement>();
-    const revs = new Map<string, number | string>();
-    const pics = new Map<string, { rev: number; bmp: ImageBitmap }>();
+    const { artDone, cards, revs, pics } = keepRef.current;
     const load = async (force = false, reset = force) => {
       if (document.hidden && !force) return;
       const st = useExplorer.getState();
@@ -390,7 +468,8 @@ export default function EyesScreen() {
       }));
     };
     reload.current = (force, reset) => void load(force, reset);
-    void load(true);
+    // (the view's origin moved along: the plots are the same ones, from what's already loaded)
+    void load(true, false);
     const t = setInterval(() => void load(), 3000);
     const full = setInterval(() => void load(true), 45_000);
     return () => { live = false; reload.current = null; clearInterval(t); clearInterval(full); };
@@ -466,7 +545,8 @@ export default function EyesScreen() {
 
   const box = useMemo(() => {
     if (!frame) return null;
-    const c = cellAtLngLat(frame.lng0, frame.lat0);
+    // (snapped, so moving along a few hundred metres doesn't ask again)
+    const c0 = cellAtLngLat(frame.lng0, frame.lat0), c = { gx: Math.round(c0.gx / 64) * 64, gy: Math.round(c0.gy / 64) * 64 };
     const n = Math.ceil(2200 / plotMetres(frame.lat0));
     return { min_gx: c.gx - n, min_gy: c.gy - n, max_gx: c.gx + n, max_gy: c.gy + n };
   }, [frame]);
