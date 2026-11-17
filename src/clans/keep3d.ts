@@ -8,6 +8,7 @@ import { bake } from '../home/live3d/kit3d';
 import { randomGenome } from '../inkborn/genome';
 import { drawCreature } from '../inkborn/rig';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type KeepStation = 'spirit' | 'chest' | 'war' | 'trophies' | 'campfire' | 'quarry' | 'training' | 'games' | `build:${string}`;
 export type KeepBuildState = { key: string; name: string; emoji: string; progress: number; cost: number; done: boolean; locked: boolean; level: number };
@@ -37,7 +38,7 @@ const STATIONS: { id: KeepStation; x: number; z: number; label: string; r: numbe
 
 export function createKeep(o: KeepOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;

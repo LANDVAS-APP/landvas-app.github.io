@@ -848,6 +848,9 @@ export const api = {
   joinEvent: (id: string) => rpc<any[]>('join_event', { p_event_id: id }),
   reportArtwork: (id: string, reason: string, details: string) => rpc('report_artwork', { p_publication_id: id, p_reason: reason, p_details: details }),
   blockPlayer: (id: string, on: boolean) => rpc('block_player', { p_player_id: id, p_on: on }),
+  /** report a player: their name, picture, plot names, creatures, home, or how they behave (App Store 1.2) */
+  reportPlayer: (id: string, reason: 'name' | 'picture' | 'content' | 'harassment' | 'cheating' | 'spam' | 'personal_info' | 'other', details?: string) =>
+    rpc<{ ok: boolean; duplicate?: boolean }>('report_player', { p_player_id: id, p_reason: reason, p_details: details ?? null }),
   myBlocks: () => rpc<Profile[]>('my_blocks'),
   submitAppeal: (id: string, message: string) => rpc('submit_appeal', { p_publication_id: id, p_message: message }),
   submitCopyrightClaim: (a: { publicationId: string; name: string; email: string; work: string; signature: string }) =>

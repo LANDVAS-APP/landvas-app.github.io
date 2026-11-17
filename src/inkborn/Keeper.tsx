@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { Keeper, KeeperCreature, KeeperEvent, KeeperExpeditionResult, KeeperRegion } from '../backend/types';
-import { Page } from '../app/Shell';
+import { Page, PageHeader } from '../app/Shell';
+import { isNative } from '../native/native';
 import { invalidateGame, useOnboardedMe } from '../lib/queries';
 import { cn } from '../lib/utils';
 import { Button, Dialog, ResourceIcon, Spinner } from '../ui';
@@ -124,10 +125,13 @@ function Lodge({ k, onBack }: { k: Keeper; onBack(): void }) {
   return (
     <Page wide>
       <KeeperNews />
-      <div className="mb-4 flex items-center gap-3">
-        <button onClick={onBack} className="rounded-2xl bg-surface-2 p-2.5" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-        <h1 className="font-display text-2xl font-bold">Keeper’s Lodge</h1>
-      </div>
+      {/* the app has its own back button above every screen: a game title here, not a second back arrow */}
+      {isNative() ? <PageHeader eyebrow="Inkborn" title="Keeper’s Lodge" /> : (
+        <div className="mb-4 flex items-center gap-3">
+          <button onClick={onBack} className="rounded-2xl bg-surface-2 p-2.5" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+          <h1 className="font-display text-2xl font-bold">Keeper’s Lodge</h1>
+        </div>
+      )}
       <section className="glass mb-4 grid gap-3 rounded-3xl p-4" data-testid="keeper-header" style={{ background: 'radial-gradient(120% 140% at 100% 0%, rgba(139,108,255,0.25), transparent 60%)' }}>
         <div className="flex items-center gap-4">
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-[#8B6CFF] text-white shadow-lg"><div className="text-[10px] font-bold uppercase leading-none">Level</div><div className="font-display text-3xl font-black leading-none" data-testid="keeper-level">{k.level}</div></div>

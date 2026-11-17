@@ -26,6 +26,7 @@ import { isDomain } from '../realms/estates/domains';
 import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type PlotPlace = { gx: number; gy: number; rarity: string; color: string; glow: string; tier: number; mine: boolean; group: string | null; shiny: boolean; emoji: string | null; name: string | null; kind?: string; owner?: string | null };
 export type Beacon = { id: string; lng: number; lat: number; color: string; emoji: string };
@@ -150,7 +151,7 @@ const NOISE = /* glsl */ `
 
 export function createEyes(o: EyesOpts): Eyes {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', alpha: false });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', alpha: false }));
   let dpr = sceneDpr();
   renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -2401,8 +2402,7 @@ export function createEyes(o: EyesOpts): Eyes {
       nearTex?.dispose(); farTex?.dispose();
       for (const t of emojiTex.values()) t.dispose();
       for (const d of own) d.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      renderer.dispose(); // (also hands the WebGL context back: src/lib/threeRelease.ts)
     },
   };
 }

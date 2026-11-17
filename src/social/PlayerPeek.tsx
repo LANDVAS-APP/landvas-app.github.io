@@ -20,6 +20,7 @@ import { BadgeIcon, tierOf } from '../screens/BadgeIcon';
 import { rarityInfo, rarityOdds, type RarityId } from '../shared/rarity';
 import { PlayerAvatar } from '../ui';
 import { FriendButton } from './FriendButton';
+import { openReportPlayer } from './ReportPlayer';
 import { NameColorPicker } from './NameColorPicker';
 import { nameStyle, nameTitle } from './nameColor';
 import { usePeek } from './peek';
@@ -191,6 +192,7 @@ export default function PlayerPeek() {
                   </div>
                   <div className="flex items-center gap-3 text-[11.5px] font-bold text-muted">
                     {opts.message && <button type="button" className="flex items-center gap-1 hover:text-fg" onClick={report} data-testid="player-peek-report"><Flag className="h-3.5 w-3.5" /> Report message</button>}
+                    {!isMe && <button type="button" className="flex items-center gap-1 hover:text-fg" onClick={() => { close(); openReportPlayer({ id: p.id, username: p.username }); }} data-testid="player-peek-report-player"><Flag className="h-3.5 w-3.5" /> {opts.message ? 'Report player' : 'Report'}</button>}
                     <button type="button" className={cn('flex items-center gap-1', d?.blocked ? 'hover:text-fg' : 'text-bad/80 hover:text-bad')} disabled={busy || !d} onClick={block} data-testid="player-peek-block">
                       <Ban className="h-3.5 w-3.5" /> {d?.blocked ? 'Unblock' : 'Block'}
                     </button>

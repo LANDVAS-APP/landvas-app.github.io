@@ -65,5 +65,18 @@ What made phones stutter and run hot, and the rules that keep it fixed:
   hidden there like a background tab; timers that tick a display check `document.hidden` (`useTicker` does); the GPS
   watch is let go while hidden and restarted on the way back (`src/explorer/explorer.ts`).
 - The title screen's living canvas draws its still layers once and only repaints the moving mural, paced.
+- **The World map stays warm** (`src/map/WorldMap.tsx`, "the warm map"): leaving the World tab parks the MapLibre map
+  off the page (same GPU context, tiles and caches, drawing nothing); coming back reuses it instantly. Map updates
+  while parked only mark it dirty. It's let go after 10 minutes, on a lost GPU context, a different player or a lite-map
+  switch. Anything that adds sources/layers/markers to the map must guard with `getSource`/`getLayer` (it may already
+  be there from the last visit) and remove its markers in its effect cleanup. `tests/e2e/app-sheets.mjs` checks the
+  round trip (same map, nothing piling up).
+- **3D scenes give their GPU context back**: wrap every `new THREE.WebGLRenderer(...)` in `releaseOnDispose()`
+  (`src/lib/threeRelease.ts`). three's `dispose()` alone leaves the context alive until garbage collection, and phones
+  cap live contexts; the wrapper loses it once the canvas has left the page (never while a scene is rebuilt in place).
+- **The map draws at most 60 fps** on 90/120 Hz phones (`paceMap` in WorldMap.tsx; iPhones' web views are 60 Hz anyway).
+- Every app screen at phone sizes, with the iPhone's safe areas: `node tests/e2e/app-sweep.mjs` (screenshots in
+  `test-results/app-sweep`), and the sheets/pop-ups: `node tests/e2e/app-sheets.mjs`. A grid holding `truncate` text
+  needs `grid-cols-1` (an auto column grows to the text's full width and pushes the screen sideways).
 - Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) and `node tests/e2e/perf-app.mjs`
   (idle cost, frames, loops, timers per screen in the app shell) after `npm run build:artifact`.

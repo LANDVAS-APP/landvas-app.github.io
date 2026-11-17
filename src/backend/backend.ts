@@ -168,6 +168,7 @@ const MESSAGES: Record<string, string> = {
   already_home: 'This is already your home world.',
   invalid_activity: 'Unknown activity.',
   invalid_target: 'You can’t warp to yourself.',
+  cannot_report_self: 'You can’t report yourself.',
   meteor_taken: 'Someone got to that meteorite first!',
   meteor_gone: 'That meteorite has burned out — a new shower is on its way.',
   too_far: 'Get closer — walk right up to it.',

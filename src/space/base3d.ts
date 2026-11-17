@@ -8,6 +8,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { BaseModule } from '../backend/types';
 import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { animateModels, placedModel } from './baseModels';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type BaseSceneOpts = {
   canvas: HTMLCanvasElement; ground: [string, string]; sky: [string, string]; dark?: boolean; reduceMotion?: boolean;
@@ -20,7 +21,7 @@ export type BaseSceneOpts = {
 };
 
 export function createBaseScene(o: BaseSceneOpts) {
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr(2)); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();

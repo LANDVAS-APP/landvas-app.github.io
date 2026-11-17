@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isNative } from '../native/native';
+import { ReportPlayerButton } from '../social/ReportPlayer';
 import { Ban, Brush, DoorOpen, Lock, Pencil } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -127,6 +128,7 @@ export default function ProfileScreen() {
                   try { await api.blockPlayer(p.id, !d.blocked); toast.success(d.blocked ? 'Unblocked' : 'Blocked — their art and messages are hidden from you'); void q.refetch(); } catch (e) { toast.error(toGameError(e).message); }
                 }}><Ban className="h-4 w-4" /> {d.blocked ? 'Unblock' : 'Block'}</Button>
               )}
+              {me && !d.is_me && <ReportPlayerButton id={p.id} username={p.username} className="h-9 rounded-full px-3 text-sm font-semibold text-muted hover:text-fg" />}
             </div>
 
             {d.hidden?.stats ? <div className="mt-4 rounded-2xl border border-line bg-surface/50 p-3 text-center text-xs text-muted" data-testid="profile-stats-hidden">🔒 @{p.username} keeps their stats private</div> : (

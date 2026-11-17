@@ -8,6 +8,7 @@ import { cleanGenome, type Genome } from '../inkborn/genome';
 import { drawCreature, type CreatureState } from '../inkborn/rig';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { ITEM, buildItem, makeKit, type Built } from './furniture';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type Placed = { i: string; x: number; z: number; r: number; c?: number; /** which floor: 0 the ground floor, up to the roof terrace */ f?: number };
 /** what the house has: its floors, and the extras bigger houses get */
@@ -166,7 +167,7 @@ type Critter = { goal: 'bed' | 'roam'; c: HomeCreature; gen: Genome; s: THREE.Sp
 
 export function createHome(o: HomeOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', preserveDrawingBuffer: false });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', preserveDrawingBuffer: false }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;

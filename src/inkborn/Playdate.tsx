@@ -20,6 +20,7 @@ import { CreatureView } from './CreatureView';
 import { EGG_KINDS, EggArt } from './Eggs';
 import { cleanGenome, type Genome } from './genome';
 import { picnicParty } from './games/playdate';
+import { touchText } from '../lib/touchText';
 
 type Phase = { k: 'pick' } | { k: 'count'; n: number; s: PlaydateStart } | { k: 'play'; s: PlaydateStart } | { k: 'done'; s: PlaydateStart; r: PlaydateFinish };
 export type PlaydateState = { name: string; genome: Genome; owner: string; back?: string };
@@ -85,7 +86,7 @@ function Playdate() {
                 <span className="pb-10 text-2xl">💞</span>
                 {theirGenome && <div className="grid justify-items-center"><CreatureView genome={cleanGenome(theirGenome)} size={110} state="happy" /><span className="text-xs text-white/70">{theirName}{owner ? ` · @${owner}` : ''}</span></div>}
               </div>
-              <p className="rounded-2xl bg-white/10 p-3 text-sm text-white/85">Drag (or WASD/arrows) to lead your Inkborn to the snacks — {theirName} plays along. Eat at the same moment for a <b>team combo</b>, meet up for a <b>high-five</b>, dodge the bees. Score well and you <b>both get an egg</b> — a different kind each.</p>
+              <p className="rounded-2xl bg-white/10 p-3 text-sm text-white/85">{touchText('Drag (or WASD/arrows) to lead your Inkborn to the snacks')} — {theirName} plays along. Eat at the same moment for a <b>team combo</b>, meet up for a <b>high-five</b>, dodge the bees. Score well and you <b>both get an egg</b> — a different kind each.</p>
               {mine.length ? (
                 <>
                   <div className="text-xs font-bold uppercase tracking-wider text-white/60">Who’s coming along?</div>

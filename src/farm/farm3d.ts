@@ -5,6 +5,7 @@
 import { adaptiveDpr, framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import type { FarmBed, FarmCrop } from '../backend/types';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type FarmSceneOpts = {
   canvas: HTMLCanvasElement; beds: number; explorerUrl: string; seed: number; reduceMotion?: boolean;
@@ -34,7 +35,7 @@ function emojiSprite(e: string, size = 0.8) {
 }
 
 export function createFarm(o: FarmSceneOpts): FarmScene {
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !/Mobi|Android/i.test(navigator.userAgent), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !/Mobi|Android/i.test(navigator.userAgent), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = !/Mobi|Android/i.test(navigator.userAgent);

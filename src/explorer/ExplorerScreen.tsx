@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 import { api } from '../backend/api';
 import { toGameError } from '../backend/backend';
 import type { ExplorerPart, ExplorerStyle, ShopItem } from '../backend/types';
-import { Page, PageHeader } from '../app/Shell';
+import { Page, PageHeader, isRootPage } from '../app/Shell';
+import { useLocation } from 'react-router-dom';
+import { isNative } from '../native/native';
 import { invalidateGame, qk, useOnboardedMe, useWorld } from '../lib/queries';
 import { cn, fmt } from '../lib/utils';
 import { Button, Cost, Spinner } from '../ui';
@@ -32,6 +34,9 @@ const isFree = (it: ShopItem) => !Object.values(it.cost ?? {}).some((v) => Numbe
 const fits = (it: Item, sex: string) => !it.sex || !sex || it.sex === sex;
 
 export default function ExplorerScreen() {
+  const loc = useLocation();
+  // the app opens this screen full screen (no tab bar under it)
+  const fullScreen = isNative() && !isRootPage(loc.pathname);
   const me = useOnboardedMe();
   const world = useWorld();
   const qc = useQueryClient();
@@ -166,8 +171,9 @@ export default function ExplorerScreen() {
         </div>
       </div>
 
-      {/* save bar */}
-      <div className="fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom,0px))] z-30 mx-auto max-w-3xl md:bottom-4" data-testid="explorer-savebar">
+      {/* save bar (the app opens this screen without the tab bar: the bar sits at the bottom, with room kept for it) */}
+      {fullScreen && <div className="h-24" aria-hidden />}
+      <div className={cn('fixed inset-x-3 z-30 mx-auto max-w-3xl md:bottom-4', fullScreen ? 'bottom-[max(12px,env(safe-area-inset-bottom,0px))]' : 'bottom-[calc(84px+env(safe-area-inset-bottom,0px))]')} data-testid="explorer-savebar">
         <div className="grid gap-2 rounded-3xl border border-line bg-surface p-3 shadow-2xl">
           {missing.length > 0 && (
             <div className="flex flex-wrap gap-2">

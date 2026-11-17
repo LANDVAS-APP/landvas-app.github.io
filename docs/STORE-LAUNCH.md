@@ -117,25 +117,40 @@ undocumented features, so this lists everything the reviewer can reach:
 > Sign in with the demo account below (or create a new account in the app). Demo account: <email> / <password>
 >
 > WHAT LANDVAS IS: a free world-map game. The real world is split into house-sized virtual plots (they are never real
-> land). Players claim plots, then play them their way.
-> • Map (World tab): your explorer stands where you are; any location works. To play without sharing location, tap
->   "Play without location (Simple mode)" on the first map prompt — the whole game loop works without it.
+> land). Players claim plots, then play them their way. Tabs along the bottom: Play · Together · World · Magic · Create.
+> • World (middle tab): your explorer stands where you are; any location works. To play without sharing location, tap
+>   "Play without location (Simple mode)" on the first map prompt — the whole game loop works without it. Explorer's
+>   Eyes (the eye button on the map) is a first-person view of the street around your explorer and the sky.
 > • Plots: claiming a plot reveals its rarity (a free roll paid with Ink, the game's earned currency). Each plot earns
->   a virtual "USD rent" balance and has its own minigame.
+>   a virtual "USD rent" balance and has its own minigame. A plot can become a place you walk around in 3D: an art
+>   canvas, an Inkborn sanctuary, a farm, a business, an arcade, a mine, a sky island, a workshop, a diner, a dungeon,
+>   a card-battle arena, a home, a rental estate, or a train/plane station.
+> • Play tab: the game's main menu — daily rewards (streak, free daily wheel), Play & Earn tasks, plot minigames, PvP
+>   minigames against anonymous rivals, Space (build a rocket with Ink, visit planets), rankings and badges.
+> • Together tab: parties (play together, party chat), a live feed, global chat, friends, clans, invites, and watching
+>   another player play live (they choose to allow it).
+> • Magic tab: Enchantments — about 2% of plot rolls come out "Enchanted" with a creature that changes the rules on its
+>   plot (each explained on its card), the Grimoire to manage them, Stars, Splice and the Leviathan (a shared boss).
 > • Create tab: a paint editor for murals on your plots, Sketch of the Day, Draw & Guess, duets and weekly challenges.
-> • Inkborn tab: draw a creature and it comes alive in your sanctuary (pet, feed and play with it).
-> • Play tab: Play & Earn (daily tasks, a free daily wheel, minigames), PvP minigames against anonymous rivals,
->   rankings and badges.
-> • Community tab: a live feed, chat, friends, clans, a gallery and visiting other players' rooms.
+>   Inkborn: draw a creature and it comes alive in your sanctuary.
+> • Ultras: rare plot rarities that change the map around them, the Fusion Lab, Crowns (city/state/country titles).
+> • Clips: replay a roll exactly as it happened and share it with the phone's share sheet.
+>
+> GAME SECRETS: every arcade hides a few easter eggs (extra rooms and minigames found by playing in a certain way).
+> [Paste the "Game secrets" paragraph from the private launch notes here — this repo is public, so the recipes are
+> never written in it.] The Mirror Arcade is open to everyone from its door in the arcade.
 >
 > CURRENCIES: Ink is earned by playing and can't be bought. USD rent is a virtual in-game balance: there is no cash-out
 > and there are no purchases or ads in this version (none of that code is in the app).
-> SAFETY: players can report chat messages and art, block players (profile → Block), and delete their account in the app
+> SAFETY: players can report chat messages, art and players (a profile or player card → Report: name, picture,
+> creations, harassment, cheating, spam), block players (profile → Block), and delete their account in the app
 > (Me → Settings → Account → Delete my account) or at landvas.app/legal/delete-account. Chat and art are moderated.
 > CONTENT UPDATES: the game's own HTML/JavaScript/CSS can be updated without a store release (Capacitor Updater,
 > files from landvas.app, checked by sha-256), as Apple's developer agreement 3.3.1(B) allows. No native code or
 > permissions change that way, and the version under review is held on the submitted build until it's approved.
-> Staff tools are not in the app (they live on a separate website). There are no hidden or test features.
+> PERMISSIONS: location (only after tapping "Use my location"), notifications (only when you turn on streak
+> reminders), camera/photos (only when you pick a profile picture or an image for a canvas), saving to Photos (only
+> when you choose Save in the share sheet). Staff tools are not in the app (they live on a separate website).
 > Developer: LANDVAS LLC (Utah) · contact@landvas.app
 
 **Apple — App Privacy** (all "linked to the user", none used for tracking, none sold) — matches the privacy manifest:
@@ -187,6 +202,18 @@ when AdMob's signed callback reaches the server.
 - **Fingerprinting.** The iPhone app sends only a random install id to the cheat scanner (Apple forbids deriving an
   identity from device signals). Keep it that way.
 - **Account deletion** works in the app and at landvas.app/legal/delete-account (required by both stores).
+- **Reporting (Apple 1.2).** Chat lines and artworks have Report; every player has Report too (profile or player card →
+  Report: name, picture, creations, harassment, personal info, cheating, spam), filed in the moderation queue
+  (`report_player`). Keep a Report and a Block next to anything players can post or show.
+- **Privacy manifest (ITMS-91053).** `ios/App/App/PrivacyInfo.xcprivacy` declares every required-reason API the app's
+  code and plugins use: UserDefaults (CA92.1), file timestamps (C617.1) and disk space (E174.1, Capacitor Updater
+  checks free space before saving a version). A new plugin that uses another one (system boot time, active keyboards)
+  needs its reason added here, or App Store Connect refuses the upload.
+- **Usage descriptions.** Every permission the app (or the web view inside it) can ask for has its sentence in
+  Info.plist: location, camera and photos (picking a picture), and NSPhotoLibraryAddUsageDescription — the share sheet's
+  "Save Image/Video" for clips and art crashes the app without it (a 2.1 rejection).
+- **No other platforms in the iPhone app (2.3.10).** The in-app Terms say "mobile apps" and leave the Google Play clause
+  out on iOS; keyboard hints (WASD, arrow keys) are dropped on touch screens (`touchText`).
 - **Live versions.** The apps take new versions of the game's own web code (HTML, JavaScript, CSS) without a store
   release (Capacitor Updater, self-hosted: files from landvas.app, checked against sha-256 hashes kept in the database;
   see src/native/liveBundle.ts). Both stores allow this for interpreted code that keeps the app's purpose (Apple

@@ -25,6 +25,14 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array><string>C617.1</string></array>
 		</dict>
+		<!-- Capacitor Updater checks there's room before saving a new version of the game's files (E174.1);
+		     App Store Connect refuses builds that use a required-reason API without declaring it (ITMS-91053) -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array><string>E174.1</string></array>
+		</dict>
 	</array>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>

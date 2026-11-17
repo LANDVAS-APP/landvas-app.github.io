@@ -6,6 +6,7 @@
 // while something moves, at most 60 fps, and rests when the page is hidden.
 import * as THREE from 'three';
 import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type FoldShape = 'crane' | 'boat' | 'frog' | 'lotus';
 export type FoldOpts = { canvas: HTMLCanvasElement; color: string; color2: string; label: string; emoji: string; shape: FoldShape; shiny?: boolean; reduceMotion?: boolean;
@@ -108,7 +109,7 @@ const POSE: Record<FoldShape, { wing: number; head: number }> = {
 };
 
 export function createFold(o: FoldOpts): FoldScene {
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), alpha: true, powerPreference: 'low-power' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), alpha: true, powerPreference: 'low-power' }));
   renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { nb, parse, type Enemy, type LogEntry, type PartyHero, type Run } from './dungeonCore';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 export type DungeonOpts = { canvas: HTMLCanvasElement; heroes: Record<string, { color: string; emoji: string }>; reduceMotion?: boolean; onTapRoom?(k: string): void };
 const S = 5; // room spacing
@@ -14,7 +15,7 @@ const ICON: Record<string, string> = { monster: '👹', boss: '☠️', chest: '
 
 export function createDungeon3D(o: DungeonOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
   renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: () => !fighting });

@@ -5,6 +5,7 @@ import { framePacer, sceneAntialias, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { rng } from '../inkborn/world';
 import { WORLDS, type World, type WorldId } from './worlds';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export const RINGS: (WorldId | 'earth')[] = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 const BASE: Record<string, number> = { mercury: 0.4, venus: 2.1, earth: 3.9, mars: 1.2, jupiter: 5.1, saturn: 2.8, uranus: 4.4, neptune: 0.9, pluto: 3.3 };
@@ -52,7 +53,7 @@ function label(text: string) {
 }
 
 export function createSystemScene(canvas: HTMLCanvasElement, live: { current: SystemLive }, accent: string, reduce: boolean, onPick: (id: string) => void): SystemScene {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), alpha: false });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), alpha: false }));
   renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

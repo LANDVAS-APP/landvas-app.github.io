@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { TILE_INFO, layerAt, mineHash, mineTile, type MineCfg } from './tiles';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 export type MineBuilding = 'trader' | 'smelter' | 'outfitter' | 'crew' | 'bench' | 'museum' | 'games';
 export type MineOpts = {
@@ -25,7 +26,7 @@ export const BUILDINGS: { id: MineBuilding; label: string; x: number; z: number 
 
 export function createMine3D(o: MineOpts) {
   const c = o.cfg, W = c.width, phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

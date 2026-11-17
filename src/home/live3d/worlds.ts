@@ -13,6 +13,7 @@ import { bake, flat, grassTex, mesh, motes, padArt, perimeter, scatter, type Ctx
 import { ENVS2 } from './worlds2';
 export type { Seat3 } from './kit3d';
 import type { Seat3 } from './kit3d';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 // ---- Candy Park (tag) ------------------------------------------------------------------------------------------------
 const CANDY = ['#FF9FD6', '#9FE8FF', '#C9F28C', '#FFD59F', '#D5B3FF'];
@@ -383,7 +384,7 @@ const ENVS: Record<string, (ctx: Ctx) => Env> = { tag: candyPark, hide: moonGard
 
 export function createWorld3D(o: { canvas: HTMLCanvasElement; game: string; seats: Seat3[]; me: string; world: W3; reduceMotion?: boolean }) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const tune = adaptiveDpr((d) => renderer.setPixelRatio(d));

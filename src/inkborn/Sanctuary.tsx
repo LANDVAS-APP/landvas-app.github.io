@@ -29,6 +29,8 @@ import { KeeperNews } from './Keeper';
 import { drawCreature, heart, type CreatureState } from './rig';
 import { CELL, DECOR, DECOR_BY_K, TILT, canPlace, decorSprite, decorVariant, defaultLayout, inside, makeTerrain, paintGround, rng, solidsOf, walkable, type Solid, type Terrain } from './world';
 import { framePacer } from '../lib/gfx';
+// a phone or tablet: no keyboard to mention
+const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export default function Sanctuary() {
   const { id } = useParams();
@@ -1151,8 +1153,8 @@ function Game({ h }: { h: Habitat }) {
 
       <AnimatePresence>
         {hint && mode === 'play' && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 top-20 mx-auto w-fit max-w-[calc(100%-32px)] rounded-2xl bg-black/65 px-4 py-2.5 text-center text-xs" data-testid="sanctuary-hint">
-            <b>Walk</b> with the joystick, WASD or by tapping the ground · <b>tap a creature</b> to {owner ? 'pet it' : 'say hi'} · <b>Play</b> for fetch, snacks and hide & seek
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-0 top-[max(124px,calc(env(safe-area-inset-top,0px)+112px))] mx-auto w-fit max-w-[calc(100%-32px)] rounded-2xl bg-black/65 px-4 py-2.5 text-center text-xs" data-testid="sanctuary-hint">
+            <b>Walk</b> with the joystick{COARSE ? '' : ', WASD'} or by tapping the ground · <b>tap a creature</b> to {owner ? 'pet it' : 'say hi'} · <b>Play</b> for fetch, snacks and hide & seek
           </motion.div>
         )}
       </AnimatePresence>

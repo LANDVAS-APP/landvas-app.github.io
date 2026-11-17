@@ -35,6 +35,7 @@ import { EnchantLayer } from '../enchant/EnchantLayer';
 import { RarityLayer } from '../rarity/RarityLayer';
 import { LeviathanLayer } from '../leviathan/LeviathanLayer';
 import { useRayTarget } from '../enchant/sizeray';
+import { isPhone } from '../lib/gfx';
 import { usePlotPick } from '../enchant/plotPick';
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -44,6 +45,8 @@ const ART_TILES = (gen: number) => [`lvart://{z}/{x}/{y}?g=${gen}`];
 const PLOT_TILES = (gen: number) => [`lvplots://{z}/{x}/{y}?g=${gen}`];
 const HAB_TILES = (gen: number) => [`lvhab://{z}/{x}/{y}?g=${gen}`];
 const NAMES_MIN_ZOOM = GRID_LEVEL - 1.8;
+/** plot blocks (64 x 64 plots, as world_plots.bx/by) across the world */
+const BLOCKS_PER_SIDE = GRID_SIZE >> 6;
 // phones with 3x screens draw at 2x: a third of the pixels to fill, the same look
 setMapLib(maplibregl);
 const PIXEL_RATIO = Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2);
@@ -61,6 +64,112 @@ export const plotBlocks = new PlotBlocks();
 let autoSaving = false;
 let lastUid: string | undefined;
 
+// ---- the warm map ------------------------------------------------------------------------------------------------
+// Like Atlas Earth's, the world map stays alive while you're on other tabs. Leaving the World tab parks it: the map,
+// its GPU context and every tile it has loaded are kept (off screen, drawing nothing), so coming back is instant —
+// no new WebGL context, no style to parse again, no basemap tiles to fetch and decode again, no plot tiles to redraw.
+// Map updates that arrive meanwhile only mark the caches stale (and redraw what changed on the way back). A map parked
+// for 10 minutes, a lost GPU context, a different player or switching the lite map lets it go for real.
+type Ref<T> = { current: T };
+type Bag = {
+  lite: boolean; uid: string | undefined;
+  host: HTMLDivElement;
+  mapRef: Ref<MLMap | null>; onlineRef: Ref<boolean>; streetsRef: Ref<boolean>; genRef: Ref<number>; plotGenRef: Ref<number>; seqRef: Ref<number>;
+  markersRef: Ref<Map<string, maplibregl.Marker>>; nameMarkers: Ref<Map<string, maplibregl.Marker>>; modeRef: Ref<MapMode>;
+  refreshTimer: Ref<ReturnType<typeof setTimeout> | null>; densityKey: Ref<string>; lastDensity: Ref<boolean>; ownKey: Ref<string>;
+  /** off screen: draw nothing, fetch nothing */ parked: boolean;
+  /** map updates arrived while parked */ dirty: boolean;
+  lost: boolean; unsub: (() => void) | null; timer: ReturnType<typeof setTimeout> | null;
+  /** what the reactive effects last applied (so a comeback doesn't redraw every plot tile for nothing) */
+  applied: { mode?: MapMode; world?: unknown; rolling?: unknown; flownAt?: number };
+};
+const ref = <T,>(v: T): Ref<T> => ({ current: v });
+function freshBag(lite: boolean): Bag {
+  const host = document.createElement('div');
+  host.className = 'h-full w-full';
+  return {
+    lite, uid: getBackend().session()?.userId, host,
+    mapRef: ref(null), onlineRef: ref(false), streetsRef: ref(false), genRef: ref(1), plotGenRef: ref(1), seqRef: ref(0),
+    markersRef: ref(new Map()), nameMarkers: ref(new Map()), modeRef: ref(useUi.getState().mode),
+    refreshTimer: ref(null), densityKey: ref(''), lastDensity: ref(false), ownKey: ref(''),
+    parked: false, dirty: false, lost: false, unsub: null, timer: null, applied: {},
+  };
+}
+let warm: Bag | null = null;
+const PARK_FOR = 10 * 60_000;
+// Where a parked map waits: off screen, invisible, untouchable, and exactly the size it had. Taking the map out of the
+// page (or hiding it with display: none) would shrink it to nothing and back, and every resize reallocates the GPU
+// canvas — slow, and the thing we're avoiding.
+let lot: HTMLDivElement | null = null;
+function parkingLot(w: number, h: number) {
+  if (!lot) {
+    lot = document.createElement('div');
+    lot.setAttribute('aria-hidden', 'true');
+    lot.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;z-index:-1;overflow:hidden';
+    document.body.appendChild(lot);
+  }
+  lot.style.width = `${w}px`;
+  lot.style.height = `${h}px`;
+  return lot;
+}
+/** Let a parked map go for real. */
+function dropWarm(b: Bag | null = warm) {
+  if (!b) return;
+  if (warm === b) warm = null;
+  if (b.timer) clearTimeout(b.timer);
+  b.unsub?.(); b.unsub = null;
+  for (const m of b.nameMarkers.current.values()) m.remove();
+  b.nameMarkers.current.clear();
+  try { b.mapRef.current?.remove(); } catch { /* already gone */ }
+  b.mapRef.current = null;
+  b.host.remove();
+}
+/** The parked map, if it fits this mount (same kind of map, same player, still healthy). Pure: the mount's effect
+ *  adopts it (a parked map that doesn't fit is let go when the new map is built). */
+function warmFor(lite: boolean): Bag | null {
+  const b = warm;
+  if (!b || b.lite !== lite || b.lost || !b.mapRef.current || b.uid !== getBackend().session()?.userId) return null;
+  return b;
+}
+
+// ---- 60 frames a second on 90/120 Hz phones -------------------------------------------------------------------------
+// MapLibre draws a frame on every screen refresh while the map moves. On a 120 Hz Android phone that's twice the GPU
+// work (and heat) of a 60 Hz one for a pan nobody can tell apart; iPhones already hand web views 60 Hz. So on a phone
+// whose screen refreshes faster than 60 Hz the map skips every other refresh, and while parked it draws nothing.
+let fastScreen: boolean | null = null;
+function measureRefresh() {
+  if (fastScreen !== null || !isPhone() || typeof requestAnimationFrame !== 'function') { fastScreen ??= false; return; }
+  fastScreen = false;
+  const gaps: number[] = [];
+  let last = 0;
+  const step = (t: number) => {
+    if (last) gaps.push(t - last);
+    last = t;
+    if (gaps.length < 24) requestAnimationFrame(step);
+    else { gaps.sort((a, b) => a - b); fastScreen = gaps[12] < 12.5; }
+  };
+  requestAnimationFrame(step);
+}
+function paceMap(map: MLMap, bag: Bag) {
+  measureRefresh();
+  const m = map as MLMap & { _frameRequest?: unknown; _removed?: boolean };
+  const draw = map.triggerRepaint.bind(map);
+  let lastFrame = 0, waiting = 0, wanted = false;
+  map.on('render', () => { lastFrame = performance.now(); });
+  map.triggerRepaint = () => {
+    if (bag.parked) { wanted = true; return; }
+    if (m._frameRequest || waiting) return;
+    if (fastScreen && performance.now() - lastFrame < 12) {
+      // too soon after the last frame: wait one refresh, then ask for the next (= every other refresh)
+      waiting = requestAnimationFrame(() => { waiting = 0; if (!bag.parked && !m._removed) draw(); else wanted = true; });
+      return;
+    }
+    draw();
+  };
+  return { resume: () => { if (wanted) { wanted = false; map.triggerRepaint(); } } };
+}
+const pacers = new WeakMap<MLMap, { resume(): void }>();
+
 /**
  * The world map. `lite` ("Hide plots"): a plain map — no plot or art tiles, no plot data, no plot effects or live plot
  * updates at all; what was loaded is dropped from memory. MapScreen remounts the map when it's switched.
@@ -68,16 +177,12 @@ let lastUid: string | undefined;
 export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   const companion = useCompanion();
   const container = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MLMap | null>(null);
-  const onlineRef = useRef(false);
-  const streetsRef = useRef(false);
-  const genRef = useRef(1);
-  const plotGenRef = useRef(1);
-  const seqRef = useRef(0);
-  const markersRef = useRef(new Map<string, maplibregl.Marker>());
+  // the parked map from the last visit, when there is one (see "the warm map" above); its refs are shared with the
+  // event handlers it was set up with, so everything keeps working on the same map
+  const [bag] = useState(() => warmFor(lite) ?? freshBag(lite));
+  const { mapRef, onlineRef, streetsRef, genRef, plotGenRef, seqRef, markersRef, nameMarkers } = bag;
   const explorerMarker = useRef<maplibregl.Marker | null>(null);
-  const nameMarkers = useRef(new Map<string, maplibregl.Marker>());
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => !!bag.mapRef.current);
   const mode = useUi((s) => s.mode);
   const selected = useUi((s) => s.selected);
   const flyTo = useUi((s) => s.flyTo);
@@ -86,7 +191,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   const world = useWorld();
   const qc = useQueryClient();
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: !!me });
-  const modeRef = useRef(mode);
+  const modeRef = bag.modeRef;
   modeRef.current = mode;
   const accent = me?.profile.accent_color ?? '#7B5CFF';
   const styleKey = JSON.stringify(me?.profile.explorer_style ?? {});
@@ -95,6 +200,51 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   useEffect(() => {
     let map: MLMap | null = null;
     let disposed = false;
+    const park = () => {
+      const m = bag.mapRef.current;
+      if (getBackend().mapCursor && !lite) saveMapCache(plotBlocks, artIndex);
+      for (const mk of bag.markersRef.current.values()) mk.remove();
+      bag.markersRef.current.clear();
+      if (!m || bag.lost) { dropWarm(bag); return; }
+      bag.parked = true;
+      m.stop(); // no camera animation left running off screen
+      bag.host.classList.remove('lv-map-moving');
+      const r = bag.host.getBoundingClientRect();
+      parkingLot(Math.round(r.width) || innerWidth, Math.round(r.height) || innerHeight).appendChild(bag.host);
+      if (mapHandle.current === m) mapHandle.current = null;
+      if (warm && warm !== bag) dropWarm(warm);
+      warm = bag;
+      bag.timer = setTimeout(() => { if (warm === bag) dropWarm(bag); }, PARK_FOR);
+    };
+    // adopt the parked map (this mount took it), or let go of one that doesn't fit before building a new one
+    if (warm === bag) { warm = null; if (bag.timer) clearTimeout(bag.timer); bag.timer = null; }
+    else if (warm && !bag.mapRef.current) dropWarm(warm);
+    // back on the World tab: the map is exactly as you left it
+    if (bag.mapRef.current && container.current && !bag.lost) {
+      const m = bag.mapRef.current;
+      map = m;
+      container.current.appendChild(bag.host);
+      bag.parked = false;
+      mapHandle.current = m;
+      if (config.e2e || import.meta.env.DEV) (window as any).__landvasMap = m;
+      // (a resize only if the screen changed size meanwhile — MapLibre's own resize observer sees to that)
+      // a fly-to asked for while away (e.g. "View on map" from a plot list)
+      const pending = useUi.getState().flyTo;
+      if (pending && pending.at !== bag.applied.flownAt) {
+        bag.applied.flownAt = pending.at;
+        if (Date.now() - pending.at < 15000) m.jumpTo({ center: [pending.lng, pending.lat], zoom: pending.zoom });
+      }
+      if (bag.dirty) {
+        bag.dirty = false;
+        if (m.getSource('lv-art')) { genRef.current++; (m.getSource('lv-art') as RasterTileSource).setTiles(ART_TILES(genRef.current)); }
+        bag.densityKey.current = '';
+        redrawPlots();
+      }
+      pacers.get(m)?.resume();
+      m.triggerRepaint();
+      refresh();
+      return () => { disposed = true; park(); };
+    }
     registerArtProtocol(artIndex);
     registerPlotProtocols(plotBlocks, () => ({ mode: modeRef.current, hidden: useCelebration.getState().hidden }));
     // keep what's already loaded (this visit or the last one) when the backend can tell us exactly what changed since;
@@ -117,8 +267,9 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       onlineRef.current = online;
       streetsRef.current = streets;
       const v = useUi.getState().view;
+      container.current.appendChild(bag.host);
       const m = new maplibregl.Map({
-        container: container.current,
+        container: bag.host,
         style,
         center: [v.lng, v.lat],
         zoom: v.zoom,
@@ -135,6 +286,9 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         pixelRatio: PIXEL_RATIO,
       });
       map = m;
+      pacers.set(m, paceMap(m, bag));
+      // a lost GPU context (the phone reclaimed it): a parked map is let go, a live one is rebuilt on the next visit
+      m.getCanvas().addEventListener('webglcontextlost', () => { bag.lost = true; if (bag.parked) dropWarm(bag); });
       // terrain tiles that don't arrive (offline, a blip) just leave the land unshaded: not an error worth reporting
       m.on('error', (ev) => {
         const e = ev as unknown as { sourceId?: string; error?: Error };
@@ -159,6 +313,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         setUp = true;
         // a fly-to requested before this map existed (e.g. "View on map" from the editor)
         const pending = useUi.getState().flyTo;
+        if (pending) bag.applied.flownAt = pending.at;
         if (pending && Date.now() - pending.at < 15000) map.jumpTo({ center: [pending.lng, pending.lat], zoom: pending.zoom });
         addLayers(map, streetsRef.current);
         if (lite) stripPlots(map);
@@ -180,10 +335,23 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         useUi.getState().setView({ lng: c.lng, lat: c.lat, zoom: map.getZoom() }, { min_gx: cells.minGx, min_gy: cells.minGy, max_gx: cells.maxGx, max_gy: cells.maxGy });
         refresh();
       });
+      // the plots just past the edges of the screen, fetched while the map rests (one small request, like Atlas Earth
+      // keeping the area around you ready): panning a little way then draws straight from memory, nothing to wait for
+      if (!lite) m.on('idle', () => {
+        if (bag.parked || !navigator.onLine || m.getZoom() < CELLS_MIN_ZOOM - 1) return;
+        const b = m.getBounds();
+        const v = viewportCells(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
+        const [bx0, bx1, by0, by1] = [(v.minGx >> 6) - 1, (v.maxGx >> 6) + 1, Math.max(0, (v.minGy >> 6) - 1), Math.min(BLOCKS_PER_SIDE - 1, (v.maxGy >> 6) + 1)];
+        if ((bx1 - bx0 + 1) * (by1 - by0 + 1) > 25) return;
+        for (let by = by0; by <= by1; by++) for (let x = bx0; x <= bx1; x++) {
+          const bx = ((x % BLOCKS_PER_SIDE) + BLOCKS_PER_SIDE) % BLOCKS_PER_SIDE;
+          if (!plotBlocks.peek(bx, by)) void plotBlocks.get(bx, by).catch(() => {});
+        }
+      });
       m.on('dragstart', () => useExplorer.getState().following && useExplorer.getState().setFollowing(false));
       // markers hold their little animations still while the map moves (see app.css)
-      m.on('movestart', () => container.current?.classList.add('lv-map-moving'));
-      m.on('moveend', () => container.current?.classList.remove('lv-map-moving'));
+      m.on('movestart', () => bag.host.classList.add('lv-map-moving'));
+      m.on('moveend', () => bag.host.classList.remove('lv-map-moving'));
       // raster fades only animate while frames keep coming: make sure a frame
       // follows every freshly loaded art tile so it always reaches full opacity
       m.on('sourcedata', (e: any) => {
@@ -238,11 +406,13 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       });
       m.getCanvas().addEventListener('mouseleave', () => setData(m, 'lv-hover', EMPTY));
     })();
-    const unsub = lite ? () => {} : getBackend().subscribeMapUpdates((u) => {
+    bag.unsub = lite ? () => {} : getBackend().subscribeMapUpdates((u) => {
       artIndex.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
       plotBlocks.invalidate(u.min_gx, u.min_gy, u.max_gx, u.max_gy);
       const bbox = useUi.getState().bbox;
       const inView = !bbox || (u.max_gx >= bbox.min_gx - 1 && u.min_gx <= bbox.max_gx + 1 && u.max_gy >= bbox.min_gy - 1 && u.min_gy <= bbox.max_gy + 1);
+      // parked: just remember to redraw on the way back (only when it touched what the map was showing)
+      if (bag.parked) { if (inView) bag.dirty = true; densityKey.current = ''; return; }
       const m = mapRef.current;
       if (inView && m?.getSource('lv-art')) {
         genRef.current++;
@@ -255,21 +425,17 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
     });
     return () => {
       disposed = true;
-      unsub();
-      if (getBackend().mapCursor && !lite) saveMapCache(plotBlocks, artIndex);
       explorerMarker.current?.remove();
       explorerMarker.current = null;
-      for (const m of nameMarkers.current.values()) m.remove();
-      nameMarkers.current.clear();
-      map?.remove();
-      mapRef.current = null;
-      mapHandle.current = null;
+      // still being set up (it never got a map): nothing to keep
+      if (!map) { dropWarm(bag); return; }
+      park();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- viewport data ------------------------------------------------------------
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimer = bag.refreshTimer;
   function refresh() {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => void loadViewport(), 120);
@@ -330,8 +496,8 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       /* transient */
     }
   }
-  const densityKey = useRef('');
-  const lastDensity = useRef(false);
+  const densityKey = bag.densityKey;
+  const lastDensity = bag.lastDensity;
 
   /** Custom plot names float over their plots when zoomed in. */
   function updateNames(map: MLMap, rows: PlotRow[], z: number) {
@@ -429,7 +595,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         toggle('ride-train', ride === 'train'); toggle('ride-plane', ride === 'plane'); toggle('ride-home', ride === 'home');
         const t = performance.now();
         // the companion animates at 20 fps walking, 8 standing still, and holds while the map moves
-        if (pet && companion && t - lastPet > (cls.walking ? 50 : 125) && !container.current?.classList.contains('lv-map-moving')) {
+        if (pet && companion && t - lastPet > (cls.walking ? 50 : 125) && !bag.host.classList.contains('lv-map-moving')) {
           lastPet = t; pet.n++;
           pet.g.clearRect(0, 0, 96, 96);
           drawCreature(pet.g, companion.g, 48, 92, 46, { t: performance.now() / 1000, state: cls.walking ? 'walk' : 'idle', dir: cls.left ? -1 : 1 });
@@ -491,7 +657,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
     const map = mapRef.current;
     if (!ready || !map) return;
     applyMode(map, mode, onlineRef.current);
-    redrawPlots();
+    if (bag.applied.mode !== mode) { redrawPlots(); bag.applied.mode = mode; }
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, ready]);
@@ -501,16 +667,18 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   useEffect(() => {
     if (!ready) return;
     // (the blocks say which plots are yours, so only a different player needs them again)
-    if (lastUid !== undefined && lastUid !== uid) plotBlocks.reset();
+    const changed = lastUid !== uid;
+    if (lastUid !== undefined && changed) plotBlocks.reset();
     lastUid = uid;
-    redrawPlots();
+    if (changed) redrawPlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !world.data) return;
-    redrawPlots(); // rarity colours come from the world config
+    // rarity colours come from the world config
+    if (bag.applied.world !== world.data) { redrawPlots(); bag.applied.world = world.data; }
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.data, ready]);
@@ -568,7 +736,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
     };
   }, [ready, picking]); // eslint-disable-line react-hooks/exhaustive-deps
   const rolling = useCelebration((s) => s.hidden);
-  useEffect(() => { if (ready) redrawPlots(); }, [rolling]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready && bag.applied.rolling !== rolling) { redrawPlots(); bag.applied.rolling = rolling; } }, [rolling, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
@@ -582,7 +750,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   }, [merge, mergeHover, groups.data, ready]);
 
   // your own land changed (a claim, purchase, merge or new art): redraw those blocks at once
-  const ownKey = useRef('');
+  const ownKey = bag.ownKey;
   useEffect(() => {
     if (!ready || !groups.data) return;
     const k = groups.data.map((g) => `${g.id}:${g.status}:${g.plot_count}:${g.cells.length}:${g.kind ?? 'canvas'}`).sort().join('|');
@@ -614,7 +782,8 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !flyTo) return;
+    if (!map || !flyTo || bag.applied.flownAt === flyTo.at) return;
+    bag.applied.flownAt = flyTo.at;
     map.flyTo({ center: [flyTo.lng, flyTo.lat], zoom: flyTo.zoom, pitch: settings.tilt3d ? 55 : 0, essential: true, duration: settings.reduceMotion ? 0 : 1600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTo]);
@@ -647,7 +816,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       if (map.getLayer('lv-veil')) map.setPaintProperty('lv-veil', 'background-color', themeColors().bg || '#0b0820');
       // a light map (Terrain, Atlas, or Neon by day) gets dark labels with a white halo
       const light = !mapIsDark();
-      container.current?.classList.toggle('lv-map-light', light);
+      bag.host.classList.toggle('lv-map-light', light);
       if (map.getLayer('lv-cities')) {
         map.setPaintProperty('lv-cities', 'text-color', light ? '#3a3550' : cssVar('--muted', '#a1abd6'));
         map.setPaintProperty('lv-cities', 'text-halo-color', light ? '#ffffff' : cssVar('--bg', '#070b1c'));

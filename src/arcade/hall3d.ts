@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
 import { buildCarnival, CARNIVAL_BOUNDS, CARNIVAL_Z, type Carnival } from './carnival3d';
 import { speechBubbles } from '../lib/speech3d';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type HallMachine = { id: string; name: string; color: string; emoji: string; level: number; locked: boolean; lockLabel?: string;
   /** a fixed place (index into the hall's slots) instead of the next free one: secret cabinets */ slot?: number };
@@ -143,7 +144,7 @@ function attract(id: string, g: CanvasRenderingContext2D, t: number, color: stri
 
 export function createHall(o: HallOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
   const fps = framePacer({ ambient: true });

@@ -59,6 +59,8 @@
 	<string>Choose a photo for your profile picture or to place on your canvas.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Take a photo for your profile picture or to place on your canvas.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save your clips, rolls and artwork to your photos when you choose Save in the share sheet.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIStatusBarStyle</key>

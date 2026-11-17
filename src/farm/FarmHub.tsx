@@ -29,8 +29,11 @@ export function LevelBadge({ p, onClick }: { p: FarmProgress; onClick?(): void }
   const frac = Math.max(0, Math.min(1, (p.xp - p.level_xp) / Math.max(1, p.next_xp - p.level_xp)));
   return (
     <button onClick={onClick} className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/45 px-2.5 py-1.5 text-left backdrop-blur" data-testid="farm-level">
-      <span className="grid h-8 w-8 place-items-center rounded-full bg-[#7BD957] font-display text-sm font-black text-black">{p.level}</span>
-      <span className="grid min-w-[84px] gap-0.5">
+      {/* phones: the level's progress is a ring around the number (no room for the bar beside the farm's name) */}
+      <span className="grid h-8 w-8 place-items-center rounded-full p-[2.5px] sm:p-0" style={{ background: `conic-gradient(#7BD957 ${Math.round(frac * 360)}deg, rgba(255,255,255,.22) 0)` }}>
+        <span className="grid h-full w-full place-items-center rounded-full bg-[#7BD957] font-display text-sm font-black text-black max-sm:bg-[#1b2a12] max-sm:text-[#7BD957]">{p.level}</span>
+      </span>
+      <span className="grid min-w-[84px] gap-0.5 max-sm:hidden">
         <span className="text-[10px] font-bold uppercase tracking-wide text-white/75">Farm level</span>
         <span className="h-1.5 overflow-hidden rounded-full bg-white/20"><span className="block h-full rounded-full bg-[#7BD957]" style={{ width: `${frac * 100}%` }} /></span>
       </span>

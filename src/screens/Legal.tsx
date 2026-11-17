@@ -14,6 +14,7 @@ import { formatRate } from '../shared/rent';
 import { RARITY_ORDER, rarityInfo, rarityOdds } from '../shared/rarity';
 import { Button, Field, inputCls } from '../ui';
 import { SUPPORT_EMAIL } from '../brand';
+import { platform } from '../native/native';
 
 const DOCS: Record<string, string> = { terms: 'Terms of Service', privacy: 'Privacy Policy', content: 'Content Policy', copyright: 'Copyright & takedowns', rent: 'USD rent rules', 'delete-account': 'Delete your account' };
 const UPDATED = 'November 12, 2026';
@@ -37,7 +38,7 @@ export default function Legal() {
         {doc !== 'delete-account' && <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint" data-testid="legal-updated">Last updated {UPDATED}</p>}
         {doc === 'terms' && (
           <>
-            <p>These Terms of Service ("Terms") are an agreement between you and <b>{COMPANY}</b>, a Utah limited liability company ("LANDVAS", "we", "us"), and cover the LANDVAS game on the web at landvas.app and in the LANDVAS apps for iOS and Android (together, the "Game"). By creating an account or playing, you agree to these Terms, our <Link to="/legal/privacy" className="text-accent-2">Privacy Policy</Link> and our <Link to="/legal/content" className="text-accent-2">Content Policy</Link>. If you don't agree, please don't use the Game.</p>
+            <p>These Terms of Service ("Terms") are an agreement between you and <b>{COMPANY}</b>, a Utah limited liability company ("LANDVAS", "we", "us"), and cover the LANDVAS game on the web at landvas.app and in the LANDVAS mobile apps (together, the "Game"). By creating an account or playing, you agree to these Terms, our <Link to="/legal/privacy" className="text-accent-2">Privacy Policy</Link> and our <Link to="/legal/content" className="text-accent-2">Content Policy</Link>. If you don't agree, please don't use the Game.</p>
 
             <H>1. Who can play</H>
             <ul>
@@ -109,7 +110,7 @@ export default function Legal() {
               <li>You must comply with any third-party terms that apply when you use the app (for example, your mobile carrier's).</li>
               <li>Apple and its subsidiaries are third-party beneficiaries of these Terms and may enforce them against you.</li>
             </ol>
-            <p>If you got LANDVAS from Google Play, Google Play's terms also apply to the download, and Google is not responsible for the Game.</p>
+            {platform() !== 'ios' && <p>If you got LANDVAS from Google Play, Google Play's terms also apply to the download, and Google is not responsible for the Game.</p>}
 
             <H>15. Changes to these Terms</H>
             <p>We may update these Terms. If a change is material, we'll tell you in the Game and ask you to accept the new version before you keep playing. The date at the top shows the latest version.</p>
@@ -123,7 +124,7 @@ export default function Legal() {
         )}
         {doc === 'privacy' && (
           <>
-            <p>This Privacy Policy explains what personal information <b>{COMPANY}</b> ("LANDVAS", "we", "us") collects when you play LANDVAS on the web or in our iOS and Android apps, how we use it, who we share it with, and the choices and rights you have. Questions: <Mail subject="LANDVAS privacy" />.</p>
+            <p>This Privacy Policy explains what personal information <b>{COMPANY}</b> ("LANDVAS", "we", "us") collects when you play LANDVAS on the web or in our mobile apps, how we use it, who we share it with, and the choices and rights you have. Questions: <Mail subject="LANDVAS privacy" />.</p>
 
             <H>What we collect</H>
             <ul>

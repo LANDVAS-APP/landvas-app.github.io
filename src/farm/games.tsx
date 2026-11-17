@@ -10,6 +10,7 @@ import { framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
 import { buzz } from '../native/native';
 import { config } from '../env';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type ArenaProps = { seed: number; seconds: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean };
 export const rng = (seed: number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
@@ -205,7 +206,7 @@ export function PestPop({ seed, seconds, onEnd, haptics, reduce }: ArenaProps) {
 // 3D helpers
 // ======================================================================================================
 export function three(c: HTMLCanvasElement) {
-  const renderer = new THREE.WebGLRenderer({ canvas: c, antialias: !/Mobi|Android/i.test(navigator.userAgent) });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: c, antialias: !/Mobi|Android/i.test(navigator.userAgent) }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#8FD3FF'); scene.fog = new THREE.Fog('#8FD3FF', 40, 120);
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);

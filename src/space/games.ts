@@ -2,6 +2,7 @@
 // ran its full time and caps the score; each engine draws into one canvas and reports its score.
 import type { Engine, GameInput } from '../inkborn/games/engines';
 import { rng } from '../inkborn/world';
+import { touchText } from '../lib/touchText';
 
 export type SpaceGameId = 'asteroids' | 'lander';
 export const SPACE_GAMES: Record<SpaceGameId, { name: string; emoji: string; color: string; blurb: string; how: string }> = {
@@ -10,6 +11,9 @@ export const SPACE_GAMES: Record<SpaceGameId, { name: string; emoji: string; col
   lander: { name: 'Moon Lander', emoji: '🌙', color: '#C9CCD6', blurb: 'Set your lander down gently on the glowing pad. Again. And again.',
     how: 'Hold the screen (or ↑ / W / Space) to fire the thruster; touch left or right of the lander (or ←/→) to drift. Land slow and level on the pad: a soft landing is 10, a perfect one 15, plus fuel left over.' },
 };
+
+// touch screens: no keyboard keys in the instructions
+for (const g of Object.values(SPACE_GAMES)) g.how = touchText(g.how);
 
 type Pop = { x: number; y: number; text: string; color: string; life: number };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));

@@ -18,6 +18,7 @@ import { animateModels, moduleModel, roverModel } from './baseModels';
 import { alienModel, animateFinds, poiModel, shardModel, WEATHER, weatherParticles } from './finds3d';
 import { framePacer, isPhone } from '../lib/gfx';
 import { config } from '../env';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type Pilot = { id: string; username: string; explorerUrl: string; d?: number[] | null; face?: number[] | null; hop?: number; companion?: Genome | null };
 export type ZoomInfo = { level: number; meters: number; mode: 'walk' | 'fly' | 'orbit' };
@@ -126,7 +127,7 @@ export function createPlanetScene(o: PlanetSceneOpts): PlanetScene {
   const seedR = rng(o.seed);
   const reduce = !!o.reduceMotion;
   const tier = deviceTier();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier === 2, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: tier === 2, powerPreference: 'high-performance', logarithmicDepthBuffer: true }));
   const maxDpr = Math.min(window.devicePixelRatio || 1, tier === 2 ? 2 : tier === 1 ? 1.6 : 1);
   let dpr = maxDpr;
   renderer.setPixelRatio(dpr);

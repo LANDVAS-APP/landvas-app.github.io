@@ -9,6 +9,7 @@ import { bake, type Ctx } from '../home/live3d/kit3d';
 import type { RealmKind } from '../backend/types';
 import type { W3 } from '../home/live3d/sims';
 import { REALM_ENVS } from './realmEnvs';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type Station = 'play' | 'collect' | 'build' | 'make' | 'market' | 'book';
 export const STATIONS: Station[] = ['play', 'collect', 'build', 'make', 'market', 'book'];
@@ -40,7 +41,7 @@ export type RealmSceneOpts = {
 
 export function createRealm3D(o: RealmSceneOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

@@ -4,6 +4,7 @@
 // Only the stretch of shaft near the camera is built, so a 20 km shaft costs the same as a 20 m one.
 import { framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type ShaftLayer = { id: string; name: string; to: number; color: string; finds: Record<string, number> };
 export type ShaftOpts = {
@@ -70,7 +71,7 @@ function emojiSprite(e: string, size = 0.7) {
 }
 
 export function createShaft(o: ShaftOpts): ShaftScene {
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !/Mobi|Android/i.test(navigator.userAgent), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !/Mobi|Android/i.test(navigator.userAgent), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();

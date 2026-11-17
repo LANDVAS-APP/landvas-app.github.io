@@ -13,6 +13,7 @@ import { buildChar, type Char, type CharFx, type Pose } from './chars';
 import { castSpell, totemFx } from './spellFx';
 import type { Emitter } from './lands3d';
 import { BOARD_D, BOARD_W, buildWorld, HERO as HERO_Z, LANE_D, LANE_W, laneX, ROW as ROW_Z, TOTEM as TOTEM_Z } from './world3d';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type BoardPick = { side: Side; lane: number }; // lane -1 = the hero
 /** how big the characters stand on the board */
@@ -30,7 +31,7 @@ const BASE = 0.02;          // where creatures stand (the ground is flat there)
 
 export function createBoard3D(o: BoardOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.28;
   renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer();

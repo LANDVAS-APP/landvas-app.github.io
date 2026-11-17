@@ -6,6 +6,7 @@ import type { Engine, GameInput } from '../inkborn/games/engines';
 import { rng } from '../inkborn/world';
 import { moonLander } from './games';
 import { WORLDS, exoWorld, type World } from './worlds';
+import { touchText } from '../lib/touchText';
 
 type Family = 'dodge' | 'hop' | 'catch' | 'echo' | 'lander' | 'mine' | 'sling' | 'stack';
 export type PlanetGameInfo = { name: string; emoji: string; family: Family; world: string; blurb: string; how: string; wind?: number; good: string; bad: string; bonus?: boolean };
@@ -20,6 +21,7 @@ const HOW: Record<Family, string> = {
   sling: 'Drag back from your probe and let go to launch it. Planets bend its path — curve round them into the glowing rings. Every ring hit is 10; a ring hit after a slingshot round a planet is 20.',
   stack: 'Modules swing above your station — tap (or Space) to drop one. Land it on the stack; anything hanging over the edge is sliced off. A perfect drop is 5 and keeps the width.',
 };
+for (const k of Object.keys(HOW) as Family[]) HOW[k] = touchText(HOW[k]); // touch screens: no keyboard keys
 const g = (name: string, emoji: string, family: Family, world: string, blurb: string, good: string, bad: string, wind?: number): PlanetGameInfo =>
   ({ name, emoji, family, world, blurb, how: HOW[family], good, bad, wind });
 

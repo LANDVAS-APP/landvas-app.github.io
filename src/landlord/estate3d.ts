@@ -4,6 +4,7 @@
 // broken thing, the mailbox or the garden.
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type EstateSpot = { idx: number; house: number; what: string; fixed: boolean };
 export type EstateAction = { kind: 'repair'; idx: number } | { kind: 'mailbox' } | { kind: 'garden' };
@@ -15,7 +16,7 @@ const ROOFS = ['#B8483A', '#4A5D8C', '#6B4F3A', '#3E7D5A', '#8A4FA0', '#C2762E']
 
 export function createEstate3D(canvas: HTMLCanvasElement, view: EstateView, onAction: (a: EstateAction) => void, reduceMotion = false) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

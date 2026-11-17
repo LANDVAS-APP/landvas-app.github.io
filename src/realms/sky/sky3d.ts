@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { hexXZ, parse, type SkyCore, type SkyOrder } from './skyCore';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 export type SkyOpts = {
   canvas: HTMLCanvasElement; seed: number; explorerUrl: string; reduceMotion?: boolean;
@@ -23,7 +24,7 @@ const SKIES: Record<string, { top: string; bot: string; sun: number; hemi: numbe
 
 export function createSky3D(o: SkyOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

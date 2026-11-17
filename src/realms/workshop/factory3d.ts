@@ -6,13 +6,14 @@
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
 import { DX, DY, next, parse, type FactoryCfg, type Grid, type Solve } from './factoryCore';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 export type FactoryOpts = { canvas: HTMLCanvasElement; cfg: FactoryCfg; emojis: Record<string, string>; reduceMotion?: boolean; onTapCell?(k: string): void };
 const VIS = 3; // parts shown riding the belts: this many times the real rate (so you can see them move)
 
 export function createFactory3D(o: FactoryOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

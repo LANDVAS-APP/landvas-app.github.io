@@ -172,7 +172,7 @@ function FarmView({ f }: { f: Farm }) {
             {!f.mine && <PlayerAvatar p={f.owner} size={22} />}
             <div className="truncate font-display text-lg font-bold leading-tight">{f.mine ? f.name : `@${f.owner.username}’s farm`}</div>
           </div>
-          <div className="text-[11px] text-white/75">🌱 {f.beds.length}/{f.beds_count} beds growing · {f.harvests} harvested{f.plots > 1 ? ` · ${f.plots} plots` : ''}{!f.mine && f.owner_level ? ` · farm level ${f.owner_level}` : ''}</div>
+          <div className="truncate text-[11px] text-white/75">🌱 {f.beds.length}/{f.beds_count} beds growing · {f.harvests} harvested{f.plots > 1 ? ` · ${f.plots} plots` : ''}{!f.mine && f.owner_level ? ` · farm level ${f.owner_level}` : ''}</div>
         </div>
         {f.mine && f.progress && <LevelBadge p={f.progress} onClick={() => { setHubTab('upgrades'); setHub(true); }} />}
       </div>

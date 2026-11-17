@@ -4,6 +4,7 @@
 // Drag to look along the street.
 import { adaptiveDpr, framePacer, sceneDpr } from '../lib/gfx';
 import * as THREE from 'three';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type StreetOpts = { canvas: HTMLCanvasElement; seed: number; reduceMotion?: boolean };
 export type StreetScene = {
@@ -36,7 +37,7 @@ const disposeSprite = (s: THREE.Sprite) => { s.material.map?.dispose(); s.materi
 
 export function createStreet(o: StreetOpts): StreetScene {
   const mobile = /Mobi|Android/i.test(navigator.userAgent);
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !mobile, alpha: false });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: !mobile, alpha: false }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = !mobile;
   const scene = new THREE.Scene();

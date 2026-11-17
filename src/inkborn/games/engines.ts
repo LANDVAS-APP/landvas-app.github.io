@@ -4,6 +4,7 @@ import type { Genome } from '../genome';
 import { drawCreature, heart, type CreatureState } from '../rig';
 import { rng } from '../world';
 import { crystalCaves, stardustGlide } from './engines2';
+import { touchText } from '../../lib/touchText';
 
 export type GameInput = { joy: { x: number; y: number }; keys: Set<string>; tap: { x: number; y: number } | null; target: { x: number; y: number } | null };
 export type Engine = { step(dt: number, t: number): void; draw(g: CanvasRenderingContext2D, W: number, H: number, t: number): void; score(): number; pops: Pop[]; dispose?(): void };
@@ -26,6 +27,7 @@ export const GAMES: Record<GameId, { name: string; emoji: string; blurb: string;
   songbloom: { name: 'Song Bloom', emoji: '🌸', color: '#FF7AB8', blurb: 'Your Inkborn sings a little tune on the flowers — sing it back!',
     how: 'Watch which flowers light up, then tap them in the same order (or keys 1–4). Every right note is 1 and every finished tune adds its length. The tunes grow longer as you go.' },
 };
+for (const g of Object.values(GAMES)) g.how = touchText(g.how); // touch screens: no keyboard keys
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 

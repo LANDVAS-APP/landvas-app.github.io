@@ -6,6 +6,7 @@
 // sign, a jukebox and a chandelier.
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../../lib/gfx';
+import { releaseOnDispose } from '../../lib/threeRelease';
 
 export type DinerOpts = { canvas: HTMLCanvasElement; reduceMotion?: boolean; onTapStation?(slot: number): void; onTapTable?(table: number): void };
 export type StationView = { kind: string; cooking?: { emoji: string; p: number }; ready?: string; burnt?: boolean };
@@ -17,7 +18,7 @@ const HAIR = ['#2A1A10', '#6B3E1E', '#E8C170', '#B03A2E', '#1A1A1A', '#9E9E9E'];
 
 export function createDiner3D(o: DinerOpts) {
   const phone = isPhone();
-  const renderer = new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance' }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   const fps = framePacer({ ambient: true });

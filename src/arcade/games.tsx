@@ -18,6 +18,7 @@ import { buzz } from '../native/native';
 import { sfx } from './sfx';
 import { config } from '../env';
 import { readable } from '../lib/readable';
+import { releaseOnDispose } from '../lib/threeRelease';
 
 export type ArenaProps = { seed: number; level: number; onEnd(score: number): void; haptics?: boolean; reduce?: boolean;
   /** classic: the usual round; endless: keep going until you run out of lives (scores have no top in either) */ mode?: 'classic' | 'endless' };
@@ -60,7 +61,7 @@ export function Lives({ n, max }: { n: number; max: number }) {
   return <div className="lv-arc-led" data-testid="arc-lives"><span className="text-[9px] opacity-70">LIVES</span><b className="tracking-tighter">{Array.from({ length: max }, (_, i) => (i < n ? '❤' : '·')).join('')}</b></div>;
 }
 function three(canvas: HTMLCanvasElement, bg: string, fov = 50) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias() });
+  const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas, antialias: sceneAntialias() }));
   renderer.setPixelRatio(sceneDpr()); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
   const camera = new THREE.PerspectiveCamera(fov, 1, 0.05, 200);

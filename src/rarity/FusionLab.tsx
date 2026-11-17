@@ -53,9 +53,9 @@ export default function FusionLab() {
     <Page>
       <PageHeader eyebrow="Ultra Fusions" title="🧬 The Fusion Lab">Two of your ultras become one stronger plot. The first you pick keeps its drawing, name and level; the other goes back to the world. <Link to="/primordials" className="underline">Primordials</Link> are only ever rolled.</PageHeader>
 
-      <section className="mb-6 grid gap-2" data-testid="fusion-book">
+      <section className="mb-6 grid grid-cols-1 gap-2" data-testid="fusion-book">
         <h2 className="eyebrow">The recipe book</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(book?.recipes ?? []).map((r, i) => r.to ? (
             <div key={r.to} className="glass flex items-center gap-3 rounded-2xl p-3" style={{ boxShadow: `inset 0 0 0 1.5px ${r.color}44` }} data-testid={`recipe-${r.to}`}>
               <span className="text-lg">{rarityInfo(r.a!).emoji}</span><span className="text-muted">+</span><span className="text-lg">{rarityInfo(r.b!).emoji}</span><span className="text-muted">→</span>
