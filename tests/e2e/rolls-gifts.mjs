@@ -41,7 +41,8 @@ try {
   await page.waitForSelector('[data-testid=roll-rarity]', { timeout: 25000 });
   const offer = await until(async () => (await page.locator('[data-testid=ascend-offer]').count()) === 1, 12000);
   const plot = (await sql(`select gx, gy, rarity from world_plots where owner_id = '${me}' order by claimed_at desc limit 1`))[0];
-  check('a fresh roll offers Ascend (below Mythic)', offer || ['mythic'].includes(plot.rarity), plot.rarity);
+  // (only plots on the ladder below the cap can Ascend: a Mythic or an ultra like a Comet gets no offer)
+  check('a fresh roll offers Ascend (below Mythic), and only then', offer === ['common', 'uncommon', 'rare', 'epic', 'legendary'].includes(plot.rarity), plot.rarity);
   await shot('01-roll-ascend-offer');
   if (offer) {
     await page.click('[data-testid=ascend-offer]');

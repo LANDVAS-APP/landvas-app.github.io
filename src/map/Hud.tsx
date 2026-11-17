@@ -127,6 +127,8 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
     if (rail) { if (next !== open) hud.toggle('view'); } else setOpenLocal(next);
   };
   const [legend, setLegend] = useState(false);
+  // (the round button on a wide screen: the panel drops down under it, clear of the side nav)
+  const under = rail && !isNative() && typeof matchMedia !== 'undefined' && matchMedia('(min-width: 768px)').matches;
   const Cur = MODES.find((m) => m.id === mode)?.icon ?? Layers;
   // the panel never runs under the tab bar: it scrolls inside whatever room is left on the screen
   const [maxH, setMaxH] = useState<number | undefined>();
@@ -150,9 +152,9 @@ export function ModeButton({ rail }: { rail?: boolean } = {}) {
       <AnimatePresence>
         {open && (
           <motion.div ref={panel} initial={{ opacity: 0, x: -10, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -10, scale: 0.95 }}
-            style={{ maxHeight: maxH, ...(rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 118px)' } : {}) }}
+            style={{ maxHeight: maxH, ...(under ? { marginLeft: -150 } : rail ? { top: 'calc(max(10px, env(safe-area-inset-top, 0px)) + 118px)' } : {}) }}
             className={cn('z-30 grid content-start gap-1.5 overflow-y-auto overscroll-contain rounded-[22px] border-[1.5px] border-white/15 bg-[#0e1336]/95 p-2 text-white shadow-2xl',
-              rail ? 'lv-panel fixed left-3 w-[min(300px,calc(100vw-24px))]' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
+              under ? 'lv-panel absolute left-1/2 top-[calc(100%+10px)] w-[300px]' : rail ? 'lv-panel fixed left-3 w-[min(300px,calc(100vw-24px))]' : 'absolute left-[62px] top-0 w-56')} role="radiogroup" aria-label="Map mode" data-testid="mode-panel">
             {/* first thing in the panel: how everything works */}
             <Link to="/handbook" onClick={() => setOpen(false)} data-testid="open-handbook"
               className="mb-0.5 flex items-center gap-2.5 rounded-2xl px-2.5 py-2.5 text-left text-white active:scale-[0.98]"
