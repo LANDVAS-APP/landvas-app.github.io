@@ -78,6 +78,25 @@ try {
   const d = await dl;
   check('…and can be saved', !!d && /landvas-kraken-shiny\.(webm|mp4)/.test(d.suggestedFilename()), d?.suggestedFilename());
   if (d) await d.saveAs(`${OUT}/clip.${d.suggestedFilename().split('.').pop()}`);
+  // sizes for each place it's going: Discord's always fits
+  await page.click('[data-testid=clip-sizes-toggle]');
+  await page.waitForSelector('[data-testid=clip-sizes]');
+  const rows = await page.locator('[data-testid=clip-sizes] > div').evaluateAll((els) => els.map((e) => e.textContent));
+  check('the clip offers a size for each kind of place', rows.length === 4 && /TikTok/.test(rows[0]) && /Discord/.test(rows[1]) && /10 MB/.test(rows[1]) && /WhatsApp/.test(rows[2]), rows.join(' | ').slice(0, 300));
+  await shot('05b-clip-sizes');
+  const dl3 = page.waitForEvent('download', { timeout: 120000 }).catch(() => null);
+  await page.click('[data-testid=clip-size-discord-save]');
+  const d3 = await dl3;
+  check('the Discord size downloads', !!d3 && /landvas-kraken-shiny-discord\.(mp4|webm)/.test(d3.suggestedFilename()), d3?.suggestedFilename());
+  if (d3) { await d3.saveAs(`${OUT}/discord.${d3.suggestedFilename().split('.').pop()}`); const sz = fs.statSync(`${OUT}/discord.${d3.suggestedFilename().split('.').pop()}`).size; check('…and is under Discord\'s 10 MB', sz > 50_000 && sz <= 9_500_000, `${(sz / 1048576).toFixed(2)} MB`); }
+  await page.waitForSelector('[data-testid=clip-size-discord] [data-testid=clip-size-made]', { timeout: 5000 });
+  check('…and says what it made', /\d+×\d+ · [\d.]+ MB/.test(await page.textContent('[data-testid=clip-size-discord] [data-testid=clip-size-made]')), await page.textContent('[data-testid=clip-size-discord] [data-testid=clip-size-made]'));
+  await shot('05c-clip-discord-made');
+  // straight through the encoder: the full-HD size, and a long clip still fits Discord
+  const hd = await page.evaluate(() => window.__landvasClipPreset('discord', true));
+  check('a 40-second clip still fits Discord', !!hd && hd.size <= 9_500_000 && hd.size > 200_000, JSON.stringify(hd));
+  const sm = await page.evaluate(() => window.__landvasClipPreset('small'));
+  check('the small size is small', !!sm && sm.size <= 3_000_000 && (sm.w === 540 || sm.w === 720), JSON.stringify(sm));
   // snip a frame
   await page.click('[data-testid=clip-snip]');
   await page.waitForSelector('[data-testid=clip-snip-canvas]', { timeout: 10000 }); await page.waitForTimeout(800);

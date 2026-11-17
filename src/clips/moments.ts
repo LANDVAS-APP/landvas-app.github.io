@@ -60,9 +60,9 @@ export function momentTitle(m: Moment): { title: string; sub: string; emoji: str
 }
 
 /** a moment as something to film */
-export function momentJob(m: Moment, user?: string | null): ClipJob {
+export function momentJob(m: Moment, user?: string | null, sharp = 1): ClipJob {
   const L = layoutFor(W, H, { mode: 'clip' });
-  const A = sharedAssets(1, true);
+  const A = sharedAssets(sharp, true);
   const head = momentTitle(m);
   const refs = m.type === 'star' && m.copy ? [m.e, m.copy] : 'e' in m ? [m.e] : [m.a, m.b];
   const bursts = burstsFor(m, L);
@@ -74,6 +74,7 @@ export function momentJob(m: Moment, user?: string | null): ClipJob {
       await new Promise<void>((res) => { const t0 = performance.now(); const tick = () => (refs.every((r) => A.sigil(r.kind, r.sigil)) || performance.now() - t0 > 4000 ? res() : setTimeout(tick, 20)); tick(); });
     },
     draw(g, ms) { drawMoment(g, L, A, m, ms, bursts, user ?? m.user ?? null); },
+    sharpAt: (k) => momentJob(m, user, k),
     name: `landvas-${head.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
     title: `${head.title} — LANDVAS`,
     text: `${head.emoji} ${head.title}! ${head.sub} — on LANDVAS. landvas.app`,

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
 import { buzz, isNative } from '../native/native';
 import { config } from '../env';
+import { cn } from '../lib/utils';
 import { kindInfo } from '../enchant/kinds';
 import { sharedAssets } from './stage/assets';
 import { drawBrand, drawCaption, drawFooter, drawLuck, drawPickMontage, drawTray } from './stage/chrome';
@@ -32,13 +33,15 @@ export type ClipJob = {
   draw(g: CanvasRenderingContext2D, ms: number): void;
   name: string; title: string; text: string;
   color: string; glow: string;
+  /** the same clip with its pictures drawn k times sharper (for saving it bigger) */
+  sharpAt?(k: number): ClipJob;
 };
 
 /** a roll, replayed from its record */
-export function rollJob(tr: Trace, luck?: number | null): ClipJob {
+export function rollJob(tr: Trace, luck?: number | null, sharp = 1): ClipJob {
   const multi = !!(tr.final.choices && tr.final.choices.length > 1);
   const L = layoutFor(W, H, { mode: 'clip', multi });
-  const A = sharedAssets(1, true);
+  const A = sharedAssets(sharp, true);
   const tl = clipTimeline(tr);
   const f = tr.final, ench = f.enchant ?? null;
   const info = rarityInfo(ench ? 'enchanted' : f.rarity), ek = ench ? kindInfo(ench.kind) : null;
@@ -46,6 +49,7 @@ export function rollJob(tr: Trace, luck?: number | null): ClipJob {
   return {
     w: W, h: H, total: tl.total, poster: Math.max(0, tl.total - HOLD + 1700),
     prepare: () => A.prepare(tr),
+    sharpAt: (k) => rollJob(tr, luck, k),
     draw(g, ms) {
       const { t, pick } = clipAt(tl, ms);
       drawStage(g, L, tr, t, { dpr: 1, assets: A });
@@ -79,26 +83,53 @@ function markBroken(m: string) {
 }
 const yieldNow = () => new Promise((r) => setTimeout(r, 0));
 
+// ---- sizes for every place a clip goes ------------------------------------------------------------------------------
+/** a size to save a clip at: how big, and the most it may weigh (so it always uploads where it's going) */
+export type ClipPreset = { id: string; emoji: string; label: string; best: string; note: string; w: number; h: number; mbps: number; maxMB: number };
+export const PRESETS: ClipPreset[] = [
+  { id: 'hd', emoji: '🎵', label: 'TikTok · Reels · Shorts', best: 'Full HD vertical, 1080×1920', note: 'The size short-video apps want: sharpest picture', w: 1080, h: 1920, mbps: 12, maxMB: 40 },
+  // (Discord's free limit is 20 MB since August 2026, 10 MB before: under 10 MB uploads everywhere, no Nitro needed)
+  { id: 'discord', emoji: '💬', label: 'Discord', best: 'HD, always under 10 MB', note: 'Uploads in any server or DM, no Nitro needed', w: 1080, h: 1920, mbps: 10, maxMB: 9.5 },
+  { id: 'chat', emoji: '📱', label: 'Messages · WhatsApp · X', best: '720×1280, under 15 MB', note: 'Plays right in the chat (WhatsApp’s limit is 16 MB)', w: 720, h: 1280, mbps: 5, maxMB: 15 },
+  { id: 'small', emoji: '🪶', label: 'Small', best: '540×960, under 3 MB', note: 'For email, slow connections or low data', w: 540, h: 960, mbps: 1.8, maxMB: 3 },
+];
+export const fmtMB = (b: number) => `${(b / 1e6).toFixed(b < 10e6 ? 1 : 0)} MB`;
+
+/** a drawing context that draws a clip bigger: everything the clip draws (and sets) is scaled up by k */
+function scaledContext(g: CanvasRenderingContext2D, k: number) {
+  if (k === 1) return g;
+  const set = g.setTransform.bind(g);
+  (g as unknown as { setTransform: (...a: unknown[]) => void }).setTransform = (...a: unknown[]) => {
+    if (a.length >= 6) set((a[0] as number) * k, (a[1] as number) * k, (a[2] as number) * k, (a[3] as number) * k, (a[4] as number) * k, (a[5] as number) * k);
+    else { const m = a[0] as DOMMatrix2DInit | undefined; set((m?.a ?? 1) * k, (m?.b ?? 0) * k, (m?.c ?? 0) * k, (m?.d ?? 1) * k, (m?.e ?? 0) * k, (m?.f ?? 0) * k); }
+  };
+  (g as unknown as { resetTransform: () => void }).resetTransform = () => set(k, 0, 0, k, 0, 0);
+  set(k, 0, 0, k, 0, 0);
+  return g;
+}
+
 /** frame by frame with exact timestamps (WebCodecs → MP4): full length and smooth on any phone, however busy it is.
-    Null where the browser can't encode H.264 this way. */
-async function encodeMp4(job: ClipJob, onProgress?: (x: number) => void): Promise<Blob | null> {
+    Null where the browser can't encode H.264 this way (or at this size). */
+async function encodeMp4(job: ClipJob, onProgress?: (x: number) => void, o: { w?: number; h?: number; bitrate?: number } = {}): Promise<Blob | null> {
   if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return null;
+  const W2 = (o.w ?? job.w) & ~1, H2 = (o.h ?? job.h) & ~1, bitrate = Math.round(o.bitrate ?? 6_000_000), k = W2 / job.w;
   let codec: string | null = null;
   for (const c of ['avc1.640028', 'avc1.4d0028', 'avc1.42001f']) {
-    try { if ((await VideoEncoder.isConfigSupported({ codec: c, width: job.w, height: job.h, bitrate: 6_000_000, framerate: FPS })).supported) { codec = c; break; } } catch { /* next */ }
+    try { if ((await VideoEncoder.isConfigSupported({ codec: c, width: W2, height: H2, bitrate, framerate: FPS })).supported) { codec = c; break; } } catch { /* next */ }
   }
   if (!codec) return null;
   const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
   const target = new ArrayBufferTarget();
-  const muxer = new Muxer({ target, video: { codec: 'avc', width: job.w, height: job.h, frameRate: FPS }, fastStart: 'in-memory' });
+  const muxer = new Muxer({ target, video: { codec: 'avc', width: W2, height: H2, frameRate: FPS }, fastStart: 'in-memory' });
   let failed = false;
   const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: () => { failed = true; } });
-  enc.configure({ codec, width: job.w, height: job.h, bitrate: 6_000_000, framerate: FPS });
+  enc.configure({ codec, width: W2, height: H2, bitrate, bitrateMode: 'variable', framerate: FPS });
   // (a CPU-backed canvas: every frame goes straight to the encoder, no GPU read-back per frame)
-  const cv = document.createElement('canvas'); cv.width = job.w; cv.height = job.h;
-  const g = cv.getContext('2d', { willReadFrequently: true })!;
+  const cv = document.createElement('canvas'); cv.width = W2; cv.height = H2;
+  const g = scaledContext(cv.getContext('2d', { willReadFrequently: true })!, k);
   const n = Math.ceil((job.total + 150) / (1000 / FPS));
   for (let i = 0; i < n && !failed; i++) {
+    if (k !== 1) g.setTransform(1, 0, 0, 1, 0, 0); // (each frame starts from the clip's own scale)
     job.draw(g, Math.min((i * 1000) / FPS, job.total));
     const f = new VideoFrame(cv, { timestamp: Math.round((i * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
     enc.encode(f, { keyFrame: i % (FPS * 2) === 0 });
@@ -112,7 +143,7 @@ async function encodeMp4(job: ClipJob, onProgress?: (x: number) => void): Promis
 }
 
 /** make the clip: frame by frame where possible, else recorded in real time; a picture where video can't be made */
-export async function encode(job: ClipJob, onProgress?: (x: number) => void): Promise<{ blob: Blob; kind: 'video' | 'image'; ext: string }> {
+export async function encode(job: ClipJob, onProgress?: (x: number) => void, bps = 6_000_000): Promise<{ blob: Blob; kind: 'video' | 'image'; ext: string }> {
   await job.prepare();
   try {
     const mp4 = await encodeMp4(job, onProgress);
@@ -131,7 +162,7 @@ export async function encode(job: ClipJob, onProgress?: (x: number) => void): Pr
     const stream = cv.captureStream(0);
     const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
     const push = () => track.requestFrame?.();
-    const rec = new MediaRecorder(stream, { mimeType: m, videoBitsPerSecond: 6_000_000 });
+    const rec = new MediaRecorder(stream, { mimeType: m, videoBitsPerSecond: Math.round(bps) });
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     const done = new Promise<void>((r) => { rec.onstop = () => r(); });
     rec.start(250);
@@ -158,6 +189,38 @@ export async function encode(job: ClipJob, onProgress?: (x: number) => void): Pr
   if (!chunks.length) return { blob: await snipBlob(job, job.poster), kind: 'image', ext: 'png' };
   const type = used.split(';')[0];
   return { blob: new Blob(chunks, { type }), kind: 'video', ext: type === 'video/mp4' ? 'mp4' : 'webm' };
+}
+
+/** the clip at a preset's size, made to fit its limit: the bitrate the length allows, and smaller (then smaller
+    still) if it still comes out too heavy */
+export async function encodeFor(job: ClipJob, p: ClipPreset, onProgress?: (x: number) => void): Promise<{ blob: Blob; ext: string; w: number; h: number } | null> {
+  await job.prepare();
+  const secs = (job.total + 150) / 1000, cap = p.maxMB * 1e6;
+  // (a little headroom: the muxer's own bytes, and encoders that run a touch over)
+  let bitrate = Math.min(p.mbps * 1e6, (cap * 8 * 0.86) / secs);
+  let w = p.w, h = p.h;
+  for (let tries = 0; tries < 4; tries++) {
+    const k = w / job.w, jk = k !== 1 && job.sharpAt ? job.sharpAt(k) : job;
+    if (jk !== job) await jk.prepare();
+    const mp4 = await encodeMp4(jk, onProgress, { w, h, bitrate }).catch(() => null);
+    if (!mp4) {
+      // can't make it at this size on this device: a size down
+      if (w > 720) { w = 720; h = 1280; continue; }
+      break;
+    }
+    if (mp4.size <= cap) return { blob: mp4, ext: 'mp4', w, h };
+    bitrate *= Math.min(0.85, (cap / mp4.size) * 0.9);
+    if (bitrate < 1.2e6 && w > 720) { w = 720; h = 1280; bitrate = Math.min(p.mbps * 1e6, (cap * 8 * 0.86) / secs); }
+  }
+  // no WebCodecs here: the device's own recording (sized as the clip), held under the limit
+  let bps = Math.min(p.mbps * 1e6, 6e6, (cap * 8 * 0.75) / secs);
+  for (let tries = 0; tries < 2; tries++) {
+    const r = await encode(job, onProgress, bps);
+    if (r.kind !== 'video') return null;
+    if (r.blob.size <= cap) return { blob: r.blob, ext: r.ext, w: job.w, h: job.h };
+    bps *= Math.min(0.7, (cap / r.blob.size) * 0.85);
+  }
+  return null;
 }
 
 /** one frame of it, as a picture */
@@ -191,6 +254,15 @@ export let lastDebug: Record<string, unknown> = {};
 if (config.e2e || import.meta.env.DEV) {
   const w = window as unknown as Record<string, unknown>;
   w.__landvasClip = async (tr: Trace) => { const r = await encode(rollJob(tr)); return { kind: r.kind, type: r.blob.type, size: r.blob.size, debug: lastDebug }; };
+  // (a preset made from the newest kept roll; `long` stretches it to 40 s, far longer than any clip)
+  w.__landvasClipPreset = async (id: string, long = false) => {
+    const p = PRESETS.find((x) => x.id === id)!;
+    const tr = (JSON.parse(localStorage.getItem('landvas.clips.v1') || '[]') as { kind: string; trace?: Trace }[]).find((e) => e.kind === 'roll')?.trace;
+    if (!tr) return null;
+    const base = rollJob(tr), job: ClipJob = long ? { ...base, total: 40_000, sharpAt: (k) => ({ ...rollJob(tr, null, k), total: 40_000 }), draw: (g, ms) => base.draw(g, ms % base.total) } : base;
+    const t0 = performance.now(), r = await encodeFor(job, p);
+    return r && { type: r.blob.type, size: r.blob.size, w: r.w, h: r.h, cap: p.maxMB * 1e6, secs: Math.round((performance.now() - t0) / 1000) };
+  };
   w.__landvasClipDebug = () => lastDebug;
 }
 
@@ -230,6 +302,7 @@ function Sheet({ job, onClose, startWith = 'video' }: { job: ClipJob; onClose():
   useEffect(() => { clipping.open++; return () => { clipping.open--; }; }, []);
   const [out, setOut] = useState<{ url: string; file: File; kind: 'video' | 'image' } | null>(null);
   const [snip, setSnip] = useState<number | null>(startWith === 'snip' ? job.poster : null);
+  const [sizes, setSizes] = useState(false);
   const vid = useRef<HTMLVideoElement>(null);
   const started = useRef(false);
   useEffect(() => {
@@ -250,13 +323,14 @@ function Sheet({ job, onClose, startWith = 'video' }: { job: ClipJob; onClose():
   };
   return (
     <AnimatePresence>
-      <motion.div className="fixed inset-0 z-[260] grid place-items-center bg-black/90 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget && (out || snip != null)) onClose(); }} data-testid="clip-sheet">
+      <motion.div className="fixed inset-0 z-[260] overflow-y-auto overscroll-contain bg-black/90" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if ((e.target === e.currentTarget || (e.target as HTMLElement).dataset.backdrop) && (out || snip != null)) onClose(); }} data-testid="clip-sheet">
+        <div className="grid min-h-full place-items-center p-4" data-backdrop="1" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         {snip != null ? (
           <SnipEditor job={job} at={snip} onAt={setSnip} onBack={startWith === 'snip' ? onClose : () => { setSnip(null); void vid.current?.play(); }} backLabel={startWith === 'snip' ? 'Close' : '← Back to the clip'} />
         ) : (
           <motion.div className="grid w-full max-w-[340px] justify-items-center gap-3" initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
-            <div className="relative aspect-[9/16] w-full max-h-[64vh] overflow-hidden rounded-3xl bg-[#05040F] shadow-[0_0_60px_var(--c)]" style={{ ['--c' as string]: `${job.color}88` }}>
+            <div className={cn('relative aspect-[9/16] overflow-hidden rounded-3xl bg-[#05040F] shadow-[0_0_60px_var(--c)] transition-[height,width] duration-300', sizes ? 'h-[30vh] w-auto' : 'w-full max-h-[64vh]')} style={{ ['--c' as string]: `${job.color}88` }}>
               {out ? (out.kind === 'video'
                 ? <video ref={vid} src={out.url} className="h-full w-full object-cover" autoPlay loop muted playsInline data-testid="clip-video" onClick={(e) => { const v = e.currentTarget; if (v.paused) void v.play(); else v.pause(); }} />
                 : <img src={out.url} className="h-full w-full object-cover" alt="" data-testid="clip-image" />)
@@ -277,11 +351,64 @@ function Sheet({ job, onClose, startWith = 'video' }: { job: ClipJob; onClose():
               <button disabled={!out} onClick={() => out && void saveFile(out.file, job.text)} className="h-12 rounded-2xl bg-white/10 font-bold text-white disabled:opacity-40" data-testid="clip-save">Save</button>
               <button onClick={openSnip} className="h-12 rounded-2xl bg-white/10 font-bold text-white" data-testid="clip-snip">📸 Snip</button>
             </div>
+            {out?.kind === 'video' && <SizePicker job={job} open={sizes} onOpen={setSizes} />}
             <button onClick={onClose} className="text-sm font-bold text-white/60">Close</button>
           </motion.div>
         )}
+        </div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+/** "Save for…": the clip made for a particular place (TikTok, Discord, a chat…), so it always fits there */
+function SizePicker({ job, open, onOpen }: { job: ClipJob; open: boolean; onOpen: (o: boolean) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [prog, setProg] = useState(0);
+  const [made, setMade] = useState<Record<string, { file: File; w: number; h: number }>>({});
+  const go = async (p: ClipPreset, share: boolean) => {
+    let m = made[p.id];
+    if (!m) {
+      setBusy(p.id); setProg(0);
+      try {
+        const r = await encodeFor(job, p, setProg);
+        if (!r) { toast.error(`Couldn’t make a ${p.label} size on this device`); return; }
+        m = { file: new File([r.blob], `${job.name}-${p.id}.${r.ext}`, { type: r.blob.type }), w: r.w, h: r.h };
+        setMade((x) => ({ ...x, [p.id]: m! }));
+        buzz('success');
+      } finally { setBusy(null); }
+    }
+    if (share) await shareFile(m.file, job.text, job.title); else await saveFile(m.file, job.text);
+  };
+  return (
+    <div className="w-full">
+      <button type="button" onClick={() => onOpen(!open)} className="flex w-full items-center justify-between gap-2 rounded-2xl bg-[#1B1828] px-3 py-2.5 text-left text-[12.5px] font-bold text-white" data-testid="clip-sizes-toggle" aria-expanded={open}>
+        <span>📐 Sizes for TikTok, Discord, chats…</span><span className="text-white/50">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 grid gap-1.5" data-testid="clip-sizes">
+          {PRESETS.map((p) => {
+            const m = made[p.id];
+            return (
+              <div key={p.id} className="flex items-center gap-2 rounded-2xl bg-[#15121F] px-2.5 py-2" data-testid={`clip-size-${p.id}`}>
+                <span className="text-xl leading-none">{p.emoji}</span>
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="block text-[12.5px] font-black text-white">{p.label}</span>
+                  <span className="block text-[10.5px] font-semibold text-white/60">{p.best}</span>
+                  <span className="block text-[10.5px] font-semibold text-white/45">{p.note}</span>
+                  {m && <span className="mt-0.5 block text-[10.5px] font-bold text-[#7DFFB2]" data-testid="clip-size-made">✓ {m.w}×{m.h} · {fmtMB(m.file.size)}</span>}
+                  {busy === p.id && <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full bg-[#7DFFB2] transition-[width]" style={{ width: `${Math.round(prog * 100)}%` }} /></span>}
+                </span>
+                <span className="grid shrink-0 gap-1">
+                  <button disabled={!!busy} onClick={() => void go(p, true)} className="h-8 w-[62px] rounded-xl text-[11.5px] font-black text-white disabled:opacity-40" style={{ background: `linear-gradient(135deg, ${job.color}, ${job.glow})` }} data-testid={`clip-size-${p.id}-share`}>Share</button>
+                  <button disabled={!!busy} onClick={() => void go(p, false)} className="h-8 w-[62px] rounded-xl bg-white/10 text-[11.5px] font-bold text-white disabled:opacity-40" data-testid={`clip-size-${p.id}-save`}>{busy === p.id ? '…' : 'Save'}</button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
