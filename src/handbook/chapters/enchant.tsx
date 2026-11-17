@@ -71,11 +71,12 @@ export const enchant: Chapter = {
         <>
           <P>Tap <B>📖 Grimoire</B> on the map (or on the Simple-mode home). Its badge tells you when something needs you.</P>
           <Bullets items={[
-            <><B>Enchantments:</B> a “Ready now” rail at the top, then your enchantments grouped by kind (copies together, ×N), with filters for All / Ready / Spliced. Buried chests waiting to be dug sit above the tabs.</>,
-            <><B>On my land:</B> other players’ Parasites feeding on your plots. Peel them off, or welcome them.</>,
-            <><B>Bestiary</B> and <B>Codex</B>: every kind and every hybrid you’ve discovered.</>,
+            <><B>Today:</B> a ring at the top fills as you tend your enchantments. <B>▶ Start tending</B> opens the first one that’s ready, and each page has <B>Next ready ›</B> to go straight to the next — until it says <B>All tended</B>.</>,
+            <><B>Mine:</B> your enchantments as tiles — the ready ones first, glowing — with copies of a kind side by side (×N) and filters for All / Ready / Spliced. Buried chests waiting to be dug sit above the tabs. New to it? The <B>?</B> explains it in three steps.</>,
+            <><B>My land:</B> other players’ Parasites feeding on your plots. Peel them off, or welcome them.</>,
+            <><B>Bestiary</B>: every kind — tap one for what it does. <B>Codex</B>: pick a kind and see every hybrid it makes (the full chart is there too).</>,
             <><B>Badges:</B> more than 130 enchantment badges (kinds owned, levels, Stars, the Codex, what each kind does…), each paying Luck or Enchanted Luck when you earn it.</>,
-            <>Each enchantment has its own page: a status strip (what’s ready, what’s next and when), a jump bar (<B>Play · Traits · Stars · Story · How</B>), its interactive scene, and its chronicle.</>,
+            <>Each enchantment has its own page: what it does in one line, a status bar (what’s ready — tap <B>Play</B> — or what’s next and when), a jump bar that follows you down the page (<B>Play · Traits · Stars · Story · How</B>), its interactive scene, and its story.</>,
           ]} />
           <Tip>Anything an enchantment asks you to pick a plot for (a Wormhole’s far end, a Size Ray target, a fold, a strike…) can be picked right on the map: the plots you can use wear crosshairs.</Tip>
           <GoRow links={[['/grimoire', 'Open the Grimoire']]} />
@@ -251,7 +252,7 @@ export const enchant: Chapter = {
       body: () => (
         <>
           <Bullets items={[
-            <><B>Check the “Ready now” rail every session.</B> Most enchantments run on timers (eggs, wishes, recharges, feeds). Idle ones earn nothing.</>,
+            <><B>Hit ▶ Start tending every session.</B> Most enchantments run on timers (eggs, wishes, recharges, feeds). Idle ones earn nothing.</>,
             <><B>Clockwork’s Tempo</B> makes its partner’s timers run ×3: splice it with whichever enchantment waits longest (a Goose egg, a Parasite feed). And keep its stored time for <B>Rewind</B>: undoing a fox bite or a failed strike is often worth more than skipping ahead.</>,
             <><B>Golden</B> (a golden egg a day: a free charge of what its partner does) suits partners whose charges are precious, like a Genie’s wishes or a Size Ray’s shots. <B>Giant</B> (its plot stands giant for hours: minigames ×1.5) suits a plot you play a lot.</>,
             <><B>Strings</B> (Puppeteer) does chores for you every day, and <B>Folded</B> (Origami) halves a long wait: great for players who can’t check in often.</>,

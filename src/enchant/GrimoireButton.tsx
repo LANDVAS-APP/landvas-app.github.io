@@ -95,7 +95,10 @@ export function GrimoireCard({ onClose }: { onClose(): void }) {
       ) : (
         <p className="mt-2.5 text-[12.5px] font-semibold text-white/65">Every plot roll has a small chance to come out Enchanted — a living enchantment in place of a rarity.</p>
       )}
-      <button className="lv-mcta gold mt-3 w-full" onClick={() => { onClose(); openSheet(true); }} data-testid="grimoire-open">📖 Open the Grimoire<span>bestiary, codex & more</span></button>
+      {need.length > 0 && (
+        <button className="lv-mcta gold mt-3 w-full" onClick={() => { onClose(); nav(`/grimoire/${need[0].id}`); }} data-testid="grimoire-tend">▶ Start tending<span>{need.length} ready</span></button>
+      )}
+      <button className={need.length ? 'lv-mcta mt-2 w-full' : 'lv-mcta gold mt-3 w-full'} onClick={() => { onClose(); openSheet(true); }} data-testid="grimoire-open">📖 Open the Grimoire<span>bestiary, codex & more</span></button>
     </motion.div>
   );
 }

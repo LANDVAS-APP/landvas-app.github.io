@@ -13,7 +13,7 @@ const CHECKS: { id: string; label: string; why: string }[] = [
   { id: 'wheel', label: 'Spin the free wheel', why: 'Ink, boost, XP' },
   { id: 'boost', label: 'Use all your free rent boosts', why: '×20 rent' },
   { id: 'games', label: 'Use every minigame’s paid wins on your best plots', why: 'the big one' },
-  { id: 'enchant', label: 'Clear the Grimoire’s “Ready now” rail', why: 'eggs, wishes, feeds' },
+  { id: 'enchant', label: 'Tend everything that’s ready in the Grimoire', why: 'eggs, wishes, feeds' },
   { id: 'inkborn', label: 'Collect the Ink Spring and send everyone on jobs', why: 'up to the cap' },
   { id: 'pvp', label: 'Play your paid PvP matches', why: '10 a day' },
   { id: 'rooms', label: 'Check in at 5 rooms', why: 'Ink for you and them' },
@@ -249,7 +249,7 @@ export const strategy: Chapter = {
             <><B>Breaking the streak</B>, especially with a Phoenix.</>,
             <><B>Claiming scattered plots</B> that can never merge into anything.</>,
             <><B>Sacrificing a plot before playing its game out.</B> It still had about a thousand Ink in it.</>,
-            <><B>Leaving enchantments idle.</B> Check the Ready now rail every visit.</>,
+            <><B>Leaving enchantments idle.</B> Tap ▶ Start tending in the Grimoire every visit.</>,
             <><B>Changing the rarity of an enchanted plot.</B> The enchantment on it ends for good.</>,
             <><B>Fusing without reading the recipe.</B> Fusions release plots for good.</>,
             <><B>Using a bug.</B> Exploited rewards get taken back. Report it instead.</>,
@@ -266,7 +266,7 @@ export const strategy: Chapter = {
       body: () => (
         <>
           <H>5 minutes</H>
-          <P>Streak, wheel, boost, collect the Ink Spring, clear the Grimoire’s Ready now rail.</P>
+          <P>Streak, wheel, boost, collect the Ink Spring, tend everything that’s ready in the Grimoire.</P>
           <H>30 minutes</H>
           <P>All of that, then every style’s paid wins on its best plot, your paid PvP matches and five room check-ins.</P>
           <H>A long session</H>

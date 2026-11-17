@@ -282,7 +282,27 @@ async function run(mode) {
     await page.waitForTimeout(400);
     ok('…a filter narrows it (nothing spliced yet)', (await page.locator('[data-testid=grimoire-card]').count()) === 0);
     await tap('[data-testid=grimoire-filter-all]');
+    await page.waitForTimeout(400);
+    // nothing on the Grimoire pans sideways, and all five tabs fit on the screen
+    const sideways = () => page.evaluate(() => { const m = document.querySelector('main'); const sh = document.querySelector('.lv-sheet-body'); return [m, sh, document.scrollingElement].filter(Boolean).map((e) => e.scrollWidth - e.clientWidth).reduce((a, b) => Math.max(a, b), 0); });
+    ok('the Grimoire never scrolls sideways', (await sideways()) <= 1, `${await sideways()}px`);
+    ok('…all five tabs fit on the screen', await page.evaluate(() => [...document.querySelectorAll('[data-testid^=grimoire-tab-]')].length === 5 && [...document.querySelectorAll('[data-testid^=grimoire-tab-]')].every((t) => { const r = t.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })));
+    for (const t of ['bestiary', 'codex']) {
+      await tap(`[data-testid=grimoire-tab-${t}]`); await page.waitForTimeout(600);
+      ok(`…nor on the ${t}`, (await sideways()) <= 1, `${await sideways()}px`);
+    }
+    await tap('[data-testid=codex-kind-spyglass]'); await page.waitForTimeout(300);
+    ok('the Codex shows what one kind makes', (await page.locator('[data-testid=codex-pair]').count()) === 18);
+    await tap('[data-testid=grimoire-tab-mine]'); await page.waitForTimeout(600);
     await shot('19-grimoire');
+    if (await page.locator('[data-testid=grimoire-start]').count()) {
+      // (the test build routes in memory, so the page is checked by the name it shows)
+      const want = ((await page.locator('[data-testid=grimoire-ready-chip]').first().getAttribute('title')) ?? '').split(' — ')[0];
+      await tap('[data-testid=grimoire-start]'); await waitFor('[data-testid=ench-name]'); await page.waitForTimeout(800);
+      const got = ((await text('[data-testid=ench-name]')) ?? '').replace('✎', '').trim();
+      ok('“Start tending” opens the first one that’s ready', !!want && got === want, `${got} vs ${want}`);
+      ok('…and its page never scrolls sideways', (await sideways()) <= 1, `${await sideways()}px`);
+    }
     await nav(`/grimoire/${second}`);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid=ench-copy]').length === 2, null, { timeout: 15000 }).catch(() => {});
     ok('an enchantment’s page: its status, what it works on, and a jump bar', await waitFor('[data-testid=ench-status]') && await waitFor('[data-testid=ench-works-on]') && await waitFor('[data-testid=ench-nav]'));

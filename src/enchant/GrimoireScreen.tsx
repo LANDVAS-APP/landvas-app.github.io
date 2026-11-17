@@ -14,7 +14,8 @@ import { toMap } from '../lib/toMap';
 import { cn, fmt, timeAgo } from '../lib/utils';
 import { buzz } from '../native/native';
 import { cellCenter } from '../shared/grid';
-import { Button, Empty, Spinner, Tabs, inputCls } from '../ui';
+import { Button, Empty, Spinner, inputCls } from '../ui';
+import { AltarDialog, useLuck } from '../luck/Altar';
 import { ClockRate, EnchantFxLayer, centerOf, efx, rateOf, useAct, useEnchant, useMyEnchantments, useTick, useVisitors } from './core';
 import { TempoBadge, UseOnThis } from './UseOnThis';
 import { ABERRATIONS, ABERRATION_COUNT, EVILS, HYBRIDS, HYBRID_COUNT, KINDS, KIND_ORDER, PERFECT_COUNT, SPLICE_MODES, TITLES, TRAIT_CHIP, dur, enchantName, hybridCard, hybridKey, kindInfo, traitHere, type EnchantKind, type SpliceMode } from './kinds';
@@ -47,11 +48,17 @@ export default function GrimoireScreen() {
 }
 
 // ---- the book ---------------------------------------------------------------------------------------------------------
+// One clear home: what it is (for a new player), what's ready to tend right now (with one button to start), your odds,
+// then five tabs that always fit on a phone. Your enchantments are tiles: the ready ones first and glowing.
 type Filter = 'all' | 'ready' | 'spliced';
+type TabId = 'mine' | 'visitors' | 'bestiary' | 'codex' | 'badges';
+const LEARN_KEY = 'landvas.grimoire.learned';
+const learned = () => { try { return localStorage.getItem(LEARN_KEY) === '1'; } catch { return false; } };
+
 function Home() {
   const me = useOnboardedMe();
   const [sp, setSp] = useSearchParams();
-  const tab = sp.get('tab') ?? 'mine';
+  const tab = (sp.get('tab') ?? 'mine') as TabId;
   const mine = useMyEnchantments();
   const visitors = useVisitors();
   const best = useQuery({ queryKey: ['enchant-bestiary'], queryFn: api.enchantBestiary, staleTime: 60_000 });
@@ -59,118 +66,193 @@ function Home() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => { if (!document.hidden) setNow(Date.now()); }, 30_000); return () => clearInterval(t); }, []);
   const list = mine.data ?? [];
+  // new players see how it works until they close it (or once they have a few)
+  const [help, setHelp] = useState<boolean | null>(null);
+  const showHelp = help ?? (!learned() && list.length < 3);
+  const closeHelp = () => { setHelp(false); try { localStorage.setItem(LEARN_KEY, '1'); } catch { /* private mode */ } };
   const elapsed = mine.dataUpdatedAt ? Math.max(0, (now - mine.dataUpdatedAt) / 1000) : 0;
   const ready = list.filter((e) => e.attention);
-  const shown = list.filter((e) => (filter === 'ready' ? !!e.attention : filter === 'spliced' ? !!e.partner : true));
-  // copies of one kind stay together; the kinds in the book's order
+  const waitOf = (e: EnchantView) => (e.attention ? -1 : nextIn(e, elapsed * rateOf(e)) ?? Infinity);
+  const shown = list.filter((e) => (filter === 'ready' ? !!e.attention : filter === 'spliced' ? !!(e.partner || e.partners?.length) : true));
+  // copies of one kind stay side by side; kinds with something ready first, then whatever comes soonest
   const groups = useMemo(() => {
     const m = new Map<string, EnchantView[]>();
-    for (const e of shown) { const k = e.kind; if (!m.has(k)) m.set(k, []); m.get(k)!.push(e); }
+    for (const e of shown) { if (!m.has(e.kind)) m.set(e.kind, []); m.get(e.kind)!.push(e); }
+    for (const g of m.values()) g.sort((a, b) => waitOf(a) - waitOf(b));
     const order = [...KIND_ORDER, 'cuckoo'] as string[];
-    return [...m.entries()].sort((a, b) => Number(b[1].some((x) => x.attention)) - Number(a[1].some((x) => x.attention)) || order.indexOf(a[0]) - order.indexOf(b[0]));
-  }, [shown]);
+    return [...m.entries()].sort((a, b) => waitOf(a[1][0]) - waitOf(b[1][0]) || order.indexOf(a[0]) - order.indexOf(b[0]));
+  }, [shown, elapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const kinds = new Set(list.map((e) => e.kind)).size;
   const soonest = useMemo(() => list.filter((e) => !e.attention).map((e) => ({ e, s: nextIn(e, elapsed * rateOf(e)) })).filter((x) => x.s != null).sort((a, b) => a.s! - b.s!)[0], [list, elapsed]);
+  const twins = useMemo(() => { const c = new Map<string, number>(); for (const e of list) if (e.kind !== 'cuckoo') c.set(e.kind, (c.get(e.kind) ?? 0) + 1); return [...c.entries()].filter(([, n]) => n > 1); }, [list]);
+  const setTab = (t: TabId) => setSp((p) => { p.set('tab', t); return p; }, { replace: true });
   if (!me) return <Page><Empty title="Sign in to open your Grimoire" /></Page>;
   return (
     <Page>
-      <header className="mb-4 grid gap-3">
-        <div className="flex items-center gap-3">
-          <motion.div className="lv-grim-btn shrink-0" initial={{ rotate: -10, scale: 0.8 }} animate={{ rotate: 0, scale: 1 }}><span className="lv-grim-book text-3xl">📖</span></motion.div>
-          <div className="grid">
-            <h1 className="font-display text-3xl font-black tracking-tight">Grimoire</h1>
-            <p className="text-sm text-muted">{list.length ? `${list.length} enchantment${list.length === 1 ? '' : 's'} · ${groups.length} kind${groups.length === 1 ? '' : 's'}${ready.length ? ` · ${ready.length} ready` : ''}` : `Enchantments live on plots — ${best.data ? `${best.data.chance.base}% of plot rolls come out` : 'some plot rolls come out'} Enchanted.`}</p>
-          </div>
+      <header className="lv-gx-hero" data-testid="grimoire-hero">
+        <motion.span className="lv-gx-book" initial={{ rotate: -10, scale: 0.8 }} animate={{ rotate: 0, scale: 1 }} aria-hidden><span className="lv-grim-book">📖</span></motion.span>
+        <div className="min-w-0 flex-1">
+          <h1>Grimoire</h1>
+          <p>{list.length ? `${list.length} enchantment${list.length === 1 ? '' : 's'} · ${kinds} kind${kinds === 1 ? '' : 's'}` : 'Magical creatures that live on your plots'}</p>
         </div>
-        {best.data && (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#B26BFF]/30 bg-[#B26BFF]/10 px-3 py-2 text-[12px]" data-testid="grimoire-chance">
-            <span className="font-black text-[#E5CCFF]">✨ Your next roll: {best.data.chance.base + best.data.chance.charges * best.data.chance.step}% Enchanted</span>
-            <span className="text-white/60">{best.data.chance.charges ? `(${best.data.chance.charges} Enchanted Luck charge${best.data.chance.charges === 1 ? '' : 's'})` : 'Buy Enchanted Luck at the Altar of Luck to raise it.'}</span>
-          </div>
-        )}
+        <button className={cn('lv-gx-help', showHelp && 'on')} onClick={() => (showHelp ? closeHelp() : setHelp(true))} aria-expanded={showHelp} aria-label="How enchantments work" data-testid="grimoire-help">?</button>
       </header>
-      <SpliceInvites />
-      <AllChests />
-      <Tabs value={tab} onValueChange={(t) => setSp((p) => { p.set('tab', t); return p; }, { replace: true })} className="mb-4"
-        items={[{ value: 'mine', label: `Enchantments${list.length ? ` · ${list.length}` : ''}` }, { value: 'visitors', label: `On my land${visitors.data?.length ? ` · ${visitors.data.length}` : ''}` }, { value: 'bestiary', label: 'Bestiary' }, { value: 'codex', label: 'Codex' }, { value: 'badges', label: 'Badges' }]} />
-      {tab === 'mine' && (mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : list.length ? (
-        <div className="grid gap-3">
-          {/* ready now: everything that has something waiting, one tap away */}
-          <section className="grid gap-2" data-testid="grimoire-ready">
-            <div className="flex items-center justify-between"><h2 className="font-display text-[15px] font-black text-[#FFE8A3]">✦ Ready now{ready.length ? ` · ${ready.length}` : ''}</h2></div>
-            {ready.length ? (
-              <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
-                {ready.map((e) => (
-                  <Link key={e.id} to={`/grimoire/${e.id}`} className="lv-ready-chip snap-start" style={{ ['--a' as string]: kindInfo(e.kind).a }} data-testid="grimoire-ready-chip">
-                    <Sigil kind={e.kind} seed={e.sigil} size={40} level={e.level} still />
-                    <span className="grid min-w-0 leading-tight"><b className="truncate text-[12.5px] text-white">{enchantName(e)}</b><i className="truncate text-[11px] not-italic text-[#FFE8A3]">{e.attention}</i></span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-2xl bg-white/[0.04] px-3 py-2 text-[12px] text-white/60" data-testid="grimoire-none-ready">Nothing needs you right now.{soonest ? <> Next up: <b className="text-white/85">{enchantName(soonest.e)}</b> in {dur(soonest.s!)}.</> : ''}</p>
+      <div className="grid gap-3">
+        <AnimatePresence initial={false}>{showHelp && <HowItWorks key="learn" chance={best.data?.chance.base ?? 2} onClose={closeHelp} />}</AnimatePresence>
+        <SpliceInvites />
+        {list.length > 0 && <TodayCard list={list} ready={ready} soonest={soonest} />}
+        <ChanceCard chance={best.data?.chance} />
+        <AllChests />
+        <GrimTabs tab={tab} onTab={setTab} counts={{ mine: list.length, ready: ready.length, visitors: visitors.data?.length ?? 0 }} />
+        {tab === 'mine' && (mine.isLoading ? <div className="flex justify-center py-10"><Spinner /></div> : list.length ? (
+          <div className="grid gap-3">
+            <div className="lv-gx-chips" data-testid="grimoire-filter">
+              {([['all', 'All', list.length], ['ready', '✦ Ready', ready.length], ['spliced', '🧬 Spliced', list.filter((e) => e.partner || e.partners?.length).length]] as [Filter, string, number][]).map(([f, label, n]) => (
+                <button key={f} onClick={() => setFilter(f)} className={cn('lv-gx-chip', filter === f && 'on')} aria-pressed={filter === f} data-testid={`grimoire-filter-${f}`}>{label} <b>{n}</b></button>
+              ))}
+            </div>
+            <div className="lv-gx-grid" data-testid="grimoire-list">
+              {groups.map(([kind, copies], gi) => (
+                <div key={kind} className="contents" data-testid="grimoire-group" data-kind={kind}>
+                  {copies.map((e, ci) => <EnchantTile key={e.id} e={e} of={copies.length} i={gi + ci} elapsed={elapsed} />)}
+                </div>
+              ))}
+            </div>
+            {!groups.length && <p className="lv-gx-tip">{filter === 'ready' ? 'Nothing needs you right now — come back soon.' : 'Nothing spliced yet. Open a 🧪 Splice to fuse two enchantments into a hybrid.'}</p>}
+            {twins.length > 0 && filter === 'all' && (
+              <p className="lv-gx-tip" data-testid="grimoire-twins"><span className="text-lg">⭐</span><span>You have {twins.map(([k, n]) => `${n} ${kindInfo(k).name}s`).join(', ')}. Open the one to keep and use <b>“Pour in a copy”</b> to give it a Star.</span></p>
             )}
-          </section>
-          {/* show: all / ready / spliced */}
-          <div className="flex flex-wrap gap-1.5" data-testid="grimoire-filter">
-            {([['all', `All · ${list.length}`], ['ready', `Ready · ${ready.length}`], ['spliced', `Spliced · ${list.filter((e) => e.partner).length}`]] as [Filter, string][]).map(([f, label]) => (
-              <button key={f} onClick={() => setFilter(f)} className={cn('rounded-full px-3 py-1.5 text-[12px] font-black', filter === f ? 'bg-white text-[#1a0b2e]' : 'bg-white/[0.07] text-white/75')} data-testid={`grimoire-filter-${f}`}>{label}</button>
-            ))}
           </div>
-          <div className="grid gap-3 lg:grid-cols-2" data-testid="grimoire-list">
-            {groups.map(([kind, copies], gi) => <KindGroup key={kind} kind={kind} copies={copies} i={gi} elapsed={elapsed} />)}
-            {!groups.length && <p className="text-[12px] text-white/55">Nothing here — try another filter.</p>}
+        ) : (
+          <div className="lv-gx-empty" data-testid="grimoire-empty">
+            <span className="text-5xl">✨</span>
+            <b>No enchantments yet</b>
+            <p>Every plot you roll has a {best.data?.chance.base ?? 2}% chance to come out <b>Enchanted</b> — a living creature instead of a rarity. Raise the odds with Enchanted Luck.</p>
+            <Link to="/world"><Button variant="rainbow">🎲 Roll a plot</Button></Link>
           </div>
-        </div>
-      ) : (
-        <Empty icon={<span className="text-3xl">✨</span>} title="No enchantments yet" action={<Link to="/world"><Button variant="rainbow">Roll a plot</Button></Link>}>
-          Every plot roll has a {best.data?.chance.base ?? 2}% chance to come out Enchanted — an enchantment in place of a rarity. Raise the odds with Enchanted Luck at the Altar of Luck.
-        </Empty>
-      ))}
-      {tab === 'visitors' && <Visitors list={visitors.data ?? []} loading={visitors.isLoading} />}
-      {tab === 'bestiary' && <Bestiary data={best.data} />}
-      {tab === 'badges' && <GrimoireBadges />}
-      {tab === 'codex' && <Codex codex={best.data?.codex ?? []} trinities={best.data?.trinities ?? []} plots={best.data?.plots ?? []} aberrations={best.data?.aberrations ?? []} />}
+        ))}
+        {tab === 'visitors' && <Visitors list={visitors.data ?? []} loading={visitors.isLoading} />}
+        {tab === 'bestiary' && <Bestiary data={best.data} />}
+        {tab === 'badges' && <GrimoireBadges />}
+        {tab === 'codex' && <Codex codex={best.data?.codex ?? []} trinities={best.data?.trinities ?? []} plots={best.data?.plots ?? []} aberrations={best.data?.aberrations ?? []} />}
+      </div>
     </Page>
   );
 }
 
-/** one kind, all your copies of it together: who's ready, who's waiting, and that copies can be poured in for a star */
-function KindGroup({ kind, copies, i, elapsed }: { kind: string; copies: EnchantView[]; i: number; elapsed: number }) {
-  const k = kindInfo(kind);
-  const nReady = copies.filter((e) => e.attention).length;
+/** three steps, in plain words, for someone who has never seen an enchantment */
+function HowItWorks({ chance, onClose }: { chance: number; onClose(): void }) {
+  const steps = [
+    ['🎲', 'Roll plots', `About ${chance} in 100 come out Enchanted — a living creature instead of a rarity.`],
+    ['✦', 'Tend it when it glows', 'Each kind has its own little game. Playing it pays Ink and levels it up.'],
+    ['⭐', 'Grow your collection', 'Pour in copies for Stars, Splice two into a hybrid, and fill the Codex.'],
+  ] as const;
   return (
-    <motion.section className="lv-kind-group grid gap-1.5 p-2.5" style={{ ['--a' as string]: k.a, ['--b' as string]: k.b }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 8) * 0.04 }} data-testid="grimoire-group" data-kind={kind}>
-      <div className="flex items-center gap-2 px-1">
-        <span className="text-[22px]">{k.emoji}</span>
-        <span className="min-w-0 flex-1 leading-tight"><b className="block truncate font-display text-[16px] text-white">{k.name}{copies.length > 1 ? <span className="ml-1.5 rounded-full bg-white/15 px-2 text-[12px]">×{copies.length}</span> : null}</b>
-          <i className="block truncate text-[11px] not-italic text-white/50">{k.tagline}</i></span>
-        {nReady > 0 && <span className="rounded-full bg-[#FFD23F] px-2 py-0.5 text-[11px] font-black text-[#1a0b2e]">{nReady} ready</span>}
-      </div>
-      {copies.map((e) => <EnchantRow key={e.id} e={e} elapsed={elapsed} />)}
-      {copies.length > 1 && kind !== 'cuckoo' && <p className="px-1 text-[11px] font-semibold text-white/50">⭐ Copies of one kind can be poured into one for a star — open the one to keep and use “Pour in a copy”.</p>}
+    <motion.section className="lv-gx-learn" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} data-testid="grimoire-learn">
+      <div className="flex items-center gap-2"><b className="flex-1 font-display text-[15px] text-[#E5CCFF]">How enchantments work</b>
+        <button className="rounded-full bg-white/10 px-3 py-1 text-[12px] font-black text-white/85" onClick={onClose} data-testid="grimoire-learn-close">Got it</button></div>
+      <ol className="lv-gx-steps">
+        {steps.map(([icon, t, d], i) => <li key={t} className="lv-gx-step"><span className="n" aria-hidden>{icon}</span><span className="min-w-0"><b>{i + 1}. {t}</b><i>{d}</i></span></li>)}
+      </ol>
     </motion.section>
   );
 }
 
-function EnchantRow({ e, elapsed }: { e: EnchantView; elapsed: number }) {
+/** today: how many are waiting for you, a ring that fills as you tend them, and one button to start the round */
+function TodayCard({ list, ready, soonest }: { list: EnchantView[]; ready: EnchantView[]; soonest?: { e: EnchantView; s: number | null } }) {
+  const done = list.length - ready.length, pct = list.length ? done / list.length : 1;
+  const r = 31, c = 2 * Math.PI * r;
+  const first = ready[0];
+  return (
+    <section className={cn('lv-gx-today', !ready.length && 'calm')} data-testid="grimoire-ready">
+      <div className="lv-gx-ring" aria-label={`${done} of ${list.length} tended`}>
+        <svg viewBox="0 0 74 74" width="74" height="74" aria-hidden>
+          <circle cx="37" cy="37" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
+          <circle cx="37" cy="37" r={r} fill="none" stroke="url(#lv-gx-ring)" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${c * pct} ${c}`} style={{ transition: 'stroke-dasharray .6s cubic-bezier(.2,1.2,.4,1)' }} />
+          <defs><linearGradient id="lv-gx-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3DDC97" /><stop offset="1" stopColor="#FFD23F" /></linearGradient></defs>
+        </svg>
+        {ready.length ? <span className="grid justify-items-center"><b>{ready.length}</b><i>ready</i></span> : <span className="text-[26px]" aria-hidden>✓</span>}
+      </div>
+      <div className="min-w-0">
+        <h2>{ready.length ? `${ready.length} ready to tend` : 'All tended!'}</h2>
+        {ready.length ? (
+          <div className="lv-gx-stack" aria-label="Ready now">
+            {ready.slice(0, 6).map((e) => <Link key={e.id} to={`/grimoire/${e.id}`} title={`${enchantName(e)} — ${e.attention}`} data-testid="grimoire-ready-chip"><Sigil kind={e.kind} seed={e.sigil} size={30} level={e.level} still /></Link>)}
+            {ready.length > 6 && <span className="more">+{ready.length - 6}</span>}
+          </div>
+        ) : (
+          <p data-testid="grimoire-none-ready">{soonest ? <>Next up: <b className="text-white/90">{enchantName(soonest.e)}</b> in {dur(soonest.s!)}.</> : 'Nothing is waiting on you.'}</p>
+        )}
+      </div>
+      {first && (
+        <Link to={`/grimoire/${first.id}`} className="lv-gx-go" data-testid="grimoire-start">
+          <span aria-hidden>▶</span><span className="min-w-0 truncate">{ready.length > 1 ? 'Start tending' : 'Tend'} · {enchantName(first)}</span>
+        </Link>
+      )}
+    </section>
+  );
+}
+
+/** your next roll's odds of coming out Enchanted, with the Altar of Luck one tap away */
+function ChanceCard({ chance }: { chance?: { base: number; charges: number; step: number; max?: number } }) {
+  const luck = useLuck();
+  const [altar, setAltar] = useState(false);
+  if (!chance) return null;
+  const pct = chance.base + chance.charges * chance.step;
+  const can = !!luck.data?.enabled;
+  return (
+    <>
+      <button className="lv-gx-chance" onClick={() => can && setAltar(true)} disabled={!can} data-testid="grimoire-chance">
+        <span className="orb" aria-hidden>✨</span>
+        <span className="min-w-0 flex-1"><b>Next roll: {pct}% Enchanted</b>
+          <i>{chance.charges ? `${chance.charges} Enchanted Luck charge${chance.charges === 1 ? '' : 's'} armed` : 'Raise your odds with Enchanted Luck'}</i></span>
+        {can && <span className="cta">Raise ›</span>}
+      </button>
+      {can && <AltarDialog open={altar} onOpenChange={setAltar} />}
+    </>
+  );
+}
+
+/** five tabs that always fit, each with its icon and a count where it matters */
+function GrimTabs({ tab, onTab, counts }: { tab: TabId; onTab(t: TabId): void; counts: { mine: number; ready: number; visitors: number } }) {
+  const items: [TabId, string, string, number | null][] = [
+    ['mine', '📖', 'Mine', counts.ready || null], ['visitors', '🌿', 'My land', counts.visitors || null],
+    ['bestiary', '🐉', 'Bestiary', null], ['codex', '🧬', 'Codex', null], ['badges', '🏅', 'Badges', null],
+  ];
+  return (
+    <div className="lv-gx-tabs" role="tablist" aria-label="Grimoire" data-testid="grimoire-tabs">
+      {items.map(([id, icon, label, n]) => (
+        <button key={id} role="tab" aria-selected={tab === id} data-state={tab === id ? 'active' : 'inactive'} className="lv-gx-tab" onClick={() => onTab(id)} data-sound="tab" data-testid={`grimoire-tab-${id}`}>
+          <span className="ic" aria-hidden>{icon}</span><span className="lb">{label}{id === 'mine' && counts.mine ? <span className="sr-only"> ({counts.mine})</span> : null}</span>
+          {n ? <span className="ct">{n}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** one enchantment as a tile: its sigil, its name, its level and stars, and — in plain words — whether it's ready */
+function EnchantTile({ e, of, i, elapsed }: { e: EnchantView; of: number; i: number; elapsed: number }) {
   const k = kindInfo(e.reflect_kind ?? e.kind);
   const n = e.attention ? null : nextIn(e, elapsed * rateOf(e));
+  const partner = e.partner ?? e.partners?.[0];
   return (
-    <Link to={`/grimoire/${e.id}`} className={cn('lv-ench-row flex items-center gap-3', e.attention && 'ready')} data-testid="grimoire-card" data-kind={e.kind}>
-      <div className="relative shrink-0"><StarAura stars={e.stars ?? 0} size={52}><Sigil kind={e.kind} seed={e.sigil} size={52} level={e.level} /></StarAura>
-        {e.reflect_kind && <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-[#C0F5FF] text-[12px] shadow">{k.emoji}</span>}</div>
-      <div className="grid min-w-0 flex-1 gap-0.5">
-        <div className="flex items-center gap-1.5"><span className="truncate text-[14.5px] font-black text-white">{enchantName(e)}</span>
-          <span className="shrink-0 rounded-full bg-[#FFD23F]/20 px-1.5 text-[10px] font-black text-[#FFD23F]">LV {e.level}</span>{(e.stars ?? 0) > 0 && <StarPips stars={e.stars ?? 0} className="text-[11px]" />}</div>
-        <div className="flex flex-wrap items-center gap-1 text-[11px]">
-          <span className={cn('rounded-full px-2 py-[1px] font-black', e.attention ? 'bg-[#FFD23F] text-[#1a0b2e]' : 'bg-white/[0.08] text-white/60')} data-testid="grimoire-status">
-            {e.attention ? `✦ ${e.attention}` : e.clock?.frozen_until ? '❄️ frozen' : n != null ? `⏳ ${dur(n)}` : 'resting'}</span>
-          {e.partner && <span className="truncate rounded-full bg-[#00F5D4]/15 px-2 py-[1px] font-black text-[#00F5D4]">🧬 {e.partner.hybrid}</span>}
-          <TempoBadge e={e} compact />
-        </div>
-      </div>
-      <span className="shrink-0 text-white/30" aria-hidden>›</span>
-    </Link>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.03 }} className="min-w-0">
+      <Link to={`/grimoire/${e.id}`} className={cn('lv-gx-tile', e.attention && 'ready')} style={{ ['--a' as string]: kindInfo(e.kind).a, ['--b' as string]: kindInfo(e.kind).b }} data-testid="grimoire-card" data-kind={e.kind}>
+        <span className="lv-gx-tile-top">
+          <span className="flex items-center gap-1"><span className="lv-gx-lv">LV {e.level}</span>{(e.stars ?? 0) > 0 && <StarPips stars={e.stars ?? 0} of={e.stars ?? 0} className="text-[10px]" />}</span>
+          {of > 1 && <span className="lv-gx-x" title={`You have ${of} of this kind`}>×{of}</span>}
+        </span>
+        <span className="lv-gx-art">
+          <StarAura stars={e.stars ?? 0} size={62}><Sigil kind={e.kind} seed={e.sigil} size={62} level={e.level} still={!e.attention} /></StarAura>
+          {e.reflect_kind && <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-[#C0F5FF] text-[12px] shadow">{k.emoji}</span>}
+        </span>
+        <span className="lv-gx-name">{enchantName(e)}</span>
+        <span className="lv-gx-sub">{partner ? <>🧬 {partner.hybrid}</> : <>{kindInfo(e.kind).emoji} {kindInfo(e.kind).name}</>}</span>
+        <span className="lv-gx-status" data-testid="grimoire-status"><span>{e.attention ? `✦ ${e.attention}` : e.clock?.frozen_until ? '❄️ Frozen' : n != null ? `⏳ ${dur(n)}` : '💤 Resting'}</span></span>
+        <TempoBadge e={e} compact className="absolute right-2 top-[30px]" />
+      </Link>
+    </motion.div>
   );
 }
 
@@ -224,85 +306,95 @@ function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean 
 }
 
 // ---- every kind -----------------------------------------------------------------------------------------------------
+/** all twenty kinds as tiles: tap one to read what it does (it opens across the row) */
 function Bestiary({ data }: { data: Awaited<ReturnType<typeof api.enchantBestiary>> | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
+  const owned = KIND_ORDER.filter((id) => (data?.kinds.find((x) => x.kind === id)?.mine ?? 0) > 0).length;
   return (
-    <div className="grid gap-3 sm:grid-cols-2" data-testid="grimoire-bestiary">
-      {KIND_ORDER.map((id, i) => {
-        const k = KINDS[id], d = data?.kinds.find((x) => x.kind === id), owned = (d?.mine ?? 0) > 0;
-        return (
-          <motion.button key={id} onClick={() => setOpen(open === id ? null : id)} className="lv-ench-card grid gap-2 p-3 text-left" style={{ ['--a' as string]: k.a }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-            <div className="flex items-center gap-3">
-              <span className={cn('grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-4xl', !owned && 'grayscale-[0.6]')} style={{ background: `radial-gradient(circle, ${k.a}55, transparent 70%)` }}>{k.emoji}</span>
-              <div className="grid min-w-0 flex-1">
-                <span className="font-display text-[17px] font-black" style={{ color: k.a }}>{k.name}</span>
-                <span className="text-[12px] text-white/65">{k.tagline}</span>
-                <span className="text-[11px] font-bold text-white/45">{fmt(d?.population ?? 0)} in the world · {owned ? `you have ${d!.mine}` : 'not yet yours'}</span>
-              </div>
-            </div>
-            <AnimatePresence>
-              {open === id && (
-                <motion.div className="grid gap-1 overflow-hidden text-[12px] text-white/80" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                  {k.how.map((h) => <div key={h}>• {h}</div>)}
-                  {k.geneText && <div className="mt-1 font-bold text-[#9BF6E5]">🧬 When spliced, it lends its <b>{k.geneName}</b> Trait: the other one {k.geneText}.</div>}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
-        );
-      })}
+    <div className="grid gap-3" data-testid="grimoire-bestiary">
+      <p className="lv-gx-tip"><span className="text-lg">🐉</span><span>Every kind of enchantment in the world. You’ve found <b>{owned} of {KIND_ORDER.length}</b>. Tap one to see what it does.</span></p>
+      <div className="lv-gx-grid lv-gx-grid-list">
+        {KIND_ORDER.map((id, i) => {
+          const k = KINDS[id], d = data?.kinds.find((x) => x.kind === id), have = (d?.mine ?? 0) > 0, isOpen = open === id;
+          return (
+            <motion.button key={id} layout="position" onClick={() => setOpen(isOpen ? null : id)} aria-expanded={isOpen}
+              className={cn('lv-gx-beast', isOpen && 'open', !have && 'locked')} style={{ ['--a' as string]: k.a }}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 12) * 0.025 }} data-testid="bestiary-kind" data-kind={id}>
+              <span className="em" aria-hidden>{k.emoji}</span>
+              <span className="grid min-w-0 gap-0.5">
+                <b>{k.name}</b>
+                <i>{have ? <span className="text-[#9BF6C8]">✓ Yours{d!.mine > 1 ? ` ×${d!.mine}` : ''}</span> : 'Not found yet'} · {fmt(d?.population ?? 0)} in the world</i>
+                {isOpen ? <span className="tl">{k.tagline}</span> : <span className="tl clamp">{k.tagline}</span>}
+              </span>
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.span className="how" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                    <ol>{k.how.map((h) => <li key={h}>{h}</li>)}</ol>
+                    {k.geneText && <span className="gene">🧬 Spliced, it lends its <b>{k.geneName}</b> Trait: the other one {k.geneText}.</span>}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-/** the Codex: a grid of every pairing — what you've made shows its card, the rest are silhouettes */
+/** the Codex: pick a kind and see every hybrid it makes (found ones named, the rest still a mystery) — and the full
+ *  chart of every pairing, which fits the screen */
 function Codex({ codex, trinities, plots, aberrations }: { codex: string[]; trinities: string[]; plots: string[]; aberrations: string[] }) {
-  const [open, setOpen] = useState<string | null>(null);
   const ks = KIND_ORDER.filter((k) => k !== 'splice');
+  const [pick, setPick] = useState<EnchantKind>(ks[0]);
+  const [open, setOpen] = useState<string | null>(null);
   const perfectFound = Object.entries(HYBRIDS).filter(([key, [, p]]) => p && codex.includes(key)).length;
+  const foundOf = (k: string) => ks.filter((c) => c !== k && codex.includes(hybridKey(k, c))).length;
+  const pairs = ks.filter((c) => c !== pick).map((c) => { const key = hybridKey(pick, c), [name, perfect] = HYBRIDS[key] ?? ['?', false]; return { c, key, name, perfect, has: codex.includes(key) }; })
+    .sort((a, b) => Number(b.has) - Number(a.has) || Number(b.perfect) - Number(a.perfect));
   return (
     <div className="grid gap-3" data-testid="grimoire-codex">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#00F5D4]/30 bg-[#00F5D4]/10 px-3 py-2">
-        <span className="text-[13px] font-black text-[#9BF6E5]">🧬 Splice Codex — every hybrid you’ve made</span><span className="font-display text-xl font-black text-[#00F5D4]">{codex.length}/{HYBRID_COUNT}</span>
+      <div className="lv-gx-codex-head">
+        <div className="min-w-0"><b>🧬 Splice Codex</b><i>Every hybrid you’ve made by splicing two kinds</i></div>
+        <span className="big">{codex.length}<small>/{HYBRID_COUNT}</small></span>
+        <div className="lv-gx-bar" aria-hidden><i style={{ width: `${(codex.length / HYBRID_COUNT) * 100}%` }} /></div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black">
-        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#E5CCFF]">{perfectFound}/{PERFECT_COUNT}</div>✦ Perfect Matches</div>
-        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#9BF6E5]">{trinities.length}</div>🔺 Trinities</div>
-        <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[16px] text-[#FFB3C7]">{aberrations.length}/{ABERRATION_COUNT}</div>☣️ Aberrations</div>
+        <div className="lv-gx-stat"><b className="text-[#E5CCFF]">{perfectFound}/{PERFECT_COUNT}</b>✦ Perfect</div>
+        <div className="lv-gx-stat"><b className="text-[#9BF6E5]">{trinities.length}</b>🔺 Trinities</div>
+        <div className="lv-gx-stat"><b className="text-[#FFB3C7]">{aberrations.length}/{ABERRATION_COUNT}</b>☣️ Aberrations</div>
       </div>
-      {/* the grid: a row and a column for every kind */}
-      <div className="overflow-x-auto pb-1">
-        <div className="lv-codex-grid grid gap-[3px]" style={{ gridTemplateColumns: `28px repeat(${ks.length}, minmax(28px, 1fr))` }}>
-          <span />
-          {ks.map((k) => <span key={k} className="grid h-7 place-items-center text-[15px]">{KINDS[k].emoji}</span>)}
-          {ks.map((r) => [
-            <span key={`r${r}`} className="grid h-7 place-items-center text-[15px]">{KINDS[r].emoji}</span>,
-            ...ks.map((c) => {
-              if (r === c) return <span key={r + c} className="h-7 rounded-md bg-white/[0.02]" />;
-              const key = hybridKey(r, c), [name, perfect] = HYBRIDS[key] ?? ['?', false], has = codex.includes(key);
-              return (
-                <button key={r + c} onClick={() => setOpen(open === key ? null : key)} title={has ? name : perfect ? 'A Perfect Match awaits' : 'Undiscovered'}
-                  className={cn('h-7 rounded-md text-[11px] font-black', has ? (perfect ? 'bg-[linear-gradient(135deg,#00F5D4,#B26BFF)] text-[#04211D]' : 'bg-[#00F5D4]/35 text-white') : perfect ? 'border border-dashed border-[#E5CCFF]/50 text-[#E5CCFF]/60' : 'bg-white/[0.04] text-white/20', open === key && 'ring-2 ring-white')}>
-                  {has ? (perfect ? '✦' : '●') : perfect ? '✦' : '?'}
-                </button>
-              );
-            }),
-          ])}
+      {/* pick a kind: what it makes */}
+      <div className="grid gap-2">
+        <h3 className="lv-gx-label">Pick a kind to see what it makes</h3>
+        <div className="lv-gx-kindpick" data-testid="codex-kinds">
+          {ks.map((k) => {
+            const f = foundOf(k);
+            return (
+              <button key={k} onClick={() => { setPick(k); setOpen(null); }} className={cn(pick === k && 'on')} style={{ ['--a' as string]: KINDS[k].a }} aria-pressed={pick === k} title={KINDS[k].name} data-testid={`codex-kind-${k}`}>
+                <span aria-hidden>{KINDS[k].emoji}</span>{f > 0 && <i>{f}</i>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="lv-gx-pairs" data-testid="codex-pairs">
+          <div className="text-[12.5px] font-black" style={{ color: KINDS[pick].a }}>{KINDS[pick].emoji} {KINDS[pick].name} · {foundOf(pick)} of {ks.length - 1} found</div>
+          {pairs.map((p) => (
+            <div key={p.key} className="grid gap-1.5">
+              <button onClick={() => setOpen(open === p.key ? null : p.key)} className={cn('lv-gx-pair', p.has && 'has', p.perfect && 'perfect')} aria-expanded={open === p.key} data-testid="codex-pair">
+                <span className="e" aria-hidden>{KINDS[pick].emoji}<small>+</small>{KINDS[p.c].emoji}</span>
+                <span className="min-w-0 flex-1 truncate">{p.has ? p.name : p.perfect ? '✦ A Perfect Match awaits' : 'Undiscovered'}</span>
+                <span className="tag">{p.has ? (p.perfect ? '✦ Found' : '✓ Found') : '?'}</span>
+              </button>
+              {open === p.key && (p.has ? <HybridCard a={pick} b={p.c} /> : (
+                <p className="rounded-2xl bg-white/[0.04] px-3 py-2 text-[12px] text-white/70">{p.perfect ? '✦ A Perfect Match — both Traits doubled. ' : ''}Splice a {KINDS[pick].name} with a {KINDS[p.c].name} to discover it.</p>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
-      <AnimatePresence>
-        {open && (() => { const [a, b] = open.split('+') as EnchantKind[]; const has = codex.includes(open); return (
-          <motion.div key={open} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {has ? <HybridCard a={a} b={b} /> : (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-[12.5px] text-white/70">
-                <b className="text-white">{KINDS[a].emoji} + {KINDS[b].emoji} = ???</b><div>{hybridCard(a, b).perfect ? '✦ A Perfect Match — both Traits doubled. Splice these two to find out its name.' : 'Undiscovered. Splice a ' + KINDS[a].name + ' with a ' + KINDS[b].name + ' to find it.'}</div>
-              </div>
-            )}
-          </motion.div>
-        ); })()}
-      </AnimatePresence>
       <div className="grid gap-1.5">
-        <div className="text-[12px] font-black uppercase tracking-wider text-white/60">☣️ Aberrations — 1 in 20 Swaps or Chimeras mutates</div>
+        <h3 className="lv-gx-label">☣️ Aberrations — 1 in 20 Swaps or Chimeras mutates</h3>
         <div className="grid grid-cols-3 gap-1.5">
           {Object.entries(ABERRATIONS).map(([name, a]) => { const has = aberrations.includes(name); return (
             <div key={name} className={cn('rounded-xl p-2 text-center text-[10.5px] font-black', has ? 'bg-[#FF5C8A]/20 text-[#FFD1DE]' : 'bg-white/[0.03] text-white/25')} title={has ? a.secret : 'A secret'}>
@@ -317,6 +409,27 @@ function Codex({ codex, trinities, plots, aberrations }: { codex: string[]; trin
           {plots.map((p) => { const [k, pk] = p.split('@'); return <div key={p}>🏞️ {KINDS[k as EnchantKind]?.emoji} {KINDS[k as EnchantKind]?.name} + a {pk} plot</div>; })}
         </div>
       )}
+      {/* the whole chart: a row and a column for every kind, squeezed to fit */}
+      <details className="lv-gx-fold" data-testid="codex-chart">
+        <summary>🗺️ The full chart <small>every pairing at once</small></summary>
+        <div className="lv-codex-grid mt-2 grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${ks.length + 1}, minmax(0, 1fr))` }}>
+          <span />
+          {ks.map((k) => <span key={k} className="lv-gx-cell head">{KINDS[k].emoji}</span>)}
+          {ks.map((r) => [
+            <span key={`r${r}`} className="lv-gx-cell head">{KINDS[r].emoji}</span>,
+            ...ks.map((c) => {
+              if (r === c) return <span key={r + c} className="lv-gx-cell self" />;
+              const key = hybridKey(r, c), [name, perfect] = HYBRIDS[key] ?? ['?', false], has = codex.includes(key);
+              return (
+                <button key={r + c} onClick={() => { setPick(r); setOpen(key); }} title={has ? name : perfect ? 'A Perfect Match awaits' : 'Undiscovered'}
+                  className={cn('lv-gx-cell', has ? (perfect ? 'bg-[linear-gradient(135deg,#00F5D4,#B26BFF)] text-[#04211D]' : 'bg-[#00F5D4]/35 text-white') : perfect ? 'border border-dashed border-[#E5CCFF]/50 text-[#E5CCFF]/60' : 'bg-white/[0.04] text-white/20')}>
+                  {has ? (perfect ? '✦' : '●') : perfect ? '✦' : ''}
+                </button>
+              );
+            }),
+          ])}
+        </div>
+      </details>
       <p className="text-center text-[11px] text-white/50">✦ Perfect Matches wear each other’s Traits twice as strong. Make hybrids with a 🧪 Splice enchantment.</p>
     </div>
   );
@@ -335,7 +448,7 @@ function SpliceInvites() {
     } catch (e) { toast.error(toGameError(e).message); }
   };
   return (
-    <div className="mb-4 grid gap-2" data-testid="splice-invites">
+    <div className="grid gap-2" data-testid="splice-invites">
       {q.data.map((i) => (
         <div key={i.id} className="grid gap-2 rounded-3xl border border-[#00F5D4]/40 bg-[#00F5D4]/10 p-3">
           <div className="text-[13px] font-black text-white">🤝 @{i.from?.username} wants to splice their {kindInfo(i.theirs.kind).name} with your {enchantName(i.yours)}</div>
@@ -350,7 +463,7 @@ function SpliceInvites() {
 /** every chest your enchantments' Seeking Trait buried, waiting to be dug up */
 function AllChests() {
   const q = useSeekChests();
-  return <SeekChests className="mb-4" chests={q.data ?? []} title={`Buried chests waiting · ${q.data?.length ?? 0}`} hint="Your enchantments’ Seeking Trait buried these by their plots. Dig them up here or tap them on the map." />;
+  return <SeekChests chests={q.data ?? []} title={`Buried chests waiting · ${q.data?.length ?? 0}`} hint="Your enchantments’ Seeking Trait buried these by their plots. Dig them up here or tap them on the map." />;
 }
 
 /** the Traits an enchantment wears right now: what each one does on this kind, whether it needs you, and what it's done —
@@ -510,126 +623,183 @@ const WORKS_ON: Record<string, string[]> = {
   stormcoil: ['your hybrids', 'your plots'], sun: ['any spot on the map', 'your plots', 'your party'], rod: ['your plot rolls', 'spots near you'], spyglass: ['unclaimed plots on the map'], origami: ['your plots', 'free spots on the map'],
   crucible: ['your plots'], puppeteer: ['other players’ plots'], deck: ['your day'], glyph: ['your plots', 'your enchantments', 'the Leviathan'], cuckoo: ['what it hatches into'],
 };
-const SECTIONS = [['play', '✨ Play'], ['traits', '🧬 Traits'], ['stars', '⭐ Stars'], ['story', '📜 Story'], ['how', '❓ How']] as const;
+const SECTIONS = [['play', '✨', 'Play'], ['traits', '🧬', 'Traits'], ['stars', '⭐', 'Stars'], ['story', '📜', 'Story'], ['how', '❓', 'How']] as const;
+
+/** which section of the page is on screen, for the jump bar */
+function useSpy(ids: string[], key: string) {
+  const [on, setOn] = useState(ids[0]);
+  useEffect(() => {
+    const els = ids.map((s) => document.getElementById(`ench-${s}`)).filter(Boolean) as HTMLElement[];
+    if (!els.length || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((es) => {
+      const vis = es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (vis) setOn(vis.target.id.replace('ench-', ''));
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return [on, setOn] as const;
+}
+
+/** the last one of the round tended: a little celebration */
+function useRoundCheer(v: EnchantView | undefined, all: EnchantView[] | undefined) {
+  const was = useRef<{ id: string; attn: boolean } | null>(null);
+  useEffect(() => {
+    if (!v || v.mine === false) return;
+    const prev = was.current;
+    was.current = { id: v.id, attn: !!v.attention };
+    if (!prev || prev.id !== v.id || !prev.attn || v.attention) return;
+    if ((all ?? []).some((e) => e.attention && e.id !== v.id)) return;
+    feel('success');
+    efx.burst({ x: innerWidth / 2, y: innerHeight * 0.35, colors: ['#3DDC97', '#FFD23F', '#fff'], count: 140, speed: 12, kind: 'spark' });
+    toast.success('✓ All tended — nothing else needs you right now');
+  }, [v?.id, v?.attention]); // eslint-disable-line react-hooks/exhaustive-deps
+}
 
 function Detail({ id }: { id: string }) {
   const q = useEnchant(id);
   const nav = useNavigate();
   const { act, busy } = useAct(id);
   const mineList = useMyEnchantments();
+  useRoundCheer(q.data, mineList.data);
   const [naming, setNaming] = useState<string | null>(null);
   const [titlesOpen, setTitlesOpen] = useState(false);
   const v = q.data;
+  const partners = v ? (v.partners ?? (v.partner ? [v.partner] : [])) : [];
+  const mine = !!v && v.mine !== false && !!v.view;
+  const sections = SECTIONS.filter(([s2]) => s2 !== 'traits' || partners.length > 0);
+  const [on, setOn] = useSpy(sections.map(([s2]) => s2), `${id}:${mine}:${partners.length}`);
   if (q.isLoading) return <Page><div className="flex justify-center py-16"><Spinner /></div></Page>;
   if (!v) return <Page><Empty title="This enchantment has gone">It may have passed to a new owner, or vanished from the land.</Empty></Page>;
   const k = kindInfo(v.kind);
-  const mine = v.mine !== false && !!v.view;
   const [lng, lat] = cellCenter(v.gx, v.gy);
   const xpPct = v.xp_next ? Math.min(100, ((v.xp - (v.xp_prev ?? 0)) / Math.max(1, v.xp_next - (v.xp_prev ?? 0))) * 100) : 0;
   // your other copies of this kind: step between them
-  const copies = (mineList.data ?? []).filter((e) => e.kind === v.kind);
+  const all = mineList.data ?? [];
+  const copies = all.filter((e) => e.kind === v.kind);
   const at = copies.findIndex((e) => e.id === v.id);
+  // the round: the other enchantments that are ready right now, in the order the Grimoire shows them
+  const queue = all.filter((e) => e.attention && e.id !== v.id);
   const wait = v.attention ? null : nextIn(v, (q.dataUpdatedAt ? (Date.now() - q.dataUpdatedAt) / 1000 : 0) * rateOf(v));
-  const partners = v.partners ?? (v.partner ? [v.partner] : []);
   const traitNeeds = !!(v.traits?.fold && v.traits.fold.left > 0) || !!(v.traits?.rune && v.traits.rune.ready) || !!(v.traits?.golden && v.traits.golden.left > 0) || !!(v.traits?.chaos && v.traits.chaos.left > 0);
-  const jump = (s: string) => document.getElementById(`ench-${s}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const jump = (s: string) => { setOn(s); document.getElementById(`ench-${s}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  const titles = v.titles ?? [];
   return (
     <Page>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><Link to="/grimoire" className="text-sm font-bold text-white/70">← Grimoire</Link>
-        {copies.length > 1 && at >= 0 && (
-          <div className="flex items-center gap-1 rounded-full bg-white/[0.07] p-1" data-testid="ench-copies">
+      {/* the top bar: back, your copies of this kind, clip it, find it on the map */}
+      <div className="lv-gx-top">
+        <Link to="/grimoire" className="lv-gx-back" data-testid="ench-back"><span aria-hidden>‹</span> Grimoire</Link>
+        {copies.length > 1 && at >= 0 ? (
+          <div className="lv-gx-copies" data-testid="ench-copies">
             {copies.map((c, i) => (
-              <Link key={c.id} to={`/grimoire/${c.id}`} replace className={cn('relative grid h-8 w-8 place-items-center rounded-full', c.id === v.id ? 'bg-white/20 ring-2 ring-white/70' : 'opacity-70')} title={enchantName(c)} data-testid="ench-copy">
+              <Link key={c.id} to={`/grimoire/${c.id}`} replace className={cn('relative grid h-8 w-8 shrink-0 place-items-center rounded-full', c.id === v.id ? 'bg-white/20 ring-2 ring-white/70' : 'opacity-70')} title={enchantName(c)} data-testid="ench-copy">
                 <Sigil kind={c.kind} seed={c.sigil} size={26} level={c.level} still />
                 {c.attention && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#FFD23F] ring-2 ring-[#12041F]" />}
                 <span className="sr-only">{i + 1}</span>
               </Link>
             ))}
-            <span className="px-1.5 text-[11px] font-black text-white/70">{at + 1} of {copies.length}</span>
+            <span className="shrink-0 px-1.5 text-[11px] font-black text-white/70">{at + 1}/{copies.length}</span>
           </div>
-        )}
-        <div className="flex items-center gap-3">
-          <ClipMomentButton className="h-8 px-3 text-[12px]" testId="ench-clip" moment={newMoment({ type: 'showcase', e: enchantRef(v), titles: v.titles ?? [], user: v.owner?.username ?? null })} />
-          <button className="text-sm font-bold text-[#9BE7FF]" onClick={() => toMap(nav, { lng, lat, zoom: 19 })}>📍 On the map</button>
-        </div></div>
-      {/* the header: one of a kind */}
-      <motion.section className="lv-ench-card mb-3 grid gap-3 p-4" style={{ ['--a' as string]: k.a }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} data-testid="ench-header">
-        <div className="flex items-center gap-4">
-          <StarAura stars={v.stars ?? 0} size={104}><EvolveAura level={v.level} color={k.a} size={104}><Sigil kind={v.kind} seed={v.sigil} size={96} level={v.level} /></EvolveAura></StarAura>
-          <div className="grid min-w-0 flex-1 gap-1">
-            {naming == null ? (
-              <button className="text-left" onClick={() => mine && setNaming(v.nickname ?? '')} data-testid="ench-name"><span className="font-display text-[24px] font-black leading-tight">{enchantName(v)}</span>{mine && <span className="ml-1 text-xs text-white/40">✎</span>}</button>
-            ) : (
-              <form className="flex gap-1.5" onSubmit={async (e) => { e.preventDefault(); await act('rename', { name: naming }); setNaming(null); }}>
-                <input autoFocus maxLength={24} className={cn(inputCls, 'h-9')} value={naming} onChange={(e) => setNaming(e.target.value)} placeholder={`${k.name} #${v.serial}`} data-testid="ench-rename" />
-                <Button size="sm" type="submit">Name</Button>
-              </form>
-            )}
-            <div className="text-[12px] font-bold" style={{ color: k.a }}>{k.emoji} {k.name} · #{v.serial} of {fmt(v.minted)} ever minted · {fmt(v.population)} alive</div>
-            <div className="text-[11px] text-white/55">Born {timeAgo(v.born_at)} in {v.born_place ?? 'an unmapped place'}{v.first_owner && v.owner && v.first_owner.id !== v.owner.id ? ` · first held by @${v.first_owner.username}` : ''}</div>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="rounded-full bg-[#FFD23F]/20 px-2 py-0.5 text-[11px] font-black text-[#FFD23F]">LV {v.level}</span>
-              {(v.stars ?? 0) > 0 && <StarPips stars={v.stars ?? 0} className="text-[14px]" testId="ench-header-stars" />}
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,#FFD23F,#FF9F1C)]" style={{ width: `${xpPct}%` }} /></div>
-              {v.level < 10 && <span className="text-[10px] text-white/45">+{Math.round((v.level - 1) * 6)}% Ink</span>}
+        ) : <span className="flex-1" />}
+        <ClipMomentButton className="lv-gx-clip" label="🎬" testId="ench-clip" moment={newMoment({ type: 'showcase', e: enchantRef(v), titles, user: v.owner?.username ?? null })} />
+        <button className="lv-gx-ibtn" onClick={() => toMap(nav, { lng, lat, zoom: 19 })} aria-label="Show it on the map" title="Show it on the map" data-testid="ench-map">📍</button>
+      </div>
+      <div className="lv-gx-detail">
+        <div className="lv-gx-aside">
+          {/* who it is: one of a kind */}
+          <motion.section className="lv-gx-head" style={{ ['--a' as string]: k.a, ['--b' as string]: k.b }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} data-testid="ench-header">
+            <div className="lv-gx-head-row">
+              <StarAura stars={v.stars ?? 0} size={92}><EvolveAura level={v.level} color={k.a} size={92}><Sigil kind={v.kind} seed={v.sigil} size={86} level={v.level} /></EvolveAura></StarAura>
+              <div className="grid min-w-0 gap-1">
+                {naming == null ? (
+                  <button className="min-w-0 text-left" onClick={() => mine && setNaming(v.nickname ?? '')} data-testid="ench-name"><span className="break-words font-display text-[22px] font-black leading-tight">{enchantName(v)}</span>{mine && <span className="ml-1 text-xs text-white/40" aria-label="Rename">✎</span>}</button>
+                ) : (
+                  <form className="flex min-w-0 gap-1.5" onSubmit={async (e) => { e.preventDefault(); await act('rename', { name: naming }); setNaming(null); }}>
+                    <input autoFocus maxLength={24} className={cn(inputCls, 'h-9 min-w-0')} value={naming} onChange={(e) => setNaming(e.target.value)} placeholder={`${k.name} #${v.serial}`} data-testid="ench-rename" />
+                    <Button size="sm" type="submit">Name</Button>
+                  </form>
+                )}
+                <div className="lv-gx-kindline">{k.emoji} {k.name} · #{v.serial}</div>
+                <div className="lv-gx-xp" data-testid="ench-level">
+                  <span className="lv-gx-lv">LV {v.level}</span>
+                  <span className="lv-gx-xpbar" title={`${Math.round(xpPct)}% to level ${v.level + 1}`}><i style={{ width: `${xpPct}%` }} /></span>
+                  {(v.stars ?? 0) > 0 && <StarPips stars={v.stars ?? 0} className="text-[13px]" testId="ench-header-stars" />}
+                </div>
+              </div>
             </div>
-          </div>
+            <p className="lv-gx-tagline">{k.tagline}{v.level > 1 && <span className="text-white/45"> · LV {v.level} pays +{Math.round((v.level - 1) * 6)}% Ink</span>}</p>
+            {/* what it's doing right now — and one button to it */}
+            {mine && (
+              <div className={cn('lv-gx-cta', v.attention ? 'ready' : 'wait')} data-testid="ench-status">
+                <span className="min-w-0 flex-1">{v.attention ? <>✦ {v.attention}</> : v.clock?.frozen_until ? <>❄️ Frozen for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)}</> : wait != null ? <NextInLive v={v} at={q.dataUpdatedAt} /> : <>💤 Resting — nothing waiting</>}</span>
+                <TempoBadge e={v} />
+                {v.attention ? <button className="go" onClick={() => jump('play')} data-testid="ench-go-play">Play ↓</button>
+                  : queue[0] ? <Link className="go" to={`/grimoire/${queue[0].id}`} data-testid="ench-next">Next ready ›</Link> : null}
+              </div>
+            )}
+            <div className="lv-gx-works" data-testid="ench-works-on">
+              <span className="font-black text-white/50">🎯 Works on</span>
+              {(WORKS_ON[v.reflect_kind ?? v.kind] ?? []).map((w) => <span key={w} className="w">{w}</span>)}
+              {titles.length > 2 && <button className="lv-gx-titles-btn" onClick={() => setTitlesOpen((o) => !o)} aria-expanded={titlesOpen}>🏅 {titles.length} titles</button>}
+            </div>
+            {titles.length > 0 && (titlesOpen || titles.length <= 2) && (
+              <div className="flex flex-wrap gap-1.5" data-testid="ench-titles">{titles.map((t) => <span key={t} title={TITLES[t]} className="rounded-full bg-[linear-gradient(90deg,#FFD23F33,#B26BFF33)] px-2.5 py-0.5 text-[11px] font-black text-[#FFE8A3]">🏅 {t}</span>)}</div>
+            )}
+            {v.size && <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={{ background: v.size.mode === 'grow' ? '#39FF1418' : '#FF00E518', color: v.size.mode === 'grow' ? '#B6FF3D' : '#FF7AE0' }} data-testid="ench-size">
+              {v.size.prank ? `🤡 @${v.size.by_name ?? '?'} pranked its plot ${v.size.mode === 'grow' ? 'GIANT' : 'TINY'} (only for show)` : v.size.mode === 'grow' ? '🔼 Its plot is 100× GIANT' : '🔽 Its plot is 100× tiny — its time runs twice as fast'}{v.size.linked ? ' (through a wormhole)' : ''} · {dur((Date.parse(v.size.until) - Date.now()) / 1000)} left</div>}
+            {v.clock?.frozen_until && <div className="rounded-2xl bg-[#C0F5FF]/10 px-3 py-2 text-[12px] font-bold text-[#C0F5FF]">❄️ Frozen in time by a Clockwork — nothing grows, nothing comes until it thaws.</div>}
+          </motion.section>
+          {/* jump to: play · traits · stars · story · how (it follows you down the page) */}
+          {mine && (
+            <nav className="lv-gx-nav" aria-label="Sections" data-testid="ench-nav">
+              {sections.map(([s2, icon, label]) => (
+                <button key={s2} onClick={() => jump(s2)} className={cn(on === s2 && 'on')} aria-current={on === s2 ? 'true' : undefined} data-testid={`ench-nav-${s2}`}>
+                  <span aria-hidden>{icon}</span> {label}{s2 === 'traits' && traitNeeds && <span className="dot" />}{s2 === 'play' && v.attention && <span className="dot" />}
+                </button>
+              ))}
+            </nav>
+          )}
         </div>
-        {/* what it's doing right now, and what it works on */}
-        {mine && (
-          <div className={cn('flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2 text-[12.5px] font-black', v.attention ? 'bg-[#FFD23F] text-[#1a0b2e]' : 'bg-white/[0.06] text-white/75')} data-testid="ench-status">
-            {v.attention ? <>✦ {v.attention}</> : v.clock?.frozen_until ? <>❄️ Frozen for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)}</> : wait != null ? <NextInLive v={v} at={q.dataUpdatedAt} /> : <>💤 Resting — nothing waiting</>}
-            <TempoBadge e={v} className="ml-auto" />
-            {v.attention && <button className="ml-auto rounded-full bg-[#1a0b2e] px-2.5 py-0.5 text-[11px] text-[#FFE8A3]" onClick={() => jump('play')}>Go ↓</button>}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]" data-testid="ench-works-on">
-          <span className="font-black text-white/50">🎯 Works on</span>
-          {(WORKS_ON[v.reflect_kind ?? v.kind] ?? []).map((w) => <span key={w} className="rounded-full bg-white/[0.07] px-2 py-0.5 font-bold text-white/80">{w}</span>)}
-          {(v.titles ?? []).length > 0 && <button className="ml-auto rounded-full bg-[linear-gradient(90deg,#FFD23F33,#B26BFF33)] px-2.5 py-0.5 font-black text-[#FFE8A3]" onClick={() => setTitlesOpen((o) => !o)}>🏅 {v.titles.length} title{v.titles.length === 1 ? '' : 's'}</button>}
+        <div className="min-w-0">
+          {/* the scene: where you play with it */}
+          <section id="ench-play" className="lv-gx-sec first">
+            {mine ? <div className="relative mx-auto w-full max-w-[680px]"><ClockRate.Provider value={rateOf(v)}><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /></ClockRate.Provider><SceneMood v={v} /></div>
+              : <div className="lv-gx-empty"><span className="text-5xl">{k.emoji}</span><b>@{v.owner?.username}’s {k.name}</b><p>{k.tagline}</p></div>}
+          </section>
+          {/* done here? the next one that's ready, one tap away */}
+          {mine && queue.length > 0 && (
+            <Link to={`/grimoire/${queue[0].id}`} className="lv-gx-next" style={{ ['--a' as string]: kindInfo(queue[0].kind).a }} data-testid="ench-next-card">
+              <Sigil kind={queue[0].kind} seed={queue[0].sigil} size={40} level={queue[0].level} still />
+              <span className="grid min-w-0 flex-1 leading-tight"><i>Next ready{queue.length > 1 ? ` · ${queue.length} waiting` : ''}</i><b>{enchantName(queue[0])}</b><small>✦ {queue[0].attention}</small></span>
+              <span className="arrow" aria-hidden>›</span>
+            </Link>
+          )}
+          {mine && !v.attention && !queue.length && all.length > 1 && <p className="lv-gx-tip mt-3" data-testid="ench-all-tended"><span className="text-lg">✓</span><span>All your enchantments are tended. Come back when one glows.</span></p>}
+          {/* your other enchantments that can work on this one, right here */}
+          {mine && <UseOnThis v={v} />}
+          {mine && (v.chests?.length ?? 0) > 0 && (
+            <SeekChests className="mt-4" chests={v.chests!} title={v.kind === 'map' ? `Chests your Seeking Trait buried · ${v.chests!.length}` : `Its buried chests · ${v.chests!.length}`}
+              hint={v.kind === 'map' ? 'This map lent its Seeking Trait in a splice: these chests are buried by the plots of the enchantments that wore it.' : 'Its Seeking Trait buried these right by its plot. Dig them up here or tap them on the map.'} />
+          )}
+          {partners.length > 0 && (
+            <section id="ench-traits" className="lv-gx-sec">
+              <h2 className="lv-gx-h2">🧬 Traits it wears <small>from its splice</small></h2>
+              <TraitsAtWork v={v} mine={mine} onSeparate={() => void act('separate')} act={act} busy={busy} />
+            </section>
+          )}
+          {mine && <section id="ench-stars" className="lv-gx-sec"><StarsPanel v={v} /></section>}
+          {mine && <section id="ench-story" className="lv-gx-sec"><Chronicle id={v.id} v={v} /></section>}
+          {/* how it works, step by step */}
+          <section id="ench-how" className="lv-gx-sec">
+            <details className="lv-gx-fold" open={!mine || v.level <= 2} data-testid="ench-how">
+              <summary>❓ How the {k.name} works</summary>
+              <ol className="lv-gx-howlist">{k.how.map((h) => <li key={h}>{h}</li>)}</ol>
+              {k.geneText && <p className="mt-2 text-[12.5px] font-bold text-[#9BF6E5]">🧬 When spliced, it lends its {k.geneName} Trait: the other one {k.geneText}.</p>}
+            </details>
+          </section>
+          {mine && v.kind === 'wormhole' && <WarpTunnel />}
         </div>
-        {(v.titles ?? []).length > 0 && (titlesOpen || v.titles.length <= 2) && (
-          <div className="flex flex-wrap gap-1.5" data-testid="ench-titles">{v.titles.map((t) => <span key={t} title={TITLES[t]} className="rounded-full bg-[linear-gradient(90deg,#FFD23F33,#B26BFF33)] px-2.5 py-0.5 text-[11px] font-black text-[#FFE8A3]">🏅 {t}</span>)}</div>
-        )}
-        {v.size && <div className="rounded-2xl px-3 py-2 text-[12px] font-bold" style={{ background: v.size.mode === 'grow' ? '#39FF1418' : '#FF00E518', color: v.size.mode === 'grow' ? '#B6FF3D' : '#FF7AE0' }} data-testid="ench-size">
-          {v.size.prank ? `🤡 @${v.size.by_name ?? '?'} pranked its plot ${v.size.mode === 'grow' ? 'GIANT' : 'TINY'} (only for show)` : v.size.mode === 'grow' ? '🔼 Its plot is 100× GIANT' : '🔽 Its plot is 100× tiny — its time runs twice as fast'}{v.size.linked ? ' (through a wormhole)' : ''} · {dur((Date.parse(v.size.until) - Date.now()) / 1000)} left</div>}
-        {v.clock?.frozen_until && <div className="rounded-2xl bg-[#C0F5FF]/10 px-3 py-2 text-[12px] font-bold text-[#C0F5FF]">❄️ Frozen in time by a Clockwork for {dur((Date.parse(v.clock.frozen_until) - Date.now()) / 1000)} — nothing grows, nothing comes.</div>}
-        <div className="flex flex-wrap gap-3 text-[11px] text-white/55">{v.stats?.ink ? <span>💧 {fmt(v.stats.ink)} Ink earned</span> : null}{v.owner && <span>Held by @{v.owner.username}</span>}{!!v.clock?.skip_s && <span>⏩ its clock runs {dur(v.clock.skip_s)} ahead</span>}</div>
-      </motion.section>
-      {/* jump to: play · traits · stars · story · how */}
-      {mine && (
-        <nav className="lv-ench-nav sticky top-0 z-20 -mx-1 mb-3 flex gap-1 overflow-x-auto px-1 py-1.5" data-testid="ench-nav">
-          {SECTIONS.filter(([s2]) => s2 !== 'traits' || partners.length > 0).map(([s2, label]) => (
-            <button key={s2} onClick={() => jump(s2)} className="relative shrink-0 rounded-full bg-white/[0.08] px-3 py-1.5 text-[12px] font-black text-white/85" data-testid={`ench-nav-${s2}`}>
-              {label}{s2 === 'traits' && traitNeeds && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#FFD23F]" />}
-            </button>
-          ))}
-        </nav>
-      )}
-      {/* the scene */}
-      <section id="ench-play" className="scroll-mt-14">
-        {mine ? <div className="relative mx-auto w-full max-w-[680px]"><ClockRate.Provider value={rateOf(v)}><SceneFor kind={v.kind} v={v} view={v.view} act={act} busy={busy} at={q.dataUpdatedAt} /></ClockRate.Provider><SceneMood v={v} /></div> : <Empty title={`@${v.owner?.username}’s ${k.name}`}>{k.tagline}</Empty>}
-      </section>
-      {/* your other enchantments that can work on this one, right here */}
-      {mine && <UseOnThis v={v} />}
-      {mine && (v.chests?.length ?? 0) > 0 && (
-        <SeekChests className="mt-4" chests={v.chests!} title={v.kind === 'map' ? `Chests your Seeking Trait buried · ${v.chests!.length}` : `Its buried chests · ${v.chests!.length}`}
-          hint={v.kind === 'map' ? 'This map lent its Seeking Trait in a splice: these chests are buried by the plots of the enchantments that wore it.' : 'Its Seeking Trait buried these right by its plot. Dig them up here or tap them on the map.'} />
-      )}
-      {partners.length > 0 && (
-        <section id="ench-traits" className="mt-4 grid scroll-mt-14 gap-2">
-          <h2 className="font-display text-lg font-black">🧬 Spliced — the Traits it wears</h2>
-          <TraitsAtWork v={v} mine={mine} onSeparate={() => void act('separate')} act={act} busy={busy} />
-        </section>
-      )}
-      {mine && <section id="ench-stars" className="mt-4 scroll-mt-14"><StarsPanel v={v} /></section>}
-      {mine && <section id="ench-story" className="scroll-mt-14"><Chronicle id={v.id} /></section>}
-      {/* how it works */}
-      <details id="ench-how" className="mt-4 scroll-mt-14 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-[13px]" open={!mine}>
-        <summary className="cursor-pointer font-black">How the {k.name} works</summary>
-        <div className="mt-2 grid gap-1 text-white/75">{k.how.map((h) => <div key={h}>• {h}</div>)}{k.geneText && <div className="font-bold text-[#9BF6E5]">🧬 When spliced, it lends its {k.geneName} Trait: the other one {k.geneText}.</div>}</div>
-      </details>
-      {mine && v.kind === 'wormhole' && <WarpTunnel />}
+      </div>
     </Page>
   );
 }
@@ -699,13 +869,27 @@ const EV: Record<string, (d: any) => string> = {
   grand_spread: (d) => `🌌 The Grand Spread: ${(d.cards ?? []).join(', ')}`, found: (d) => `📜 Found the ${d.name} glyph${d.source ? ` (${d.source === 'minigame' ? 'in a minigame win' : d.source === 'leviathan' ? 'in the Leviathan’s loot' : d.source === 'plot' ? 'in a rare plot' : 'in a chest'})` : ''}`,
   cast: (d) => `✍️ Cast ${(d.glyphs ?? []).join(' + ')}${d.found ? ` — and found ${d.found}` : ''}`, fizzled: () => '✍️ A glyph fizzled', studied: (d) => `📖 Studied the Spellbook${d.found ? ` — found ${d.found}` : ''}`,
 };
-function Chronicle({ id }: { id: string }) {
+function Chronicle({ id, v }: { id: string; v: EnchantView }) {
   const q = useQuery({ queryKey: ['enchant-chronicle', id], queryFn: () => api.enchantChronicle(id), staleTime: 10_000 });
+  const [all, setAll] = useState(false);
+  const list = q.data ?? [];
+  const shown = all ? list : list.slice(0, 8);
+  const facts: [string, string][] = [
+    ['Mint number', `#${v.serial} of ${fmt(v.minted)}`], ['Alive in the world', fmt(v.population)],
+    ['Born', `${timeAgo(v.born_at)} · ${v.born_place ?? 'an unmapped place'}`], ['Held by', v.owner ? `@${v.owner.username}` : '—'],
+    ...(v.first_owner && v.owner && v.first_owner.id !== v.owner.id ? [['First held by', `@${v.first_owner.username}`] as [string, string]] : []),
+    ...(v.stats?.ink ? [['Ink earned', `💧 ${fmt(v.stats.ink)}`] as [string, string]] : []),
+    ...(v.clock?.skip_s ? [['Its clock', `⏩ ${dur(v.clock.skip_s)} ahead`] as [string, string]] : []),
+  ];
   return (
-    <section className="mt-4 grid gap-2" data-testid="ench-chronicle">
-      <h2 className="font-display text-lg font-black">Chronicle</h2>
-      {(q.data ?? []).map((e) => <div key={e.id} className="flex items-start gap-2 text-[13px]"><span className="min-w-0 flex-1 text-white/80">{EV[e.kind]?.(e.data) ?? e.kind}</span><span className="shrink-0 text-[11px] text-white/40">{timeAgo(e.at)}</span></div>)}
-      {!q.data?.length && <p className="text-[12px] text-white/50">Nothing written yet.</p>}
-    </section>
+    <div className="grid gap-3" data-testid="ench-chronicle">
+      <h2 className="lv-gx-h2">📜 Its story</h2>
+      <div className="lv-gx-facts" data-testid="ench-facts">{facts.map(([a, b]) => <div key={a} className="lv-gx-fact"><i>{a}</i><b>{b}</b></div>)}</div>
+      <ol className="lv-gx-log">
+        {shown.map((e) => <li key={e.id}><span className="min-w-0 flex-1">{EV[e.kind]?.(e.data) ?? e.kind}</span><time>{timeAgo(e.at)}</time></li>)}
+      </ol>
+      {!list.length && <p className="text-[12px] text-white/50">Nothing written yet.</p>}
+      {list.length > 8 && <button className="w-fit text-[12px] font-black text-[#9BE7FF]" onClick={() => setAll((x) => !x)}>{all ? 'Show less' : `Show all ${list.length}`}</button>}
+    </div>
   );
 }

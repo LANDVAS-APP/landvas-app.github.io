@@ -75,8 +75,8 @@ export function UseOnThis({ v }: { v: EnchantView }) {
   const showRay = rays.length > 0 && !v.size;
   if (!showClock && !showSplice && !showOracle && !showRay) return null;
   return (
-    <section id="ench-use" className="mt-4 grid scroll-mt-14 gap-2" data-testid="ench-use">
-      <h2 className="font-display text-lg font-black">✨ Use your enchantments on this one</h2>
+    <section id="ench-use" className="lv-gx-sec" data-testid="ench-use">
+      <h2 className="lv-gx-h2">✨ Team up <small>your other enchantments can help this one</small></h2>
       {showClock && clocks.map((c) => <ClockRow key={c.id} c={c} v={v} run={run} busy={busy} />)}
       {showSplice && <SpliceRow v={v} spliceE={spliceWith!} partners={partners} run={run} busy={busy} />}
       {showOracle && oracles.map((o) => (
@@ -160,7 +160,7 @@ function SpliceRow({ v, spliceE, partners, run, busy }: { v: EnchantView; splice
             <Sigil kind={b.kind} seed={b.sigil} size={28} still />
             <span className="grid min-w-[11rem] flex-1 basis-[11rem] leading-tight">
               <span className="truncate text-[12.5px] font-black">{swap.name}{swap.perfect ? ' ✦' : ''} <span className="font-bold text-white/50">with {enchantName(b)}</span></span>
-              {mine && <span className="text-[11px] text-white/70">This one: {mine.gets}{mineC && mineC.gets !== mine.gets ? ` (Chimera: ${mineC.gets})` : ''}</span>}
+              {mine && <span className="line-clamp-3 text-[11px] text-white/70" title={mineC && mineC.gets !== mine.gets ? `Chimera: ${mineC.gets}` : undefined}>This one: {mine.gets}</span>}
             </span>
             <div className="ml-auto flex gap-1.5">
               <Button size="sm" variant="secondary" disabled={!!busy || charges < 1} onClick={() => void go(b, 'swap')} data-testid="use-splice-swap">🔁 Swap</Button>

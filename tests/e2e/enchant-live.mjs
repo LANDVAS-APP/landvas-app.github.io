@@ -84,17 +84,18 @@ try {
   check('…a plot for the anvil takes a real tap', await tap('[data-testid=crucible-target]'));
   check('…and so does Strike', await tap('[data-testid=crucible-strike]'));
   check('the bellows come up', await waitFor('[data-testid=crucible-pump]', 6000));
-  await page.waitForTimeout(150);
-  await shot('03-bellows');
-  // the ring meets the circle 0.68 of the way through its 1.3 s close: tap then, three times
+  // the ring meets the circle 0.68 of the way through its 1.3 s close: tap then, three times. (The screenshot waits
+  // until after: on a slow test machine a screenshot here took long enough to throw the first tap off by a ring.)
   const box = await page.locator('[data-testid=crucible-pump]').boundingBox();
   const said = [];
   for (let i = 0; i < 3; i++) {
-    await page.waitForTimeout(i === 0 ? 888 - 150 : 888);
+    await page.waitForTimeout(888);
     await page.touchscreen.tap(box.x + box.width * 0.3, box.y + box.height * 0.4);
     await page.waitForTimeout(60);
-    said.push(await page.evaluate(() => [...document.querySelectorAll('[data-testid=crucible-bellows] span')].map((s) => s.textContent).find((t) => /PERFECT|Good|early|late/i.test(t ?? '')) ?? ''));
+    // (the newest verdict: the last one, while the one before it may still be fading out)
+    said.push(await page.evaluate(() => [...document.querySelectorAll('[data-testid=crucible-bellows] span')].map((s) => s.textContent).filter((t) => /PERFECT|Good|early|late/i.test(t ?? '')).at(-1) ?? ''));
   }
+  await shot('03-bellows');
   check('tapping as the ring meets the bright circle is a hit', said.filter((s) => /PERFECT|Good/.test(s)).length >= 2, said.join(' / '));
   check('…and the hammer falls', await waitFor('[data-testid=crucible-verdict]', 12000), await text('[data-testid=crucible-verdict]'));
   await page.waitForTimeout(500); await shot('04-forged');
