@@ -86,7 +86,7 @@ export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }):
   sunGlow.scale.setScalar(150);
   scene.add(sun, sunGlow);
   const sunLight = new THREE.PointLight('#FFF4DE', 2.2, 0, 0);
-  scene.add(sunLight, new THREE.AmbientLight('#8090C0', 0.32));
+  scene.add(sunLight, new THREE.AmbientLight('#8090C0', 0.5));
 
   // ---- the worlds -----------------------------------------------------------------------------------------------------
   const bodies = new Map<string, THREE.Mesh>();
@@ -110,9 +110,9 @@ export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }):
   for (const id of ['moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']) addBody(id, WORLDS[id as keyof typeof WORLDS]);
   // the Earth's air: a blue rim round it (and its clouds)
   const airMat = T(new THREE.ShaderMaterial({
-    uniforms: { uC: { value: new THREE.Color('#6FB7FF') } }, transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
+    uniforms: { uC: { value: new THREE.Color('#6FB7FF') }, uA: { value: 1 } }, transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
     vertexShader: /* glsl */ `varying vec3 vN; varying vec3 vV; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }`,
-    fragmentShader: /* glsl */ `uniform vec3 uC; varying vec3 vN; varying vec3 vV; void main() { float f = pow(1.0 - abs(dot(vN, vV)), 2.5); gl_FragColor = vec4(uC, f * 0.9); }`,
+    fragmentShader: /* glsl */ `uniform vec3 uC; uniform float uA; varying vec3 vN; varying vec3 vV; void main() { float f = pow(1.0 - abs(dot(vN, vV)), 2.5); gl_FragColor = vec4(uC, f * 0.9 * uA); }`,
   }));
   const air = new THREE.Mesh(ballGeo, airMat);
   air.scale.setScalar(SIZE.earth * 1.06);
@@ -148,7 +148,8 @@ export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }):
     }
     const A = bodyPos(a), B = bodyPos(b);
     // lift off from the side of the world that faces where you're going (and a little up out of the plane)
-    up = B.clone().sub(A).normalize().add(new THREE.Vector3(0, 0.45, 0)).normalize();
+    // (on the sunlit side, leaning toward where you're going)
+    up = B.clone().sub(A).normalize().multiplyScalar(0.5).add(A.clone().negate().normalize().multiplyScalar(0.75)).add(new THREE.Vector3(0, 0.45, 0)).normalize();
     const ra = sizeOf(a), rb = sizeOf(b);
     const p0 = A.clone().addScaledVector(up, ra * 2.6);
     const dir = B.clone().sub(A).normalize();
@@ -177,22 +178,31 @@ export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }):
       const side = new THREE.Vector3().crossVectors(up, new THREE.Vector3(0, 0, 1)).normalize();
       const n = up.clone().applyAxisAngle(side, (1 - e) * 0.9).normalize();
       cam.position.copy(A).addScaledVector(n, ra + alt);
-      // look out over the horizon, then up, then out toward the path
+      // look out over the horizon a little up as you rise; then down at the world falling away beneath you (its curve,
+      // its air glowing at the edge); then out toward the way you're going
       const horizon = new THREE.Vector3().crossVectors(n, side).normalize();
       const start = curve.getPoint(0.02);
-      look.copy(cam.position).add(horizon.multiplyScalar(10)).lerp(tmp.copy(cam.position).addScaledVector(n, 10), Math.min(1, e * 1.6));
-      if (k > 0.55) look.lerp(start.clone().add(curve.getTangent(0.05).multiplyScalar(40)), (k - 0.55) / 0.45);
+      const ahead = cam.position.clone().addScaledVector(horizon, 10).addScaledVector(n, 2.2);
+      const below = cam.position.clone().addScaledVector(horizon, 10).addScaledVector(n, -7);
+      look.copy(ahead);
+      if (k > 0.3) look.lerp(below, Math.min(1, (k - 0.3) / 0.25));
+      if (k > 0.68) look.lerp(start.clone().add(curve.getTangent(0.05).multiplyScalar(40)), (k - 0.68) / 0.32);
       burnK = 0.6 + 0.4 * Math.min(1, k * 3);
       const shake = (1 - k) * 0.004 * ra;
       cam.position.add(new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake));
+      cam.up.copy(n); // (the ground level under you, whichever way round the world you are)
       cam.lookAt(look);
+      // (inside the air its glowing rim isn't a rim: it comes in as you climb out of it)
+      airMat.uniforms.uA.value = Math.min(1, Math.max(0, (alt / ra - 0.05) / 0.2));
       // the sky: blue near the ground, black above
-      const air2 = Math.max(0, 1 - alt / (ra * 0.08));
+      const air2 = Math.max(0, 1 - alt / (ra * 0.35));
       skyTo(from === 'earth' ? '#7AB8FF' : (worldOf(from)?.sky[1] ?? '#05060F'), air2);
       return;
     }
     if (!landed || (now - landedAt) / 1000 < 0) {
       ph = 'cruise';
+      airMat.uniforms.uA.value = 1;
+      cam.up.set(0, 1, 0);
       cam.position.copy(curve.getPoint(uC));
       // look ahead along the way, and more and more at where you're going
       const ahead = curve.getPoint(Math.min(1, uC + 0.04));
@@ -204,6 +214,7 @@ export function createFlight(canvas: HTMLCanvasElement, o: { reduce: boolean }):
     }
     // down onto it: through its sky, onto the ground
     const k = Math.min(1, (now - landedAt) / 1000 / (o.reduce ? 1.5 : 6));
+    cam.up.set(0, 1, 0);
     ph = k >= 1 ? 'landed' : 'approach';
     const e = ease(k);
     const p3 = curve.getPoint(1);

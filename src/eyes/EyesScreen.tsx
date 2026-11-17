@@ -102,6 +102,7 @@ export default function EyesScreen() {
   const [card, setCard] = useState<Card | null>(null);
   const [gyro, setGyro] = useState(false);
   const [steer, setSteer] = useState(() => ex.gps !== 'on' && ex.gps !== 'asking');
+  const steerRef = useRef(steer); steerRef.current = steer;
   const [hint, setHint] = useState(() => !safeStorage('landvas.eyes.hinted', false));
   const [flash, setFlash] = useState(0);
   const start = useRef(explorerNow(ex.state, ex.offset));
@@ -113,6 +114,7 @@ export default function EyesScreen() {
     const s = createEyes({
       canvas: canvas.current,
       pose: () => { const st = useExplorer.getState(); const p = explorerNow(st.state, st.offset); return p ? { lng: p.lng, lat: p.lat } : null; },
+      smooth: () => useExplorer.getState().gps === 'on' && !steerRef.current,
       eye: () => {
         const st = useExplorer.getState().state;
         // flying across the world: up at a plane's height (eased up after takeoff and down for landing)
@@ -1103,10 +1105,14 @@ function PlaneWindow({ trip }: { trip: Parameters<typeof TripChip>[0]['trip'] })
         </svg>
         {/* the wing: out over the land, a winglet at its tip */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" style={{ clipPath: 'inset(14% 14% 22% 14% round 30% / 24%)' }} aria-hidden>
-          <path d="M8 86 L 70 63 L 74 64 L 30 92 Z" fill="#f4f6fa" stroke="#aab2c0" strokeWidth="0.4" />
-          <path d="M18 86 L 70 64.5" stroke="#2F6FE4" strokeWidth="1.4" />
-          <path d="M70 63 L 73 52 L 75.5 52.5 L 74 64 Z" fill="#2F6FE4" />
-          <path d="M12 90 L 30 92 L 26 95 Z" fill="#d8dde6" />
+          {/* (leading edge up top, the flaps along the back, a winglet at the tip) */}
+          <path d="M-4 84 L 74 58 L 80 59.5 L 46 100 L -4 100 Z" fill="#eef1f6" />
+          <path d="M-4 84 L 74 58 L 80 59.5" fill="none" stroke="#ffffff" strokeWidth="1.2" />
+          <path d="M14 100 L 62 70 L 80 59.5 L 46 100 Z" fill="#c9cfda" />
+          <path d="M22 97 L 60 73" stroke="#aab2c0" strokeWidth="0.5" /><path d="M34 99 L 66 69" stroke="#aab2c0" strokeWidth="0.5" />
+          <path d="M6 86 L 72 60" stroke="#2F6FE4" strokeWidth="1.6" />
+          <path d="M74 58 L 78 44 L 81.5 45 L 80 59.5 Z" fill="#2F6FE4" />
+          <path d="M-4 84 L 6 81" stroke="#9aa2b2" strokeWidth="2" />
         </svg>
       </div>
       <TripChip trip={trip} icon="✈️" />

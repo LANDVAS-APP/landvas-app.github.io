@@ -55,6 +55,7 @@ export type EyesOpts = {
   reduceMotion?: boolean;
   /** you've moved near the edge of the sharpest ground: paint a new patch round (x, z) */ onNeedClose?(x: number, z: number): void;
   /** what you're riding (the hands, the seat, the sounds) */ vehicle?(): BodyVehicle;
+  /** walking for real on GPS: fixes come a step at a time, so the view walks smoothly between them */ smooth?(): boolean;
 };
 
 export type Eyes = {
@@ -1983,7 +1984,13 @@ export function createEyes(o: EyesOpts): Eyes {
     if (!frame) return;
     // where you stand
     const p = o.pose();
-    if (p) { const [x, z] = lngLatToLocal(frame, p.lng, p.lat); pos.set(x, o.eye(), z); }
+    if (p) {
+      const [x, z] = lngLatToLocal(frame, p.lng, p.lat);
+      // (on GPS a new fix lands every second or so: walk to it rather than jump; a big jump still jumps)
+      const gap = Math.hypot(x - pos.x, z - pos.z);
+      if (o.smooth?.() && gap < 30 && gap > 0.01) { const k = Math.min(1, dt * 2.2); pos.set(pos.x + (x - pos.x) * k, o.eye(), pos.z + (z - pos.z) * k); }
+      else pos.set(x, o.eye(), z);
+    }
     cam.position.copy(pos);
     farCam.position.copy(pos);
     // look: a little glide after a flick

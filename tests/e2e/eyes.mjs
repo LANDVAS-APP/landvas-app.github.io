@@ -520,7 +520,8 @@ try {
     check('…and it says what it is', /farm/i.test(label), label.replace(/\s+/g, ' '));
     // look away: it goes
     await eyes('lookAt', Math.PI, -0.05); await page.waitForTimeout(1200);
-    check('…facing away, it goes', (await page.locator('[data-testid=eyes-enter]').count()) === 0);
+    const gone = await page.waitForFunction(() => !document.querySelector('[data-testid=eyes-enter]'), null, { timeout: 5000 }).then(() => true).catch(() => false);
+    check('…facing away, it goes', gone);
     // the castle up close
     const castle = ll(START.gx - 14, START.gy + 1);
     await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, castle.lng, castle.lat]);
@@ -603,13 +604,16 @@ try {
   // ---- Inkborn in the world: the creatures living in a habitat roam its glade; tap one and it hops for joy ---------------
   {
     const ned2 = (await sql(`select id from profiles where username = 'eyes_ned'`))[0]?.id;
-    const hab = await as(ned2, 'habitat_for_plot', { p_gx: START.gx + 1, p_gy: START.gy + 5 }).catch((e) => ({ err: String(e).slice(0, 200) }));
-    if (hab?.err || !hab?.habitat_id) console.log('habitat:', JSON.stringify(hab));
-    const gen = (c, body) => ({ body, color: c, belly: '#FFF3D6', accent: '#FF7AB8', pattern: 'spots', eyes: 'big', ears: 'bunny', horns: 'none', tail: 'fluffy', wings: 'none', legs: 2, eyecount: 2, gait: 'walk', cheeks: true, size: 1.1, mood: 'playful' });
+    // Ned's glade: its habitat, and three creatures living there (made with Ink, as anyone would)
+    const g5 = (await sql(`select group_id from canvas_group_members where gx = $1 and gy = $2`, [START.gx + 1, START.gy + 5]))[0]?.group_id;
+    const habId = g5 ? (await sql(`insert into habitats (owner_id, group_id, kind) values ($1, $2, 'plot') on conflict (group_id) do update set kind = 'plot' returning id`, [ned2, g5]))[0]?.id : null;
+    await sql(`insert into resource_balances (player_id, resource, amount) values ($1, 'ink', 50000) on conflict (player_id, resource) do update set amount = 50000`, [ned2]);
+    const gen = (c, b) => ({ body: b, color: c, belly: '#FFF3D6', accent: '#FF7AB8', pattern: 'spots', eyes: 'big', ears: 'bunny', horns: 'none', tail: 'fluffy', wings: 'none', legs: 2, eyecount: 2, gait: 'walk', cheeks: true, size: 1.1, mood: 'playful' });
     for (const [i, [n, c, b]] of [['Pip', '#7BD389', 'round'], ['Mochi', '#FFB4D9', 'bean'], ['Zib', '#8FB8FF', 'tall']].entries()) {
-      await as(ned2, 'inkborn_create', { p_client_key: `eyes-${i}-${Date.now()}`, p_name: n, p_source: 'custom', p_genome: gen(c, b), p_drawing: null, p_habitat_id: hab?.habitat_id ?? null })
+      await as(ned2, 'inkborn_create', { p_client_key: `eyes-${i}-${Date.now()}`, p_name: n, p_source: 'custom', p_genome: gen(c, b), p_drawing: null, p_habitat_id: habId })
         .catch((e) => console.log('inkborn:', String(e).slice(0, 200)));
     }
+    console.log('glade:', JSON.stringify({ g5, habId, n: (await sql(`select count(*) n from inkborn where habitat_id = $1`, [habId]))[0]?.n }));
     await sql(`update explorers set lng = $2, lat = $3, fixed_at = now() where player_id = $1`, [me, ...(() => { const c = ll(START.gx + 1, START.gy + 3); return [c.lng, c.lat]; })()]);
     await refresh(); await page.waitForTimeout(1200);
     await page.evaluate(() => window.__landvasQc.invalidateQueries()); await page.waitForTimeout(500);

@@ -31,7 +31,7 @@ export function FpInside() {
       <AnimatePresence>
         {on && (
           <motion.div key="pill" className="fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+10px)] z-[110] flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/70 p-1 pl-3 text-[12px] font-black text-white shadow-xl"
-            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ delay: 0.8 }} data-testid="fp-inside">
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.8 } }} exit={{ opacity: 0, y: -8, transition: { duration: 0.15 } }} data-testid="fp-inside">
             <span>👁️ You’re inside</span>
             <button className="rounded-full bg-white/15 px-2.5 py-1" onClick={() => nav('/eyes')} data-testid="fp-back-out">↩ Back out</button>
             <button className="rounded-full bg-[linear-gradient(135deg,#22E3FF,#8B5CFF)] px-2.5 py-1" onClick={leave} data-testid="fp-leave">Leave first person</button>
