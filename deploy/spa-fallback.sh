@@ -18,13 +18,13 @@ STATIC="$(printf '%s\n' $STATIC $FROM_APP | grep -v '^$' | sort -u | tr '\n' ' '
 DYNAMIC="create play u i art legal duet sketch inkborn habitat party farm landlord business arcade realm clans grimoire powers space play-sandbox pvp-sandbox watch handbook"
 : > _redirects
 for r in $STATIC; do
+  echo "/$r /index.html 200" >> _redirects
   # a page that already has its own link preview (scripts/prerender-share.mjs) keeps it
   if [ -f "$r/index.html" ]; then continue; fi
   mkdir -p "$r"
   # each page names itself as canonical (otherwise search engines fold it into the homepage)
   sed -e "s#<link rel=\"canonical\" href=\"https://landvas.app/\" />#<link rel=\"canonical\" href=\"https://landvas.app/$r\" />#" \
       -e "s#<meta property=\"og:url\" content=\"https://landvas.app/\" />#<meta property=\"og:url\" content=\"https://landvas.app/$r\" />#" index.html > "$r/index.html"
-  echo "/$r /index.html 200" >> _redirects
 done
 for r in $DYNAMIC; do echo "/$r/* /index.html 200" >> _redirects; done
 echo "spa fallback: $(wc -l < _redirects) routes"
