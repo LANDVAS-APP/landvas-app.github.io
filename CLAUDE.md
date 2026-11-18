@@ -12,6 +12,10 @@ Push only when all of these pass:
 - `npx vite build` (production build)
 - a browser check (Playwright) of any screens you changed
 
+Migrations run on a live database: `scripts/deploy-db.mjs` gives each one a 6 s lock wait and runs it again (it rolled
+back whole) after a deadlock or lock timeout with players' queries. Keep a migration's locks short: no long backfills
+under a table lock.
+
 Afterwards, tell the owner what went out (commit hash and a short summary). If the deploy workflow
 fails, say so and fix it. Never put secrets (e.g. the Supabase access token) in code, commits or chat.
 They live in GitHub secrets only.

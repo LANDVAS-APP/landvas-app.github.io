@@ -12,14 +12,19 @@ if (!token || !ref) {
   process.exit(1);
 }
 
-// the Management API sometimes times out reaching the database (HTTP 5xx, e.g. 544): wait and try again
+// the Management API sometimes times out reaching the database (HTTP 5xx, e.g. 544): wait and try again.
+// A migration can also collide with players' own queries on a live database: a deadlock (40P01), or a lock it
+// couldn't get within lock_timeout (55P03). Its transaction rolled back whole, so it's safe to run again.
+const LOCKED = /40P01|deadlock detected|55P03|lock timeout/i;
 async function query(sql, tries = 5) {
   for (let i = 1; ; i++) {
     try { return await queryOnce(sql); }
     catch (e) {
-      if (i >= tries || !/^HTTP 5\d\d/.test(String(e.message))) throw e;
-      console.log(`  (${String(e.message).slice(0, 80)} — retrying in ${i * 15}s)`);
-      await new Promise((r) => setTimeout(r, i * 15000));
+      const msg = String(e.message), locked = LOCKED.test(msg);
+      if (i >= (locked ? 8 : tries) || !(locked || /^HTTP 5\d\d/.test(msg))) throw e;
+      const wait = locked ? 3 + i * 4 : i * 15;
+      console.log(`  (${locked ? 'busy with live queries: ' : ''}${msg.slice(0, 120)} — retrying in ${wait}s)`);
+      await new Promise((r) => setTimeout(r, wait * 1000));
     }
   }
 }
@@ -45,7 +50,9 @@ for (const f of files) {
   if (applied.has(f)) continue;
   const sql = fs.readFileSync(path.join(dir, f), 'utf8');
   process.stdout.write(`applying ${f} … `);
-  await query(`begin;\n${sql}\n;insert into landvas_meta.migrations (name) values ('${f.replace(/'/g, "''")}');\ncommit;`);
+  // (a lock it waits for holds up every player's query behind it on that table: give up after a few seconds and
+  // try again, instead of stalling the game or waiting into a deadlock)
+  await query(`begin;\nset local lock_timeout = '6s';\n${sql}\n;insert into landvas_meta.migrations (name) values ('${f.replace(/'/g, "''")}');\ncommit;`);
   console.log('ok');
   n++;
 }
