@@ -104,6 +104,13 @@ The plan and the numbers behind it: the "ops/scaling-architecture.md" doc in the
   and home chats are).
 - **Cron jobs work within a time budget** and scale their batch with the number of active players (see
   `integrity_auto_scan`); a fixed `limit` falls behind silently as LANDVAS grows.
+- **Patching a function another migration rewrote:** feature migrations edit functions in place with
+  `private.fn_patch(fn, snippet, replacement)`, which fails when the snippet is gone. Anchor on today's text: e.g.
+  `trait_view` now reads genes as `private.gene_k(v_parts, '<gene>')` (20261119000520), not `ench_has_gene(e.id, …)`.
+  Prefer speeding up a helper over rewriting a body features patch: `ench_has_gene` reads splices directly
+  (`tests/sql/525-genes-from-splices.test.ts` keeps it equal to `ench_partners`' rules).
+- **A channel everyone listens to carries the data, server-only** (`serverChannel` in the backend, a private Realtime
+  topic with a select-only policy, `realtime.send` from the database): the global chat's lines (`global-chat:lines`).
 - Production usage (calls by endpoint, bytes, DB time) comes from `scripts/diag-top.mjs` and `scripts/diag-io.mjs`.
 
 ## Keeping the database light

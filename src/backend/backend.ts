@@ -80,6 +80,12 @@ export interface Backend {
   liveChannel?(name: string, onMessage: (m: unknown) => void, presence?: { me: string; onPeer(id: string, here: boolean): void }): { send(m: unknown): void; close(): void };
   /** send to a live channel without listening to it (so you don't get everyone else's messages too) */
   liveSend?(name: string, m: unknown): Promise<boolean>;
+  /**
+   * A channel only the server can send on (Realtime Authorization: players may listen, never post), so what arrives can
+   * be shown as is — a chat line, not a "look again" nudge everybody answers with a database call. `onLive` hears
+   * whether it's connected (false: not allowed or unreachable — fall back to asking).
+   */
+  serverChannel?(topic: string, event: string, onMessage: (m: unknown) => void, onLive: (live: boolean) => void): { close(): void };
   resetLocalData?(): Promise<void>;
   /** Supabase Auth itself (two-step sign-in for the admin portal). Hosted backend only. */
   authClient?(): import('@supabase/supabase-js').SupabaseClient['auth'];

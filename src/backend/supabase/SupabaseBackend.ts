@@ -273,6 +273,38 @@ export class SupabaseBackend implements Backend {
     try { const r = await ch.httpSend('m', m as object, { timeout: 4000 }); return r.success; } catch { return false; }
   }
 
+  // one joined channel per topic, shared by every screen that listens (joining the same topic twice on one connection
+  // is a no-op that never reports in, and closing it for one would close it for all)
+  private serverChans = new Map<string, { ch: ReturnType<SupabaseClient['channel']>; live: boolean; events: Set<string>; hear: Set<(e: string, m: unknown) => void>; lives: Set<(live: boolean) => void> }>();
+  serverChannel(topic: string, event: string, onMessage: (m: unknown) => void, onLive: (live: boolean) => void) {
+    let entry = this.serverChans.get(topic);
+    if (!entry) {
+      const ch = this.sb.channel(topic, { config: { private: true, broadcast: { self: false, ack: false } } });
+      const e = { ch, live: false, events: new Set<string>(), hear: new Set<(e: string, m: unknown) => void>(), lives: new Set<(live: boolean) => void>() };
+      this.serverChans.set(topic, e);
+      // private channels check the player's sign-in on join
+      void this.sb.realtime.setAuth().catch(() => undefined).then(() => {
+        if (this.serverChans.get(topic) !== e) return;
+        ch.subscribe((status) => { e.live = status === 'SUBSCRIBED'; for (const l of e.lives) l(e.live); });
+      });
+      entry = e;
+    }
+    const en = entry;
+    if (!en.events.has(event)) {
+      en.events.add(event);
+      en.ch.on('broadcast', { event }, (p) => { for (const h of en.hear) h(event, p.payload); });
+    }
+    const hear = (ev: string, m: unknown) => { if (ev === event) onMessage(m); };
+    en.hear.add(hear); en.lives.add(onLive);
+    if (en.live) queueMicrotask(() => onLive(true));
+    return {
+      close: () => {
+        en.hear.delete(hear); en.lives.delete(onLive);
+        if (!en.hear.size && this.serverChans.get(topic) === en) { this.serverChans.delete(topic); void this.sb.removeChannel(en.ch); }
+      },
+    };
+  }
+
   liveChannel(name: string, onMessage: (m: unknown) => void, presence?: { me: string; onPeer(id: string, here: boolean): void }) {
     let ready = false;
     const ch = this.sb.channel(name, { config: { broadcast: { self: false, ack: false }, ...(presence ? { presence: { key: presence.me } } : {}) } })
