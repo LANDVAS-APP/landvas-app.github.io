@@ -519,6 +519,14 @@ export const api = {
   farmGameStart: (farm: string, game: string) => rpc<{ session: string; seed: number; seconds: number; game: string; ink_today: number; daily_cap: number }>('farm_game_start', { p_farm: farm, p_game: game }),
   farmGameFinish: (session: string, score: number) => rpc<{ score: number; earned: number; paid: number; capped: boolean; bonus: Record<string, number>; best: number | null; coins?: number; level_up?: number }>('farm_game_finish', { p_session: session, p_score: score }),
   realmGet: (id: string) => rpc<import('./types').Realm>('realm_get', { p_id: id }),
+  /** a plot's places in one call (each kind asked about: the same answer its own *_for_plot call gives, or null) */
+  placesForPlot: (gx: number, gy: number, kinds: string[]) => rpc<{
+    habitat?: { habitat_id: string; name: string; owner: Profile; plots: number; creatures: number } | null;
+    farm?: { farm_id: string; name: string; owner: Profile; plots: number; growing: number } | null;
+    business?: { business_id: string; name: string; owner: Profile; plots: number; alltime: number } | null;
+    arcade?: { arcade_id: string; name: string; owner: Profile; plots: number; level: number; plays: number; machines: number } | null;
+    realm?: { realm_id: string; kind: import('./types').RealmKind; name: string; owner: Profile; plots: number; level: number; plays: number } | null;
+  } | null>('places_for_plot', { p_gx: gx, p_gy: gy, p_kinds: kinds }),
   realmForPlot: (gx: number, gy: number) => rpc<{ realm_id: string; kind: import('./types').RealmKind; name: string; owner: Profile; plots: number; level: number; plays: number } | null>('realm_for_plot', { p_gx: gx, p_gy: gy }),
   realmCollect: (id: string) => rpc<{ got: import('./types').Bag; level_up: number | null; view: import('./types').Realm }>('realm_collect', { p_id: id }),
   realmBuy: (id: string, type: 'producers' | 'upgrades', item: string) => rpc<{ view: import('./types').Realm }>('realm_buy', { p_id: id, p_type: type, p_item: item }),
