@@ -13,6 +13,7 @@ import { PlayerPlots } from '../../../src/admin/PlayerPlots';
 import { rarityInfo } from '../../../src/shared/rarity';
 import { portal, type WhoAmI } from '../../shared/api';
 import { EggLoopPlayer, PlayerUltras } from './FairPlay';
+import { AltarLoopPlayer } from './AltarLoop';
 import PlayerAccount, { ConfirmBadge, confirmedHow, useAccount } from './PlayerAccount';
 import { HBars, Split, TimeChart, SERIES } from '../../shared/charts';
 import { PlotMap, type MapPlot } from '../../shared/PlotMap';
@@ -308,6 +309,7 @@ function FairPlay({ id, pacing }: { id: string; pacing: any[] }) {
   return (
     <div className="grid gap-3">
       <EggLoopPlayer id={id} embedded />
+      <AltarLoopPlayer id={id} embedded />
       <Q q={q}>{(d) => (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

@@ -7,8 +7,9 @@
 //   Egg loop: players who sacrificed Inkborn they never had (hatch an egg, sacrifice the Inkborn, the egg came back),
 //     the plots they rolled with that Luck, and the fixes: put a plot back to a lower tier, take it away, and take back
 //     what those plots earned (and what it was spent on).
+//   Altar loop: players who laid the same cell on the altar again (AltarLoop.tsx), with the same tools plus Luck and a share.
 //   Ultras & rent: everyone with ultras, and what their land earns now and would earn boosted 24/7.
-// EggLoopPlayer and PlayerUltras also show on a player's profile.
+// EggLoopPlayer, AltarLoopPlayer and PlayerUltras also show on a player's profile.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -21,6 +22,7 @@ import { cn } from '../../../src/lib/utils';
 import { rarityInfo } from '../../../src/shared/rarity';
 import { portal, type EggLoopPlayer as EggData, type EggLoopPlot, type Families, type Referee, type UltraRow } from '../../shared/api';
 import { TimeChart } from '../../shared/charts';
+import { AltarLoopScanner } from './AltarLoop';
 import { DataTable } from '../../shared/table';
 import { date, dateTime, int, pct, plotLabel, usd } from '../../shared/format';
 import { Badge, Empty, KV, Panel, Q, Rarity, Seg, Stat, statusTone, useDebounced } from '../../shared/ui';
@@ -28,22 +30,23 @@ import { Badge, Empty, KV, Panel, Q, Rarity, Seg, Stat, statusTone, useDebounced
 const err = (e: unknown) => toast.error(toGameError(e).message);
 const key = (p: { gx: number; gy: number }) => `${p.gx}_${p.gy}`;
 const REASON = 'Egg loop: Luck from duplicated Inkborn';
-type View = 'radar' | 'referrals' | 'risk' | 'eggloop' | 'ultras';
+type View = 'radar' | 'referrals' | 'risk' | 'eggloop' | 'altarloop' | 'ultras';
 
 export default function FairPlayPage() {
   const [sp, setSp] = useSearchParams();
-  const view = (['radar', 'referrals', 'eggloop', 'ultras'].includes(sp.get('view') ?? '') ? sp.get('view') : 'risk') as View;
+  const view = (['radar', 'referrals', 'eggloop', 'altarloop', 'ultras'].includes(sp.get('view') ?? '') ? sp.get('view') : 'risk') as View;
   const set = (v: View) => setSp((prev) => { const n = new URLSearchParams(prev); n.delete('player'); if (v === 'risk') n.delete('view'); else n.set('view', v); return n; }, { replace: true });
   return (
     <div className="grid gap-4" data-testid="fair-play">
       <Seg value={view} onChange={set} label="Scanner" options={[
         { value: 'risk', label: '🛡️ Risk scores' }, { value: 'radar', label: '📡 Exploit radar' }, { value: 'referrals', label: '🎯 Referral fraud' },
-        { value: 'eggloop', label: '🥚 Egg loop' }, { value: 'ultras', label: '🌈 Ultras & rent' },
+        { value: 'eggloop', label: '🥚 Egg loop' }, { value: 'altarloop', label: '🔁 Altar loop' }, { value: 'ultras', label: '🌈 Ultras & rent' },
       ]} />
       {view === 'radar' && <ExploitRadar />}
       {view === 'referrals' && <ReferralFraud />}
       {view === 'risk' && <IntegrityAdmin />}
       {view === 'eggloop' && <EggLoopScanner />}
+      {view === 'altarloop' && <AltarLoopScanner />}
       {view === 'ultras' && <UltraScanner />}
     </div>
   );
@@ -258,7 +261,7 @@ function EggLoopScanner() {
   );
 }
 
-function Rolls({ p }: { p: EggLoopPlot }) {
+export function Rolls({ p }: { p: EggLoopPlot }) {
   return (
     <span className="flex flex-wrap items-center gap-1">
       {p.options.map((r, i) => {

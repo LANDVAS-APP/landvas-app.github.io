@@ -10,7 +10,7 @@ import FairPlayPage from './FairPlay';
 
 const TOOLS: Record<string, { title: string; sub: string; el: () => ReactNode }> = {
   review: { title: 'Art review', sub: 'Approve or reject artwork before it goes on the map, and handle reports.', el: () => <ReviewTab /> },
-  integrity: { title: 'Fair play', sub: 'Risk scores and linked accounts, the exploit radar, referral fraud, the egg loop (and the plots it rolled), and every player’s ultras and rent.', el: () => <FairPlayPage /> },
+  integrity: { title: 'Fair play', sub: 'Risk scores and linked accounts, the exploit radar, referral fraud, the egg and altar loops (and the plots their Luck rolled), and every player’s ultras and rent.', el: () => <FairPlayPage /> },
   support: { title: 'Support', sub: 'Players’ tickets and your replies.', el: () => <SupportAdmin /> },
   social: { title: 'Chat & social', sub: 'Chat moderation, bans shown to players, invites and friendships.', el: () => <SocialAdmin /> },
   earnings: { title: 'Rates & rarities', sub: 'Every way to earn, rarity odds and USD rates, plot prices, boosts and enchantments.', el: () => <Earnings /> },

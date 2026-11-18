@@ -136,6 +136,16 @@ export const portal = {
   eggLoopReverse: (id: string, plots: { gx: number; gy: number }[], mode: 'all' | 'extra', reason: string, preview: boolean) =>
     rpc<any>('admin_egg_loop_reverse', { p_player: id, p_plots: plots, p_mode: mode, p_reason: reason, p_preview: preview }),
   eggLoopReverseUndo: (id: number) => rpc<EggLoopPlayer & { ink_returned: number; usd_returned: number }>('admin_egg_loop_reverse_undo', { p_id: id }),
+  altarLoopScan: (min = 1) => rpc<AltarLoopScan>('admin_altar_loop_scan', { p_min: min }),
+  altarLoopPlayer: (id: string) => rpc<AltarLoopPlayer>('admin_altar_loop_player', { p_player: id }),
+  altarLoopTakeLuck: (id: string, amount: number, reason: string) => rpc<AltarLoopPlayer & { taken: number }>('admin_altar_loop_take_luck', { p_player: id, p_amount: amount, p_reason: reason }),
+  altarLoopLuckUndo: (take: number) => rpc<AltarLoopPlayer>('admin_altar_loop_luck_undo', { p_id: take }),
+  altarLoopFix: (id: string, plots: { gx: number; gy: number; action: 'downgrade' | 'take'; rarity?: string | null }[], reason: string) =>
+    rpc<AltarLoopPlayer & { done: number; results: { gx: number; gy: number; ok: boolean; why?: string }[] }>('admin_altar_loop_fix', { p_player: id, p_plots: plots, p_reason: reason }),
+  altarLoopUndo: (fix: number) => rpc<AltarLoopPlayer>('admin_altar_loop_undo', { p_fix: fix }),
+  altarLoopReverse: (id: string, plots: { gx: number; gy: number }[], mode: 'all' | 'extra', share: number, reason: string, preview: boolean) =>
+    rpc<any>('admin_altar_loop_reverse', { p_player: id, p_plots: plots, p_mode: mode, p_share: share, p_reason: reason, p_preview: preview }),
+  altarLoopReverseUndo: (id: number) => rpc<AltarLoopPlayer & { ink_returned: number; usd_returned: number }>('admin_altar_loop_reverse_undo', { p_id: id }),
   ultraScan: (a: { q?: string; min?: number; sort?: 'boosted' | 'ultras' | 'crowns' | 'plots'; limit?: number }) =>
     rpc<UltraScan>('admin_ultra_scan', { p_q: a.q || null, p_min: a.min ?? 1, p_sort: a.sort ?? 'boosted', p_limit: a.limit ?? 200 }),
   playerUltras: (id: string) => rpc<PlayerUltras>('admin_player_ultras', { p_player: id }),
@@ -200,6 +210,18 @@ export type EggLoopPlayer = { player: any; email: string | null; stats: EggLoopS
   reversals: { id: number; mode: 'all' | 'extra'; plots: number; ink_games: number; usd: number; usd_taken: number; usd_as_ink: number; ink_taken: number;
     plots_removed: { gx: number; gy: number; rarity: string; ink: number }[]; plots_ink: number; debt: number; reason: string; at: string; by: string | null; undone_at: string | null }[];
   owed: number; tiers: { id: string; name: string; ultra: boolean }[]; can_fix: boolean; can_take: boolean };
+// the altar loop: a cell laid on the altar again (bought back with its rarity, or passed round)
+export type AltarLoopStats = { sacrificed: number; repeats: number; repeats_self: number; repeats_other: number; cells: number; luck_from_repeats: number; luck_from_plots: number;
+  first_at: string | null; last_at: string | null; peak_day: number; luck_now: number; luck_taken: number };
+export type AltarSacrifice = { gx: number; gy: number; at: string; rarity: string; shiny: boolean; gained: number; repeat: boolean; after_self: boolean; after_at: string | null; after: any | null };
+export type AltarLoopScan = { fixed_at: string; rows: { player: any; email: string | null; status: string; stats: AltarLoopStats;
+  rolls: { n: number; improved: number; ultras: number; open: number; fixed: number } }[] };
+export type AltarLoopPlot = EggLoopPlot & { from_repeat: boolean };
+export type AltarLoopPlayer = Omit<EggLoopPlayer, 'stats' | 'days' | 'plots' | 'reversals'> & { stats: AltarLoopStats; sacrifices: AltarSacrifice[];
+  days: { day: string; repeats: number; luck: number }[]; plots: AltarLoopPlot[];
+  luck: { now: number; from_repeats: number; taken: number; can_take: number };
+  luck_takes: { id: number; amount: number; reason: string; at: string; by: string | null; undone_at: string | null }[];
+  reversals: (EggLoopPlayer['reversals'][number] & { share: number })[] };
 export type UltraRow = { player: any; email: string | null; ultras: number; crowns: number; shiny_ultras: number; plots: number; rate: number; day: number; day_free_boosts: number;
   day_boosted: number; by_rarity: { rarity: string; n: number }[]; egg_loop: number };
 export type UltraScan = { boost_mult: number; free_boost_seconds: number; totals: { players: number; ultras: number; crowns: number; day: number; day_boosted: number }; rows: UltraRow[] };
