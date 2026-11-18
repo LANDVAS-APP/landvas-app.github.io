@@ -17,6 +17,7 @@ import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { NATIVE_APP } from '../../app/buildFlags';
 import type { EmailLinkType } from '../../lib/emailLink';
 import { normalizeCode, pendingReferral } from '../../social/referralStore';
+import { runSignOutHooks } from '../signOutHooks';
 
 const PIPELINE_RPCS = new Set([
   'submit_publication', 'publication_status',
@@ -98,6 +99,7 @@ export class SupabaseBackend implements Backend {
     if (error) throw new GameError('auth_error', error.message);
   }
   async signOut() {
+    await runSignOutHooks();
     await this.sb.auth.signOut();
   }
   async resetPassword(email: string) {

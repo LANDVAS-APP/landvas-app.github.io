@@ -36,6 +36,12 @@ version until they get the new one from the store. The apps never contain admin 
 `src/app/buildFlags.ts`); staff use admin.landvas.app, where Live control sets app versions, maintenance, pages
 switched off and live versions (`game_config` 'app').
 
+**Optional plugins** (`OPTIONAL_PLUGINS` in `scripts/native-compat.mjs`, today just `@capacitor/push-notifications`)
+are left out of the compatibility key, so adding one doesn't cut installed apps off from live versions. The rule that
+makes that safe: never call an optional plugin without `Capacitor.isPluginAvailable('<Name>')` first, and work without
+it (older apps, and Android builds without `google-services.json`, don't have push). Push itself: `src/native/push.ts`,
+`supabase/functions-src/push.ts`, migration `20261120000100_phone_push.sql`, runbook `docs/STORE-LAUNCH.md` §9.
+
 ## Apps under store review (and every app version out there)
 
 A build sent to Google Play or Apple runs the game code inside it for the whole review (Live control's review hold),

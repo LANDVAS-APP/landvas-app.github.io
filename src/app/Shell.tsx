@@ -2,6 +2,7 @@ import { getBackend } from '../backend/backend';
 import { loadEnchantTexts } from '../enchant/texts';
 import { AscendHost } from '../roll/Ascend';
 import { useTimerNotifications } from '../native/notify';
+import { usePush } from '../native/push';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Compass, DoorOpen, Moon, Settings, Sparkles, Trees, Swords, Gift, LifeBuoy, Gamepad2, Globe2, Images, MessagesSquare, Shield, Trophy, Package, CalendarDays, Award, Users, Brush, PenLine, PawPrint, Rocket, LayoutGrid, Home, Smile, PartyPopper, WandSparkles, Gem, Megaphone, BookOpen, Clapperboard, Atom, Crown, GraduationCap, Eye } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -191,6 +192,8 @@ export function Shell() {
   useEffect(() => { void loadEnchantTexts(); }, []);
   // optional reminders: energy full, crops ready, expeditions home… (Settings → Notifications)
   useTimerNotifications(!!me);
+  // the app: real pushes (a fox at your egg, the Leviathan, friends…) once notifications are on
+  usePush(!!me);
   const online = useOnline();
   // a tab lights up for its own page, or for its section unless another tab is that page
   const tabActive = (to: string) => under(loc.pathname, to) || (sec?.to === to && !chosenTabs.some((t) => t !== to && under(loc.pathname, t)));

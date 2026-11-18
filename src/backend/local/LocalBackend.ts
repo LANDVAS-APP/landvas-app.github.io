@@ -14,6 +14,7 @@ import type { PvpFinish, MapUpdate, MinigameFinish } from '../types';
 import { BlobDb } from './blobs';
 import { canvasCodec } from './codec-canvas';
 import { config } from '../../env';
+import { runSignOutHooks } from '../signOutHooks';
 
 const migrationFiles = import.meta.glob('../../../supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const SESSION_KEY = 'landvas.local.session';
@@ -178,6 +179,7 @@ export class LocalBackend implements Backend {
     this.setSession({ userId: row.id, email });
   }
   async signOut() {
+    await runSignOutHooks();
     this.setSession(null);
   }
   async resendConfirmation(email: string) {

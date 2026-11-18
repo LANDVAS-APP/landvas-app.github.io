@@ -11,14 +11,19 @@ import fs from 'node:fs';
 const ADS = process.env.LANDVAS_ADS === 'on';
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { dependencies: Record<string, string> };
 const plugins = Object.keys(pkg.dependencies).filter((d) => /^@capacitor(-community)?\/|^@capgo\//.test(d) && !['@capacitor/core', '@capacitor/android', '@capacitor/ios'].includes(d));
+const included = ADS ? plugins : plugins.filter((p) => p !== '@capacitor-community/admob');
+// Push on Android runs through Firebase Cloud Messaging, which needs android/app/google-services.json (the Native apps
+// workflow writes it from the GOOGLE_SERVICES_JSON secret). Without it, asking Firebase for a push address crashes the
+// app — so a build without the file leaves the push plugin out on Android, and the game sees push isn't there.
+const FCM = fs.existsSync('android/app/google-services.json');
 
 const config: CapacitorConfig = {
   appId: 'com.landvas.app',
   appName: 'LANDVAS',
   webDir: 'dist-native',
   backgroundColor: '#0B0820',
-  includePlugins: ADS ? plugins : plugins.filter((p) => p !== '@capacitor-community/admob'),
-  android: { allowMixedContent: false, backgroundColor: '#0B0820' },
+  includePlugins: included,
+  android: { allowMixedContent: false, backgroundColor: '#0B0820', includePlugins: FCM ? included : included.filter((p) => p !== '@capacitor/push-notifications') },
   // no web-style link previews or callouts on long-press: it's a game, not a page
   ios: { contentInset: 'never', backgroundColor: '#0B0820', scrollEnabled: false, limitsNavigationsToAppBoundDomains: false, allowsLinkPreview: false },
   plugins: {
@@ -32,6 +37,8 @@ const config: CapacitorConfig = {
     // the page shrinks above the keyboard like a native screen (no web "‹ › Done" bar — see native.ts)
     Keyboard: { resize: 'native', resizeOnFullScreen: false },
     LocalNotifications: { smallIcon: 'ic_stat_landvas', iconColor: '#7B5CFF' },
+    // pushes that arrive while LANDVAS is open show inside the game (src/native/push.ts), not as a system banner
+    PushNotifications: { presentationOptions: [] },
     // new versions of the game's web code without a store release (src/native/liveBundle.ts). Nothing automatic and
     // no third-party service: the game decides what to fetch (from landvas.app), checks every file against the list
     // kept in the database, applies it only after the app has been away for a while or on the next launch, and

@@ -149,7 +149,8 @@ undocumented features, so this lists everything the reviewer can reach:
 > files from landvas.app, checked by sha-256), as Apple's developer agreement 3.3.1(B) allows. No native code or
 > permissions change that way, and the version under review is held on the submitted build until it's approved.
 > PERMISSIONS: location (only after tapping "Use my location"), notifications (only when you turn on streak
-> reminders), camera/photos (only when you pick a profile picture or an image for a canvas), saving to Photos (only
+> reminders or Settings → Notifications; game alerts such as a party invite or a fox at your egg then also arrive as
+> push notifications, each kind with its own switch — never ads or promotions), camera/photos (only when you pick a profile picture or an image for a canvas), saving to Photos (only
 > when you choose Save in the share sheet). Staff tools are not in the app (they live on a separate website).
 > Developer: LANDVAS LLC (Utah) · contact@landvas.app
 
@@ -230,3 +231,47 @@ when AdMob's signed callback reaches the server.
   as a foreground service, and Play asks apps that declare it for a foreground-service declaration.
 - **Sign in with Apple** isn't required: LANDVAS uses its own email accounts and no third-party logins. If you ever
   add Google/Discord sign-in, add Sign in with Apple too.
+
+## 9. Push notifications (APNs + Firebase)
+
+Real pushes reach a phone with LANDVAS closed: 🦊 a fox at your egg, 🐉 the Leviathan heading for your plots, 👋 friend
+requests / party invites / replies / splice invites, 🗺️ things on your land (Parasites, pranks, treasure finds, ultras'
+powers, your stars) and, if switched on, 🏠 visitors. Players opt in with Settings → Notifications (the phone's own
+permission prompt) and get one switch per kind there, plus **Send a test push**. Never used for ads or promotions
+(Apple 4.5.4).
+
+**How it works:** bell alerts of those kinds are copied into a push queue by the database for players with a phone
+registered (`supabase/migrations/20261120000100_phone_push.sql`); the minute cron finds lurking foxes; the `push` Edge
+Function (`supabase/functions-src/push.ts`) sends to Apple and Google and drops dead addresses. Live control:
+`game_config` → `phone_push` (`on`, `ios`, `android`, `daily_cap` (30), `cooldown_s` (600)).
+
+**Installed apps keep their live versions.** The push plugin is *optional* (`scripts/native-compat.mjs`): it's left
+out of the compatibility key, so the 1.0.0 apps keep taking new versions; they just have no push until their next store
+build. Code that uses an optional plugin must check `Capacitor.isPluginAvailable()` first.
+
+**iPhone (owner, once):**
+1. developer.apple.com → Certificates, IDs & Profiles → **Identifiers** → `com.landvas.app` → tick **Push
+   Notifications** → Save (no certificate needed: we use a key).
+2. **Keys** → **+** → name it "LANDVAS push", tick **Apple Push Notifications service (APNs)** → Continue → Register →
+   **Download** the `.p8` (it can be downloaded only once) and note its **Key ID**.
+3. GitHub → Settings → Secrets and variables → Actions → secrets **`APNS_KEY_ID`** (the Key ID) and **`APNS_KEY_P8`**
+   (the whole `.p8` file text). `APPLE_TEAM_ID` is already there.
+4. Actions → **Deploy LANDVAS** → Run workflow (hands the key to the push function), then Actions → **Native apps** →
+   Run workflow with **release** ticked → the TestFlight build has push (the run says "Push entitlement (production) is
+   in this build"). If the export step warns that push failed, step 1 isn't saved yet — the build still uploads,
+   without push.
+5. On the iPhone: install the new TestFlight build → Settings → Notifications → on → Allow → **Send a test push**.
+
+**Android (owner, once — for the next Android store build):**
+1. console.firebase.google.com → Add project "LANDVAS" (Analytics not needed) → Add app → Android, package
+   `com.landvas.app` → download **google-services.json**.
+2. Project settings → **Service accounts** → Generate new private key (a JSON file).
+3. GitHub secrets: **`GOOGLE_SERVICES_JSON`** (the google-services.json text — the Native apps build adds it; without
+   it the Android build simply has no push) and **`FCM_SERVICE_ACCOUNT_JSON`** (the service-account file text — the
+   deploy hands it to the push function).
+4. Run Deploy, then a Native apps release build. Play's **Data safety** doesn't change (device IDs are already declared);
+   the merged manifest gains Firebase's `RECEIVE` and `WAKE_LOCK`, which need no declaration.
+
+**Store forms:** Apple App Privacy already lists *Identifiers → device ID* (linked, app functionality); a push address
+is covered there. Notes for Review: the PERMISSIONS line above mentions the pushes.
+

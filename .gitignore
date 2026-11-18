@@ -15,3 +15,6 @@ tsconfig.tsbuildinfo
 .wrangler/
 ota-pending/
 invite-pages.json
+
+# Firebase settings for Android push: written by the Native apps workflow from the GOOGLE_SERVICES_JSON secret
+android/app/google-services.json

@@ -19,6 +19,8 @@ import { NavCustomizer } from '../app/NavCustomizer';
 import { isNative } from '../native/native';
 import { remindersOn, remindersSupported, setReminders } from '../native/reminders';
 import { NOTIFY_KINDS, kindOn, notifyOn, notifyPermission, notifySupported, setNotify } from '../native/notify';
+import { pushKindOn, pushState, pushSupported, sendTestPush, type PushState } from '../native/push';
+import { PUSH_KINDS } from '../shared/pushText';
 import { BOLD_COLORS, COLOR_SYMBOLS } from '../play/palette';
 import { MURAL_COLORS } from '../shared/minigames/memorymural';
 import { NATIVE_APP } from '../app/buildFlags';
@@ -338,6 +340,47 @@ function NotifySettings() {
           ))}
         </div>
       )}
+      {on && isNative() && <PushSettings />}
     </>
+  );
+}
+
+/** the app: pushes that reach this phone with LANDVAS closed — one switch per kind, and a test push */
+function PushSettings() {
+  const settings = useUi((s) => s.settings);
+  const update = useUi((s) => s.updateSettings);
+  const [st, setSt] = useState<PushState>(pushState());
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const f = () => setSt(pushState());
+    window.addEventListener('landvas:push', f);
+    return () => window.removeEventListener('landvas:push', f);
+  }, []);
+  if (!pushSupported()) {
+    return <p className="text-xs text-faint" data-testid="push-later">Alerts that reach you with LANDVAS closed — a fox at your egg, the Leviathan, friend requests — come with the next app update.</p>;
+  }
+  return (
+    <div className="grid gap-3 rounded-2xl border border-line p-3" data-testid="push-settings">
+      <div>
+        <div className="text-sm font-semibold">Even with LANDVAS closed</div>
+        <p className="text-xs text-muted">
+          {st.status === 'on' ? 'This phone gets these as they happen.'
+            : st.status === 'waiting' ? 'Setting this phone up…'
+            : st.status === 'error' ? 'This phone couldn’t be set up for pushes yet — your reminders above still work.'
+            : 'Allow notifications for LANDVAS in your phone’s Settings to get these.'}
+        </p>
+      </div>
+      {PUSH_KINDS.map((k) => (
+        <Switch key={k.id} id={`push-${k.id}`} label={k.label} hint={k.hint} checked={pushKindOn(k.id)}
+          onCheckedChange={(v) => update({ push: { ...(settings.push ?? {}), [k.id]: v } })} />
+      ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs text-faint">Check it reaches you: lock your phone after tapping.</span>
+        <Button size="sm" variant="secondary" disabled={busy || st.status !== 'on'} data-testid="push-test"
+          onClick={async () => { setBusy(true); try { await sendTestPush(); } catch (e) { toast(toGameError(e).message); } finally { setBusy(false); } }}>
+          Send a test push
+        </Button>
+      </div>
+    </div>
   );
 }

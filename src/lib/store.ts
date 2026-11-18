@@ -15,6 +15,7 @@ export type Settings = { theme: Theme; mapTheme?: MapTheme; hidePlots?: boolean;
   /** Paint Pop / Block Splash: shiny, reflective paint (default off: matte) */ glossyBlobs?: boolean;
   /** the website's map buttons: 'tidy' (one row of round buttons, cards under it — the default) or 'classic' (the original chips and big buttons, in a toolbar and a dock) */ mapHud?: 'tidy' | 'classic';
   /** which reminders to get (Settings → Notifications); missing = the default for that kind */ notify?: Record<string, boolean>;
+  /** the app: which pushes reach this phone with LANDVAS closed (src/native/push.ts); missing = the default for that kind */ push?: Record<string, boolean>;
   /** Smooth mode for older phones (lib/device.ts): 'auto' (the default) goes lighter on old iPhones and modest Androids */ smooth?: 'auto' | 'on' | 'off';
   /** a little frame-rate meter in the corner (for finding what's slow on your phone) */ fpsMeter?: boolean };
 

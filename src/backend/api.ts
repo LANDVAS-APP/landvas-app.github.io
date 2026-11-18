@@ -883,6 +883,11 @@ export const api = {
   myAlerts: (limit = 50) => rpc<{ unread: number; items: import('./types').Alert[] }>('my_alerts', { p_limit: limit }),
   alertsUnread: () => rpc<number>('alerts_unread'),
   markAlertsRead: () => rpc<number>('mark_alerts_read'),
+  // the app's pushes (src/native/push.ts): this phone's push address and the switches the player has on
+  pushRegister: (token: string, platform: 'ios' | 'android', kinds: string[], app: string | null) =>
+    rpc<{ ok: boolean; kinds: string[]; all: string[] }>('push_register', { p_token: token, p_platform: platform, p_kinds: kinds, p_app: app }),
+  pushUnregister: (token: string) => rpc<{ ok: boolean; removed: number }>('push_unregister', { p_token: token }),
+  pushTest: () => rpc<{ ok: boolean; devices: number }>('push_test'),
   roomSocial: (username: string) => rpc<import('./types').RoomSocial>('room_social', { p_username: username }),
   roomNote: (username: string, body: string, drawing: import('./types').BookDrawing | null = null) => rpc<import('./types').RoomSocial>('room_note', { p_username: username, p_body: body, p_drawing: drawing }),
   roomNoteDelete: (id: number) => rpc('room_note_delete', { p_id: id }),

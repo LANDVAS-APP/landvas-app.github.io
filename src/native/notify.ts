@@ -50,7 +50,7 @@ export async function notifyPermission(): Promise<'granted' | 'denied' | 'prompt
 
 /** turn reminders on (asks for permission) or off; resolves to whether they're on */
 export async function setNotify(on: boolean): Promise<boolean> {
-  if (!on) { saveStorage(KEY, 'off'); await clearScheduled(); return false; }
+  if (!on) { saveStorage(KEY, 'off'); await clearScheduled(); window.dispatchEvent(new Event('landvas:notify')); return false; }
   let ok = false;
   if (isNative()) {
     const { LocalNotifications: LN } = await plugin();

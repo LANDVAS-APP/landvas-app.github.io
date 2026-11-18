@@ -35,6 +35,17 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- pushes (Firebase Cloud Messaging) that arrive while LANDVAS is closed: the LANDVAS mark, the game's purple, and
+             the "Game alerts" channel the game makes when the player turns notifications on (src/native/push.ts) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_landvas" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/landvas_accent" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="landvas_alerts" />
         <!-- AdMob app id: Google's TEST id until scripts/native-config.mjs swaps in yours (ADMOB_APP_ID_ANDROID) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
