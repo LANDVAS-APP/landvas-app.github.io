@@ -31,7 +31,7 @@ import { Z_PLOT, cellCenter } from '../shared/grid';
 import { UltraTracker } from '../ultra/UltraTracker';
 import { PlotWorlds } from '../play/PlotWorlds';
 import { activeBoost, fullClearInk } from '../play/rates';
-import { Atom, Clapperboard, Eye, Footprints, Gem, GraduationCap, Megaphone, PartyPopper, WandSparkles } from 'lucide-react';
+import { Atom, Clapperboard, Eye, Footprints, Gem, GraduationCap, Megaphone, PartyPopper, Telescope, WandSparkles } from 'lucide-react';
 import { PartyHubCard } from '../party/PartyButtons';
 import GameHud from './GameHud';
 import { APP_ME_PAGES, APP_SECTIONS, Page, SECTIONS } from './Shell';
@@ -47,6 +47,7 @@ const CARDS: Card[] = [
   { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, tone: 'ember' },
   { to: '/pvp', title: 'PvP', sub: 'Duel other players', icon: Swords, tone: 'crimson' },
   { to: '/space', title: 'Space', sub: 'Fly missions', icon: Rocket, tone: 'violet' },
+  { to: '/stars', title: 'The stars', sub: 'Claim the night sky', icon: Telescope, tone: 'azure' },
   { to: '/events', title: 'Events', sub: 'Limited-time fun', icon: CalendarDays, tone: 'azure' },
   { to: '/social', title: 'Community', sub: 'Friends, chat & clans', icon: MessagesSquare, tone: 'teal' },
   { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, tone: 'gold' },
@@ -60,6 +61,7 @@ const APP_CARDS: Card[] = [
   { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, tone: 'ember' },
   { to: '/pvp', title: 'PvP', sub: 'Duel other players', icon: Swords, tone: 'crimson' },
   { to: '/space', title: 'Space', sub: 'Fly missions', icon: Rocket, tone: 'violet' },
+  { to: '/stars', title: 'The stars', sub: 'Claim the night sky', icon: Telescope, tone: 'azure' },
   { to: '/events', title: 'Events', sub: 'Limited-time fun', icon: CalendarDays, tone: 'azure' },
   { to: '/leaderboards', title: 'Ranks', sub: 'See who’s on top', icon: Trophy, tone: 'gold' },
   { to: '/clips', title: 'Clips', sub: 'Your best rolls & moments', icon: Clapperboard, tone: 'teal' },
@@ -71,7 +73,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/party': PartyPopper, '/me': Smile, '/achievements': Award, '/explorer': Compass,
   '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/handbook': GraduationCap, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
-  '/together': Users, '/magic': WandSparkles, '/ultras': Gem, '/rankings/rarities': Trophy, '/new': Megaphone, '/eyes': Eye,
+  '/together': Users, '/magic': WandSparkles, '/ultras': Gem, '/rankings/rarities': Trophy, '/new': Megaphone, '/eyes': Eye, '/stars': Telescope,
 };
 const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold',
   '/together': 'emerald', '/magic': 'violet', '/ultras': 'gold' };

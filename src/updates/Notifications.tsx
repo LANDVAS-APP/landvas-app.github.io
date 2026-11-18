@@ -175,6 +175,21 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
     icon: Heart, color: '#FF7EB6', to: () => '/inkborn',
     text: (a) => <>had a playdate with your <b>{a.data.mine}</b>{a.data.tip ? <span className="text-ok"> · +{a.data.tip} Ink</span> : null}{a.data.egg ? <> · 🥚 you got an egg!</> : null}</>,
   },
+  // ✨ the stars
+  star: { icon: Star, color: '#FFE7A0', text: (a) => {
+    const d = a.data as Record<string, any>;
+    const nm = <b>{d.name ?? 'a star'}</b>;
+    switch (d.sub) {
+      case 'cut': return <>claimed a plot on {nm}, the star you discovered <span className="text-ok">· +{Number(d.ink).toLocaleString()} Ink Discoverer’s cut</span></>;
+      case 'painted': return <>🌟 {nm} is a <b>Painted Star</b> — every plot on it claimed and painted. Look up: it shows in everyone’s telescope</>;
+      case 'art_ok': return <>🎨 Your painting on {nm} was approved — it’s on the star for everyone to see</>;
+      case 'art_no': return <>Your painting on {nm} wasn’t approved{d.reason ? <>: “{d.reason}”</> : null}. Paint it again any time</>;
+      case 'toll': return <>came through your 🌀 Stargate on {nm} <span className="text-ok">· +{Number(d.ink).toLocaleString()} Ink toll</span></>;
+      case 'supernova': return <>💥 {nm} went <b>supernova</b>{d.ink ? <span className="text-ok"> · +{Number(d.ink).toLocaleString()} Ink</span> : null}</>;
+      case 'flare': return <>☀️ A flare on {nm} charged your plots</>;
+      default: return <>Something happened on {nm}</>;
+    }
+  }, to: (a) => (a.data.sub === 'art_no' || a.data.sub === 'art_ok' ? `/star/${a.data.star}/paint` : `/star/${a.data.star}`) },
   meet_wave: { icon: Hand, color: '#22E3FF', text: (a) => <>waved at you 👋 — they’re out on GPS {a.data.band === 'here' ? 'right by you' : a.data.band === 'walk' ? 'a short walk away' : a.data.band === 'near' ? 'nearby' : 'in your area'}, a LANDVAS player like you</>, to: () => '/eyes' },
   warp: { icon: Rocket, color: '#FFC93D', text: (a) => <>warped to you on {worldName(a.data.world)}</>, to: () => '/world' },
   base_visit: { icon: Tent, color: '#FF8A5B', text: (a) => <>is looking round your base on {worldName(a.data.world)}</>, to: () => '/world' },

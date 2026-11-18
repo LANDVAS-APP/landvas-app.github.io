@@ -2785,6 +2785,10 @@ html.reduce-motion .lv-grim-aurora::before, html.reduce-motion .lv-grim-aurora i
 .lv-liquid.empty i { display: none; }
 
 
+/* ✨ the pulsar's beat game: a ring that swells and fades with each beat (one-off, restarted per beat) */
+.lv-pulse-ring { animation: lv-pulsar-ring linear forwards; }
+@keyframes lv-pulsar-ring { from { transform: scale(0.55); opacity: 0.9; } to { transform: scale(1.18); opacity: 0; } }
+
 /* ---- phones: no blur behind anything (see CLAUDE.md). The rules above cover the app's own HUD pieces; this covers
    the rest — the shared .glass cards and panels (253 places) and every Tailwind backdrop-blur utility, which sat on
    the HUDs over the 3D places (home, mine, dungeon, farm, brawl, the planets…) and re-blurred the moving scene under

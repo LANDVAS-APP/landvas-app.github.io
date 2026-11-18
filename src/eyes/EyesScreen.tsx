@@ -5,11 +5,11 @@
 // Walk with the stick (forward is where you look), look by dragging or by moving the phone, tap anything.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Rocket, Smartphone, Users, X } from 'lucide-react';
+import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Rocket, Smartphone, Telescope, Users, X } from 'lucide-react';
 import { useParty, usePartyUi } from '../party/party';
 import { EMOTES, sendGroup, useGroupLive, type Emote } from '../travel/live';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, type LevState } from '../backend/api';
 import { getBackend, toGameError } from '../backend/backend';
@@ -45,6 +45,12 @@ import { FirstPersonSelf } from './FirstPersonSelf';
 import { FpGrimoire, type Summoned } from './FpGrimoire';
 import { MeetNearby } from './MeetNearby';
 
+import { StarPreview } from '../stars/StarPreview';
+import { StarWarp } from '../stars/StarWarp';
+import { TIERS } from '../stars/galaxy';
+import { starSkin } from '../stars/skin';
+import type { StarCard } from '../stars/types';
+import type { SkyClaim } from '../stars/skyLayer';
 /** to space, in first person (its own chunk: only when you go) */
 const SpaceFlight = lazy(() => import('./SpaceFlight'));
 import './eyes.css';
@@ -653,13 +659,99 @@ export default function EyesScreen() {
   // ---- taps ---------------------------------------------------------------------------------------------------------
   // ---- the Grimoire: pulled out and held open; an enchantment summoned in front of you ----------------------------------
   const [book, setBook] = useState(false);
+  // ✨ the stars: the telescope, a star's preview, a warp under way
+  const [params] = useSearchParams();
+  const [scope, setScope] = useState(() => params.get('telescope') === '1');
+  const [starOpen, setStarOpen] = useState<number | null>(null);
+  const [warp, setWarp] = useState<{ id: number; name: string; cls: string; arrive: number; depart: number } | null>(null);
+  const [scopeFov, setScopeFov] = useState(26);
   const [summoned, setSummoned] = useState<Summoned | null>(null);
   const [enchPage, setEnchPage] = useState(0);
   const [space, setSpace] = useState(false);
   // your companion Inkborn walks with you
   const comp = useCompanion();
   useEffect(() => { eyes?.setCompanion(comp ? { id: comp.c.id, name: comp.c.name, genome: comp.g } : null); }, [eyes, comp?.c.id, comp?.g]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { eyes?.setPaused(space); }, [eyes, space]);
+  useEffect(() => { eyes?.setPaused(space || !!warp); }, [eyes, space, warp]);
+  useEffect(() => {
+    if (!eyes) return;
+    eyes.setTelescope(scope);
+    if (scope) { const a = eyes.look(); if (a.pitch < 0.5) glide(null, 0.95); }
+  }, [eyes, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the telescope's reach: an Observatory among the stars takes it further (the server says how far)
+  const reachQ = useQuery({ queryKey: ['star-reach'], queryFn: api.starReach, enabled: !!me, staleTime: 120_000 });
+  useEffect(() => { if (eyes && reachQ.data) eyes.setStarReach(reachQ.data.reach); }, [eyes, reachQ.data]);
+  // (the zoom on screen, a few times a second)
+  useEffect(() => {
+    if (!eyes || !scope) return;
+    const t = setInterval(() => setScopeFov(eyes.telescope().fov), 200);
+    return () => clearInterval(t);
+  }, [eyes, scope]);
+  // claimed stars in the sky (their halos). The same for everyone, so asked rarely: the real ones once when you come
+  // into first person (and again through the telescope if it's been a while); the telescope's own stars only while
+  // you're looking through it, and only the ones you haven't asked about in the last ten minutes.
+  const claimsOf = useRef(new Map<number, SkyClaim>());
+  const realAt = useRef(0);
+  const gotClaims = (l: SkyClaim[]) => { for (const c of l) claimsOf.current.set(c.id, c); eyes?.setStarClaims(l); };
+  useEffect(() => {
+    if (!eyes || !me) return;
+    if (realAt.current && Date.now() - realAt.current < (scope ? 10 * 60_000 : 60 * 60_000)) return;
+    realAt.current = Date.now();
+    void api.starsSeenReal().then(gotClaims).catch(() => { realAt.current = 0; });
+  }, [eyes, me, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!eyes || !me || !scope) return;
+    let live = true;
+    const seen = new Map<number, number>();
+    let busy = false;
+    const tick = async () => {
+      if (document.hidden || busy) return;
+      const now = Date.now();
+      const ids = eyes.skyIds().filter((x) => now - (seen.get(x) ?? 0) > 10 * 60_000);
+      if (!ids.length) return;
+      for (const x of ids) seen.set(x, now);
+      busy = true;
+      try { const l = await api.starsSeen(ids); if (live && l.length) gotClaims(l); } catch { for (const x of ids) seen.delete(x); } finally { busy = false; }
+    };
+    const tg = setInterval(() => void tick(), 2000);
+    const t0 = setTimeout(() => void tick(), 700);
+    return () => { live = false; clearInterval(tg); clearTimeout(t0); };
+  }, [eyes, me, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  // up close through the telescope, a claimed star wears its skin (its plots and paintings), turning: made once per
+  // change to the star (its plots claimed, its art's revision), a few at a time
+  const skinned = useRef(new Map<number, string>());
+  useEffect(() => {
+    if (!eyes || !scope) return;
+    const t = setInterval(() => {
+      if (document.hidden || eyes.telescope().fov > 6) return;
+      for (const id of eyes.claimedShown().slice(0, 3)) void loadSkin(id);
+    }, 2500);
+    return () => clearInterval(t);
+  }, [eyes, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadSkin = async (id: number) => {
+    if (!eyes) return;
+    const sc = claimsOf.current.get(id);
+    if (!sc || !sc.claimed) return;
+    const key = `${sc.claimed}:${sc.art_rev}`;
+    if (skinned.current.get(id) === key) return;
+    skinned.current.set(id, key);
+    try {
+      const card = await api.starCard(id);
+      const plots = card.cells <= 3242 ? (await api.starPlotsOf(id)).plots : [];
+      const layers = await Promise.all(card.art.slice(0, 16).map(async (a) => (await api.starArtLayer(id, a.owner).catch(() => null)) ?? a));
+      eyes.setStarSkin(id, await starSkin(card.m, plots, layers, card.cells <= 252 ? 512 : 1024), card.art_rev * 100000 + card.claimed);
+    } catch { skinned.current.delete(id); /* no skin: it shows in its colour */ }
+  };
+  const goToStar = async (c: StarCard) => {
+    if (c.here) { nav(`/star/${c.id}`); return; }
+    try {
+      const w = await api.starWarp(c.id);
+      setStarOpen(null);
+      if (useUi.getState().settings?.haptics) buzz('medium');
+      if (!w.arrive_at || (w.secs ?? 0) <= 0) { nav(`/star/${c.id}`); return; }
+      setWarp({ id: c.id, name: c.name, cls: c.cls, arrive: Date.parse(w.arrive_at), depart: Date.parse(w.depart_at ?? new Date().toISOString()) });
+      invalidateGame(qc);
+    } catch (e) { toast.error(toGameError(e).message); }
+  };
   const onPick = useRef<(p: Pick | null) => void>(() => {});
   onPick.current = (p) => {
     if (hint) { setHint(false); saveStorage('landvas.eyes.hinted', true); }
@@ -720,6 +812,7 @@ export default function EyesScreen() {
       return;
     }
     if (p.kind === 'manifest') { feel(); eyes?.manifestFlare(); setEnchPage((n) => n + 1); return; }
+    if (p.kind === 'skystar') { feel(); setCard(null); setStarOpen(p.id); void loadSkin(p.id); return; }
     if (p.kind === 'critter') {
       const k = eyes?.critter(p.id);
       if (!k) return;
@@ -762,9 +855,14 @@ export default function EyesScreen() {
     let dy = (yaw ?? y0) - y0;
     dy = ((dy + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     const t0 = performance.now();
+    let last: { yaw: number; pitch: number } | null = null;
     const step = (now: number) => {
+      // (someone else turned the view meanwhile — a drag, a tap that aims: they win)
+      if (last) { const l = eyes.look(); if (Math.abs(l.pitch - last.pitch) > 1e-3 || Math.abs(((l.yaw - last.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 1e-3) return; }
       const k = Math.min(1, (now - t0) / 900), e = 1 - (1 - k) ** 3;
       eyes.lookAt(y0 + dy * e, p0 + (pitch - p0) * e);
+      const l = eyes.look();
+      last = { yaw: l.yaw, pitch: l.pitch };
       if (k < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -931,6 +1029,7 @@ export default function EyesScreen() {
         </RoundBtn>
         {me && <RoundBtn label="Grimoire" on={book} onClick={() => setBook((b) => !b)} testid="eyes-grimoire-btn"><BookOpen className="h-5 w-5" /></RoundBtn>}
         {me && <RoundBtn label="To space" on={space} onClick={() => setSpace(true)} testid="eyes-space-btn"><Rocket className="h-5 w-5" /></RoundBtn>}
+        <RoundBtn label={scope ? 'Telescope on' : 'Telescope'} on={scope} onClick={() => setScope((x) => !x)} testid="eyes-telescope-btn"><Telescope className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>
@@ -1020,12 +1119,49 @@ export default function EyesScreen() {
         )}
       </AnimatePresence>
 
+      {/* ✨ the telescope: a round view, the zoom, how deep it's reached */}
+      {scope && <TelescopeView fov={scopeFov} reach={reachQ.data?.reach ?? 3} onFov={(f) => { eyes?.setFov(f); setScopeFov(f); }} onClose={() => setScope(false)} />}
+      <AnimatePresence>{starOpen != null && <StarPreview key={starOpen} id={starOpen} onClose={() => setStarOpen(null)} onGo={(c) => void goToStar(c)} />}</AnimatePresence>
+      <AnimatePresence>{warp && <StarWarp key={warp.id} name={warp.name} cls={warp.cls} arriveAt={warp.arrive} departAt={warp.depart} rushInk={10}
+        onRush={() => void api.starRush().then(() => { const id = warp.id; setWarp(null); nav(`/star/${id}`); }).catch((e) => toast.error(toGameError(e).message))}
+        onArrive={() => { const id = warp.id; setWarp(null); nav(`/star/${id}`); }} />}</AnimatePresence>
       <div className="relative z-40">
         <AnimatePresence>{selected && !rolling && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} variant="eyes" />}</AnimatePresence>
       </div>
       <ClaimCelebration />
       <LeviathanFight />
     </div>
+  );
+}
+
+/** the telescope's eyepiece: a round view (the rest dark), the zoom (log scale), the tier it's reached */
+function TelescopeView({ fov, reach, onFov, onClose }: { fov: number; reach: number; onFov(f: number): void; onClose(): void }) {
+  const minF = Math.max(0.0006, (TIERS[Math.min(5, reach)]?.fov ?? 0.03) * 0.06);
+  const lo = Math.log(minF), hi = Math.log(26);
+  const k = Math.max(0, Math.min(1, (hi - Math.log(Math.max(minF, Math.min(26, fov)))) / (hi - lo)));
+  const tier = TIERS.filter((T) => fov <= T.fov).pop() ?? TIERS[0];
+  const next = TIERS[tier.t + 1];
+  const zoomX = Math.round(62 / Math.max(fov, 1e-6));
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 z-[15] bg-[radial-gradient(circle_at_50%_50%,transparent_0,transparent_min(42vw,40vh),rgba(0,0,0,0.92)_calc(min(42vw,40vh)+18px))]" data-testid="eyes-telescope" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[16] h-[min(84vw,80vh)] w-[min(84vw,80vh)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15">
+        <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/10" /><div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/10" />
+      </div>
+      <div className="absolute inset-x-0 top-[calc(62px+env(safe-area-inset-top,0px))] z-30 flex justify-center px-4">
+        <div className="pointer-events-auto grid w-full max-w-sm gap-1.5 rounded-3xl border border-white/10 bg-[#0A0D1C] px-4 py-3 shadow-2xl">
+          <div className="flex items-center justify-between text-[12px]">
+            <span className="font-black" data-testid="eyes-telescope-tier">🔭 {tier.name}</span>
+            <span className="tnum text-white/70">×{zoomX.toLocaleString()}</span>
+            <button className="rounded-full bg-white/12 px-2.5 py-0.5 text-[11px] font-bold" onClick={onClose}>Done</button>
+          </div>
+          <input type="range" min={0} max={1000} value={Math.round(k * 1000)} onChange={(e) => onFov(Math.exp(hi - (Number(e.target.value) / 1000) * (hi - lo)))} aria-label="Zoom" data-testid="eyes-telescope-zoom" />
+          <div className="text-[11px] leading-snug text-white/60">
+            {next && next.t <= reach ? `Zoom in for ${next.name.toLowerCase()} — stars nobody’s seen yet. Tap one to see it up close.` : next ? `${next.name} needs an Observatory among the stars.` : 'You’re looking into the far galaxy.'}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 

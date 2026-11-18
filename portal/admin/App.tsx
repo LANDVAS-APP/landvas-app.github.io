@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useNavigate, use
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Coins, Database, FileClock, Flag, Globe2, HeartPulse, LayoutDashboard, LifeBuoy, Map as MapIcon, Megaphone,
-  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles, Power, Dices, WandSparkles,
+  MessagesSquare, Scale, ShieldCheck, ShieldAlert, ShoppingBag, SlidersHorizontal, Terminal, Trophy, Users, Wallet, Wrench, ImageIcon, RadioTower, Sparkles, Power, Dices, WandSparkles, Telescope,
 } from 'lucide-react';
 import { api } from '../../src/backend/api';
 import { getBackend } from '../../src/backend/backend';
@@ -35,6 +35,7 @@ const Secrets = lazy(() => import('./pages/Secrets'));
 const EarnSwitches = lazy(() => import('./pages/EarnSwitches'));
 const Rolls = lazy(() => import('./pages/Rolls'));
 const Enchantments = lazy(() => import('./pages/Enchantments'));
+const Stars = lazy(() => import('./pages/Stars'));
 
 export function useWho() {
   return useQuery({ queryKey: ['whoami', getBackend().session()?.userId], queryFn: portal.whoami, staleTime: 60_000 });
@@ -74,11 +75,13 @@ function AdminShell({ who }: { who: WhoAmI }) {
   const cash = useQuery({ queryKey: ['admin', 'cashouts', 'requested'], queryFn: () => api.admin.cashoutQueue('requested'), enabled: has('payouts'), refetchInterval: 120_000 });
   const earnOff = useQuery({ queryKey: ['admin', 'earn-switches'], queryFn: portal.earnSwitches, enabled: has('economy'), refetchInterval: 60_000, retry: false });
   const me = useQuery({ queryKey: ['admin-me'], queryFn: api.myState, staleTime: 300_000 });
+  const starArt = useQuery({ queryKey: ['admin', 'star-art'], queryFn: api.adminStarArtQueue, enabled: has('moderator'), refetchInterval: 120_000, retry: false });
   const nav: NavItem[] = [
     { to: '/', label: 'Dashboard', icon: <LayoutDashboard />, end: true, short: 'Home' },
     { to: '/players', label: 'Players', icon: <Users />, group: 'People' },
     has('moderator') && { to: '/tools/review', label: 'Art review', icon: <ImageIcon />, group: 'People', count: review.data?.pending },
     has('moderator') && { to: '/tools/integrity', label: 'Fair play', icon: <ShieldAlert />, group: 'People' },
+    has('moderator', 'economy') && { to: '/stars', label: 'Stars', icon: <Telescope />, group: 'World', count: starArt.data?.length || undefined },
     has('support') && { to: '/tools/support', label: 'Support', icon: <LifeBuoy />, group: 'People', count: notes.data?.open_tickets_staff },
     has('moderator') && { to: '/tools/social', label: 'Chat & social', icon: <MessagesSquare />, group: 'People' },
     has('economy', 'payouts') && { to: '/economy', label: 'Economy', icon: <Scale />, group: 'Economy' },
@@ -157,6 +160,7 @@ const router = createBrowserRouter([
       { path: 'earning', element: page(<EarnSwitches />) },
       { path: 'rolls', element: page(<Rolls />) },
       { path: 'enchantments', element: page(<Enchantments />) },
+      { path: 'stars', element: page(<Stars />) },
       { path: 'security', element: page(<Security />) },
       { path: 'tools/:tool', element: page(<Tool />) },
       { path: 'secrets', element: page(<Secrets />) },

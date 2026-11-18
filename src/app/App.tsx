@@ -121,6 +121,10 @@ const KeeperScreen = lazy(() => import('../inkborn/Keeper'));
 const FarmScreen = lazy(() => import('../farm/FarmScreen'));
 const WatchScreen = lazy(() => import('../watch/WatchScreen'));
 const EyesScreen = lazy(() => import('../eyes/EyesScreen'));
+// ✨ Skywright: a star in first person, painting a star, the star chart
+const StarWorld = lazy(() => import('../stars/StarWorld'));
+const StarPaint = lazy(() => import('../stars/StarPaint'));
+const StarChart = lazy(() => import('../stars/StarChart'));
 const FarmGame = lazy(() => import('../farm/FarmGame'));
 const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
@@ -270,6 +274,8 @@ const routes: RouteObject[] = [
       { path: '/habitat/:id', element: p(<Sanctuary />) },
       { path: '/watch/:username', element: player(<WatchScreen />) },
       { path: '/eyes', element: player(<EyesScreen />) }, // Explorer's Eyes: the first-person view
+      { path: '/star/:id', element: player(<StarWorld />) }, // ✨ on a star's shell, in first person
+      { path: '/star/:id/paint', element: player(<StarPaint />) },
       { path: '/farm/:id', element: player(<FarmScreen />) },
       { path: '/landlord/:id', element: player(<EstateScreen />) },
       { path: '/farm/:id/play/:game', element: player(<FarmGame />) },
@@ -311,6 +317,7 @@ const routes: RouteObject[] = [
           { path: '/achievements', element: player(<AchievementsScreen />) },
           { path: '/legend', element: p(<LegendScreen />) },
           { path: '/grimoire', element: player(<GrimoireScreen />) },
+          { path: '/stars', element: player(<StarChart />) },
           { path: '/grimoire/:id', element: player(<GrimoireScreen />) },
           { path: '/clips', element: player(<ClipsScreen />) },
           { path: '/guide', element: p(<GuideScreen />) },

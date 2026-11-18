@@ -33,6 +33,8 @@ import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
 import { releaseOnDispose } from '../lib/threeRelease';
+import { createSkyStars, type SkyClaim } from '../stars/skyLayer';
+import { TIERS as STAR_TIERS, tierForFov, type Star } from '../stars/galaxy';
 
 /** a painting of the ground: a canvas, or a picture from a worker */
 export type GroundImg = HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
@@ -54,7 +56,9 @@ export type Pick =
   | { kind: 'buddy'; id: string }
   | { kind: 'manifest' }
   | { kind: 'critter'; id: string }
-  | { kind: 'sky'; what: 'sun' | 'moon' | 'star' | 'planet'; name: string; ly?: number; group?: string };
+  | { kind: 'sky'; what: 'sun' | 'moon' | 'star' | 'planet'; name: string; ly?: number; group?: string }
+  /** a star (real or from the telescope's tiers): its preview */
+  | { kind: 'skystar'; id: number };
 
 export type EyesOpts = {
   canvas: HTMLCanvasElement;
@@ -119,10 +123,30 @@ export type Eyes = {
   /** the sky's clock (ms): now, unless it's been frozen */ now(): number;
   snapshot(): Promise<Blob | null>;
   /** where something is on screen (CSS px), or null when it's behind you or not there (tests, hints) */
-  screenOf(t: { lev: true } | { drop: string } | { star: number } | { cell: [number, number] } | { beacon: string }): { x: number; y: number } | null;
+  screenOf(t: { lev: true } | { drop: string } | { star: number } | { cell: [number, number] } | { beacon: string } | { skystar: number }): { x: number; y: number } | null;
   debug(): Record<string, unknown>;
   /** (tests) the shader programs made so far (name#id) */ programs(): string[];
   /** every shader in the view built and used once (behind the loading screen): resolves when it's done */ warmUp(): Promise<void>;
+  /** ✨ the telescope: on, it zooms far past the eye's limit (down to a hair of a degree) and darkens the sky so the stars show */
+  setTelescope(on: boolean): void;
+  telescope(): { on: boolean; fov: number; tier: number; reach: number };
+  /** the view's width (degrees), e.g. from the telescope's zoom slider */
+  setFov(deg: number): void;
+  /** how deep this player's telescope reaches (tiers: 3 deep field; an Observatory takes it further) */
+  setStarReach(t: number): void;
+  /** the generated stars on show (to ask which are claimed) */
+  skyIds(): number[];
+  /** claimed stars: their halos (and their discs, once their skin's in) */
+  setStarClaims(list: SkyClaim[]): void;
+  setStarSkin(id: number, canvas: HTMLCanvasElement | null, rev: number): void;
+  /** a star on show by its id */
+  skyStar(id: number): Star | null;
+  /** the claimed stars on show, nearest the middle of the view first */
+  claimedShown(): number[];
+  /** turn to look straight at a star on show (false if it isn't) */
+  aimAtStar(id: number): boolean;
+  /** (tests) the sky's stars */
+  skyCounts(): Record<string, number>;
   /** (tests) the sharpest ground's own painting */ closeCanvas(): HTMLCanvasElement | null;
   /** (tests) hide or show one layer of the view */ debugShow(layer: string, on: boolean): void;
   /** the place (a plot that's been made into something) you're standing at and facing, if any */ placeHere(): BuildSite | null;
@@ -235,12 +259,13 @@ export function createEyes(o: EyesOpts): Eyes {
     uNeon: { value: 0 }, uMoonGlow: { value: 0 }, uMoon: { value: new THREE.Vector3(0, -1, 0) },
     // the Milky Way's glow: the galactic pole and centre in this sky
     uNGP: { value: new THREE.Vector3(0, 1, 0) }, uGC: { value: new THREE.Vector3(1, 0, 0) }, uStars: { value: 0 },
+    uScope: { value: 0 },
   };
   const skyMat = T(new THREE.ShaderMaterial({
     uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: /* glsl */ `varying vec3 vDir; void main() { vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w * 0.9999; }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uSun; uniform vec3 uMoon; uniform vec3 uNGP; uniform vec3 uGC; uniform float uDay, uDusk, uTime, uCloud, uNeon, uMoonGlow, uStars; varying vec3 vDir;
+      uniform vec3 uSun; uniform vec3 uMoon; uniform vec3 uNGP; uniform vec3 uGC; uniform float uDay, uDusk, uTime, uCloud, uNeon, uMoonGlow, uStars, uScope; varying vec3 vDir;
       ${NOISE}
       void main() {
         vec3 v = normalize(vDir); float h = v.y;
@@ -278,6 +303,8 @@ export function createEyes(o: EyesOpts): Eyes {
         }
         // below the horizon: the haze the land sinks into
         if (h < 0.0) col = mix(hor, hor * 0.7, min(-h * 6.0, 1.0));
+        // (through the telescope the sky goes dark, so the stars show even by day)
+        col = mix(col, vec3(0.004, 0.005, 0.016) + col * 0.04, uScope);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -351,6 +378,18 @@ export function createEyes(o: EyesOpts): Eyes {
   lines.frustumCulled = false;
   starGroup.add(lines);
   let planetList: { name: string; ra: number; dec: number; mag: number; color: string }[] = [];
+  // ✨ Skywright: the real stars (the scattered ones above go once they're in), the telescope's tiers, claimed stars
+  const fillerEnd = NAMED_STARS.length + (phone ? 1500 : 2800);
+  let fillerHidden = false;
+  const skyStars = createSkyStars(starGroup, { phone, px: () => dpr });
+  let scope = false, reach = 3, starNightBase = 0;
+  const mRot = new THREE.Matrix4(), mInv = new THREE.Matrix4(), vEq = new THREE.Vector3();
+  /** a direction in the view as one in the sky's own (equatorial) frame */
+  const toEq = (d: THREE.Vector3): [number, number, number] => {
+    mRot.extractRotation(starGroup.matrix); mInv.copy(mRot).transpose();
+    vEq.copy(d).applyMatrix4(mInv).normalize();
+    return [vEq.x, vEq.y, vEq.z];
+  };
 
   // ---- the moon: a sphere lit by the real sun, so its phase and the tilt of its crescent are right ------------------
   const moonU = { uSun: { value: new THREE.Vector3() }, uNight: { value: 0 } };
@@ -1192,7 +1231,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const lean = Math.max(0, Math.min(1, (-pitch - 0.45) / 0.8)) * (vNow === 'walk' ? 0.2 : vNow === 'bike' ? 0.12 : 0);
     if (lean) cam.position.add(new THREE.Vector3(Math.sin(yaw) * lean, -lean * 0.3, -Math.cos(yaw) * lean));
     cam.rotateZ(b.roll);
-    cam.fov = fov + fovKick;
+    cam.fov = scope ? fov : fov + fovKick;
     farCam.fov = cam.fov;
     farCam.position.copy(cam.position);
     farCam.quaternion.copy(cam.quaternion);
@@ -1924,7 +1963,8 @@ export function createEyes(o: EyesOpts): Eyes {
     skyU.uDusk.value = Math.max(0, 1 - Math.abs(sunDeg - 1) / 9);
     skyU.uMoonGlow.value = Math.max(0, m.fraction) * (m.alt > 0 ? 1 : 0);
     const night = 1 - day;
-    starU.uNight.value = Math.max(0, Math.min(1, (night - 0.25) / 0.6));
+    starNightBase = Math.max(0, Math.min(1, (night - 0.25) / 0.6));
+    starU.uNight.value = scope ? Math.max(starNightBase, 0.95) : starNightBase;
     lineMat.opacity = starU.uNight.value * 0.13;
     moonU.uSun.value.copy(sunV);
     moonU.uNight.value = night;
@@ -1986,6 +2026,9 @@ export function createEyes(o: EyesOpts): Eyes {
 
   // ---- input: look, pinch, tap ------------------------------------------------------------------------------------
   const pointers = new Map<number, { x: number; y: number; x0: number; y0: number; t0: number }>();
+  /** how wide the view may be: the eye stops at 22°, the telescope goes on to its reach's finest tier */
+  const minFov = () => (scope ? Math.max(0.0006, (STAR_TIERS[Math.min(5, reach)]?.fov ?? 0.03) * 0.06) : 22);
+  const clampFov = (f: number) => Math.max(minFov(), Math.min(80, f));
   let pinch0 = 0, fov0 = fov;
   let lastLookSent = 0;
   const el = o.canvas;
@@ -2004,7 +2047,7 @@ export function createEyes(o: EyesOpts): Eyes {
     if (pointers.size >= 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch0 > 0) fov = Math.max(22, Math.min(80, fov0 * (pinch0 / Math.max(20, d))));
+      if (pinch0 > 0) fov = clampFov(fov0 * (pinch0 / Math.max(20, d)));
       return;
     }
     // swipe to look: the view follows your finger's direction, slower when zoomed in
@@ -2024,7 +2067,7 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     if (pointers.size < 2) pinch0 = 0;
   };
-  const wheel = (e: WheelEvent) => { e.preventDefault(); fov = Math.max(22, Math.min(80, fov * (1 + e.deltaY * 0.0012))); };
+  const wheel = (e: WheelEvent) => { e.preventDefault(); fov = clampFov(fov * (1 + e.deltaY * 0.0012)); };
   const keys = (e: KeyboardEvent) => {
     if ((e.target as HTMLElement | null)?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
     const k = e.key.toLowerCase();
@@ -2101,9 +2144,14 @@ export function createEyes(o: EyesOpts): Eyes {
       if (sky.moonAlt > -0.02) skyHits.push({ a: dir.angleTo(moonV), p: { kind: 'sky', what: 'moon', name: 'The Moon' } });
       if (sky.sunAlt > -0.02) skyHits.push({ a: dir.angleTo(sunV), p: { kind: 'sky', what: 'sun', name: 'The Sun' } });
       for (const p of planetList) { const v = new THREE.Vector3(...equatorial(p.ra, p.dec)).applyMatrix4(M); if (v.y > 0) skyHits.push({ a: dir.angleTo(v) * 0.85, p: { kind: 'sky', what: 'planet', name: p.name } }); }
-      if (starU.uNight.value > 0.2) for (const s of NAMED_STARS as NamedStar[]) { const v = new THREE.Vector3(...equatorial(s.ra, s.dec)).applyMatrix4(M); if (v.y > 0) skyHits.push({ a: dir.angleTo(v) + Math.max(0, s.mag) * 0.002, p: { kind: 'sky', what: 'star', name: s.name, ly: s.ly, group: s.group } }); }
+      // (before the real stars are in: the named ones)
+      if (starU.uNight.value > 0.2 && !skyStars.realReady()) for (const s of NAMED_STARS as NamedStar[]) { const v = new THREE.Vector3(...equatorial(s.ra, s.dec)).applyMatrix4(M); if (v.y > 0) skyHits.push({ a: dir.angleTo(v) + Math.max(0, s.mag) * 0.002, p: { kind: 'sky', what: 'star', name: s.name, ly: s.ly, group: s.group } }); }
       skyHits.sort((a, b) => a.a - b.a);
-      if (skyHits[0] && skyHits[0].a < tol * 1.6) return skyHits[0].p;
+      // through the telescope, the tolerance is a share of the view (stars a hair apart can be told apart)
+      const tolS = Math.max(fov * RAD * 0.045, 1e-8) * (fov > 22 ? 1.4 : 1);
+      if (skyHits[0] && skyHits[0].a < Math.min(tol * 1.6, fov > 22 ? tol * 1.6 : tolS * 2)) return skyHits[0].p;
+      const st = skyStars.pick(toEq(dir), fov > 22 ? Math.max(tolS, 0.9 * RAD) : tolS);
+      if (st) return { kind: 'skystar', id: st.id };
     }
     return null;
   };
@@ -2299,6 +2347,20 @@ export function createEyes(o: EyesOpts): Eyes {
     if (o.onLook && now - lastLookSent > 120) { lastLookSent = now; o.onLook(((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), pitch); }
     if (now - lastSky > 4000 || lastSky < 0) updateSky(now);
     else { starGroup.matrix.setPosition(pos); starGroup.matrixWorldNeedsUpdate = true; }
+    {
+      // ✨ the stars: the real ones in (the scattered ones out), the tiers in view for the zoom, the claimed stars' halos
+      if (!fillerHidden && skyStars.realReady()) {
+        fillerHidden = true;
+        const Sz = starGeo.attributes.aSize as THREE.BufferAttribute;
+        for (let i = 0; i < fillerEnd; i++) Sz.setX(i, 0);
+        Sz.needsUpdate = true;
+      }
+      const sk = scope ? 1 : 0;
+      skyU.uScope.value += (sk - skyU.uScope.value) * Math.min(1, dt * 4);
+      if (scope) starU.uNight.value = Math.max(starNightBase, 0.95 * skyU.uScope.value);
+      const fwdW = tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
+      skyStars.update(toEq(fwdW), cam.fov, cam.aspect, starU.uNight.value, t, reach);
+    }
     // shadows: keep the sun's camera centred near you (snapped, so the map doesn't shimmer); redraw only when needed
     {
       const d = lightsNear.dir;
@@ -2617,6 +2679,7 @@ export function createEyes(o: EyesOpts): Eyes {
       else if ('drop' in tg) { const d = drops.find((x) => x.d.id === tg.drop || x.d.id.startsWith(`${tg.drop}:`)); if (!d || !d.visible) return null; at.copy(d.pos); }
       else if ('star' in tg) { const f = falling.find((x) => x.s.id === tg.star); if (!f) return null; at.copy(f.obj.position); }
       else if ('beacon' in tg) { const b = beacons.find((x) => x.b.id === tg.beacon); if (!b || !b.obj.visible) return null; (b.obj.userData.em as THREE.Sprite).getWorldPosition(at); }
+      else if ('skystar' in tg) { if (!skyStars.worldPos(tg.skystar, at)) return null; at.sub(farCam.position).normalize().multiplyScalar(farCam.far * 0.5).add(farCam.position); }
       else { if (!frame) return null; const ps = plotSize(frame); const [x, z] = cellToLocal(frame, tg.cell[0], tg.cell[1]); at.set(x + ps / 2, 0.2, z + ps / 2); }
       let v = at.clone().project(cam);
       if (v.z > 1 || v.z < -1) v = at.clone().project(farCam);
@@ -2649,6 +2712,23 @@ export function createEyes(o: EyesOpts): Eyes {
       if (layer === 'nature' || layer === 'street') near.children.forEach((c) => { if (c.userData.layer === layer) c.visible = on; });
     },
     warmUp,
+    setTelescope: (on) => { scope = on; if (!on) fov = Math.max(22, fov); else fov = Math.min(fov, 26); },
+    telescope: () => ({ on: scope, fov: cam.fov, tier: tierForFov(cam.fov), reach }),
+    setFov: (d) => { fov = clampFov(d); },
+    setStarReach: (n) => { reach = Math.max(1, Math.min(5, Math.round(n))); fov = clampFov(fov); },
+    skyIds: () => skyStars.shownIds().slice(0, 800),
+    setStarClaims: (l) => skyStars.setClaims(l),
+    setStarSkin: (id, c, rev) => skyStars.setSkin(id, c, rev),
+    skyStar: (id) => skyStars.star(id),
+    claimedShown: () => skyStars.claimedShown(),
+    aimAtStar: (id) => {
+      const w = skyStars.worldPos(id, new THREE.Vector3());
+      if (!w) return false;
+      const d = w.sub(farCam.position).normalize();
+      api.lookAt(Math.atan2(d.x, -d.z), Math.asin(Math.max(-1, Math.min(1, d.y))));
+      return true;
+    },
+    skyCounts: () => skyStars.counts(),
     programs: () => (renderer.info.programs ?? []).map((pr) => `${pr.name}#${pr.id}|${String(pr.cacheKey).slice(0, 90).replace(/\s+/g, ' ')}`),
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
@@ -2676,7 +2756,7 @@ export function createEyes(o: EyesOpts): Eyes {
       for (const [, mesh] of artPlanes) { (mesh.material as THREE.MeshLambertMaterial).map?.dispose(); (mesh.material as THREE.Material).dispose(); }
       if (buildings) buildings.geometry.dispose();
       if (terrain) terrain.geometry.dispose();
-      nature.dispose(); street.dispose(); builds.dispose(); accents.dispose(); closeG.dispose();
+      nature.dispose(); street.dispose(); builds.dispose(); accents.dispose(); closeG.dispose(); skyStars.dispose();
       for (const k of critters.values()) dropCritter(k);
       if (companion) dropCritter(companion);
       for (const o2 of [manCircle, manSigil, manBeast, manHalo, manRing] as (THREE.Mesh | THREE.Sprite)[]) { const mt = o2.material as THREE.MeshBasicMaterial; if (o2 !== manBeast && o2 !== manHalo) mt.map?.dispose(); mt.dispose(); }

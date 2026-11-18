@@ -315,6 +315,20 @@ function FeedRow({ e }: { e: FeedEvent }) {
         : <>{who} fought the <b className="text-[#C9A0FF]">🐉 Leviathan</b></>;
       break;
     }
+    case 'star': {
+      // ✨ the stars: found, filled, painted…
+      const d = e.data as Record<string, any>;
+      const nm = <b className="text-[#FFE7A0]">{d.name ?? 'a star'}</b>;
+      icon = <span className="text-[12px] leading-none">✨</span>;
+      body = d.sub === 'discovered' ? <>{who} discovered {nm}{d.class_name ? <span className="text-muted"> · a {String(d.class_name).toLowerCase()}</span> : null} — the first plot on it is theirs 🔭</>
+        : d.sub === 'full' ? <>{nm} is full — all {Number(d.cells).toLocaleString()} plots claimed{who ? <> (the last by {who})</> : null} ⭐</>
+        : d.sub === 'painted' ? <>{nm} became a <b className="text-gold">🖼️ Painted Star</b> — look up at it through a telescope</>
+        : d.sub === 'supernova' ? <>{nm} went <b className="text-[#FF5CDB]">💥 supernova</b></>
+        : d.sub === 'lit' ? <>{who} lit {nm} — it shines a little brighter in everyone’s sky ✨</>
+        : <>{who} did something among the stars ✨</>;
+      if (d.star) extra = <Link to={`/star/${d.star}`} className="text-[11px] font-bold text-accent-2">Go there</Link>;
+      break;
+    }
     case 'primordial': {
       const d = e.data as Record<string, any>;
       const i = rarityInfo(d.rarity);

@@ -32,7 +32,7 @@ import { PARTY_KEY } from '../party/party';
 
 /** The five places in the game; each groups the pages that belong together. */
 export const SECTIONS = [
-  { to: '/world', label: 'World', icon: Globe2, pages: [{ to: '/world', label: 'Map' }, { to: '/plots', label: 'My plots' }] as { to: string; label: string }[] },
+  { to: '/world', label: 'World', icon: Globe2, pages: [{ to: '/world', label: 'Map' }, { to: '/plots', label: 'My plots' }, { to: '/stars', label: 'The stars' }] as { to: string; label: string }[], also: ['/star'] },
   { to: '/canvases', label: 'Create', icon: Brush, pages: [
     { to: '/canvases', label: 'My canvases' }, { to: '/challenges', label: 'Challenges' }, { to: '/sketch', label: 'Sketch of the Day' },
     { to: '/duet', label: 'Duets' }, { to: '/inventory', label: 'Studio & shop' },

@@ -179,6 +179,37 @@ export type CrownShare = {
 const arcScore = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(2147483647, Math.floor(n))) : 0);
 
 export const api = {
+  // ✨ Skywright: the stars as land
+  starCard: (id: number) => rpc<import('../stars/types').StarCard>('star_card', { p_id: id }),
+  starsSeen: (ids: number[]) => rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen', { p_ids: ids }),
+  starsSeenReal: () => rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen_real'),
+  starPlotsOf: (id: number, cells?: number[] | null) => rpc<{ plots: import('../stars/types').StarPlotRow[]; claimed: number; cells?: number }>('star_plots_of', { p_id: id, p_cells: cells ?? null }),
+  starReach: () => rpc<{ reach: number }>('star_reach'),
+  starWhere: () => rpc<import('../stars/types').StarWhere>('star_where'),
+  starWarp: (id: number) => rpc<import('../stars/types').StarWhere & { cost: number; secs: number; ly?: number; gate?: boolean; balances?: Balances }>('star_warp', { p_id: id }),
+  starRush: () => rpc<import('../stars/types').StarWhere & { balances?: Balances }>('star_rush'),
+  starHome: () => rpc<import('../stars/types').StarWhere>('star_home'),
+  starKinds: () => rpc<{ id: string; name: string; emoji: string; blurb: string; keystone: boolean }[]>('star_kinds'),
+  starClaim: (id: number, cell: number, kind: string, key: string) => rpc<import('../stars/types').StarClaim>('star_claim', { p_id: id, p_cell: cell, p_kind: kind, p_idempotency_key: key }),
+  starSetKind: (id: number, cell: number, kind: string) => rpc<{ star: number; cell: number; kind: string }>('star_set_kind', { p_id: id, p_cell: cell, p_kind: kind }),
+  starNamePlot: (id: number, cell: number, name: string) => rpc<{ name: string | null }>('star_name_plot', { p_id: id, p_cell: cell, p_name: name }),
+  starName: (id: number, name: string) => rpc<{ name: string | null }>('star_name', { p_id: id, p_name: name }),
+  myStars: () => rpc<{ stars: import('../stars/types').MyStar[]; plots: number; usd_per_second: number; where: import('../stars/types').StarWhere }>('my_stars'),
+  starsChart: () => rpc<import('../stars/types').StarsChart>('stars_chart'),
+  starArtSave: (id: number, img: string, w: number, h: number, color: string | null) => rpc<{ rev: number; status: string; achievements: NewAchievement[] }>('star_art_save', { p_id: id, p_img: img, p_w: w, p_h: h, p_color: color }),
+  starArtLayer: (id: number, owner: string) => rpc<import('../stars/types').ArtLayer | null>('star_art_layer', { p_id: id, p_owner: owner }),
+  adminStarArtQueue: () => rpc<{ star: number; owner: string; username: string | null; star_name: string; status: string; rev: number; w: number; h: number; img: string; color: string | null; updated_at: string; plots: number }[]>('admin_star_art_queue'),
+  adminStarArtReview: (star: number, owner: string, approve: boolean, reason?: string) => rpc<{ ok: boolean }>('admin_star_art_review', { p_star: star, p_owner: owner, p_approve: approve, p_reason: reason ?? null }),
+  // the star-only plot types, and each star's own rules
+  starPlot: (id: number, cell: number) => rpc<import('../stars/types').StarPlotView>('star_plot', { p_id: id, p_cell: cell }),
+  starAct: (id: number, cell: number, action: string, args: Record<string, unknown> = {}) => rpc<import('../stars/types').StarActResult>('star_act', { p_id: id, p_cell: cell, p_action: action, p_args: args }),
+  starSongs: (id: number) => rpc<{ cell: number; loop: string; tempo: number; by: string | null }[]>('star_songs', { p_id: id }),
+  myStarThings: () => rpc<import('../stars/types').MyStarThings>('my_star_things'),
+  starSailCollect: (id: number) => rpc<{ cargo?: Record<string, number>; els: Record<string, number> }>('star_sail_collect', { p_id: id }),
+  starBeamsNear: (gx: number, gy: number) => rpc<{ id: number; gx: number; gy: number; radius: number; color: string | null; ends_at: string; star: number; name: string; by: string | null }[]>('star_beams_near', { p_gx: gx, p_gy: gy }),
+  adminStarSupernova: (star: number) => rpc<{ star: number; owners: number }>('admin_star_supernova', { p_star: star }),
+  adminStars: () => rpc<{ settings: Record<string, any>; stats: Record<string, any>; recent: { star: number; name: string; cls: string; tier: number; cells: number; claimed: number; painted: boolean; discoverer: { id: string | null; username: string | null }; at: string }[] }>('admin_stars'),
+  adminSetStarSettings: (value: Record<string, unknown>) => rpc<{ settings: Record<string, any>; stats: Record<string, any>; recent: any[] }>('admin_set_star_settings', { p_value: value }),
   worldConfig: () => rpc<WorldConfig>('world_config'),
   /** the live settings for the apps and the game's pages (versions, maintenance, pages switched off, links) */
   appConfig: () => rpc<AppConfig>('app_config'),

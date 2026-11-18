@@ -417,9 +417,15 @@ try {
   await eyes('lookAt', 0, (HERE.lat * Math.PI) / 180); await page.waitForTimeout(900);
   const box = await page.locator('[data-testid=eyes-canvas]').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); await page.waitForTimeout(700);
-  const starName = await page.locator('[data-testid=eyes-card-title]').textContent().catch(() => '');
+  // (a real star opens its star preview — it's land you can claim — and says which one it is)
+  await page.waitForSelector('[data-testid=star-preview-name], [data-testid=eyes-card-title]', { timeout: 6000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const starName = (await page.locator('[data-testid=star-preview-name]').count())
+    ? await page.locator('[data-testid=star-preview-name]').textContent().catch(() => '')
+    : await page.locator('[data-testid=eyes-card-title]').textContent().catch(() => '');
   check('tap a star: it says which one (the Pole Star, due north)', /Polaris|Kochab|Dubhe|Merak/.test(starName ?? ''), starName);
   await shot('10-polaris');
+  if (await page.locator('[data-testid=star-preview-close]').count()) { await page.click('[data-testid=star-preview-close]'); await page.waitForTimeout(500); }
   await eyes('lookAt', 3.3, 0.05); await page.waitForTimeout(800); await shot('11-night-street');
   await eyes('setClock', at(12)); await page.waitForTimeout(4500);
 
