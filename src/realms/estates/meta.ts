@@ -8,11 +8,11 @@ export type EstateMeta = RealmMeta & { base: PlotKind; game: string; tagline: st
 
 export const ESTATES: Record<EstateKind, EstateMeta> = {
   atelier: {
-    base: 'canvas', name: 'Grand Atelier', one: 'atelier', many: 'ateliers', emoji: '🖼️', color: '#A66BFF', enter: 'Step into the atelier', game: 'Hue Hunter',
-    body: 'A painters’ estate of studios and galleries', tagline: 'Your canvases grow into a whole school of art.',
-    long: 'Easels in a sunlit loft, a pigment garden, a sculpture court, a glasshouse studio and a grand gallery. Mix colours by eye in Hue Hunter, train apprentices, fire glazes and craft masterpieces.',
+    base: 'canvas', name: 'Gallery', one: 'gallery', many: 'galleries', emoji: '🖼️', color: '#D9B24A', enter: 'Walk into the gallery', game: 'Hue Hunter',
+    body: 'Your Studio grows a Gallery of your own art', tagline: 'Your canvas grows into a gallery of your work.',
+    long: 'Behind your Studio’s double doors: rooms of your own published art, in the frames and light you choose, each with its plaque. Open a week-long show; visitors admire your pieces and you earn Renown for frames, lights, wall colours and more rooms. Hue Hunter is at the mixing table.',
     crew: 'Studio & crew', make: 'Atelier bench', market: 'Art dealer', book: 'Collector’s catalogue', bookItem: 'treasure',
-    perks: ['Hue Hunter: mix paint to match a colour', 'Six wings from Sketch Loft to Hall of Masters', 'Apprentices, kilns and a muse fountain', '12 art treasures to collect'],
+    perks: ['Hang your own art: frames, light and plaques', 'Week-long shows that visitors admire', 'Renown for frames, lights, walls and rooms', 'Your mural stays on the map'],
   },
   reserve: {
     base: 'habitat', name: 'Wildwood Reserve', one: 'reserve', many: 'reserves', emoji: '🦌', color: '#2FBF71', enter: 'Walk into the reserve', game: 'Firefly Lantern',

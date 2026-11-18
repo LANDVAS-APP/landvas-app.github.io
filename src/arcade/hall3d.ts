@@ -219,7 +219,9 @@ export function createHall(o: HallOpts) {
       for (const mm of Array.isArray(m) ? m : m ? [m] : []) {
         if (mm === bulbOn || mm === bulbOff) continue;
         if (mm.userData.o == null) mm.userData.o = { t: mm.transparent, op: mm.opacity, dw: mm.depthWrite };
-        mm.transparent = k < 0.99 || mm.userData.o.t; mm.opacity = mm.userData.o.op * k; mm.depthWrite = k > 0.99 && mm.userData.o.dw;
+        // (an opaque material's shader forces full alpha: turning it see-through needs its shader rebuilt)
+        const tr = k < 0.99 || mm.userData.o.t; if (tr !== mm.transparent) { mm.transparent = tr; mm.needsUpdate = true; }
+        mm.opacity = mm.userData.o.op * k; mm.depthWrite = k > 0.99 && mm.userData.o.dw;
       }
     });
   };

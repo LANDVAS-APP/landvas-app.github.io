@@ -102,10 +102,11 @@ try {
   check('…and the land is still an art canvas', (await api('myGroups'))[0].kind === 'canvas');
   await page.click('[data-testid=estate-card][data-state=kept] button'); await page.waitForTimeout(300);
   await page.click('[data-testid=estate-upgrade]');
-  await page.waitForSelector('[data-testid=realm][data-kind=atelier]', { timeout: 20000 }); await page.waitForTimeout(2500);
-  check('upgrading opens the Grand Atelier', true);
-  const w = (await sql(`select wallet from realm_players where player_id = '${me}' and kind = 'atelier'`))[0]?.wallet;
-  check('the first Estate comes with its charter', Number(w?.acclaim) === 250, JSON.stringify(w));
+  // the Art Estate is the Gallery now: its Studio opens, with the Gallery through the doors
+  await page.waitForSelector('[data-testid=art-place][data-tier=gallery]', { timeout: 30000 }); await page.waitForTimeout(2500);
+  check('upgrading opens the Gallery (through its Studio)', true);
+  const rn = (await sql(`select renown from player_renown where player_id = '${me}'`))[0]?.renown;
+  check('the first Estate comes with its charter (as Renown, plus the Gallery\'s own)', Number(rn) === 350, String(rn));
 
   const gid = (await api('myGroups'))[0].id;
   for (const [base, estate] of ESTATES) {
@@ -117,12 +118,23 @@ try {
       await page.waitForSelector(`[data-testid=realm][data-kind=${estate}]`, { timeout: 20000 }); await page.waitForTimeout(2500);
     }
     const errs0 = errors.length;
+    if (estate === 'atelier') {
+      // the Gallery's game (Hue Hunter) is at the Studio's mixing table
+      await shot(`10-${estate}-world`);
+      await page.evaluate(() => window.__landvasPlace.scene.walkTo('mix'));
+      await page.waitForFunction(() => window.__landvasPlace.scene.debug().near === 'mix', null, { timeout: 40000 });
+      await page.click('[data-testid=art-action]');
+      await page.waitForSelector('[data-testid=realm-play], [data-testid=realm-game-canvas]', { timeout: 15000 });
+      if (await page.locator('[data-testid=realm-play]').count()) await page.click('[data-testid=realm-play]');
+      await page.waitForSelector('[data-testid=realm-game-canvas]', { timeout: 10000 });
+    } else {
     // walk round a little, then shoot the world
     await page.click('[data-testid=realm-go-market]'); await page.waitForTimeout(1200); await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     await shot(`10-${estate}-world`);
     // play the signature game for real, then bank the score
     await page.click('[data-testid=realm-go-play]'); await page.waitForSelector('[data-testid=realm-play]', { timeout: 10000 });
     await page.click('[data-testid=realm-play]'); await page.waitForSelector('[data-testid=realm-game-canvas]', { timeout: 10000 });
+    }
     await page.waitForTimeout(3400); // past the how-to card
     await shot(`12-${estate}-start`);
     await playFor(13).catch(() => {}); // the game may end (and close) before the time is up

@@ -1032,3 +1032,32 @@ export type MeetPlayer = Pick<Profile, 'id' | 'username' | 'display_name' | 'acc
   /** gps: out walking for real; game: their explorer is out in the game near you (not on GPS) */ how: 'gps' | 'game';
   band: MeetBand; waved_me?: boolean; vehicle?: string | null; traveling?: boolean };
 export type MeetNearby = { available: boolean; enabled?: boolean; on_gps?: boolean; items: MeetPlayer[] };
+
+// ---- Places (wave 1): a live room in any new place, and Art's Studio + Gallery ----------------------------------------
+/** someone else in the same room of a place: where they last said they were, and what they're at */
+export type PlaceMember = Profile & { x: number; z: number; act: string | null };
+export type PlaceLive = { place: string; shard: number; joined: boolean; room_size: number; channel: string; members: PlaceMember[]; in_place: number };
+/** a published piece as galleries show it */
+export type GalleryPiece = { id: string; title: string; preview_path: string | null; thumb_path: string | null; w: number; h: number; plots: number;
+  artist: string; appreciations: number; craft: number | null; status?: 'published' | 'superseded'; published_at?: string | null };
+export type GalleryHang = { slot: string; frame: string; light: string; power: number; aim: number; plaque_title: string | null; plaque_story: string | null;
+  piece: GalleryPiece; admires: number; admired: boolean };
+export type GalleryScore = { total: number; fill: number; plaques: number; light: number; flow: number; frames: number; pieces: number; slots: number; tips: string[] };
+export type GalleryShop = Record<string, { name: string; price: number; order: number }>;
+export type ArtPlace = {
+  group_id: string; name: string; kind: 'canvas' | 'atelier' | 'museum'; plots: number; mine: boolean; tier: 'studio' | 'gallery';
+  owner: Profile & { explorer_style?: ExplorerStyle | null }; realm_id: string | null; server_time: string;
+  mural: { id: string; title: string; preview_path: string | null; w: number; h: number } | null;
+  me: { renown: number; unlocks: string[] } | null;
+  cfg: { frames: GalleryShop; lights: GalleryShop; walls: GalleryShop; room_prices: number[]; rooms_max: number; show_days: number; show_min_pieces: number;
+    admire_owner_renown: number; admire_visitor_renown: number };
+  hall?: {
+    rooms: number; room_walls: Record<string, string>; hangs: GalleryHang[]; score: GalleryScore;
+    show: { no: number; title: string | null; opened_at: string; closes_at: string; admires: number } | null;
+    last_show: { no: number; title: string | null; score: GalleryScore; admires: number; renown: number; closed_at: string } | null;
+    piece_of_week: GalleryPiece | null;
+  };
+  works?: GalleryPiece[];
+  closed?: { score: GalleryScore; renown: number; admires: number };
+};
+export type GalleryCard = { tier: 'studio' } | { tier: 'gallery'; pieces: number; here: number; show: { title: string | null; closes_at: string } | null; piece_of_week: GalleryPiece | null };

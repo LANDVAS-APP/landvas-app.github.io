@@ -553,6 +553,9 @@ function MineBlock({ d }: { d: PlotDetails }) {
       {myGroup && k !== 'home' && k !== 'landlord' && k !== 'train' && k !== 'plane' && <EstateCard group={myGroup} />}
       <RenamePlot d={d} />
       {d.group && <PlotKindControl g={{ id: d.group.id, name: d.group.name, plot_count: d.group.plot_count, kind: rlm ? rlm.kind : hab ? 'habitat' : farm ? 'farm' : biz ? 'business' : arc ? 'arcade' : k === 'home' || k === 'landlord' || k === 'train' || k === 'plane' || k === 'base' ? k : 'canvas', habitat_id: hab?.habitat_id ?? null, farm_id: farm?.farm_id ?? null, business_id: biz?.business_id ?? null, arcade_id: arc?.arcade_id ?? null, realm_id: rlm?.realm_id ?? null }} />}
+      {d.group && k === 'canvas' && (
+        <Button variant="rainbow" onClick={() => { useUi.getState().select(null); diveInto(nav, `/studio/${d.group!.id}`, d.center); }} data-testid="open-studio">🎨 {myGroup ? 'Enter your studio' : 'Visit the studio'}</Button>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {rlm && arc ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, `/arcade/${arc.arcade_id}`, d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
           : rlm ? <Button variant="primary" onClick={() => { useUi.getState().select(null); diveInto(nav, realmRoute(rlm.realm_id), d.center); }} data-testid="open-realm">{REALM_META[rlm.kind].emoji} {REALM_META[rlm.kind].enter}</Button>
