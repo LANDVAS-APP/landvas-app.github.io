@@ -1,0 +1,1 @@
+var e={current:null};export{e as t};

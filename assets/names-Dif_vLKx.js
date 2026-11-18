@@ -1,0 +1,1 @@
+import{t as e}from"./minigames-l1wMCM8L.js";var t=t=>{var n;return((n=e[t])==null?void 0:n.name)??t},n=`landvas:puppet-show`;export{t as n,n as t};

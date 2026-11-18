@@ -1,0 +1,1 @@
+var e=typeof matchMedia==`function`&&matchMedia(`(pointer: coarse)`).matches,t=/\s*\(or [^)]*?(?:A\/D|WASD|arrow|←|→|↑|\bW\b|Space)[^)]*\)/g,n=/,? or (?:A\/D, ←\/→|the arrow keys)/g;function r(r,i=e){return i?r.replace(t,``).replace(n,``).replace(/ {2,}/g,` `):r}export{r as t};

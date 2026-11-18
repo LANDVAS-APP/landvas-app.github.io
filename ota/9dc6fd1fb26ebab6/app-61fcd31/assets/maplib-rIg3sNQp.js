@@ -1,0 +1,1 @@
+var e=null;function t(t){e=t}function n(){if(!e)throw Error(`mapLib: the world map has not loaded`);return e}function r(t){if(!e)throw Error(`newMarker: no map on screen`);return new e.Marker(t)}export{r as n,t as r,n as t};

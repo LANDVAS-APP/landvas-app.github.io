@@ -1,0 +1,1 @@
+import"./tslib.es6-C_69jo7G.js";var e=!1,t=new Set,n=()=>e;function r(e){return t.add(e),()=>{t.delete(e)}}export{r as n,n as t};

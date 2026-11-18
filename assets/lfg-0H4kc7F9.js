@@ -1,0 +1,1 @@
+import{Vt as e}from"./index-uf4R9VYy.js";var t=e((e,t)=>({id:null,at:0,set:t=>e({id:t,at:Date.now()}),take:n=>{let r=t();return r.id!==n||Date.now()-r.at>6e4?!1:(e({id:null}),!0)}}));export{t};

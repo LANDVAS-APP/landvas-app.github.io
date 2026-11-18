@@ -1,0 +1,1 @@
+import"./index-DMJWgZD7.js";var e=!1,t=new Set,n=()=>e||typeof document<`u`&&document.hidden;function r(e){return t.add(e),()=>{t.delete(e)}}var i=new Set,a=e=>(i.add(e),()=>void i.delete(e));async function o(){await Promise.all([...i].map(e=>Promise.race([e().catch(()=>{}),new Promise(e=>setTimeout(e,1500))])))}export{r as i,o as n,n as r,a as t};

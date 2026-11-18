@@ -1,0 +1,1 @@
+import{Et as e}from"./index-uf4R9VYy.js";import{i as t}from"./queries-CTM2iixH.js";var n=e();function r({children:e}){return t()?null:(0,n.jsx)(n.Fragment,{children:e})}export{r as t};
