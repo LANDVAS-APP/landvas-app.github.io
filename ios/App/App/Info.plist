@@ -53,6 +53,8 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LANDVAS places your explorer where you are, so you can claim and paint the plots around you. Your exact location is never shown to other players.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LANDVAS places your explorer where you are, so you can claim and paint the plots around you. LANDVAS only uses your location while you are playing and never tracks you in the background. Your exact location is never shown to other players.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This lets us show you more relevant ads. Ads are only shown when you choose to watch one for a bonus.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -19,6 +19,11 @@ on:
       version:
         description: 'Version shown in the stores (e.g. 1.0.0)'
         default: '1.0.0'
+      ios_runner:
+        description: 'iOS build machine: xcode-27 (iOS 27 SDK, required from April 2027) or macos-15-intel (Xcode 26 fallback if the Apple-silicon queue is stuck)'
+        type: choice
+        options: [xcode-27, macos-15-intel]
+        default: xcode-27
 concurrency:
   group: native-${{ github.ref }}
   cancel-in-progress: true
@@ -112,25 +117,26 @@ jobs:
           track: internal
           status: draft
 
-  # App Store Connect needs Xcode 26 / the iOS 26 SDK. GitHub's Apple-silicon Macs (macos-26) are so short
-  # that jobs are often dropped unstarted ("The job was not acquired by Runner"), so iOS builds on the Intel
-  # macOS 15 pool, which has Xcode 26 too and starts right away. GitHub retires Intel Macs in Aug 2027:
-  # switch back to macos-26 before then.
+  # From April 2027 App Store Connect only accepts builds made with Xcode 27 / the iOS 27 SDK (ITMS-90725).
+  # Xcode 27 runs only on Apple-silicon Macs, so iOS builds on GitHub's `xcode-27` image (arm64). That pool
+  # has been short before ("The job was not acquired by Runner"): if a run sits unstarted, re-run it by hand
+  # with ios_runner = macos-15-intel, which still has Xcode 26 (fine for uploads until April 2027).
   ios:
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.ios_runner || 'xcode-27' }}
     timeout-minutes: 60
     defaults:
       run:
         shell: bash -eo pipefail {0}
     steps:
       - uses: actions/checkout@v4
-      - name: Use the newest Xcode 26
+      - name: Use the newest Xcode (27, else 26)
         run: |
-          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
-          [ -n "$X" ] || { echo "::error::No Xcode 26 on this runner"; ls /Applications; exit 1; }
+          X=$(ls -d /Applications/Xcode_27*.app /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -n "$X" ] || { echo "::error::No Xcode 27 or 26 on this runner"; ls /Applications; exit 1; }
           sudo xcode-select -s "$X/Contents/Developer"
           xcodebuild -version
           xcodebuild -showsdks | grep -i iphoneos
+          case "$X" in *Xcode_26*) echo "::warning::Built with Xcode 26 — App Store Connect needs Xcode 27 / the iOS 27 SDK from April 2027 (ITMS-90725)";; esac
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
