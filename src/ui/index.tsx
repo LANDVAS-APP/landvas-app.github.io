@@ -113,7 +113,7 @@ export function Dialog({ open, onOpenChange, title, description, children, wide,
 }
 
 // Promise-based confirmation (window.confirm is unavailable in sandboxed frames).
-type ConfirmOpts = { title: string; body?: ReactNode; confirm?: string; danger?: boolean };
+type ConfirmOpts = { title: string; body?: ReactNode; confirm?: string; cancel?: string; danger?: boolean };
 const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false);
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<(ConfirmOpts & { resolve(v: boolean): void }) | null>(null);
@@ -126,7 +126,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmCtx.Provider value={ask}>
       {children}
       <Dialog open={!!state} onOpenChange={(o) => !o && close(false)} title={state?.title ?? ''}
-        footer={<><Button variant="ghost" onClick={() => close(false)}>Cancel</Button><Button variant={state?.danger ? 'danger' : 'primary'} onClick={() => close(true)}>{state?.confirm ?? 'Confirm'}</Button></>}>
+        footer={<><Button variant="ghost" onClick={() => close(false)} data-testid="confirm-cancel">{state?.cancel ?? 'Cancel'}</Button><Button variant={state?.danger ? 'danger' : 'primary'} onClick={() => close(true)} data-testid="confirm-ok">{state?.confirm ?? 'Confirm'}</Button></>}>
         {state?.body && <div className="text-sm text-muted">{state.body}</div>}
       </Dialog>
     </ConfirmCtx.Provider>

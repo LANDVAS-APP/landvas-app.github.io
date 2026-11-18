@@ -2594,6 +2594,49 @@ html.native .lv-hud.lv-money::after { background: linear-gradient(105deg, transp
 .lv-radial .lv-radial-item .lv-gbtn.round.on { box-shadow: 0 0 0 3px #fff, 0 4px 0 color-mix(in srgb, var(--cd) 65%, #000), 0 0 22px 2px var(--c); }
 .lv-radial .lv-radial-item .lv-gbtn.round:active { transform: translateY(3px) scale(0.94); box-shadow: 0 1px 0 color-mix(in srgb, var(--cd) 65%, #000), 0 6px 12px -6px var(--c); }
 .lv-radial .lv-radial-item .lb { background: rgba(20, 22, 60, 0.94); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 60%, transparent), 0 3px 8px rgba(0, 0, 0, 0.45); }
+/* ---- hold World: the LANDVAS mark opens over the map (src/map/WorldL.tsx) — the tile, the L in the mark's colours and
+   order, its four empty plots; a group's actions fill the empty ones. Crisp like the mark: no blur, no glow, nothing loops. */
+.lv-lmark { position: fixed; z-index: 45; left: 50%; bottom: calc(max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px)) + 100px);
+  --c: calc(var(--S) * 0.21817); transform-origin: 50% 100%; border-radius: calc(var(--S) * 0.235);
+  background: linear-gradient(135deg, #ff4d6d, #ff9f1c 22%, #ffe14d 42%, #3ddc97 62%, #34c3ff 82%, #8b6bff);
+  box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.95); }
+/* the tile inside its thin rainbow rim (the rim is the tile's own background showing round the edge) */
+.lv-lmark::before { content: ''; position: absolute; inset: calc(var(--S) * 0.012); border-radius: calc(var(--S) * 0.223); pointer-events: none;
+  background: radial-gradient(circle farthest-corner at 28% 16%, #2b2070, #101848 55%, #070b1c); }
+.lv-lplot { position: absolute; width: var(--c); height: var(--c); padding: 0; border: 0; border-radius: calc(var(--c) * 0.26);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.lv-lplot.empty { background: linear-gradient(180deg, #26346f, #1a2558); box-shadow: inset 0 0 0 calc(var(--c) * 0.03) #34458f; }
+/* a claimed plot: the deep-colour lip, the face on it (light to base), the glass bar */
+.lv-lplot.claimed, .lv-lplot.opt { background: var(--pd); }
+.lv-lplot .face { position: absolute; left: 0; right: 0; top: 0; bottom: calc(var(--c) * 0.075); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: calc(var(--c) * 0.06); padding-top: calc(var(--c) * 0.12); border-radius: calc(var(--c) * 0.26); color: var(--pi);
+  background: linear-gradient(180deg, var(--pl), var(--pb) 50%, var(--pb)); transition: transform 0.08s ease-out; }
+.lv-lplot .face::before { content: ''; position: absolute; left: 13%; top: 9%; width: 74%; height: 15%; border-radius: calc(var(--c) * 0.075); background: #fff; opacity: 0.42; pointer-events: none; }
+.lv-lplot:active .face { transform: translateY(calc(var(--c) * 0.075)); }
+.lv-lplot .ic { display: grid; place-items: center; width: calc(var(--c) * 0.36); height: calc(var(--c) * 0.36); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.22)); }
+.lv-lplot .lb { max-width: calc(var(--c) - 8px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 calc(var(--c) * 0.135)/1.1 var(--font-display); letter-spacing: -0.01em; }
+.lv-lplot.claimed .lb { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2); }
+.lv-lplot.lv-p-sun .lb, .lv-lplot.lv-p-sun .ic { text-shadow: none; filter: none; }
+/* the group that's open: a white ring round its plot */
+.lv-lplot.sel { box-shadow: 0 0 0 3px #fff; }
+/* its actions, in the empty plots: night faces rimmed in the group's colour; a switch that's on fills with it */
+.lv-lplot.opt { --pd: #0e1740; }
+.lv-lplot.opt .face { color: #fff; background: linear-gradient(180deg, #33449a, #22306f 55%, #1d2963); box-shadow: inset 0 0 0 2px var(--pb); }
+.lv-lplot.opt .face::before { opacity: 0.16; }
+.lv-lplot.opt.on { --pd: var(--pdk); }
+.lv-lplot.opt.on .face { color: var(--pi); background: linear-gradient(180deg, var(--pl), var(--pb) 50%, var(--pb)); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85); }
+.lv-lplot.opt.on .face::before { opacity: 0.42; }
+.lv-lplot .note { position: absolute; top: -7px; right: -7px; min-width: 20px; padding: 2px 6px; border-radius: 999px; background: #fff; color: #10183a;
+  font: 900 10px/14px var(--font-display); text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); white-space: nowrap; }
+.lv-lplot.claimed .note { background: #ff4d6d; color: #fff; box-shadow: 0 0 0 2px #0b1230; }
+.lv-lplot .live { position: absolute; top: -4px; right: -4px; width: 13px; height: 13px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2.5px #0b1230, inset 0 0 0 3px var(--pb); }
+/* the mark's five colours (base · light · deep), and the icon/label colour on each */
+.lv-p-rose { --pb: #ff4d6d; --pl: #ff9db0; --pd: #c81e45; --pdk: #c81e45; --pi: #fff; }
+.lv-p-amber { --pb: #ff9f1c; --pl: #ffcb78; --pd: #d06a00; --pdk: #d06a00; --pi: #fff; }
+.lv-p-sun { --pb: #ffe14d; --pl: #fff3a6; --pd: #d9a900; --pdk: #d9a900; --pi: #5a3d00; }
+.lv-p-mint { --pb: #3ddc97; --pl: #9bf2cb; --pd: #14a36a; --pdk: #14a36a; --pi: #fff; }
+.lv-p-sky { --pb: #34c3ff; --pl: #9de4ff; --pd: #0b8ad1; --pdk: #0b8ad1; --pi: #fff; }
+.lv-lplot.claimed.lv-p-mint .lb, .lv-lplot.claimed.lv-p-sky .lb { text-shadow: 0 1px 0 rgba(0, 40, 60, 0.35); }
 /* the World button: the deep purple with a ring in the mark's colours, in order; it turns while the actions are out */
 .lv-tb-center .orb { border: 3px solid transparent;
   background: radial-gradient(62% 38% at 50% 14%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 72%) padding-box,

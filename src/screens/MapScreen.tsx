@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TicketsButton } from '../daily/Tickets';
 import { AnimatePresence, motion } from 'motion/react';
-import { Box, Check, ChevronRight, Combine, Crosshair, Gamepad, LayoutGrid, Plus, Rocket, Satellite, Sparkles, X } from 'lucide-react';
+import { Box, Check, ChevronRight, Combine, Compass, Crosshair, FerrisWheel, Gamepad, Gamepad2, Globe2, Grid3x3, Home, LayoutGrid, Map as MapIcon, PawPrint, Plane, Plus, Rocket, Satellite, Sparkles, TrainFront, X } from 'lucide-react';
 import { CurrencyPills, DayNight, ModeButton, PlayerBadge, takeReturn } from '../map/Hud';
 import { fmtLeft, placeName, useFlight, useSpace } from '../space/useSpace';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -18,7 +18,7 @@ import { PlotPanel } from '../plot/PlotPanel';
 import { qk, useInvalidate, useOnboardedMe } from '../lib/queries';
 import { useUi, type MapMode } from '../lib/store';
 import { cn, fmt, safeStorage, saveStorage } from '../lib/utils';
-import { Button, Dialog, LogoMark, PlayerAvatar } from '../ui';
+import { Button, Dialog, LogoMark, PlayerAvatar, useConfirm } from '../ui';
 import { GRID_SIZE, Z_HOUSE, Z_PLOT, Z_STREET, Z_TOWN, cellCenter, type PlotTypeId } from '../shared/grid';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { config } from '../env';
@@ -30,12 +30,12 @@ import { RARITY_ORDER, rarityInfo } from '../shared/rarity';
 import { formatRate } from '../shared/rent';
 import { RarityBadge } from '../plot/RarityBadge';
 import { Joystick, VEH_EMOJI, fmtTank, recentlyDriven, useDriveKeys, useLandscapePhone } from '../explorer/Joystick';
-import { WorldsButton } from '../app/WorldsButton';
+import { WorldsButton, WorldsSheet } from '../app/WorldsButton';
 import { ClaimCelebration, useCelebration } from '../plot/ClaimCelebration';
 import { LuckCard, LuckChip, LuckDisc } from '../luck/Altar';
 import { GrimoireButton } from '../enchant/GrimoireButton';
 import { FlyChip, PinFlight, useFlyUi } from '../travel/Fly';
-import { TravelBar, TravelButton, TravelOverlays, useTravel } from '../travel/Travel';
+import { TravelBar, TravelButton, TravelOverlays, useTravel, useTravelUi } from '../travel/Travel';
 import { GroupButton } from '../travel/GroupPlay';
 import { useTravelGroup } from '../travel/Group';
 import { create } from 'zustand';
@@ -44,8 +44,8 @@ import { buzz, isNative } from '../native/native';
 import GameHud, { ProfileMenu } from '../app/GameHud';
 import { BellCard } from '../updates/Notifications';
 import { GrimoireCard, GrimoireSheet } from '../enchant/GrimoireButton';
-import { useHudCard, useWorldButton } from '../app/radial';
-import { createPortal } from 'react-dom';
+import { useHudCard } from '../app/radial';
+import { WorldL, type LGroup } from '../map/WorldL';
 import { DailyWheel } from '../earn/DailyWheel';
 import { confetti } from '../ui/confetti';
 import { DailyChip } from '../earn/DailyChip';
@@ -353,14 +353,14 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
       <Rocket className={cn('h-5 w-5', flying && 'animate-[lv-bob_1.2s_ease-in-out_infinite]')} /><span className="lbl tnum max-w-[48px] truncate">{spaceLabel}</span>
     </button>
   );
+  const toggleGps = () => {
+    if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
+    enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
+  };
   const gpsBtn = (
     <button
       className={cn('lv-gbtn round', (ex.gps === 'on' || ex.gps === 'paused') && 'go')}
-      onClick={() => {
-        tap();
-        if (ex.gps === 'on' || ex.gps === 'asking' || ex.gps === 'paused') { stopGps(); saveStorage('landvas.gps', false); toast('GPS off', { description: 'Your explorer waits at your last real location. Turn GPS back on to move it.' }); return; }
-        enableGps((lng, lat) => requestFly({ lng, lat, zoom: Z_STREET + 0.5 }));
-      }}
+      onClick={() => { tap(); toggleGps(); }}
       title={ex.gps === 'denied' ? 'Location permission was denied. Enable it in your browser settings to move your explorer.' : 'Your explorer follows your real location'}
       aria-label={gpsLabel}
       data-testid="gps-toggle"
@@ -396,9 +396,11 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
     if (p) requestFly({ lng: p.lng, lat: p.lat, zoom: Math.max(useUi.getState().view.zoom, Z_STREET + 0.5) });
     ex.setFollowing(true);
   };
-  if (APP) return <WorldRadial tray={tray} live={<>{has && tripLive && <TravelButton />}{has && groupLive && <GroupButton />}{flying && spaceBtn}</>}
-    joystick={has && joy?.enabled !== false ? { on: joystick, toggle: () => { tap(); onJoystick(); }, label: ex.state?.vehicle?.fuel && joy ? `⛽ ${fmtTank(Number(joy.seconds_left))}` : `${VEH_EMOJI[ex.state?.vehicle?.current ?? 'walk']} Move` } : null}
-    locate={has ? locate : null} following={ex.following} nudge={nudge} />;
+  if (APP) return <AppWorldL joystick={has && joy?.enabled !== false ? { on: joystick, toggle: onJoystick, note: ex.state?.vehicle?.fuel && joy ? `⛽${fmtTank(Number(joy.seconds_left))}` : undefined } : null}
+    locate={has ? locate : null} following={ex.following} gps={{ on: ex.gps === 'on' || ex.gps === 'paused', label: ex.gps === 'denied' ? 'Blocked' : ex.gps === 'paused' ? 'Paused' : 'GPS', toggle: toggleGps }}
+    tilt={{ on: !!tilt, toggle: () => updateSettings({ tilt3d: !tilt }) }} merge={!merging ? () => startMerge(null) : null} canMerge={canMerge && !merging}
+    trip={has ? { live: tripLive, label: travel.data?.trip && !travel.data.trip.arrived ? 'Riding' : travel.data?.away ? 'Away' : 'Trains' } : null}
+    space={{ flying, label: flying ? fmtLeft(flight.left) : undefined, go: () => nav(space.data && space.data.location !== 'earth' && !flying ? '/space/surface' : '/space') }} />;
   return (
     <>
       <AnimatePresence>
@@ -460,94 +462,54 @@ function ExplorerControls({ joystick, onJoystick }: { joystick: boolean; onJoyst
   );
 }
 
-/** The app: hold the World button and the map's actions fan out around it in two arcs. Live things (a trip, a
- *  group, a rocket in flight) stay on the right while they're happening. A tap on World centres on you. */
-function WorldRadial({ tray, live, joystick, locate, following, nudge }: {
-  tray: { key: string; node: ReactNode; label: string }[]; live: ReactNode;
-  joystick: { on: boolean; toggle(): void; label: string } | null; locate: (() => void) | null; following: boolean; nudge: boolean;
+/** The app: hold the World button and the LANDVAS mark opens over the map — its five plots are the map's five groups
+ *  of actions (Worlds, Travel, Move, Plots, Spin); tap one and its actions fill the mark's four empty plots. Nothing
+ *  sits down the side of the map: the top row and this. A tap on World centres on you. */
+function AppWorldL({ joystick, locate, following, gps, tilt, merge, canMerge, trip, space }: {
+  joystick: { on: boolean; toggle(): void; note?: string } | null; locate: (() => void) | null; following: boolean;
+  gps: { on: boolean; label: string; toggle(): void }; tilt: { on: boolean; toggle(): void }; merge: (() => void) | null; canMerge: boolean;
+  trip: { live: boolean; label: string } | null; space: { flying: boolean; label?: string; go(): void };
 }) {
-  const open = useWorldButton((s) => s.open);
-  const setOpen = useWorldButton((s) => s.setOpen);
-  const recenter = useWorldButton((s) => s.recenter);
+  const nav = useNavigate();
   const me = useOnboardedMe();
   const wheelQ = useQuery({ queryKey: ['wheel'], queryFn: api.wheelStatus, enabled: !!me, staleTime: 5 * 60_000 });
   const spins = wheelQ.data?.enabled ? Number(wheelQ.data.spins_left ?? 0) : 0;
   const [wheel, setWheel] = useState(false);
+  const [places, setPlaces] = useState(false);
   const pin = useFlyUi((s) => s.pinMode);
   const setPin = useFlyUi((s) => s.setPinMode);
-  // a tap on World (already on the map) centres on your explorer
-  const first = useRef(recenter);
-  useEffect(() => { if (recenter !== first.current) locate?.(); }, [recenter]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => setOpen(false), [setOpen]); // leaving the map closes it
-  // the first few visits: a little "hold me" bubble over the World button
-  const [hint, setHint] = useState(false);
-  useEffect(() => {
-    const n = safeStorage('landvas.worldHint', 0);
-    if (n >= 3) return;
-    saveStorage('landvas.worldHint', n + 1);
-    const a = setTimeout(() => setHint(true), 1800), b = setTimeout(() => setHint(false), 7000);
-    return () => { clearTimeout(a); clearTimeout(b); };
-  }, []);
-  const close = () => setOpen(false);
-  const items: { key: string; label: string; node: ReactNode }[] = [
-    ...(spins > 0 ? [{ key: 'spin', label: 'Spin', node: <button className="lv-gbtn round hot" onClick={() => { close(); setWheel(true); }} data-testid="hud-daily"><span className="text-[22px] leading-none">🎡</span>{spins > 1 && <span className="lv-bang">{spins}</span>}</button> }] : []),
-    { key: 'fly', label: pin ? 'Cancel fly' : 'Fly', node: <button className={cn('lv-gbtn round', pin && 'on')} onClick={() => { close(); setPin(!pin); buzz('light'); }} data-testid="fly-chip"><span className="text-[21px] leading-none">✈️</span></button> },
-    ...(joystick ? [{ key: 'joy', label: joystick.label, node: <button className={cn('lv-gbtn round', joystick.on && 'on')} onClick={() => { close(); joystick.toggle(); }} aria-pressed={joystick.on} data-testid="joystick-toggle"><Gamepad className="h-5 w-5" /></button> }] : []),
-    ...(locate ? [{ key: 'me', label: 'Find me', node: <button className={cn('lv-gbtn round', following && 'on')} onClick={() => { close(); locate(); }} aria-label="Center on my explorer" data-testid="locate-me"><Crosshair className="h-5 w-5" /></button> }] : []),
-    ...tray.map((t) => ({ key: t.key, label: t.label, node: t.node })),
+  const ic = (I: typeof Globe2) => <I className="h-full w-full" strokeWidth={2.4} />;
+  const groups: LGroup[] = [
+    { key: 'worlds', label: 'Worlds', icon: ic(Globe2), testid: 'l-worlds', live: space.flying, options: [
+      { key: 'home', label: 'Home', icon: ic(Home), go: () => nav('/home'), testid: 'l-home' },
+      { key: 'places', label: 'Places', icon: ic(MapIcon), go: () => setPlaces(true), testid: 'worlds-button' },
+      { key: 'space', label: space.flying ? 'Rocket' : 'Space', icon: ic(Rocket), note: space.label, go: space.go, testid: 'space-button' },
+      { key: 'inkborn', label: 'Inkborn', icon: ic(PawPrint), go: () => nav('/inkborn'), testid: 'l-inkborn' },
+    ] },
+    { key: 'travel', label: 'Travel', icon: ic(Compass), testid: 'l-travel', live: !!trip?.live, options: [
+      { key: 'fly', label: pin ? 'Cancel' : 'Fly', icon: ic(Plane), on: pin, go: () => setPin(!pin), testid: 'fly-chip' },
+      ...(trip ? [{ key: 'trains', label: trip.label, icon: ic(TrainFront), on: trip.live, go: () => useTravelUi.getState().setOpen(true), testid: 'travel-button' }] : []),
+    ] },
+    { key: 'move', label: 'Move', icon: ic(Gamepad2), testid: 'l-move', options: [
+      ...(joystick ? [{ key: 'joy', label: 'Joystick', icon: ic(Gamepad), on: joystick.on, note: joystick.note, go: joystick.toggle, testid: 'joystick-toggle' }] : []),
+      ...(locate ? [{ key: 'me', label: 'Find me', icon: ic(Crosshair), on: following, go: locate, testid: 'locate-me' }] : []),
+      { key: 'gps', label: gps.label, icon: ic(Satellite), on: gps.on, go: gps.toggle, testid: 'gps-toggle' },
+    ] },
+    { key: 'plots', label: 'Plots', icon: ic(LayoutGrid), testid: 'l-plots', live: canMerge, options: [
+      { key: 'plots', label: 'My plots', icon: ic(Grid3x3), go: () => nav('/plots'), testid: 'hud-plots' },
+      ...(merge ? [{ key: 'merge', label: 'Merge', icon: ic(Combine), note: canMerge ? '!' : undefined, go: merge, testid: 'map-merge' }] : []),
+      { key: 'tilt', label: tilt.on ? '3D' : '2D', icon: ic(Box), on: tilt.on, go: tilt.toggle, testid: 'tilt-3d' },
+    ] },
+    { key: 'spin', label: 'Spin', icon: ic(FerrisWheel), testid: 'hud-daily', badge: spins, go: () => setWheel(true) },
   ];
-  // arcs over the World button, each holding only as many as fit without touching (and staying on screen and clear of
-  // the tab bar); the next arc out takes the rest
-  const vw = typeof innerWidth === 'number' ? innerWidth : 390;
-  const half = vw / 2 - 40, FOOT = 38, deg = Math.PI / 180;
-  const spots: { it: (typeof items)[number]; x: number; y: number }[] = [];
-  let left = [...items];
-  for (const [r, maxSpan] of [[124, 110], [206, 120], [288, 120]] as const) {
-    if (!left.length) break;
-    const step = (2 * Math.asin(FOOT / r)) / deg * 1.12;
-    const span = Math.min(maxSpan, (2 * Math.asin(Math.min(1, half / r))) / deg);
-    const cap = Math.max(1, Math.floor(span / step) + 1);
-    const row = left.slice(0, cap); left = left.slice(cap);
-    row.forEach((it, i) => {
-      const a = (270 + (i - (row.length - 1) / 2) * step) * deg;
-      spots.push({ it, x: Math.cos(a) * r, y: Math.sin(a) * r });
-    });
-  }
   return (
     <>
-      <div className="lv-rail absolute bottom-[calc(96px+env(safe-area-inset-bottom,0px))] right-[max(12px,env(safe-area-inset-right,0px))] z-10" data-testid="hud-rail">{live}<WorldsButton /></div>
-      {nudge && !open && <span className="lv-world-nudge" aria-hidden />}
-      <div className="lv-world-hint-wrap"><AnimatePresence>{hint && !open && <motion.div className="lv-world-hint" initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} data-testid="world-hint">Hold 🌍 for map actions</motion.div>}</AnimatePresence></div>
+      <WorldL groups={groups} locate={locate} nudge={canMerge || !!trip?.live || space.flying} />
       <DailyWheel open={wheel} onOpenChange={setWheel} />
-      {createPortal(
-        <>
-          <AnimatePresence>
-            {open && <motion.button key="scrim" className="lv-radial-scrim" aria-label="Close" onClick={close} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} data-testid="world-radial-close" />}
-          </AnimatePresence>
-          <AnimatePresence>
-            {open && (
-              <motion.div key="radial" className="lv-radial" role="menu" data-testid="world-radial" exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                {spots.map(({ it, x, y }, i) => (
-                  <motion.div key={it.key} className={cn('lv-radial-item', `lv-logo-${i % LOGO_COLORS}`)} role="menuitem"
-                    initial={{ opacity: 0, x: 0, y: 0, scale: 0.3 }} animate={{ opacity: 1, x, y, scale: 1 }} exit={{ opacity: 0, x: 0, y: 0, scale: 0.3, transition: { duration: 0.16, ease: 'easeIn' } }}
-                    transition={{ type: 'spring', stiffness: 520, damping: 26, delay: i * 0.035 }}
-                    onClickCapture={() => { if (it.key !== 'spin' && it.key !== 'fly' && it.key !== 'joy' && it.key !== 'me') close(); }}>
-                    {it.node}
-                    <span className="lb">{it.label}</span>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </>,
-        document.body,
-      )}
+      <WorldsSheet open={places} onOpenChange={setPlaces} />
     </>
   );
 }
-
-/** the World button's actions take the colours of the LANDVAS mark, in order (red, orange, yellow, green, blue, violet) */
-const LOGO_COLORS = 6;
 
 /** First visit: the explorer starts where the player really is — GPS only. */
 function PlacementPrompt() {
@@ -594,8 +556,11 @@ function JoystickSpot() {
   const ex = useExplorer();
   const requestFly = useUi((s) => s.requestFly);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
   if (ex.state?.mode !== 'manual') return null;
   const home = async () => {
+    // (your explorer leaves the spot you steered it to: getting back there means steering all the way again)
+    if (!await confirm({ title: 'Go back home?', body: 'Your explorer leaves this joystick spot and goes back to your home spot. To come back here you’d have to steer all the way again.', confirm: '🏠 Go home', cancel: 'Stay here' })) return;
     setBusy(true);
     try {
       const r = await api.explorerHome();

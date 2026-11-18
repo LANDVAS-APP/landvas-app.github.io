@@ -76,7 +76,7 @@ export function WorldsButton({ className }: { className?: string }) {
 
 const here = (path: string, route: string) => path === route || path.startsWith(`${route}/`);
 
-function WorldsSheet({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
+export function WorldsSheet({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
   const nav = useNavigate();
   const loc = useLocation();
   const groups = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, enabled: open, staleTime: 30_000 });

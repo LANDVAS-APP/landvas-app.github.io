@@ -21,6 +21,7 @@ import { releaseOnDispose } from '../lib/threeRelease';
 import { cn } from '../lib/utils';
 import { buzz } from '../native/native';
 import { rarityInfo } from '../shared/rarity';
+import { useConfirm } from '../ui';
 import { CLASS_BY_ID, starById, type StarClassId } from './galaxy';
 import { cellAngle, cellAt, cellCenter, dirToUv, isKeystone, patch, shellRadius, type V3 } from './goldberg';
 import { makeCore, makePins, makeShell, type Shell } from './star3d';
@@ -40,6 +41,7 @@ export default function StarWorld() {
   const id = Number(idParam);
   const nav = useNavigate();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const me = useOnboardedMe();
   const where = useQuery({ queryKey: ['star-where'], queryFn: api.starWhere, refetchInterval: (q) => (q.state.data?.dest_star ? 2000 : false) });
   const card = useQuery({ queryKey: ['star', id], queryFn: () => api.starCard(id), enabled: Number.isFinite(id) });
@@ -404,7 +406,11 @@ export default function StarWorld() {
             <Rail label="Paint" onClick={() => mine ? nav(`/star/${c.id}/paint${nearestMine() != null ? `?cell=${nearestMine()}` : ''}`) : toast('Claim a plot here first', { description: 'You paint your own plots of the star.' })} testid="star-paint-btn"><Paintbrush className="h-5 w-5" /></Rail>
             <Rail label="Free plot" onClick={() => { const free = nearestFree(c, plots, api3.current?.where() ?? 12); if (free != null) { api3.current?.goTo(free); toast('Walking to the nearest open plot'); } }} testid="star-free-btn"><Footprints className="h-5 w-5" /></Rail>
             <Rail label="Keystone" onClick={() => { const k = Array.from({ length: 12 }, (_, i) => i).find((i) => !byCell.has(i)); if (k != null) { api3.current?.goTo(k); toast('Walking to an open Keystone'); } else toast('All 12 Keystones are taken'); }} testid="star-key-btn"><MapPin className="h-5 w-5" /></Rail>
-            <Rail label="Earth" onClick={() => void api.starHome().then(() => { void qc.invalidateQueries({ queryKey: ['star-where'] }); nav('/eyes'); })} testid="star-home-btn"><Home className="h-5 w-5" /></Rail>
+            <Rail label="Earth" onClick={() => void (async () => {
+              // (leaving the star: coming back means warping out here again)
+              if (!await confirm({ title: 'Back to Earth?', body: <>You’ll leave <b className="text-fg">{c.name}</b> and go back to your explorer on Earth.</>, confirm: '🌍 Go back', cancel: 'Stay here' })) return;
+              await api.starHome(); void qc.invalidateQueries({ queryKey: ['star-where'] }); nav('/eyes');
+            })().catch((e) => toast.error(toGameError(e).message))} testid="star-home-btn"><Home className="h-5 w-5" /></Rail>
           </div>
           <Stick target={stick} />
           {/* your plots, one after another */}

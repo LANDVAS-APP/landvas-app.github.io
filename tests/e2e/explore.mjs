@@ -198,7 +198,9 @@ try {
   check('…the spot stays put: GPS doesn’t pull you back', Math.abs(kept.lng - spot.lng) < 1e-6 && Math.abs(kept.lat - spot.lat) < 1e-6 && kept.mode === 'manual', `${kept.mode} ${kept.lng},${kept.lat}`);
   check('…and no "no GPS" popup', (await page.locator('text=/GPS (is )?(required|needed)|no GPS/i').count()) === 0);
   await shot('06b-joystick-spot');
-  await page.click('[data-testid=spot-home]'); await page.waitForTimeout(2500);
+  await page.click('[data-testid=spot-home]'); await page.waitForTimeout(700);
+  check('🏠 Home asks first', (await page.locator('[data-testid=confirm-ok]').count()) === 1 && (await syncExplorer()).mode === 'manual');
+  await page.click('[data-testid=confirm-ok]'); await page.waitForTimeout(2500);
   const home = await syncExplorer();
   check('🏠 Home: back to your last real location, the pill goes away', home.mode === 'gps' && (await page.locator('[data-testid=joystick-spot]').count()) === 0, `${home.mode} ${home.lng},${home.lat}`);
 

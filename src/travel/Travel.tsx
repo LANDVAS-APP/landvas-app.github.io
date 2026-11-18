@@ -25,7 +25,7 @@ import { TrafficLayer, trafficAt, trafficPath, useTraffic, useTrafficPref } from
 import type { TravelTraffic } from '../backend/types';
 import { GROUP_KEY, GroupMapLayer, GroupPane, useTravelGroup } from './Group';
 import { GroupGameLayer, GroupPlay } from './GroupPlay';
-import { Button, Dialog, PlayerAvatar, Spinner, Switch, Tabs, inputCls } from '../ui';
+import { Button, Dialog, PlayerAvatar, Spinner, Switch, Tabs, inputCls, useConfirm } from '../ui';
 
 export const TRAVEL_KEY = ['travel'] as const;
 const MODE_META: Record<TravelMode, { name: string; emoji: string; stop: string; stops: string; verb: string }> = {
@@ -114,6 +114,7 @@ export function TravelBar() {
   const q = useTravel();
   const d = q.data;
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   useNow(500);
   const trip = d?.trip;
@@ -121,6 +122,8 @@ export function TravelBar() {
   const riding = !trip.arrived;
   const pr = tripProgress(trip);
   const home = async () => {
+    // (one tap would end the trip: you'd ride a taxi all the way back, and coming here again costs a trip)
+    if (!await confirm({ title: 'Head home?', body: <>You’ll leave <b className="text-fg">{trip.to?.name ?? 'this stop'}</b> and ride back to where you really are. Coming back here takes another trip.</>, confirm: '🏠 Head home', cancel: 'Stay here' })) return;
     setBusy(true);
     try {
       const st = await api.travelHome();

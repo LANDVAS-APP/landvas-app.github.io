@@ -5,7 +5,6 @@
 //  * group photos: everyone together at a stop, kept in everyone's photos
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { create } from 'zustand';
 import type * as maplibregl from 'maplibre-gl';
 import { newMarker } from '../map/maplib';
 import { toast } from 'sonner';
@@ -23,9 +22,10 @@ import { Button, Dialog, PlayerAvatar, Spinner } from '../ui';
 import { balloonArt, flagArt } from '../explore/art';
 import { EMOTES, sendGroup, shareable, showMyEmote, useGroupLive, type Emote } from './live';
 import { memberAt, useTravelGroup } from './Group';
+import { useGroupPlayUi } from './groupPlayUi';
 const fmtDur = (s: number) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-export const useGroupPlayUi = create<{ open: boolean; set(o: boolean): void }>((set) => ({ open: false, set: (open) => set({ open }) }));
+export { useGroupPlayUi };
 const GAMES: Record<GroupGameKind, { emoji: string; name: string; blurb: string }> = {
   balloons: { emoji: '🎈', name: 'Balloon Rush', blurb: 'Balloons fill the streets around you. Pop the most in 2 minutes.' },
   race: { emoji: '🏁', name: 'Flag Race', blurb: 'A flag goes up half a kilometre away. First one there wins.' },
@@ -64,6 +64,8 @@ export function GroupButton() {
 
 /** the group panel: who's here, emotes, games, photos */
 export function GroupPlay() {
+  // (the party sheet offers "Play together here" while this is on the map)
+  useEffect(() => { useGroupPlayUi.setState({ here: true }); return () => useGroupPlayUi.setState({ here: false, open: false }); }, []);
   const open = useGroupPlayUi((s) => s.open);
   const set = useGroupPlayUi((s) => s.set);
   const q = useTravelGroup();

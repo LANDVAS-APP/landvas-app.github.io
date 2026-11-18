@@ -194,7 +194,9 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   const wb = await page.locator('[data-testid="tab-/world"]').boundingBox();
   await page.mouse.move(wb.x + wb.width / 2, wb.y + 20); await page.mouse.down(); await page.waitForTimeout(700); await page.mouse.up();
   await page.waitForSelector('[data-testid=world-radial]', { timeout: 10000 }).catch(() => {});
-  check(await page.locator('[data-testid=world-radial] [data-testid=fly-chip]').count() > 0, 'app map: holding World fans out the map actions');
+  check(await page.locator('[data-testid=world-radial] [data-testid=l-travel]').count() > 0, 'app map: holding World opens the LANDVAS mark with the map actions');
+  await page.click('[data-testid=world-radial] [data-testid=l-travel]').catch(() => {}); await page.waitForTimeout(500);
+  check(await page.locator('[data-testid=world-radial] [data-testid=fly-chip]').count() > 0, 'app map: …a plot of the L shows its actions (Travel → Fly)');
   await shot(page, 'app-map-radial');
   await page.click('.lv-radial-scrim', { position: { x: 30, y: 200 } }).catch(() => {});
   await page.waitForSelector('[data-testid=world-radial]', { state: 'detached', timeout: 5000 }).catch(() => {});

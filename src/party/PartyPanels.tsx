@@ -27,6 +27,7 @@ import {
 import { useAutoJoin } from './lfg';
 import { useFindOnMap } from '../social/findOnMap';
 import { LiveNow, WatchButton } from '../watch/LiveNow';
+import { useGroupPlayUi } from '../travel/groupPlayUi';
 
 type Group = NonNullable<PartyState['group']>;
 
@@ -191,6 +192,7 @@ function MyParty({ g, onDone, setTab }: { g: Group; onDone?(): void; setTab(t: P
   };
   const act = activityOf(g.activity);
   const online = g.online ?? g.members.filter((m) => m.online).length;
+  const onMap = useGroupPlayUi((s) => s.here);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4" data-testid="my-party">
       <section className="relative overflow-hidden rounded-3xl bg-surface-2 p-4">
@@ -212,6 +214,16 @@ function MyParty({ g, onDone, setTab }: { g: Group; onDone?(): void; setTab(t: P
           <Button size="sm" variant="primary" onClick={() => setTab('invite')} disabled={g.members.length >= g.max} data-testid="party-invite-btn"><UserPlus className="h-4 w-4" /> Invite</Button>
           <ShareLinkButtons g={g} />
         </div>
+        {/* on the map: emotes, pings, the party games and photos (the party's one button is this one, up top). The panel
+            opens once this sheet has gone: the sheet hands focus back to the party button as it closes, which would close
+            a panel opened in the same moment. */}
+        {onMap && (
+          <button className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-accent/15 p-2.5 text-left ring-1 ring-accent/40 active:scale-[0.99]" data-testid="party-play"
+            onClick={() => { buzz('light'); onDone?.(); setTimeout(() => useGroupPlayUi.getState().set(true), 220); }}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black/25 text-[22px]" aria-hidden>🎈</span>
+            <span className="min-w-0 flex-1 leading-tight"><b className="block text-[14px]">Play together here</b><span className="block truncate text-[12px] text-muted">Emotes, “meet me here”, Balloon Rush, Flag Race, photos</span></span>
+          </button>
+        )}
       </section>
 
       <PartyPlaces g={g} onDone={onDone} />

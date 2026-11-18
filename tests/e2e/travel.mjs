@@ -192,7 +192,12 @@ try {
   check('the passport has the Denver stamp', (await page.locator('[data-testid=passport-stamp]').count()) === 1);
   await shot('08-passport');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  await page.click('[data-testid=travel-home]'); await page.waitForTimeout(1500);
+  await page.click('[data-testid=travel-home]'); await page.waitForTimeout(800);
+  check('🏠 Home asks first (one tap would end the trip)', (await page.locator('[data-testid=confirm-ok]').count()) === 1 && (await explorer())?.trip?.mode !== 'home');
+  await page.click('[data-testid=confirm-cancel]'); await page.waitForTimeout(600);
+  check('…“Stay here” keeps you at the stop', (await page.locator('[data-testid=travel-home]').count()) === 1 && (await explorer())?.trip?.mode !== 'home');
+  await page.click('[data-testid=travel-home]'); await page.waitForSelector('[data-testid=confirm-ok]', { timeout: 5000 });
+  await page.click('[data-testid=confirm-ok]'); await page.waitForTimeout(1500);
   check('heading home rides back', (await explorer())?.trip?.mode === 'home');
   await arrive();
   await page.click('[data-testid=arrival-close]').catch(() => {}); await page.waitForTimeout(800);

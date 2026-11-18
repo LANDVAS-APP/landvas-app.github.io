@@ -151,6 +151,12 @@ try {
   await page.click('[data-testid=emote-dance]'); await page.waitForTimeout(600);
   check('lea dances: over her own explorer…', await page.evaluate(() => { const e = document.querySelector('.lv-explorer:not(.lv-mate)'); return !!e?.classList.contains('dancing') && e.querySelector('.lv-emote')?.textContent === '💃'; }));
   check('…and max hears it', (await heard()).some((m) => m.t === 'emote' && m.id === leaId && m.e === 'dance'));
+  // the party's own button up top reaches the same panel (the app has no party button down the side of the map)
+  await page.click('[data-testid=party-nav]:visible'); await page.waitForSelector('[data-testid=party-play]', { timeout: 10000 }).catch(() => {});
+  await shot('02b-party-sheet');
+  await page.click('[data-testid=party-play]'); await page.waitForTimeout(800);
+  check('the party sheet’s “Play together here” opens the same panel', (await page.locator('[data-testid=play-member]').count()) > 0);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
 
   // ---- Balloon Rush ---------------------------------------------------------------------------------------------
   // max is really there too (the server's view), so the group can play
