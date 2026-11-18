@@ -121,6 +121,8 @@ export type Eyes = {
   /** where something is on screen (CSS px), or null when it's behind you or not there (tests, hints) */
   screenOf(t: { lev: true } | { drop: string } | { star: number } | { cell: [number, number] } | { beacon: string }): { x: number; y: number } | null;
   debug(): Record<string, unknown>;
+  /** (tests) the shader programs made so far (name#id) */ programs(): string[];
+  /** every shader in the view built and used once (behind the loading screen): resolves when it's done */ warmUp(): Promise<void>;
   /** (tests) the sharpest ground's own painting */ closeCanvas(): HTMLCanvasElement | null;
   /** (tests) hide or show one layer of the view */ debugShow(layer: string, on: boolean): void;
   /** the place (a plot that's been made into something) you're standing at and facing, if any */ placeHere(): BuildSite | null;
@@ -180,6 +182,8 @@ export function createEyes(o: EyesOpts): Eyes {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.autoClear = false;
   renderer.info.autoReset = false;
+  // (checking every new shader for errors makes the main thread wait for it to be built: only while developing)
+  renderer.debug.checkShaderErrors = !import.meta.env.PROD;
   const own: { dispose(): void }[] = [];
   const T = <X extends { dispose(): void }>(x: X) => { own.push(x); return x; };
 
@@ -569,8 +573,8 @@ export function createEyes(o: EyesOpts): Eyes {
 
   // ---- trees, grass, and what stands on the street ----------------------------------------------------------------
   const nature = createNature(near, { phone });
-  const street = createStreet(near);
-  const builds = createBuilds(near, { phone, onChange: () => { shadowDirty = true; } });
+  const street = createStreet(near, { phone });
+  const builds = createBuilds(near, { phone, onChange: () => { shadowDirty = true; soonWarm(); } });
   /** a little 3D piece of each plot's type, on the plots near you */
   const accents = createTypeAccents(near, { phone });
   const placeAccents = () => {
@@ -1317,7 +1321,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   const setTrees = (list: TreePt[], lat: number) => { nature.setTrees(list, lat, new Date(clock ?? Date.now())); shadowDirty = true; };
-  const setStreet: Eyes['setStreet'] = (st, roofs) => { street.set(st, roofs); shadowDirty = true; };
+  const setStreet: Eyes['setStreet'] = (st, roofs) => { street.set(st, roofs, pos); shadowDirty = true; };
   // (the first time the streets are known, the places turn to face them; after that a place keeps the way it faces)
   const setOccupancy: Eyes['setOccupancy'] = (fn) => { if (!occ) facing.clear(); occ = fn; nature.setGround(fn); if (plots.length) placeBuilds(plots); };
 
@@ -1363,7 +1367,7 @@ export function createEyes(o: EyesOpts): Eyes {
   /** the height a cell's art lies at (one for a whole merged painting) */
   const artHeight = (p: PlotPlace | undefined) => {
     let tier = p?.tier ?? 0;
-    if (p?.group) for (const o2 of plots) if (o2.group === p.group) tier = Math.max(tier, o2.tier);
+    if (p?.group) tier = Math.max(tier, groupTierOf.get(p.group) ?? 0);
     return 0.17 + tier * 0.02 + 0.005;
   };
 
@@ -1450,6 +1454,9 @@ export function createEyes(o: EyesOpts): Eyes {
     if (!m.parent) plotsGroup.add(m);
   };
   let plotsSig = '';
+  /** the plots shown, by cell (kept with them: a painting hung on one looks up its neighbours) */
+  let plotAt = new Map<string, PlotPlace>();
+  let groupTierOf = new Map<string, number>();
   const setPlots = (list: PlotPlace[]) => {
     if (!frame) return;
     // (the same plots as last time, which is most times while you drive about: only the places need a look)
@@ -1465,6 +1472,7 @@ export function createEyes(o: EyesOpts): Eyes {
     for (const s of [...emojiSprites.children]) { emojiSprites.remove(s); (s as THREE.Sprite).material.dispose(); }
     for (const s of [...sparkles.children]) { sparkles.remove(s); (s as THREE.Sprite).material.dispose(); }
     if (!list.length) {
+      plotAt = new Map();
       for (const m of [slabs, edges, beams]) if (m) { plotsGroup.remove(m); m.dispose(); }
       slabs = edges = beams = null;
       placeBuilds(list);
@@ -1472,6 +1480,7 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     const ps = plotSize(frame);
     const at = new Map(list.map((p) => [key(p.gx, p.gy), p]));
+    plotAt = at;
     slabs = room(slabs, slabGeo, slabMat, list.length);
     const types = slabTypes(slabs.instanceMatrix.count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), c = new THREE.Color();
@@ -1481,6 +1490,7 @@ export function createEyes(o: EyesOpts): Eyes {
     // merged plots (one painting, one estate) are one seamless piece: no gaps between their cells, one height
     const groupTier = new Map<string, number>();
     for (const p of list) if (p.group) groupTier.set(p.group, Math.max(groupTier.get(p.group) ?? 0, p.tier));
+    groupTierOf = groupTier;
     list.forEach((p, i) => {
       const [x, z] = cellToLocal(frame!, p.gx, p.gy);
       const ins = cellInsets(p, at, ps);
@@ -1550,7 +1560,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const old = artPlanes.get(k);
     if (old) { plotsGroup.remove(old); (old.material as THREE.MeshLambertMaterial).map?.dispose(); (old.material as THREE.Material).dispose(); artPlanes.delete(k); }
     if (!img) return;
-    const p = plots.find((x) => x.gx === gx && x.gy === gy);
+    const p = plotAt.get(k);
     const tex = new THREE.Texture(img as TexImageSource);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
@@ -1558,7 +1568,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const mesh = new THREE.Mesh(artGeo, mat);
     const ps = plotSize(frame);
     const [x, z] = cellToLocal(frame, gx, gy);
-    const ins = p ? cellInsets(p, new Map(plots.map((o2) => [key(o2.gx, o2.gy), o2])), ps) : { l: ps * 0.04, r: ps * 0.04, t: ps * 0.04, b: ps * 0.04 };
+    const ins = p ? cellInsets(p, plotAt, ps) : { l: ps * 0.04, r: ps * 0.04, t: ps * 0.04, b: ps * 0.04 };
     // (the painting's own pixels run right to the shared edges: crop the texture by the same insets)
     tex.offset.set(ins.l / ps, ins.b / ps);
     tex.repeat.set((ps - ins.l - ins.r) / ps, (ps - ins.t - ins.b) / ps);
@@ -2098,6 +2108,107 @@ export function createEyes(o: EyesOpts): Eyes {
     return null;
   };
 
+  // ---- shaders are made ahead, never in the middle of a frame ---------------------------------------------------------
+  // A material's shaders are built the first time it's drawn, and the frame waits for them: on a phone that's a freeze
+  // of a few hundred milliseconds to a couple of seconds (a roll's effects, a place down the street, the Leviathan). So:
+  //  * everything in the view (seen or not yet) is built in the background while it loads (`warm`), and again a moment
+  //    after anything new is put in it;
+  //  * each frame, anything about to be drawn whose shaders aren't ready yet sits out that frame while they're built in
+  //    the background (it turns up a moment later, rather than everything stopping for it).
+  const readyMat = new WeakMap<THREE.Material, number>();
+  const building = new WeakSet<THREE.Material>();
+  const sittingOut: THREE.Object3D[] = [];
+  type Prog = { isReady(): boolean };
+  // (where the graphics driver can say when a shader's done, it's asked; where it can't, a new shader is given a moment
+  // to be built in the background before it's first used, and everything in the view is used once behind the loading
+  // screen, so nothing that was there from the start is ever built in the middle of things)
+  const parallel = !!renderer.extensions.get('KHR_parallel_shader_compile');
+  const progSeen = new WeakMap<object, number>();
+  const GRACE = 320;
+  let nowMs = 0;
+  const progReady = (pr: Prog) => {
+    if (parallel) return pr.isReady();
+    const t = progSeen.get(pr);
+    if (t == null) { progSeen.set(pr, nowMs); return false; }
+    return nowMs - t > GRACE;
+  };
+  const matReady = (m: THREE.Material) => {
+    if (readyMat.get(m) === m.version) return true;
+    const pr = (renderer.properties.get(m) as { currentProgram?: Prog }).currentProgram;
+    if (pr && progReady(pr)) { readyMat.set(m, m.version); return true; }
+    return false;
+  };
+  const buildIn = (obj: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene, mats: THREE.Material[]) => {
+    for (const m of mats) building.add(m);
+    const done = () => { for (const m of mats) building.delete(m); };
+    try { renderer.compileAsync(obj, camera, scene).then(done, done); } catch { done(); }
+  };
+  /** before drawing a pass: whatever isn't ready sits this frame out (and is built meanwhile) */
+  const holdUnready = (scene: THREE.Scene, camera: THREE.Camera) => {
+    nowMs = performance.now();
+    scene.traverseVisible((obj) => {
+      const mo = obj as THREE.Mesh;
+      if (!(mo.isMesh || (obj as THREE.Points).isPoints || (obj as THREE.Line).isLine || (obj as THREE.Sprite).isSprite)) return;
+      const mat = mo.material;
+      if (!mat) return;
+      const mats = Array.isArray(mat) ? mat : [mat];
+      let ok = true;
+      for (const m of mats) if (!matReady(m)) { ok = false; break; }
+      if (ok) return;
+      obj.visible = false;
+      sittingOut.push(obj);
+      const todo = mats.filter((m) => !building.has(m) && !(renderer.properties.get(m) as { currentProgram?: Prog }).currentProgram);
+      if (todo.length) buildIn(obj, camera, scene, todo);
+    });
+  };
+  const backIn = () => { for (const o2 of sittingOut) o2.visible = true; sittingOut.length = 0; };
+  let warmT = 0, warming = false, warmAgain = false;
+  /** build every shader in the view now, in the background (things not on screen yet included) */
+  const warm = () => {
+    if (warming) { warmAgain = true; return Promise.resolve(); }
+    warming = true;
+    const jobs: Promise<unknown>[] = [];
+    const go = (obj: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene) => { try { jobs.push(renderer.compileAsync(obj, camera, scene)); } catch { /* (a lost context: nothing to build for) */ } };
+    go(near, cam, near); go(far, farCam, far);
+    // (things that only join the view when they're needed: the Leviathan in either pass, a thrown ink bomb)
+    go(lev.group, cam, near); go(lev.group, farCam, far); go(inkBall, cam, near);
+    return Promise.allSettled(jobs).then(() => { warming = false; if (warmAgain) { warmAgain = false; soonWarm(); } });
+  };
+  /**
+   * Behind the loading screen: everything in the view drawn once — the hidden things too (a roll's ink and beam, an
+   * enchantment's summoning, the Leviathan, sparks…) — so every shader is finished before the world is shown.
+   */
+  const warmDraw = () => {
+    if (disposed) return;
+    const shown: THREE.Object3D[] = [], culled: THREE.Object3D[] = [];
+    const visit = (o: THREE.Object3D) => { if (!o.visible) { o.visible = true; shown.push(o); } if (o.frustumCulled) { o.frustumCulled = false; culled.push(o); } };
+    const levParent = lev.group.parent;
+    const ball = inkBall.clone();
+    near.add(ball);
+    try {
+      // (the Leviathan in each pass in turn: it's lit a little differently in each)
+      far.add(lev.group);
+      far.traverse(visit); near.traverse(visit);
+      renderer.shadowMap.needsUpdate = true;
+      renderer.clear(); renderer.render(far, farCam); renderer.clearDepth();
+      near.add(lev.group); lev.group.traverse(visit);
+      renderer.render(near, cam);
+    } catch { /* (a lost context) */ }
+    for (const o2 of shown) o2.visible = false;
+    for (const o2 of culled) o2.frustumCulled = true;
+    near.remove(ball);
+    if (levParent) levParent.add(lev.group); else lev.group.parent?.remove(lev.group);
+    // (all of them used now: finished)
+    for (const pr of renderer.info.programs ?? []) progSeen.set(pr, -1e9);
+    shadowDirty = true;
+  };
+  const warmUp = async () => {
+    await warm();
+    await new Promise((r) => requestAnimationFrame(() => { warmDraw(); r(null); }));
+  };
+  /** …a moment after something new has been put in the view (many changes in a row: once) */
+  const soonWarm = () => { clearTimeout(warmT); warmT = window.setTimeout(() => { if (!disposed) warm(); }, 180); };
+
   // ---- the loop -----------------------------------------------------------------------------------------------------
   let paused = false;
   const pace = framePacer({ ambient: () => !throws.length && !levPlace && !roll && !man });
@@ -2119,6 +2230,8 @@ export function createEyes(o: EyesOpts): Eyes {
   ro.observe(el);
   resize();
   const tmpV = new THREE.Vector3();
+  // (scratch vectors for the frame loop: nothing new made each frame, nothing for the garbage collector to sweep up)
+  const vSide = new THREE.Vector3(), vHead = new THREE.Vector3(), vBack = new THREE.Vector3(), vTmp2 = new THREE.Vector3(), vCell = new THREE.Vector2();
   /** which way you're going (smoothed, on the ground) */
   const heading2 = new THREE.Vector2(0, -1);
   const tick = (now: number) => {
@@ -2214,7 +2327,7 @@ export function createEyes(o: EyesOpts): Eyes {
     accents.update(o.reduceMotion ? 0 : t);
     { const aa = accents.at(); if (plots.length && (!aa || Math.hypot(aa.x - pos.x, aa.z - pos.z) > 25)) placeAccents(); }
     updateFloating(dt, t);
-    street.update(bldU.uNight.value);
+    street.update(bldU.uNight.value, pos);
     groundU.uTime.value = o.reduceMotion ? 0 : t;
     // the sharpest ground follows you: the squares coming into view are painted, a few milliseconds' worth a frame
     // (more while there's nothing to show yet)
@@ -2236,7 +2349,7 @@ export function createEyes(o: EyesOpts): Eyes {
     const snapX = Math.round((pos.x - ox) / ps) * ps + ox, snapZ = Math.round((pos.z - oz) / ps) * ps + oz;
     grid.position.set(snapX, 0.03, snapZ);
     gridU.uCam.value.set(pos.x - snapX, pos.z - snapZ);
-    const cellOf = (x: number, z: number) => new THREE.Vector2(Math.floor((x - snapX) / ps), Math.floor((z - snapZ) / ps));
+    const cellOf = (x: number, z: number) => vCell.set(Math.floor((x - snapX) / ps), Math.floor((z - snapZ) / ps));
     gridU.uHere.value.copy(cellOf(pos.x, pos.z));
     // the plot you're looking at (the middle of the screen, on the ground nearby)
     const fwd = tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -2315,16 +2428,16 @@ export function createEyes(o: EyesOpts): Eyes {
         d.visible = on;
         d.obj.visible = on;
         const k = cyc / 2.6;
-        const side = new THREE.Vector3(-d.anchor.z, 0, d.anchor.x).normalize();
-        const head = d.anchor.clone().addScaledVector(side, (k - 0.5) * 900).add(new THREE.Vector3(0, -k * 260, 0)).add(pos);
+        const side = vSide.set(-d.anchor.z, 0, d.anchor.x).normalize();
+        const head = vHead.copy(d.anchor).addScaledVector(side, (k - 0.5) * 900).add(vTmp2.set(0, -k * 260, 0)).add(pos);
         d.pos.copy(head);
         d.obj.position.copy(head);
-        const back = side.clone().multiplyScalar(-1).add(new THREE.Vector3(0, 0.29, 0)).normalize();
+        const back = vBack.copy(side).multiplyScalar(-1).add(vTmp2.set(0, 0.29, 0)).normalize();
         d.obj.children.forEach((c, i) => { c.position.copy(back).multiplyScalar(i * 22); (c as THREE.Sprite).material.opacity = Math.sin(k * Math.PI) * (i ? 1 - i / 11 : 1); });
       } else {
         const rise = d.d.kind === 'lantern' ? (age * 0.9) % 60 : (age * 0.5) % 45;
         const sway = Math.sin(age * 0.8 + d.d.seed) * 2.2;
-        d.pos.copy(d.anchor).add(pos).add(new THREE.Vector3(sway, rise - 1.7, Math.cos(age * 0.6 + d.d.seed) * 1.5));
+        d.pos.copy(d.anchor).add(pos).add(vTmp2.set(sway, rise - 1.7, Math.cos(age * 0.6 + d.d.seed) * 1.5));
         d.obj.position.copy(d.pos);
         d.obj.rotation.z = Math.sin(age * 0.8 + d.d.seed) * 0.12;
         d.visible = true;
@@ -2338,7 +2451,7 @@ export function createEyes(o: EyesOpts): Eyes {
       if (!b.at) b.at = new THREE.Vector3(x, 0, z);
       const gap = Math.hypot(x - b.at.x, z - b.at.z);
       if (gap > 400) b.at.set(x, 0, z);
-      else b.at.lerp(new THREE.Vector3(x, 0, z), Math.min(1, dt * 1.2));
+      else b.at.lerp(vTmp2.set(x, 0, z), Math.min(1, dt * 1.2));
       b.moving += ((gap > 0.4 ? 1 : 0) - b.moving) * Math.min(1, dt * 4);
       b.obj.position.copy(b.at);
       const ph = t * 7 + b.at.x;
@@ -2392,12 +2505,17 @@ export function createEyes(o: EyesOpts): Eyes {
     }
     renderer.info.reset();
     renderer.clear();
+    holdUnready(far, farCam);
     renderer.render(far, farCam);
+    backIn();
     renderer.clearDepth();
+    holdUnready(near, cam);
     renderer.render(near, cam);
+    backIn();
     // (your hands, what you hold and your seat are drawn over the view in your explorer's own art: FirstPersonSelf)
   };
   raf = requestAnimationFrame(tick);
+  soonWarm();
 
   const setGyro = (on: boolean) => {
     if (on === gyro) return;
@@ -2407,7 +2525,7 @@ export function createEyes(o: EyesOpts): Eyes {
     else window.removeEventListener('deviceorientation', onOrient);
   };
 
-  return {
+  const api: Eyes = {
     setFrame, frame: () => frame, setGround, prewarm, rebase, setClosePainter, closeState: () => closeG.state(), closeSpan: () => closeG.span, setBuildings, setTrees, setStreet, setOccupancy, setTerrain, setPlots,
     hasArt: (gx, gy) => artPlanes.has(key(gx, gy)),
     upsertPlots: (list) => {
@@ -2530,6 +2648,8 @@ export function createEyes(o: EyesOpts): Eyes {
       const x = all[layer]; if (x) x.visible = on;
       if (layer === 'nature' || layer === 'street') near.children.forEach((c) => { if (c.userData.layer === layer) c.visible = on; });
     },
+    warmUp,
+    programs: () => (renderer.info.programs ?? []).map((pr) => `${pr.name}#${pr.id}|${String(pr.cacheKey).slice(0, 90).replace(/\s+/g, ' ')}`),
     debug: () => ({
       frame, pos: pos.toArray(), yaw, pitch, fov, plots: plots.length, art: artPlanes.size, cards: cardSprites.children.length,
       buildings: buildings ? (buildings.geometry.index?.count ?? 0) / 3 : 0, trees: nature.counts().trees, grass: nature.counts().grass, builds: builds.counts(), places: builds.list().map((b) => ({ key: b.key, kind: b.kind, x: b.x, z: b.z, w: b.w, d: b.d, rot: b.rot, label: b.label, owner: b.owner })), street: street.counts().objects, close: closeG.state(), accents: accents.counts(), rebases, origin: frame ? [frame.lng0, frame.lat0] : null, shadows: renderer.shadowMap.enabled, terrain: !!terrain, ground: ground.visible,
@@ -2566,4 +2686,11 @@ export function createEyes(o: EyesOpts): Eyes {
       renderer.dispose(); // (also hands the WebGL context back: src/lib/threeRelease.ts)
     },
   };
+  // anything that puts something new in the view has its shaders built a moment later, in the background
+  for (const k of ['setGround', 'setBuildings', 'setTrees', 'setStreet', 'setTerrain', 'setPlots', 'upsertPlots', 'setArt', 'setMine', 'setBeacons', 'setFallingStars',
+    'setDrops', 'setBuddies', 'setHotZone', 'setResidents', 'setCompanion', 'manifest', 'setSelected', 'liftArt', 'setLeviathan', 'rollAt'] as const) {
+    const f = api[k] as (...a: unknown[]) => unknown;
+    (api as unknown as Record<string, unknown>)[k] = (...a: unknown[]) => { const r = f(...a); soonWarm(); return r; };
+  }
+  return api;
 }

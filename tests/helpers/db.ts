@@ -56,11 +56,29 @@ export class TestDb {
   async init(opts: { localOverrides?: boolean; ungated?: boolean; skip?: string[]; freePlots?: number; basePlots?: boolean; inkPacing?: boolean; enchantChance?: number } = {}) {
     const root = new pg.Client({ ...pgConfig(), database: 'postgres' });
     await root.connect();
-    // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
-    await root.query(`create database ${this.name} template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'`);
-    await root.end();
+    // Every suite starts from the same migrations: they're applied once per run into a template database (one per
+    // bundle: plain, with the local overrides, or with migrations skipped), and each suite's database is a copy of it —
+    // the same as applying them afresh, in a fraction of the time.
+    const bundle = sqlBundle(opts);
+    const tpl = `tpl_${crypto.createHash('sha1').update(bundle.join('\n')).digest('hex').slice(0, 12)}`;
+    await root.query('select pg_advisory_lock(hashtext($1))', [tpl]);
+    try {
+      const has = (await root.query('select 1 from pg_database where datname = $1', [tpl])).rowCount;
+      if (!has) {
+        // like Supabase: UTF-8 text (the test cluster's default template may be SQL_ASCII)
+        await root.query(`create database ${tpl}_build template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'`);
+        const b = new pg.Client({ ...pgConfig(), database: `${tpl}_build` });
+        await b.connect();
+        try { for (const sql of bundle) await b.query(sql); } catch (e) { await b.end().catch(() => {}); await root.query(`drop database if exists ${tpl}_build with (force)`); throw e; }
+        await b.end();
+        await root.query(`alter database ${tpl}_build rename to ${tpl}`);
+      }
+      await root.query(`create database ${this.name} template ${tpl}`);
+    } finally {
+      await root.query('select pg_advisory_unlock(hashtext($1))', [tpl]).catch(() => {});
+      await root.end();
+    }
     this.admin = await this.connect();
-    for (const sql of sqlBundle(opts)) await this.admin.query(sql);
     if (opts.ungated) await this.admin.query(`update feature_flags set enabled = false where key = 'location_gated_claims'`);
     // most suites test paid plots; the free-plot allowance is tested on its own
     await this.admin.query(`update game_config set value = value || jsonb_build_object('free_plots', $1::int) where key = 'economy'`, [opts.freePlots ?? 1]).catch(() => {});

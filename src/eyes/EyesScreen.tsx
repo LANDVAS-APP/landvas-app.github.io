@@ -392,7 +392,14 @@ export default function EyesScreen() {
     };
   }, [eyes, hard]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (steps.streets !== 'wait') { const t = setTimeout(() => setReady(true), 350); return () => clearTimeout(t); } }, [steps.streets]);
+  // the world's up: every shader in it is finished behind the loading screen (a roll's ink, the Leviathan, sparks…), so
+  // nothing has to be built later in the middle of driving or claiming
+  useEffect(() => {
+    if (steps.streets === 'wait' || !eyes) return;
+    let live = true;
+    const t = setTimeout(() => { void eyes.warmUp().catch(() => {}).finally(() => { if (live) setReady(true); }); }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [steps.streets, eyes]);
   useEffect(() => { const t = setTimeout(() => setReady(true), 6000); return () => clearTimeout(t); }, []);
 
   // ---- plots around you -----------------------------------------------------------------------------------------------

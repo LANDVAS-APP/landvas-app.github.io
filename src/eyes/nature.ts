@@ -173,7 +173,9 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
   let meshes: THREE.InstancedMesh[] = [];
 
   // the trees near you are drawn in full; further off, in a few triangles. Re-sorted as you walk.
-  const LOD_R = opts.phone ? 110 : 160;
+  const LOD_R = opts.phone ? 80 : 160;
+  // (and past this, not at all: a tree half a kilometre off is a speck, and there can be thousands in a city's parks)
+  const FAR_R = opts.phone ? 430 : 650;
   let all: TreePt[] = [];
   let state = leafState(0, new Date());
   let lodAt: THREE.Vector2 | null = null;
@@ -215,7 +217,7 @@ export function createNature(near: THREE.Scene, opts: { phone: boolean }) {
       return pickC(GREENS, hash(r * 13));
     };
     for (const near2 of [true, false]) {
-      const set = at ? all.filter((t) => (Math.hypot(t.x - at.x, t.z - at.y) < LOD_R) === near2) : near2 ? [] : all;
+      const set = at ? all.filter((t) => { const d = Math.hypot(t.x - at.x, t.z - at.y); return near2 ? d < LOD_R : d >= LOD_R && d < FAR_R; }) : near2 ? [] : all;
       // the broadleaves in leaf, and those already bare (late autumn: more and more of them)
       const broad = set.filter((t) => t.kind === 0), con = set.filter((t) => t.kind === 1), palm = set.filter((t) => t.kind === 2);
       const leafy: TreePt[] = [], bare: TreePt[] = [];

@@ -255,7 +255,8 @@ export function Joystick({ onClose, minimal }: { onClose(): void; /** just the s
     };
     let idle: ReturnType<typeof setTimeout> | null = null;
     raf = requestAnimationFrame(loop);
-    const tick = setInterval(() => { if (secsRef.current !== lastSecs) { lastSecs = secsRef.current; setSecs(secsRef.current); } }, 250);
+    // (the tank's seconds on screen: once a second is plenty, and the stick isn't drawn again for every quarter second)
+    const tick = setInterval(() => { const sNow = Math.ceil(secsRef.current); if (sNow !== lastSecs) { lastSecs = sNow; setSecs(secsRef.current); } }, 500);
     let lastSecs = -1;
     return () => { cancelAnimationFrame(raf); if (idle) clearTimeout(idle); clearInterval(tick); };
   }, [speed, fuel]); // eslint-disable-line react-hooks/exhaustive-deps
