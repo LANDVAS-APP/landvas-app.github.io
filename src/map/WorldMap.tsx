@@ -1,5 +1,7 @@
 // The world canvas: MapLibre map with the rarity-coloured plot grid, everyone's
 // plots, the published-art tile pyramid, the player's explorer and four modes.
+import { Guard } from '../app/Guard';
+import { holdSplash } from '../native/native';
 import { autoSaveMapCache, restoreMapCache, saveMapCache } from './mapCache';
 import * as maplibregl from 'maplibre-gl';
 import { setMapLib } from './maplib';
@@ -185,6 +187,8 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   const { mapRef, onlineRef, streetsRef, genRef, plotGenRef, seqRef, markersRef, nameMarkers } = bag;
   const explorerMarker = useRef<maplibregl.Marker | null>(null);
   const [ready, setReady] = useState(() => !!bag.mapRef.current);
+  // (the app's launch splash waits for the map's style, so the first thing a player sees is the map itself)
+  useEffect(() => (ready ? undefined : holdSplash()), [ready]);
   const mode = useUi((s) => s.mode);
   const selected = useUi((s) => s.selected);
   const flyTo = useUi((s) => s.flyTo);
@@ -839,12 +843,13 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
   return (
     <div className="absolute inset-0">
       <div ref={container} className="h-full w-full" data-testid="world-map" aria-label="World map" role="application" />
-      {!lite && <MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} />}
-      {!lite && <PlotBubbles ready={ready} />}
-      {!lite && <EnchantLayer ready={ready} />}
-      {!lite && <RarityLayer ready={ready} />}
-      <LeviathanLayer ready={ready} />
-      {!lite && <LassoLayer ready={ready} />}
+      {/* the live layers each stand on their own: one that breaks steps aside and the map keeps working */}
+      {!lite && <Guard name="map:fx"><MapFx map={ready ? mapRef.current : null} blocks={plotBlocks} /></Guard>}
+      {!lite && <Guard name="map:bubbles"><PlotBubbles ready={ready} /></Guard>}
+      {!lite && <Guard name="map:enchant"><EnchantLayer ready={ready} /></Guard>}
+      {!lite && <Guard name="map:rarity"><RarityLayer ready={ready} /></Guard>}
+      <Guard name="map:leviathan"><LeviathanLayer ready={ready} /></Guard>
+      {!lite && <Guard name="map:lasso"><LassoLayer ready={ready} /></Guard>}
     </div>
   );
 }

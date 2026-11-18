@@ -7,6 +7,7 @@ import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { useSyncExternalStore } from 'react';
 import { setCelebrateHook } from '../ui/confetti';
 import { uiSound } from './uiSound';
+import { config } from '../env';
 
 export const isNative = () => Capacitor.isNativePlatform();
 export const platform = () => Capacitor.getPlatform() as 'ios' | 'android' | 'web';
@@ -113,7 +114,7 @@ export async function initNative(nav?: (to: number) => void) {
   } catch (e) {
     console.warn('native init', e);
   }
-  setTimeout(hideSplash, 8000); // never leave the splash up, whatever happens
+  setTimeout(hideSplash, patience(8000)); // never leave the splash up, whatever happens
   // a little tap you can feel (and hear) on every button press, like a game controller
   document.addEventListener('pointerdown', (e) => {
     const el = (e.target as HTMLElement | null)?.closest('button, a, [role=tab], [role=radio], [role=button]');
@@ -135,8 +136,52 @@ export async function initNative(nav?: (to: number) => void) {
   }, { capture: true });
 }
 
-/** Hide the native splash once the animated boot screen is showing. */
+// ---- the launch splash -------------------------------------------------------------------------------------------
+// The native splash (the LANDVAS mark on the night sky) stays up until the game's first real screen is on the page:
+// no half-built page, loader or logo flashes by on the way in. The app's root says when it's there
+// (splashWhenSettled), anything still loading holds it (<SplashHold />: route loaders, the map's chunk), and it goes
+// once nothing has held it for a moment. It never stays up long whatever happens (6 s after the app starts, 8 s
+// after launch at the latest).
+let splashGone = false;
+let holds = 0;
+let settled = false;
+let settle: ReturnType<typeof setTimeout> | undefined;
+
+/** How long a slow start waits before the splash gives way anyway. (The offline test build starts a whole database in
+ *  the browser first, which takes many seconds: there the tests get a minute, so they see what a player would.) */
+export const patience = (ms: number) => (config.e2e && config.backend === 'local' ? ms + 60_000 : ms);
+
+/** Hide the native splash now (once). */
 export function hideSplash() {
-  if (!isNative()) return;
+  if (!isNative() || splashGone) return;
+  splashGone = true;
+  clearTimeout(settle);
+  window.dispatchEvent(new Event('landvas:splash-hide')); // (tests/e2e/launch.mjs checks what's on screen right then)
   void import('@capacitor/splash-screen').then(({ SplashScreen }) => SplashScreen.hide({ fadeOutDuration: 250 })).catch(() => {});
 }
+
+function maybeHide() {
+  if (!settled || splashGone) return;
+  clearTimeout(settle);
+  // (a timer, not animation frames: while the splash is up the web view isn't drawn, so frames may not come)
+  settle = setTimeout(() => { if (holds === 0) hideSplash(); }, 180);
+}
+
+/** The game's screens are mounted: the splash goes as soon as nothing is still loading. */
+export function splashWhenSettled() {
+  if (settled) return;
+  settled = true;
+  maybeHide();
+  setTimeout(hideSplash, patience(6000));
+}
+
+/** Something on the first screen is still loading: the splash waits for it. Returns the release. */
+export function holdSplash(): () => void {
+  if (splashGone) return () => {};
+  holds++;
+  let done = false;
+  return () => { if (done) return; done = true; holds--; maybeHide(); };
+}
+
+/** (for tests) */
+export function splashState() { return { gone: splashGone, holds, settled }; }

@@ -29,6 +29,18 @@ jobs:
       - run: npm ci
       - name: Unit tests
         run: npx vitest run tests/unit
+      # The app builds under store review (or live, held on their store version) run the code inside them while the
+      # server moves on: before this deploy changes the server, each one in deploy/store-builds.json is built with the
+      # new migrations and every screen opened (tests/e2e/held-build.mjs). Nov 2026: a migration dropped a key the
+      # reviewed 1.0.0 read, its World map crashed and Google Play rejected it.
+      - name: Apps in the stores' hands still work with this server
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE" 2>/dev/null \
+             && [ -z "$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- supabase deploy/store-builds.json tests/e2e/held-build.mjs scripts/held-build-check.mjs)" ]; then
+            echo "This push doesn't change the server: nothing to check"; exit 0
+          fi
+          node scripts/held-build-check.mjs
       - name: Database migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

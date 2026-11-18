@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { LogoMark } from '../ui';
 import { config } from '../env';
-import { hideSplash, isNative } from '../native/native';
+import { hideSplash, isNative, patience } from '../native/native';
 
 const TIPS = ['Tip: your first 4 plots are free', 'Tip: draw a creature and watch it come alive', 'Tip: merge neighbouring plots into one big mural', 'Tip: happy Inkborn fill your Ink Spring', 'Tip: daily limits reset every evening'];
 
 /** The app's loading screen: logo, glowing progress bar and a tip, like a game. */
 function GameBoot() {
   const [tip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
-  useEffect(() => { hideSplash(); }, []);
+  // the splash covers this while the game starts (it goes when the first screen is drawn); only a slow start shows
+  // this moving loader, so the launch never looks frozen
+  useEffect(() => { const t = setTimeout(hideSplash, patience(5000)); return () => clearTimeout(t); }, []);
   return (
     <div className="lv-boot flex h-full flex-col items-center justify-center gap-7 overflow-hidden bg-bg text-center" data-testid="game-boot">
       <div className="lv-orb-a" /><div className="lv-orb-b" />

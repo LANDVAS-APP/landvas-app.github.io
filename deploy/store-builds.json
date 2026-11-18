@@ -1,0 +1,6 @@
+{
+  "about": "App builds in the stores' hands: under review, or live with players held on their store version. Each runs the game code inside it while the server changes with every deploy, so before a deploy changes the server, scripts/held-build-check.mjs builds each one marked check: true with the NEW migrations and runs tests/e2e/held-build.mjs on it; a crash stops the deploy. Add a build here when it's sent for review (commit = the Native apps run's commit); set check: false once no player or reviewer can have it any more.",
+  "builds": [
+    { "platform": "android", "version": "1.0.0", "code": 158, "commit": "642e0b1a2555c4d329d2daee787fb4abd0dc5510", "status": "rejected Nov 18, 2026 (World map crash: enchant_map2 lost walkers/coils; fixed by 20261120000090)", "check": true }
+  ]
+}

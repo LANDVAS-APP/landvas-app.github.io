@@ -245,7 +245,7 @@ export default function Legal() {
               <li><b>Plots can never be bought with money.</b> They cost Ink, which you earn by winning minigames. No purchase is necessary to play or to earn rent.</li>
               <li>Rates are set by LANDVAS and may change at any time. They are not a promise of future earnings, and owning plots is not an investment.</li>
               <li>A rent balance is a game reward with <b>no cash value and no property right</b> until it is actually paid out through a cash-out, if and when one is offered. We may change or end the rent feature.</li>
-              <li><b>Cash-out</b> is not available yet. When it opens, payouts will require a minimum balance (currently ${world.data?.rent?.cashout?.minimum_usd ?? 5}), identity and fraud checks, and may be limited by country. Balances earned by cheating, multiple accounts or GPS spoofing will be removed.</li>
+              <li><b>Cash-out</b> is not available yet. When it opens, payouts will require a minimum balance (currently ${world.data?.rent?.cashout?.minimum_usd ?? 5}), identity and fraud checks, and may be unavailable only where local law doesn't allow it. Balances earned by cheating, multiple accounts or GPS spoofing will be removed.</li>
             </ul>
           </>
         )}

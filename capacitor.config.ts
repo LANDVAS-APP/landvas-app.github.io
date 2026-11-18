@@ -22,7 +22,10 @@ const config: CapacitorConfig = {
   // no web-style link previews or callouts on long-press: it's a game, not a page
   ios: { contentInset: 'never', backgroundColor: '#0B0820', scrollEnabled: false, limitsNavigationsToAppBoundDomains: false, allowsLinkPreview: false },
   plugins: {
-    SplashScreen: { launchShowDuration: 0, launchAutoHide: false, backgroundColor: '#0B0820', showSpinner: false, androidScaleType: 'CENTER_CROP' },
+    // the splash stays up until the game's first screen is drawn (hideSplash() in src/native/native.ts), so nothing
+    // half-loaded ever shows. (launchShowDuration must not be 0: 0 turns the launch splash off altogether, on both
+    // platforms, and the half-built page showed through — Google Play's reviewer saw a text wall, then a logo.)
+    SplashScreen: { launchShowDuration: 10000, launchAutoHide: false, launchFadeOutDuration: 250, backgroundColor: '#0B0820', showSpinner: false, androidScaleType: 'CENTER_CROP' },
     StatusBar: { overlaysWebView: true, style: 'DARK', backgroundColor: '#00000000' },
     // edge-to-edge on Android 15+: the safe areas reach the page as env() / --safe-area-inset-* (and the keyboard is handled natively)
     SystemBars: { insetsHandling: 'css', style: 'DARK' },

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Guard, PartTrouble } from '../app/Guard';
 import { TicketsButton } from '../daily/Tickets';
 import { AnimatePresence, motion } from 'motion/react';
 import { Box, Check, ChevronRight, Combine, Compass, Crosshair, FerrisWheel, Gamepad, Gamepad2, Globe2, Grid3x3, Home, LayoutGrid, Map as MapIcon, PawPrint, Plane, Plus, Rocket, Satellite, Sparkles, TrainFront, X } from 'lucide-react';
@@ -123,35 +124,35 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
     <div className={cn('absolute inset-0', away && 'lv-away')}>
       {/* switching the lite map rebuilds it from scratch, so nothing plot-related is left loaded */}
       <WorldMap key={lite ? 'lite' : 'full'} lite={lite} />
-      {!lite && <DayNight />}
-      {me && <HotZoneLayer />}
-      {me && <StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} />}
-      {me && quick.element}
+      {!lite && <Guard name="map:daynight"><DayNight /></Guard>}
+      {me && <Guard name="map:hotzone"><HotZoneLayer /></Guard>}
+      {me && <Guard name="map:streak"><StreakDialog open={streak} onOpenChange={setStreak} onRoll={(o) => void quick.roll(o)} /></Guard>}
+      {me && <Guard name="map:quickroll">{quick.element}</Guard>}
       {/* the game HUD */}
       {APP ? (
         // the app: the HUD on top (boost next to your Ink), then one row of clean buttons under your avatar — the
         // Hot Zone (opens into its card), the Altar of Luck, the map view and the Grimoire. Everything else fans
         // out around the World button when you hold it.
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col">
-          {me ? <div className="lv-map-top"><GameHud overlay /></div> : (
+          {me ? <div className="lv-map-top"><Guard name="map:hud"><GameHud overlay /></Guard></div> : (
             <div className="flex items-center gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
               {!session && <div className="pointer-events-auto"><SignInChip /></div>}
             </div>
           )}
           {/* one row, centred: Hot Zone, Luck, Grimoire, View (the boost lives up in the HUD beside your earnings) */}
           <div className="lv-maprow flex items-center justify-center gap-3.5 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-1 [&>*]:pointer-events-auto" data-testid="map-row">
-            {me && <HotZoneDisc />}
-            {me && <LuckDisc />}
-            {me && <TicketsButton disc onRoll={(o) => void quick.roll(o)} />}
-            {me && <GrimoireButton rail />}
-            <LeviathanDisc />
-            {me && !away && <EyesDisc />}
-            <ModeButton rail />
+            {me && <Guard name="map:hot-disc"><HotZoneDisc /></Guard>}
+            {me && <Guard name="map:luck-disc"><LuckDisc /></Guard>}
+            {me && <Guard name="map:tickets"><TicketsButton disc onRoll={(o) => void quick.roll(o)} /></Guard>}
+            {me && <Guard name="map:grimoire-btn"><GrimoireButton rail /></Guard>}
+            <Guard name="map:leviathan-disc"><LeviathanDisc /></Guard>
+            {me && !away && <Guard name="map:eyes-disc"><EyesDisc /></Guard>}
+            <Guard name="map:mode"><ModeButton rail /></Guard>
           </div>
           {/* whichever of them is open, as a card right under the row */}
           {me && (
             <div className="mt-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))]">
-              <AnimatePresence mode="wait">
+              <Guard name={`map:card-${card}`} resetKey={card}><AnimatePresence mode="wait">
                 {card === 'hot' && <HotZonePanel key="hot" onClose={closeCard} onRoll={() => void quick.roll({ hot: true })} />}
                 {card === 'luck' && <LuckCard key="luck" onClose={closeCard} />}
                 {card === 'grim' && <GrimoireCard key="grim" onClose={closeCard} />}
@@ -159,10 +160,10 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
                 {card === 'bell' && <BellCard key="bell" onClose={closeCard} />}
                 {card === 'boost' && <BoostCard key="boost" onClose={closeCard} />}
                 {card === 'me' && <ProfileMenu key="me" />}
-              </AnimatePresence>
+              </AnimatePresence></Guard>
             </div>
           )}
-          {me && !away && !joystick && !card && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><JoystickSpot /></div>}
+          {me && !away && !joystick && !card && <div className="mt-2 flex pl-[max(12px,env(safe-area-inset-left,0px))]"><Guard name="map:joystick-spot"><JoystickSpot /></Guard></div>}
         </div>
       ) : (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] pt-[max(10px,env(safe-area-inset-top,0px))]">
@@ -225,7 +226,7 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
       </div>
       )}
       {!travelling && <ZoomHint zoom={view.zoom} raised={questShown} />}
-      {me && !away && <ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} />}
+      {me && !away && <Guard name="map:explorer-controls"><ExplorerControls joystick={joystick} onJoystick={() => setJoystick((j) => !j)} /></Guard>}
       {away && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center px-4 md:bottom-8">
           <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#0B0E24]/90 px-4 py-2.5 text-white shadow-xl backdrop-blur" data-testid="away-banner">
@@ -239,37 +240,41 @@ function EarthMap({ away }: { away: { name: string; back(): void } | null }) {
         {me && joystick && (
           <div className={cn('pointer-events-none absolute inset-x-0 z-20 flex justify-center px-4',
             landscape ? 'bottom-[calc(64px+env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] md:bottom-[max(12px,env(safe-area-inset-bottom,0px))]' : 'bottom-[calc(84px+env(safe-area-inset-bottom,0px))] md:bottom-6')}>
-            <Joystick onClose={() => setJoystick(false)} />
+            <Guard name="map:joystick"><Joystick onClose={() => setJoystick(false)} /></Guard>
           </div>
         )}
       </AnimatePresence>
       {/* the panel would give the rarity away while the claim roll is still spinning */}
       <div className={celebrating ? 'invisible' : undefined} aria-hidden={celebrating || undefined}>
-        <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
+        {/* a plot sheet that can't open says so, with a way to try again (a tap never just does nothing) */}
+        <Guard name="map:plot-panel" resetKey={selected ? `${selected.gx}_${selected.gy}` : null}
+          fallback={(retry) => selected ? <PartTrouble what="This plot" retry={retry} onClose={() => useUi.getState().select(null)} /> : null}>
+          <AnimatePresence>{selected && <PlotPanel key={`${selected.gx}_${selected.gy}`} cell={selected} />}</AnimatePresence>
+        </Guard>
       </div>
       {me && !away && !selected && !joystick && !picking && !celebrating && (
-        <MapPartyChat className={cn('absolute left-[max(12px,env(safe-area-inset-left,0px))] z-20',
+        <Guard name="map:party-chat"><MapPartyChat className={cn('absolute left-[max(12px,env(safe-area-inset-left,0px))] z-20',
           travelling ? 'bottom-[calc(160px+env(safe-area-inset-bottom,0px))] md:bottom-24'
           : questShown ? 'bottom-[calc(164px+env(safe-area-inset-bottom,0px))] md:bottom-24'
-          : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))] md:bottom-8')} />
+          : 'bottom-[calc(96px+env(safe-area-inset-bottom,0px))] md:bottom-8')} /></Guard>
       )}
       {me && !away && travelling && !selected && !joystick && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><TravelBar /></div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-20 flex justify-start pl-[max(12px,env(safe-area-inset-left,0px))] pr-[84px] md:bottom-8 md:justify-center"><Guard name="map:travel-bar"><TravelBar /></Guard></div>
       )}
-      {me && !away && <TravelOverlays />}
+      {me && !away && <Guard name="map:travel"><TravelOverlays /></Guard>}
       {/* (other players' explorers: only your party's show — the party layer draws them; strangers never do) */}
-      {me && !selected && !joystick && !merging && !away && !travelling && !picking && <Checklist />}
-      {me && <MergeBar />}
-      {me && !away && <PlacementPrompt />}
-      <ClaimCelebration />
-      <PinFlight />
-      {me && <GrimoireSheet />}
-      <RayTargeting />
-      <PlotPickOverlay />
-      <FlyParam />
-      <WarpTunnel />
-      <LeviathanFight />
-      <LeviathanMoments />
+      {me && !selected && !joystick && !merging && !away && !travelling && !picking && <Guard name="map:checklist"><Checklist /></Guard>}
+      {me && <Guard name="map:merge"><MergeBar /></Guard>}
+      {me && !away && <Guard name="map:placement"><PlacementPrompt /></Guard>}
+      <Guard name="map:celebration"><ClaimCelebration /></Guard>
+      <Guard name="map:pin-flight"><PinFlight /></Guard>
+      {me && <Guard name="map:grimoire"><GrimoireSheet /></Guard>}
+      <Guard name="map:ray"><RayTargeting /></Guard>
+      <Guard name="map:plot-pick"><PlotPickOverlay /></Guard>
+      <Guard name="map:fly-param"><FlyParam /></Guard>
+      <Guard name="map:warp"><WarpTunnel /></Guard>
+      <Guard name="map:leviathan-fight"><LeviathanFight /></Guard>
+      <Guard name="map:leviathan-moments"><LeviathanMoments /></Guard>
     </div>
   );
 }

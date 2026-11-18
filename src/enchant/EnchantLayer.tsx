@@ -4,6 +4,7 @@
 // nest sits on its host. A Size Ray giant is the plot's own look — its frame and its drawing — a hundred plots across, over
 // the whole neighbourhood (a beacon from far away); a tiny plot is the same, a hundredth of one, in a dark hole (with a 🔍).
 // Open Wormholes arc across the world between their ends; tap the vortex to fly through.
+import { Guard } from '../app/Guard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type * as maplibregl from 'maplibre-gl';
 import { newMarker } from '../map/maplib';
@@ -337,8 +338,8 @@ export function EnchantLayer({ ready }: { ready: boolean }) {
   }, []);
 
   return <>
-    <ParasiteWraps ready={ready} attached={(data?.attached ?? []).filter((a) => a.what === 'parasite')} />
-    <MapMarvels ready={ready} />
-    <MapCraft ready={ready} />
+    <Guard name="map:parasites"><ParasiteWraps ready={ready} attached={(data?.attached ?? []).filter((a) => a.what === 'parasite')} /></Guard>
+    <Guard name="map:marvels"><MapMarvels ready={ready} /></Guard>
+    <Guard name="map:craft"><MapCraft ready={ready} /></Guard>
   </>;
 }

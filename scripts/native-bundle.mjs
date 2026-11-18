@@ -31,7 +31,11 @@ for (const f of ['og-image.png']) {
   const after = before
     .replace(/\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '')
     .replace(/\s*<meta (name="(keywords|robots|twitter:[a-z:]+)"|property="og:[a-z:]+")[^>]*>/g, '')
-    .replace(/\s*<link rel="canonical"[^>]*>/g, '');
+    .replace(/\s*<link rel="canonical"[^>]*>/g, '')
+    // the website's text for search engines (shown until its game loads) never shows in the app: the app opens on the
+    // splash, straight into the game
+    .replace(/(<div id="root">)\s*(?:<!--[\s\S]*?-->\s*)?<main[\s\S]*?<\/main>\s*(<\/div>)/, '$1$2');
+  if (/<div id="root">\s*<\/div>/.test(after) === false) throw new Error('native bundle: the website text is still in index.html');
   fs.writeFileSync(f, after);
   saved += before.length - after.length;
 }

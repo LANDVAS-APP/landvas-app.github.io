@@ -20,6 +20,7 @@ import { useMe } from '../lib/queries';
 import { ConfirmProvider, ScreenSkeleton, Spinner, TipProvider } from '../ui';
 import { MaintenanceGate } from './Maintenance';
 import { Shell } from './Shell';
+import { SplashHold, SplashReady } from '../native/SplashHold';
 // the map (and everything heavy that comes with it) only downloads when it's shown: never in simple mode
 const MapScreen = lazy(() => import('../screens/MapScreen').then((m) => ({ default: m.MapScreen })));
 const SimpleHome = lazy(() => import('../simple/SimpleHome'));
@@ -27,12 +28,12 @@ const SimplePlay = lazy(() => import('../simple/SimplePlay'));
 /** The Play tab: in simple mode, just the plot minigames */
 function PlayRoute() {
   const simple = __ui((s) => !!s.settings.simpleMode);
-  return simple ? <Suspense fallback={<div className="absolute inset-0 bg-bg" />}><SimplePlay /></Suspense> : <PlayHub />;
+  return simple ? <Suspense fallback={<div className="absolute inset-0 bg-bg"><SplashHold /></div>}><SimplePlay /></Suspense> : <PlayHub />;
 }
 /** The World tab: the map, or in simple mode the one-screen game */
 function WorldRoute() {
   const simple = __ui((s) => !!s.settings.simpleMode);
-  return <Suspense fallback={<div className="absolute inset-0 bg-bg" />}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
+  return <Suspense fallback={<div className="absolute inset-0 bg-bg"><SplashHold /></div>}>{simple ? <SimpleHome /> : <MapScreen />}</Suspense>;
 }
 import { WatchHost } from '../watch/WatchHost';
 import { FpInside } from '../eyes/FpInside';
@@ -172,7 +173,7 @@ export function useSession() {
 }
 
 function Loading() {
-  if (isNative()) return <ScreenSkeleton />;
+  if (isNative()) return <><SplashHold /><ScreenSkeleton /></>;
   return (
     <div className="flex h-full min-h-[40vh] items-center justify-center">
       <Spinner />
@@ -266,7 +267,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><AwaySync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><FpsMeter /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl />{PreviewTools && <Suspense fallback={null}><PreviewTools /></Suspense>}</>,
+    element: <><SplashReady /><HistoryTracker /><UpdateCountdown /><SessionSync /><AwaySync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><FpsMeter /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl />{PreviewTools && <Suspense fallback={null}><PreviewTools /></Suspense>}</>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

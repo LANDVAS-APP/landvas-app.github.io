@@ -13,6 +13,7 @@ import { capturePartyLink } from './party/link';
 import { initNative } from './native/native';
 import { markBundleReady, recoverFromBrokenBundle } from './native/liveBundle';
 import { TempServerBanner } from './app/TempServerBanner';
+import { AppCrash } from './app/Guard';
 
 if (config.fonts === 'self') {
   void import('@fontsource-variable/unbounded');
@@ -62,7 +63,8 @@ function Root() {
     };
   }, []);
   if (state.status !== 'ready' || !state.App) return <BootScreen error={state.status === 'error' ? state.error : null} />;
-  return <><state.App /><TempServerBanner /></>;
+  // (a crash outside any screen still lands on a calm screen with a way back, never a blank page)
+  return <AppCrash><state.App /><TempServerBanner /></AppCrash>;
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -20,5 +20,10 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+: the LANDVAS mark on the game's night sky (not the phone's default white or grey), held by the
+             SplashScreen plugin until the game's first screen is drawn (hideSplash in src/native/native.ts) -->
+        <item name="windowSplashScreenBackground">@color/landvas_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

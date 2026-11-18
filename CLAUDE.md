@@ -11,6 +11,8 @@ Push only when all of these pass:
 - `npx vitest run` (unit + SQL tests, all green)
 - `npx vite build` (production build)
 - a browser check (Playwright) of any screens you changed
+- for a migration that changes or drops something the apps read: `node scripts/held-build-check.mjs` (see "Apps under
+  store review")
 
 Migrations run on a live database: `scripts/deploy-db.mjs` gives each one a 6 s lock wait and runs it again (it rolled
 back whole) after a deadlock or lock timeout with players' queries. Keep a migration's locks short: no long backfills
@@ -33,6 +35,28 @@ upgrading a native plugin (`@capacitor/*`, `@capgo/*`) changes the apps' compati
 version until they get the new one from the store. The apps never contain admin code (`NATIVE_APP` in
 `src/app/buildFlags.ts`); staff use admin.landvas.app, where Live control sets app versions, maintenance, pages
 switched off and live versions (`game_config` 'app').
+
+## Apps under store review (and every app version out there)
+
+A build sent to Google Play or Apple runs the game code inside it for the whole review (Live control's review hold),
+while every deploy changes the server under it. Nov 18, 2026: Google Play rejected 1.0.0 ("Broken functionality") because
+a migration had stopped returning `walkers`/`coils` from `enchant_map2`, which 1.0.0 iterates — its World map crashed
+into React Router's developer error page. The rules:
+- **Never take a key out of an answer an app version reads.** Retiring a feature: keep the key, always empty (`[]`,
+  `null`, `0`), as `20261120000090_held_app_compat.sql` does. Same for renamed fields: send both names.
+- **`deploy/store-builds.json` lists the builds in the stores' hands** (version, build number, commit). Add a build the
+  moment it's sent for review; set `check: false` once nobody can have it. The deploy's "Apps in the stores' hands" step
+  (`scripts/held-build-check.mjs`) builds each with the new migrations and opens every screen
+  (`tests/e2e/held-build.mjs`); a crash stops the deploy before the migrations reach the live database. Run it yourself
+  before pushing a migration that changes or drops something an app reads.
+- **Crashes stay small** (`src/app/Guard.tsx`): parts of a screen that read the server (map layers, HUD buttons, cards,
+  sheets) sit in a `<Guard name="…">` and step aside on a crash (reported, retried later); a sheet the player opened gets
+  a fallback with Try again (`PartTrouble`), so a tap never does nothing. Every route has `RouteError`; the whole game
+  has `AppCrash`. New map layers and HUD parts go in a `Guard` too.
+- **The launch splash stays up until the first screen is drawn** (`hideSplash`/`holdSplash` in `src/native/native.ts`,
+  `<SplashHold />` in loaders): no website text, boot logo or skeleton flashes by. `launchShowDuration` must stay above 0
+  in `capacitor.config.ts` (0 switches the launch splash off). `node tests/e2e/launch.mjs` checks the launch and that a
+  broken map layer leaves the map working.
 
 ## Keeping phones cool and smooth
 
