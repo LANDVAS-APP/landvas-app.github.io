@@ -25,8 +25,11 @@ on:
         options: [xcode-27, macos-15-intel]
         default: xcode-27
 concurrency:
-  group: native-${{ github.ref }}
-  cancel-in-progress: true
+  # A push's compile check gives way to the next push, but a store release always runs to the end: with one group for
+  # both, a push to `source` while a release was archiving cancelled its App Store upload (Nov 18). A second release
+  # waits for the first instead of cancelling it.
+  group: native-${{ github.ref }}-${{ inputs.release && 'release' || 'check' }}
+  cancel-in-progress: ${{ !inputs.release }}
 env:
   LANDVAS_VERSION_NAME: ${{ inputs.version || '1.0.0' }}
   # every store upload needs a bigger build number than the last
