@@ -5,11 +5,11 @@ import type { EstateMeta } from './meta';
 
 export const DOMAINS: Record<DomainKind, EstateMeta> = {
   museum: {
-    base: 'canvas', name: 'Starlight Museum', one: 'museum', many: 'museums', emoji: '🌌', color: '#6C7BFF', enter: 'Enter the museum', game: 'Constellation',
-    body: 'A museum of the night sky, open after dark', tagline: 'Your art spills into the stars.',
-    long: 'A star foyer, an orrery hall, an aurora wing, a moon gallery, a comet atrium and the Hall of the Cosmos under a glass dome. Draw constellations in one stroke, bottle aurora oil and paint a ceiling of galaxies.',
+    base: 'canvas', name: 'Museum', one: 'museum', many: 'museums', emoji: '🏛️', color: '#6C7BFF', enter: 'Walk into the museum', game: 'Constellation',
+    body: 'Your Gallery grows into a museum at night', tagline: 'Your gallery grows into a museum under the stars.',
+    long: 'Your Studio and Gallery, grown into a museum that’s always at night: up to 7 rooms of your work, a Rotunda under a glass dome, and a Loan Wing for pieces borrowed from other artists. Step inside any painting and walk round it as a pop-up diorama, finding the sparks hidden in it. Once a week, open Exhibition Night: one piece turns in the light at the museum’s heart and every visitor takes its stamp. Constellation is at the star rail.',
     crew: 'Galleries & scopes', make: 'Star studio', market: 'Patron’s salon', book: 'Night catalogue', bookItem: 'wonder',
-    perks: ['Constellation: one unbroken stroke through the stars', 'Six wings up to the Hall of the Cosmos', 'Star telescopes, aurora prisms and a galaxy vault', 'A grander economy: Renown and bottled galaxies'],
+    perks: ['Step inside paintings and find their sparks', 'Borrow other artists’ pieces for the Loan Wing', 'Exhibition Night once a week, with stamps', 'Up to 7 rooms of your own work'],
   },
   sanctuary: {
     base: 'habitat', name: 'Spirit Lake Sanctuary', one: 'sanctuary', many: 'sanctuaries', emoji: '🦢', color: '#3FA7D6', enter: 'Row onto the lake', game: 'Spirit Angler',

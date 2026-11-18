@@ -18,7 +18,8 @@ export type Focus = { at: THREE.Vector3; look: THREE.Vector3; /** what's being f
   (keeping the same angles) so it still fits, and anything between the camera and it gets out of the way */ subject?: THREE.Vector3 };
 export type PlaceSpot = { id: string; x: number; z: number; /** how close counts as "at it" */ r?: number; focus?: Focus; /** not offered right now */ off?: boolean };
 export type CameraRig = { height: number; back: number; look: number; fov: number; /** how far the camera follows you sideways (0 still, 1 fully) */ side: number;
-  /** on a tall (phone) screen: how much further up and back the camera sits, and how many degrees wider it sees, per unit of tallness */ tall?: number; fovTall?: number };
+  /** on a tall (phone) screen: how much further up and back the camera sits, and how many degrees wider it sees, per unit of tallness */ tall?: number; fovTall?: number;
+  /** past this far from the middle (x), the camera follows you fully (a wing off to the side) */ sideSpan?: number };
 export type PlaceWorld = {
   /** the walkable area (walls are solids inside it) */ bounds: Rect;
   start: { x: number; z: number; face?: 1 | -1 };
@@ -45,7 +46,8 @@ export type PlaceKit = {
   emoji(e: string, size: number): THREE.Sprite;
   /** gets out of the way (fades) when it's between the camera and you. Its materials are copied so fading it leaves
       everything else alone, unless `own` (they're its alone already). A mesh's userData.minFade keeps it that visible
-      (a wall's dark top stays as an outline); userData.vanish fades it out completely (a sign's lettering). Things
+      (a wall's dark top stays as an outline); userData.vanish fades it out completely (a sign's lettering); userData.ownAlpha
+      leaves its opacity to its own code (a pulsing glow) and only hides it. Things
       taken out of the scene drop off the list by themselves. */
   fadeable(o: THREE.Object3D, own?: boolean, /** fade it as if it spanned x0..x1 (a picture fades with the wall it hangs on) */ span?: [number, number]): void;
 };
@@ -116,6 +118,8 @@ export function createPlace(o: PlaceOpts) {
 
   const world = o.build(kit);
   const cam: CameraRig = { height: 6.6, back: 5.2, look: 2.4, fov: 50, side: 0.6, tall: 0.24, fovTall: 0, ...world.camera };
+  /** where the camera sits sideways for you at x: part of the way (cam.side) in the middle, fully once you're past sideSpan */
+  const sideX = (x: number, k: number) => { const span = cam.sideSpan ?? Infinity, a = Math.abs(x); return a <= span ? x * k : Math.sign(x) * (span * k + (a - span)); };
   /** how tall the screen is (0 on a wide one) */
   const tallness = () => (camera.aspect < 1 ? 1 / camera.aspect - 1 : 0);
   camera.fov = cam.fov; camera.updateProjectionMatrix();
@@ -358,8 +362,9 @@ export function createPlace(o: PlaceOpts) {
     if (at !== near && !zoom.on) { near = at; o.onNear?.(at); }
     // the camera: up behind you (further back on a tall phone screen), or framing what you're at
     const tall = 1 + tallness() * (cam.tall ?? 0.24);
-    const follow = tmp.set(P.x * cam.side, cam.height * tall, P.z + cam.back * tall);
-    const baseLook = look.set(P.x * (cam.side + (1 - cam.side) * 0.6), 0.9, P.z - cam.look);
+    const camX = sideX(P.x, cam.side), lookX = sideX(P.x, cam.side + (1 - cam.side) * 0.6);
+    const follow = tmp.set(camX, cam.height * tall, P.z + cam.back * tall);
+    const baseLook = look.set(lookX, 0.9, P.z - cam.look);
     zoom.k += ((zoom.on ? 1 : 0) - zoom.k) * Math.min(1, dt * 3.2);
     if (zoom.on && zoom.k > 0.97 && zoom.resolve) { const r = zoom.resolve; zoom.resolve = null; r(); }
     if (zoom.f) {
@@ -407,11 +412,15 @@ export function createPlace(o: PlaceOpts) {
           const mesh = c as THREE.Mesh; if (!mesh.isMesh) return; const m = mesh.material as THREE.Material;
           // (lettering goes all the way: a ghost of a sign reads as writing on the floor)
           const a = mesh.userData.vanish ? Math.max(0, (k - 0.1) / 0.9) : Math.max(k, ((mesh.userData.minFade as number | undefined) ?? 0) * keep);
-          const solid = (mesh.userData.alpha as number | undefined) ?? 1;
-          if (mesh.userData.alpha === undefined) { mesh.userData.alpha = m.transparent ? m.opacity : 1; mesh.userData.wasT = m.transparent; mesh.userData.wasDW = m.depthWrite; }
+          // (something whose own code sets its opacity, a pulsing glow, is only hidden while its wall is out of the way)
+          if (mesh.userData.ownAlpha) { mesh.visible = a > 0.3; return; }
+          // (remember how see-through it was made, before touching it: glass, washes and pools keep their own alpha under
+          // a fade. Kept on the material, which meshes can share: the second mesh mustn't read the first one's fade)
+          const u = m.userData;
+          if (u.alpha === undefined) { u.alpha = m.transparent ? m.opacity : 1; u.wasT = m.transparent; u.wasDW = m.depthWrite; }
           // (an opaque material's shader forces full alpha, so switching it to see-through needs a new shader)
-          const tr = a < 0.99 || !!mesh.userData.wasT; if (tr !== m.transparent) { m.transparent = tr; m.needsUpdate = true; }
-          m.opacity = a * solid; m.depthWrite = a > 0.5 && !!mesh.userData.wasDW; mesh.visible = a > 0.005;
+          const tr = a < 0.99 || !!u.wasT; if (tr !== m.transparent) { m.transparent = tr; m.needsUpdate = true; }
+          m.opacity = a * (u.alpha as number); m.depthWrite = a > 0.5 && !!u.wasDW; mesh.visible = a > 0.005;
         });
       }
     }
@@ -455,10 +464,16 @@ export function createPlace(o: PlaceOpts) {
     /** where you are (for the live room) */ pose: () => ({ x: P.x, z: P.z, face: P.face, moving: P.moving || P.path.length > 0 || !!P.stick }),
     /** put you somewhere (arriving through a door) */ place(x: number, z: number, face?: 1 | -1) {
       P.x = x; P.z = z; P.path = []; if (face) P.face = face;
-      const tl = 1 + tallness() * (cam.tall ?? 0.24); camPos.set(P.x * cam.side, cam.height * tl, P.z + cam.back * tl + 1.2); camLook.set(P.x * cam.side, 0.9, P.z - cam.look);
+      const tl = 1 + tallness() * (cam.tall ?? 0.24); camPos.set(sideX(P.x, cam.side), cam.height * tl, P.z + cam.back * tl + 1.2); camLook.set(sideX(P.x, cam.side), 0.9, P.z - cam.look);
     },
     debug: () => ({ x: P.x, z: P.z, near, path: P.path.length, others: others.size, npcs: npcs.size, zoom: zoom.on,
-      fades: fadeables.map((f) => ({ k: +f.k.toFixed(2), z0: +f.box.min.z.toFixed(2), z1: +f.box.max.z.toFixed(2), x0: +f.box.min.x.toFixed(2), x1: +f.box.max.x.toFixed(2) })), cam: camPos.toArray().map((v) => +v.toFixed(2)) }),
+      fades: fadeables.map((f) => ({ k: +f.k.toFixed(2), z0: +f.box.min.z.toFixed(2), z1: +f.box.max.z.toFixed(2), x0: +f.box.min.x.toFixed(2), x1: +f.box.max.x.toFixed(2) })), cam: camPos.toArray().map((v) => +v.toFixed(2)),
+      /** see-through things under a fade (glass, washes), and how many show more solid than they were made */ ...(() => {
+        let glassy = 0, tooSolid = 0; const which: string[] = [];
+        for (const f of fadeables) f.o.traverse((c) => { const m = (c as THREE.Mesh).isMesh ? (c as THREE.Mesh).material as THREE.Material : null; const a = m?.userData.alpha as number | undefined;
+          if (m && a !== undefined && a < 0.5) { glassy++; if (m.opacity > a + 0.001) { tooSolid++; which.push(`${c.name || c.parent?.name || '?'} ${m.type} #${(m as THREE.MeshBasicMaterial).color?.getHexString?.()} ${a}→${m.opacity.toFixed(2)}`); } } });
+        return { glassy, tooSolid, which };
+      })() }),
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect();
       o.canvas.removeEventListener('pointerdown', pd); window.removeEventListener('pointermove', pm); window.removeEventListener('pointerup', pu); window.removeEventListener('pointercancel', pu);

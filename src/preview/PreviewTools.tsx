@@ -112,7 +112,7 @@ async function land(owner: string, gx: number, gy: number, kind: string, size = 
   return local().db.transaction(async (tx) => {
     await tx.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: owner, role: 'authenticated' })]);
     const { rows: [g] } = await tx.query<{ id: string }>(`insert into canvas_groups (owner_id, name, kind, plot_count, min_gx, min_gy, max_gx, max_gy) values ($1, $2, $3, $4::int, $5::int, $6::int, $7::int, $8::int) returning id`,
-      [owner, kind === 'canvas' ? 'Sketchbook' : 'Preview Gallery', kind, size * size, gx, gy, gx + size - 1, gy + size - 1]);
+      [owner, kind === 'canvas' ? 'Sketchbook' : kind === 'museum' ? 'Preview Museum' : 'Preview Gallery', kind, size * size, gx, gy, gx + size - 1, gy + size - 1]);
     for (let dx = 0; dx < size; dx++) for (let dy = 0; dy < size; dy++) {
       await tx.query(`insert into world_plots (gx, gy, plot_type, rarity, owner_id, claimed_at) values ($1::int, $2::int, 'graphite', 'rare', $3, now())
                       on conflict (gx, gy) do update set owner_id = excluded.owner_id, claimed_at = now()`, [gx + dx, gy + dy, owner]);
@@ -169,6 +169,53 @@ async function setUpMira() {
   return g;
 }
 
+/** my own Museum (an Art Domain, 3×3): 8 paintings hung across two rooms, a piece borrowed from Mira in the Loan Wing,
+    and Mira's own Museum next door with Exhibition Night on (and her asking to borrow one of mine) */
+async function setUpMuseums() {
+  const me = local().current?.userId; if (!me) throw new Error('Sign in first');
+  await setUpMine();
+  const gal = await setUpMira();
+  const [{ id: mira }] = await sql<{ id: string }>(`select owner_id as id from canvas_groups where id = $1`, [gal]);
+  const mine = await sql<{ id: string }>(`select id from canvas_groups where owner_id = $1 and kind = 'museum' and name = 'Preview Museum'`, [me]);
+  if (mine.length) {
+    const [mm] = await sql<{ id: string }>(`select id from canvas_groups where owner_id = $1 and kind = 'museum'`, [mira]);
+    return { mine: mine[0].id, mira: mm.id };
+  }
+  const off = Math.floor(Math.random() * 400);
+  const museum = await land(me, START.gx + off, START.gy + 12, 'museum', 3);
+  const ids: string[] = [];
+  for (let i = 0; i < 8; i++) ids.push(await publish(me, museum, i, i ? 'superseded' : 'published', 500 + i * 13));
+  await as(me, 'art_place', { p_group: museum });
+  await sql(`select private.renown_add($1, 3000, 'preview')`, [me]);
+  for (const item of ['frames:gilt', 'frames:ebony', 'frames:float', 'lights:daylight', 'lights:cool', 'walls:midnight', 'walls:oxblood']) {
+    await as(me, 'gallery_buy', { p_group: museum, p_item: item }).catch(() => {});
+  }
+  await as(me, 'gallery_wall', { p_group: museum, p_room: 2, p_wall: 'oxblood' });
+  const hangs: [string, number, string, string][] = [['r1l1', 0, 'gilt', 'warm'], ['r1r1', 1, 'ebony', 'daylight'], ['r1l2', 2, 'float', 'cool'], ['r1r2', 3, 'gilt', 'warm'],
+    ['r2l1', 4, 'oak', 'warm'], ['r2r1', 5, 'ebony', 'daylight'], ['r2l2', 6, 'gilt', 'warm'], ['r2r2', 7, 'oak', 'cool']];
+  for (const [slot, i, frame, light] of hangs) await as(me, 'gallery_hang', { p_group: museum, p_slot: slot, p_publication: ids[i], p_frame: frame, p_light: light, p_power: 66, p_aim: 0, p_title: null, p_story: PAINTINGS[i].story });
+  // two of Mira's pieces on loan to me
+  const theirs = await sql<{ id: string }>(`select id from artwork_publications where owner_id = $1 order by published_at desc limit 2`, [mira]);
+  await sql(`update artwork_publications set status = 'published' where id = any($1::uuid[])`, [theirs.map((t) => t.id)]);
+  for (const [n, t] of theirs.entries()) {
+    await as(me, 'museum_loan_request', { p_group: museum, p_publication: t.id, p_note: 'For the Loan Wing’s opening' });
+    const [l] = await sql<{ id: number }>(`select id from museum_loans where group_id = $1 and publication_id = $2`, [museum, t.id]);
+    await as(mira, 'museum_loan_answer', { p_loan: l.id, p_yes: true });
+    await as(me, 'gallery_hang', { p_group: museum, p_slot: `w${n + 1}`, p_publication: t.id, p_frame: 'gilt', p_light: 'warm', p_power: 68, p_aim: 0, p_title: null, p_story: null });
+  }
+  // Mira's museum: her pieces, Exhibition Night on, and she'd like to borrow one of mine
+  const mm = await land(mira, START.gx + 920, START.gy + 12, 'museum', 3);
+  const hers: string[] = [];
+  for (const i of [5, 0, 3, 7, 1]) hers.push(await publish(mira, mm, i, hers.length ? 'superseded' : 'published', 700 + i * 5));
+  await as(mira, 'art_place', { p_group: mm });
+  await as(mira, 'gallery_wall', { p_group: mm, p_room: 1, p_wall: 'midnight' });
+  for (const [n, id] of hers.entries()) await as(mira, 'gallery_hang', { p_group: mm, p_slot: ['r1l1', 'r1r1', 'r1l2', 'r1r2', 'r2l1'][n], p_publication: id, p_frame: n % 2 ? 'gilt' : 'ebony', p_light: 'warm', p_power: 70, p_aim: 0, p_title: null, p_story: PAINTINGS[[5, 0, 3, 7, 1][n]].story });
+  await as(mira, 'museum_exhibition_open', { p_group: mm, p_publication: hers[0] });
+  await sql(`update artwork_publications set status = 'published' where id = $1`, [ids[3]]);
+  await as(mira, 'museum_loan_request', { p_group: mm, p_publication: ids[3], p_note: 'It would look perfect beside my koi.' });
+  return { mine: museum, mira: mm };
+}
+
 export default function PreviewTools() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -184,13 +231,21 @@ export default function PreviewTools() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="fixed right-0 top-[38%] z-[60] rounded-l-lg bg-[#FFE14D]/85 px-1 py-2 text-[9px] font-black tracking-wider text-black shadow-lg [writing-mode:vertical-rl]" data-testid="preview-tools">PREVIEW</button>
-      <Dialog open={open} onOpenChange={setOpen} title="🧪 Preview: Art Studio & Gallery" description="Shortcuts for trying this step. They only exist in this offline preview; nothing here touches the live game.">
+      <Dialog open={open} onOpenChange={setOpen} title="🧪 Preview: Studio, Gallery & Museum" description="Shortcuts for trying this step. They only exist in this offline preview; nothing here touches the live game.">
         <div className="grid gap-2">
           <Button variant="rainbow" loading={busy === 'mine'} onClick={() => void go('mine', async () => `/studio/${await setUpMine()}`)} data-testid="pv-mine">🖼️ Give me an Art Estate with 8 paintings</Button>
           <p className="-mt-1 text-[11px] text-muted">Your Studio, the Gallery behind its doors (3 rooms), and 8 of your own pieces to hang. Plus a plain one-plot Studio next door.</p>
           <Button variant="primary" loading={busy === 'mira'} onClick={() => void go('mira', async () => { await setUpMine(); return `/studio/${await setUpMira()}?room=gallery`; })} data-testid="pv-mira">✨ Visit @mira_paints’ Gallery (a show is on)</Button>
           <p className="-mt-1 text-[11px] text-muted">See it as a visitor: walk the show, read the plaques, admire pieces (you both earn Renown).</p>
           <Button variant="secondary" loading={busy === 'studio'} onClick={() => void go('studio', async () => { await setUpMine(); const me = local().current!.userId; const [s] = await sql<{ id: string }>(`select id from canvas_groups where owner_id = $1 and kind = 'canvas' order by created_at desc limit 1`, [me]); return `/studio/${s.id}`; })}>🎨 My plain Studio (one Art plot)</Button>
+          <div className="mt-1 text-[11px] font-black uppercase tracking-wider text-muted">The Museum (Art Domain)</div>
+          <Button variant="rainbow" loading={busy === 'museum'} onClick={() => void go('museum', async () => `/studio/${(await setUpMuseums()).mine}?room=museum`)} data-testid="pv-museum">🏛️ Give me a Museum (3×3) with 8 paintings</Button>
+          <p className="-mt-1 text-[11px] text-muted">Your Museum at night: the Rotunda, 5 rooms, two pieces borrowed from @mira_paints in the Loan Wing. Open Exhibition Night at the plinth; step inside any painting.</p>
+          <Button variant="primary" loading={busy === 'mmuseum'} onClick={() => void go('mmuseum', async () => `/studio/${(await setUpMuseums()).mira}?room=museum`)} data-testid="pv-mira-museum">🌌 Visit @mira_paints’ Museum (Exhibition Night is on)</Button>
+          <p className="-mt-1 text-[11px] text-muted">As a visitor: take the exhibition stamp, step inside her paintings and find their sparks.</p>
+          <Button variant="secondary" loading={busy === 'loans'} onClick={() => void go('loans', async () => { await setUpMuseums(); return '/loans'; })} data-testid="pv-loans">📜 Mira wants to borrow one of my pieces</Button>
+          <Button variant="secondary" loading={busy === 'exnow'} onClick={() => void go('exnow', async () => { await sql(`update museum_exhibitions set opened_at = opened_at - interval '8 days', closes_at = least(closes_at, now() - interval '1 second') where owner_id = $1`, [local().current!.userId]); toast.success('You can open a new Exhibition Night now'); })}>⏩ Let me open another Exhibition Night</Button>
+          <div className="mt-1 text-[11px] font-black uppercase tracking-wider text-muted">Both</div>
           <Button variant="secondary" loading={busy === 'renown'} onClick={() => void go('renown', async () => { await sql(`select private.renown_add($1, 1000, 'preview')`, [local().current!.userId]); toast.success('+1,000 Renown'); })}>✦ Give me 1,000 Renown</Button>
           <Button variant="secondary" loading={busy === 'end'} onClick={() => void go('end', async () => { const n = await sql(`update gallery_halls set show_closes_at = now() - interval '1 second' where owner_id = $1 and show_opened_at is not null returning group_id`, [local().current!.userId]); toast.success(n.length ? 'Your show’s week is up: it closes and pays when you next walk in' : 'You have no show on'); })}>⏩ End my show’s week now</Button>
         </div>

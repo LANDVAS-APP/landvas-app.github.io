@@ -88,7 +88,7 @@ try {
   check('a 2x2 offers its Estate', (await page.locator('[data-testid=estate-card][data-state=offer][data-tier=estate]').count()) === 1);
   // upgrade to the Estate: then the card points on to the Domain
   await page.click('[data-testid=estate-upgrade]');
-  await page.waitForSelector('[data-testid=realm][data-kind=atelier]', { timeout: 20000 }); await page.waitForTimeout(1200);
+  await page.waitForSelector('[data-testid=art-place][data-tier=gallery]', { timeout: 30000 }); await page.waitForTimeout(1200); // the Art Estate is the Gallery
   await page.evaluate(() => window.__landvasNav('/world')); await page.waitForTimeout(1500);
   await clickPlot(START.gx, START.gy);
   await page.waitForSelector('[data-testid=estate-card][data-state=progress][data-tier=domain]', { timeout: 10000 }).catch(() => {});
@@ -111,10 +111,12 @@ try {
   check('…and the land is still the Estate', (await api('myGroups'))[0].kind === 'atelier');
   await page.click('[data-testid=estate-card][data-state=kept] button'); await page.waitForTimeout(300);
   await page.click('[data-testid=estate-upgrade]');
-  await page.waitForSelector('[data-testid=realm][data-kind=museum]', { timeout: 20000 }); await page.waitForTimeout(2500);
-  check('upgrading opens the Starlight Museum', true);
+  // the Art Domain is the Museum now: the Studio and Gallery grown, with its Rotunda through the doors
+  await page.waitForSelector('[data-testid=art-place][data-tier=museum]', { timeout: 30000 }); await page.waitForTimeout(2500);
+  check('upgrading opens the Museum', true);
   const w = (await sql(`select wallet from realm_players where player_id = '${me}' and kind = 'museum'`))[0]?.wallet;
-  check('the first Domain comes with its charter', Number(w?.renown) === 600, JSON.stringify(w));
+  const rn = Number((await sql(`select renown from player_renown where player_id = '${me}'`))[0]?.renown ?? 0);
+  check('the first Domain’s charter moves over as Renown', Number(w?.renown ?? 0) < 1 && rn >= 700, `${JSON.stringify(w)} · ${rn} Renown`);
 
   // the map draws the Domain
   await page.evaluate(() => window.__landvasNav('/world')); await page.waitForTimeout(1200);
@@ -135,12 +137,24 @@ try {
     if (g0.kind !== base && dom !== 'museum') await api('setGroupKind', gid, base);
     const r = await api('setGroupKind', gid, dom);
     await page.evaluate((id) => window.__landvasNav(`/realm/${id}`), r.realm_id);
-    await page.waitForSelector(`[data-testid=realm][data-kind=${dom}]`, { timeout: 20000 }); await page.waitForTimeout(2500);
     const errs0 = errors.length;
+    if (dom === 'museum') {
+      // the Museum's game (Constellation) is at the Rotunda's star rail
+      await page.waitForSelector('[data-testid=art-place][data-tier=museum]', { timeout: 30000 }); await page.waitForTimeout(2500);
+      await shot(`10-${dom}-world`);
+      await page.evaluate(() => window.__landvasPlace.scene.walkTo('rail'));
+      await page.waitForFunction(() => window.__landvasPlace.scene.debug().near === 'rail', null, { timeout: 40000 });
+      await page.click('[data-testid=art-action]');
+      await page.waitForSelector('[data-testid=realm-play], [data-testid=realm-game-canvas]', { timeout: 15000 });
+      if (await page.locator('[data-testid=realm-play]').count()) await page.click('[data-testid=realm-play]');
+      await page.waitForSelector('[data-testid=realm-game-canvas]', { timeout: 10000 });
+    } else {
+    await page.waitForSelector(`[data-testid=realm][data-kind=${dom}]`, { timeout: 20000 }); await page.waitForTimeout(2500);
     await page.click('[data-testid=realm-go-market]'); await page.waitForTimeout(1200); await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     await shot(`10-${dom}-world`);
     await page.click('[data-testid=realm-go-play]'); await page.waitForSelector('[data-testid=realm-play]', { timeout: 10000 });
     await page.click('[data-testid=realm-play]'); await page.waitForSelector('[data-testid=realm-game-canvas]', { timeout: 10000 });
+    }
     await shot(`12-${dom}-intro`);
     await page.waitForTimeout(3400);
     await playFor(13).catch(() => {});

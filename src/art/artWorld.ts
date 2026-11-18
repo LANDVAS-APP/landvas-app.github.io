@@ -8,21 +8,29 @@
 // the Gallery runs from z = 4 - 10(k-1) down to 4 - 10k, the walls at x = ±6, the doorways in the middle.
 import * as THREE from 'three';
 import type { ArtPlace, GalleryHang } from '../backend/types';
-import type { Npc, PlaceKit, PlaceSpot, PlaceWorld, Rect } from '../places/engine';
+import type { Focus, Npc, PlaceKit, PlaceSpot, PlaceWorld, Rect } from '../places/engine';
 import { npcUrl } from '../places/npcs';
 
 export const ROOM_D = 10, HALF_W = 6, WALL_H = 3.6, STUDIO = { z0: 4, z1: 13 };
-export const roomStart = (k: number) => STUDIO.z0 - ROOM_D * (k - 1);
+/** the Museum's Rotunda sits between the Studio and the rooms (they start this much further on) */
+export const ROT_D = 16;
+/** the Museum's Loan Wing: a hall east of the Rotunda, its pieces on the north wall */
+export const LOAN = { x0: 6, x1: 24.6, z0: -0.4, z1: -7.6, first: 8.6, step: 2.9 };
+export const roomStart = (k: number, base: number = STUDIO.z0) => base - ROOM_D * (k - 1);
 export const SLOTS_IN = ['l1', 'l2', 'r1', 'r2'] as const;
 /** where a slot's piece hangs (centre of the picture). Every piece faces you (+z), the way the arcade's cabinets do:
     n = 1 is on the display wall in the middle of the room, n = 2 on the room's far wall, l/r either side of the walkway */
 export const PANEL_AT = 4.6;
-export function slotAt(slot: string) {
+/** where you stand to look at a piece, and how far from there still counts: anywhere from right up against the wall to
+    a few steps back (players stood close and got no Hang button) */
+export const STAND = 1.45, STAND_R = 1.45;
+export function slotAt(slot: string, base: number = STUDIO.z0) {
+  if (slot[0] === 'w') { const n = Number(slot.slice(1)), x = LOAN.first + (n - 1) * LOAN.step, z = LOAN.z1 + 0.17; return { k: 0, side: 1, x, y: 1.72, z, standX: x, standZ: z + STAND }; }
   const k = Number(slot[1]), side = slot[2] === 'l' ? -1 : 1, n = Number(slot[3]);
-  const z0 = roomStart(k), z1 = z0 - ROOM_D;
+  const z0 = roomStart(k, base), z1 = z0 - ROOM_D;
   const z = n === 1 ? z0 - PANEL_AT + 0.18 : z1 + 0.17;
   const x = side * (n === 1 ? 2.95 : 3.65);
-  return { k, side, x, y: 1.72, z, standX: x, standZ: z + 1.75 };
+  return { k, side, x, y: 1.72, z, standX: x, standZ: z + STAND };
 }
 export const WALLS: Record<string, string> = { white: '#EEEAE2', charcoal: '#34343B', sage: '#94AC92', oxblood: '#6A1E29', midnight: '#1E2A4A' };
 export const LIGHTS: Record<string, string> = { warm: '#FFD3A0', daylight: '#FFF4E6', cool: '#C9E2FF', rose: '#FFB0C6', violet: '#C8B0FF' };
@@ -31,6 +39,7 @@ export type ArtWorld = PlaceWorld & {
   /** the walls changed: hang, take down, re-light, re-frame (no rebuild) */ setHall(p: ArtPlace): void;
   /** a little glow on the piece you're standing at */ highlight(slot: string | null): void;
   /** where a slot's piece is, for bursts and the camera */ pieceAt(slot: string): THREE.Vector3;
+  /** the camera square on to a piece, filling the view (looking at it closely) */ viewOf(slot: string): Focus;
   /** try a piece / frame / light on a wall before saving it (null: put the wall back as it is) */ preview(slot: string, h: GalleryHang | null): void;
 };
 
@@ -43,16 +52,29 @@ export type ArtHooks = {
 
 export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | null): Promise<string | null> }, hooks: ArtHooks): ArtWorld {
   const { scene, T } = k;
-  const gallery = p.tier === 'gallery';
+  const gallery = p.tier !== 'studio', museum = p.tier === 'museum';
+  // (the Museum's rooms start past its Rotunda)
+  const base = museum ? STUDIO.z0 - ROT_D : STUDIO.z0;
+  const rs = (k: number) => roomStart(k, base), sa = (slot: string) => slotAt(slot, base);
   const rooms = gallery ? p.hall!.rooms : 0;
-  const zMin = gallery ? roomStart(rooms) - ROOM_D : STUDIO.z0;
-  const shown = gallery ? Math.min(rooms + 1, (p.cfg.rooms_max ?? 5)) : 0; // the next (locked) room shows behind its rope
+  const zMin = gallery ? rs(rooms) - ROOM_D : STUDIO.z0;
+  const roomsMax = museum ? (p.museum?.cfg.rooms_max ?? 7) : (p.cfg.rooms_max ?? 5);
+  const shown = gallery ? Math.min(rooms + 1, roomsMax) : 0; // the next (locked) room shows behind its rope
+  const rotC = STUDIO.z0 - ROT_D / 2; // the Rotunda's centre (z)
 
-  // ---- light: soft sky, a warm sun through the Studio skylight, cooler in the Gallery ------------------------------
-  scene.add(new THREE.HemisphereLight('#FFF3E0', '#3A2E2A', 1.05));
-  scene.add(new THREE.AmbientLight('#ffffff', 0.22));
-  const sun = new THREE.DirectionalLight('#FFE2B8', 1.5); sun.position.set(-6, 14, 16); scene.add(sun);
-  const back = new THREE.DirectionalLight('#DDE6FF', 0.55); back.position.set(5, 10, -30); scene.add(back);
+  // ---- light: soft sky, a warm sun through the Studio skylight, cooler in the Gallery; the Museum is always at night -
+  if (museum) {
+    scene.add(new THREE.HemisphereLight('#C4D0FF', '#2A2238', 0.85));
+    scene.add(new THREE.AmbientLight('#9FB0FF', 0.2));
+    const moon = new THREE.DirectionalLight('#D3DEFF', 1.05); moon.position.set(8, 16, 10); scene.add(moon);
+    // a warm lamp over the Studio's easel
+    const lamp = new THREE.PointLight('#FFC27A', 14, 11, 1.6); lamp.position.set(-1.2, 3.4, 8.6); scene.add(lamp);
+  } else {
+    scene.add(new THREE.HemisphereLight('#FFF3E0', '#3A2E2A', 1.05));
+    scene.add(new THREE.AmbientLight('#ffffff', 0.22));
+    const sun = new THREE.DirectionalLight('#FFE2B8', 1.5); sun.position.set(-6, 14, 16); scene.add(sun);
+    const back = new THREE.DirectionalLight('#DDE6FF', 0.55); back.position.set(5, 10, -30); scene.add(back);
+  }
 
   // ---- floors ------------------------------------------------------------------------------------------------------
   const herring = k.canvasTex(256, 256, (g) => {
@@ -79,10 +101,20 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
     });
     concrete.wrapS = concrete.wrapT = THREE.RepeatWrapping; concrete.repeat.set(3, (shown * ROOM_D) / 4);
     const gf = k.plane(HALF_W * 2, shown * ROOM_D, k.std('#ffffff', { map: concrete, roughness: 0.28, metalness: 0.08 }));
-    gf.rotation.x = -Math.PI / 2; gf.position.set(0, 0.002, STUDIO.z0 - (shown * ROOM_D) / 2); scene.add(gf); floors.push(gf);
+    gf.rotation.x = -Math.PI / 2; gf.position.set(0, 0.002, base - (shown * ROOM_D) / 2); scene.add(gf); floors.push(gf);
+    if (museum) {
+      // the Loan Wing's floor, a shade darker
+      const lf = k.plane(LOAN.x1 - LOAN.x0 + 0.6, LOAN.z0 - LOAN.z1, k.std('#B9B3C8', { map: concrete, roughness: 0.3, metalness: 0.08 }));
+      lf.rotation.x = -Math.PI / 2; lf.position.set((LOAN.x0 + LOAN.x1) / 2, 0.002, (LOAN.z0 + LOAN.z1) / 2); scene.add(lf); floors.push(lf);
+    }
   }
-  // a dark ground beyond the walls, so there's never a hole at the edge of the screen
-  const ground = k.plane(80, 140, k.basic('#141018')); ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -20); scene.add(ground);
+  // a dark ground beyond the walls, so there's never a hole at the edge of the screen (the Museum floats in the night)
+  const starsTex = museum ? k.canvasTex(512, 512, (g) => {
+    g.fillStyle = '#060818'; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 420; i++) { const r = k.rnd() < 0.06 ? 1.6 : 0.8; g.fillStyle = `rgba(${200 + k.rnd() * 55},${210 + k.rnd() * 45},255,${0.25 + k.rnd() * 0.7})`; g.beginPath(); g.arc(k.rnd() * 512, k.rnd() * 512, r, 0, Math.PI * 2); g.fill(); }
+  }) : null;
+  if (starsTex) { starsTex.wrapS = starsTex.wrapT = THREE.RepeatWrapping; starsTex.repeat.set(6, 10); }
+  const ground = k.plane(120, 160, starsTex ? k.basic('#ffffff', { map: starsTex }) : k.basic('#141018')); ground.rotation.x = -Math.PI / 2; ground.position.set(museum ? 8 : 0, -0.02, -20); scene.add(ground);
 
   // ---- walls -------------------------------------------------------------------------------------------------------
   const solids: Rect[] = [];
@@ -134,7 +166,7 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
   if (!gallery) {
     solids.push({ x0: -1.5, x1: 1.5, z0: STUDIO.z0 - 0.15, z1: STUDIO.z0 + 0.15 });
     doorWall.add(wallSign('🔒 Your Gallery', 'Merge 2×2 Art plots to open it', 0, 3.25, STUDIO.z0 + 0.17, 3.0));
-  } else doorWall.add(wallSign('THE GALLERY', `@${p.owner.username}`, 0, 3.25, STUDIO.z0 + 0.17, 2.6));
+  } else doorWall.add(wallSign(museum ? 'THE MUSEUM' : 'THE GALLERY', `@${p.owner.username}`, 0, 3.25, STUDIO.z0 + 0.17, 2.6));
   // (the doors swing out into the Gallery, so they get out of the way on their own)
   k.fadeable(doorWall); k.fadeable(doors);
 
@@ -219,7 +251,7 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
   const locks: { rope: THREE.Group; k: number }[] = [];
   if (gallery) {
     for (let r = 1; r <= shown; r++) {
-      const z0 = roomStart(r), z1 = z0 - ROOM_D, open = r <= rooms;
+      const z0 = rs(r), z1 = z0 - ROOM_D, open = r <= rooms;
       const m = open ? roomWall(r) : wallMat('#2A2630'), room = open ? r : undefined;
       wall(-HALF_W - 0.3, -HALF_W, z1, z0, m, WALL_H, false, { room, cap: galleryCap });
       wall(HALF_W, HALF_W + 0.3, z1, z0, m, WALL_H, false, { room, cap: galleryCap });
@@ -261,21 +293,131 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
       }
     }
     // the end wall
-    const endZ = roomStart(shown) - ROOM_D;
+    const endZ = rs(shown) - ROOM_D;
     wall(-HALF_W, HALF_W, endZ - 0.3, endZ, shown <= rooms ? roomWall(shown) : wallMat('#2A2630'), WALL_H, true, { room: shown <= rooms ? shown : undefined, cap: galleryCap });
+  }
+
+  // ---- the Museum: the Rotunda under its dome of stars, Exhibition Night at its heart, the Loan Wing off its east side -
+  const loanSlots = museum ? Math.min(9, p.museum?.cfg.loan_slots ?? 6) : 0;
+  const museumTaps: { obj: THREE.Object3D; spot: string }[] = [];
+  const holo = new THREE.Group(), holoArt = new THREE.Group(); let holoKey = '';
+  const dome = new THREE.Group(); const domeMats: THREE.MeshBasicMaterial[] = [];
+  let globe: THREE.Mesh | null = null, holoBeam: THREE.Mesh | null = null, chart: THREE.Mesh | null = null;
+  if (museum) {
+    const night = wallMat('#1B2140'), gold = k.std('#D9B24A', { metalness: 0.85, roughness: 0.3 }), marble = k.std('#20243A', { roughness: 0.3, metalness: 0.2 });
+    const pale = k.std('#DCD6E8', { roughness: 0.35, metalness: 0.05 });
+    // the floor: dark marble with a gold compass star and its own little sky
+    const mosaic = k.canvasTex(512, 512, (g) => {
+      const gr = g.createRadialGradient(256, 256, 20, 256, 256, 360); gr.addColorStop(0, '#2A2F55'); gr.addColorStop(1, '#141730'); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,240,200,${0.15 + k.rnd() * 0.5})`; g.beginPath(); g.arc(k.rnd() * 512, k.rnd() * 512, k.rnd() < 0.1 ? 1.8 : 0.9, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = 'rgba(217,178,74,0.85)'; g.lineWidth = 5; g.beginPath(); g.arc(256, 256, 210, 0, Math.PI * 2); g.stroke();
+      g.lineWidth = 2; g.beginPath(); g.arc(256, 256, 196, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = 'rgba(217,178,74,0.9)';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2, long = i % 2 === 0 ? 150 : 90;
+        g.beginPath(); g.moveTo(256 + Math.cos(a) * long, 256 + Math.sin(a) * long);
+        g.lineTo(256 + Math.cos(a + 0.22) * 26, 256 + Math.sin(a + 0.22) * 26); g.lineTo(256, 256); g.lineTo(256 + Math.cos(a - 0.22) * 26, 256 + Math.sin(a - 0.22) * 26); g.closePath(); g.fill();
+      }
+    });
+    const rf = k.plane(HALF_W * 2, ROT_D, k.std('#ffffff', { map: mosaic, roughness: 0.22, metalness: 0.2 }));
+    rf.rotation.x = -Math.PI / 2; rf.position.set(0, 0.003, rotC); scene.add(rf); floors.push(rf);
+    // walls: west whole; east with the Loan Wing's doorway
+    wall(-HALF_W - 0.3, -HALF_W, base, STUDIO.z0, night, WALL_H, false, { cap: galleryCap });
+    wall(HALF_W, HALF_W + 0.3, rotC + 2, STUDIO.z0, night, WALL_H, true, { cap: galleryCap });
+    wall(HALF_W, HALF_W + 0.3, base, rotC - 2, night, WALL_H, true, { cap: galleryCap });
+    // the wall into the Permanent Collection, with its doorway and its name (it gets out of your way once you're through)
+    const pc = new THREE.Group(); scene.add(pc);
+    wall(-HALF_W, -1.6, base - 0.15, base + 0.15, night, WALL_H, true, { add: pc, cap: galleryCap });
+    wall(1.6, HALF_W, base - 0.15, base + 0.15, night, WALL_H, true, { add: pc, cap: galleryCap });
+    wall(-1.6, 1.6, base - 0.15, base + 0.15, night, 0.8, false, { add: pc, cap: galleryCap, y0: WALL_H - 0.8 });
+    pc.add(wallSign('PERMANENT COLLECTION', '', 0, WALL_H - 0.42, base + 0.17, 2.4));
+    k.fadeable(pc);
+    // twelve columns in a ring (gaps at the doors), gold-capped
+    for (let i = 0; i < 12; i++) {
+      const a = ((15 + i * 30) * Math.PI) / 180, x = Math.sin(a) * 5.2, z = rotC + Math.cos(a) * 5.2;
+      const col = new THREE.Group(); col.position.set(x, 0, z); scene.add(col);
+      const shaft = k.cyl(0.26, 0.3, 3.3, pale, 14); shaft.position.y = 1.65; col.add(shaft);
+      const cap = k.cyl(0.38, 0.28, 0.2, gold, 14); cap.position.y = 3.4; col.add(cap);
+      const foot = k.cyl(0.36, 0.38, 0.14, gold, 14); foot.position.y = 0.07; col.add(foot);
+      k.fadeable(col);
+      solids.push({ x0: x - 0.32, x1: x + 0.32, z0: z - 0.32, z1: z + 0.32 });
+    }
+    // the dome: a gold ring on the columns and glass ribs rising to a star at the top (it dims while you're under it)
+    const ringM = new THREE.MeshBasicMaterial({ color: '#E7C566', transparent: true, opacity: 0.7, depthWrite: false }); T(ringM); domeMats.push(ringM);
+    const ring = new THREE.Mesh(T(new THREE.TorusGeometry(5.2, 0.07, 6, 64)), ringM); ring.rotation.x = Math.PI / 2; ring.position.set(0, 3.55, rotC); dome.add(ring);
+    const ribM = new THREE.MeshBasicMaterial({ color: '#BFD2FF', transparent: true, opacity: 0.35, depthWrite: false }); T(ribM); domeMats.push(ribM);
+    for (let i = 0; i < 12; i++) {
+      const a = ((15 + i * 30) * Math.PI) / 180;
+      const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(Math.sin(a) * 5.2, 3.55, rotC + Math.cos(a) * 5.2),
+        new THREE.Vector3(Math.sin(a) * 4.4, 6.6, rotC + Math.cos(a) * 4.4), new THREE.Vector3(0, 7.4, rotC));
+      dome.add(new THREE.Mesh(T(new THREE.TubeGeometry(curve, 14, 0.03, 5)), ribM));
+    }
+    const apexM = new THREE.MeshBasicMaterial({ color: '#FFF4C8', transparent: true, opacity: 0.9, depthWrite: false }); T(apexM); domeMats.push(apexM);
+    const apex = new THREE.Mesh(T(new THREE.OctahedronGeometry(0.22)), apexM); apex.position.set(0, 7.45, rotC); dome.add(apex);
+    scene.add(dome);
+    // Exhibition Night: the plinth at the centre, a beam of light, and the piece turning in it as a hologram
+    holo.position.set(0, 0, rotC); scene.add(holo);
+    const plinth = k.cyl(0.95, 1.05, 0.7, marble, 32); plinth.position.y = 0.35; holo.add(plinth);
+    const rim = new THREE.Mesh(T(new THREE.TorusGeometry(0.97, 0.04, 6, 40)), gold); rim.rotation.x = Math.PI / 2; rim.position.y = 0.7; holo.add(rim);
+    holoBeam = new THREE.Mesh(T(new THREE.CylinderGeometry(0.85, 0.9, 3.6, 32, 1, true)),
+      T(new THREE.MeshBasicMaterial({ color: '#7FE3FF', transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })));
+    holoBeam.position.y = 2.5; holo.add(holoBeam);
+    holoArt.position.y = 2.5; holo.add(holoArt);
+    globe = new THREE.Mesh(T(new THREE.IcosahedronGeometry(0.42, 1)), k.glow('#8FA8FF', 1.1)); globe.position.y = 1.35; holo.add(globe);
+    solids.push({ x0: -1.15, x1: 1.15, z0: rotC - 1.15, z1: rotC + 1.15 });
+    // the star rail on the west side: Constellation, the old Domain game, at a brass rail round a chart of the sky
+    const rail = new THREE.Group(); rail.position.set(-3.6, 0, rotC); scene.add(rail);
+    const arc = new THREE.Mesh(T(new THREE.TorusGeometry(1.1, 0.045, 6, 32, Math.PI)), gold); arc.rotation.set(Math.PI / 2, 0, Math.PI / 2); arc.position.y = 1.0; rail.add(arc);
+    for (const t of [-1, 0, 1]) { const post = k.cyl(0.04, 0.04, 1.0, gold, 8); post.position.set(t === 0 ? -1.1 : 0, 0.5, t * 1.1); rail.add(post); }
+    const chartTex = k.canvasTex(256, 256, (g) => {
+      g.fillStyle = '#0B1030'; g.beginPath(); g.arc(128, 128, 124, 0, Math.PI * 2); g.fill();
+      const pts: [number, number][] = []; for (let i = 0; i < 9; i++) pts.push([40 + k.rnd() * 176, 40 + k.rnd() * 176]);
+      g.strokeStyle = 'rgba(160,200,255,0.75)'; g.lineWidth = 2; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+      for (const [x, y] of pts) { g.fillStyle = '#FFF4C8'; g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = 'rgba(217,178,74,0.9)'; g.lineWidth = 4; g.beginPath(); g.arc(128, 128, 122, 0, Math.PI * 2); g.stroke();
+    });
+    chart = new THREE.Mesh(T(new THREE.CircleGeometry(0.75, 40)), T(new THREE.MeshBasicMaterial({ map: chartTex, transparent: true })));
+    chart.rotation.x = -Math.PI / 2 + 0.5; chart.position.set(-0.2, 1.05, 0); rail.add(chart);
+    const stand = k.cyl(0.12, 0.2, 1.0, marble, 12); stand.position.set(-0.2, 0.5, 0); rail.add(stand);
+    solids.push({ x0: -4.9, x1: -3.0, z0: rotC - 1.2, z1: rotC + 1.2 });
+    // the Loan Wing: a long midnight hall east of the Rotunda, borrowed pieces along its far wall
+    const lw = wallMat('#34406E');
+    // pools of light down the hall, and a lit picture rail along its far wall
+    const hallPool = k.canvasTex(128, 128, (c) => { const gr = c.createRadialGradient(64, 64, 2, 64, 64, 63); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 128, 128); });
+    for (let n = 0; n < loanSlots; n++) {
+      const x = LOAN.first + n * LOAN.step;
+      const pl = k.plane(2.6, 3.2, T(new THREE.MeshBasicMaterial({ map: hallPool, color: '#FFE2B0', transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })));
+      pl.rotation.x = -Math.PI / 2; pl.position.set(x, 0.006, (LOAN.z0 + LOAN.z1) / 2 - 0.6); scene.add(pl);
+    }
+    const railLit = k.box(LOAN.x1 - LOAN.x0 - 1.2, 0.04, 0.06, k.glow('#FFE2B0', 1.2)); railLit.position.set((LOAN.x0 + LOAN.x1) / 2 + 0.3, WALL_H - 0.35, LOAN.z1 + 0.05); scene.add(railLit);
+    wall(LOAN.x0, LOAN.x1, LOAN.z1 - 0.3, LOAN.z1, lw, WALL_H, true, { cap: galleryCap });
+    wall(LOAN.x1, LOAN.x1 + 0.3, LOAN.z1 - 0.3, LOAN.z0 + 0.3, lw, WALL_H, true, { cap: galleryCap });
+    const lsouth = new THREE.Group(); scene.add(lsouth);
+    wall(LOAN.x0 + 0.3, LOAN.x1, LOAN.z0, LOAN.z0 + 0.3, lw, WALL_H, true, { add: lsouth, cap: galleryCap });
+    lsouth.add(wallSign('THE LOAN WING', 'pieces lent by other artists', (LOAN.x0 + LOAN.x1) / 2, WALL_H - 0.5, LOAN.z0 + 0.32, 2.6));
+    k.fadeable(lsouth);
+    // everything east of the Rotunda that isn't the hall is outside
+    solids.push({ x0: HALF_W + 0.3, x1: LOAN.x1 + 1, z0: zMin - 1, z1: LOAN.z1 - 0.3 }, { x0: HALF_W + 0.3, x1: LOAN.x1 + 1, z0: LOAN.z0 + 0.3, z1: STUDIO.z1 + 2 });
+    // the loan desk by the door
+    const ldesk = new THREE.Group(); ldesk.position.set(LOAN.x0 + 1.9, 0, LOAN.z0 - 0.75); scene.add(ldesk);
+    const ltop = k.box(1.6, 0.92, 0.6, k.std('#2B3358', { roughness: 0.4 })); ltop.position.y = 0.46; ldesk.add(ltop);
+    const llip = k.box(1.66, 0.06, 0.66, gold); llip.position.y = 0.95; ldesk.add(llip);
+    const lsign = k.label('Loan desk', '#8FA8FF', { w: 420 }); lsign.position.set(0, 1.6, 0); lsign.scale.multiplyScalar(0.6); ldesk.add(lsign);
+    solids.push({ x0: LOAN.x0 + 1.05, x1: LOAN.x0 + 2.75, z0: LOAN.z0 - 1.1, z1: LOAN.z0 - 0.4 });
+    museumTaps.push({ obj: holo, spot: 'exhibit' }, { obj: rail, spot: 'rail' }, { obj: ldesk, spot: 'loandesk' });
   }
   solids.push(...solidsGallery);
 
   // ---- the piece of the week, on its own easel in the first room ---------------------------------------------------
-  const potw = new THREE.Group(); potw.position.set(-4.3, 0, roomStart(1) - 1.7); potw.visible = false; if (gallery) scene.add(potw);
+  const potw = new THREE.Group(); potw.position.set(-4.3, 0, rs(1) - 1.7); potw.visible = false; if (gallery) scene.add(potw);
   for (const s of [-1, 1]) { const leg = k.box(0.08, 2.4, 0.08, brass); leg.position.set(s * 0.55, 1.16, 0); leg.rotation.z = -s * 0.12; potw.add(leg); }
   const potwBack = k.box(0.07, 2.3, 0.07, brass); potwBack.position.set(0, 1.12, -0.5); potwBack.rotation.x = 0.28; potw.add(potwBack);
   const potwArt = new THREE.Group(); potwArt.position.set(0, 1.62, 0.08); potw.add(potwArt);
   const ribbon = k.label('★ PIECE OF THE WEEK', '#FFE14D', { w: 640 }); ribbon.position.set(0, 2.75, 0.1); ribbon.scale.multiplyScalar(0.55); potw.add(ribbon);
   if (gallery) k.fadeable(potw);
-  const potwSolid: Rect = { x0: -5.1, x1: -3.5, z0: roomStart(1) - 2.25, z1: roomStart(1) - 1.25 };
+  const potwSolid: Rect = { x0: -5.1, x1: -3.5, z0: rs(1) - 2.25, z1: rs(1) - 1.25 };
   // the show banner, hanging in the first room
-  const banner = new THREE.Group(); banner.position.set(4.4, 0, roomStart(1) - 1.5); banner.visible = false; if (gallery) scene.add(banner);
+  const banner = new THREE.Group(); banner.position.set(4.4, 0, rs(1) - 1.5); banner.visible = false; if (gallery) scene.add(banner);
   const bannerMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, side: THREE.DoubleSide }); T(bannerMat);
   const bannerCloth = k.plane(1.2, 2.2, bannerMat); bannerCloth.position.y = 2.2; banner.add(bannerCloth);
   const bannerPole = k.cyl(0.03, 0.03, 1.4, k.std('#D9B24A', { metalness: 0.85, roughness: 0.28 })); bannerPole.rotation.z = Math.PI / 2; bannerPole.position.y = 3.32; banner.add(bannerPole);
@@ -337,13 +479,13 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
   const slots = new Map<string, Slot>();
   const empties = new Map<string, THREE.Group>();
   const emptyGroup = (slot: string) => {
-    const at = slotAt(slot); const g = new THREE.Group(); g.position.set(at.x, at.y, at.z);
+    const at = sa(slot); const g = new THREE.Group(); g.position.set(at.x, at.y, at.z);
     const dash = k.canvasTex(256, 200, (c) => { c.setLineDash([16, 12]); c.strokeStyle = 'rgba(255,255,255,0.6)'; c.lineWidth = 6; c.strokeRect(8, 8, 240, 184); c.font = '900 90px system-ui'; c.fillStyle = 'rgba(255,255,255,0.55)'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('+', 128, 104); });
     const pl = k.plane(2.0, 1.56, k.basic('#ffffff', { map: dash, transparent: true, depthWrite: false })); pl.position.z = 0.02; g.add(pl);
     scene.add(g); k.fadeable(g, true, [-HALF_W, HALF_W]); return g;
   };
   const build = (h: GalleryHang) => {
-    const at = slotAt(h.slot);
+    const at = sa(h.slot);
     const g = new THREE.Group(); g.position.set(at.x, at.y, at.z); scene.add(g);
     const [w, hh] = fit(h.piece.w, h.piece.h);
     const light = LIGHTS[h.light] ?? LIGHTS.warm, pw = h.power / 100;
@@ -367,7 +509,7 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
     const pq = k.plane(0.66, 0.21, k.std('#ffffff', { map: plaqueTex(h.plaque_title || h.piece.title, h.piece.artist), roughness: 0.6 }));
     pq.position.set(w / 2 + edge + 0.42, -hh / 2 + 0.1, 0.02); g.add(pq);
     const glow = k.plane(w + 0.6, hh + 0.6, T(new THREE.MeshBasicMaterial({ color: '#FFE14D', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })));
-    glow.position.z = -0.01; g.add(glow);
+    glow.position.z = -0.01; glow.userData.ownAlpha = true; g.add(glow);
     k.fadeable(g, true, [-HALF_W, HALF_W]);
     return { group: g, glow };
   };
@@ -379,20 +521,50 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
 
   let potwKey = '', last: ArtPlace | null = null, previewing = false;
   const setHall = (pl: ArtPlace, isPreview = false) => {
-    if (pl.tier !== 'gallery' || !pl.hall) return;
+    if (pl.tier === 'studio' || !pl.hall) return;
     if (!isPreview) { last = pl; previewing = false; }
     const want = new Map(pl.hall.hangs.filter((h) => Number(h.slot[1]) <= rooms).map((h) => [h.slot, h]));
-    for (const [slot, s] of slots) if (!want.has(slot) || want.get(slot) && keyOf(want.get(slot)!) !== s.key) { freeGroup(s.group); slots.delete(slot); }
-    for (const [slot, h] of want) if (!slots.has(slot)) { const b = build(h); slots.set(slot, { key: keyOf(h), group: b.group, glow: b.glow, t: 0 }); }
+    for (const [slot, s] of slots) if (!want.has(slot) || want.get(slot) && keyOf(want.get(slot)!) !== s.key) {
+      freeGroup(s.group); slots.delete(slot); const ti = taps.findIndex((t) => t.obj === s.group); if (ti >= 0) taps.splice(ti, 1);
+    }
+    // (tapping a piece walks you up to it)
+    for (const [slot, h] of want) if (!slots.has(slot)) { const b = build(h); slots.set(slot, { key: keyOf(h), group: b.group, glow: b.glow, t: 0 }); taps.push({ obj: b.group, spot: `slot:${slot}` }); }
     // the owner sees where a piece could go
     for (let r = 1; r <= rooms; r++) for (const s of SLOTS_IN) {
       const slot = `r${r}${s}`; const hasEmpty = empties.has(slot), need = pl.mine && !want.has(slot);
       if (need && !hasEmpty) empties.set(slot, emptyGroup(slot));
       if (!need && hasEmpty) { freeGroup(empties.get(slot)!); empties.delete(slot); }
     }
+    for (let n = 1; n <= loanSlots; n++) {
+      const slot = `w${n}`; const hasEmpty = empties.has(slot), need = pl.mine && !want.has(slot);
+      if (need && !hasEmpty) empties.set(slot, emptyGroup(slot));
+      if (!need && hasEmpty) { freeGroup(empties.get(slot)!); empties.delete(slot); }
+    }
     // spots: a hung piece for everyone, an empty wall only for its owner
     for (const sp of spots) if (sp.id.startsWith('slot:')) sp.off = !want.has(sp.id.slice(5)) && !pl.mine;
     if (isPreview) return; // (a preview only changes the walls)
+    // Exhibition Night: the piece turns in the light over the plinth
+    if (museum) {
+      const ex = pl.museum?.exhibition ?? null, hk = ex ? `${ex.no}|${ex.piece.id}` : '';
+      if (hk !== holoKey) {
+        holoKey = hk; for (const c of [...holoArt.children]) { holoArt.remove(c); freeGroup(c as THREE.Group); }
+        if (globe) globe.visible = !ex;
+        if (holoBeam) (holoBeam.material as THREE.MeshBasicMaterial).opacity = ex ? 0.16 : 0.05;
+        if (ex) {
+          const [w, h] = fit(ex.piece.w, ex.piece.h, 2.0, 1.7);
+          const g = new THREE.Group(); holoArt.add(g);
+          const m = new THREE.MeshBasicMaterial({ color: '#D8F6FF', transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false }); T(m);
+          const pic = k.plane(w, h, m); g.add(pic);
+          const scan = k.canvasTex(64, 64, (c) => { for (let y = 0; y < 64; y += 4) { c.fillStyle = 'rgba(120,230,255,0.35)'; c.fillRect(0, y, 64, 1.5); } });
+          scan.wrapS = scan.wrapT = THREE.RepeatWrapping; scan.repeat.set(1, h * 6);
+          const sl = k.plane(w * 1.02, h * 1.02, T(new THREE.MeshBasicMaterial({ map: scan, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })));
+          sl.position.z = 0.01; g.add(sl); g.userData.scan = scan;
+          const edge = new THREE.LineSegments(T(new THREE.EdgesGeometry(T(new THREE.PlaneGeometry(w * 1.04, h * 1.04)))), T(new THREE.LineBasicMaterial({ color: '#7FE3FF' })));
+          g.add(edge);
+          void loadTex(ex.piece.preview_path).then(({ tex }) => { if (tex) { m.map = tex; m.needsUpdate = true; } });
+        }
+      }
+    }
     // each room's wall colour
     for (const { r, m } of painted) (m.material as THREE.MeshStandardMaterial).color.set(WALLS[pl.hall.room_walls?.[String(r)] ?? 'white'] ?? WALLS.white);
     // piece of the week
@@ -434,7 +606,7 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
     const list: Npc[] = [];
     for (let i = 0; i < n; i++) {
       const order = hung.slice().sort((a, b) => ((a.charCodeAt(1) * 7 + a.charCodeAt(3) * 13 + i * 31) % 17) - ((b.charCodeAt(1) * 7 + b.charCodeAt(3) * 13 + i * 31) % 17));
-      const route = order.map((s) => { const at = slotAt(s); return { x: at.standX * 0.86 + (i % 2 ? 0.35 : -0.35), z: at.standZ + ((i % 3) - 1) * 0.5, wait: 3 + ((i * 7 + s.charCodeAt(3)) % 5) }; });
+      const route = order.map((s) => { const at = sa(s); return { x: at.standX * 0.86 + (i % 2 ? 0.35 : -0.35), z: at.standZ + ((i % 3) - 1) * 0.5, wait: 3 + ((i * 7 + s.charCodeAt(3)) % 5) }; });
       if (route.length) list.push({ id: `v${i}`, url: npcUrl(pl.hall.show ? 1000 + i + pl.hall.show.no * 17 : 77, pl.hall.show ? (i === 0 ? 'critic' : 'visitor') : 'artist'), route, speed: 1.1 + (i % 3) * 0.15 });
     }
     hooks.npcs?.(list);
@@ -450,29 +622,40 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
   ];
   if (!gallery) spots.push({ id: 'doors', x: 0, z: 5.0, r: 1.1 });
   if (gallery) {
-    spots.push({ id: 'potw', x: -4.3, z: roomStart(1) - 0.62, r: 0.9, off: true });
+    spots.push({ id: 'potw', x: -4.3, z: rs(1) - 0.62, r: 0.9, off: true });
     for (let r = 1; r <= rooms; r++) for (const s of SLOTS_IN) {
-      const slot = `r${r}${s}`, at = slotAt(slot);
+      const slot = `r${r}${s}`, at = sa(slot);
       // framing a piece: square on, a little above, with it in the top part of the screen (a sheet covers the rest)
       const cx = at.x + 0.3;
-      spots.push({ id: `slot:${slot}`, x: at.standX, z: at.standZ, r: 1.0,
+      spots.push({ id: `slot:${slot}`, x: at.standX, z: at.standZ, r: STAND_R,
         focus: { at: new THREE.Vector3(cx * 0.92, 2.9, at.z + 5.4), look: new THREE.Vector3(cx, 0.3, at.z), subject: new THREE.Vector3(cx, at.y, at.z) } });
     }
-    if (rooms < (p.cfg.rooms_max ?? 5) && shown > rooms) spots.push({ id: `room:${rooms + 1}`, x: 0, z: roomStart(rooms + 1) + 1.2, r: 1.1 });
+    if (rooms < roomsMax && shown > rooms) spots.push({ id: `room:${rooms + 1}`, x: 0, z: rs(rooms + 1) + 1.2, r: 1.1 });
+    if (museum) {
+      spots.push({ id: 'exhibit', x: 0, z: rotC + 1.75, r: 1.1, focus: { at: new THREE.Vector3(0, 3.3, rotC + 6.4), look: new THREE.Vector3(0, 1.4, rotC), subject: new THREE.Vector3(0, 2.5, rotC) } });
+      spots.push({ id: 'rail', x: -2.55, z: rotC + 0.3, r: 1.0 });
+      spots.push({ id: 'loandesk', x: LOAN.x0 + 1.9, z: LOAN.z0 - 1.75, r: 1.0 });
+      for (let n = 1; n <= loanSlots; n++) {
+        const slot = `w${n}`, at = sa(slot), cx = at.x + 0.3;
+        spots.push({ id: `slot:${slot}`, x: at.standX, z: at.standZ, r: STAND_R,
+          focus: { at: new THREE.Vector3(cx, 2.9, at.z + 5.4), look: new THREE.Vector3(cx, 0.3, at.z), subject: new THREE.Vector3(cx, at.y, at.z) } });
+      }
+    }
   }
   const taps: { obj: THREE.Object3D; spot: string }[] = [
     { obj: easel, spot: 'easel' }, { obj: win, spot: 'window' }, { obj: mix, spot: 'mix' }, { obj: desk, spot: 'desk' }, { obj: lect, spot: 'book' },
   ];
   if (!gallery) taps.push({ obj: doors, spot: 'doors' });
   if (gallery) { taps.push({ obj: potw, spot: 'potw' }); for (const l of locks) taps.push({ obj: l.rope, spot: `room:${l.k}` }); }
+  taps.push(...museumTaps);
 
-  let hi: string | null = null;
+  let hi: string | null = null, domeK = 1;
   const world: ArtWorld = {
-    bounds: { x0: -HALF_W, x1: HALF_W, z0: zMin + 0.2, z1: STUDIO.z1 + 0.6 },
+    bounds: { x0: -HALF_W, x1: museum ? LOAN.x1 : HALF_W, z0: zMin + 0.2, z1: STUDIO.z1 + 0.6 },
     start: { x: 0.4, z: 11.6, face: 1 },
     floors, solids, spots, taps,
     // up high and steep (walls between you and the camera cut away), wider and further back on a tall phone screen
-    camera: { height: 7.2, back: 4.9, look: 2.2, fov: 46, side: 0.72, tall: 0.42, fovTall: 5 },
+    camera: { height: 7.2, back: 4.9, look: 2.2, fov: 46, side: 0.72, tall: 0.42, fovTall: 5, sideSpan: HALF_W },
     setHall: (pl) => setHall(pl),
     preview(slot, h) {
       if (!last?.hall) return;
@@ -483,11 +666,27 @@ export function buildArt(k: PlaceKit, p: ArtPlace, urls: { get(path: string | nu
       setHall({ ...last, hall: { ...last.hall, hangs } }, true);
     },
     highlight(slot) { hi = slot; },
-    pieceAt(slot) { const at = slotAt(slot); return new THREE.Vector3(at.x - at.side * 0.2, at.y, at.z); },
-    update(t) {
+    pieceAt(slot) { const at = sa(slot); return new THREE.Vector3(at.x - at.side * 0.2, at.y, at.z); },
+    viewOf(slot) {
+      const at = sa(slot), c = new THREE.Vector3(at.x, at.y + 0.05, at.z);
+      return { at: new THREE.Vector3(at.x, at.y + 0.35, at.z + 3.1), look: c.clone(), subject: c };
+    },
+    update(t, dt, me) {
       for (const [slot, s] of slots) {
         const want = slot === hi ? 0.22 + Math.sin(t * 3.2) * 0.06 : 0; s.t += (want - s.t) * 0.15;
         if (s.glow) (s.glow.material as THREE.MeshBasicMaterial).opacity = s.t;
+      }
+      if (museum) {
+        // the dome dims while you're under it, so it never hides what's below
+        const under = me.z < STUDIO.z0 && me.z > base && Math.abs(me.x) < HALF_W, want = under ? 0.25 : 1;
+        domeK += (want - domeK) * Math.min(1, dt * 4);
+        domeMats.forEach((m, i) => { m.opacity = [0.7, 0.35, 0.9][i] * domeK; });
+        if (!k.reduceMotion) {
+          holoArt.rotation.y = t * 0.45;
+          holoArt.position.y = 2.5 + Math.sin(t * 1.3) * 0.06;
+          const sc = (holoArt.children[0]?.userData.scan as THREE.Texture | undefined); if (sc) sc.offset.y = -t * 0.15;
+          if (globe) globe.rotation.y = t * 0.4;
+        }
       }
       if (!k.reduceMotion) {
         pots.forEach((pt, i) => { pt.position.y = 1.07 + Math.max(0, Math.sin(t * 1.6 + i)) * 0.012; });

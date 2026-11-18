@@ -56,6 +56,9 @@ try {
   await page.click('[data-testid=art-action]');
   await page.waitForSelector("[data-testid=hang-works]", { timeout: 10000 });
   await page.locator('[data-testid=hang-works] button').nth(2).click();
+  const picked = (await api('artPlace', (await page.evaluate(() => window.__landvasPath())).split('/')[2])).works[2].title;
+  const ttl0 = await page.inputValue('[data-testid=hang-title]');
+  check('the plaque starts with the piece’s own title written in', ttl0 === picked, `“${ttl0}” for “${picked}”`);
   await page.fill('[data-testid=hang-title]', 'Wasatch, first light');
   await page.fill('[data-testid=hang-story]', 'Hiked up before dawn for this one.');
   await page.waitForTimeout(800);
@@ -84,6 +87,27 @@ try {
   // the Renown shop
   await walkTo('desk'); await page.click('[data-testid=art-action]'); await page.getByText('✦ Renown shop').click(); await page.waitForSelector('[data-testid=renown-shop]');
   await shot('08-shop'); await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  // right up against the wall still counts as at the wall (players stood close and got no Hang button)
+  const wall = await page.evaluate(() => { const s = window.__landvasPlace.world.spots.find((x) => x.id === 'slot:r1r2'); return { x: s.x, z: s.z }; });
+  await page.evaluate(({ x, z }) => window.__landvasPlace.scene.place(x, z - 1.2, -1), wall);
+  await page.waitForFunction(() => window.__landvasPlace.scene.debug().near === 'slot:r1r2', null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => /Hang a piece/.test(document.querySelector('[data-testid=art-action]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+  await shot('08a-close-to-wall');
+  check('standing right up at a wall offers to hang there', /Hang a piece/.test(await page.locator('[data-testid=art-action]').innerText().catch(() => '')),
+    JSON.stringify(await page.evaluate(() => { const d = window.__landvasPlace.scene.debug(); return { x: d.x, z: d.z, near: d.near, action: document.querySelector('[data-testid=art-action]')?.textContent ?? null }; })));
+  // the floating glass frame shows its picture while you try it, before saving (it showed a white sheet)
+  await page.evaluate(() => window.__landvasBackend.db.query(`select private.renown_add((select id from profiles where username = 'ada_gallery'), 500, 'test')`));
+  await page.evaluate(() => window.__landvasQc.invalidateQueries({ queryKey: ['art-place'] })); await page.waitForTimeout(1200);
+  await page.click('[data-testid=art-action]'); await page.waitForSelector('[data-testid=hang-works]', { timeout: 10000 });
+  await page.locator('[data-testid=hang-works] button').nth(1).click();
+  const glassChip = page.getByRole('button', { name: /Floating glass/ }).first();
+  await glassChip.click(); await page.waitForTimeout(600);
+  if (!/border-accent/.test((await glassChip.getAttribute('class')) ?? '')) { await glassChip.click().catch(() => {}); }
+  await page.waitForTimeout(1500);
+  const glass = await page.evaluate(() => window.__landvasPlace.scene.debug());
+  await shot('08b-float-preview');
+  check('the floating glass frame previews see-through, not white', glass.glassy >= 1 && glass.tooSolid === 0, `${glass.glassy} glassy, ${glass.tooSolid} too solid ${glass.which.join(' | ')}`);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
 
   // ---- someone else's Gallery, as a visitor ----
   await tools('pv-mira');

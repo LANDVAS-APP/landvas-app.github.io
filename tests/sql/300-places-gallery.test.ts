@@ -134,6 +134,10 @@ describe('the Studio and the Gallery', () => {
     expect(s.total).toBe(s.fill + s.plaques + s.light + s.flow + s.frames);
     expect(s.light).toBe(13); // 2 of 3 lit in the gallery range (45-85)
     expect(s.frames).toBe(8);  // two kinds of frame
+    expect(s.plaques).toBe(5); // 1 of 3 has a story: a plaque's title is the piece's own unless given another
+    // (a story with no title of its own counts in full: players found a blank title cost them the plaque)
+    const t = await db.rpc(ana, 'gallery_hang', { p_group: gallery, p_slot: 'r1l1', p_publication: pubs[2], p_frame: 'oak', p_light: 'warm', p_power: 20, p_aim: 0, p_story: 'Just a line' });
+    expect(t.hall.score.plaques).toBe(10);
     expect(s.tips.length).toBeGreaterThan(0);
     await expectError(db.rpc(ana, 'gallery_open_show', { p_group: gallery }), 'show_running');
   });

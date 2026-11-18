@@ -542,7 +542,7 @@ export type Duet = { id: string; prompt: string; status: 'top' | 'waiting' | 'bo
 export type DuetPublic = { id: string; prompt: string; top: Stroke[]; bottom: Stroke[]; done_at: string; painters: Profile[] };
 export type StampInfo = { enabled: boolean; price: number; supply: number; artist_pct: number; collected: number; mine: number | null; recent: Profile[] };
 
-export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join' | 'chat_reply' | 'meet_wave' | 'star'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
+export type Alert = { id: number; kind: 'stamp' | 'visit' | 'checkin' | 'inspire' | 'sketch_vote' | 'note' | 'potd' | 'duet' | 'doodle' | 'friend_request' | 'friend_accept' | 'sanctuary_visit' | 'playdate' | 'warp' | 'base_visit' | 'neighbor' | 'core' | 'ultra_set' | 'enchant' | 'leviathan' | 'power' | 'party_invite' | 'party_join' | 'chat_reply' | 'meet_wave' | 'star' | 'gallery'; data: Record<string, any>; created_at: string; read: boolean; actor: Profile | null };
 export type RoomSocial = {
   visitors: { player: Profile; at: string; checked_in: boolean }[]; visits: number; checkins: number;
   notes: { id: number; body: string; drawing?: BookDrawing | null; at: string; author: Profile; mine: boolean }[]; is_host: boolean;
@@ -1047,7 +1047,7 @@ export type GalleryHang = { slot: string; frame: string; light: string; power: n
 export type GalleryScore = { total: number; fill: number; plaques: number; light: number; flow: number; frames: number; pieces: number; slots: number; tips: string[] };
 export type GalleryShop = Record<string, { name: string; price: number; order: number }>;
 export type ArtPlace = {
-  group_id: string; name: string; kind: 'canvas' | 'atelier' | 'museum'; plots: number; mine: boolean; tier: 'studio' | 'gallery';
+  group_id: string; name: string; kind: 'canvas' | 'atelier' | 'museum'; plots: number; mine: boolean; tier: 'studio' | 'gallery' | 'museum';
   owner: Profile & { explorer_style?: ExplorerStyle | null }; realm_id: string | null; server_time: string;
   mural: { id: string; title: string; preview_path: string | null; w: number; h: number } | null;
   me: { renown: number; unlocks: string[] } | null;
@@ -1061,5 +1061,20 @@ export type ArtPlace = {
   };
   works?: GalleryPiece[];
   closed?: { score: GalleryScore; renown: number; admires: number };
+  /** the Museum (Art Domain) */ museum?: MuseumPart;
+};
+/** a piece lent to a museum (as the artist, the museum's owner or a visitor sees it) */
+export type MuseumLoan = {
+  id: number; status: 'requested' | 'active' | 'declined' | 'ended' | 'expired'; note: string | null; requested_at: string; ends_at: string | null;
+  group_id: string; piece: GalleryPiece; artist: Profile; owner: Profile; slot: string | null;
+};
+export type MuseumPart = {
+  loans: MuseumLoan[]; requests: MuseumLoan[] | null;
+  exhibition: { no: number; piece: GalleryPiece; opened_at: string; closes_at: string; stamps: number; stamped: boolean } | null;
+  next_exhibition_at: string | null; exhibitions: number;
+  /** sparks you've found, by piece */ found: Record<string, number[]>;
+  my_stamps: number;
+  cfg: { loan_slots: number; loan_days: number; secrets_per_piece: number; secret_visitor_renown: number; exhibition_hours: number; exhibition_every_days: number;
+    stamp_visitor_renown: number; rooms_max: number; room_prices: number[]; rooms_start: number };
 };
 export type GalleryCard = { tier: 'studio' } | { tier: 'gallery'; pieces: number; here: number; show: { title: string | null; closes_at: string } | null; piece_of_week: GalleryPiece | null };

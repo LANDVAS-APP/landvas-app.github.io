@@ -130,6 +130,7 @@ const BusinessScreen = lazy(() => import('../business/BusinessScreen'));
 const ArcadeScreen = lazy(() => import('../arcade/ArcadeScreen'));
 const RealmScreen = lazy(() => import('../realms/RealmScreen'));
 const ArtPlaceScreen = lazy(() => import('../art/ArtPlaceScreen'));
+const LoansScreen = lazy(() => import('../art/LoansScreen'));
 // the offline preview build only (a dead branch everywhere else, so it isn't even built into the live game)
 const PreviewTools = import.meta.env.MODE === 'artifact' ? lazy(() => import('../preview/PreviewTools')) : null;
 const ClansScreen = lazy(() => import('../clans/ClansScreen'));
@@ -282,7 +283,7 @@ const routes: RouteObject[] = [
       { path: '/business/:id', element: player(<BusinessScreen />) },
       { path: '/arcade/:id', element: player(<ArcadeScreen />) },
       { path: '/realm/:id', element: player(<RealmScreen />) },
-      { path: '/studio/:groupId', element: player(<ArtPlaceScreen />) },
+      { path: '/studio/:groupId', element: player(<ArtPlaceScreen />) }, { path: '/loans', element: player(<LoansScreen />) },
       { path: '/clan/hall', element: player(<ClanHall />) },
       { path: '/home', element: player(<HomeScreen />) },
       { path: '/u/:username/home', element: player(<HomeScreen />) },

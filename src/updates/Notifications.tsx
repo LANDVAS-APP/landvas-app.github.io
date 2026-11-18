@@ -3,7 +3,7 @@ import { ultraOfRarity } from '../explorer/ultra';
 import { rarityInfo } from '../shared/rarity';
 import { RULES } from '../rarity/powers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CalendarDays, DoorOpen, Hand, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench, CornerUpLeft } from 'lucide-react';
+import { Bell, CalendarDays, DoorOpen, Hand, Heart, LifeBuoy, MapPin, MessageSquareHeart, Newspaper, PawPrint, Rocket, Sparkles, Stamp, Star, Tent, UserCheck, UserPlus, Users, Wrench, CornerUpLeft, Landmark } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -166,6 +166,13 @@ const ALERT: Record<Alert['kind'], { icon: typeof Sparkles; color: string; text(
   duet: { icon: Users, color: '#FF4D6D', text: (a) => <>finished your duet: {a.data.prompt}</>, to: (a) => `/duet/${a.data.duet_id}` },
   doodle: { icon: Sparkles, color: '#FFE14D', text: () => <>guessed your drawing</>, to: () => '/doodle' },
   friend_request: { icon: UserPlus, color: '#22E3FF', text: () => <>sent you a friend request</>, to: () => '/social' },
+  gallery: { icon: Landmark, color: '#7FE3FF',
+    text: (a) => (a.data.sub === 'loan_request' ? <>wants to borrow your “{a.data.title}” for their museum 🏛️ — say yes or no</>
+      : a.data.sub === 'loan_yes' ? <>lent you “{a.data.title}” for your Loan Wing 🏛️ — hang it</>
+      : a.data.sub === 'loan_no' ? <>can’t lend you “{a.data.title}” this time</>
+      : a.data.sub === 'exhibition' ? <>opened ✨ <b>Exhibition Night</b>: “{a.data.title}” — come and take its stamp</>
+      : <>did something in their museum</>),
+    to: (a) => (a.data.sub === 'loan_request' ? '/loans' : a.data.group_id ? `/studio/${a.data.group_id}?room=museum` : null) },
   chat_reply: { icon: CornerUpLeft, color: '#9F8BFF', text: (a) => <>replied to you in the global chat: “{a.data.body}”</>, to: () => '/social?tab=chat' },
   party_invite: { icon: Users, color: '#3DDC97', text: (a) => <>invited you to their party{a.data.name ? <> “{a.data.name}”</> : null} 🎉</>, to: () => '/party' },
   party_join: { icon: Users, color: '#3DDC97', text: () => <>joined you — you’re in a party now 🎉</>, to: () => '/party' },

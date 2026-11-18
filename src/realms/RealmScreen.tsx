@@ -51,6 +51,7 @@ export default function RealmScreen() {
   if (CARNIVAL_KINDS.has(q.data.kind) && q.data.group_id) return <ToArcade group={q.data.group_id} />;
   // the Art Estate is the Studio grown a Gallery: one place, walked into from the Studio's double doors
   if (q.data.kind === 'atelier' && q.data.group_id) return <Navigate to={`/studio/${q.data.group_id}?room=gallery`} replace />;
+  if (q.data.kind === 'museum' && q.data.group_id) return <Navigate to={`/studio/${q.data.group_id}?room=museum`} replace />;
   return <RealmView key={q.data.id} r={q.data} />;
 }
 

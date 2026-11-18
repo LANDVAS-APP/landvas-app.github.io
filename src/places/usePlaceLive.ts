@@ -16,6 +16,10 @@ type Msg = { t: 'pos'; id: string; x: number; z: number; f: number; a: string | 
 export function usePlaceLive(opts: { place: string | null; myId: string | undefined; scene: React.RefObject<PlaceScene | null>; act?: string | null }) {
   const [live, setLive] = useState<PlaceLive | null>(null);
   const ref = useRef(opts); ref.current = opts;
+  const soon = useRef<(() => void) | null>(null);
+  // stepping into (or out of) something that counts on the server (inside a painting) checks in at once
+  const lasting = opts.act?.startsWith('inside:') ? opts.act : null;
+  useEffect(() => { soon.current?.(); }, [lasting]);
   useEffect(() => {
     const place = opts.place, myId = opts.myId;
     if (!place || !myId) return;
@@ -49,6 +53,7 @@ export function usePlaceLive(opts: { place: string | null; myId: string | undefi
       } catch { /* try again next beat */ }
     };
     const p = pulse(beat, () => false);
+    soon.current = () => p.soon(0);
     // your position, a few times a second while it changes (and now and then while it doesn't)
     let lastKey = '', lastAt = 0;
     const tx = setInterval(() => {
@@ -56,7 +61,7 @@ export function usePlaceLive(opts: { place: string | null; myId: string | undefi
       const key = `${ps.x.toFixed(2)},${ps.z.toFixed(2)},${ps.face},${ref.current.act ?? ''}`, now = performance.now();
       if (key !== lastKey || now - lastAt > 6000) { lastKey = key; lastAt = now; ch.send({ t: 'pos', id: myId, x: ps.x, z: ps.z, f: ps.face, a: ref.current.act ?? null }); }
     }, 140);
-    return () => { stopped = true; p.stop(); clearInterval(tx); ch?.close(); ref.current.scene.current?.setOthers([]); void api.placeLeave().catch(() => {}); };
+    return () => { stopped = true; soon.current = null; p.stop(); clearInterval(tx); ch?.close(); ref.current.scene.current?.setOthers([]); void api.placeLeave().catch(() => {}); };
   }, [opts.place, opts.myId]);
   return live;
 }
