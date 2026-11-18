@@ -90,6 +90,7 @@ function creature(p: EnchantMap['plots'][number]) {
     cuckoo: '<i class="lvx-crack"></i>', pandora: '<i class="glow"></i>', splice: '<i class="bub"></i><i class="bub"></i><i class="bub"></i>', clockwork: '<i class="gear">⚙</i>',
     sizeray: '<i class="wave"></i><i class="wave"></i>', shard: '<i class="glint"></i>', wormhole: '<i class="swirl"></i>', oracle: '<i class="lid"></i>',
     stormcoil: '<i class="zap">⚡</i>', sun: '<i class="lvx-ember"></i><i class="lvx-ember"></i>', rod: '<i class="drip"></i>',
+    dejavu: '<i class="lvx-mote"></i><i class="lvx-mote"></i><i class="lvx-mote"></i>',
     spyglass: '<i class="lvx-lens"></i>', origami: '<i class="lvx-fold"></i>', crucible: '<i class="lvx-ember"></i><i class="lvx-ember"></i><i class="lvx-ember"></i>',
     puppeteer: '<i class="lvx-string"></i><i class="lvx-string"></i>', deck: '<i class="lvx-card"></i>', glyph: '<i class="lvx-rune">ᚱ</i>',
   };

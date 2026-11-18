@@ -64,7 +64,9 @@ export type MapSun = { id: string; i: number; gx: number; gy: number; r_m: numbe
   flare_until: number | null; until: number; party: boolean; mine: boolean; owner_name: string | null; spots: [number, number][]; reflected: boolean };
 export type MapStorm = { id: string; gx: number; gy: number; mine: boolean; owner_name: string | null; at: number; until: number;
   bolts: { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; on_mine: boolean }[]; caught: number[] };
-export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: number;
+/** 🫙 a moment a Déjà Vu let out of its jar: an uncorked Hot Zone (or Solar Flare) burning on the map */
+export type MapEcho = { id: string; i: number; t: 'hotzone' | 'flare'; gx: number; gy: number; r_m: number; um: number; flare: boolean; until: number; mine: boolean; owner_name: string | null };
+export type EnchantMap2 = { suns: MapSun[]; storms: MapStorm[]; server_now: number; echoes?: MapEcho[];
   /** 🦢 your folded plots riding along with your explorer (their powers work from where you are) */
   carried?: { gx: number; gy: number; rarity: string; at: [number, number] | null; kind: string | null }[] };
 /** 🎭 one act of a Puppeteer's show: the real game, on strings (decided when the curtain rose) */

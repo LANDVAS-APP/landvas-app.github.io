@@ -1,10 +1,10 @@
-// The twenty enchantments, their splice Traits, the 171 hybrids and the seven evils — a client mirror of the server's
+// The twenty-one enchantments, their splice Traits, the 190 hybrids and the seven evils — a client mirror of the server's
 // private.ench_info / private.ench_hybrid / private.pandora_evils (the server is authoritative).
 //
 // Plain words everywhere: a splice "gene" is a Trait, a "resonant" pair is a Perfect Match, and every hybrid card says
 // what each side actually gets, with numbers.
 export type EnchantKind = 'goose' | 'genie' | 'map' | 'parasite' | 'cuckoo' | 'pandora' | 'splice' | 'clockwork' | 'sizeray' | 'shard' | 'wormhole' | 'oracle'
-  | 'stormcoil' | 'spyglass' | 'origami' | 'crucible' | 'puppeteer' | 'deck' | 'glyph' | 'sun' | 'rod';
+  | 'stormcoil' | 'spyglass' | 'origami' | 'crucible' | 'puppeteer' | 'deck' | 'glyph' | 'sun' | 'rod' | 'dejavu';
 
 export type KindInfo = {
   id: EnchantKind; name: string; emoji: string; a: string; b: string; ink: string;
@@ -32,7 +32,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     gene: 'spread', geneName: 'Spreading', geneText: 'earns 15% more Ink and drops a gift of Ink on a random player' },
   cuckoo: { id: 'cuckoo', name: 'Cuckoo Egg', emoji: '🥚', a: '#4CC9F0', b: '#F72585', ink: '#06222C', noun: 'hatching',
     tagline: 'The Cuckoo flew away and left you an egg. You choose what hatches.',
-    how: ['Pick what hatches: the Spyglass, the Origami Pocket, the Crucible, the Puppeteer, the Fated Deck, the Glyphcaster, the Pocket Sun or the Dowsing Rod.', 'It keeps your Cuckoo’s level, XP, Stars, nickname and chronicle.'],
+    how: ['Pick what hatches: the Spyglass, the Origami Pocket, the Crucible, the Puppeteer, the Fated Deck, the Glyphcaster, the Pocket Sun, the Dowsing Rod or Déjà Vu.', 'It keeps your Cuckoo’s level, XP, Stars, nickname and chronicle.'],
     gene: null, geneName: null, geneText: null },
   pandora: { id: 'pandora', name: 'Pandora’s Box', emoji: '🏺', a: '#FF4D6D', b: '#2A0A3D', ink: '#1A0410', noun: 'opening the box',
     tagline: 'Lift the lid. Gifts — or one of seven evils.',
@@ -42,7 +42,7 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
     tagline: 'Fuse enchantments into living hybrids.',
     how: ['Swap: two of your enchantments trade Traits for 24 hours. Graft: one lends its Trait at double strength, and sleeps. Chimera: both doubled, with a roar every 3 hours (sometimes unstable).',
       'Trinity: three at once (two charges). Or splice with a friend’s enchantment, or with one of your plots.',
-      '171 hybrids, 33 of them Perfect Matches (Traits doubled) — and a few secret Aberrations. Charges come back over time (more plots, more charges).'],
+      '190 hybrids, 36 of them Perfect Matches (Traits doubled) — and a few secret Aberrations. Charges come back over time (more plots, more charges).'],
     gene: null, geneName: null, geneText: null },
   clockwork: { id: 'clockwork', name: 'Clockwork', emoji: '⚙️', a: '#D4A373', b: '#6C584C', ink: '#20170E', noun: 'bending time',
     tagline: 'Wind it up. Then bend time.',
@@ -135,15 +135,28 @@ export const KINDS: Record<EnchantKind, KindInfo> = {
       'At full depth the next roll IS the target. Full depth is 3× the target’s natural wait (4× for a specific pick) — shown on the dial before you choose.',
       'Anything better than the target is still yours. A natural hit the rod holds back pushes it 10% deeper. Only your most recently tuned rod dowses.'],
     gene: 'divining', geneName: 'Divining', geneText: 'divines one outcome of its own luck: harder each time, certain in the end' },
+  dejavu: { id: 'dejavu', name: 'Déjà Vu', emoji: '🫙', a: '#C4B5FD', b: '#38BDF8', ink: '#0F0A2A', noun: 'moments that happen twice',
+    tagline: 'Catch a moment in a jar. Let it happen again — whenever you like.',
+    how: ['While something special is happening near you — the day’s Hot Zone, a Solar Flare, the Leviathan’s Weak Spot, a storm’s lightning, a falling star, your Golden Hour — swipe the jar through it and twist the lid shut.',
+      'Uncork it later, anywhere: the Hot Zone becomes your own Déjà Vu zone (ultras ×2.5 for 15 minutes), a Flare a zone where claims keep the better of two rolls, a Weak Spot hits everyone again, a bolt mutates one of your hybrids, a star falls into your hand, a Golden Hour starts again.',
+      'The jar holds 3 moments. Each fades as it waits — full strength to half over 7 days, then it’s gone — and each Hot Zone, storm, shower or weak moment can be caught once.'],
+    gene: 'preserved', geneName: 'Preserved', geneText: 'the good it makes lasts 1.5× longer, and the bad on it passes 1.5× sooner' },
 };
 export const KIND_ORDER: EnchantKind[] = ['goose', 'genie', 'map', 'parasite', 'pandora', 'splice', 'clockwork', 'sizeray', 'shard', 'wormhole', 'oracle', 'stormcoil',
-  'spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod'];
+  'spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod', 'dejavu'];
 /** what a Cuckoo Egg can hatch into */
-export const HATCHABLE: EnchantKind[] = ['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod'];
+export const HATCHABLE: EnchantKind[] = ['spyglass', 'origami', 'crucible', 'puppeteer', 'deck', 'glyph', 'sun', 'rod', 'dejavu'];
 export const kindInfo = (k: string | null | undefined): KindInfo => KINDS[(k ?? 'goose') as EnchantKind] ?? KINDS.goose;
 
-/** the 171 hybrids: [name, Perfect Match] (mirrors private.ench_hybrids) */
+/** the 190 hybrids: [name, Perfect Match] (mirrors private.ench_hybrids) */
 export const HYBRIDS: Record<string, [string, boolean]> = {
+  'dejavu+goose': ['Preserved Egg', false], 'dejavu+genie': ['Wish in a Jar', false], 'dejavu+map': ['Jarred Map', false],
+  'dejavu+parasite': ['Specimen Jar', false], 'dejavu+pandora': ['Bottled Evil', true], 'clockwork+dejavu': ['Time in a Bottle', true],
+  'dejavu+sizeray': ['Jarred Giant', false], 'dejavu+shard': ['Bottled Reflection', false], 'dejavu+wormhole': ['Bottleneck', false],
+  'dejavu+oracle': ['Jar of Omens', false], 'dejavu+sun': ['Sunjar', false], 'dejavu+rod': ['Deep Jar', false],
+  'dejavu+stormcoil': ['Lightning in a Bottle', true], 'dejavu+spyglass': ['Ship in a Bottle', false], 'dejavu+origami': ['Folded Moment', false],
+  'crucible+dejavu': ['Jar of Embers', false], 'dejavu+puppeteer': ['Encore Jar', false], 'deck+dejavu': ['Card in a Jar', false],
+  'dejavu+glyph': ['Bottled Spell', false],
   'map+rod': ['Divining Map', true], 'map+sun': ['Sunstone Map', false], 'rod+sun': ['Sunwell', true],
   'deck+map': ['Fortune’s Map', false], 'deck+rod': ['Wand Card', false], 'deck+sun': ['The Sun Card', true],
   'genie+map': ['Cartographer Djinn', false], 'genie+rod': ['Djinn of Wells', false], 'genie+sun': ['Djinn of Noon', false],
@@ -238,6 +251,7 @@ export const TRAITS: Record<string, TraitInfo> = {
   charged: { name: 'Charged', emoji: '⚡', text: (k) => `builds static with every use; at ${[12, 9, 6][k - 1]} it arcs to ${3 * k} of your plots nearby: their minigames ×1.25 for an hour` },
   radiant: { name: 'Radiant', emoji: '☀️', text: (k) => `carries a tiny sun (${40 * k} m): your claims near its plot roll ultras ×${1 + 0.5 * k}, and its timers run ${10 * k}% faster` },
   divining: { name: 'Divining', emoji: '🪄', text: () => 'divines one outcome of its own luck — harder each time, certain at full depth' },
+  preserved: { name: 'Preserved', emoji: '🫙', text: (k) => `the good it makes lasts ${1 + 0.5 * k}× longer, and the bad on it passes ${1 + 0.5 * k}× sooner` },
   // what a plot lends the enchantment spliced with it
   inspired: { name: 'Inspired', emoji: '🎨', text: () => 'earns 20% more Ink (your canvas inspires it)', mult: () => 1.2 },
   wild: { name: 'Wild', emoji: '🐾', text: () => 'earns 10% more Ink and levels up twice as fast', mult: () => 1.1 },
@@ -256,12 +270,14 @@ export const PAYS_FROM: Record<EnchantKind, string> = {
   sizeray: 'micro-gems and parasites it shrinks', shard: 'whatever it reflects', wormhole: 'what you catch coming through it', oracle: 'each prophecy that comes true',
   stormcoil: 'the bolts you catch in its storms', spyglass: 'the sighted plots you claim', origami: 'every plot it unfolds', crucible: 'every plot it forges up a tier',
   puppeteer: 'its puppet shows', deck: 'the cards that pay Ink', glyph: 'the glyphs that pay Ink', sun: 'the plots claimed in its light', rod: 'the sightings it walks you to',
+  dejavu: 'the falling stars it lets out of the jar',
 };
 /** what Farsight stretches on each kind that reaches for something on the map */
 const REACHES: Partial<Record<EnchantKind, string>> = {
   map: 'it picks up pieces and digs from twice as far', wormhole: 'its far end can be twice as far away', puppeteer: 'its strings reach plots twice as far away',
   spyglass: 'it looks twice as far', origami: 'it unfolds plots twice as far from you', stormcoil: 'its storms reach neighbours twice as far', glyph: 'its Vortex pulls chests in from twice as far',
   sun: 'it lights suns twice as far from you', rod: 'its Divining Walk goes twice as far',
+  dejavu: 'it catches moments and uncorks zones twice as far from you',
 };
 /** the chores a Strings puppet does on each kind */
 const CHORES: Partial<Record<EnchantKind, string>> = {
@@ -274,11 +290,18 @@ const GOLD_GIVES: Partial<Record<EnchantKind, string>> = {
   genie: 'a wish', oracle: 'a gaze', spyglass: 'a look', puppeteer: 'a string', glyph: '2 mana', origami: 'a fold', sizeray: 'a shot', splice: 'a spare Splice charge',
   deck: 'another card today', goose: '2 hours of egg', wormhole: 'an opening now', map: 'a new map now', sun: 'another sun today', shard: 'a gaze now',
   clockwork: '30 wound minutes', stormcoil: '30% charge', crucible: '20 Heat', pandora: 'another opening today', parasite: '4 hours of feeding', rod: 'a little depth',
+  dejavu: 'every moment in the jar a day fresher',
 };
 /** what repeats by itself with Echo (mirrors private.echo_acts) */
 const ECHOES: Partial<Record<EnchantKind, string>> = {
   goose: 'collecting the egg happens', genie: 'its wish is made', oracle: 'its gaze happens', spyglass: 'a look is taken nearby', glyph: 'its last spell is cast',
   deck: 'another card is turned', stormcoil: 'its crank turns', clockwork: 'its key winds', sun: 'its stoke happens', pandora: 'the lid lifts',
+};
+/** what Preserved keeps longer (and lets pass sooner) on each kind (mirrors private.dv_preserve_buff) */
+const PRESERVES: Partial<Record<EnchantKind, { good?: string; bad?: string }>> = {
+  sizeray: { good: 'the giant and tiny plots it makes' }, origami: { good: 'its creases and its Paper Shield' }, deck: { good: 'its glows and the Tower' },
+  glyph: { good: 'its wards, Leaf spells, glows and Bolts' }, puppeteer: { good: 'its Grand Show' }, stormcoil: { good: 'the charge its bolts leave on your plots' },
+  pandora: { bad: 'the curses it lets out' },
 };
 /** what Divining can aim at on each kind (mirrors private.div_targets) */
 const DIVINES: Partial<Record<EnchantKind, string>> = { goose: 'a Platinum egg', splice: 'an Aberration', crucible: 'a strike that lands', deck: 'The World' };
@@ -296,7 +319,7 @@ const INK_GENES = new Set(['seek', 'inspired', 'wild', 'fertile', 'invested', 's
 export const TRAIT_CHIP: Record<string, string> = {
   golden: 'Golden', grow: 'Giant', chaos: 'Chaos', seek: 'Seeking', spread: 'Spreading', echo: 'Echo', linked: 'Linked', foresight: 'Foresight',
   wish: 'Wished', trick: 'Tempered', farsight: 'Farsight', folded: 'Folded', strings: 'Strings', fated: 'Fated', inscribed: 'Inscribed', inspired: 'Inspired', wild: 'Wild', fertile: 'Fertile', invested: 'Invested', streak: 'Arcade streak', homely: 'At home',
-  charged: 'Charged', radiant: 'Radiant', divining: 'Divining',
+  charged: 'Charged', radiant: 'Radiant', divining: 'Divining', preserved: 'Preserved',
 };
 export type TraitHere = { gene: string; k: number; name: string; emoji: string; text: string;
   /** what you have to do for it (null: it works by itself) */ you: string | null;
@@ -334,6 +357,11 @@ export function traitHere(gene: string | null | undefined, k: number, kind: stri
   if (gene === 'echo') text = ECHOES[me] ? `${['once', 'twice', 'three times'][s - 1]} a day, ${ECHOES[me]} again by itself a minute later — free` : `${['once', 'twice', 'three times'][s - 1]} a day a mirror ghost pays its last reward again, a minute later`;
   if (gene === 'radiant') text = `its plot carries a tiny sun, ${40 * s} m across: your claims there roll ultras ×${1 + 0.5 * s}, and its timers run ${10 * s}% faster in the warmth`;
   if (gene === 'divining') { text = `pick one outcome of its luck — ${DIVINES[me] ?? 'a Splice spark from its rewards'}: harder each time, certain at full depth`; you = 'Choose what it divines below'; }
+  if (gene === 'preserved') {
+    const f = `${1 + 0.5 * s}×`, g = PRESERVES[me];
+    text = g ? `${g.good ? `${g.good} last ${f} longer` : ''}${g.good && g.bad ? ', and ' : ''}${g.bad ? `${g.bad} pass ${f} sooner` : ''} — and the Leviathan’s trample and storm scorches on its plot wash off ${f} sooner`
+      : `nothing it makes needs to last, so it guards its plot: the Leviathan’s trample and storm scorches there wash off ${f} sooner`;
+  }
   return { gene, k: s, name: t.name, emoji: t.emoji, text, you, on };
 }
 /** what a plot's minigames get when an enchantment is spliced into it (mirrors private.ench_minigame_mult) */
@@ -341,7 +369,7 @@ export const PLOT_GETS: Record<string, string> = {
   golden: 'its minigames pay 1.5× Ink', grow: 'its minigames pay 2× Ink', chaos: 'its minigame wins are a gamble: 0.5× to 2.5×', seek: '1 in 4 wins pays 1.5×',
   spread: 'its minigames pay 15% more', echo: '35% of wins pay double', wish: 'its minigames pay 25% more', trick: 'its minigames pay 20% more',
   tempo: 'its minigames pay 30% more', linked: 'its minigames pay 40% more', foresight: 'its minigames pay 20% more',
-  radiant: 'its minigames pay 20% more', divining: '15% of wins are divined: ×2', charged: 'its minigames pay 25% more',
+  radiant: 'its minigames pay 20% more', divining: '15% of wins are divined: ×2', charged: 'its minigames pay 25% more', preserved: 'its minigames pay 15% more',
   farsight: 'its minigames pay 15% more', folded: 'its minigames pay 10% more', strings: 'its minigames pay 15% more', fated: '1 in 10 wins pays double', inscribed: 'its minigames pay 10% more',
 };
 export const PLOT_TRAIT: Record<string, string> = { canvas: 'inspired', habitat: 'wild', farm: 'fertile', business: 'invested', arcade: 'streak' };
@@ -349,7 +377,7 @@ export const plotTrait = (kind: string | null | undefined) => PLOT_TRAIT[kind ??
 const ADJ: Record<string, [string, string]> = { goose: ['Golden', 'Hen'], genie: ['Wishing', 'Djinn'], map: ['Treasure', 'Atlas'], parasite: ['Hungering', 'Worm'],
   cuckoo: ['Hatching', 'Egg'], pandora: ['Cursed', 'Box'], clockwork: ['Ticking', 'Engine'], sizeray: ['Giant', 'Titan'], shard: ['Mirrored', 'Glass'],
   wormhole: ['Warped', 'Gate'], oracle: ['All-Seeing', 'Eye'], splice: ['Spliced', 'Chimera'],
-  stormcoil: ['Charged', 'Storm'], sun: ['Radiant', 'Sun'], rod: ['Divining', 'Wand'],
+  stormcoil: ['Charged', 'Storm'], sun: ['Radiant', 'Sun'], rod: ['Divining', 'Wand'], dejavu: ['Twice-Lived', 'Jar'],
   spyglass: ['Far-Seeing', 'Spyglass'], origami: ['Folded', 'Crane'], crucible: ['Molten', 'Anvil'], puppeteer: ['Strung', 'Marionette'], deck: ['Fated', 'Card'], glyph: ['Runic', 'Glyph'] };
 const PLOT_NOUN: Record<string, string> = { canvas: 'Canvas', habitat: 'Habitat', farm: 'Farm', business: 'Shop', arcade: 'Arcade', home: 'House', landlord: 'Manor', train: 'Station',
   plane: 'Airfield', base: 'Plot', mine: 'Mine', sky: 'Sky Isle', workshop: 'Workshop', diner: 'Diner', dungeon: 'Dungeon', brawl: 'Arena' };
@@ -426,9 +454,10 @@ export const TITLES: Record<string, string> = {
   'Big Bang': 'Fired 50 times', Colossus: 'Made 10 plots giant', 'Ant-Maker': 'Made 10 plots tiny', Prankster: 'Pranked 10 players', 'Seven Years': 'Shattered the glass', 'Many Faces': 'Made 20 reflections',
   Gatekeeper: 'Opened the wormhole 5 times', Worldwalker: 'Linked plots 1,000 km apart', Constellation: 'Reached level 10',
   Seer: '10 prophecies came true', 'Fate-Weaver': 'Rewrote fate 10 times (an Oracle), or collected all 22 cards (a Fated Deck)',
-  'Codex Complete': 'Discovered all 171 hybrids', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
+  'Codex Complete': 'Discovered all 190 hybrids', Stormcaller: 'Called 10 storms', 'Lightning Hands': 'Caught 50 bolts',
   Sunkeeper: 'Lit 10 suns', Corona: '5 PERFECT Solar Flares', Sunspotter: 'Claimed 10 sunspots', Diviner: 'Brought up its first target',
   'Deep Diviner': 'Dowsed a Mythic, an Ultra or a Primordial', Lodefinder: 'Brought up 10 targets',
+  'Moment-Catcher': 'Caught 10 moments in the jar', 'Twice-Lived': 'Uncorked 10 moments', 'Bottled Lightning': 'Uncorked 5 bolts of lightning',
   Galvanist: 'Made an Aberration with lightning',
   'Eagle-Eye': 'Took 50 looks', Prospector: 'Claimed 10 plots it sighted', 'Far-Seer': 'Sighted a Legendary or better',
   'Paper Crane': 'Unfolded 10 plots', 'Thousand Cranes': 'Unfolded 100 plots', 'Far-Folder': 'Unfolded a plot 100 km away',

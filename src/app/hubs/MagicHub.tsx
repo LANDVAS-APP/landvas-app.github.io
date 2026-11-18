@@ -1,5 +1,5 @@
 // The app's Magic hub: everything about enchantments in one place — what you own and what's ready, your Enchanted
-// odds, Stars to ★5, Splice, the Clockwork's Rewind, badges, the Leviathan, and all twenty kinds to collect.
+// odds, Stars to ★5, Splice, the Clockwork's Rewind, badges, the Leviathan, and all twenty-one kinds to collect.
 import { useQuery } from '@tanstack/react-query';
 import { Award, BookOpen, Dna, DoorOpen, Library, Sparkles, WandSparkles } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -14,7 +14,7 @@ import { Dialog } from '../../ui';
 import { HeroButton, HubCard, HubH2, HubHero, HubJump, HubLearn, HubPage, NewTag, rise } from './HubKit';
 
 /** the newest kinds wear a NEW tag */
-const NEWEST: EnchantKind[] = ['sun', 'rod', 'puppeteer', 'glyph'];
+const NEWEST: EnchantKind[] = ['dejavu', 'sun', 'rod', 'puppeteer'];
 
 export default function MagicHub() {
   const mine = useMyEnchantments();

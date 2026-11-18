@@ -74,7 +74,7 @@ describe('⭐ stars to five', () => {
 
   it('five powers for every kind; ★5 pays +50%', async () => {
     const r = await db.sql(`select k, jsonb_array_length(private.ench_star_powers(k)) n from unnest(private.ench_kinds()) k`);
-    expect(r).toHaveLength(20);
+    expect(r).toHaveLength(21);
     for (const x of r) expect(x.n).toBe(5);
     const s = await enchant(ann, 'spyglass'); await setStars(s, 5);
     const p = (await db.sql(`select private.ench_pay($1, 100, 'test') p`, [s]))[0].p;

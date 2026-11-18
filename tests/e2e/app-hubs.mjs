@@ -110,8 +110,8 @@ async function signUp(page, tag) {
     check('Magic: its own screen', await page.locator('[data-testid=magic-hub]').count() === 1);
     await page.waitForFunction(() => document.querySelector('[data-testid=magic-owned] b')?.textContent !== '–', null, { timeout: 15000 }).catch(() => {});
     check('…counts your enchantments', (await page.locator('[data-testid=magic-owned] b').innerText()) === '2');
-    check('…and the kinds you have', (await page.locator('[data-testid=magic-kinds] b').innerText()) === '2/20');
-    check('…all twenty kinds to collect', await page.locator('[data-testid=magic-kinds-grid] .lvh-kind').count() === 20);
+    check('…and the kinds you have', (await page.locator('[data-testid=magic-kinds] b').innerText()) === '2/21');
+    check('…all twenty-one kinds to collect (Déjà Vu too)', await page.locator('[data-testid=magic-kinds-grid] .lvh-kind').count() === 21);
     check('…the ones you have aren’t locked', await page.locator('[data-testid=magic-kind-sun]:not(.locked)').count() === 1 && await page.locator('[data-testid=magic-kind-genie].locked').count() === 1);
     check('…six feature cards (Stars, Splice, Rewind, Badges, Leviathan, On my land)', await page.locator('[data-testid=magic-cards] .lvh-card').count() === 6);
     await shot('03-magic');
@@ -149,7 +149,7 @@ async function signUp(page, tag) {
     await nav('/new', 2000);
     check('What’s new: its own screen', await page.locator('[data-testid=whats-new]').count() === 1);
     check('…the latest features, each with Try', await page.locator('[data-testid=whats-new-highlights] [data-testid=whats-new-highlight]').count() >= 10);
-    check('…the newest first: Explorer’s Eyes', /Explorer’s Eyes/.test(await page.locator('[data-testid=whats-new-highlight]').first().innerText()));
+    check('…the newest first: Déjà Vu', /Déjà Vu/.test(await page.locator('[data-testid=whats-new-highlight]').first().innerText()));
     await shot('06-whats-new');
     await page.locator('[data-testid=whats-new-highlight]').filter({ hasText: 'Ultra Expansion' }).click(); await page.waitForTimeout(1500);
     check('…Try takes you there', (await path_()) === '/ultras', await path_());

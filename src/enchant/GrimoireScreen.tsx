@@ -316,7 +316,7 @@ function Visitors({ list, loading }: { list: EnchantVisitor[]; loading: boolean 
 }
 
 // ---- every kind -----------------------------------------------------------------------------------------------------
-/** all twenty kinds as tiles: tap one to read what it does (it opens across the row) */
+/** all twenty-one kinds as tiles: tap one to read what it does (it opens across the row) */
 function Bestiary({ data }: { data: Awaited<ReturnType<typeof api.enchantBestiary>> | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   const owned = KIND_ORDER.filter((id) => (data?.kinds.find((x) => x.kind === id)?.mine ?? 0) > 0).length;
@@ -630,7 +630,7 @@ function SceneMood({ v }: { v: EnchantView }) {
 const WORKS_ON: Record<string, string[]> = {
   goose: ['its own egg'], genie: ['you'], map: ['plots nearby', 'the map'], parasite: ['other players’ plots'], pandora: ['you'], splice: ['your enchantments', 'your plots', 'friends'],
   clockwork: ['your other enchantments'], sizeray: ['any plot on the map'], shard: ['others’ enchantments'], wormhole: ['two of your plots'], oracle: ['your rolls', 'a friend’s roll'],
-  stormcoil: ['your hybrids', 'your plots'], sun: ['any spot on the map', 'your plots', 'your party'], rod: ['your plot rolls', 'spots near you'], spyglass: ['unclaimed plots on the map'], origami: ['your plots', 'free spots on the map'],
+  stormcoil: ['your hybrids', 'your plots'], sun: ['any spot on the map', 'your plots', 'your party'], rod: ['your plot rolls', 'spots near you'], dejavu: ['moments near you', 'spots on the map', 'your hybrids', 'the Leviathan'], spyglass: ['unclaimed plots on the map'], origami: ['your plots', 'free spots on the map'],
   crucible: ['your plots'], puppeteer: ['other players’ plots'], deck: ['your day'], glyph: ['your plots', 'your enchantments', 'the Leviathan'], cuckoo: ['what it hatches into'],
 };
 const SECTIONS = [['play', '✨', 'Play'], ['traits', '🧬', 'Traits'], ['stars', '⭐', 'Stars'], ['story', '📜', 'Story'], ['how', '❓', 'How']] as const;
@@ -847,6 +847,9 @@ const EV: Record<string, (d: any) => string> = {
   ignited: (d) => `☀️ Lit a ${d.mode === 'orbit' ? 'sun in orbit' : 'Pocket Sun'}, ${d.r} m across`, snuffed: () => '🌑 Stoked too hot — the sun snuffed out', doused: () => '💧 Doused the sun',
   flared: (d) => `🌞 A ${d.grade} Solar Flare (${d.s} s)`, tuned: (d) => `🪄 Tuned to ${d.name} (full depth in ${Number(d.need).toLocaleString()} rolls)`,
   dowsed: (d) => `💧 Dowsed ${d.name}${d.how === 'forced' ? ' at full depth' : ''}!`, rod_slip: (d) => `🫗 Held back a ${d.name} — ${Math.round((100 * d.depth) / Math.max(1, d.need))}% deep`,
+  scooped: (d) => `🫙 Caught ${d.name ?? 'a moment'} in the jar${d.from ? ` (${d.from})` : ''}`,
+  uncorked: (d) => `🫙 Uncorked ${d.name ?? 'a moment'} at ${d.pct ?? 100}% — ${d.zone ? (d.zone.flare ? 'a Flare zone' : `a Déjà Vu zone, ultras ×${d.zone.um}`) : d.lev ? `${d.lev.label ?? 'a weak moment'} again for ${d.lev.secs} s` : d.bolt ? (d.bolt.what === 'aberration' ? `it struck and made ${d.bolt.aberration}!` : `it struck a hybrid (${d.bolt.what})`) : d.stars ? `${d.stars.n} stars fell` : d.golden ? `a Golden Hour again (${d.golden.uses} wins)` : 'it happened again'}${d.double ? ' · half stayed in the jar' : ''}`,
+  poured: (d) => `🫙 Poured ${d.name ?? 'a moment'} out of the jar`,
   walked: (d) => (d.found ? `🚶 Walked the map and twitched over a ${d.rarity} spot` : '🚶 Walked the map — nothing today'),
   gold_egg: (d) => `🪿 Cracked a golden egg: ${d.what ?? `+${d.ink} Ink`}${d.spark ? ' — and a Splice spark' : ''}`,
   chaos_box: (d) => (d.good ? `🏺 A chaos box: ${d.label}` : d.dodged ? '🏺 A chaos box hiccup — dodged' : '🏺 A chaos box hiccup: its clock stopped for an hour'),

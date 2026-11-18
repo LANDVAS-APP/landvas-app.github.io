@@ -17,6 +17,7 @@ import { HubH2, HubHero, HubPage, HubRow, rise } from './HubKit';
 
 /** the newest features and where to find them */
 export const HIGHLIGHTS: { emoji: string; title: string; sub: string; to: string; tone: DiscTone }[] = [
+  { emoji: '🫙', title: 'Déjà Vu', sub: 'A new enchantment: catch a moment in a jar — the Hot Zone, a Weak Spot, lightning — and let it happen again', to: '/magic', tone: 'violet' },
   { emoji: '👁️', title: 'Explorer’s Eyes', sub: 'Stand where your explorer is, in 3D: the real streets, buildings and sky', to: '/eyes', tone: 'teal' },
   { emoji: '🎭', title: 'The Puppeteer plays itself', sub: 'Every string plays its 10 levels on its own — up to 10 strings', to: '/magic', tone: 'violet' },
   { emoji: '🎉', title: 'Parties & open play', sub: 'Party up anywhere, join anyone online, chat on the map and in arcades', to: '/together', tone: 'emerald' },
@@ -24,7 +25,7 @@ export const HIGHLIGHTS: { emoji: string; title: string; sub: string; to: string
   { emoji: '💬', title: 'Global chat everywhere', sub: 'A Global tab first in every chat box, popping up over whoever said it', to: '/social?tab=chat', tone: 'teal' },
   { emoji: '🌋', title: 'The Ultra Expansion', sub: '9 land-changing ultras, Ultra Fusions and the Primordials', to: '/ultras', tone: 'gold' },
   { emoji: '⚡', title: 'Godrolls & Ascend', sub: 'Claims where every roll is an ultra, and Ink that pushes a rarity up', to: '/ultras', tone: 'ember' },
-  { emoji: '🔮', title: '20 enchantments, Stars to ★5', sub: 'Pocket Sun, Dowsing Rod, Clockwork Rewind and 130+ badges', to: '/magic', tone: 'violet' },
+  { emoji: '🔮', title: '21 enchantments, Stars to ★5', sub: 'Déjà Vu, Pocket Sun, Dowsing Rod, Clockwork Rewind and 140+ badges', to: '/magic', tone: 'violet' },
   { emoji: '💌', title: 'Referral tiers & invite cards', sub: 'Real friends climb tiers; pick how your invite link looks', to: '/invite', tone: 'rose' },
   { emoji: '👑', title: 'Crown shares', sub: 'A Crown earns 1% of its kingdom — Ink or rent, your pick', to: '/royalty', tone: 'gold' },
   { emoji: '🌍', title: 'Worlds button', sub: 'From the map: Home, your best place of each kind, Space or the Inkborn', to: '/world', tone: 'azure' },

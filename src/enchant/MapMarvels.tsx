@@ -16,17 +16,23 @@ import { mapHandle } from '../map/mapHandle';
 import { newMarker } from '../map/maplib';
 import { cellCenter } from '../shared/grid';
 import { feel } from './living';
+import './scenes/dejavu.css';
 
 const SUN_ZOOM = 13.5;
 const STORM_ZOOM = 12.5;
 const ZZ = '<svg class="zz" viewBox="0 0 30 220" aria-hidden="true"><path d="M15 0 L4 92 L14 92 L2 220 L28 70 L17 70 L26 0 Z" fill="#E8F6FF" stroke="#7DF9FF" stroke-width="2"/></svg>';
+const ring = (gx: number, gy: number, m: number) => {
+  const [lng, lat] = cellCenter(gx, gy);
+  const dLat = m / 111_320, dLng = m / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: 49 }, (_, i) => { const a = (i / 48) * Math.PI * 2; return [lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat]; });
+};
+/** 🫙 each moment a Déjà Vu let out of its jar, as a circle on the map */
+function echoGeo(list: NonNullable<EnchantMap2['echoes']>) {
+  return { type: 'FeatureCollection', features: list.map((z) => ({ type: 'Feature', properties: { c: z.flare ? '#FDE68A' : '#A78BFA' },
+    geometry: { type: 'Polygon', coordinates: [ring(Number(z.gx), Number(z.gy), Number(z.r_m))] } })) };
+}
 /** each sun's zone as a circle on the map */
 function sunGeo(list: EnchantMap2['suns']) {
-  const ring = (gx: number, gy: number, m: number) => {
-    const [lng, lat] = cellCenter(gx, gy);
-    const dLat = m / 111_320, dLng = m / (111_320 * Math.cos((lat * Math.PI) / 180));
-    return Array.from({ length: 49 }, (_, i) => { const a = (i / 48) * Math.PI * 2; return [lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat]; });
-  };
   return { type: 'FeatureCollection', features: list.map((z) => ({ type: 'Feature', properties: { c: z.tier === 'nova' ? '#FF5CDB' : z.tier === 'white' ? '#BDE6FF' : z.tier === 'hot' ? '#FF5E3A' : '#FFB703', flare: !!z.flare },
     geometry: { type: 'Polygon', coordinates: [ring(Number(z.gx), Number(z.gy), Number(z.r_m))] } })) };
 }
@@ -87,6 +93,24 @@ export function MapMarvels({ ready }: { ready: boolean }) {
       map.addSource('lv-suns', { type: 'geojson', data: sunGeo(data.suns ?? []) as any });
       map.addLayer({ id: 'lv-suns-fill', type: 'fill', source: 'lv-suns', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['get', 'flare'], 0.28, 0.14] } });
       map.addLayer({ id: 'lv-suns-line', type: 'line', source: 'lv-suns', paint: { 'line-color': ['get', 'c'], 'line-width': 2.5, 'line-opacity': 0.85, 'line-dasharray': [3, 1.5] } });
+    }
+    // 🫙 moments let out of a Déjà Vu jar: an uncorked Hot Zone or Solar Flare, burning for a little while
+    for (const z of data.echoes ?? []) {
+      const tag = `${z.flare ? '🌞 Flare again' : `🫙 Déjà Vu ×${Number(z.um)}`}${z.mine ? '' : ` · @${esc(z.owner_name)}`}`;
+      const node = wrap(`<span class="lv-echo-mk${z.flare ? ' flare' : ''}"><i class="jar">🫙</i><b class="tag">${tag}</b></span>`, 'lv-em-echo', () => {
+        if (z.mine) nav(`/grimoire/${z.id}`);
+      });
+      node.dataset.testid = 'map-echo';
+      add(far, cellCenter(Number(z.gx), Number(z.gy)), node);
+    }
+    if (map.getSource('lv-echoes')) (map.getSource('lv-echoes') as maplibregl.GeoJSONSource).setData(echoGeo(data.echoes ?? []) as any);
+    else if (data.echoes?.length) {
+      // (only the style itself has to be ready, not every tile: a slow or offline tile doesn't keep the ring away)
+      try {
+        map.addSource('lv-echoes', { type: 'geojson', data: echoGeo(data.echoes) as any });
+        if (!map.getLayer('lv-echoes-fill')) map.addLayer({ id: 'lv-echoes-fill', type: 'fill', source: 'lv-echoes', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': 0.16 } });
+        if (!map.getLayer('lv-echoes-line')) map.addLayer({ id: 'lv-echoes-line', type: 'line', source: 'lv-echoes', paint: { 'line-color': ['get', 'c'], 'line-width': 2.5, 'line-opacity': 0.9, 'line-dasharray': [1, 1.2] } });
+      } catch { /* the style is still loading: the next refresh (20 s) adds it */ }
     }
     // 🎒 plots folded in your Origami pocket, carried on your GPS: their powers work from where you stand
     for (const c of data.carried ?? []) {
@@ -159,7 +183,8 @@ export function MapMarvels({ ready }: { ready: boolean }) {
         }
       }, 120);
     }
-    return () => { map.off('zoom', vis); clearInterval(timer); [...near, ...far].forEach((m) => m.remove()); if (map.getSource('lv-suns')) (map.getSource('lv-suns') as maplibregl.GeoJSONSource).setData(sunGeo([]) as any); };
+    return () => { map.off('zoom', vis); clearInterval(timer); [...near, ...far].forEach((m) => m.remove()); if (map.getSource('lv-suns')) (map.getSource('lv-suns') as maplibregl.GeoJSONSource).setData(sunGeo([]) as any);
+      if (map.getSource('lv-echoes')) (map.getSource('lv-echoes') as maplibregl.GeoJSONSource).setData(echoGeo([]) as any); };
   }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

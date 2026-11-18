@@ -28,7 +28,7 @@ export function WhatsNewRibbon() {
       <span className="e" aria-hidden>{first ? richOf(first).emoji : '✨'}</span>
       <span className="min-w-0 flex-1">
         <span className="k">What’s new{unread ? ` · ${unread} new` : ''}</span>
-        <span className="t">{first?.title ?? 'Parties, the Ultra Expansion, 20 enchantments and more'}</span>
+        <span className="t">{first?.title ?? 'Déjà Vu, parties, the Ultra Expansion, 21 enchantments and more'}</span>
       </span>
       {unread > 0 && <span className="lvh-newtag !ml-0">NEW</span>}
       <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />

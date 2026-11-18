@@ -75,16 +75,17 @@ describe('the Ouroboros and the Homunculus leave', () => {
     expect((await db.sql(`select count(*)::int n from pg_proc where proname like 'ouro\\_%' or proname like 'homu\\_%' or proname = 'endless_renew'`))[0].n).toBe(0);
     await expectError(db.sql(`update enchantments set kind = 'ouroboros' where id = $1`, [ouro]), 'enchantments_kind_check');
   });
-  it('still twenty kinds, 171 hybrids (33 Perfect Matches), every one with a Trait and a Leviathan move', async () => {
+  // (still twenty after this part; Déjà Vu made it twenty-one, with 19 more hybrids — see 510-dejavu)
+  it('twenty-one kinds, 190 hybrids (36 Perfect Matches), every one with a Trait and a Leviathan move', async () => {
     const ks = (await db.sql(`select private.ench_kinds() k`))[0].k as string[];
-    expect(ks).toHaveLength(20);
+    expect(ks).toHaveLength(21);
     expect(ks).toEqual(expect.arrayContaining(['sun', 'rod']));
     expect(ks).not.toContain('ouroboros');
     const r = (await db.sql(`select count(*)::int n, count(*) filter (where (private.ench_hybrid(a, b) ->> 1)::boolean)::int p
                                from unnest(private.ench_kinds()) a, unnest(private.ench_kinds()) b where a < b and a <> 'splice' and b <> 'splice'
                                 and private.ench_hybrid(a, b) ->> 0 <> 'Chimera'`))[0];
-    expect(r).toEqual({ n: 171, p: 33 });
-    expect((await db.sql(`select private.ench_hybrid_count() n`))[0].n).toBe(171);
+    expect(r).toEqual({ n: 190, p: 36 });
+    expect((await db.sql(`select private.ench_hybrid_count() n`))[0].n).toBe(190);
     for (const kd of ks.filter((x) => x !== 'splice')) {
       expect((await db.sql(`select private.ench_info($1) ->> 'gene' g, private.lev_move($1) ->> 0 m`, [kd]))[0]).toMatchObject({ g: expect.any(String), m: expect.any(String) });
     }

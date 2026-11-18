@@ -21,6 +21,7 @@ const STARS: Record<string, string[]> = {
   splice: ['Spare Coil: Holds one more charge', 'Long Graft: Every splice lasts 50% longer', 'Quaternion: Splice four at once: a Quad (3 charges)', 'Quick Coil: Charges come back twice as fast', 'Eternal Bond: Splices never wear off — until you make the next one'],
   sun: ['Corona: Its zone is 50% wider', 'Long Day: A sun burns 12 hours, not 6', 'Binary Star: Two suns at once — and two a day', 'Solar Wind: White-hot never burns fuel faster, and your party claims at your full boost', 'Supernova: A sun that burns out white-hot goes supernova: 15 minutes at ×6 over twice the ground'],
   rod: ['Supple Fork: Full depth comes 15% sooner', 'Deep Well: Retuning keeps half of how deep it was', 'Divining Walk: Once a day it walks the map near you and twitches over a spot that would read as its target', 'Forked Rod: Two targets at once', 'Lodestar: Tuning stops making rolls harder, depth grows twice as fast, and it can seek any Primordial'],
+  dejavu: ['Wide Neck: The jar holds 4 moments, not 3', 'Good Cork: Moments fade over 14 days, not 7', 'Double Take: Once a day, an uncorked moment leaves half of itself in the jar', 'Vintage: Every moment comes out of the jar 50% stronger', 'Eternal Moment: Moments never fade — and the zones you uncork are shared with your party'],
   stormcoil: ['Twin Storms: One more storm a day', 'Ball Lightning: Every bolt you catch pays double', 'Eye of the Storm: Missed bolts never scorch, and Aberrations strike twice as often', 'Superstorm: Storms bring 30 bolts and last 4 minutes', 'Thunder God: Every bolt you catch over your own plot charges it ×1.25 for an hour'],
   spyglass: ['Wide Lens: Holds 4 looks, and they come back faster', 'Long Glass: Looks reach 3 km instead of 1 km', 'Second Sight: Once a day, take a second reading of a sighted plot and keep the better one', 'Panorama: A look reads the plot and every free plot around it', 'Eagle Eye: Looks reach 10 km, and Second Sight works twice a day'],
   origami: ['Deep Pocket: Holds 3 folded plots', 'Paper Crane: Unfold up to 50 km from your explorer', 'Living Fold: Fold an enchanted plot, creature and all', 'Thousand Cranes: Unfold anywhere on Earth, and folds come back twice as fast', 'Grand Fold: Unfolding pays triple, and a carried plot’s powers reach twice as far'],
@@ -33,7 +34,7 @@ const MOVE: Record<string, string> = {
   goose: 'Egg Bomb', genie: 'Wish of Ruin', map: 'Buried Cannon', parasite: 'Leech', pandora: 'Unleash an Evil', splice: 'Chimera Strike', clockwork: 'Freeze Time',
   sizeray: 'Shrink Ray', shard: 'Reflect the Roar', wormhole: 'Pull Through', oracle: 'Foretell the Weak Spot',
   stormcoil: 'Lightning Strike', spyglass: 'Weak Spot', origami: 'Paper Shield', crucible: 'Molten Pour', puppeteer: 'Tangle', deck: 'The Tower', glyph: 'Thunder Glyph',
-  sun: 'Sunburst', rod: 'Divine',
+  sun: 'Sunburst', rod: 'Divine', dejavu: 'Déjà Vu',
 };
 
 const seedOf = (k: string) => [...k].reduce((s, ch) => (s * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -86,7 +87,7 @@ export const enchant: Chapter = {
     {
       id: 'kinds', emoji: '📚', title: `The ${KIND_ORDER.length} kinds`,
       summary: 'Every kind, what it does, and the Trait it lends when spliced.',
-      keys: 'golden goose genie treasure map parasite symbiote pandora box splice clockwork size ray mirror shard wormhole oracle eye storm coil spyglass origami pocket crucible puppeteer fated deck glyphcaster pocket sun dowsing rod kinds list ouroboros homunculus',
+      keys: 'golden goose genie treasure map parasite symbiote pandora box splice clockwork size ray mirror shard wormhole oracle eye storm coil spyglass origami pocket crucible puppeteer fated deck glyphcaster pocket sun dowsing rod deja vu déjà vu jar moments kinds list ouroboros homunculus',
       body: () => (
         <>
           <div className="grid gap-3">
@@ -136,7 +137,7 @@ export const enchant: Chapter = {
     },
     {
       id: 'splice', emoji: '🧪', title: 'Splice: making hybrids',
-      summary: 'The Splice enchantment fuses two (or more) enchantments so each wears the other’s Trait. 171 hybrids to discover.',
+      summary: 'The Splice enchantment fuses two (or more) enchantments so each wears the other’s Trait. 190 hybrids to discover.',
       keys: 'splice hybrid swap graft chimera trinity quad friend plot perfect match aberration codex charges',
       body: () => (
         <>
@@ -190,7 +191,7 @@ export const enchant: Chapter = {
     {
       id: 'traits', emoji: '🧬', title: 'Every Trait',
       summary: 'Every Trait does its own thing when it’s spliced onto a partner: here is each one at normal, Perfect Match and Aberration strength.',
-      keys: 'traits genes golden eggs giant chaos boxes seeking spreading spores echo wishing tempered farsight folded strings fated inscribed tempo linked foresight charged radiant divining trait tools',
+      keys: 'traits genes golden eggs giant chaos boxes seeking spreading spores echo wishing tempered farsight folded strings fated inscribed tempo linked foresight charged radiant divining preserved trait tools',
       body: () => {
         const genes = [...new Set(KIND_ORDER.map((k) => KINDS[k].gene).filter((g): g is string => !!g))];
         return (

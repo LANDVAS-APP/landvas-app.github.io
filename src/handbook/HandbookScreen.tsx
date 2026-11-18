@@ -49,7 +49,7 @@ const START: { to: string; t: string; s: string; c: string }[] = [
 ];
 const POPULAR: [string, string][] = [
   ['/handbook/roll#rarities', '💎 Rarity odds'], ['/handbook/luck#rerolls', '🍀 How Luck works'], ['/handbook/luck#hot', '🔥 Hot Zone'], ['/handbook/rent#boost', '⚡ The ×20 boost'],
-  ['/handbook/strategy#perday', '📊 Best Ink sources'], ['/handbook/roll#ultras', '🌌 Every ultra'], ['/handbook/enchant#kinds', '🔮 The 20 enchantments'], ['/handbook/places#travel', '✈️ Flying anywhere'],
+  ['/handbook/strategy#perday', '📊 Best Ink sources'], ['/handbook/roll#ultras', '🌌 Every ultra'], ['/handbook/enchant#kinds', '🔮 The 21 enchantments'], ['/handbook/places#travel', '✈️ Flying anywhere'],
   ['/handbook/strategy#combos', '🔗 Best combos'], ['/handbook/strategy#mistakes', '🚫 Mistakes to avoid'],
 ];
 

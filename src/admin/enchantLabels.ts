@@ -27,6 +27,24 @@ export const GLOBAL: Record<string, Label> = {
 };
 
 export const LABELS: Record<string, Record<string, Label>> = {
+  dejavu: {
+    cap: { label: 'Moments the jar holds', hint: '★1 Wide Neck holds one more.', unit: 'n', group: 'The jar' },
+    fade_d: { label: 'A moment fades over', hint: 'From full strength to half, then it’s gone. ★2 Good Cork: twice as long; ★5: never.', unit: 'd', group: 'The jar' },
+    range_m: { label: 'Storms and star showers it can catch, and zones it uncorks, within', hint: 'Storms and showers: of your explorer. Zones: of your explorer or any of your plots. Farsight stretches it.', unit: 'm', group: 'The jar' },
+    vintage_x: { label: '★4 Vintage: moments come out ×', unit: 'x', group: 'Star powers' },
+    zone_x: { label: 'An uncorked Hot Zone: ultras ×', hint: 'At full strength; a faded moment gives less.', unit: 'x', group: 'Uncorked zones' },
+    zone_m: { label: 'An uncorked zone’s radius at level 1', hint: '+10 m a level.', unit: 'm', group: 'Uncorked zones' },
+    zone_min: { label: 'An uncorked Hot Zone burns for', unit: 'min', group: 'Uncorked zones' },
+    flare_s: { label: 'An uncorked Solar Flare lasts', unit: 's', group: 'Uncorked zones' },
+    max_zones: { label: 'Zones burning at once', unit: 'n', group: 'Uncorked zones' },
+    lev_part: { label: 'An uncorked weak moment lasts (share of the original)', hint: '0.5: a 10 s Weak Spot comes back for 5 s.', unit: 'x', group: 'The Leviathan' },
+    lev_window_s: { label: 'Its move replays the hits of the last', unit: 's', group: 'The Leviathan' },
+    lev_cap_x: { label: 'Its move’s replay is capped at (× its own move)', unit: 'x', group: 'The Leviathan' },
+    stars: { label: 'Stars that fall from an uncorked falling star', unit: 'n', group: 'Falling stars' },
+    star_ink: { label: 'A star that pays Ink pays', unit: 'ink', group: 'Falling stars' },
+    star_luck: { label: 'A star that pays Luck pays', unit: 'n', group: 'Falling stars' },
+    preserve_k: { label: 'Preserved: longer / sooner per strength', hint: '0.5: good things last 1.5× longer (2× for a Perfect Match), bad things pass 1.5× sooner.', unit: 'x', group: 'Its Trait' },
+  },
   sun: {
     range_m: { label: 'How far away it can be lit', unit: 'm', group: 'Lighting a sun' },
     per_day: { label: 'Suns per day', unit: 'n', group: 'Lighting a sun' },

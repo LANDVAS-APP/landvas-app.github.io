@@ -22,11 +22,12 @@ import { OracleScene } from './OracleScene';
 import { StormCoilScene } from './StormCoilScene';
 import { SunScene } from './SunScene';
 import { RodScene } from './RodScene';
+import { DejaVuScene } from './DejaVuScene';
 
 const SCENES: Record<string, (p: SceneProps) => React.ReactElement> = {
   goose: GooseScene, genie: GenieScene, map: MapScene, parasite: ParasiteScene, cuckoo: EggScene, pandora: PandoraScene,
   splice: SpliceScene, clockwork: ClockworkScene, sizeray: SizeRayScene, shard: ShardScene, wormhole: WormholeScene, oracle: OracleScene,
-  stormcoil: StormCoilScene, sun: SunScene, rod: RodScene,
+  stormcoil: StormCoilScene, sun: SunScene, rod: RodScene, dejavu: DejaVuScene,
   spyglass: SpyglassScene, origami: OrigamiScene, crucible: CrucibleScene, puppeteer: PuppeteerScene, deck: DeckScene, glyph: GlyphScene,
 };
 
