@@ -1,0 +1,32 @@
+/* 📱 Outside (the apps): Bump, the Lasso walk, the real sky. Solid panels (no blur behind anything on phones), and the
+   only endless motion is a transform (the capsule's sway). */
+.lvo-card { border-radius: 22px; padding: 14px; color: #fff;
+  background: linear-gradient(160deg, rgba(34, 227, 255, 0.10), rgba(18, 12, 44, 0.92) 55%); border: 1px solid rgba(127, 243, 255, 0.18); }
+.lvo-card h3 { font-family: var(--font-display, inherit); font-weight: 900; font-size: 17px; line-height: 1.2; }
+.lvo-card p { margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: rgba(255, 255, 255, 0.7); }
+.lvo-emoji { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 15px; font-size: 24px; background: rgba(255, 255, 255, 0.07); }
+.lvo-chip { border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 900; color: #06222c; background: #7ff3ff; }
+.lvo-chip.soft { padding: 2px 8px; font-size: 11px; font-weight: 800; color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); }
+.lvo-go { flex: none; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 900; color: #06222c; background: #7ff3ff; }
+.lvo-row { display: flex; align-items: center; gap: 10px; border-radius: 16px; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); }
+.lvo-row.hot { background: linear-gradient(90deg, rgba(255, 92, 219, 0.22), rgba(34, 227, 255, 0.12)); }
+.lvo-row b { display: block; font-size: 13.5px; font-weight: 900; }
+.lvo-row i { display: block; font-style: normal; font-size: 11.5px; line-height: 1.35; color: rgba(255, 255, 255, 0.65); }
+.lvo-bump-stage { display: grid; justify-items: center; gap: 4px; min-height: 150px; place-content: center; text-align: center; border-radius: 18px; padding: 14px;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 92, 219, 0.18), rgba(10, 6, 24, 0.9) 70%); }
+.lvo-bump-stage b { font-size: 17px; font-weight: 900; }
+.lvo-bump-stage i { font-style: normal; font-size: 12px; color: rgba(255, 255, 255, 0.65); }
+.lvo-bump-stage.matched { background: radial-gradient(circle at 50% 40%, rgba(124, 255, 178, 0.22), rgba(10, 6, 24, 0.9) 70%); }
+.lvo-bump-fists { font-size: 46px; line-height: 1; }
+.lvo-bump-stage.armed .lvo-bump-fists { animation: lvo-knock 1.4s ease-in-out infinite; }
+@keyframes lvo-knock { 0%, 60%, 100% { transform: scale(1); } 70% { transform: scale(1.18); } 80% { transform: scale(0.94); } }
+.lvo-capsule { display: grid; justify-items: center; gap: 6px; border-radius: 18px; padding: 12px; min-height: 150px;
+  background: radial-gradient(circle at 50% 20%, rgba(34, 227, 255, 0.25), rgba(6, 10, 30, 0.95) 70%); border: 1px solid rgba(127, 243, 255, 0.35); }
+.lvo-capsule b { display: block; font-size: 15px; font-weight: 900; }
+.lvo-capsule i { display: block; font-style: normal; font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.lvo-capsule-pod { position: relative; display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; font-size: 40px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 70%); }
+.lvo-capsule-pod span { position: absolute; top: -26px; font-size: 26px; }
+.lvo-feel { display: grid; gap: 2px; border-radius: 16px; padding: 10px; background: rgba(255, 255, 255, 0.05); }
+.lvo-feel b { font-size: 13px; font-weight: 900; }
+.lvo-feel i { font-style: normal; font-size: 11px; line-height: 1.35; color: rgba(255, 255, 255, 0.6); }

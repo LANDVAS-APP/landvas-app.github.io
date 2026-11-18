@@ -362,6 +362,15 @@ export const api = {
   leviathanGlyph: (enchant: string, accuracy: number) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean }>('leviathan_glyph', { p_enchant: enchant, p_accuracy: accuracy }),
   leviathanHit: (move: 'bomb' | 'enchant', n = 1, enchant: string | null = null) => rpc<LevState & { dmg: number; effect: string | null; label: string; fell: boolean; missed?: number }>('leviathan_hit', { p_move: move, p_n: n, p_enchant: enchant }),
   /** look at this part of the map for a hidden Leviathan */
+  // 📱 Outside (the apps): Bump, the Lasso walk, the real sky calendar (src/outside)
+  bumpKnock: (strength: number | null) => rpc<import('../outside/types').BumpResult>('bump_knock', { p_strength: strength }),
+  bumpCheck: (id: number) => rpc<import('../outside/types').BumpResult>('bump_check', { p_id: id }),
+  bumpGift: (pair: number, ink: number) => rpc<{ ink: number; to: import('../outside/types').BumpWho; balances: any }>('bump_gift', { p_pair: pair, p_ink: ink }),
+  bumpMine: () => rpc<import('../outside/types').BumpMine>('bump_mine'),
+  lassoSubmit: (track: [number, number, number, number][]) => rpc<{ id: number; area_m2: number; length_m: number; minutes: number; expires_at: string; rank: number }>('lasso_submit', { p_track: track }),
+  lassoView: () => rpc<import('../outside/types').LassoView>('lasso_view'),
+  skyNow: () => rpc<import('../outside/types').SkyNow>('sky_now'),
+  skyCapsuleCatch: () => rpc<{ ink?: number; luck?: number; ticket?: string; elev: number; balances: any }>('sky_capsule_catch'),
   leviathanSeek: (w: number, s: number, e: number, n: number) => rpc<{ none?: boolean; hidden?: boolean; too_wide?: boolean; max_km?: number; found?: boolean; spotted?: boolean; first?: boolean; ink?: number; hint?: 'hot' | 'warm' | 'cold' }>('leviathan_seek', { p_west: w, p_south: s, p_east: e, p_north: n }),
   leviathanScrub: (gx: number, gy: number) => rpc<{ scrubbed: boolean; ink: number }>('leviathan_scrub', { p_gx: gx, p_gy: gy }),
   leviathanSeen: (id: string) => rpc<void>('leviathan_seen', { p_lev: id }),

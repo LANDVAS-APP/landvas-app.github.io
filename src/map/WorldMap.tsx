@@ -34,6 +34,7 @@ import { PlotBubbles } from './Hud';
 import { EnchantLayer } from '../enchant/EnchantLayer';
 import { RarityLayer } from '../rarity/RarityLayer';
 import { LeviathanLayer } from '../leviathan/LeviathanLayer';
+import { LassoLayer } from '../outside/LassoLayer';
 import { useRayTarget } from '../enchant/sizeray';
 import { isPhone } from '../lib/gfx';
 import { usePlotPick } from '../enchant/plotPick';
@@ -843,6 +844,7 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
       {!lite && <EnchantLayer ready={ready} />}
       {!lite && <RarityLayer ready={ready} />}
       <LeviathanLayer ready={ready} />
+      {!lite && <LassoLayer ready={ready} />}
     </div>
   );
 }

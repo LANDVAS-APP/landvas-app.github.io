@@ -15,6 +15,8 @@ beforeAll(async () => {
   ann = await db.newPlayer('eyes_ann');
   bo = await db.newPlayer('eyes_bo');
   await db.sql(`update players set created_at = now() - interval '3 days' where id = any($1)`, [[ann, bo]]);
+  // (a real meteor shower doubles the treasures — tested in 570-outside: here, the everyday sky, whatever tonight brings)
+  await db.sql(`update game_config set value = jsonb_set(value, '{sky,enabled}', 'false') where key = 'outside'`);
 });
 afterAll(() => db.close());
 

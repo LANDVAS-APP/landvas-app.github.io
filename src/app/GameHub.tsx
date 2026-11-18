@@ -56,6 +56,7 @@ const CARDS: Card[] = [
 // the app: Together, Magic and Ultras have their own big banners, so the cards are the rest of the game
 const APP = NATIVE_APP || isNative();
 const APP_CARDS: Card[] = [
+  { to: '/outside', title: 'Outside', sub: 'Bump, Lasso walk, the real sky', icon: Footprints, tone: 'teal' },
   { to: '/canvases', title: 'Create', sub: 'Paint your plots', icon: Brush, tone: 'rose' },
   { to: '/inkborn', title: 'Inkborn', sub: 'Hatch & raise creatures', icon: PawPrint, tone: 'emerald' },
   { to: '/play', title: 'Play & Earn', sub: 'Minigames for Ink', icon: Gamepad2, tone: 'ember' },
@@ -73,7 +74,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/space/play/lander': Moon, '/play': Gamepad2, '/pvp': Swords, '/doodle': Brush, '/events': CalendarDays, '/leaderboards': Award, '/social': MessagesSquare,
   '/clans': Shield, '/gallery': Images, '/players': Users, '/invite': Gift, '/party': PartyPopper, '/me': Smile, '/achievements': Award, '/explorer': Compass,
   '/grimoire': BookOpen, '/primordials': Sparkles, '/fusion': Atom, '/clips': Clapperboard, '/royalty': Crown, '/handbook': GraduationCap, '/guide': BookOpen, '/settings': Settings, '/support': LifeBuoy,
-  '/together': Users, '/magic': WandSparkles, '/ultras': Gem, '/rankings/rarities': Trophy, '/new': Megaphone, '/eyes': Eye, '/stars': Telescope,
+  '/together': Users, '/outside': Footprints, '/lasso': Footprints, '/magic': WandSparkles, '/ultras': Gem, '/rankings/rarities': Trophy, '/new': Megaphone, '/eyes': Eye, '/stars': Telescope,
 };
 const GROUP_TONE: Record<string, DiscTone> = { '/world': 'azure', '/canvases': 'rose', '/inkborn': 'emerald', '/space': 'violet', '/play': 'ember', '/social': 'teal', '/me': 'gold',
   '/together': 'emerald', '/magic': 'violet', '/ultras': 'gold' };

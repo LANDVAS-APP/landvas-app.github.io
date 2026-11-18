@@ -7,7 +7,7 @@ import { api } from '../../backend/api';
 import { useOnboardedMe } from '../../lib/queries';
 import { fmt } from '../../lib/utils';
 import { poll } from '../../lib/poll';
-import { buzz } from '../../native/native';
+import { buzz, isNative } from '../../native/native';
 import { PartyHubCard, useLfg } from '../../party/PartyButtons';
 import { LOBBIES_KEY, activityOf, useParty, usePartyUi } from '../../party/party';
 import { PlayerAvatar } from '../../ui';
@@ -57,6 +57,13 @@ export default function TogetherHub() {
       ]} />
 
       <motion.div {...rise(2)} className="mt-5"><PartyHubCard /></motion.div>
+      {/* 📱 the apps: knock phones with a friend */}
+      {isNative() && (
+        <motion.div {...rise(2)} className="mt-3 lvh-list">
+          <HubRow tone="teal" to="/outside" testid="together-bump" lead={<span className="lvh-emo !h-11 !w-11 !rounded-[14px] !text-[21px]">🤜</span>}
+            title="Bump a friend" sub="Knock phones together to hand them a gift — a party pile-up gives everyone a Golden Hour" wrap action={<span className="lvh-go">Bump</span>} />
+        </motion.div>
+      )}
 
       {/* games waiting for players, then open lobbies */}
       <HubH2 note="Anyone online can be joined" i={3}>Jump in</HubH2>

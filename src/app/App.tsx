@@ -86,6 +86,8 @@ const EstateScreen = lazy(() => import('../landlord/EstateScreen'));
 // keeps its own pages and navigation
 const APP_HUBS = NATIVE_APP || isNative();
 const TogetherHub = lazy(() => import('./hubs/TogetherHub'));
+const OutsideHub = lazy(() => import('../outside/OutsideHub'));
+const LassoWalk = lazy(() => import('../outside/LassoWalk'));
 const MagicHub = lazy(() => import('./hubs/MagicHub'));
 const UltrasHub = lazy(() => import('./hubs/UltrasHub'));
 const WhatsNew = lazy(() => import('./hubs/WhatsNew'));
@@ -204,7 +206,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/world/, 'Live world map'], [/^\/gallery/, 'Gallery — the newest art on the map'], [/^\/players/, 'Players'], [/^\/social/, 'Social — live feed, chat & friends'], [/^\/guide/, 'The LANDVAS guide — rates, Ink and how everything works'], [/^\/handbook/, 'The LANDVAS Handbook — every feature, explained'], [/^\/royalty/, 'Royalty — every Crown and who holds it'], [/^\/rankings\/rarities/, 'Rarity rankings'], [/^\/clans/, 'Clans'], [/^\/party/, 'Parties — lobbies, invites & party chat'], [/^\/clan\/hall/, 'Clan hall'],
   [/^\/inkborn/, 'Inkborn — draw a creature, watch it come alive'], [/^\/habitat/, 'Inkborn sanctuary'], [/^\/play/, 'Minigames'], [/^\/welcome/, 'Play free — create your account'], [/^\/auth\/confirm/, 'Confirm your email'], [/^\/u\/[^/]+\/room/, 'Visit room'], [/^\/u\//, 'Artist profile'],
   [/^\/art\//, 'Artwork'], [/^\/legal\//, 'Legal'], [/^\/invite/, 'Invite friends'], [/^\/i\//, 'You’re invited'], [/^\/explorer/, 'Your explorer'], [/^\/inventory/, 'Studio'], [/^\/support/, 'Support'], [/^\/pvp/, 'PvP minigames'], [/^\/challenges/, 'Weekly challenges'], [/^\/watch\//, 'Watching live'],
-  [/^\/together/, 'Together'], [/^\/magic/, 'Magic — enchantments'], [/^\/ultras/, 'Ultras'], [/^\/new$/, 'What’s new'],
+  [/^\/together/, 'Together'], [/^\/outside/, 'Outside'], [/^\/lasso/, 'The Lasso walk'], [/^\/magic/, 'Magic — enchantments'], [/^\/ultras/, 'Ultras'], [/^\/new$/, 'What’s new'],
 ];
 /** Per-page title and canonical address (the homepage sets its own title). */
 function RouteMeta() {
@@ -357,6 +359,8 @@ const routes: RouteObject[] = [
           ...(AdminScreen ? [{ path: '/admin', element: player(<AdminScreen />) }] : []),
           ...(APP_HUBS ? [
             { path: '/together', element: player(<TogetherHub />) },
+            { path: '/outside', element: player(<OutsideHub />) },
+            { path: '/lasso', element: player(<LassoWalk />) },
             { path: '/magic', element: player(<MagicHub />) },
             { path: '/ultras', element: player(<UltrasHub />) },
             { path: '/new', element: player(<WhatsNew />) },
