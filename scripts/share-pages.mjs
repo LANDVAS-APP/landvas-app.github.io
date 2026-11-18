@@ -44,6 +44,17 @@ export const SECTIONS = [
     title: 'Inkborn — raise creatures in LANDVAS', description: 'Hatch, raise and breed one-of-a-kind Inkborn creatures in your LANDVAS sanctuary.' },
 ];
 
+/** Pages with no card of their own that still need their own title and description: Google shows these under the
+ *  main landvas.app result, and without this they repeat the homepage's. They use the site card (MAIN_CARD). */
+export const PLAIN_PAGES = [
+  { route: 'world', title: 'The LANDVAS live world map',
+    description: 'Explore the LANDVAS live world map: every claimed plot and mural on real-world streets, updating as people play. Find the plots near you and claim your first 4 free.' },
+  { route: 'welcome', title: 'Play LANDVAS free — create your account',
+    description: 'Make a free LANDVAS account and claim 4 free plots on the real-world map. Then play it your way: paint, raise creatures, battle in minigames and explore.' },
+  { route: 'social', title: 'LANDVAS social — live feed, chat & friends',
+    description: 'What LANDVAS players are claiming, painting and rolling right now: the live feed, global chat and friends from all over the world.' },
+];
+
 /** the Handbook's chapters (/handbook/<id>): each gets the Handbook's card with its own title and description */
 export const HANDBOOK_CHAPTERS = [
   { id: "enchant", title: "Enchantments", blurb: "Every enchantment, its stars, splicing hybrids, every Trait, Pandora and the Leviathan." },

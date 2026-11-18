@@ -62,7 +62,8 @@ export type AppConfig = {
   min_version?: string;
   latest_version?: string;
   update?: { title?: string; message?: string; soft_title?: string; soft_message?: string };
-  store?: { ios?: string; android?: string };
+  /** store links; `on_website`: the listing is public, so landvas.app shows a store button (else "coming soon") */
+  store?: { ios?: string; android?: string; on_website?: { ios?: boolean; android?: boolean } };
   maintenance?: { on?: boolean; title?: string; message?: string; until?: string | null };
   hidden_pages?: string[];
   hidden_pages_apps?: string[];

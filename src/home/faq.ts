@@ -13,5 +13,6 @@ export const FAQ: { q: string; a: string }[] = [
   { q: 'What are PvP minigames?', a: 'Free head-to-head games against an anonymous rival, played in rounds on the exact same boards: Copy Cat (paint the example drawing — the closest copy wins), Turf Wars, Palette Clash, Spot the Forgery and Pixel Recall. Nobody puts Ink up, and wins pay Ink.' },
   { q: 'What else earns Ink?', a: 'A daily wheel, checking in at other players’ rooms, weekly themed painting challenges, getting Inspired or Featured, a craft bonus for careful, original art, and converting your USD rent into Ink.' },
   { q: 'Can I paint across several plots?', a: 'Yes. Merge neighbouring plots into one canvas and paint a single mural across them — murals can grow to thousands of plots, and bigger murals earn bigger craft bonuses.' },
-  { q: 'Do I need to download anything?', a: 'No. LANDVAS runs in your browser on any phone, tablet or computer, and can be added to your home screen like an app.' },
+  // (once both store listings are live: "There are also LANDVAS apps for iPhone and Android…")
+  { q: 'Do I need to download anything?', a: 'No. LANDVAS runs in your browser on any phone, tablet or computer, and can be added to your home screen like an app. LANDVAS apps for iPhone and Android are on their way to the App Store and Google Play, and the same account works everywhere.' },
 ];

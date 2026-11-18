@@ -1,7 +1,9 @@
 // The public homepage (landvas.app for anyone not signed in): newest art from the
-// live map, live counters, how the game and its earnings work, and the community.
+// live map, live counters, every part of the game (with links into the Handbook), how
+// earnings work, the apps and the community. The links here also tell search engines
+// which pages matter most (the links Google shows under the main result).
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ArrowUpRight, Brush, ChevronDown, DoorOpen, Gamepad2, Gift, Globe2, MapPinned, MessagesSquare, Shirt, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BookOpen, Brush, ChartColumn, ChevronDown, DoorOpen, Gamepad2, Gift, Globe2, MapPinned, MessagesSquare, Shirt, Smartphone, Sparkles, Zap } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../backend/api';
@@ -12,11 +14,11 @@ import { cn, fmt } from '../lib/utils';
 import { NotificationBell } from '../updates/Notifications';
 import { GamePreview } from '../play/GamePreview';
 import { GAME_INFO, type GameId } from '../shared/minigames';
-import { RARITY_ORDER, isFusion, isPrimordial, rarityInfo } from '../shared/rarity';
+import { RARITY_ORDER, isFusion, isPrimordial, isUltra, rarityInfo } from '../shared/rarity';
 import { useAssetUrl } from '../gallery/GalleryScreen';
 import { RarityBadge } from '../plot/RarityBadge';
 import { ExplorerFigure } from '../explorer/ExplorerFigure';
-import { LogoMark } from '../ui';
+import { useAppConfig } from '../app/LiveControl';
 import { FAQ } from './faq';
 import { DISCORD, PLAYSTYLES, REDDIT, TAGLINE } from '../brand';
 import { FeaturedToday } from '../gallery/FeaturedToday';
@@ -44,6 +46,7 @@ export default function HomePage() {
       <Hero stats={stats.data} cards={cards} />
       <div className="gutter mx-auto max-w-7xl pt-10" id="crowns"><CrownCelebrations /></div>
       <Playstyles />
+      <Explore />
       <div className="gutter mx-auto max-w-7xl pt-12"><FeaturedToday /></div>
       <ArtMarquee cards={cards} loading={art.isLoading} />
       <HowItWorks />
@@ -75,14 +78,14 @@ function TopBar() {
     <header className="gutter sticky top-0 z-40 border-b border-white/5 bg-bg/70 py-3 backdrop-blur-xl" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
       <div className="mx-auto flex max-w-7xl items-center gap-3">
         <Link to="/" className="flex items-center gap-2.5" aria-label="LANDVAS home">
-          <LogoMark size={34} />
+          <BrandMark size={36} />
           <span className="font-display text-[17px] font-bold tracking-[0.12em]">LANDVAS</span>
         </Link>
         <nav className="ml-6 hidden items-center gap-1 text-sm font-semibold text-muted md:flex" aria-label="Site">
           <Link to="/world" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Live map</Link>
+          <Link to="/handbook" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Handbook</Link>
           <Link to="/gallery" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Gallery</Link>
-          <Link to="/players" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Players</Link>
-          <a href="#earn" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Earnings</a>
+          <Link to="/guide" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">Live rates</Link>
           <a href="#faq" className="rounded-xl px-3 py-2 hover:bg-surface-2 hover:text-fg">FAQ</a>
         </nav>
         <div className="ml-auto flex items-center gap-2">
@@ -91,7 +94,7 @@ function TopBar() {
           <NotificationBell size="sm" className="!bg-transparent !shadow-none hover:!bg-surface-2" />
           <PortalButton />
           {!signedIn() && <Link to="/welcome?mode=signin" className="hidden rounded-xl px-3 py-2 text-sm font-bold text-muted hover:text-fg sm:block">Sign in</Link>}
-          <Link to={playHref()} className="lv-cta rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">{signedIn() ? 'Play' : 'Play free'}</Link>
+          <Link to={playHref()} className="lv-cta whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-extrabold text-white" data-testid="home-play">{signedIn() ? 'Play' : 'Play free'}</Link>
         </div>
       </div>
     </header>
@@ -108,6 +111,50 @@ function PortalButton() {
       <span className="lv-pbtn-text"><small>My LANDVAS</small>Portal</span>
       <ArrowUpRight className="lv-pbtn-arrow" aria-hidden />
     </a>
+  );
+}
+
+/** The LANDVAS mark as the brand kit draws it (the same picture as the favicon and the app icon). */
+function BrandMark({ size }: { size: number }) {
+  return <img src="/brand/landvas-mark.svg" alt="" width={size} height={size} draggable={false} className="block shrink-0" />;
+}
+
+/** what to say about the apps: live in both stores, live in one, or not yet */
+function useAppsLine() {
+  const s = useAppConfig().data?.store;
+  const store = { ios: !!(s?.ios && s.on_website?.ios), android: !!(s?.android && s.on_website?.android) };
+  if (store.ios && store.android) return 'Free on the web, iPhone and Android.';
+  if (store.android) return 'Free on the web and Android — the iPhone app is coming soon.';
+  if (store.ios) return 'Free on the web and iPhone — the Android app is coming soon.';
+  return 'Free in your browser on any phone or computer — iPhone and Android apps are coming soon.';
+}
+
+/** The iPhone and Android apps. A store button appears once its listing is switched on in the admin portal
+ *  (Live control → "… button on landvas.app"), with no deploy; until then it says "coming soon". */
+export function AppBadges({ className, light }: { className?: string; light?: boolean }) {
+  const store = useAppConfig().data?.store;
+  const apps = [
+    { id: 'android', store: 'Google Play', live: 'Get it on', url: store?.on_website?.android ? store.android : undefined },
+    { id: 'ios', store: 'App Store', live: 'Download on the', url: store?.on_website?.ios ? store.ios : undefined },
+  ];
+  const cls = cn('inline-flex h-12 items-center gap-2.5 rounded-2xl px-4 text-left', light ? 'bg-white/15 text-white ring-1 ring-inset ring-white/25' : 'glass');
+  return (
+    <div className={cn('flex flex-wrap items-center gap-2.5', className)} data-testid="home-apps">
+      {apps.map((a) => {
+        const inner = (
+          <>
+            <Smartphone className={cn('h-5 w-5 shrink-0', light ? 'text-white' : 'text-accent-2')} aria-hidden />
+            <span className="leading-tight">
+              <small className={cn('block text-[10px] font-bold uppercase tracking-[0.08em]', light ? 'text-white/75' : 'text-muted')}>{a.url ? a.live : 'Coming soon to'}</small>
+              <span className="font-display text-[15px] font-bold">{a.store}</span>
+            </span>
+          </>
+        );
+        return a.url
+          ? <a key={a.id} href={a.url} target="_blank" rel="noopener" className={cn(cls, 'transition hover:-translate-y-0.5')} data-testid={`home-app-${a.id}`}>{inner}</a>
+          : <span key={a.id} className={cn(cls, 'opacity-90')} data-testid={`home-app-${a.id}`}>{inner}</span>;
+      })}
+    </div>
   );
 }
 
@@ -137,7 +184,8 @@ function Hero({ stats, cards }: { stats?: { players: number; artworks: number; p
               <Globe2 className="h-5 w-5 text-accent-2" /> Explore the live map
             </Link>
           </div>
-          <div className="mt-10 grid max-w-xl grid-cols-3 gap-3" data-testid="home-stats">
+          <AppBadges className="mt-4" />
+          <div className="mt-9 grid max-w-xl grid-cols-3 gap-3" data-testid="home-stats">
             <Counter label="Players" value={stats?.players} />
             <Counter label="Artworks" value={stats?.artworks} />
             <Counter label="Plots claimed" value={stats?.plots} />
@@ -341,6 +389,44 @@ export function Playstyles() {
   );
 }
 
+/** Every big part of the game, each linking to its Handbook chapter (all readable signed out). */
+const EXPLORE = [
+  { emoji: '✨', title: 'Enchantments', to: '/handbook/enchant', color: '#8B6BFF', body: 'Put living magic on your plots — a Golden Goose, a Genie, a Treasure Map — then splice two into a brand-new hybrid.' },
+  { emoji: '🕹️', title: 'Arcades, farms & realms', to: '/handbook/places', color: '#FF4FD8', body: 'Every plot type is a place you step into: arcades full of cabinets, farms, businesses, realms and homes.' },
+  { emoji: '🐾', title: 'Inkborn creatures', to: '/handbook/inkborn', color: '#3DDC97', body: 'Draw a creature and watch it come alive. Raise it, play with it, send it to work and hatch eggs.' },
+  { emoji: '🚀', title: 'Space', to: '/handbook/space', color: '#34C3FF', body: 'Build a rocket, fly to the Moon and the planets, claim plots up there and settle a world.' },
+  { emoji: '👑', title: 'Ultras & Crowns', to: '/handbook/ultra', color: '#FFC93D', body: 'Roll land-changing ultras, fuse them in the Fusion Lab and chase the one Crown for each city, state and country.' },
+  { emoji: '🎉', title: 'Parties & clans', to: '/handbook/social', color: '#FF4D6D', body: 'Party up with anyone online, chat over the map and in arcades, and build a clan with its own Keep.' },
+];
+
+export function Explore() {
+  return (
+    <section className="gutter mx-auto max-w-7xl pt-20" aria-labelledby="explore" data-testid="home-explore">
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="eyebrow">Inside LANDVAS</div>
+        <h2 id="explore" className="mt-2 font-display text-3xl font-bold md:text-5xl">There’s a whole world in here</h2>
+        <p className="mt-3 text-muted">Every part of the game is explained in the Handbook, with pictures and live numbers.</p>
+      </div>
+      <div className="mt-10 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {EXPLORE.map((e) => (
+          <Link key={e.to} to={e.to} className="glass group flex gap-4 rounded-3xl p-5 transition hover:-translate-y-1" style={{ boxShadow: `inset 0 0 0 1px ${e.color}2e` }}>
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] text-[32px]" style={{ background: `linear-gradient(160deg, ${e.color}55, ${e.color}14)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.18), 0 10px 30px -12px ${e.color}` }} aria-hidden>{e.emoji}</span>
+            <span className="min-w-0">
+              <h3 className="font-display text-lg font-bold" style={{ color: readable(e.color) }}>{e.title}</h3>
+              <span className="mt-1 block text-[15px] leading-relaxed text-muted">{e.body}</span>
+              <span className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-fg/90">In the Handbook <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link to="/handbook" className="glass inline-flex h-12 items-center gap-2 rounded-2xl px-5 text-sm font-bold hover:border-line-strong"><BookOpen className="h-5 w-5 text-accent-2" /> Read the Handbook</Link>
+        <Link to="/guide" className="glass inline-flex h-12 items-center gap-2 rounded-2xl px-5 text-sm font-bold hover:border-line-strong"><ChartColumn className="h-5 w-5 text-[#3DDC97]" /> See live rates</Link>
+      </div>
+    </section>
+  );
+}
+
 export function HowItWorks() {
   return (
     <section className="gutter mx-auto max-w-7xl py-20" aria-labelledby="how">
@@ -369,6 +455,9 @@ export function Earnings() {
   const rents = world.data?.rarities;
   const boost = Number(world.data?.rent?.boost?.multiplier ?? 20);
   const rate = Number(world.data?.rent?.convert?.ink_per_usd ?? 100);
+  // the six base rarities here; every ultra, Crown, Fusion and Primordial rate is on the Live rates page
+  const shown = RARITY_ORDER.filter((id) => !isFusion(id) && !isPrimordial(id) && !isUltra(id));
+  const more = RARITY_ORDER.filter((id) => isUltra(id)).length;
   return (
     <section id="earn" className="relative overflow-hidden py-20" aria-labelledby="earn-h">
       <div className="lv-aurora" aria-hidden />
@@ -387,7 +476,7 @@ export function Earnings() {
         <div className="glass rounded-[32px] p-5 md:p-7">
           <div className="mb-4 flex items-center justify-between"><span className="font-display text-lg font-semibold">Rent per plot</span><span className="text-xs text-muted">per day · boosted</span></div>
           <div className="grid gap-2">
-            {RARITY_ORDER.filter((id) => !isFusion(id) && !isPrimordial(id)).map((id) => {
+            {shown.map((id) => {
               const r = rents?.find((x) => x.id === id) ?? rarityInfo(id);
               const day = Number(r.usd_per_second) * 86400;
               return (
@@ -398,6 +487,10 @@ export function Earnings() {
               );
             })}
           </div>
+          <Link to="/guide" className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3 text-sm font-bold hover:bg-surface/40" data-testid="home-all-rates">
+            <span>+ {more} more: ultras, Crowns, Fusions and Primordials</span>
+            <span className="inline-flex items-center gap-1 text-accent-2">Every rate <ArrowRight className="h-4 w-4" /></span>
+          </Link>
           <p className="mt-3 text-xs text-faint">Rarity is revealed the moment you claim — any plot could be Mythic.</p>
         </div>
       </div>
@@ -496,35 +589,62 @@ export function Community() {
 }
 
 function FinalCta() {
+  const apps = useAppsLine();
   return (
     <section className="gutter py-10">
       <div className="lv-final relative mx-auto max-w-6xl overflow-hidden rounded-[40px] px-6 py-16 text-center md:py-20">
         <h2 className="relative font-display text-[clamp(2rem,5vw,3.6rem)] font-bold leading-tight text-white">Your corner of the world<br />is waiting.</h2>
-        <p className="relative mx-auto mt-4 max-w-lg text-white/80">Free to play on any phone or computer. No download needed.</p>
+        <p className="relative mx-auto mt-4 max-w-lg text-white/80">{apps}</p>
         <Link to={playHref()} className="relative mt-8 inline-flex h-14 items-center gap-2 rounded-2xl bg-white px-8 text-base font-extrabold text-[#1d1550] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.6)] transition hover:scale-[1.03]">Claim 4 free plots <ArrowRight className="h-5 w-5" /></Link>
+        <AppBadges className="relative mt-5 justify-center" light />
       </div>
     </section>
   );
 }
 
+/** The site footer (homepage and the welcome page): every main page by name, grouped. */
+const FOOTER: { title: string; links: { label: string; to: string; ext?: boolean }[] }[] = [
+  { title: 'Play', links: [
+    { label: 'Live world map', to: '/world' }, { label: 'Gallery', to: '/gallery' }, { label: 'Players', to: '/players' },
+    { label: 'Leaderboards', to: '/leaderboards' }, { label: 'Royalty', to: '/royalty' }, { label: 'Parties', to: '/party' },
+  ] },
+  { title: 'Learn', links: [
+    { label: 'The Handbook', to: '/handbook' }, { label: 'Start here', to: '/handbook/start' }, { label: 'Live rates', to: '/guide' },
+    { label: 'Strategy guide', to: '/handbook/strategy' }, { label: 'FAQ & glossary', to: '/handbook/faq' },
+  ] },
+  { title: 'Community', links: [
+    { label: 'Discord', to: DISCORD, ext: true }, { label: 'r/LANDVAS', to: REDDIT, ext: true },
+    { label: 'Player portal', to: PLAYER_PORTAL, ext: true }, { label: 'Support', to: '/support' },
+  ] },
+  { title: 'Legal', links: [
+    { label: 'Terms', to: '/legal/terms' }, { label: 'Privacy', to: '/legal/privacy' }, { label: 'Rent rules', to: '/legal/rent' },
+  ] },
+];
+
 export function Footer() {
+  const apps = useAppsLine();
   return (
-    <footer className="gutter mx-auto max-w-7xl pb-[calc(32px+env(safe-area-inset-bottom,0px))] pt-10">
-      <div className="flex flex-wrap items-center justify-between gap-6 border-t border-line pt-8">
-        <div className="flex items-center gap-2.5"><LogoMark size={28} /><span className="font-display font-bold tracking-[0.12em]">LANDVAS</span><span className="text-xs text-faint">© {new Date().getFullYear()}</span></div>
-        <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted" aria-label="Footer">
-          <Link to="/world" className="hover:text-fg">Live map</Link>
-          <Link to="/gallery" className="hover:text-fg">Gallery</Link>
-          <Link to="/players" className="hover:text-fg">Players</Link>
-          <a href={PLAYER_PORTAL} target="_blank" rel="noopener" className="hover:text-fg">Player portal</a>
-          <a href={DISCORD} target="_blank" rel="noopener" className="hover:text-fg">Discord</a>
-          <a href={REDDIT} target="_blank" rel="noopener" className="hover:text-fg">Reddit</a>
-          <Link to="/legal/terms" className="hover:text-fg">Terms</Link>
-          <Link to="/legal/privacy" className="hover:text-fg">Privacy</Link>
-          <Link to="/legal/rent" className="hover:text-fg">Rent rules</Link>
-        </nav>
+    <footer className="gutter mx-auto max-w-7xl pb-[calc(32px+env(safe-area-inset-bottom,0px))] pt-10" data-testid="home-footer">
+      <div className="grid gap-x-6 gap-y-8 border-t border-line pt-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr]">
+        <div className="max-w-xs">
+          <Link to="/" className="flex items-center gap-2.5" aria-label="LANDVAS home"><BrandMark size={32} /><span className="font-display font-bold tracking-[0.12em]">LANDVAS</span></Link>
+          <p className="mt-3 text-sm leading-relaxed text-muted">The world-map game you play your way. {apps}</p>
+          <p className="mt-3 text-xs text-faint">© {new Date().getFullYear()} LANDVAS LLC</p>
+        </div>
+        {FOOTER.map((col) => (
+          <nav key={col.title} aria-label={col.title}>
+            <div className="eyebrow !text-[10px]">{col.title}</div>
+            <ul className="mt-3 grid gap-2 text-sm text-muted">
+              {col.links.map((l) => (
+                <li key={l.label}>{l.ext
+                  ? <a href={l.to} target="_blank" rel="noopener" className="hover:text-fg">{l.label}</a>
+                  : <Link to={l.to} className="hover:text-fg">{l.label}</Link>}</li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
-      <p className="mt-6 max-w-3xl text-xs leading-relaxed text-faint">LANDVAS plots are virtual squares on a map — owning one never means owning real land. Ink can’t be bought with money; it’s earned by playing.</p>
+      <p className="mt-8 max-w-3xl text-xs leading-relaxed text-faint">LANDVAS plots are virtual squares on a map — owning one never means owning real land. Ink can’t be bought with money; it’s earned by playing.</p>
     </footer>
   );
 }

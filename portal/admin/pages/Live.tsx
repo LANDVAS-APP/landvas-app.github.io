@@ -133,6 +133,18 @@ function Editor({ value, at }: { value: AppConfig; at?: string }) {
               <input className="p-input w-full" value={v.store?.android ?? ''} onChange={(e) => set({ store: { ...v.store, android: e.target.value.trim() } })} placeholder="https://play.google.com/store/apps/details?id=com.landvas.app" />
             </Field>
           </div>
+          {/* landvas.app's homepage shows "Coming soon to …" until a listing is switched on here */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {([['ios', 'App Store'], ['android', 'Google Play']] as const).map(([id, name]) => {
+              const on = !!v.store?.on_website?.[id];
+              return (
+                <label key={id} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+                  <span><span className="font-semibold">{name} button on landvas.app</span><span className="block text-sm text-muted">{on ? (v.store?.[id] ? `Live: “Get it on ${name}” opens the link above.` : 'On, but there’s no link yet: still “coming soon”.') : `“Coming soon to ${name}”. Turn on once the listing is public.`}</span></span>
+                  <Switch tone="ok" checked={on} onCheckedChange={(x: boolean) => set({ store: { ...v.store, on_website: { ...v.store?.on_website, [id]: x } } })} aria-label={`${name} button on landvas.app`} />
+                </label>
+              );
+            })}
+          </div>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm font-semibold">The words players see</summary>
             <div className="mt-3 grid gap-3">

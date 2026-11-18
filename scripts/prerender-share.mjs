@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { artCard, artistCard, cardBrowser, renderCard } from './share-cards.mjs';
-import { CARD_VERSION, HANDBOOK_CHAPTERS, MAIN_CARD, SECTIONS } from './share-pages.mjs';
+import { CARD_VERSION, HANDBOOK_CHAPTERS, MAIN_CARD, PLAIN_PAGES, SECTIONS } from './share-pages.mjs';
 
 const dist = path.resolve(process.argv[2] || 'dist');
 const SITE = 'https://landvas.app';
@@ -80,7 +80,11 @@ if (hb && fs.existsSync(path.join(dist, hb.image))) {
     urls.push(page({ route: `handbook/${ch.id}`, title: `${ch.title} — the LANDVAS Handbook`, description: ch.blurb, image: `${SITE}/${hb.image}`, alt: `${ch.title} — the LANDVAS Handbook`, card: true }));
   }
 }
-console.log(`share previews: ${SECTIONS.length} main pages, ${HANDBOOK_CHAPTERS.length} handbook chapters (site card ${MAIN_CARD})`);
+// pages without a card of their own (the live map, sign-up…): their own title and description, the site card
+for (const s of PLAIN_PAGES) {
+  urls.push(page({ route: s.route, title: s.title, description: s.description, image: `${SITE}/${MAIN_CARD}`, alt: s.title, type: 'website', card: true }));
+}
+console.log(`share previews: ${SECTIONS.length} main pages, ${PLAIN_PAGES.length} plain pages, ${HANDBOOK_CHAPTERS.length} handbook chapters (site card ${MAIN_CARD})`);
 if (!url || !key) { console.log('share previews: no Supabase project configured — artworks skipped'); process.exit(0); }
 
 // ---- artworks and artists -------------------------------------------------------------------------------------------
