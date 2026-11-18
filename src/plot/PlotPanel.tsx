@@ -44,11 +44,15 @@ import { ClaimFacts, ClaimHeader, OddsSheet, TypePicker, type KindOpt } from './
 import { readable } from '../lib/readable';
 const NATIVE = isNative();
 
-const useFarmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'farm', gx, gy], queryFn: () => api.farmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
-const useArcadeAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'arcade', gx, gy], queryFn: () => api.arcadeForPlot(gx, gy), enabled: on, staleTime: 30_000 });
-const useBizAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'business', gx, gy], queryFn: () => api.bizForPlot(gx, gy), enabled: on, staleTime: 30_000 });
-const useRealmAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'realm', gx, gy], queryFn: () => api.realmForPlot(gx, gy), enabled: on, staleTime: 30_000 });
-const useHabitatAt = (gx: number, gy: number, on: boolean) => useQuery({ queryKey: ['plot', 'habitat', gx, gy], queryFn: () => api.habitatForPlot(gx, gy), enabled: on, staleTime: 30_000 });
+type PlaceKind = 'habitat' | 'farm' | 'business' | 'arcade' | 'realm';
+/** what's built on a plot (its habitat, farm, business, arcade or realm): one call for all the kinds asked about,
+ *  instead of one call per kind */
+function usePlacesAt(gx: number, gy: number, want: Record<PlaceKind, boolean>) {
+  const kinds = (Object.keys(want) as PlaceKind[]).filter((k) => want[k]).sort();
+  const q = useQuery({ queryKey: ['plot', 'places', gx, gy, kinds.join(',')], queryFn: () => api.placesForPlot(gx, gy, kinds), enabled: kinds.length > 0, staleTime: 30_000 });
+  const d = q.data;
+  return { hab: d?.habitat ?? undefined, farm: d?.farm ?? undefined, biz: d?.business ?? undefined, arc: d?.arcade ?? undefined, rlm: d?.realm ?? undefined };
+}
 
 export function PlotSwatch({ type, size = 56, seed = 3, className }: { type: PlotTypeId; size?: number; seed?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -502,7 +506,8 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const eco = world.data?.economy;
   // only plots of the same type can merge
   const myGroups = qc.getQueryData(qk.groups) as CanvasGroup[] | undefined;
-  const myGroup = useQuery({ queryKey: qk.groups, queryFn: api.myGroups }).data?.find((g) => g.id === d.group?.id);
+  // (your plots only change through your own actions, which refresh this list: opening a plot needn't re-read it)
+  const myGroup = useQuery({ queryKey: qk.groups, queryFn: api.myGroups, staleTime: 60_000 }).data?.find((g) => g.id === d.group?.id);
   const sameKind = (d.connections ?? []).filter((c) => !d.group || kindFamily(kindOf(myGroups, c.group_id)) === kindFamily(kindOf(myGroups, d.group.id)));
   const fuse = async (other: string) => {
     if (!d.group) return;
@@ -532,11 +537,9 @@ function MineBlock({ d }: { d: PlotDetails }) {
   const k = myGroup?.kind ?? (d.group ? plotBlocks.kindAt(d.gx, d.gy) : null);
   const any = k === undefined;
   const isRealm = !!k && !['canvas', 'base', 'habitat', 'farm', 'business', 'arcade', 'home', 'landlord', 'train', 'plane'].includes(k);
-  const hab = useHabitatAt(d.gx, d.gy, any || k === 'habitat').data;
-  const farm = useFarmAt(d.gx, d.gy, any || k === 'farm').data;
-  const biz = useBizAt(d.gx, d.gy, any || k === 'business').data;
-  const arc = useArcadeAt(d.gx, d.gy, any || k === 'arcade' || k === 'boardwalk' || k === 'galaxypark').data;
-  const rlm = useRealmAt(d.gx, d.gy, any || isRealm).data;
+  const { hab, farm, biz, arc, rlm } = usePlacesAt(d.gx, d.gy, {
+    habitat: any || k === 'habitat', farm: any || k === 'farm', business: any || k === 'business',
+    arcade: any || k === 'arcade' || k === 'boardwalk' || k === 'galaxypark', realm: any || isRealm });
   const [wallet, setWallet] = useState(false);
   const [typing, setTyping] = useState(false);
   return (
@@ -599,11 +602,7 @@ function UpgradeRow({ title, desc, cost, busy, onClick, balances }: { title: str
 }
 
 function HabitatVisit({ d }: { d: PlotDetails }) {
-  const hab = useHabitatAt(d.gx, d.gy, true).data;
-  const farm = useFarmAt(d.gx, d.gy, true).data;
-  const biz = useBizAt(d.gx, d.gy, true).data;
-  const arc = useArcadeAt(d.gx, d.gy, true).data;
-  const rlm = useRealmAt(d.gx, d.gy, true).data;
+  const { hab, farm, biz, arc, rlm } = usePlacesAt(d.gx, d.gy, { habitat: true, farm: true, business: true, arcade: true, realm: true });
   const kind = plotBlocks.kindAt(d.gx, d.gy);
   if ((kind === 'home' || kind === 'landlord') && d.owner) return (
     <Link to={`/u/${d.owner.username}/home`} className="flex items-center gap-3 rounded-2xl border border-[#E0745C]/40 bg-[#E0745C]/10 p-3 hover:border-[#E0745C]" data-testid="visit-house">

@@ -105,3 +105,20 @@ The plan and the numbers behind it: the "ops/scaling-architecture.md" doc in the
 - **Cron jobs work within a time budget** and scale their batch with the number of active players (see
   `integrity_auto_scan`); a fixed `limit` falls behind silently as LANDVAS grows.
 - Production usage (calls by endpoint, bytes, DB time) comes from `scripts/diag-top.mjs` and `scripts/diag-io.mjs`.
+
+## Keeping the database light
+
+The server is PostgreSQL 17 on a Small instance; `scripts/diag-top.mjs` (Actions → "Diagnose publishing") prints the top
+100 users of the database and the API. What made it heavy, and the rules that keep it light:
+- **Helpers that read tables are PL/pgSQL, not SQL.** On PostgreSQL 17 a `language sql` function that reads a table is
+  planned from scratch each time a statement calls it (the splice-partner helper: ~1 ms to plan, 0.01 ms to run).
+  `20261119000520_efficiency.sql` rewrote every such helper as `return (select … limit 1)` in PL/pgSQL, which keeps
+  its plan for the connection's life; a later `create or replace … language sql` undoes that for that helper. Write new
+  ones in PL/pgSQL (`#variable_conflict use_column` keeps SQL's rule that a column beats a same-named argument).
+  One-line helpers with no `from` stay SQL: they're folded into the query that calls them.
+- **Settings are stored unpacked** (`game_config.value` storage external): the realm settings are ~180 kB and were
+  unpacked on every read. Read a big setting once per call, not once per row.
+- **`my_groups` is one query** that mirrors `private.group_json`: a field added to one goes in the other
+  (`tests/sql/520-efficiency-pass` checks they agree).
+- A plot sheet asks about its places with one `places_for_plot` call, not five `*_for_plot` calls.
+- The deploy's own report (`scripts/diag-io.mjs`) skips the heavy helper timings; they run only by hand (`DIAG_HEAVY`).

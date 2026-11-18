@@ -45,13 +45,15 @@ out('functions_by_wal', await query(`select substring(query from '"public"\\."([
 out('presence_indexes', await query(`select tablename t, indexname i, indexdef d from pg_indexes where schemaname = 'public' and tablename in ('planet_presence','arcade_presence','arena_presence','home_presence','player_activity','explorers') order by 1, 2`));
 out('row_counts', await query(`select relname t, reltuples::bigint est_rows from pg_class where relname in ('resource_ledger','minigame_sessions','minigame_rewards','idempotent_ops','client_errors','feed_events','player_notifications','audit_logs','rent_ledger') order by 2 desc`));
 out('oldest_rows', await query(`select 'idempotent_ops' t, min(created_at)::date oldest, count(*) filter (where created_at < now() - interval '30 days') older_30d from private.idempotent_ops union all select 'minigame_sessions', min(created_at)::date, count(*) filter (where created_at < now() - interval '30 days') from public.minigame_sessions union all select 'client_errors', min(created_at)::date, count(*) filter (where created_at < now() - interval '30 days') from private.client_errors`));
-// timings of read-only game helpers on real data (stable functions only: nothing is written)
+// timings of read-only game helpers on real data (stable functions only: nothing is written). These run the realm
+// helpers over every realm (seconds of database time each run), so they're for the hand-run report only (DIAG_HEAVY),
+// not every deploy.
 const timed = async (label, sql) => {
   const r = await query(`explain (analyze, format json) ${sql}`);
   const plan = r?.[0]?.['QUERY PLAN']?.[0];
   return { label, ms: plan ? Math.round(plan['Execution Time']) : null, rows: plan?.Plan?.['Actual Rows'] ?? null, error: plan ? undefined : JSON.stringify(r).slice(0, 200) };
 };
-out('helper_timings', [
+if (process.env.DIAG_HEAVY) out('helper_timings', [
   await timed('factory solve, biggest grid', `select private.rfac_solve(grid) from public.realm_factories order by length(grid::text) desc limit 1`),
   await timed('factory solve, all grids', `select private.rfac_solve(grid) from public.realm_factories`),
   await timed('realm pending, all realms', `select private.rlm_pending(r) from public.realms r`),

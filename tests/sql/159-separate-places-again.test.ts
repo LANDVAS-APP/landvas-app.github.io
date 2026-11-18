@@ -6,6 +6,8 @@ import path from 'node:path';
 import { TestDb } from '../helpers/db';
 
 const JOIN = '20261119000121_one_place_per_type.sql', SPLIT = '20261119000122_separate_places_again.sql';
+// (the efficiency pass came long after: its one-query plot list reads the places as they are now, so it isn't replayed here)
+const LATER = '20261119000520_efficiency.sql';
 const run = (f: string) => db.sql(fs.readFileSync(path.resolve(__dirname, '../../supabase/migrations', f), 'utf8'));
 const db = new TestDb();
 let u: string;
@@ -15,7 +17,7 @@ const groupAt = async (x: number) => (await db.rpc(u, 'my_groups')).find((g: any
 const ids: Record<string, string> = {};
 
 beforeAll(async () => {
-  await db.init({ ungated: true, skip: [JOIN, SPLIT] });
+  await db.init({ ungated: true, skip: [JOIN, SPLIT, LATER] });
   u = await db.newPlayer('split_again');
   await db.sql(`update players set created_at = now() - interval '3 days' where id = $1`, [u]);
   await db.rpc(u, 'claim_starter_plot', { p_gx: O.gx, p_gy: O.gy });
