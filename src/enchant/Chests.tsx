@@ -15,6 +15,7 @@ import { Button } from '../ui';
 import { centerOf, efx } from './core';
 import { dur, kindInfo } from './kinds';
 import { feel } from './living';
+import { SonarButton } from '../native/Sonar';
 
 export function useSeekChests() {
   const me = useOnboardedMe();
@@ -74,6 +75,7 @@ function ChestRow({ c }: { c: SeekChest }) {
         <span className="truncate text-[13px] font-black">+{c.ink} Ink · by {finderName(c)}’s plot</span>
         <span className="text-[11px] text-white/55">{kindInfo(c.kind).emoji} Its Seeking Trait buried it · keeps {dur(left(c))}</span>
       </span>
+      <SonarButton target={{ lng, lat, label: 'A buried chest', emoji: '🧰', reach: 30 }} />
       <Button size="sm" variant="ghost" onClick={() => toMap(nav, { lng, lat, zoom: 19.2 })} data-testid="seek-chest-show">📍</Button>
       <Button size="sm" variant="rainbow" disabled={busy} onClick={() => void swing()} data-testid="seek-chest-dig">⛏️ {swings ? `${swings}/3` : 'Dig'}</Button>
     </motion.div>

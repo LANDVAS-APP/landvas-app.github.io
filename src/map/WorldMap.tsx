@@ -37,6 +37,7 @@ import { LeviathanLayer } from '../leviathan/LeviathanLayer';
 import { useRayTarget } from '../enchant/sizeray';
 import { isPhone } from '../lib/gfx';
 import { usePlotPick } from '../enchant/plotPick';
+import { smooth } from '../lib/device';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -283,7 +284,8 @@ export function WorldMap({ lite = false }: { lite?: boolean } = {}) {
         pitch: useUi.getState().settings.tilt3d ? 55 : 0,
         renderWorldCopies: true,
         fadeDuration: 180,
-        pixelRatio: PIXEL_RATIO,
+        // (Smooth mode, an older phone: 1.5 — the map is most of what's on screen)
+        pixelRatio: smooth() ? Math.min(PIXEL_RATIO, 1.5) : PIXEL_RATIO,
       });
       map = m;
       pacers.set(m, paceMap(m, bag));

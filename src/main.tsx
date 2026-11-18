@@ -3,6 +3,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { config } from './env';
 import { applyMotion, applyTheme, useUi } from './lib/store';
+import { applySmooth } from './lib/device';
 import { initBackend } from './backend/backend';
 import { BootScreen } from './app/BootScreen';
 import { setAvatarResolver } from './ui';
@@ -24,6 +25,8 @@ if (config.fonts === 'self') {
 }
 applyTheme(useUi.getState().settings.theme);
 applyMotion(useUi.getState().settings.reduceMotion);
+applySmooth();
+useUi.subscribe((s, prev) => { if (s.settings.smooth !== prev.settings.smooth) applySmooth(); });
 if (config.e2e) document.documentElement.classList.add('e2e');
 
 void initNative();

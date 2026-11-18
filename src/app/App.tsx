@@ -68,6 +68,8 @@ import { NATIVE_APP } from './buildFlags';
 import { ElevenBanner } from '../rarity/ElevenBanner';
 import { PeekHost } from '../social/PeekHost';
 import { ReportPlayerHost } from '../social/ReportPlayer';
+import { startFootsteps } from '../leviathan/footsteps';
+import { FpsMeter } from './FpsMeter';
 const LegendScreen = lazy(() => import('../screens/Legend'));
 const GrimoireScreen = lazy(() => import('../enchant/GrimoireScreen'));
 const PuppetMini = lazy(() => import('../enchant/puppet/PuppetMini'));
@@ -159,6 +161,8 @@ const queryClient = new QueryClient({
 // new balances that calls hand back go straight onto the screen
 watchBalances(queryClient);
 watchCalls();
+// the apps: the Leviathan's footsteps in your hand as it nears your land
+startFootsteps(queryClient);
 
 export function useSession() {
   const b = getBackend();
@@ -260,7 +264,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><AwaySync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl />{PreviewTools && <Suspense fallback={null}><PreviewTools /></Suspense>}</>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><AwaySync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><FpsMeter /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl />{PreviewTools && <Suspense fallback={null}><PreviewTools /></Suspense>}</>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

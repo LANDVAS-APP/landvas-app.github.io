@@ -22,6 +22,7 @@ import { NOTIFY_KINDS, kindOn, notifyOn, notifyPermission, notifySupported, setN
 import { BOLD_COLORS, COLOR_SYMBOLS } from '../play/palette';
 import { MURAL_COLORS } from '../shared/minigames/memorymural';
 import { NATIVE_APP } from '../app/buildFlags';
+import { liteAuto } from '../lib/device';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -74,7 +75,18 @@ export default function Settings() {
           <Switch id="globe" label="Globe view when zoomed out" checked={settings.globe} onCheckedChange={(v) => update({ globe: v })} />
           <Switch id="crisp" label="Crisp pixel art on the map" hint="Nearest-neighbour scaling for pixel murals" checked={settings.crispPixels} onCheckedChange={(v) => update({ crispPixels: v })} />
           <Switch id="motion" label="Reduce motion" checked={settings.reduceMotion} onCheckedChange={(v) => update({ reduceMotion: v })} />
-          <Switch id="haptics" label="Haptic feedback" hint="Vibration on supported phones" checked={settings.haptics} onCheckedChange={(v) => update({ haptics: v })} />
+          <Switch id="haptics" label="Haptic feedback" hint={isNative() ? 'Feel your rolls, the Leviathan’s footsteps, the sonar and every tap' : 'Vibration on supported phones'} checked={settings.haptics} onCheckedChange={(v) => update({ haptics: v })} />
+          <div className="grid gap-1.5" data-testid="settings-smooth">
+            <div className="text-sm font-semibold">Smooth mode</div>
+            <div className="text-[12px] text-muted">For older phones: 3D places and the map draw fewer pixels, decorations rest sooner and first person builds a smaller town round you. Automatic turns it on for iPhones on iOS 16 or older and modest Androids{liteAuto() ? ' — like this one' : ''}.</div>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Smooth mode">
+              {([['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']] as const).map(([id, name]) => (
+                <button key={id} role="radio" aria-checked={(settings.smooth ?? 'auto') === id} onClick={() => update({ smooth: id })} data-testid={`settings-smooth-${id}`}
+                  className={cn('rounded-xl border px-4 py-2 text-sm font-bold', (settings.smooth ?? 'auto') === id ? 'border-accent-2 bg-accent-2/10' : 'border-line text-muted')}>{name}</button>
+              ))}
+            </div>
+          </div>
+          <Switch id="fps" label="Show frame rate" hint="A little meter in the corner: frames a second and the slowest frame — handy for spotting what lags on your phone" checked={!!settings.fpsMeter} onCheckedChange={(v) => update({ fpsMeter: v })} />
         </Section>
 
         <Section title="Minigames">

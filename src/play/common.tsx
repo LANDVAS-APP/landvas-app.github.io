@@ -1,6 +1,8 @@
 // Shared pieces for the four plot minigames.
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../lib/store';
+import { hit } from '../native/feel';
+import { isNative } from '../native/native';
 
 export type GameProps = {
   seed: number;
@@ -21,7 +23,10 @@ export type GameProps = {
 
 export function haptic(ms = 8) {
   try {
-    if (useUi.getState().settings.haptics && 'vibrate' in navigator) navigator.vibrate(ms);
+    if (!useUi.getState().settings.haptics) return;
+    // the apps: the phone's own haptics (iOS's web view has no vibrate at all) — short taps light, long ones heavy
+    if (isNative()) { hit(ms < 10 ? 'light' : ms < 25 ? 'medium' : 'heavy'); return; }
+    if ('vibrate' in navigator) navigator.vibrate(ms);
   } catch {
     /* unsupported */
   }

@@ -17,6 +17,7 @@ import { cellCenter, cellPolygon } from '../shared/grid';
 import { LeviathanArt } from './LeviathanArt';
 import { LEV_KEY, levHidden, levPos, levRampage, levTiny, pathAhead, serverNow, useLeviathan } from './useLeviathan';
 import { useLevUi } from './Leviathan';
+import { play, seekFeel } from '../native/feel';
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 /** a circle on the map, km across from its middle */
@@ -177,7 +178,8 @@ function useSeek(ready: boolean, l: Leviathan | null) {
             toast.success(r.first ? `🐉 You found the Leviathan first! +${r.ink ?? 0} Ink` : `🐉 You found the Leviathan!${r.ink ? ` +${r.ink} Ink` : ''}`, { description: 'You can see it and fight it now (you’ll lose sight of it in 15 minutes).' });
             void qc.invalidateQueries({ queryKey: LEV_KEY });
           } else if (r.too_wide) setHint(null);
-          else if (r.hint) setHint(r.hint);
+          // (the apps: hot / warm / cold is something you feel too — a rush of buzzes when it's right near)
+          else if (r.hint) { setHint(r.hint); play(seekFeel(r.hint), 'lev-seek'); }
           else if (r.hidden === false) void qc.invalidateQueries({ queryKey: LEV_KEY });
         } catch { /* the map carries on */ }
       }, 650);

@@ -1,10 +1,12 @@
 // Shared 3D settings for phones. An iPhone draws at 3x its screen size, which triples the pixels every 3D
 // scene has to fill (and drains the battery); 1.5x looks just as sharp in motion. Scenes also step their
 // resolution down by themselves if frames start running slow, and back up when there's room.
+import { smooth } from './device';
+
 const mobileUA = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent);
 export const isPhone = () => mobileUA || (typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600 && matchMedia('(pointer: coarse)').matches);
-/** The pixel ratio a 3D scene should start at. */
-export const sceneDpr = (max = 2) => Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, isPhone() ? 1.5 : max);
+/** The pixel ratio a 3D scene should start at (Smooth mode, on an older phone: 1.25). */
+export const sceneDpr = (max = 2) => Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, isPhone() ? (smooth() ? 1.25 : 1.5) : max);
 /** Antialiasing costs a lot on phones (and barely shows at 1.5x). */
 export const sceneAntialias = () => !isPhone();
 

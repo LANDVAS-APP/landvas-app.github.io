@@ -4,6 +4,8 @@
 // has touched the screen for a while on a screen you browse (the map, the hub, lists, profiles), those decorative
 // loops hold still until the next touch — the earnings keep ticking, loaders keep moving, anything opening still
 // animates in, and games and 3D places are never paused (they pace themselves; see framePacer in gfx.ts).
+import { smooth } from './device';
+
 const REST_AFTER = 20_000;
 /** screens you look around in, where decorations may rest (games, the editor and 3D places never do) */
 const RESTFUL = /^\/($|world$|hub$|play$|me$|plots$|canvases$|inventory$|social$|players$|clans$|events$|challenges$|leaderboards$|achievements$|explorer$|gallery$|invite$|settings$|support$|space$|grimoire$|inkborn$|badges$|guide$|together$|magic$|ultras$|new$|u\/[^/]+$)/;
@@ -44,7 +46,8 @@ function set(on: boolean) {
 }
 function arm() {
   if (timer) clearTimeout(timer);
-  const after = (globalThis as { __landvasRestMs?: number }).__landvasRestMs ?? REST_AFTER; // (tests shorten it)
+  // (Smooth mode, an older phone: decorations rest after 6 s, not 20)
+  const after = (globalThis as { __landvasRestMs?: number }).__landvasRestMs ?? (smooth() ? 6_000 : REST_AFTER); // (tests shorten it)
   timer = setTimeout(() => { timer = null; if (RESTFUL.test(path)) set(true); }, after);
 }
 function wake() {

@@ -10,6 +10,7 @@
 // Look by dragging (or by moving the phone), pinch to zoom, tap anything.
 import * as THREE from 'three';
 import { adaptiveDpr, framePacer, isPhone, sceneAntialias, sceneDpr } from '../lib/gfx';
+import { smooth } from '../lib/device';
 import { CONSTELLATIONS, NAMED_STARS, daylight, equatorial, galactic, moonPosition, planets, skyDir, skyMatrix, sunPosition, type NamedStar } from './astro';
 import { bearingDistance, cellToLocal, curveDrop, lngLatToLocal, localToCell, plotSize, type Frame } from './geo';
 import { hex, type BuildingMesh, type StreetThings, type Terrain, type TreePt } from './world';
@@ -33,6 +34,7 @@ import { createLeviathan, glowTexture, type LevLook } from './leviathan3d';
 import { createBody, type BodyVehicle, type SelfPose } from './body';
 import { createEyesSound, type Surface } from './sound';
 import { releaseOnDispose } from '../lib/threeRelease';
+import { canFeel, hit, pingEvery } from '../native/feel';
 import { createSkyStars, type SkyClaim } from '../stars/skyLayer';
 import { TIERS as STAR_TIERS, tierForFov, type Star } from '../stars/galaxy';
 
@@ -200,6 +202,8 @@ const NOISE = /* glsl */ `
 
 export function createEyes(o: EyesOpts): Eyes {
   const phone = isPhone();
+  // Smooth mode (an older phone): smaller shadows and close ground, fewer stars
+  const lite = phone && smooth();
   const renderer = releaseOnDispose(new THREE.WebGLRenderer({ canvas: o.canvas, antialias: sceneAntialias(), powerPreference: 'high-performance', alpha: false }));
   let dpr = sceneDpr();
   renderer.setPixelRatio(dpr);
@@ -236,7 +240,7 @@ export function createEyes(o: EyesOpts): Eyes {
   {
     const d = lightsNear.dir;
     d.castShadow = true;
-    d.shadow.mapSize.set(phone ? 1024 : 2048, phone ? 1024 : 2048);
+    d.shadow.mapSize.set(lite ? 512 : phone ? 1024 : 2048, lite ? 512 : phone ? 1024 : 2048);
     Object.assign(d.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 1400 });
     d.shadow.camera.updateProjectionMatrix();
     d.shadow.bias = -0.0006;
@@ -341,14 +345,14 @@ export function createEyes(o: EyesOpts): Eyes {
   for (const s of NAMED_STARS) addStar(equatorial(s.ra, s.dec), magSize(s.mag), hex(s.color), magK(s.mag));
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-  for (let i = 0; i < (phone ? 1500 : 2800); i++) {
+  for (let i = 0; i < (lite ? 900 : phone ? 1500 : 2800); i++) {
     const z = rnd() * 2 - 1, a = rnd() * Math.PI * 2, r = Math.sqrt(1 - z * z);
     const mag = 3 + rnd() * rnd() * 3.2;
     const tint = rnd();
     addStar([r * Math.cos(a), r * Math.sin(a), z], magSize(mag), tint < 0.15 ? hex('#FFD9B0') : tint < 0.35 ? hex('#D6E4FF') : [1, 1, 1], magK(mag) * 0.9);
   }
   // the Milky Way: a haze of faint stars along the galactic plane, thickest toward the centre
-  for (let i = 0; i < (phone ? 2400 : 4600); i++) {
+  for (let i = 0; i < (lite ? 1400 : phone ? 2400 : 4600); i++) {
     const l = rnd() * Math.PI * 2;
     const core = Math.cos(l / 2) ** 2;
     const b = ((rnd() + rnd() + rnd() - 1.5) * 0.17) * (0.6 + core * 0.8);
@@ -379,7 +383,7 @@ export function createEyes(o: EyesOpts): Eyes {
   starGroup.add(lines);
   let planetList: { name: string; ra: number; dec: number; mag: number; color: string }[] = [];
   // ✨ Skywright: the real stars (the scattered ones above go once they're in), the telescope's tiers, claimed stars
-  const fillerEnd = NAMED_STARS.length + (phone ? 1500 : 2800);
+  const fillerEnd = NAMED_STARS.length + (lite ? 900 : phone ? 1500 : 2800);
   let fillerHidden = false;
   const skyStars = createSkyStars(starGroup, { phone, px: () => dpr });
   let scope = false, reach = 3, starNightBase = 0;
@@ -1336,7 +1340,7 @@ export function createEyes(o: EyesOpts): Eyes {
   };
 
   // (8 × 8 squares: 150 m across on a phone, 200 m elsewhere, about 10 pixels a metre)
-  const closeG = createCloseGround(renderer, { px: phone ? 1536 : 2048, metres: phone ? 150 : 200, tiles: 8 });
+  const closeG = createCloseGround(renderer, { px: lite ? 1024 : phone ? 1536 : 2048, metres: phone ? 150 : 200, tiles: 8 });
   groundU.uClose.value = closeG.texture;
   groundU.uCloseSpan.value = closeG.span;
   const setClosePainter: Eyes['setClosePainter'] = (p, keep) => { closeG.setPainter(p, keep); if (!keep) groundU.uCloseRect.value.set(0, 0, 0, 0); };
@@ -2280,6 +2284,7 @@ export function createEyes(o: EyesOpts): Eyes {
   const tmpV = new THREE.Vector3();
   // (scratch vectors for the frame loop: nothing new made each frame, nothing for the garbage collector to sweep up)
   const vSide = new THREE.Vector3(), vHead = new THREE.Vector3(), vBack = new THREE.Vector3(), vTmp2 = new THREE.Vector3(), vCell = new THREE.Vector2();
+  let skyPingAt = 0;
   /** which way you're going (smoothed, on the ground) */
   const heading2 = new THREE.Vector2(0, -1);
   const tick = (now: number) => {
@@ -2504,6 +2509,20 @@ export function createEyes(o: EyesOpts): Eyes {
         d.obj.rotation.z = Math.sin(age * 0.8 + d.d.seed) * 0.12;
         d.visible = true;
         d.obj.visible = true;
+      }
+    }
+    // 🧭 the apps: the sky treasures ping in your hand, faster the closer you face one (look around to find them)
+    if (now >= skyPingAt) {
+      skyPingAt = now + 1000;
+      if (drops.length && canFeel()) {
+        const f = vTmp2.set(0, 0, -1).applyQuaternion(cam.quaternion);
+        let best = 999;
+        for (const d of drops) {
+          if (!d.visible) continue;
+          const a = (Math.acos(Math.max(-1, Math.min(1, vSide.copy(d.pos).sub(cam.position).normalize().dot(f)))) * 180) / Math.PI;
+          if (a < best) best = a;
+        }
+        if (best <= 180) { hit(best < 15 ? 'medium' : 'light'); skyPingAt = now + pingEvery(best); }
       }
     }
     // your party

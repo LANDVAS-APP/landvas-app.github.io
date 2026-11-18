@@ -22,6 +22,7 @@ import { outlineEdges } from '../shared/fusion';
 import { GRID_LEVEL, GRID_SIZE, type CellTuple, xToLng, yToLat } from '../shared/grid';
 import type { PlotBlocks } from './plotTiles';
 import { isPhone } from '../lib/gfx';
+import { smooth } from '../lib/device';
 
 // canvas shadows (glows) are very slow in Safari: phones get the same strokes without the blur
 const PHONE = isPhone();
@@ -183,7 +184,7 @@ export function MapFx({ map, blocks }: { map: MLMap | null; blocks: PlotBlocks }
     let W = 0, H = 0, dpr = 1;
     const resize = () => {
       const c = map.getCanvas();
-      W = c.clientWidth; H = c.clientHeight; dpr = Math.min(PHONE ? 1.5 : 2, devicePixelRatio || 1);
+      W = c.clientWidth; H = c.clientHeight; dpr = Math.min(PHONE ? (smooth() ? 1 : 1.5) : 2, devicePixelRatio || 1);
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       cv.style.width = `${W}px`; cv.style.height = `${H}px`;
     };

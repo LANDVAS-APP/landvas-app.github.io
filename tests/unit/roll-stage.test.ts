@@ -60,6 +60,24 @@ describe('the roll director', () => {
     expect(tr.reveal).toBe(tr.pick!.t1);
   });
 
+  it('the apps feel it: a heartbeat as the drum slows onto the rarity, then the reveal; an enchantment is summoned', () => {
+    const hearts: [RarityId, boolean, number][] = [], feels: [string, number][] = [];
+    const hooks = { heart: (r: RarityId, sh: boolean, ms: number) => hearts.push([r, sh, ms]), feel: (k: 'summon' | 'reveal', tier: number) => feels.push([k, tier]) };
+    const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 42, hooks });
+    d.setResult({ rarity: 'legendary', type: 'lumina', usd: 1e-9, first: false, shiny: true });
+    for (let t = 0; t < 20_000 && d.phase !== 'reveal'; t += 1000 / 60) d.tick(t);
+    expect(hearts).toHaveLength(1);
+    expect(hearts[0][0]).toBe('legendary');
+    expect(hearts[0][1]).toBe(true);
+    expect(hearts[0][2]).toBeGreaterThan(1000);
+    expect(feels).toEqual([['reveal', 3]]);
+    const e: [string, number][] = [];
+    const d2 = new Director(L, { reduce: false, quickRerolls: () => false, seed: 9, hooks: { feel: (k: 'summon' | 'reveal', tier: number) => e.push([k, tier]) } });
+    d2.setResult({ rarity: 'enchanted' as RarityId, type: 'pigment', usd: 0, first: false, enchant: { id: 'x', kind: 'genie', serial: 3, sigil: 99 } });
+    for (let t = 0; t < 20_000 && d2.phase !== 'reveal'; t += 16) d2.tick(t);
+    expect(e).toEqual([['summon', 5]]);
+  });
+
   it('an Enchanted roll breaks off mid-spin into the transformation', () => {
     const d = new Director(L, { reduce: false, quickRerolls: () => false, seed: 9 });
     d.setResult({ rarity: 'enchanted' as RarityId, type: 'pigment', usd: 0, first: false, enchant: { id: 'x', kind: 'genie', serial: 3, sigil: 99 } });

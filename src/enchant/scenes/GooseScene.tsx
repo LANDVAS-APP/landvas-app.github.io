@@ -2,13 +2,14 @@
 // every bite the fox took, the bush rustles before the fox comes — and when it peeks out, tap it to chase it off.
 // Rub the egg with your finger to polish it (the shine follows your finger); hold it to feel its heartbeat; poke the goose.
 import { AnimatePresence, motion } from 'motion/react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn, fmt } from '../../lib/utils';
 import { Button } from '../../ui';
 import { centerOf, efx, useClockRate, useLeft, type SceneProps } from '../core';
 import { dur } from '../kinds';
 import { useHeartbeat, usePoke, useRub } from '../living';
 import { enchantRef, offerClip, useKeepMoment } from '../../clips/ClipMoment';
+import { foxPatter, play } from '../../native/feel';
 
 const eNow = (v: SceneProps['v']) => Date.parse(v.clock?.now ?? v.server_time) / 1000;
 
@@ -40,6 +41,10 @@ export function GooseScene({ v, view, act, busy, at }: SceneProps) {
   };
   const rub = useRub(700, () => { if (canPolish) void polish(); });
   const heart = useHeartbeat(view.grow > 80 ? 96 : 68);
+  // the apps: you feel the fox coming — a rustle in the bush, then its paws pattering up to the egg
+  const rustling = !!view.rustle && !lurking;
+  useEffect(() => { if (rustling) play([[0, 'light'], [180, 'light']], 'goose'); }, [rustling]);
+  useEffect(() => { if (lurking) play(foxPatter(), 'goose'); }, [lurking]);
   const { n: pokes, poke } = usePoke();
   const chase = async () => {
     const r = await act('chase', {}, { at: centerOf(fox.current) });

@@ -59,11 +59,13 @@ import { hoursFromHere, kmBetween, localDay, localTime, sunTimes, utcOffset, whe
 import { REALM_META, isRealm, realmRoute } from '../realms/kinds';
 import { kindFamily } from '../realms/estates/meta';
 import { useCompanion } from '../inkborn/companion';
+import { smooth } from '../lib/device';
 
-const NEAR_HALF = isPhone() ? 520 : 650; // the sharp ground at your feet: this far each way (m)
+// the sharp ground at your feet: this far each way (m) — a smaller town round you in Smooth mode (an older phone)
+const nearHalf = () => (isPhone() ? (smooth() ? 380 : 520) : 650);
 const FAR_HALF = 2600; // the softer ground of the town around
 const PLOT_R = isPhone() ? 210 : 280; // plots drawn this far each way
-const JUMP = NEAR_HALF * 1.5; // this far from the view's origin at once (a jump, not a walk): the world's made afresh
+const JUMP = nearHalf() * 1.5; // this far from the view's origin at once (a jump, not a walk): the world's made afresh
 
 // eye height by what you're riding (the jetpack's is yours to raise and lower)
 const EYE: Record<string, number> = { walk: 1.62, bike: 1.74, car: 1.22 };
@@ -290,8 +292,8 @@ export default function EyesScreen() {
     const pal = real ? realPalette(streetPalette(night)) : streetPalette(night);
     const glow = neon && night ? 0.55 : 0;
     const colors = { land: pal.land, water: pal.water, rock: pal.rock, snow: '#F4F8FF', wood: pal.wood, neon };
-    const TERRAIN = { extent: 90_000, n: isPhone() ? 130 : 190, z: 9, flatten: [1700, 4600] as [number, number] };
-    const opts = (terrain: boolean): WorldOpts => ({ pal, real, phone: isPhone(), nearHalf: NEAR_HALF, farHalf: FAR_HALF, terrain: terrain ? TERRAIN : null, land: colors });
+    const TERRAIN = { extent: 90_000, n: isPhone() ? (smooth() ? 96 : 130) : 190, z: 9, flatten: [1700, 4600] as [number, number] };
+    const opts = (terrain: boolean): WorldOpts => ({ pal, real, phone: isPhone(), nearHalf: nearHalf(), farHalf: FAR_HALF, terrain: terrain ? TERRAIN : null, land: colors });
     // the land first (it's the backdrop for everything)
     eyes.setTerrain(null, colors);
     const st0 = useExplorer.getState();
@@ -311,7 +313,7 @@ export default function EyesScreen() {
     cur = loader.build(hard, opts(true), (s) => {
       if (!live) return;
       if (s.t === 'none') {
-        const nearR = { x0: -NEAR_HALF, z0: -NEAR_HALF, size: NEAR_HALF * 2 };
+        const nh = nearHalf(), nearR = { x0: -nh, z0: -nh, size: nh * 2 };
         eyes.setGround({ canvas: drawGround(hard, [], nearR, 256, pal), region: nearR, glow }, null);
         setSteps((x) => ({ ...x, streets: 'none' }));
       } else if (s.t === 'near') {

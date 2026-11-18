@@ -29,6 +29,10 @@ export type Hooks = {
   pick?(best: number): void;
   reveal?(): void;
   buzz?(k: 'light' | 'medium' | 'heavy' | 'success'): void;
+  /** the drum starts slowing onto this rarity for `ms`: its heartbeat (the apps' haptic language) */
+  heart?(r: RarityId, shiny: boolean, ms: number): void;
+  /** a moment to feel: an enchantment being summoned, or a reveal (by tier) */
+  feel?(k: 'summon' | 'reveal', tier: number): void;
   sound?(k: 'tickRarity' | 'land' | 'charge' | 'reveal' | 'enchant', tier?: number): void;
 };
 
@@ -202,6 +206,7 @@ export class Director {
     const ov = reduce ? 0 : tr >= 3 ? 0.16 : 0.6;
     const D = reduce ? 450 : s.quick ? 380 : quick ? 900 : Math.min(3600, Math.max(1300, ((3 * (pT + ov - pos)) / r.v) * 1000) + tr * 180);
     r.lands.push({ t, p0: pos, pT, ov, D, settle: quick || reduce ? 120 : 420 });
+    if (!quick) this.h.heart?.(f, !!s.shiny, D);
     void i;
   }
 
@@ -236,6 +241,7 @@ export class Director {
     this.enchantBeats = 0;
     this.setPhase('enchant');
     this.h.sound?.('enchant');
+    this.h.feel?.('summon', 5);
     if (this.o.reduce) this.later(400, () => this.reveal(this.now));
   }
   private enchanting(t: number) {
@@ -267,6 +273,7 @@ export class Director {
     const info = rarityInfo(final), tier = rarityTier(final), ultra = tier >= 5 || !!f.enchant;
     const ty = PLOT_TYPES[f.type as keyof typeof PLOT_TYPES];
     this.h.buzz?.(tier >= 3 ? 'heavy' : 'success');
+    if (!f.enchant) this.h.feel?.('reveal', tier);
     this.h.sound?.('reveal', ultra ? 5 : tier);
     if (this.o.reduce) return;
     const { cx: x, cy: y, u, W } = this.L;

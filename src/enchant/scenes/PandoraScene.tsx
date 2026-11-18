@@ -2,10 +2,13 @@
 // notches, light bleeding out wider each time — and let go. Gifts rise as gold; an evil streaks into its alcove and its
 // curse lands. When all seven alcoves burn, Hope flutters up from the bottom.
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../../lib/store';
 import { cn, fmt } from '../../lib/utils';
-import { buzz } from '../../native/native';
+import { buzz, isNative } from '../../native/native';
+import { hit } from '../../native/feel';
+import { useTiltAngles } from '../../native/motion';
+import { askMotion } from '../living';
 import { Button } from '../../ui';
 import { centerOf, efx, useLeft, type SceneProps } from '../core';
 import { EVILS, EVIL_ORDER, dur } from '../kinds';
@@ -42,6 +45,26 @@ export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
     }, 450 + i * 650));
     if (r.result.hope) setTimeout(() => { setHope(true); setMoment(keep({ type: 'hope', e: enchantRef(v) })); efx.burst({ ...centerOf(box.current), colors: ['#fff', '#FFE8A3', '#A6FFD6', '#C9B8FF'], count: 260, speed: 16, kind: 'spark' }); }, 450 + r.result.out.length * 650);
   };
+  // 📱 the apps: pry the lid with the phone itself — tip it, and every 14° is a notch (you feel each one click); hold
+  // still at a notch for a moment and the box opens that wide. Tip it back to where you started to change your mind.
+  const [pry, setPry] = useState(false);
+  const tilt = useTiltAngles(pry && can);
+  const pryBase = useRef<number | null>(null);
+  const pryHold = useRef({ k: 0, since: 0 });
+  const [pryP, setPryP] = useState(0);
+  useEffect(() => {
+    if (!pry || !tilt || !can) return;
+    if (pryBase.current == null) pryBase.current = tilt.beta;
+    const deg = Math.abs(tilt.beta - pryBase.current);
+    const k = Math.min(3, Math.floor(deg / 14));
+    y.set(-Math.min(NOTCH * 3, (deg / 14) * NOTCH));
+    if (k !== pryHold.current.k) { const up = k > pryHold.current.k; pryHold.current = { k, since: performance.now() }; setN(k); hit(up ? 'medium' : 'light'); }
+    const held = k >= 1 ? (performance.now() - pryHold.current.since) / 1400 : 0;
+    setPryP(Math.min(1, held));
+    if (k >= 1 && held >= 1) { setPry(false); pryBase.current = null; pryHold.current = { k: 0, since: 0 }; setPryP(0); hit('heavy'); void open(k); }
+  }, [tilt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const startPry = () => { void askMotion(); pryBase.current = null; pryHold.current = { k: 0, since: 0 }; setPryP(0); setPry(true); };
+  const stopPry = () => { setPry(false); pryBase.current = null; y.set(0); setN(0); setPryP(0); };
   return (
     <div className="grid gap-3">
       <div className="lv-scene aspect-[4/3] w-full" style={{ background: 'radial-gradient(circle at 50% 70%,#3A0E2A 0%,#14040F 60%,#08020A 100%)' }} data-testid="pandora-scene">
@@ -76,7 +99,7 @@ export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
           </svg>
         </div>
         <div className="absolute left-3 top-3 rounded-full bg-black/45 px-3 py-1 text-[12px] font-black text-white backdrop-blur" data-testid="pandora-status">
-          {view.can_open ? (n ? `Lifting: ${n} notch${n > 1 ? 'es' : ''}…` : '👆 Drag the lid up') : (lockedIn ?? 0) > 0 ? `🥀 Sorrow: shut for ${dur(lockedIn)}` : `Shut until tomorrow · ${dur(nextIn)}`}
+          {view.can_open ? (pry ? (n ? `📱 ${n} notch${n > 1 ? 'es' : ''} — hold still to open${pryP > 0 ? ` ${'●'.repeat(Math.ceil(pryP * 4))}` : ''}` : '📱 Tip your phone to pry the lid') : n ? `Lifting: ${n} notch${n > 1 ? 'es' : ''}…` : '👆 Drag the lid up') : (lockedIn ?? 0) > 0 ? `🥀 Sorrow: shut for ${dur(lockedIn)}` : `Shut until tomorrow · ${dur(nextIn)}`}
         </div>
         <div className="absolute right-3 top-3 rounded-full bg-black/45 px-3 py-1 text-[12px] font-black text-[#FF9BB0]">{evils.length}/{view.hope_at ?? 7} evils out{view.cycle ? ` · cycle ${view.cycle + 1}` : ''}</div>
         {/* what came out */}
@@ -109,6 +132,10 @@ export function PandoraScene({ v, view, act, busy, at, mirror }: SceneProps) {
           )}
         </AnimatePresence>
       </div>
+      {isNative() && view.can_open && (
+        <Button variant={pry ? 'rainbow' : 'secondary'} disabled={!can} onClick={() => (pry ? stopPry() : startPry())} data-testid="pandora-pry">
+          {pry ? '✋ Stop prying' : '📱 Pry it open with your phone'}</Button>
+      )}
       <div className="grid grid-cols-3 gap-2" data-testid="pandora-notches">
         {[1, 2, 3].map((k) => (
           <Button key={k} variant={k === 3 ? 'danger' : 'secondary'} disabled={!can} onClick={() => void open(k)} data-testid={`pandora-open-${k}`}>

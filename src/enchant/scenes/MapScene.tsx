@@ -14,6 +14,7 @@ import { dur } from '../kinds';
 import { ClipMomentButton, enchantRef, useKeepMoment } from '../../clips/ClipMoment';
 import type { Moment } from '../../clips/moments';
 import { readable } from '../../lib/readable';
+import { SonarButton } from '../../native/Sonar';
 
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const dir = (b: number) => DIRS[Math.round(((b % 360) + 360) % 360 / 45) % 8];
@@ -108,7 +109,8 @@ export function MapScene({ v, view, act, busy, at }: SceneProps) {
                 </span>
                 {!p.found_at && (near
                   ? <Button size="sm" variant="rainbow" disabled={!!busy} onClick={(e) => void collect(i, e.currentTarget)} data-testid={`map-collect-${i}`}>Pick up</Button>
-                  : <Button size="sm" variant="secondary" onClick={() => fly(p.gx, p.gy)}>Show</Button>)}
+                  : <><SonarButton target={(() => { const [lng, lat] = cellCenter(p.gx, p.gy); return { lng, lat, label: `Piece ${i + 1} of the map`, emoji: '📜', reach: Number(view.reach_m) || 25 }; })()} />
+                    <Button size="sm" variant="secondary" onClick={() => fly(p.gx, p.gy)}>Show</Button></>)}
               </div>
             );
           })}

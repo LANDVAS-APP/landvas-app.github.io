@@ -24,6 +24,7 @@ import { buzz } from '../native/native';
 import { uiSound } from '../native/uiSound';
 import { BasePlotArt } from '../plot/BasePlotArt';
 import { ROLL_ORDER as RARITY_ORDER, rarityInfo, rarityTier, type RarityId } from '../shared/rarity';
+import { play, playing, revealFeel, rollHeart, stop as stopFeel, summon } from '../native/feel';
 import { formatRate } from '../shared/rent';
 import { PLOT_TYPES } from '../map/plotStyle';
 import { celebrateDelay, type Overlay } from './celebrate';
@@ -130,13 +131,18 @@ function Roll({ result, name, testId, rarityTestId, onRevealed, onClose, actions
         landed: (_i, r) => setRolled((x) => [...x, r]),
         pick: (b) => setSel(b),
         reveal: () => { if (presentRef.current) onRevealedRef.current?.(); },
-        // (the Enchanted transformation buzzes for itself)
-        buzz: (k) => { if (useUi.getState().settings.haptics && dirRef.current?.phase !== 'enchant') buzz(k); },
+        // (the Enchanted transformation buzzes for itself; while a rarity's heartbeat plays, the drum's light ticks
+        // step aside so the heartbeat is what you feel)
+        buzz: (k) => { if (useUi.getState().settings.haptics && dirRef.current?.phase !== 'enchant' && !(k === 'light' && playing('roll-heart'))) buzz(k); },
+        heart: (r, shiny, ms) => { const t = rarityTier(r); if (t >= 1 || shiny || r === 'uncommon' || r === 'common') play(rollHeart(t, r, shiny, ms), 'roll-heart'); },
+        feel: (k, tier) => { if (k === 'summon') { stopFeel('roll-heart'); play(summon(), 'roll-feel'); } else { stopFeel('roll-heart'); play(revealFeel(tier), 'roll-feel'); } },
         sound: (k, n) => uiSound.roll(k, n),
       },
     });
   }
   const d = dirRef.current;
+  // (closing the roll stops whatever you were feeling)
+  useEffect(() => () => { stopFeel('roll-heart'); stopFeel('roll-feel'); }, []);
 
   // the result (the server's answer can arrive mid-spin)
   useEffect(() => { if (result) d.setResult({ ...result, name }); }, [result]); // eslint-disable-line react-hooks/exhaustive-deps

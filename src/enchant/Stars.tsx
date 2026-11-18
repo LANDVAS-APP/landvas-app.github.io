@@ -3,7 +3,7 @@
 // its five powers, the pouring ritual itself, and the ascension when a fourth or fifth star lights.
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { api, type EnchantView, type MergeResult } from '../backend/api';
@@ -13,7 +13,10 @@ import type { Moment } from '../clips/moments';
 import { celebrate, invalidateGame } from '../lib/queries';
 import { useUi } from '../lib/store';
 import { cn } from '../lib/utils';
-import { buzz } from '../native/native';
+import { buzz, isNative } from '../native/native';
+import { hit } from '../native/feel';
+import { useTiltAngles } from '../native/motion';
+import { askMotion } from './living';
 import { Button } from '../ui';
 import { efx, useMyEnchantments } from './core';
 import { enchantName, kindInfo } from './kinds';
@@ -214,6 +217,7 @@ function MergeRitual({ v, onClose }: { v: EnchantView; onClose(): void }) {
               <Button variant="ghost" className="flex-1" onClick={() => setPh({ at: 'pick' })}>Back</Button>
               <Button variant="rainbow" className="flex-1" onClick={() => void pour(ph.copy)} data-testid="merge-go">✨ Pour it in</Button>
             </div>
+            {isNative() && <TiltPour color={ph.copy ? kindInfo(ph.copy.kind).a : '#B79CFF'} onPour={() => void pour(ph.copy)} />}
           </div>
         )}
         {ph.at === 'pour' && <div className="text-center font-display text-[16px] font-black text-[#FFE8A3] lv-keep-moving" data-testid="merge-pouring">Pouring it in…</div>}
@@ -292,5 +296,31 @@ function Ascension({ v, stars, power, onDone }: { v: EnchantView; stars: number;
         <span className="mt-2 text-[11px] text-white/40">tap to continue</span>
       </motion.div>
     </motion.button>
+  );
+}
+
+/** 📱 the apps: tip the phone sideways like a jug and the copy pours in — a trickle you feel, faster the further you tip */
+function TiltPour({ color, onPour }: { color: string; onPour(): void }) {
+  const [on, setOn] = useState(false);
+  const tilt = useTiltAngles(on);
+  const [fill, setFill] = useState(0);
+  const last = useRef(0), done = useRef(false), drip = useRef(0), level = useRef(0);
+  useEffect(() => {
+    if (!on || !tilt || done.current) return;
+    const now = performance.now(), dt = last.current ? Math.min(0.1, (now - last.current) / 1000) : 0;
+    last.current = now;
+    const tip = Math.abs(tilt.gamma);
+    const next = Math.max(0, Math.min(1, level.current + (tip > 38 ? ((tip - 30) / 40) * 0.55 * dt : -0.25 * dt)));
+    level.current = next;
+    setFill(next);
+    if (tip > 38 && now - drip.current > 140 - Math.min(90, tip)) { drip.current = now; hit('light'); }
+    if (next >= 1) { done.current = true; hit('heavy'); setTimeout(onPour, 60); }
+  }, [tilt]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!on) return <button className="text-[12px] font-black text-[#FFE8A3] underline decoration-dotted underline-offset-4" onClick={() => { void askMotion(); setOn(true); }} data-testid="merge-tilt">📱 …or tip your phone like a jug to pour it</button>;
+  return (
+    <div className="grid gap-1" data-testid="merge-tilt-on">
+      <div className="h-2.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full transition-[width] duration-100" style={{ width: `${fill * 100}%`, background: color }} /></div>
+      <div className="text-[11.5px] font-bold text-white/70">{fill > 0.02 ? 'Pouring… keep it tipped' : 'Tip your phone to the side, like pouring from a jug'}</div>
+    </div>
   );
 }

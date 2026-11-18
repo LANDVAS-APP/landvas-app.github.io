@@ -22,7 +22,9 @@ import { isNative } from '../native/native';
 import { GameDisc, PlayerAvatar } from '../ui';
 import { efx, EnchantFxLayer } from '../enchant/core';
 import { dur, kindInfo } from '../enchant/kinds';
-import { feel } from '../enchant/living';
+import { askMotion, feel } from '../enchant/living';
+import { hit as hitFeel, play } from '../native/feel';
+import { useFlick } from '../native/motion';
 import { Sigil } from '../enchant/Sigil';
 import { LeviathanArt } from './LeviathanArt';
 import { LEV_KEY, STATUS_TEXT, fmtDmg, levHidden, levMult, levPace, levPos, levRampage, levTiny, serverNow, useLeviathan } from './useLeviathan';
@@ -195,14 +197,38 @@ function Fight() {
   };
   useEffect(() => { const t = setInterval(() => void flush(), 700); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const hiddenFromMe = !!l?.hidden;
-  const throwBomb = (e: React.PointerEvent) => {
-    if (!l || l.status === 'warning' || !me || hiddenFromMe) return;
-    if ((bombs ?? 0) < 1) { toast('Out of ink bombs — one comes back every minute.'); return; }
-    feel('light'); setHit((h) => h + 1);
+  const canThrow = !!l && l.status !== 'warning' && !!me && !hiddenFromMe;
+  const throwAt = (x: number, y: number) => {
+    if (!canThrow) return false;
+    if ((bombs ?? 0) - flung.current < 1) { toast('Out of ink bombs — one comes back every minute.'); return false; }
+    setHit((h) => h + 1);
     setBombs((b) => (b ?? 1) - 1); pending.current += 1;
-    setFlies((f) => [...f.slice(-14), { id: Math.random(), x: e.clientX, y: e.clientY }]);
-    efx.burst({ x: e.clientX, y: e.clientY, colors: ['#2A1260', '#B026FF', '#FF5CDB'], count: 18, speed: 8, kind: 'drop' });
+    setFlies((f) => [...f.slice(-14), { id: Math.random(), x, y }]);
+    efx.burst({ x, y, colors: ['#2A1260', '#B026FF', '#FF5CDB'], count: 18, speed: 8, kind: 'drop' });
+    return true;
   };
+  const throwBomb = (e: React.PointerEvent) => { if (throwAt(e.clientX, e.clientY)) feel('light'); };
+  // 📱 the apps: flick the phone forward to lob ink bombs — a harder flick throws more of them at once (up to three).
+  // They're the same bombs from the same bank as tapping: a flick never makes extra ones.
+  const [flickOn, setFlickOn] = useState(false);
+  const flung = useRef(0);
+  const [arcs, setArcs] = useState<{ id: number; dx: number }[]>([]);
+  const flick = (strength: number) => {
+    const n = Math.min(strength > 0.75 ? 3 : strength > 0.5 ? 2 : 1, Math.max(0, (bombs ?? 0) - flung.current));
+    if (n < 1) { toast('Out of ink bombs — one comes back every minute.'); return; }
+    play(strength > 0.75 ? [[0, 'heavy'], [90, 'medium']] : [[0, 'medium']], 'lev-flick');
+    flung.current += n;
+    for (let i = 0; i < n; i++) {
+      const dx = (i - (n - 1) / 2) * 46;
+      setArcs((a) => [...a.slice(-8), { id: Math.random(), dx }]);
+      setTimeout(() => {
+        flung.current = Math.max(0, flung.current - 1);
+        const c = centerOf(beast.current);
+        if (throwAt(c.x + dx * 0.6 + (Math.random() - 0.5) * 40, c.y + (Math.random() - 0.5) * 50)) hitFeel('heavy');
+      }, 420 + i * 110);
+    }
+  };
+  useFlick(app && flickOn && canThrow ? flick : null);
   const [drawFor, setDrawFor] = useState<string | null>(null);
   const move = async (id: string, accuracy?: number) => {
     feel('heavy');
@@ -263,7 +289,19 @@ function Fight() {
             )}
             {l.status === 'warning'
               ? <div className="absolute inset-x-0 bottom-4 text-center"><div className="font-display text-2xl font-black text-white">Rises in <Countdown to={l.rise_at} /></div><div className="text-[12px] font-bold text-white/70">{l.origin}</div></div>
-              : !hiddenFromMe && <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[13px] font-black text-white drop-shadow">{me ? (levTiny(l) ? 'It’s TINY — tap fast, half your bombs miss' : 'TAP IT to throw ink bombs') : 'Sign in to fight it'}</div>}
+              : !hiddenFromMe && <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[13px] font-black text-white drop-shadow">{me ? (levTiny(l) ? 'It’s TINY — tap fast, half your bombs miss' : flickOn ? 'FLICK your phone — or tap it — to throw ink bombs' : 'TAP IT to throw ink bombs') : 'Sign in to fight it'}</div>}
+            {arcs.map((a) => (
+              <div key={a.id} className="pointer-events-none absolute left-1/2 top-full z-10 -translate-x-1/2">
+                <motion.span className="block text-[30px]" initial={{ x: 0, y: 0, scale: 1.4, rotate: 0 }}
+                  animate={{ x: [0, a.dx * 0.5, a.dx], y: [0, -260, -200], scale: [1.4, 1, 0.55], rotate: 540 }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }} onAnimationComplete={() => setArcs((x) => x.filter((y) => y.id !== a.id))}>💣</motion.span>
+              </div>
+            ))}
+            {app && canThrow && (
+              <button className={cn('absolute right-2 top-2 z-10 rounded-full px-2.5 py-1 text-[11px] font-black', flickOn ? 'bg-[#FF5CDB] text-white' : 'bg-black/55 text-white/85')}
+                onPointerDown={(e) => e.stopPropagation()} onClick={() => { void askMotion(); setFlickOn((v) => !v); }} data-testid="lev-flick">
+                {flickOn ? '📱 Flick on — flick your phone to throw' : '📱 Flick to throw'}</button>
+            )}
             <AnimatePresence>{banner && <motion.div key={banner} className="absolute inset-x-6 top-4 rounded-2xl bg-black/70 px-3 py-2 text-center text-[13px] font-black text-[#FFE8A3]" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }}>{banner}</motion.div>}</AnimatePresence>
           </div>
           {createPortal(<div className="pointer-events-none fixed inset-0 z-[160]">{flies.map((f) => <Flyer key={f.id} f={f} onDone={() => setFlies((x) => x.filter((y) => y.id !== f.id))} />)}</div>, document.body)}

@@ -11,7 +11,9 @@ import { cellCenter } from '../../shared/grid';
 import { Button } from '../../ui';
 import { centerOf, efx, useTick, type SceneProps } from '../core';
 import { ABERRATIONS, kindInfo } from '../kinds';
-import { feel } from '../living';
+import { askMotion, feel } from '../living';
+import { useSwirl } from '../../native/motion';
+import { isNative } from '../../native/native';
 
 type Bolt = { i: number; t: number; gx: number; gy: number; kind: 'mutate' | 'ink' | 'stray'; target?: string; tkind?: string };
 const BOLT = 'M15 0 L4 92 L14 92 L2 220 L28 70 L17 70 L26 0 Z';
@@ -67,22 +69,29 @@ export function StormCoilScene({ v, view, act, busy, at }: SceneProps) {
   const turnsShown = Math.floor(acc.current.total / 360);
 
   // ---- the crank ----
+  /** turn the crank on by d degrees (from a finger or a swirl of the phone) */
+  const turn = (d: number) => {
+    if (d <= 0 || charge >= 100 || storm) return;
+    const c = centerOf(handle.current);
+    const before = Math.floor(acc.current.total / 360);
+    const most = Math.ceil((100 - charge) / Number(view.per_turn || 10));
+    acc.current.total = Math.min(acc.current.total + d, most * 360 + 359);
+    if (Math.floor(acc.current.total / 360) > before) { feel('medium'); efx.burst({ ...c, colors: ['#7DF9FF', '#E8F6FF'], count: 14, speed: 6, kind: 'spark' }); }
+    setAngle(acc.current.total);
+  };
   const onMove = (e: React.PointerEvent) => {
     if (e.buttons === 0 || charge >= 100 || storm) return;
     const c = centerOf(handle.current);
     const a = (Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180) / Math.PI;
     if (acc.current.last != null) {
       let d = a - acc.current.last; if (d > 180) d -= 360; if (d < -180) d += 360;
-      if (d > 0) {
-        const before = Math.floor(acc.current.total / 360);
-        const most = Math.ceil((100 - charge) / Number(view.per_turn || 10));
-        acc.current.total = Math.min(acc.current.total + d, most * 360 + 359);
-        if (Math.floor(acc.current.total / 360) > before) { feel('medium'); efx.burst({ ...c, colors: ['#7DF9FF', '#E8F6FF'], count: 14, speed: 6, kind: 'spark' }); }
-        setAngle(acc.current.total);
-      }
+      turn(d);
     }
     acc.current.last = a;
   };
+  // 📱 the apps: swirl the phone (stir circles in the air, or spin it flat) to crank — stop, and the turns go in
+  const [swirl, setSwirl] = useState(false);
+  useSwirl(swirl && charge < 100 && !storm, (deg) => turn(deg * 0.9), () => void release());
   const release = async () => {
     acc.current.last = null;
     const n = Math.min(10, Math.floor(acc.current.total / 360));
@@ -186,8 +195,12 @@ export function StormCoilScene({ v, view, act, busy, at }: SceneProps) {
                 <rect x="46" y="14" width="8" height="38" rx="4" fill="#C88B3A" /><circle cx="50" cy="14" r="9" fill="#E8F6FF" stroke="#3D5AFE" strokeWidth="3" />
                 <circle cx="50" cy="50" r="7" fill="#C88B3A" />
               </motion.svg>
-              <span className="absolute -top-5 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-black text-[#7DF9FF]">{charge >= 100 ? 'fully charged' : turnsShown ? `${turnsShown} turn${turnsShown > 1 ? 's' : ''} — let go` : '↻ spin to crank'}</span>
+              <span className="absolute -top-5 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-black text-[#7DF9FF]">{charge >= 100 ? 'fully charged' : turnsShown ? `${turnsShown} turn${turnsShown > 1 ? 's' : ''} — ${swirl ? 'stop to send' : 'let go'}` : swirl ? '📱 swirl your phone' : '↻ spin to crank'}</span>
             </div>
+            {isNative() && charge < 100 && (
+              <button className={cn('absolute bottom-3 left-3 rounded-full px-3 py-1 text-[11px] font-black', swirl ? 'bg-[#7DF9FF] text-[#06222C]' : 'bg-black/55 text-white/85')}
+                onClick={() => { void askMotion(); setSwirl((v) => !v); }} data-testid="storm-swirl">{swirl ? '📱 Swirling — stir circles with your phone' : '📱 Swirl to crank'}</button>
+            )}
             <div className="absolute left-3 top-3 grid gap-1">
               <span className="rounded-full bg-black/50 px-3 py-1 font-display text-[16px] font-black text-[#7DF9FF]" data-testid="storm-charge">⚡ {Math.round(charge)}%</span>
               <span className="rounded-full bg-black/50 px-3 py-1 text-[11px] font-black text-white/75">{view.storms_left}/{view.per_day} storm{view.per_day > 1 ? 's' : ''} left today · {view.hybrids} hybrid{view.hybrids === 1 ? '' : 's'} to strike</span>
