@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import { api } from '../backend/api';
-import { toGameError } from '../backend/backend';
+import { getBackend, toGameError } from '../backend/backend';
 import type { PartyActivity, PartyState, TravelGroupMember, Whereabouts } from '../backend/types';
 import { useOnboardedMe } from '../lib/queries';
 import { poll } from '../lib/poll';
@@ -23,8 +23,10 @@ export function useParty() {
   const me = useOnboardedMe();
   return useQuery({
     queryKey: PARTY_KEY, queryFn: api.travelGroup, enabled: !!me, staleTime: 5_000,
-    // members on the move: keep up with them; otherwise changes are pushed (this is a safety net)
-    refetchInterval: (q) => (q.state.data?.group?.members.some((m) => m.away && !m.me) ? 8_000 : q.state.data?.group ? poll(30_000) : poll(90_000)),
+    // members on the move: keep up with them; otherwise changes are pushed (this is a safety net). Not in a party —
+    // most players, most of the time — an invite is pushed to you, so the check behind it can be slow
+    refetchInterval: (q) => (q.state.data?.group?.members.some((m) => m.away && !m.me) ? 8_000 : q.state.data?.group ? poll(30_000)
+      : poll(getBackend().onPush ? 300_000 : 90_000)),
   });
 }
 

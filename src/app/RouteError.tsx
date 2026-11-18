@@ -1,4 +1,5 @@
 // A screen that hit a problem never takes the game down with it: the tab bar and every other screen stay up, and the
+import { shouldReport } from '../lib/errorReports';
 // player can try it again or go elsewhere — no dead page that needs a reload. A screen from a build that's no longer on
 // the server (the game was updated while it was open) fetches the new build instead. Every crash is reported.
 import { useEffect, useState } from 'react';
@@ -21,7 +22,7 @@ export function RouteError() {
   useEffect(() => { const t = setTimeout(() => setWaited(true), 5000); return () => clearTimeout(t); }, []);
   useEffect(() => {
     if (STALE.test(msg)) { void hardRefresh(`route-${BUILD.id}`); return; }
-    if (getBackend().session()) void api.reportClientError(`screen: ${msg}`.slice(0, 500), { path: loc.pathname, stack: err instanceof Error ? err.stack?.slice(0, 1500) : undefined, ua: navigator.userAgent }).catch(() => {});
+    if (getBackend().session() && shouldReport(`screen: ${msg}`)) void api.reportClientError(`screen: ${msg}`.slice(0, 500), { path: loc.pathname, stack: err instanceof Error ? err.stack?.slice(0, 1500) : undefined, ua: navigator.userAgent }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="grid min-h-[60dvh] place-items-center p-6 text-center" role="alert" data-testid="route-error">

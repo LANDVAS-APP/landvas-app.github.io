@@ -7,6 +7,8 @@
 const REST_AFTER = 20_000;
 /** screens you look around in, where decorations may rest (games, the editor and 3D places never do) */
 const RESTFUL = /^\/($|world$|hub$|play$|me$|plots$|canvases$|inventory$|social$|players$|clans$|events$|challenges$|leaderboards$|achievements$|explorer$|gallery$|invite$|settings$|support$|space$|grimoire$|inkborn$|badges$|guide$|together$|magic$|ultras$|new$|u\/[^/]+$)/;
+/** a screen you browse (the map, the hub, lists, profiles) rather than play in, watch or make things on */
+export const isBrowseScreen = (p: string) => RESTFUL.test(p);
 
 let path = '/';
 let timer: ReturnType<typeof setTimeout> | null = null;

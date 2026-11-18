@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlanetChatMsg } from '../backend/types';
 import { live } from '../lib/poll';
 import { useNudge } from '../lib/nudge';
+import { isAway } from '../lib/away';
 
 export type RoomChat = {
   msgs: PlanetChatMsg[]; unread: number; ready: boolean;
@@ -60,7 +61,7 @@ export function useRoomChat(opts: {
   // until the server says where to listen (you've only just walked in), look every few seconds
   useEffect(() => {
     if (!key || topic) return;
-    const t = setInterval(() => { if (!document.hidden) void tick(); }, 5000);
+    const t = setInterval(() => { if (!isAway()) void tick(); }, 5000);
     return () => clearInterval(t);
   }, [key, topic, tick]);
 

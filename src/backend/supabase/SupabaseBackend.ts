@@ -6,6 +6,7 @@
 //  * Minigame validation + art pipeline: Supabase Edge Functions (supabase/functions-src)
 //    holding the service key; clients never submit scores, only move logs
 import { poll } from '../../lib/poll';
+import { isAway, onBack } from '../../lib/away';
 import { guard, isStrain, timedFetch } from './guard';
 import { GRID_SIZE } from '../../shared/grid';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -327,7 +328,8 @@ export class SupabaseBackend implements Backend {
   subscribeMapUpdates(cb: (u: MapUpdate) => void) {
     let busy = false;
     const check = async () => {
-      if (busy || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+      // hidden, or nobody at the screen (lib/away.ts): coming back checks right away
+      if (busy || isAway()) return;
       busy = true;
       try {
         const since = this.mapSeen;
@@ -347,8 +349,9 @@ export class SupabaseBackend implements Backend {
     const timer = setInterval(() => void check(), poll(20_000));
     const onShow = () => void check();
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onShow);
+    const offBack = onBack(onShow);
     return () => {
-      clearInterval(timer);
+      clearInterval(timer); offBack();
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onShow);
     };
   }

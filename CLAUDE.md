@@ -88,3 +88,20 @@ What made phones stutter and run hot, and the rules that keep it fixed:
   `E2E_PROFILE=15 node tests/e2e/eyes.mjs web` drives the car and prints frame times and main-thread hot spots.
 - Benchmarks: `node tests/e2e/map-perf.mjs` (map smoothness at 4x CPU throttle) and `node tests/e2e/perf-app.mjs`
   (idle cost, frames, loops, timers per screen in the app shell) after `npm run build:artifact`.
+
+## Keeping the server cheap as players grow
+
+The plan and the numbers behind it: the "ops/scaling-architecture.md" doc in the LANDVAS project. Rules so far:
+- **Nobody at the screen, nobody asking** (`src/lib/away.ts`): on a browse screen untouched for 5 minutes, React Query
+  interval refetches, the map's update check, nudges and the activity heartbeat pause; the first touch refreshes what went
+  stale. A new background loop outside React Query checks `isAway()` (and re-checks on `onBack`). Games, rooms, lobbies,
+  homes, the editor, first person and watching never go away; a watched browse screen can `holdHere()`.
+  `node tests/e2e/away.mjs` checks it.
+- **World-shared data isn't asked per player.** Anything that's the same for everyone (the hot zone, the leviathan, map
+  layers, configs, lobbies) belongs in a CDN snapshot, not in a poll each player sends to Postgres. Don't add new ones.
+- **Shared topics don't make everyone fetch.** A nudge on a topic everybody listens to (global chat, feed, news) becomes
+  one database call per listener; send the data on a private channel instead, or shard the topic (as the planet, arcade
+  and home chats are).
+- **Cron jobs work within a time budget** and scale their batch with the number of active players (see
+  `integrity_auto_scan`); a fixed `limit` falls behind silently as LANDVAS grows.
+- Production usage (calls by endpoint, bytes, DB time) comes from `scripts/diag-top.mjs` and `scripts/diag-io.mjs`.

@@ -8,6 +8,7 @@ import type { RarityInfo } from '../shared/rarity';
 import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
 import { NATIVE_APP } from '../app/buildFlags';
+import { config } from '../env';
 export type EstateTask = { done: number; need: number; today?: boolean; left_today?: number };
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
@@ -125,6 +126,8 @@ let callSink: ((fn: string) => void) | null = null;
 export const onCall = (cb: typeof callSink) => { callSink = cb; };
 const rpc = async <T,>(fn: string, args?: Record<string, unknown>) => {
   callSink?.(fn);
+  // test builds only (?e2e=1 never works on the live site): count calls, so tests can see what a screen costs the server
+  if (config.e2e) { const c = ((globalThis as { __landvasCalls?: Record<string, number> }).__landvasCalls ??= {}); c[fn] = (c[fn] ?? 0) + 1; }
   const r = await getBackend().rpc<T>(fn, args);
   const b = (r as { balances?: unknown } | null)?.balances;
   if (balanceSink && b && typeof b === 'object' && !Array.isArray(b)) balanceSink(fn, b as Balances);

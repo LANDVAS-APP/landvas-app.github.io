@@ -1,6 +1,7 @@
 // What you're up to, for your friends: the screen you're on (and, out in space, the world and
 // whether you're digging). Sent when it changes and refreshed every minute and a half.
 import { poll } from '../lib/poll';
+import { isAway } from '../lib/away';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -66,7 +67,8 @@ export function useActivityReporter(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     const tick = () => {
-      if (document.hidden) return;
+      // away from the screen: you drop to "offline" for friends after a few minutes, as you should
+      if (isAway()) return;
       const a = override ?? fromPath(loc.pathname, qc.getQueryData<SpaceState>(SPACE_KEY));
       send(a.kind, a.detail);
     };

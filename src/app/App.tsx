@@ -1,4 +1,6 @@
 import { fresh } from '../lib/poll';
+import { awayRoute, startAway } from '../lib/away';
+import { shouldReport } from '../lib/errorReports';
 import { HistoryTracker } from './backTo';
 import { UpdateCountdown } from './UpdateCountdown';
 import { useUi as __ui } from '../lib/store';
@@ -206,6 +208,13 @@ function RouteMeta() {
   return null;
 }
 
+/** Away from the screen (lib/away.ts): background refreshes pause on a browse screen nobody has touched for a while. */
+function AwaySync() {
+  const loc = useLocation();
+  useEffect(() => { startAway(); awayRoute(loc.pathname); }, [loc.pathname]);
+  return null;
+}
+
 /** Tell friends what you're up to (the screen you're on). */
 function ActivitySync() {
   const me = useOnboardedMe();
@@ -221,7 +230,8 @@ function SessionSync() {
   useEffect(() => {
     const onError = (e: ErrorEvent | PromiseRejectionEvent) => {
       const msg = 'reason' in e ? String((e.reason as any)?.message ?? e.reason) : e.message;
-      if (getBackend().session()) void api.reportClientError(msg.slice(0, 500), { path: location.pathname, ua: navigator.userAgent }).catch(() => {});
+      // the same error over and over (a loop, a flaky network) is reported once, and only so many per visit
+      if (getBackend().session() && shouldReport(msg)) void api.reportClientError(msg.slice(0, 500), { path: location.pathname, ua: navigator.userAgent }).catch(() => {});
     };
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onError);
@@ -242,7 +252,7 @@ const safe = (rs: RouteObject[]): RouteObject[] => rs.map((r) => ({ ...r, errorE
 const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
-    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
+    element: <><HistoryTracker /><UpdateCountdown /><SessionSync /><AwaySync /><RouteMeta /><ActivitySync /><AlertPopups /><PartyGlobal /><Suspense fallback={null}><PuppetMini /></Suspense><WatchHost /><FpInside /><PeekHost /><ReportPlayerHost /><ElevenBanner /><OnboardingGate /><RestrictionNotice /><TermsUpdate /><LiveControl /></>,
     children: safe([
       { path: '/welcome', element: <Welcome /> },
       { path: '/i/:code', element: p(<InviteLanding />) }, // public: an invite link's own page (works signed out)

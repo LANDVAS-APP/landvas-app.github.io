@@ -7,6 +7,7 @@
 // catches anything else that slipped through. Backends without live channels (local mode) just check on a timer.
 import { useEffect, useRef } from 'react';
 import { getBackend } from '../backend/backend';
+import { isAway, onBack } from './away';
 
 export type NudgeOpts = {
   /** the slow safety check while nothing is heard (ms) */ safetyMs: number;
@@ -27,7 +28,8 @@ export function nudged(topic: string | null, check: () => unknown, opts: NudgeOp
   const canListen = !!b.liveChannel;
   let stopped = false, lastAt = 0, soonT: ReturnType<typeof setTimeout> | null = null, trailT: ReturnType<typeof setTimeout> | null = null;
   const run = () => {
-    if (stopped || (typeof document !== 'undefined' && document.hidden)) return;
+    // hidden, or nobody's at the screen (lib/away.ts): nothing to look at — coming back checks once
+    if (stopped || isAway()) return;
     lastAt = Date.now();
     try { void Promise.resolve(check()).catch(() => undefined); } catch { /* next time */ }
   };
@@ -45,10 +47,11 @@ export function nudged(topic: string | null, check: () => unknown, opts: NudgeOp
   const timer = setInterval(() => { if (Date.now() - lastAt >= every * 0.9) run(); }, every);
   const onShow = () => { if (typeof document !== 'undefined' && !document.hidden) soon(0); };
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onShow);
+  const offBack = onBack(() => soon(0));
   return {
     soon,
     stop: () => {
-      stopped = true; clearInterval(timer); ch?.close();
+      stopped = true; clearInterval(timer); ch?.close(); offBack();
       if (soonT) clearTimeout(soonT);
       if (trailT) clearTimeout(trailT);
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onShow);

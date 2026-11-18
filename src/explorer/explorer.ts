@@ -10,6 +10,7 @@ import type { ExplorerState } from '../backend/types';
 import { GRID_SIZE, lngLatToCell } from '../shared/grid';
 import { saveStorage } from '../lib/utils';
 import { config } from '../env';
+import { stillHere } from '../lib/away';
 
 export type GpsStatus = 'off' | 'asking' | 'on' | 'paused' | 'denied' | 'unavailable';
 
@@ -110,6 +111,8 @@ export function enableGps(onFirstFix?: (lng: number, lat: number) => void) {
 
 let watchId: number | null = null;
 let lastReport = { at: 0, lng: 0, lat: 0 };
+/** standing still: how often the explorer checks in anyway */
+const STILL_REPORT_MS = 60_000;
 let lastFix = 0;
 let wanted = false; // the player wants GPS on (it may be paused or restarting)
 let resumeHooked = false;
@@ -136,9 +139,11 @@ export function startGps(opts: { onFirstFix?: (lng: number, lat: number) => void
       const { longitude: lng, latitude: lat, accuracy } = pos.coords;
       useExplorer.getState().setGps('on');
       lastFix = Date.now();
-      // plots are ~7-9 m: report every few metres so the explorer keeps up with you
+      // plots are ~7-9 m: report every few metres so the explorer keeps up with you. Standing still, a check-in a
+      // minute is plenty (it used to be every 12 s: one database write a player, five times a minute, for nothing new)
       const moved = haversine(lastReport, { lng, lat });
-      const due = Date.now() - lastReport.at > 12_000 || moved > Math.max(4, Math.min(20, accuracy * 0.5));
+      const due = Date.now() - lastReport.at > STILL_REPORT_MS || moved > Math.max(4, Math.min(20, accuracy * 0.5));
+      if (moved > 15 && accuracy < 100) stillHere(); // walking with the map open counts as being here (lib/away.ts)
       if (first) opts.onFirstFix?.(lng, lat);
       first = false;
       if (!due || inflight || accuracy > 3000 || !getBackend().session()) return;
