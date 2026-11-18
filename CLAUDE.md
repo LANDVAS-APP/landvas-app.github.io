@@ -97,8 +97,17 @@ The plan and the numbers behind it: the "ops/scaling-architecture.md" doc in the
   stale. A new background loop outside React Query checks `isAway()` (and re-checks on `onBack`). Games, rooms, lobbies,
   homes, the editor, first person and watching never go away; a watched browse screen can `holdHere()`.
   `node tests/e2e/away.mjs` checks it.
-- **World-shared data isn't asked per player.** Anything that's the same for everyone (the hot zone, the leviathan, map
-  layers, configs, lobbies) belongs in a CDN snapshot, not in a poll each player sends to Postgres. Don't add new ones.
+- **World-shared data isn't asked per player: it's a CDN snapshot** (cdn.landvas.app, `cdn/worker.js`, deployed by the
+  workflow with the `CLOUDFLARE_API_TOKEN` secret). `public.world_snapshot(key)` builds the public view by calling the
+  same functions the app used, as nobody (read-only: the worker GETs it, caches it a few seconds per Cloudflare location
+  and serves a slightly old copy while it refreshes); the app reads it with `cdnSnapshot()` (`src/lib/cdn.ts`) and falls
+  back to the old call whenever the CDN is off, down or too old. Snapshots today: leviathan, hot_zone, enchant_world,
+  primordials, travel. A player's own part never goes in a snapshot: it's a separate small call (`leviathan_me`, merged
+  by `src/leviathan/levMerge.ts`; `tests/sql/540-world-snapshots` checks snapshot + own part = the old answer) or worked
+  out in the app from ids in the snapshot (`owner_id` → "mine"). A new shared read: a key in `world_snapshot`, the same
+  key in the worker's `SNAPSHOTS`, and the app's call trying `cdnSnapshot` first. The deploy switches the app over
+  (`game_config` 'cdn') only after the CDN answers; pictures through it too only with `"pictures": true` there (on
+  Cloudflare's free Workers plan, 100K requests a day, they'd use up the allowance).
 - **Shared topics don't make everyone fetch.** A nudge on a topic everybody listens to (global chat, feed, news) becomes
   one database call per listener; send the data on a private channel instead, or shard the topic (as the planet, arcade
   and home chats are).

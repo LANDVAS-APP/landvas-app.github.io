@@ -68,6 +68,8 @@ export type AppConfig = {
   hidden_pages?: string[];
   hidden_pages_apps?: string[];
   links?: { discord?: string; reddit?: string; support_email?: string; website?: string };
+  /** the CDN for world snapshots and pictures (set by the deploy; src/lib/cdn.ts) */
+  cdn?: { enabled?: boolean; url?: string; pictures?: boolean };
   /** live builds of the game for the apps (no store release): staff settings */
   ota?: { on?: boolean; paused_for?: string[]; back_to_store_build?: boolean };
   /** the current published build per kind of app binary (added by app_config(), never stored) */

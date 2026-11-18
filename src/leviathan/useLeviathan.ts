@@ -1,22 +1,54 @@
 // The Leviathan's data and where it is. Its position is a pure function of time along its path (the server's
 // private.lev_pos, mirrored here), so every screen moves it smoothly between polls and they all agree.
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type LevState, type Leviathan } from '../backend/api';
+import { cdnSkew, cdnSnapshot } from '../lib/cdn';
 import { useOnboardedMe } from '../lib/queries';
+import { levKey, levMerge, mineOf, type LevMine } from './levMerge';
 
 export const LEV_KEY = ['leviathan'];
 let skew = 0; // server clock − ours (ms)
+/** your own part, kept between looks (it's asked far less often than the world's view) */
+let mine: { at: number; key: string; uid: string; data: LevMine } | null = null;
+
+/**
+ * Everyone sees the same Leviathan: its state comes from the CDN's snapshot (no database call), and your own part —
+ * bombs, damage, rank, loot — from leviathan_me: every look while you fight (`fast`) or while it's hidden, when it
+ * changes stage, and once a minute otherwise (every five while none is out). Without the CDN it's the one old call.
+ * `cur`: what's on screen now (an action's answer since the last look holds a newer copy of your part).
+ */
+export async function loadLeviathan(fast: boolean, myId: string | null, cur: LevState | undefined): Promise<LevState> {
+  const t0 = Date.now();
+  const world = await cdnSnapshot<LevState>('leviathan', fast ? 30_000 : 90_000);
+  if (!world) {
+    const r = await api.leviathanState();
+    skew = Date.parse(r.server_time) - (t0 + Date.now()) / 2;
+    return r;
+  }
+  skew = cdnSkew();
+  if (!myId) { mine = null; return levMerge(world, null, null); }
+  if (mine && mine.uid !== myId) mine = null;
+  const key = levKey(world);
+  const hides = !!world.lev?.hidden;
+  if (cur && mine && Date.parse(cur.server_time) > Date.parse(mine.data.server_time) && levKey(cur) === mine.key) mine = { ...mine, data: mineOf(cur, hides) };
+  const due = !mine || fast || hides || mine.key !== key || Date.now() - mine.at > (world.lev ? 60_000 : 300_000);
+  if (due) {
+    const t1 = Date.now();
+    const m = await api.leviathanMe();
+    skew = Date.parse(m.server_time) - (t1 + Date.now()) / 2;
+    mine = { at: Date.now(), key, uid: myId, data: m };
+  }
+  return levMerge(world, mine!.data, myId);
+}
+/** (for tests) */
+export const resetLeviathan = () => { mine = null; skew = 0; };
 
 export function useLeviathan(fast = false) {
   const me = useOnboardedMe();
+  const qc = useQueryClient();
   return useQuery<LevState>({
     queryKey: [...LEV_KEY, !!me],
-    queryFn: async () => {
-      const t0 = Date.now();
-      const r = await api.leviathanState();
-      skew = Date.parse(r.server_time) - (t0 + Date.now()) / 2;
-      return r;
-    },
+    queryFn: () => loadLeviathan(fast, me?.user_id ?? null, qc.getQueryData<LevState>([...LEV_KEY, true])),
     staleTime: 4_000,
     refetchInterval: (q) => (q.state.data?.lev ? (fast ? 4_000 : 10_000) : 60_000),
   });

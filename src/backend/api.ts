@@ -9,6 +9,7 @@ import type { RentState } from '../shared/rent';
 import type { RarityId } from '../shared/rarity';
 import { NATIVE_APP } from '../app/buildFlags';
 import { config } from '../env';
+import { cdnSnapshot } from '../lib/cdn';
 export type EstateTask = { done: number; need: number; today?: boolean; left_today?: number };
 export type EstateState = { group_id: string; name: string; houses: number; cycle: string; today: string; rent_day: boolean; next_rent_day: string; multiplier: number; eligible: boolean;
   tasks: { inspect: EstateTask; repairs: EstateTask; requests: EstateTask; garden: EstateTask }; spots: { idx: number; house: number; what: string; fixed: boolean }[] };
@@ -135,6 +136,19 @@ const rpc = async <T,>(fn: string, args?: Record<string, unknown>) => {
   if (balanceSink && b && typeof b === 'object' && !Array.isArray(b)) balanceSink(fn, b as Balances);
   return r;
 };
+/** players you've blocked (for filtering everyone's views from the CDN), kept for ten minutes */
+let blocks: { uid: string | null; at: number; ids: Set<string> } = { uid: null, at: 0, ids: new Set() };
+async function blockedIds() {
+  const uid = getBackend().session()?.userId ?? null;
+  if (!uid) return new Set<string>();
+  if (blocks.uid !== uid || Date.now() - blocks.at > 10 * 60_000) {
+    try { blocks = { uid, at: Date.now(), ids: new Set((await rpc<{ id: string }[]>('my_blocks')).map((p) => p.id)) }; }
+    catch { blocks = { uid, at: Date.now() - 9 * 60_000, ids: blocks.ids }; } // (try again in a minute)
+  }
+  return blocks.ids;
+}
+/** a block or unblock just happened: the next look asks again */
+export const forgetBlocks = () => { blocks = { uid: null, at: 0, ids: new Set() }; };
 export const idemKey = (op: string) => `${op}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export type ClaimResult = {
@@ -250,7 +264,7 @@ export const api = {
   myUltras: () => rpc<import('./types').MyUltras>('my_ultras'),
   dailyClaim: () => rpc<{ reward: import('./types').StreakReward & { ticket_id?: string | null }; status: import('./types').DailyStatus; balances: Balances }>('daily_claim'),
   /** today's Hot Zone (a real city with boosted rarities) and tomorrow's */
-  hotZone: () => rpc<import('./types').HotZoneInfo>('hot_zone_today'),
+  hotZone: async () => (await cdnSnapshot<import('./types').HotZoneInfo>('hot_zone', 10 * 60_000)) ?? rpc<import('./types').HotZoneInfo>('hot_zone_today'),
   /** what's coming up (energy full, crops ready, expeditions home…) for the optional reminders */
   myTimers: () => rpc<import('../native/notify').Timer[]>('my_timers'),
   /** your rentals: today's checklist done? all set for the 1st? */
@@ -295,7 +309,13 @@ export const api = {
   enchantMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap>('enchant_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
   enchantBestiary: () => rpc<{ kinds: { kind: string; name: string; emoji: string; population: number; minted: number; mine: number }[]; codex: string[]; trinities: string[]; plots: string[]; aberrations: string[]; aberrations_total: number;
     chance: { base: number; charges: number; step: number } }>('enchant_bestiary'),
-  enchantWorld: () => rpc<EnchantWorld>('enchant_world'),
+  enchantWorld: async () => {
+    const w = await cdnSnapshot<EnchantWorld>('enchant_world', 120_000);
+    if (!w) return rpc<EnchantWorld>('enchant_world');
+    const uid = getBackend().session()?.userId ?? null; // (the snapshot is everyone's view: which ones are yours is worked out here)
+    return { ...w, giants: w.giants.map((g) => ({ ...g, mine: !!uid && (g as { owner_id?: string }).owner_id === uid })),
+      wormholes: w.wormholes.map((x) => ({ ...x, mine: !!uid && (x as { owner_id?: string }).owner_id === uid })) };
+  },
   seekChests: () => rpc<SeekChest[]>('seek_chests'),
   seekChestDig: (id: number) => rpc<{ ink: number; gx: number; gy: number; kind: string; chests: SeekChest[] }>('seek_chest_dig', { p_id: id }),
   enchantMap2: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<EnchantMap2>('enchant_map2', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
@@ -311,6 +331,8 @@ export const api = {
   spliceInviteRespond: (id: number, accept: boolean) => rpc<{ accepted?: boolean; declined?: boolean; hybrid?: string; invites: SpliceInvite[] }>('splice_invite_respond', { p_id: id, p_accept: accept }),
   // the Leviathan
   leviathanState: () => rpc<LevState>('leviathan_state', { p_tick: true }),
+  /** your own part of the Leviathan (the rest comes from the CDN's snapshot: leviathan/levMerge.ts) */
+  leviathanMe: () => rpc<import('../leviathan/levMerge').LevMine>('leviathan_me'),
   /** the Glyphcaster's Thunder Glyph: drawn — accuracy (0..1) sets the damage */
   // ---- the Ultra Expansion ----
   rarityPower: (gx: number, gy: number) => rpc<RxPower | null>('rarity_power', { p_gx: gx, p_gy: gy }),
@@ -321,7 +343,12 @@ export const api = {
   eyesCatch: (win: number, i: number) => rpc<{ ink?: number; luck?: number; ticket?: string; today: number; cap: number }>('eyes_catch', { p_win: win, p_i: i }),
   myPowers: () => rpc<RxPower[]>('my_powers'),
   rarityMap: (b: { min_gx: number; min_gy: number; max_gx: number; max_gy: number }) => rpc<RxMap>('rarity_map', { p_min_gx: b.min_gx, p_min_gy: b.min_gy, p_max_gx: b.max_gx, p_max_gy: b.max_gy }),
-  primordialsWorld: () => rpc<{ plots: RxWorldPlot[]; last: number }>('primordials_world'),
+  primordialsWorld: async () => {
+    const w = await cdnSnapshot<{ plots: RxWorldPlot[]; last: number }>('primordials', 300_000);
+    if (!w) return rpc<{ plots: RxWorldPlot[]; last: number }>('primordials_world');
+    const uid = getBackend().session()?.userId ?? null;
+    return { ...w, plots: w.plots.map((x) => ({ ...x, mine: !!uid && (x as { owner_id?: string }).owner_id === uid })) };
+  },
   rarityMoments: (since: number) => rpc<{ moments: RxMoment[]; last: number }>('rarity_moments', { p_since: since }),
   primordialTier: () => rpc<RxTier>('primordial_tier'),
   fusionBook: () => rpc<RxFusionBook>('fusion_book'),
@@ -376,7 +403,14 @@ export const api = {
   travelRefill: () => rpc<{ left: number; cost: number; balances: Balances }>('travel_refill'),
   travelPassport: () => rpc<import('./types').TravelStamp[]>('travel_passport'),
   travelBuildings: (b: { w: number; s: number; e: number; n: number }) => rpc<import('./types').TravelBuilding[]>('travel_buildings', { p_w: b.w, p_s: b.s, p_e: b.e, p_n: b.n }),
-  travelTraffic: () => rpc<import('./types').TravelTraffic[]>('travel_traffic'),
+  travelTraffic: async () => {
+    const w = await cdnSnapshot<{ items: import('./types').TravelTraffic[] }>('travel', 120_000);
+    if (!w) return rpc<import('./types').TravelTraffic[]>('travel_traffic');
+    // everyone's view: leave out your own trips and anyone you've blocked (as the call does on the server)
+    const uid = getBackend().session()?.userId ?? null;
+    const blocked = await blockedIds();
+    return w.items.filter((t) => (t as { id?: string }).id !== uid && !blocked.has((t as { id?: string }).id ?? ''));
+  },
   travelShare: (share: boolean) => rpc<{ share: boolean }>('travel_share', { p_share: share }),
   // out and about: vehicles, finds, travel groups
   vehicleBuy: (kind: 'bike' | 'car' | 'jet') => rpc<ExplorerState & { balances: Balances; cost: number }>('vehicle_buy', { p_kind: kind }),
@@ -908,7 +942,7 @@ export const api = {
   events: () => rpc<any[]>('events_list'),
   joinEvent: (id: string) => rpc<any[]>('join_event', { p_event_id: id }),
   reportArtwork: (id: string, reason: string, details: string) => rpc('report_artwork', { p_publication_id: id, p_reason: reason, p_details: details }),
-  blockPlayer: (id: string, on: boolean) => rpc('block_player', { p_player_id: id, p_on: on }),
+  blockPlayer: (id: string, on: boolean) => { forgetBlocks(); return rpc('block_player', { p_player_id: id, p_on: on }); },
   /** report a player: their name, picture, plot names, creatures, home, or how they behave (App Store 1.2) */
   reportPlayer: (id: string, reason: 'name' | 'picture' | 'content' | 'harassment' | 'cheating' | 'spam' | 'personal_info' | 'other', details?: string) =>
     rpc<{ ok: boolean; duplicate?: boolean }>('report_player', { p_player_id: id, p_reason: reason, p_details: details ?? null }),

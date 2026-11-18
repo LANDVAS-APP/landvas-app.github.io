@@ -1,0 +1,17 @@
+// cdn.landvas.app — deployed by the "Deploy LANDVAS" workflow (needs the CLOUDFLARE_API_TOKEN secret). Separate from
+// the landvas.app worker, which this never touches.
+{
+  "name": "landvas-cdn",
+  // (the Cloudflare account's id isn't a secret: it's in every dashboard address)
+  "account_id": "81118f198c236eae152aadd4f72de888",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "routes": [{ "pattern": "cdn.landvas.app", "custom_domain": true }],
+  "workers_dev": false,
+  // both public by design (the same address and publishable key the web app ships)
+  "vars": {
+    "SUPABASE_URL": "https://ojxqarpmreekylwotbdb.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_dEOM4bqREs8XHmtFNrx7NA_qK7GijGL"
+  },
+  "observability": { "enabled": true }
+}

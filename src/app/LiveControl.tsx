@@ -16,6 +16,7 @@ import { useMe } from '../lib/queries';
 import { isNative, platform } from '../native/native';
 import { syncBundle } from '../native/liveBundle';
 import { NATIVE_APP } from './buildFlags';
+import { setCdn } from '../lib/cdn';
 
 const CORE = ['/', '/world', '/hub', '/welcome', '/settings', '/support', '/legal', '/onboarding', '/reset-password'];
 
@@ -69,6 +70,8 @@ export function LiveControl() {
   const [version, setVersion] = useState<string | null>(null);
   const [softClosed, setSoftClosed] = useState(false);
   useEffect(() => { void installedVersion().then(setVersion); }, []);
+  // the CDN for world snapshots and pictures (lib/cdn.ts)
+  useEffect(() => { setCdn(cfg?.cdn); }, [cfg?.cdn?.enabled, cfg?.cdn?.url, cfg?.cdn?.pictures]); // eslint-disable-line react-hooks/exhaustive-deps
   // the apps: a newer live build of the game, fetched quietly and applied on a later launch
   useEffect(() => { if (NATIVE_APP && isNative()) void syncBundle(cfg); }, [cfg]);
 

@@ -7,6 +7,7 @@
 //    holding the service key; clients never submit scores, only move logs
 import { poll } from '../../lib/poll';
 import { isAway, onBack } from '../../lib/away';
+import { cdnPicture } from '../../lib/cdn';
 import { guard, isStrain, timedFetch } from './guard';
 import { GRID_SIZE } from '../../shared/grid';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -180,7 +181,7 @@ export class SupabaseBackend implements Backend {
     if (error && !/exists|Duplicate|409/i.test(error.message)) throw new GameError('upload_failed', error.message);
   }
   async avatarUrl(path: string | null | undefined) {
-    return path ? `${config.supabaseUrl}/storage/v1/object/public/avatars/${path}` : null;
+    return path ? cdnPicture('avatars', path) ?? `${config.supabaseUrl}/storage/v1/object/public/avatars/${path}` : null;
   }
   async uploadInviteCard(ownerId: string, name: string, image: Blob) {
     // names are content hashes, so an existing object is already the same picture
@@ -188,10 +189,10 @@ export class SupabaseBackend implements Backend {
     if (error && !/exists|Duplicate|409/i.test(error.message)) throw new GameError('upload_failed', error.message);
   }
   async inviteCardUrl(path: string | null | undefined) {
-    return path ? `${config.supabaseUrl}/storage/v1/object/public/invite-cards/${path}` : null;
+    return path ? cdnPicture('invite-cards', path) ?? `${config.supabaseUrl}/storage/v1/object/public/invite-cards/${path}` : null;
   }
   async publicAssetUrl(path: string | null | undefined) {
-    return path ? `${config.supabaseUrl}/storage/v1/object/public/public-art/${path}` : null;
+    return path ? cdnPicture('public-art', path) ?? `${config.supabaseUrl}/storage/v1/object/public/public-art/${path}` : null;
   }
   async privateAssetUrl(bucketPath: string | null | undefined) {
     if (!bucketPath) return null;
@@ -204,7 +205,11 @@ export class SupabaseBackend implements Backend {
     return data.signedUrl;
   }
   async artTile(z: number, x: number, y: number, rev: number, signal?: AbortSignal) {
-    const res = await fetch(`${config.supabaseUrl}/storage/v1/object/public/public-art/tiles/${z}/${x}/${y}/${rev}.png`, { signal });
+    const direct = `${config.supabaseUrl}/storage/v1/object/public/public-art/tiles/${z}/${x}/${y}/${rev}.png`;
+    const viaCdn = cdnPicture('public-art', `tiles/${z}/${x}/${y}/${rev}.png`);
+    // through the CDN when it's on; if it doesn't answer, straight from Storage
+    let res = viaCdn ? await fetch(viaCdn, { signal }).catch(() => null) : null;
+    if (!res || (!res.ok && res.status !== 404)) res = await fetch(direct, { signal });
     if (!res.ok) return null;
     return res.arrayBuffer();
   }
