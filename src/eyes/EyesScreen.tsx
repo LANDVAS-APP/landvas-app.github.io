@@ -5,7 +5,7 @@
 // Walk with the stick (forward is where you look), look by dragging or by moving the phone, tap anything.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Rocket, Smartphone, Telescope, Users, X } from 'lucide-react';
+import { BookOpen, Camera, ChevronLeft, CloudSun, Gamepad2, Map as MapIcon, Paintbrush, Rocket, Smartphone, Sparkles, Telescope, Users, X } from 'lucide-react';
 import { useParty, usePartyUi } from '../party/party';
 import { EMOTES, sendGroup, useGroupLive, type Emote } from '../travel/live';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -48,8 +48,9 @@ import { MeetNearby } from './MeetNearby';
 import { StarPreview } from '../stars/StarPreview';
 import { StarWarp } from '../stars/StarWarp';
 import { TIERS } from '../stars/galaxy';
-import { starSkin } from '../stars/skin';
-import type { StarCard } from '../stars/types';
+import { buildStarSkin } from '../stars/useStars';
+import type { MyStar, StarCard } from '../stars/types';
+import { CLASS_BY_ID, type StarClassId } from '../stars/galaxy';
 import type { SkyClaim } from '../stars/skyLayer';
 /** to space, in first person (its own chunk: only when you go) */
 const SpaceFlight = lazy(() => import('./SpaceFlight'));
@@ -690,11 +691,60 @@ export default function EyesScreen() {
   useEffect(() => {
     if (!eyes) return;
     eyes.setTelescope(scope);
-    if (scope) { const a = eyes.look(); if (a.pitch < 0.5) glide(null, 0.95); }
+    if (scope && aimNext.current == null) { const a = eyes.look(); if (a.pitch < 0.5) glide(null, 0.95); }
   }, [eyes, scope]); // eslint-disable-line react-hooks/exhaustive-deps
   // the telescope's reach: an Observatory among the stars takes it further (the server says how far)
   const reachQ = useQuery({ queryKey: ['star-reach'], queryFn: api.starReach, enabled: !!me, staleTime: 120_000 });
-  useEffect(() => { if (eyes && reachQ.data) eyes.setStarReach(reachQ.data.reach); }, [eyes, reachQ.data]);
+  useEffect(() => { if (eyes && reachQ.data) { eyes.setStarReach(reachQ.data.reach); eyes.setSkySizes(reachQ.data.sky); } }, [eyes, reachQ.data]);
+  // your stars: always marked in the sky (a cyan ring and their name), their skins loaded once they're big enough to see
+  const myStarsQ = useQuery({ queryKey: ['my-stars'], queryFn: api.myStars, enabled: !!me, staleTime: 60_000 });
+  const myStars = myStarsQ.data?.stars ?? [];
+  useEffect(() => {
+    if (!eyes || !myStarsQ.data) return;
+    const list = myStarsQ.data.stars;
+    eyes.setMyStars(list.map((x) => ({ id: x.id, name: x.name })));
+    const claims: SkyClaim[] = list.filter((x) => x.claimed > 0).map((x) => ({ id: x.id, claimed: x.claimed, cells: x.cells, painted: x.painted, color: x.color, art_rev: x.art_rev ?? 0, name: x.name, mine: true }));
+    if (claims.length) gotClaims(claims);
+  }, [eyes, myStarsQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [myStarsOpen, setMyStarsOpen] = useState(false);
+  const aimNext = useRef<number | null>(null);
+  /** turn to one of your stars and zoom the telescope in on it (if it's above the horizon) */
+  const showStar = (id: number, name: string) => {
+    if (!eyes) return;
+    const place = eyes.starPlace(id);
+    if (!place) { toast('Finding it…', { description: 'The sky’s still loading — try again in a moment.' }); return; }
+    setMyStarsOpen(false);
+    if (place.alt < 0.02) {
+      const when = place.riseAt ? new Date(place.riseAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null;
+      toast(`${name} is below the horizon right now`, { description: when ? `It rises about ${when}. You can still go there, or open it.` : 'It doesn’t rise here today. You can still go there, or open it.',
+        action: { label: 'Open it', onClick: () => setStarOpen(id) } });
+      return;
+    }
+    const zoomTo = () => {
+      const f = Math.max(0.02, Math.min(26, place.shellDeg / 0.3));
+      const look = eyes.starLook(id);
+      if (look) glide(look.yaw, look.pitch);
+      setTimeout(() => { eyes.setFov(f); setScopeFov(eyes.telescope().fov); }, 50);
+      toast(`★ ${name}`, { description: 'Your star, in the middle of the telescope. Tap it to open it.' });
+    };
+    if (scope) zoomTo(); else { aimNext.current = id; setScope(true); setTimeout(() => { if (aimNext.current === id) { aimNext.current = null; zoomTo(); } }, 120); }
+  };
+  // from the star chart: /eyes?star=… shows that star (once the sky can place it)
+  const shown = useRef(false);
+  useEffect(() => {
+    const want = Number(params.get('star'));
+    if (!eyes || shown.current || !params.get('star') || !Number.isFinite(want)) return;
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      if (eyes.starPlace(want) || tries > 25) {
+        clearInterval(t); shown.current = true;
+        const nm = myStars.find((x) => x.id === want)?.name ?? 'The star';
+        showStar(want, nm);
+      }
+    }, 200);
+    return () => clearInterval(t);
+  }, [eyes, myStarsQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
   // (the zoom on screen, a few times a second)
   useEffect(() => {
     if (!eyes || !scope) return;
@@ -731,17 +781,17 @@ export default function EyesScreen() {
     const t0 = setTimeout(() => void tick(), 700);
     return () => { live = false; clearInterval(tg); clearTimeout(t0); };
   }, [eyes, me, scope]); // eslint-disable-line react-hooks/exhaustive-deps
-  // up close through the telescope, a claimed star wears its skin (its plots and paintings), turning: made once per
-  // change to the star (its plots claimed, its art's revision), a few at a time
+  // a claimed star big enough to see as a disc (zoomed in, or a near one even to the naked eye) wears its skin (its
+  // plots and paintings), turning: made once per change to the star (its plots claimed, its art's revision), a few at a time
   const skinned = useRef(new Map<number, string>());
   useEffect(() => {
-    if (!eyes || !scope) return;
+    if (!eyes) return;
     const t = setInterval(() => {
-      if (document.hidden || eyes.telescope().fov > 6) return;
-      for (const id of eyes.claimedShown().slice(0, 3)) void loadSkin(id);
-    }, 2500);
+      if (document.hidden || eyes.sky().day > 0.75) return;
+      for (const id of eyes.claimedVisible(6).slice(0, 3)) void loadSkin(id);
+    }, 2000);
     return () => clearInterval(t);
-  }, [eyes, scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eyes]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadSkin = async (id: number) => {
     if (!eyes) return;
     const sc = claimsOf.current.get(id);
@@ -751,9 +801,7 @@ export default function EyesScreen() {
     skinned.current.set(id, key);
     try {
       const card = await api.starCard(id);
-      const plots = card.cells <= 3242 ? (await api.starPlotsOf(id)).plots : [];
-      const layers = await Promise.all(card.art.slice(0, 16).map(async (a) => (await api.starArtLayer(id, a.owner).catch(() => null)) ?? a));
-      eyes.setStarSkin(id, await starSkin(card.m, plots, layers, card.cells <= 252 ? 512 : 1024), card.art_rev * 100000 + card.claimed);
+      eyes.setStarSkin(id, await buildStarSkin(card, null, card.cells <= 252 ? 512 : 1024), card.art_rev * 100000 + card.claimed);
     } catch { skinned.current.delete(id); /* no skin: it shows in its colour */ }
   };
   const goToStar = async (c: StarCard) => {
@@ -1050,6 +1098,9 @@ export default function EyesScreen() {
         {me && <RoundBtn label="Grimoire" on={book} onClick={() => setBook((b) => !b)} testid="eyes-grimoire-btn"><BookOpen className="h-5 w-5" /></RoundBtn>}
         {me && <RoundBtn label="To space" on={space} onClick={() => setSpace(true)} testid="eyes-space-btn"><Rocket className="h-5 w-5" /></RoundBtn>}
         <RoundBtn label={scope ? 'Telescope on' : 'Telescope'} on={scope} onClick={() => setScope((x) => !x)} testid="eyes-telescope-btn"><Telescope className="h-5 w-5" /></RoundBtn>
+        {myStars.length > 0 && <RoundBtn label="Your stars" on={myStarsOpen} onClick={() => setMyStarsOpen((x) => !x)} testid="eyes-mystars-btn">
+          <span className="relative"><Sparkles className="h-5 w-5" /><span className="absolute -right-2.5 -top-2 rounded-full bg-[#5CF2FF] px-1 text-[10px] font-black text-[#0b0b1e]">{myStars.length}</span></span>
+        </RoundBtn>}
         <RoundBtn label="Snap" onClick={() => void snap()} testid="eyes-snap"><Camera className="h-5 w-5" /></RoundBtn>
         <RoundBtn label="Map" onClick={() => toMap(nav)} testid="eyes-map"><MapIcon className="h-5 w-5" /></RoundBtn>
       </div>
@@ -1142,6 +1193,8 @@ export default function EyesScreen() {
       {/* ✨ the telescope: a round view, the zoom, how deep it's reached */}
       {scope && <TelescopeView fov={scopeFov} reach={reachQ.data?.reach ?? 3} onFov={(f) => { eyes?.setFov(f); setScopeFov(f); }} onClose={() => setScope(false)} />}
       <AnimatePresence>{starOpen != null && <StarPreview key={starOpen} id={starOpen} onClose={() => setStarOpen(null)} onGo={(c) => void goToStar(c)} />}</AnimatePresence>
+      <AnimatePresence>{myStarsOpen && <MyStarsSheet key="mystars" stars={myStars} eyes={eyes} onClose={() => setMyStarsOpen(false)} onShow={showStar}
+        onOpen={(id) => { setMyStarsOpen(false); setStarOpen(id); }} onPaint={(id) => nav(`/star/${id}/paint`)} />}</AnimatePresence>
       <AnimatePresence>{warp && <StarWarp key={warp.id} name={warp.name} cls={warp.cls} arriveAt={warp.arrive} departAt={warp.depart} rushInk={10}
         onRush={() => void api.starRush().then(() => { const id = warp.id; setWarp(null); nav(`/star/${id}`); }).catch((e) => toast.error(toGameError(e).message))}
         onArrive={() => { const id = warp.id; setWarp(null); nav(`/star/${id}`); }} />}</AnimatePresence>
@@ -1151,6 +1204,49 @@ export default function EyesScreen() {
       <ClaimCelebration />
       <LeviathanFight />
     </div>
+  );
+}
+
+/** your stars: where each is in your sky right now; show it (the telescope turns to it), open it, paint it */
+function MyStarsSheet({ stars, eyes, onClose, onShow, onOpen, onPaint }: { stars: MyStar[]; eyes: Eyes | null; onClose(): void; onShow(id: number, name: string): void; onOpen(id: number): void; onPaint(id: number): void }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 30_000); return () => clearInterval(t); }, []);
+  return (
+    <motion.div className="fixed inset-x-0 bottom-0 z-[58] flex justify-center px-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} data-testid="eyes-mystars">
+      <div className="grid max-h-[70vh] w-full max-w-md grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[26px] border border-[#5CF2FF]/25 bg-[#070B1C] text-white shadow-2xl">
+        <div className="flex items-center gap-2 px-4 pb-2 pt-3.5">
+          <Sparkles className="h-4 w-4 text-[#5CF2FF]" />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[17px] font-black">Your stars</div>
+            <div className="text-[11.5px] text-white/55">Marked in the sky with a cyan ring and their name. “Show me” turns the telescope to it.</div>
+          </div>
+          <button className="grid h-8 w-8 place-items-center rounded-full bg-white/10" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="grid content-start gap-1.5 overflow-y-auto px-3 pb-3">
+          {stars.map((s) => {
+            const C = CLASS_BY_ID[s.cls as StarClassId];
+            const p = eyes?.starPlace(s.id) ?? null;
+            const where = !p ? '…' : p.alt >= 0.02 ? `up now · ${Math.round((p.alt * 180) / Math.PI)}° high` : p.riseAt ? `rises ${new Date(p.riseAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'below the horizon today';
+            return (
+              <div key={s.id} className="grid gap-2 rounded-2xl bg-white/6 p-2.5" data-testid="eyes-mystar-row">
+                <button className="flex items-center gap-3 text-left" onClick={() => onOpen(s.id)}>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl" style={{ background: `radial-gradient(circle, ${s.color ?? C?.glow ?? '#fff'}, transparent 70%)` }}>{C?.emoji ?? '✨'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-black">{s.name}{s.painted ? ' 🖼️' : ''}</span>
+                    <span className="block truncate text-[11.5px] text-white/55">{s.mine.toLocaleString()} plot{s.mine === 1 ? '' : 's'} yours{s.discoverer ? ' · 🔭 you found it' : ''} · {where}</span>
+                  </span>
+                </button>
+                <div className="flex gap-1.5">
+                  <button className="h-9 flex-1 rounded-xl bg-[#5CF2FF]/15 text-[12.5px] font-black text-[#5CF2FF] disabled:opacity-40" disabled={!p || p.alt < 0.02} onClick={() => onShow(s.id, s.name)} data-testid="eyes-mystar-show"><Telescope className="mr-1 inline h-4 w-4" />Show me</button>
+                  {s.mine > 0 && <button className="h-9 rounded-xl bg-white/8 px-3 text-[12.5px] font-bold" onClick={() => onPaint(s.id)}><Paintbrush className="mr-1 inline h-3.5 w-3.5" />Paint</button>}
+                  <button className="h-9 rounded-xl bg-white/8 px-3 text-[12.5px] font-bold" onClick={() => onOpen(s.id)}>Open</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 

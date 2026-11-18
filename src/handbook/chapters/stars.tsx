@@ -18,6 +18,7 @@ export const stars: Chapter = {
       body: () => (
         <>
           <P>There are about <B>{Math.round(GALAXY_SIZE / 1e9)} billion</B> stars: the ~5,000 you can see with your eyes at their real places, and the rest further and fainter, there to find. Open first person, look up, and tap the 🔭 telescope.</P>
+          <P>Zooming in magnifies them: nearer stars look bigger, and a star that’s a point at one zoom is a ball a few zooms on, with the stars beyond showing round it. A claimed star turns into its painted disc once it’s big enough to see — the nearest even to the naked eye.</P>
           <Table head={['Zoom', 'What comes in']} rows={TIERS.map((t) => [<b key="t">{t.name}</b>, t.t === 0 ? 'the real stars, by name' : `stars ${fmtN(t.ly[0])}–${fmtN(t.ly[1])} light-years away`])}
             note="Ultra deep and the far galaxy need an Observatory among the stars (one takes you to ultra deep; two, or a level-3 one, to the far galaxy)." />
           <Tip>Tap a star for its preview: the star turning in its shell of plots, what kind it is, how far, who found it, what the next plot costs — and Go there.</Tip>
@@ -47,6 +48,23 @@ export const stars: Chapter = {
       ),
     },
     {
+      id: 'find', emoji: '★', title: 'Finding your stars and your plots',
+      summary: 'Your stars wear a cyan ring and their name in the sky. On a star, you land beside your latest plot, and ★ Your plots takes you to each one.',
+      keys: 'find my star my plots where lost cannot see shell pin cyan show me sky chart go to land list jump next',
+      body: () => (
+        <>
+          <Bullets items={[
+            <>In first person, <B>✨ Your stars</B> lists them with where each is in your sky right now. <B>Show me</B> turns the telescope to it; below the horizon, it says when it rises.</>,
+            'Wherever they are, your stars wear a cyan ring and their name — at any zoom.',
+            <>Warp to one of your stars and you land <B>beside your latest plot</B>. Your plots have a cyan rim and a <B>★ pin</B> you can see from anywhere on the shell.</>,
+            <>The <B>★ Your plots</B> button (or ‹ › at the bottom) takes you from one to the next, anywhere on the star.</>,
+            <>On the star chart, <B>Yours</B> shows every star you have plots on: Go to your plots, In the sky, Paint.</>,
+          ]} />
+          <GoRow links={[['/stars', 'The star chart'], ['/eyes', 'First person']]} />
+        </>
+      ),
+    },
+    {
       id: 'paint', emoji: '🎨', title: 'Painting a star',
       summary: 'Paint your plots of a star; once approved, the painting is on the star for everyone — through the telescope from Earth too.',
       keys: 'paint star art painted star telescope disc review approved',
@@ -54,6 +72,8 @@ export const stars: Chapter = {
         <>
           <Bullets items={[
             'On the star, tap 🖌️ Paint: the whole star laid out flat, zoomed in on your plots. Strokes stay inside your own plots.',
+            'The bucket fills the plot you tap (or all of yours). Bring in a picture and lay it over your plots: only what’s over them is kept. ‹ › go from one of your plots to the next.',
+            'On a bigger star (a white star and up) you paint the part round your plots, up close, so each plot is big enough to paint.',
             'Staff look at a star’s paintings before everyone sees them (the star is in everyone’s sky).',
             <>Zoom right in on a claimed star through the telescope and it’s a disc, turning, wearing its plots and paintings. The naked-eye star takes on the paintings’ colour.</>,
             <>Every plot claimed and every painting approved: a <B>Painted Star</B> — on the feed, a badge, and on the star chart.</>,

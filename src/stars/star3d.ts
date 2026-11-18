@@ -101,6 +101,8 @@ export function makeCore(cls: StarClassId, radius: number, opts: { binary?: bool
 export type ShellOpts = { inside?: boolean; claimed: Map<number, { color: string; mine: boolean; keystone: boolean; kind: string }>; skin: THREE.Texture | null;
   /** only the plots near this direction (the biggest stars): null for all */ near?: { dir: V3; reach: number } | null };
 export type Shell = { group: THREE.Group; cells: Cell[]; cellMesh: Map<number, number>; setSkin(t: THREE.Texture | null): void; dispose(): void; update(t: number): void;
+  /** a sharper skin of just the part of the star round you (u0, v0, du, dv of the flat map), over the whole one */
+  setNear(t: THREE.Texture | null, rect: [number, number, number, number] | null): void;
   /** light up a plot (the one you're looking at) */ highlight(id: number | null): void };
 
 /**
@@ -110,9 +112,10 @@ export type Shell = { group: THREE.Group; cells: Cell[]; cellMesh: Map<number, n
 export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
   const cells = (o.near ? patch(m, o.near.dir, o.near.reach) : shellCells(m) ?? patch(m, [0, 0, 1], Math.PI));
   const group = new THREE.Group();
-  const U = { uSkin: { value: o.skin }, uHas: { value: o.skin ? 1 : 0 }, uT: { value: 0 }, uIn: { value: o.inside ? 1 : 0 }, uHi: { value: -1 } };
-  // claimed panels: one mesh (each panel a fan of triangles), per-vertex: its plot's colour and id
-  const pos: number[] = [], col: number[] = [], ids: number[] = [], edge: number[] = [];
+  const U = { uSkin: { value: o.skin }, uHas: { value: o.skin ? 1 : 0 }, uT: { value: 0 }, uIn: { value: o.inside ? 1 : 0 }, uHi: { value: -1 },
+    uNear: { value: null as THREE.Texture | null }, uHasNear: { value: 0 }, uRect: { value: new THREE.Vector4(0, 0, 1, 1) } };
+  // claimed panels: one mesh (each panel a fan of triangles), per-vertex: its plot's colour and id, and whether it's yours
+  const pos: number[] = [], col: number[] = [], ids: number[] = [], edge: number[] = [], mineA: number[] = [];
   const lp: number[] = [], lc: number[] = [];
   // the open plots: a faint glass you can see the stars through (lit up when it's the one you're looking at)
   const op: number[] = [], oi: number[] = [];
@@ -136,6 +139,7 @@ export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
           col.push(tmpC.r, tmpC.g, tmpC.b);
           ids.push(c.id);
           edge.push(k === 0 ? 0 : 1);
+          mineA.push(cl.mine ? 1 : 0);
         }
       }
     } else {
@@ -144,9 +148,9 @@ export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
         for (const v of [cc, a, b]) { op.push(v[0] * radius, v[1] * radius, v[2] * radius); oi.push(c.id); }
       }
     }
-    // the frame round every plot (brighter round your own, gold round Keystones)
-    const fc = cl ? (cl.mine ? new THREE.Color('#FFFFFF') : new THREE.Color(cl.color).multiplyScalar(1.2)) : c.keystone ? new THREE.Color('#FFD23F') : new THREE.Color('#7FA8FF');
-    const k = cl ? 0.9 : c.keystone ? 0.8 : 0.32;
+    // the frame round every plot (bright cyan round your own, gold round Keystones)
+    const fc = cl ? (cl.mine ? new THREE.Color('#5CF2FF') : new THREE.Color(cl.color).multiplyScalar(1.2)) : c.keystone ? new THREE.Color('#FFD23F') : new THREE.Color('#7FA8FF');
+    const k = cl ? (cl.mine ? 1.25 : 0.9) : c.keystone ? 0.8 : 0.32;
     for (let i = 0; i < n; i++) {
       const a = c.corners[i], b = c.corners[(i + 1) % n];
       lp.push(a[0] * radius, a[1] * radius, a[2] * radius, b[0] * radius, b[1] * radius, b[2] * radius);
@@ -158,17 +162,24 @@ export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
   pg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   pg.setAttribute('aId', new THREE.Float32BufferAttribute(ids, 1));
   pg.setAttribute('aEdge', new THREE.Float32BufferAttribute(edge, 1));
+  pg.setAttribute('aMine', new THREE.Float32BufferAttribute(mineA, 1));
   pg.computeVertexNormals();
   const pm = new THREE.ShaderMaterial({
     uniforms: U, vertexColors: true, side: THREE.DoubleSide,
-    vertexShader: /* glsl */ `attribute float aId; attribute float aEdge; varying vec3 vP; varying vec3 vC; varying float vE; varying float vId;
-      void main() { vP = position; vC = color; vE = aEdge; vId = aId; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: /* glsl */ `uniform sampler2D uSkin; uniform float uHas, uT, uIn, uHi; varying vec3 vP; varying vec3 vC; varying float vE; varying float vId;
+    vertexShader: /* glsl */ `attribute float aId; attribute float aEdge; attribute float aMine; varying vec3 vP; varying vec3 vC; varying float vE; varying float vId; varying float vMine;
+      void main() { vP = position; vC = color; vE = aEdge; vId = aId; vMine = aMine; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `uniform sampler2D uSkin; uniform sampler2D uNear; uniform float uHas, uHasNear, uT, uIn, uHi; uniform vec4 uRect;
+      varying vec3 vP; varying vec3 vC; varying float vE; varying float vId; varying float vMine;
       void main() { vec3 d = normalize(vP); vec2 uv = vec2(atan(d.x, d.z) / 6.2831853 + 0.5, asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);
         vec4 sk = uHas > 0.5 ? texture2D(uSkin, uv) : vec4(0.0);
+        // (the sharper skin of the part round you, where it reaches)
+        if (uHasNear > 0.5) { vec2 q = vec2(fract(uv.x - uRect.x) / uRect.z, (uv.y - uRect.y) / uRect.w);
+          if (q.x >= 0.0 && q.x <= 1.0 && q.y >= 0.0 && q.y <= 1.0) { vec4 sn = texture2D(uNear, q); sk = vec4(mix(sk.rgb * sk.a, sn.rgb, sn.a), max(sk.a, sn.a)); if (sk.a > 0.0) sk.rgb /= max(sk.a, 1e-3); } }
         vec3 c = mix(vC, sk.rgb, sk.a);
         float hi = abs(vId - uHi) < 0.5 ? 0.35 + 0.25 * sin(uT * 6.0) : 0.0;
         c = c * (0.78 + 0.22 * (1.0 - vE)) + hi;
+        // (yours: a cyan glow round its rim, breathing)
+        c += vec3(0.25, 0.9, 1.0) * vMine * smoothstep(0.55, 1.0, vE) * (0.22 + 0.12 * sin(uT * 2.4));
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -198,6 +209,7 @@ export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
   return {
     group, cells, cellMesh,
     setSkin(t) { U.uSkin.value = t; U.uHas.value = t ? 1 : 0; },
+    setNear(t, rect) { U.uNear.value = t; U.uHasNear.value = t && rect ? 1 : 0; if (rect) U.uRect.value.set(rect[0], rect[1], rect[2], rect[3]); },
     update(t) { U.uT.value = t; },
     highlight(id) { U.uHi.value = id ?? -1; },
     dispose() { pg.dispose(); pm.dispose(); og.dispose(); om.dispose(); lg.dispose(); lm.dispose(); },
@@ -206,3 +218,31 @@ export function makeShell(m: number, radius: number, o: ShellOpts): Shell {
 
 /** where a plot's centre is on a shell of this radius */
 export const cellPoint = (m: number, id: number, radius: number): THREE.Vector3 => { const c = cellCenter(m, id); return new THREE.Vector3(c[0] * radius, c[1] * radius, c[2] * radius); };
+
+/**
+ * Pins over plots (yours, on a shell you walk): a dot of light with a star in it, the same size on screen however far
+ * (so you can spot your plots from across the shell). `lift`: how far toward the star's centre they float.
+ */
+export function makePins(dirs: V3[], radius: number, lift: number, color = '#5CF2FF', px = 30) {
+  const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 });
+  const g = c.getContext('2d')!;
+  const rg = g.createRadialGradient(64, 64, 8, 64, 64, 62);
+  rg.addColorStop(0, 'rgba(255,255,255,0.95)'); rg.addColorStop(0.45, 'rgba(255,255,255,0.55)'); rg.addColorStop(0.62, 'rgba(255,255,255,0.18)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#ffffff'; g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 11 : 26; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); }
+  g.closePath(); g.fillStyle = '#0B1230'; g.fill();
+  const tex = new THREE.CanvasTexture(c);
+  const p = new Float32Array(dirs.length * 3);
+  dirs.forEach((d, i) => p.set([d[0] * (radius - lift), d[1] * (radius - lift), d[2] * (radius - lift)], i * 3));
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const mat = new THREE.PointsMaterial({ map: tex, color, size: px, sizeAttenuation: false, transparent: true, depthWrite: false, alphaTest: 0.02 });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  pts.renderOrder = 4;
+  return {
+    obj: pts,
+    update(t: number, dpr: number) { mat.size = px * dpr * (1 + 0.12 * Math.sin(t * 2.6)); },
+    dispose() { geo.dispose(); mat.dispose(); tex.dispose(); },
+  };
+}

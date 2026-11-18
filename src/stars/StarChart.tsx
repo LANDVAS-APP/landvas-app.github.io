@@ -2,7 +2,7 @@
 // fullest stars, the newest discoveries — tap one for its preview and the way there. Or look one up by its code.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
-import { ChevronLeft, Eye, Search } from 'lucide-react';
+import { ChevronLeft, Eye, Paintbrush, Rocket, Search, Telescope } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { toGameError } from '../backend/backend';
 import { cn } from '../lib/utils';
 import { CLASS_BY_ID, GALAXY_SIZE, type StarClassId } from './galaxy';
 import { StarPreview } from './StarPreview';
-import type { StarCard } from './types';
+import type { MyStar, StarCard } from './types';
 import { CODEX_ORDER, EL, ELEMENTS, SPECIES, until } from './kinds/meta';
 
 export default function StarChart() {
@@ -24,6 +24,11 @@ export default function StarChart() {
   const go = async (c: StarCard) => {
     if (c.here) { nav(`/star/${c.id}`); return; }
     try { await api.starWarp(c.id); nav(`/star/${c.id}`); } catch (e) { toast.error(toGameError(e).message); }
+  };
+  /** to your plots on a star: warp there if you're not (you land beside your latest plot), and the list of them opens */
+  const goMine = async (s: MyStar) => {
+    if (mine.data?.where?.at_star === s.id) { nav(`/star/${s.id}?mine=1`); return; }
+    try { await api.starWarp(s.id); nav(`/star/${s.id}?mine=1`); } catch (e) { toast.error(toGameError(e).message); }
   };
   const find = () => {
     const s = q.trim().toUpperCase();
@@ -65,7 +70,8 @@ export default function StarChart() {
         {tab === 'mine' && <Things onOpen={setOpen} />}
         <div className="grid gap-1.5">
           {rows.length === 0 && <div className="rounded-2xl bg-white/5 p-4 text-center text-[13px] text-white/55">{tab === 'mine' ? 'No stars yet — look up through the telescope and find one.' : 'Nothing here yet.'}</div>}
-          {rows.map((s) => {
+          {tab === 'mine' && (mine.data?.stars ?? []).map((s) => <MyRow key={s.id} s={s} here={mine.data?.where?.at_star === s.id} onOpen={() => setOpen(s.id)} onGo={() => void goMine(s)} />)}
+          {tab !== 'mine' && rows.map((s) => {
             const C = CLASS_BY_ID[s.cls as StarClassId];
             const r = s as unknown as { id: number; name: string; cells: number; claimed?: number; color?: string | null; mine?: number; discoverer?: boolean | string | null; painted?: boolean };
             return (
@@ -80,7 +86,32 @@ export default function StarChart() {
           })}
         </div>
       </div>
-      <AnimatePresence>{open != null && <StarPreview key={open} id={open} onClose={() => setOpen(null)} onGo={(c) => void go(c)} />}</AnimatePresence>
+      <AnimatePresence>{open != null && <StarPreview key={open} id={open} onClose={() => setOpen(null)} onGo={(c) => void go(c)} onFind={(c) => nav(`/eyes?star=${c.id}`)} />}</AnimatePresence>
+    </div>
+  );
+}
+
+/** one of your stars: where it is, your plots there, your painting — and straight to them */
+function MyRow({ s, here, onOpen, onGo }: { s: MyStar; here: boolean; onOpen(): void; onGo(): void }) {
+  const nav = useNavigate();
+  const C = CLASS_BY_ID[s.cls as StarClassId];
+  return (
+    <div className="grid gap-2 rounded-2xl bg-white/6 p-2.5" data-testid="star-row">
+      <button className="flex items-center gap-3 text-left" onClick={onOpen}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl" style={{ background: `radial-gradient(circle, ${s.color ?? C?.glow ?? '#fff'}, transparent 70%)` }}>{C?.emoji ?? '✨'}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-black">{s.name}{s.painted ? ' 🖼️' : ''}{here ? <span className="ml-1.5 rounded-full bg-[#3DDC97]/20 px-1.5 py-0.5 text-[10px] font-black text-[#9BF2CB]">you’re here</span> : null}</span>
+          <span className="block truncate text-[11.5px] text-white/55">
+            {C?.name} · <b className="text-[#5CF2FF]">{s.mine.toLocaleString()} yours</b> of {s.claimed.toLocaleString()}/{s.cells.toLocaleString()}{s.ly ? ` · ${Math.round(s.ly).toLocaleString()} ly` : ''}{s.discoverer ? ' · 🔭 you found it' : ''}
+          </span>
+          <span className="block truncate text-[11px] text-white/45">{s.art === 'approved' ? '🖼️ your painting is on it' : s.art === 'pending' ? '⏳ your painting is waiting for approval' : s.art === 'rejected' ? '✗ your painting wasn’t approved' : s.mine ? 'not painted yet' : ''}{s.code ? ` · ${s.code}` : ''}</span>
+        </span>
+      </button>
+      <div className="flex gap-1.5">
+        {s.mine > 0 && <button className="h-9 flex-1 rounded-xl bg-[#5CF2FF]/15 text-[12.5px] font-black text-[#5CF2FF]" onClick={onGo} data-testid="star-row-go"><Rocket className="mr-1 inline h-3.5 w-3.5" />{here ? 'Your plots' : 'Go to your plots'}</button>}
+        <button className="h-9 rounded-xl bg-white/8 px-3 text-[12.5px] font-bold" onClick={() => nav(`/eyes?star=${s.id}`)} data-testid="star-row-sky"><Telescope className="mr-1 inline h-3.5 w-3.5" />In the sky</button>
+        {s.mine > 0 && <button className="h-9 rounded-xl bg-white/8 px-3 text-[12.5px] font-bold" onClick={() => nav(`/star/${s.id}/paint`)} data-testid="star-row-paint"><Paintbrush className="mr-1 inline h-3.5 w-3.5" />Paint</button>}
+      </div>
     </div>
   );
 }

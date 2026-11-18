@@ -201,8 +201,9 @@ try {
     await shot('07-paint');
     await page.click('[data-testid=star-paint-save]');
     await page.waitForTimeout(2500);
-    const art = (await sql(`select status, rev, w, h from star_art where star_id = $1 and owner_id = $2`, [tapped.id, me]))[0];
-    check('save: it waits for review', art?.status === 'pending' && art.w === art.h * 2, JSON.stringify(art));
+    const art = (await sql(`select status, rev, w, h, rect from star_art where star_id = $1 and owner_id = $2`, [tapped.id, me]))[0];
+    // (a whole-star flat map — or, on a white star and up, the part round your plots)
+    check('save: it waits for review', art?.status === 'pending' && (art.w === art.h * 2 || !!art.rect), JSON.stringify(art));
     // staff approve it (the portal's Star art page)
     const q = await api('adminStarArtQueue');
     check('it’s in the staff review queue', q?.some((x) => x.star === tapped.id && x.owner === me), String(q?.length));

@@ -34,7 +34,12 @@ export type StarClaim = {
   next_price: StarPrice; claimed: number; cells: number; usd_per_second: number; balances: Balances; rent: RentState; achievements: NewAchievement[];
 };
 export type MyStar = { id: number; name: string; cls: string; cells: number; claimed: number; painted: boolean; color: string | null; discoverer: boolean; mine: number; keystones: number;
-  kinds: Record<string, number>; usd_per_second: number; last: string };
+  kinds: Record<string, number>; usd_per_second: number; last: string;
+  /** its zoom tier, how far it is, its code */ tier?: number; ly?: number; code?: string; art_rev?: number;
+  /** your latest plot there (where you land), and your painting's state there */ last_cell?: number | null; art?: 'pending' | 'approved' | 'rejected' | null };
+/** a painting in admin → Stars */
+export type AdminStarArt = { star: number; owner: string; username: string | null; star_name: string; status: 'pending' | 'approved' | 'rejected'; rev: number; w: number; h: number; img: string;
+  rect: import('./skin').UvRect | null; color: string | null; reason: string | null; updated_at: string; reviewed_at: string | null; cls: string | null; m: number | null; cells: number | null; claimed: number | null; plots: number };
 export type StarsChart = {
   painted: { id: number; name: string; cls: string; cells: number; color: string | null; painted_at: string; art_rev: number }[];
   fullest: { id: number; name: string; cls: string; cells: number; claimed: number; color: string | null }[];

@@ -200,7 +200,7 @@ export const api = {
   starsSeenReal: async () => (await cdnSnapshot<{ items: import('../stars/skyLayer').SkyClaim[] }>('stars_real', 15 * 60_000))?.items
     ?? rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen_real'),
   starPlotsOf: (id: number, cells?: number[] | null) => rpc<{ plots: import('../stars/types').StarPlotRow[]; claimed: number; cells?: number }>('star_plots_of', { p_id: id, p_cells: cells ?? null }),
-  starReach: () => rpc<{ reach: number }>('star_reach'),
+  starReach: () => rpc<{ reach: number; sky?: import('../stars/galaxy').SkySizes; paint?: { region_px?: number; max_w?: number } }>('star_reach'),
   starWhere: () => rpc<import('../stars/types').StarWhere>('star_where'),
   starWarp: (id: number) => rpc<import('../stars/types').StarWhere & { cost: number; secs: number; ly?: number; gate?: boolean; balances?: Balances }>('star_warp', { p_id: id }),
   starRush: () => rpc<import('../stars/types').StarWhere & { balances?: Balances }>('star_rush'),
@@ -213,9 +213,15 @@ export const api = {
   myStars: () => rpc<{ stars: import('../stars/types').MyStar[]; plots: number; usd_per_second: number; where: import('../stars/types').StarWhere }>('my_stars'),
   /** the star chart's painted, fullest and newest stars (the same for everyone: the CDN's copy first) */
   starsChart: async () => (await cdnSnapshot<import('../stars/types').StarsChart>('stars_chart', 10 * 60_000)) ?? rpc<import('../stars/types').StarsChart>('stars_chart'),
-  starArtSave: (id: number, img: string, w: number, h: number, color: string | null) => rpc<{ rev: number; status: string; achievements: NewAchievement[] }>('star_art_save', { p_id: id, p_img: img, p_w: w, p_h: h, p_color: color }),
+  /** save your painting: the whole star's flat map, or (rect) just the part of it round your plots */
+  starArtSave: (id: number, img: string, w: number, h: number, color: string | null, rect?: import('../stars/skin').UvRect | null) =>
+    rpc<{ rev: number; status: string; achievements: NewAchievement[] }>('star_art_save', { p_id: id, p_img: img, p_w: w, p_h: h, p_color: color, p_rect: rect ?? null }),
+  /** your plots on a star, all of them (latest first) */
+  starMyPlots: (id: number) => rpc<import('../stars/types').StarPlotRow[]>('star_my_plots', { p_id: id }),
   starArtLayer: (id: number, owner: string) => rpc<import('../stars/types').ArtLayer | null>('star_art_layer', { p_id: id, p_owner: owner }),
   adminStarArtQueue: () => rpc<{ star: number; owner: string; username: string | null; star_name: string; status: string; rev: number; w: number; h: number; img: string; color: string | null; updated_at: string; plots: number }[]>('admin_star_art_queue'),
+  adminStarArtList: (status: 'pending' | 'approved' | 'rejected', limit = 40) => rpc<import('../stars/types').AdminStarArt[]>('admin_star_art_list', { p_status: status, p_limit: limit }),
+  adminStarArtApproveAll: () => rpc<{ approved: number; left: number }>('admin_star_art_approve_all'),
   adminStarArtReview: (star: number, owner: string, approve: boolean, reason?: string) => rpc<{ ok: boolean }>('admin_star_art_review', { p_star: star, p_owner: owner, p_approve: approve, p_reason: reason ?? null }),
   // the star-only plot types, and each star's own rules
   starPlot: (id: number, cell: number) => rpc<import('../stars/types').StarPlotView>('star_plot', { p_id: id, p_cell: cell }),

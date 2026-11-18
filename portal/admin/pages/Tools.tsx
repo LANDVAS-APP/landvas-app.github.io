@@ -1,6 +1,8 @@
 // The game's own admin tools, moved here from inside the game. Same screens, same server checks.
 import type { ReactNode } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../../src/backend/api';
 import { Cashouts, Earnings, Flags, Plots, ReviewTab, ShopAdmin, SocialAdmin, System, World } from '../../../src/admin/AdminScreen';
 import { SupportAdmin, UpdatesAdmin } from '../../../src/admin/UpdatesSupportAdmin';
 import { ChallengesAdmin } from '../../../src/admin/EarnAdmin';
@@ -9,7 +11,7 @@ import { PageHeader, Panel } from '../../shared/ui';
 import FairPlayPage from './FairPlay';
 
 const TOOLS: Record<string, { title: string; sub: string; el: () => ReactNode }> = {
-  review: { title: 'Art review', sub: 'Approve or reject artwork before it goes on the map, and handle reports.', el: () => <ReviewTab /> },
+  review: { title: 'Art review', sub: 'Approve or reject artwork before it goes on the map, and handle reports.', el: () => <><StarArtNote /><ReviewTab /></> },
   integrity: { title: 'Fair play', sub: 'Risk scores and linked accounts, the exploit radar, referral fraud, the egg and altar loops (and the plots their Luck rolled), and every player’s ultras and rent.', el: () => <FairPlayPage /> },
   support: { title: 'Support', sub: 'Players’ tickets and your replies.', el: () => <SupportAdmin /> },
   social: { title: 'Chat & social', sub: 'Chat moderation, bans shown to players, invites and friendships.', el: () => <SocialAdmin /> },
@@ -23,6 +25,18 @@ const TOOLS: Record<string, { title: string; sub: string; el: () => ReactNode }>
   switches: { title: 'Switches', sub: 'Turn whole features on or off for everyone.', el: () => <Flags /> },
   system: { title: 'System health', sub: 'Render jobs, client errors and the minigame review queue.', el: () => <System /> },
 };
+
+/** paintings on stars are reviewed on the Stars page: say so here, with how many are waiting */
+function StarArtNote() {
+  const q = useQuery({ queryKey: ['admin', 'star-art'], queryFn: api.adminStarArtQueue, refetchInterval: 120_000, retry: false });
+  const n = q.data?.length ?? 0;
+  return (
+    <Link to="/stars#star-art" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm hover:bg-accent/15" data-testid="review-star-art-link">
+      <span>✨ <b>Paintings on stars</b> are reviewed on the Stars page{n ? <> — <b>{n} waiting</b></> : ''}.</span>
+      <span className="font-bold">Stars → Star art</span>
+    </Link>
+  );
+}
 
 export default function Tool() {
   const { tool = '' } = useParams();

@@ -67,6 +67,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    page.on('dialog', (d) => void d.accept());
     const shot = (n) => page.screenshot({ path: path.join(OUT, `${label}-${n}.png`), fullPage: false }).catch(() => {});
     await page.goto(`http://localhost:${WEB}/`, { waitUntil: 'load' });
     await page.waitForSelector('input', { timeout: 60000 });
@@ -79,8 +80,16 @@ try {
     if (label === 'desktop') {
       await page.waitForSelector('[data-testid=star-art-item]', { timeout: 15000 }).catch(() => {});
       const items = await page.locator('[data-testid=star-art-item]').count();
-      const imgOk = await page.locator('[data-testid=star-art-item] img').first().evaluate((i) => i.complete && i.naturalWidth === 128).catch(() => false);
-      check('both paintings wait in the review queue, their pictures shown', items === 2 && imgOk, `${items} waiting`);
+      await page.waitForSelector('[data-testid=star-art-crop]', { timeout: 8000 }).catch(() => {});
+      const imgOk = await page.locator('[data-testid=star-art-crop]').first().evaluate((i) => i.complete && i.naturalWidth > 0 && i.naturalWidth >= i.naturalHeight).catch(() => false);
+      check('both paintings wait in the review queue, each cropped to where it’s painted', items === 2 && imgOk, `${items} waiting`);
+      // see one on its star, turning
+      await page.locator('[data-testid=star-art-look]').first().click();
+      const globeOk = await page.waitForSelector('[data-testid=star-art-globe] [data-testid=star-globe]', { timeout: 45000 }).then(() => true, () => false);
+      if (!globeOk) { await shot('01b-globe-missing'); console.log('modal:', await page.locator('[data-testid=star-art-globe]').count(), errors.slice(0, 3)); }
+      check('“See it on the star”: the painting on its star, turning', globeOk);
+      await page.waitForTimeout(1500); await shot('01b-globe');
+      if (await page.locator('[data-testid=star-art-globe]').count()) await page.click('[data-testid=star-art-globe]', { position: { x: 5, y: 5 } }); await page.waitForTimeout(400);
       await shot('01-queue');
       // approve kid's, reject amy's with a reason
       const kidItem = page.locator('[data-testid=star-art-item]', { hasText: 'kid_painter' });
@@ -96,13 +105,36 @@ try {
       const sys = (await q1(`select color, art_rev from star_systems where star_id = $1`, [star]))[0];
       check('the star wears the approved painting’s colour', sys?.color?.toLowerCase() === '#ff4d6d' && sys.art_rev > 0, JSON.stringify(sys));
       check('…and the queue is empty', await page.locator('[data-testid=star-art-item]').count() === 0);
+      await page.click('[data-testid=star-art-tab-approved]'); await page.waitForTimeout(1200);
+      check('“On the stars”: the approved one, to take down if need be', (await page.locator('[data-testid=star-art-item]', { hasText: 'kid_painter' }).count()) === 1 && (await page.locator('[data-testid=star-art-reject]').count()) >= 1);
+      await page.click('[data-testid=star-art-tab-rejected]'); await page.waitForTimeout(1200);
+      check('“Turned down”: the rejected one, with why', /keep it friendly/.test(await page.locator('[data-testid=star-art-queue]').textContent().catch(() => '')));
+      await page.click('[data-testid=star-art-tab-pending]'); await page.waitForTimeout(800);
+      // review off: a new painting goes straight onto the star; on again; approve everything waiting at once
+      await page.click('[data-testid=star-art-review-toggle]'); await page.waitForTimeout(1500);
+      check('review can be turned off', (await q1(`select value->'art'->>'review' r from game_config where key = 'stars'`))[0].r === 'false');
+      await as(amy, 'star_art_save', { p_id: star, p_img: png(52, 195, 255), p_w: 128, p_h: 64, p_color: '#34c3ff' });
+      check('…then a painting is on the star straight away', (await q1(`select status from star_art where star_id = $1 and owner_id = $2`, [star, amy]))[0].status === 'approved');
+      await page.click('[data-testid=star-art-review-toggle]'); await page.waitForTimeout(1500);
+      check('…and back on', (await q1(`select value->'art'->>'review' r from game_config where key = 'stars'`))[0].r === 'true');
+      await as(kid, 'star_art_save', { p_id: star, p_img: png(255, 77, 109), p_w: 128, p_h: 64, p_color: '#ff4d6d' });
+      await as(amy, 'star_art_save', { p_id: star, p_img: png(52, 195, 255), p_w: 128, p_h: 64, p_color: '#34c3ff' });
+      await page.reload({ waitUntil: 'load' }); await page.waitForSelector('[data-testid=star-art-approve-all]', { timeout: 15000 }).catch(() => {});
+      await page.click('[data-testid=star-art-approve-all]'); await page.waitForTimeout(1800);
+      check('“Approve all waiting”', (await q1(`select count(*) n from star_art where status = 'pending'`))[0].n === '0');
       // the settings
       await page.fill('[data-testid="stars-num-rent_mult"]', '1.15');
       await page.fill('[data-testid="stars-num-warp.rush_ink"]', '15');
+      await page.fill('[data-testid="stars-num-sky.size_k"]', '12');
+      await page.fill('[data-testid="stars-num-reach.base"]', '2');
+      await page.fill('[data-testid="stars-num-art.region_px"]', '48');
+      await page.selectOption('[data-testid=stars-keystone-floor]', 'legendary');
       await page.click('[data-testid=stars-save]'); await page.waitForTimeout(1500);
       const cfg = (await q1(`select value from game_config where key = 'stars'`))[0].value;
       check('settings save live (top-level and the warp’s)', Number(cfg.rent_mult) === 1.15 && Number(cfg.warp?.rush_ink) === 15 && Number(cfg.warp?.base_ink) === 30, JSON.stringify({ rent: cfg.rent_mult, warp: cfg.warp }));
-      check('…recorded in the audit log', (await q1(`select count(*) n from audit_logs where action = 'stars.settings'`))[0].n === '1');
+      check('…the sky’s sizes, the telescope’s reach, the painter’s detail, the Keystones’ floor too', Number(cfg.sky?.size_k) === 12 && Number(cfg.sky?.shell_x) === 2.6 && Number(cfg.reach?.base) === 2 && Number(cfg.art?.region_px) === 48 && cfg.keystone_floor === 'legendary',
+        JSON.stringify({ sky: cfg.sky, reach: cfg.reach, art: cfg.art, floor: cfg.keystone_floor }));
+      check('…recorded in the audit log', Number((await q1(`select count(*) n from audit_logs where action = 'stars.settings'`))[0].n) >= 1);
       const recent = await page.locator('[data-testid=stars-recent]').textContent().catch(() => '');
       check('the latest discoveries list the star (and its Discoverer)', /kid_painter/.test(recent ?? ''), (recent ?? '').slice(0, 80));
       await shot('02-settings');

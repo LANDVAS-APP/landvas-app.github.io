@@ -36,7 +36,7 @@ import { createEyesSound, type Surface } from './sound';
 import { releaseOnDispose } from '../lib/threeRelease';
 import { canFeel, hit, pingEvery } from '../native/feel';
 import { createSkyStars, type SkyClaim } from '../stars/skyLayer';
-import { TIERS as STAR_TIERS, tierForFov, type Star } from '../stars/galaxy';
+import { TIERS as STAR_TIERS, shellDiam, starDiam, tierForFov, type SkySizes, type Star } from '../stars/galaxy';
 
 /** a painting of the ground: a canvas, or a picture from a worker */
 export type GroundImg = HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
@@ -147,6 +147,18 @@ export type Eyes = {
   claimedShown(): number[];
   /** turn to look straight at a star on show (false if it isn't) */
   aimAtStar(id: number): boolean;
+  /** the sky's sizes (game_config stars.sky) */
+  setSkySizes(k: SkySizes | null | undefined): void;
+  /** your stars: always marked (a cyan ring, their name) */
+  setMyStars(list: { id: number; name: string }[]): void;
+  /** the claimed stars in view whose disc is at least this many px across (whose skins to load) */
+  claimedVisible(minPx: number): number[];
+  /** a star's place in your sky: how high it is now (radians; below 0 it's under the horizon), when it next rises (ms) */
+  starPlace(id: number): { alt: number; riseAt: number | null; shellDeg: number; starDeg: number } | null;
+  /** which way to look to see a star (compass bearing and pitch), without turning */
+  starLook(id: number): { yaw: number; pitch: number } | null;
+  /** (tests) a star's size on screen now */
+  starSize(id: number): { ball: number; disc: number; discShown: boolean } | null;
   /** (tests) the sky's stars */
   skyCounts(): Record<string, number>;
   /** (tests) the sharpest ground's own painting */ closeCanvas(): HTMLCanvasElement | null;
@@ -385,7 +397,8 @@ export function createEyes(o: EyesOpts): Eyes {
   // ✨ Skywright: the real stars (the scattered ones above go once they're in), the telescope's tiers, claimed stars
   const fillerEnd = NAMED_STARS.length + (lite ? 900 : phone ? 1500 : 2800);
   let fillerHidden = false;
-  const skyStars = createSkyStars(starGroup, { phone, px: () => dpr });
+  const skyStars = createSkyStars(starGroup, { phone, px: () => dpr, viewH: () => o.canvas.height || 800,
+    maxPoint: (() => { try { const gl = renderer.getContext(); return (gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array)[1] || 64; } catch { return 64; } })() });
   let scope = false, reach = 3, starNightBase = 0;
   const mRot = new THREE.Matrix4(), mInv = new THREE.Matrix4(), vEq = new THREE.Vector3();
   /** a direction in the view as one in the sky's own (equatorial) frame */
@@ -2740,12 +2753,38 @@ export function createEyes(o: EyesOpts): Eyes {
     setStarSkin: (id, c, rev) => skyStars.setSkin(id, c, rev),
     skyStar: (id) => skyStars.star(id),
     claimedShown: () => skyStars.claimedShown(),
+    setSkySizes: (k) => skyStars.setSizes(k),
+    setMyStars: (l) => skyStars.setMine(l),
+    claimedVisible: (px) => skyStars.claimedVisible(px),
+    starSize: (id) => skyStars.sizeOf(id),
+    starPlace: (id) => {
+      const st = skyStars.lookup(id);
+      if (!st) return null;
+      const here = localToLngLatCam();
+      const now = clock ?? Date.now();
+      const altAt = (ms: number) => {
+        const M = new THREE.Matrix4().extractRotation(new THREE.Matrix4().fromArray(skyMatrix(ms, here.lat, here.lng)));
+        const v = new THREE.Vector3(st.dir[0], st.dir[1], st.dir[2]).applyMatrix4(M);
+        return Math.asin(Math.max(-1, Math.min(1, v.y)));
+      };
+      const alt = altAt(now);
+      let riseAt: number | null = null;
+      if (alt < 0.09) for (let i = 1; i <= 150; i++) { const t = now + i * 10 * 60_000; if (altAt(t) >= 0.09) { riseAt = t; break; } }
+      const k = skyStars.sizes();
+      return { alt, riseAt, shellDeg: shellDiam(st, k) * 180 / Math.PI, starDeg: starDiam(st, k) * 180 / Math.PI };
+    },
     aimAtStar: (id) => {
       const w = skyStars.worldPos(id, new THREE.Vector3());
       if (!w) return false;
       const d = w.sub(farCam.position).normalize();
       api.lookAt(Math.atan2(d.x, -d.z), Math.asin(Math.max(-1, Math.min(1, d.y))));
       return true;
+    },
+    starLook: (id) => {
+      const w = skyStars.worldPos(id, new THREE.Vector3());
+      if (!w) return null;
+      const d = w.sub(farCam.position).normalize();
+      return { yaw: Math.atan2(d.x, -d.z), pitch: Math.asin(Math.max(-1, Math.min(1, d.y))) };
     },
     skyCounts: () => skyStars.counts(),
     programs: () => (renderer.info.programs ?? []).map((pr) => `${pr.name}#${pr.id}|${String(pr.cacheKey).slice(0, 90).replace(/\s+/g, ' ')}`),

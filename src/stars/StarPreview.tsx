@@ -3,7 +3,8 @@
 // pouring through the rest. What it is, who found it, how full it is, what the next plot costs — and the way there.
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { Rocket, X } from 'lucide-react';
+import { Rocket, Star as StarIcon, Telescope, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { api } from '../backend/api';
@@ -24,12 +25,14 @@ export const fmtLy = (ly: number) => (ly >= 10000 ? `${Math.round(ly / 1000).toL
 export const fmtInk = (n: number) => n.toLocaleString();
 
 /** the turning star (a canvas): its core, its shell, its skin */
-export function StarGlobe({ card, plots, skin, className, interactive = true }: { card: StarCard; plots: StarPlotRow[] | null; skin: HTMLCanvasElement | null; className?: string; interactive?: boolean }) {
+export function StarGlobe({ card, plots, skin, className, interactive = true, ball = false }: { card: StarCard; plots: StarPlotRow[] | null; skin: HTMLCanvasElement | null; className?: string; interactive?: boolean;
+  /** a smooth ball wearing the skin (not its shell of plots): the biggest stars, or a painting on its own (admin) */ ball?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const skinTex = useRef<THREE.CanvasTexture | null>(null);
   const shellRef = useRef<ReturnType<typeof makeShell> | null>(null);
+  const ballRef = useRef<THREE.Mesh | null>(null);
   const spin = useRef({ y: 0, v: 0.0035, drag: false, x: 0, tilt: 0.35 });
-  const big = card.cells > 10242;
+  const big = ball || card.cells > 10242;
   // the shell's claimed plots (by cell)
   const claimed = useMemo(() => {
     const m = new Map<number, { color: string; mine: boolean; keystone: boolean; kind: string }>();
@@ -56,6 +59,7 @@ export function StarGlobe({ card, plots, skin, className, interactive = true }: 
       const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), new THREE.MeshBasicMaterial({ map: skinTex.current, transparent: true, opacity: skinTex.current ? 1 : 0 }));
       root.add(m);
       root.userData.ball = m;
+      ballRef.current = m;
     }
     scene.add(new THREE.AmbientLight('#ffffff', 0.6));
     const resize = () => { const w = cv.clientWidth || 300, h = cv.clientHeight || 300; r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); };
@@ -78,7 +82,7 @@ export function StarGlobe({ card, plots, skin, className, interactive = true }: 
     return () => {
       cancelAnimationFrame(raf); ro.disconnect();
       core.dispose(); shell?.dispose(); shellRef.current = null;
-      const ball = root.userData.ball as THREE.Mesh | undefined; if (ball) { ball.geometry.dispose(); (ball.material as THREE.Material).dispose(); }
+      const bl = root.userData.ball as THREE.Mesh | undefined; if (bl) { bl.geometry.dispose(); (bl.material as THREE.Material).dispose(); } ballRef.current = null;
       r.dispose();
     };
   }, [card.id, card.m, card.cls, big, claimed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,6 +93,9 @@ export function StarGlobe({ card, plots, skin, className, interactive = true }: 
     if (t) { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; }
     skinTex.current = t;
     shellRef.current?.setSkin(t);
+    // (the smooth ball takes it straight away too)
+    const bm = ballRef.current?.material as THREE.MeshBasicMaterial | undefined;
+    if (bm) { bm.map = t; bm.opacity = t ? 1 : 0; bm.needsUpdate = true; }
   }, [skin]);
   // drag to turn it
   const onDown = (e: React.PointerEvent) => { if (!interactive) return; spin.current.drag = true; spin.current.x = e.clientX; (e.target as Element).setPointerCapture?.(e.pointerId); };
@@ -98,9 +105,10 @@ export function StarGlobe({ card, plots, skin, className, interactive = true }: 
 }
 
 /** the preview sheet */
-export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void; onGo?(card: StarCard): void }) {
+export function StarPreview({ id, onClose, onGo, onFind }: { id: number; onClose(): void; onGo?(card: StarCard): void; /** show it in the sky (from the star chart) */ onFind?(card: StarCard): void }) {
   const card = useQuery({ queryKey: ['star', id], queryFn: () => api.starCard(id), staleTime: 15_000 });
   const me = useOnboardedMe();
+  const nav = useNavigate();
   const c = card.data;
   const { plots, skin } = useStarSkin(c ?? null);
   const C = c ? CLASS_BY_ID[c.cls as StarClassId] : null;
@@ -108,9 +116,9 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
   const [nameOpen, setNameOpen] = useState(false);
   return (
     <motion.div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-2 pb-[max(8px,env(safe-area-inset-bottom,0px))]" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} data-testid="star-preview">
-      <div className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/12 bg-[#070B1C] text-white shadow-2xl">
+      <div className="relative max-h-[calc(100dvh-16px-env(safe-area-inset-top,0px))] w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-white/12 bg-[#070B1C] text-white shadow-2xl">
         <button className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/10" onClick={onClose} aria-label="Close" data-testid="star-preview-close"><X className="h-4 w-4" /></button>
-        <div className="relative h-[min(52vh,340px)] w-full bg-[radial-gradient(circle_at_50%_45%,rgba(139,107,255,0.18),transparent_65%)]">
+        <div className="relative h-[min(42vh,340px)] w-full bg-[radial-gradient(circle_at_50%_45%,rgba(139,107,255,0.18),transparent_65%)]">
           {c ? <StarGlobe card={c} plots={plots} skin={skin} className="h-full w-full" /> : <div className="grid h-full place-items-center text-4xl">✨</div>}
           {c && <div className="pointer-events-none absolute left-4 top-4 grid gap-1">
             <span className="w-fit rounded-full bg-white/10 px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-[0.2em] text-[#9DE4FF]">{TIERS[c.tier]?.name ?? ''}</span>
@@ -131,7 +139,7 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
             <div className="grid grid-cols-3 gap-2 text-center">
               <Stat k="Plots" v={c.cells.toLocaleString()} sub={`${c.claimed.toLocaleString()} claimed`} />
               <Stat k="Keystones" v={`${12 - c.keystones_claimed}/12`} sub="left" />
-              <Stat k="Yours" v={String(c.mine)} sub={c.mine ? 'plots here' : 'none yet'} />
+              <Stat k="Yours" v={String(c.mine)} sub={c.mine ? 'plots here' : 'none yet'} hi={c.mine > 0} />
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,#22E3FF,#8B6BFF,#FF4D9A)]" style={{ width: `${Math.max(1.5, (c.claimed / c.cells) * 100)}%` }} /></div>
             <div className="text-[12.5px] text-white/70" data-testid="star-preview-disc">
@@ -145,7 +153,17 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
             <NatureChips card={c} />
             <Songs card={c} />
             <div className="text-[11px] text-white/45">Star plots pay rent like Earth's, ×{c.rent_mult} — and each plot here costs a little more than the last.</div>
+            {c.mine > 0 && (
+              <div className="flex gap-2" data-testid="star-preview-mine">
+                <button className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-[#5CF2FF]/40 bg-[#5CF2FF]/12 text-[13.5px] font-black text-[#5CF2FF]"
+                  onClick={() => (c.here ? nav(`/star/${c.id}?mine=1`) : onGo?.(c))} data-testid="star-preview-my-plots">
+                  <StarIcon className="h-4 w-4" />{c.here ? `Your ${c.mine} plot${c.mine === 1 ? '' : 's'} here` : `Go to your ${c.mine} plot${c.mine === 1 ? '' : 's'}`}
+                </button>
+                <button className="h-11 rounded-2xl bg-white/8 px-3.5 text-[13px] font-bold" onClick={() => nav(`/star/${c.id}/paint`)} data-testid="star-preview-paint">Paint</button>
+              </div>
+            )}
             <div className="flex gap-2">
+              {onFind && <button className="lv-btn h-12 px-3 text-[13px]" onClick={() => onFind(c)} data-testid="star-find"><Telescope className="mr-1 inline h-4 w-4" />In the sky</button>}
               {onGo && <button className="lv-btn on h-12 flex-1 text-[15px]" onClick={() => onGo(c)} disabled={!c.warp} data-testid="star-go">
                 <Rocket className="mr-1.5 inline h-4 w-4" />{c.here ? 'You’re here — open it' : c.heading ? 'On the way…' : `Go there · ${c.warp ? `${fmtInk(c.warp.ink)} Ink · ${c.warp.secs} s` : ''}`}
               </button>}
@@ -161,8 +179,8 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
   );
 }
 
-function Stat({ k, v, sub }: { k: string; v: string; sub: string }) {
-  return <div className="rounded-2xl bg-white/6 px-2 py-2"><div className="text-[10px] font-black uppercase tracking-wider text-white/45">{k}</div><div className="font-display text-[17px] font-black">{v}</div><div className="text-[10.5px] text-white/50">{sub}</div></div>;
+function Stat({ k, v, sub, hi }: { k: string; v: string; sub: string; hi?: boolean }) {
+  return <div className={cn('rounded-2xl px-2 py-2', hi ? 'bg-[#5CF2FF]/12 ring-1 ring-[#5CF2FF]/35' : 'bg-white/6')}><div className="text-[10px] font-black uppercase tracking-wider text-white/45">{k}</div><div className={cn('font-display text-[17px] font-black', hi && 'text-[#5CF2FF]')}>{v}</div><div className="text-[10.5px] text-white/50">{sub}</div></div>;
 }
 
 function NameStar({ card, onClose }: { card: StarCard; onClose(): void }) {

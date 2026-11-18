@@ -300,6 +300,25 @@ export function tierForFov(fovDeg: number): number {
   for (const T of TIERS) if (fovDeg <= T.fov) t = T.t;
   return t;
 }
+// ---- how big a star looks ---------------------------------------------------------------------------------------------
+/** the sky's sizes (game_config stars.sky, from star_reach): see starDiam */
+export type SkySizes = { size_k?: number; shell_x?: number; point_k?: number; disc_px?: number; max_deg?: number };
+export const SKY_DEFAULTS: Required<SkySizes> = { size_k: 10, shell_x: 2.6, point_k: 0.7, disc_px: 5, max_deg: 3 };
+/** how big each kind of star is next to a Sun-like one */
+export const SIZE_K: Record<StarClassId, number> = { neutron: 0.55, white_dwarf: 0.6, red_dwarf: 0.75, orange: 0.9, yellow: 1, white: 1.1, blue: 1.35, red_giant: 1.4, supergiant: 1.7, hypergiant: 2, black_hole: 1.2 };
+/**
+ * A star's angular diameter (radians). Not to scale (real stars are far too small to see as discs), but in proportion:
+ * twice as far, half the size; a giant bigger than a dwarf. Sized so that each zoom tier's stars are points at that
+ * tier's own zoom and grow as you zoom past them, and the nearest stars are balls even to the naked eye.
+ */
+export function starDiam(s: { ly: number; cls: string }, k: SkySizes = SKY_DEFAULTS): number {
+  const K = k.size_k ?? SKY_DEFAULTS.size_k, max = k.max_deg ?? SKY_DEFAULTS.max_deg;
+  return Math.min(max * RAD, (K * RAD * (SIZE_K[s.cls as StarClassId] ?? 1)) / Math.max(4, s.ly));
+}
+/** a claimed star as seen from Earth: its shell of plots round it, bigger than the bare star (its paintings show on it) */
+export const shellDiam = (s: { ly: number; cls: string }, k: SkySizes = SKY_DEFAULTS) =>
+  Math.min(((k.max_deg ?? SKY_DEFAULTS.max_deg) + 1.5) * RAD, starDiam(s, k) * (k.shell_x ?? SKY_DEFAULTS.shell_x));
+
 /** how much of a tier's stars show at this width (0 … 1): they fade in as you zoom from its fov to half of it */
 export function tierFade(t: number, fovDeg: number): number {
   if (t === 0) return 1;
