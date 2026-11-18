@@ -2,7 +2,7 @@
 // Cloudflare serves what's here at no bandwidth cost, so what everyone reads goes through it instead of the database:
 //
 //   GET /w/<key>.json   a world snapshot (the Leviathan, the hot zone, the map's giants and wormholes, the primordial
-//                       plots, trains and planes in the air): the public view from world_snapshot(), asked of the
+//                       plots, trains and planes in the air, the claimed stars in the sky and the star chart): the public view from world_snapshot(), asked of the
 //                       database at most once per few seconds per Cloudflare location, then served from its cache.
 //                       A slightly old copy is served while a fresh one is fetched, so nobody waits on the database.
 //   GET /i/<bucket>/<path>  a picture from Supabase Storage's public buckets (artwork, tiles, avatars, invite cards),
@@ -18,6 +18,8 @@ export const SNAPSHOTS = {
   enchant_world: { fresh: 15, stale: 120 },
   primordials: { fresh: 30, stale: 300 },
   travel: { fresh: 15, stale: 120 },
+  stars_real: { fresh: 60, stale: 900 },
+  stars_chart: { fresh: 60, stale: 600 },
 };
 /** public buckets, and how long their pictures keep (s): content-addressed names never change */
 export const BUCKETS = {

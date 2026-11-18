@@ -8,7 +8,9 @@ import * as THREE from 'three';
 import { TIERS, loadCatalog, realStar, starById, tilesInCone, tileStars, tierFade, type RealCatalog, type Star } from './galaxy';
 
 type V3 = [number, number, number];
-export type SkyClaim = { id: number; claimed: number; cells: number; painted: boolean; color: string | null; art_rev: number; name: string | null };
+export type SkyClaim = { id: number; claimed: number; cells: number; painted: boolean; color: string | null; art_rev: number; name: string | null; lit?: number; nova?: boolean };
+/** how much bigger a claimed star's point is: lit (each time ×1.35) and a supernova (×4) */
+const boostOf = (c: SkyClaim | undefined) => (c ? (1 + 0.35 * (c.lit ?? 0)) * (c.nova ? 4 : 1) : 1);
 export type SkyStars = ReturnType<typeof createSkyStars>;
 
 const R = 101_000; // (the sky's radius the other stars are drawn at is ~SKY_R·0.92)
@@ -52,6 +54,8 @@ export function createSkyStars(group: THREE.Group, opts: { phone: boolean; px: (
   let cat: RealCatalog | null = null;
   let real: Star[] = [];
   const realPts = makePoints(5100);
+  const realIdx = new Map<number, number>();
+  const realSize: number[] = [];
   const sizeOf = (mag: number) => Math.max(1.1, Math.min(9, 6.2 - mag * 0.95));
   const kOf = (mag: number) => Math.max(0.16, Math.min(1.8, 1.4 - mag * 0.21));
   void loadCatalog().then((c) => {
@@ -60,7 +64,8 @@ export function createSkyStars(group: THREE.Group, opts: { phone: boolean; px: (
     const P = realPts.geometry.attributes.position as THREE.BufferAttribute, S = realPts.geometry.attributes.aSize as THREE.BufferAttribute, C = realPts.geometry.attributes.aColor as THREE.BufferAttribute;
     real.forEach((s, i) => {
       P.setXYZ(i, s.dir[0] * R, s.dir[1] * R, s.dir[2] * R);
-      S.setX(i, sizeOf(s.mag));
+      realIdx.set(s.id, i); realSize[i] = sizeOf(s.mag);
+      S.setX(i, sizeOf(s.mag) * boostOf(claims.get(s.id)));
       const c0 = CLASS_RGB[s.cls] ?? [1, 1, 1], k = kOf(s.mag);
       C.setXYZ(i, c0[0] * k, c0[1] * k, c0[2] * k);
     });
@@ -95,7 +100,7 @@ export function createSkyStars(group: THREE.Group, opts: { phone: boolean; px: (
       P.setXYZ(i, s.dir[0] * R, s.dir[1] * R, s.dir[2] * R);
       const Tt = TIERS[s.tier];
       const rel = (Tt.magHi - s.mag) / (Tt.magHi - Tt.magLo);
-      S.setX(i, 1.3 + rel * 3.4);
+      S.setX(i, (1.3 + rel * 3.4) * boostOf(claims.get(s.id)));
       const c0 = CLASS_RGB[s.cls] ?? [1, 1, 1], k = 0.45 + rel * 0.9;
       C.setXYZ(i, c0[0] * k, c0[1] * k, c0[2] * k);
       F.setX(i, tierFade(s.tier, fovDeg));
@@ -138,6 +143,20 @@ export function createSkyStars(group: THREE.Group, opts: { phone: boolean; px: (
   });
   const setClaims = (list: SkyClaim[]) => {
     for (const c of list) claims.set(c.id, c);
+    // (lit stars and supernovae: their points grow)
+    {
+      const S = realPts.geometry.attributes.aSize as THREE.BufferAttribute, G = genPts.geometry.attributes.aSize as THREE.BufferAttribute;
+      let touched = false, touchedG = false;
+      for (const c of list) {
+        if (!c.lit && !c.nova) continue;
+        const ri = realIdx.get(c.id);
+        if (ri != null) { S.setX(ri, realSize[ri] * boostOf(c)); touched = true; }
+        const gi = gen.findIndex((x) => x.id === c.id);
+        if (gi >= 0) { const st = gen[gi], Tt = TIERS[st.tier]; const rel = (Tt.magHi - st.mag) / (Tt.magHi - Tt.magLo); G.setX(gi, (1.3 + rel * 3.4) * boostOf(c)); touchedG = true; }
+      }
+      if (touched) S.needsUpdate = true;
+      if (touchedG) G.needsUpdate = true;
+    }
     for (const c of list) {
       const s = byId.get(c.id);
       let sp = haloOf.get(c.id);
@@ -147,9 +166,9 @@ export function createSkyStars(group: THREE.Group, opts: { phone: boolean; px: (
         halos.add(sp);
         haloOf.set(c.id, sp);
       }
-      sp.material.color.set(c.color || '#22E3FF');
+      sp.material.color.set(c.nova ? '#FFF6E0' : c.color || '#22E3FF');
       if (s) sp.position.set(s.dir[0] * R * 0.999, s.dir[1] * R * 0.999, s.dir[2] * R * 0.999);
-      sp.userData.k = Math.max(0.25, c.claimed / Math.max(1, c.cells));
+      sp.userData.k = Math.max(0.25, c.claimed / Math.max(1, c.cells)) * (1 + 0.25 * (c.lit ?? 0)) * (c.nova ? 3 : 1);
       sp.userData.id = c.id;
     }
   };

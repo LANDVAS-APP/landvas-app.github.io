@@ -106,6 +106,20 @@ try {
       const recent = await page.locator('[data-testid=stars-recent]').textContent().catch(() => '');
       check('the latest discoveries list the star (and its Discoverer)', /kid_painter/.test(recent ?? ''), (recent ?? '').slice(0, 80));
       await shot('02-settings');
+      // each plot type's numbers (one type at a time, the rest kept)
+      await page.fill('[data-testid="stars-kinds-forge-h_per_hour"]', '8');
+      await page.click('[data-testid=stars-nested-save]'); await page.waitForTimeout(1500);
+      const cfg2 = (await q1(`select value from game_config where key = 'stars'`))[0].value;
+      check('a plot type’s numbers save (the others kept)', Number(cfg2.kinds?.forge?.h_per_hour) === 8 && Number(cfg2.kinds?.forge?.cap_hours) === 24 && Number(cfg2.kinds?.grove?.grow_hours) === 6, JSON.stringify(cfg2.kinds?.forge));
+      // a supernova, on the star with the two painters (two taps: it can't be undone)
+      await page.fill('[data-testid=stars-nova-code]', String(star));
+      await page.click('[data-testid=stars-nova-go]'); await page.waitForTimeout(300);
+      check('…a supernova asks twice', (await q1(`select supernova_at from star_systems where star_id = $1`, [star]))[0].supernova_at === null);
+      await page.click('[data-testid=stars-nova-go]'); await page.waitForTimeout(1500);
+      const nova = (await q1(`select supernova_at from star_systems where star_id = $1`, [star]))[0];
+      const gold = (await q1(`select amount from star_elements where player_id = $1 and element = 'au'`, [kid]))[0];
+      check('…and then it goes supernova: gold for everyone on it', !!nova.supernova_at && Number(gold?.amount) === 1, JSON.stringify(gold));
+      await shot('03-supernova');
     } else {
       await page.waitForTimeout(800); await shot('01-phone');
       check('phone: the Stars page fits the screen (no sideways scroll)', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2));

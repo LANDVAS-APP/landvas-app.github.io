@@ -1,6 +1,6 @@
 // ✨ The star chart (/stars): your stars (where you have plots, and the ones you discovered), the Painted Stars, the
 // fullest stars, the newest discoveries — tap one for its preview and the way there. Or look one up by its code.
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
 import { ChevronLeft, Eye, Search } from 'lucide-react';
 import { useState } from 'react';
@@ -12,6 +12,7 @@ import { cn } from '../lib/utils';
 import { CLASS_BY_ID, GALAXY_SIZE, type StarClassId } from './galaxy';
 import { StarPreview } from './StarPreview';
 import type { StarCard } from './types';
+import { CODEX_ORDER, EL, ELEMENTS, SPECIES, until } from './kinds/meta';
 
 export default function StarChart() {
   const nav = useNavigate();
@@ -61,6 +62,7 @@ export default function StarChart() {
             <button key={k} className={cn('shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-black', tab === k ? 'bg-white text-[#0b0b1e]' : 'bg-white/8')} onClick={() => setTab(k)} data-testid={`star-tab-${k}`}>{l}</button>
           ))}
         </div>
+        {tab === 'mine' && <Things onOpen={setOpen} />}
         <div className="grid gap-1.5">
           {rows.length === 0 && <div className="rounded-2xl bg-white/5 p-4 text-center text-[13px] text-white/55">{tab === 'mine' ? 'No stars yet — look up through the telescope and find one.' : 'Nothing here yet.'}</div>}
           {rows.map((s) => {
@@ -85,4 +87,46 @@ export default function StarChart() {
 
 function Tile({ k, v }: { k: string; v: string }) {
   return <div className="rounded-2xl bg-white/6 px-2 py-2.5"><div className="font-display text-[17px] font-black">{v}</div><div className="text-[10.5px] font-bold uppercase tracking-wider text-white/45">{k}</div></div>;
+}
+
+/** what you've gathered among the stars */
+function Things({ onOpen }: { onOpen(id: number): void }) {
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['my-star-things'], queryFn: api.myStarThings, staleTime: 20_000 });
+  const d = q.data;
+  if (!d) return null;
+  const any = ELEMENTS.some((e) => d.els[e.id] > 0);
+  const collect = async (id: number) => {
+    try { const r = await api.starSailCollect(id); toast.success('The sail’s cargo is yours ⛵', { description: Object.entries(r.cargo ?? {}).map(([k, v]) => `${v} ${EL[k]?.name}`).join(', ') }); void qc.invalidateQueries({ queryKey: ['my-star-things'] }); }
+    catch (e) { toast.error(toGameError(e).message); }
+  };
+  return (
+    <div className="grid gap-2" data-testid="star-things">
+      {any && <div className="flex flex-wrap gap-1.5 rounded-2xl bg-white/5 p-2.5">
+        {ELEMENTS.filter((e) => d.els[e.id] > 0).map((e) => <span key={e.id} className="inline-flex items-center gap-1 rounded-full bg-black/35 px-2 py-0.5 text-[12px] font-bold tabular-nums"><span className="grid h-4 min-w-4 place-items-center rounded-full px-0.5 text-[9px] font-black text-[#0b0b1e]" style={{ background: e.color }}>{e.sym}</span>{d.els[e.id].toLocaleString()}</span>)}
+      </div>}
+      {d.sails_in.map((x) => (
+        <div key={x.id} className="flex items-center justify-between gap-2 rounded-2xl bg-[#22E3FF]/10 px-3 py-2 text-[12.5px]">
+          <span>⛵ A sail from @{x.from ?? 'someone'}: {Object.entries(x.cargo).map(([k, v]) => `${v} ${EL[k]?.sym}`).join(', ')}</span>
+          {x.arrived || Date.parse(x.arrive_at) <= Date.now() ? <button className="rounded-full bg-[#22E3FF] px-3 py-1 text-[11.5px] font-black text-[#0b0b1e]" onClick={() => void collect(x.id)} data-testid="sail-collect">Collect</button> : <span className="text-[11px] text-white/55">lands in {until(x.arrive_at)}</span>}
+        </div>
+      ))}
+      {Object.keys(d.codex).length > 0 && <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-white/5 p-2.5 text-[11.5px]">
+        <span className="mr-1 font-black">🌱 Codex {Object.keys(d.codex).length}/7</span>
+        {CODEX_ORDER.map((k) => <span key={k} title={SPECIES[k].name} className={cn('rounded-full px-1.5 py-0.5', d.codex[k] ? 'bg-white/12' : 'opacity-30')}>{SPECIES[k].emoji}</span>)}
+      </div>}
+      {d.exoplanets.map((x) => (
+        <div key={x.world} className="flex items-center justify-between gap-2 rounded-2xl bg-white/5 px-3 py-2 text-[12.5px]">
+          <span>🪐 <b>{x.name}</b> <span className="text-white/50">· an exoplanet you found</span></span>
+          <button className="rounded-full bg-white/10 px-3 py-1 text-[11.5px] font-bold" onClick={() => nav('/space')}>Fly there</button>
+        </div>
+      ))}
+      {d.finds.map((f, i) => (
+        <button key={i} className="flex items-center justify-between gap-2 rounded-2xl bg-white/5 px-3 py-2 text-left text-[12.5px]" onClick={() => onOpen(Number(f.data.star))}>
+          <span>🕳️ A hidden black hole: <b>{f.data.code}</b></span><span className="text-[11px] font-bold text-[#9DE4FF]">Look</span>
+        </button>
+      ))}
+    </div>
+  );
 }

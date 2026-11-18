@@ -17,6 +17,8 @@ import { makeCore, makeShell } from './star3d';
 import { starSkin } from './skin';
 import type { StarCard, StarPlotRow, ArtLayer } from './types';
 import { useStarSkin } from './useStars';
+import { playLoops } from './starsong';
+import { until } from './kinds/meta';
 
 export const fmtLy = (ly: number) => (ly >= 10000 ? `${Math.round(ly / 1000).toLocaleString()}k` : ly.toLocaleString());
 export const fmtInk = (n: number) => n.toLocaleString();
@@ -113,6 +115,7 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
           {c && <div className="pointer-events-none absolute left-4 top-4 grid gap-1">
             <span className="w-fit rounded-full bg-white/10 px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-[0.2em] text-[#9DE4FF]">{TIERS[c.tier]?.name ?? ''}</span>
             {c.painted && <span className="w-fit rounded-full bg-[linear-gradient(90deg,#FF4D6D,#FFE14D,#3DDC97,#34C3FF)] px-2.5 py-0.5 text-[10.5px] font-black text-[#0b0b1e]">🖼️ Painted Star</span>}
+            {(c.lit ?? 0) > 0 && <span className="w-fit rounded-full bg-[#FFE28A]/20 px-2.5 py-0.5 text-[10.5px] font-black text-[#FFE28A]">🕯️ Lit {c.lit}/5</span>}
           </div>}
         </div>
         {c && C ? (
@@ -139,6 +142,8 @@ export function StarPreview({ id, onClose, onGo }: { id: number; onClose(): void
               <span>Next plot <b className="text-[#FFE28A]">{fmtInk(c.price.ink)} Ink</b> <span className="text-white/45">(Earth {fmtInk(c.price.earth)})</span></span>
               <span className="text-white/60">Keystone {c.keystone_price ? fmtInk(c.keystone_price.ink) : '—'}</span>
             </div>}
+            <NatureChips card={c} />
+            <Songs card={c} />
             <div className="text-[11px] text-white/45">Star plots pay rent like Earth's, ×{c.rent_mult} — and each plot here costs a little more than the last.</div>
             <div className="flex gap-2">
               {onGo && <button className="lv-btn on h-12 flex-1 text-[15px]" onClick={() => onGo(c)} disabled={!c.warp} data-testid="star-go">
@@ -179,3 +184,32 @@ function NameStar({ card, onClose }: { card: StarCard; onClose(): void }) {
 
 export { starSkin };
 export type { ArtLayer };
+
+/** what this kind of star is doing: a flare, an eclipse, its beat, its pull on time, a supernova */
+function NatureChips({ card }: { card: StarCard }) {
+  const n = card.nature ?? {};
+  const chips: string[] = [];
+  if (n.supernova) chips.push(`💥 Went supernova ${new Date(n.supernova.at).toLocaleDateString()}`);
+  if (n.flare) chips.push(n.flare.now ? '☀️ Flaring now' : `☀️ Flares · next in ${until(n.flare.next_at)}`);
+  if (n.eclipse) chips.push(n.eclipse.now ? '🌑 In eclipse now' : `🌑 A binary · eclipse in ${until(n.eclipse.next_at)}`);
+  if (n.pulse) chips.push(`💫 A pulsar · beats every ${n.pulse.period_ms} ms`);
+  if (n.dilation) chips.push('🕳️ Time bends here');
+  if (!chips.length) return null;
+  return <div className="flex flex-wrap gap-1.5" data-testid="star-nature-chips">{chips.map((t) => <span key={t} className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-bold text-white/80">{t}</span>)}</div>;
+}
+/** 🎵 the star's Starsong plots, played together */
+function Songs({ card }: { card: StarCard }) {
+  const songs = useQuery({ queryKey: ['star-songs', card.id], queryFn: () => api.starSongs(card.id), enabled: (card.kinds?.song ?? 0) > 0, staleTime: 60_000 });
+  const stop = useRef<(() => void) | null>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => () => stop.current?.(), []);
+  const list = songs.data ?? [];
+  if (!list.length) return null;
+  return (
+    <button className="flex items-center justify-between rounded-2xl bg-white/6 px-3 py-2 text-left text-[12.5px]" data-testid="star-listen"
+      onClick={() => { if (on) { stop.current?.(); setOn(false); return; } setOn(true); stop.current = playLoops(card.m, list.slice(0, 6), 2, (i) => { if (i < 0) setOn(false); }); }}>
+      <span>🎵 <b>{on ? 'Listening…' : 'Listen to it'}</b> <span className="text-white/50">· {list.length} Starsong{list.length === 1 ? '' : 's'}{list[0].by ? ` by @${list[0].by}${list.length > 1 ? ' and others' : ''}` : ''}</span></span>
+      <span className="text-[11px] font-bold text-[#9DE4FF]">{on ? 'Stop' : '▶︎'}</span>
+    </button>
+  );
+}

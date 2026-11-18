@@ -14,6 +14,7 @@ import type { StarCard, StarPlotRow } from './types';
 
 /** each star-only plot type's own panel (they arrive as they're built) */
 const KindPanel = lazy(() => import('./kinds/KindPanel'));
+const StarNaturePanel = lazy(() => import('./kinds/KindPanel').then((m) => ({ default: m.StarNaturePanel })));
 
 export type StarKind = { id: string; name: string; emoji: string; blurb: string; keystone: boolean };
 
@@ -69,6 +70,7 @@ export function StarPlotSheet({ card, cell, plot, meId, onClose, onClaim, onChan
             {mine && plot[3] !== 'base' && plot[3] !== 'art' && (
               <Suspense fallback={<div className="text-sm text-white/50">…</div>}><KindPanel card={card} cell={cell} kind={plot[3]} meId={meId} /></Suspense>
             )}
+            {mine && <Suspense fallback={null}><StarNaturePanel card={card} cell={cell} /></Suspense>}
             {mine && (
               <div className="grid gap-1.5">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-white/50">Make it a</div>

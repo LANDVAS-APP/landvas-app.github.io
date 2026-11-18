@@ -557,11 +557,24 @@ export default function EyesScreen() {
     const info = rarityInfo(p.rarity);
     return { id: `${p.gx}_${p.gy}`, lng, lat, color: info.glow || info.color, emoji: info.emoji ?? '🌌', name: info.name, owner: p.owner_name, gx: p.gx, gy: p.gy };
   }), [prim.data]);
+  // ✨ Starbeam Lens beams near you (a star's light focused on Earth: claims under it roll a tier higher)
+  const beamCell = frame ? cellAtLngLat(frame.lng0, frame.lat0) : null;
+  const beamKey = beamCell ? `${Math.round(beamCell.gx / 2000)}:${Math.round(beamCell.gy / 2000)}` : '';
+  const beams = useQuery({ queryKey: ['star-beams', beamKey], queryFn: () => api.starBeamsNear(beamCell!.gx, beamCell!.gy), enabled: !!me && !!beamCell, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000 });
+  const beamList = useMemo(() => (beams.data ?? []).filter((b) => Date.parse(b.ends_at) > Date.now()).map((b) => {
+    const [lng, lat] = cellCenter(b.gx, b.gy);
+    return { id: `beam:${b.id}`, lng, lat, color: b.color || '#FFE7A0', emoji: '🔦' };
+  }), [beams.data]);
   useEffect(() => {
     if (!eyes || !frame) return;
     // (ones right here already stand as their own plot)
-    eyes.setBeacons(beaconList.filter((b) => bearingDistance(frame.lng0, frame.lat0, b.lng, b.lat).m > PLOT_R * 1.2));
-  }, [eyes, frame, beaconList]);
+    eyes.setBeacons([...beaconList.filter((b) => bearingDistance(frame.lng0, frame.lat0, b.lng, b.lat).m > PLOT_R * 1.2), ...beamList]);
+  }, [eyes, frame, beaconList, beamList]);
+  const underBeam = useMemo(() => {
+    if (!frame) return null;
+    const c = cellAtLngLat(frame.lng0, frame.lat0);
+    return (beams.data ?? []).find((b) => Date.parse(b.ends_at) > Date.now() && (b.gx - c.gx) ** 2 + (b.gy - c.gy) ** 2 <= b.radius ** 2) ?? null;
+  }, [beams.data, frame]);
 
   const box = useMemo(() => {
     if (!frame) return null;
@@ -1003,6 +1016,11 @@ export default function EyesScreen() {
             <span>🐉 Leviathan {fmtDistance(levDist.m)} {bearingName(levDist.bearing)}</span>
             {bombsLeft != null && <span className="text-[#FFC6F3]">💣 {Math.max(0, bombsLeft)}</span>}
             <button className="rounded-full bg-white/15 px-2 py-0.5 text-[11px]" onClick={() => glide(levDist.bearing, 0.12)} data-testid="eyes-face-lev">Face it</button>
+          </div>
+        )}
+        {underBeam && (
+          <div className="flex items-center gap-1.5 rounded-full bg-[linear-gradient(90deg,#FFE14D,#FFB15C)] px-3 py-1 text-[12px] font-black text-[#2A1A00] shadow-[0_0_24px_rgba(255,225,77,0.5)]" data-testid="eyes-beam-chip">
+            🔦 Under {underBeam.by ? `@${underBeam.by}’s` : 'a'} starbeam from {underBeam.name}: claims here roll a tier higher
           </div>
         )}
         {inHot && (

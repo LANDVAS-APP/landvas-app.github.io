@@ -154,6 +154,8 @@ export default function StarsPage() {
               </div>
               {has('moderator') && <ArtQueue />}
               {has('economy') ? <Settings cfg={d.settings ?? {}} /> : null}
+              {has('economy') ? <Nested cfg={d.settings ?? {}} /> : null}
+              {has('economy') ? <Supernova /> : null}
               <Panel title="Latest discoveries">
                 {d.recent.length ? (
                   <div className="grid gap-1.5" data-testid="stars-recent">
@@ -175,5 +177,78 @@ export default function StarsPage() {
         }}</Q>
       </div>
     </>
+  );
+}
+
+const NESTED_LABEL: Record<string, string> = {
+  forge: '🔥 Fusion Forge', grove: '🌱 Lumen Grove', ranch: '☄️ Comet Ranch', sails: '⛵ Sail Yard', observatory: '🔭 Observatory', hatchery: '🐣 Plasma Hatchery',
+  gate: '🌀 Stargate', lens: '🔦 Starbeam Lens', flare: '☀️ Red dwarf flares', eclipse: '🌑 Binary eclipses', pulse: '💫 Pulsar beat', dilation: '🕳️ Black hole time bend',
+  supernova: '💥 Supernova', light: '🕯️ Lighting a star',
+};
+/** every plot type's numbers and every kind of star's (game_config 'stars' → kinds, nature) */
+function Nested({ cfg }: { cfg: Record<string, any> }) {
+  const qc = useQueryClient();
+  const base = useMemo(() => ({ kinds: cfg.kinds ?? {}, nature: cfg.nature ?? {} }) as Record<'kinds' | 'nature', Record<string, Record<string, number>>>, [cfg]);
+  const [draft, setDraft] = useState(base);
+  useEffect(() => setDraft(base), [base]);
+  const changed: { g: 'kinds' | 'nature'; k: string; f: string }[] = [];
+  for (const g of ['kinds', 'nature'] as const) for (const k of Object.keys(draft[g])) for (const f of Object.keys(draft[g][k])) if (draft[g][k][f] !== base[g][k]?.[f]) changed.push({ g, k, f });
+  const save = useMutation({
+    mutationFn: () => {
+      const v: Record<string, Record<string, Record<string, number>>> = {};
+      for (const c of changed) { v[c.g] ??= {}; v[c.g][c.k] ??= {}; v[c.g][c.k][c.f] = draft[c.g][c.k][c.f]; }
+      return api.adminSetStarSettings(v);
+    },
+    onSuccess: (d) => { qc.setQueryData(['admin', 'stars'], d); toast.success('Saved', { description: 'Live now. Recorded in the audit log.' }); },
+    onError: (e) => toast.error(toGameError(e).message),
+  });
+  return (
+    <Panel title="Each plot type and each kind of star" actions={<button disabled={!changed.length || save.isPending} onClick={() => save.mutate()} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40" data-testid="stars-nested-save">
+      {save.isPending ? 'Saving…' : changed.length ? `Save ${changed.length} change${changed.length === 1 ? '' : 's'}` : 'Saved'}</button>}>
+      <div className="grid gap-2 md:grid-cols-2">
+        {(['kinds', 'nature'] as const).flatMap((g) => Object.entries(draft[g]).map(([k, o]) => (
+          <div key={`${g}.${k}`} className="grid gap-1.5 rounded-xl border border-line p-2.5">
+            <div className="text-xs font-bold">{NESTED_LABEL[k] ?? k}</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {Object.entries(o).map(([f, val]) => (
+                <label key={f} className="grid gap-0.5 text-[11px] text-muted">{f.replace(/_/g, ' ')}
+                  <input type="number" step="any" min={0} className="h-8 rounded-lg border border-line bg-surface/80 px-2 font-mono text-xs text-fg" value={val}
+                    onChange={(e) => setDraft((d) => ({ ...d, [g]: { ...d[g], [k]: { ...d[g][k], [f]: Number(e.target.value) } } }))} data-testid={`stars-${g}-${k}-${f}`} />
+                </label>
+              ))}
+            </div>
+          </div>
+        )))}
+      </div>
+    </Panel>
+  );
+}
+/** 💥 set off a supernova (Betelgeuse, or any star by its code): gold and Ink for everyone on it, once */
+function Supernova() {
+  const qc = useQueryClient();
+  const [code, setCode] = useState('HIP 27989');
+  const [armed, setArmed] = useState(false);
+  const go = useMutation({
+    mutationFn: () => {
+      const s = code.trim().toUpperCase();
+      const m = /^HIP\s*(\d+)$/.exec(s) ?? /^(\d+)$/.exec(s);
+      const lv = /^LV-?([0-9A-Z]+)$/.exec(s);
+      const id = m ? Number(m[1]) : lv ? parseInt(lv[1], 36) : NaN;
+      if (!Number.isFinite(id)) throw new Error('Give a star’s code: HIP 27989 or LV-…');
+      return api.adminStarSupernova(id);
+    },
+    onSettled: () => setArmed(false),
+    onSuccess: (r) => { toast.success('💥 Supernova', { description: `${r.owners} owner${r.owners === 1 ? '' : 's'} got gold and Ink.` }); void qc.invalidateQueries({ queryKey: ['admin', 'stars'] }); },
+    onError: (e) => toast.error(toGameError(e).message),
+  });
+  return (
+    <Panel title="💥 A supernova">
+      <p className="mb-2 text-xs text-muted">Once per star, for good: everyone with a plot on it gets gold (an element) and Ink, it blazes in everyone’s sky for two weeks, and it’s on the feed. Betelgeuse is HIP 27989.</p>
+      <div className="flex flex-wrap gap-2">
+        <input className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface/80 px-2 font-mono text-sm" value={code} onChange={(e) => setCode(e.target.value)} data-testid="stars-nova-code" />
+        <button className="rounded-lg bg-bad/80 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40" disabled={go.isPending}
+          onClick={() => { if (armed) go.mutate(); else { setArmed(true); setTimeout(() => setArmed(false), 6000); } }} data-testid="stars-nova-go">{armed ? 'Tap again: it can’t be undone' : 'Set it off'}</button>
+      </div>
+    </Panel>
   );
 }

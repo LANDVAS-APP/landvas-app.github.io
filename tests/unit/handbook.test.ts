@@ -27,7 +27,7 @@ const render = (node: ReactNode) => renderToStaticMarkup(createElement(MemoryRou
 const ROUTES = [/^\/$/, /^\/world$/, /^\/plots$/, /^\/canvases$/, /^\/play$/, /^\/hub$/, /^\/gallery$/, /^\/social$/, /^\/clans$/, /^\/clan\/hall$/, /^\/party$/, /^\/invite$/,
   /^\/explorer$/, /^\/players$/, /^\/achievements$/, /^\/legend$/, /^\/grimoire$/, /^\/clips$/, /^\/guide$/, /^\/royalty$/, /^\/fusion$/, /^\/primordials$/,
   /^\/rankings\/rarities$/, /^\/leaderboards$/, /^\/inventory$/, /^\/events$/, /^\/settings$/, /^\/support$/, /^\/pvp$/, /^\/challenges$/, /^\/sketch$/, /^\/doodle$/,
-  /^\/duet$/, /^\/eyes$/, /^\/space$/, /^\/space\/play\/(asteroids|lander)$/, /^\/inkborn$/, /^\/inkborn\/(create|visit|keeper)$/, /^\/habitat$/];
+  /^\/duet$/, /^\/eyes$/, /^\/stars$/, /^\/space$/, /^\/space\/play\/(asteroids|lander)$/, /^\/inkborn$/, /^\/inkborn\/(create|visit|keeper)$/, /^\/habitat$/];
 
 describe('the Handbook', () => {
   it('has unique chapter and topic ids', () => {

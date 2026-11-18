@@ -55,7 +55,7 @@ export default function StarWorld() {
 
   // ---- the scene ---------------------------------------------------------------------------------------------------
   const canvas = useRef<HTMLCanvasElement>(null);
-  const api3 = useRef<{ setPlots(p: StarPlotRow[]): void; setSkin(s: HTMLCanvasElement | null): void; aim(): number | null; tap(x: number, y: number): number | null; goTo(cell: number): void; flash(cell: number, color: string): void; where(): number; debug(): Record<string, unknown> } | null>(null);
+  const api3 = useRef<{ setPlots(p: StarPlotRow[]): void; setSkin(s: HTMLCanvasElement | null): void; aim(): number | null; tap(x: number, y: number): number | null; goTo(cell: number): void; flash(cell: number, color: string): void; where(): number; open(cell: number): void; debug(): Record<string, unknown> } | null>(null);
   const stick = useRef({ x: 0, y: 0 });
   const [aimCell, setAimCell] = useState<number | null>(null);
   const [sel, setSel] = useState<number | null>(null);
@@ -217,6 +217,7 @@ export default function StarWorld() {
       tap: tapAt,
       goTo, flash,
       where: () => cellAt(c.m, [n.x, n.y, n.z]),
+      open: (cell: number) => setSel(cell),
       debug: () => ({ cells: shell?.cells.length ?? 0, claimed: claimedMap.size, at: cellAt(c.m, [n.x, n.y, n.z]), R, aim: lastAim, dpr, calls: r.info.render.calls, tris: r.info.render.triangles }),
     };
     (window as unknown as { __landvasStar?: unknown }).__landvasStar = api3.current;

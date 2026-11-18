@@ -7,7 +7,7 @@ import fs from 'node:fs';
 const OUT = process.env.E2E_OUT || path.resolve('test-results/e2e-handbook'); fs.mkdirSync(OUT, { recursive: true });
 const server = await serve(process.env.E2E_DIST || 'dist-artifact', 4318);
 const results = []; const check = (n, ok, x = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${x ? ' — ' + x : ''}`); };
-const CHAPTERS = ['start', 'world', 'roll', 'rent', 'ink', 'luck', 'places', 'inkborn', 'space', 'enchant', 'ultra', 'social', 'progress', 'strategy', 'faq'];
+const CHAPTERS = ['start', 'world', 'roll', 'rent', 'ink', 'luck', 'places', 'inkborn', 'space', 'stars', 'enchant', 'ultra', 'social', 'progress', 'strategy', 'faq'];
 
 async function run(label, viewport, signIn) {
   const browser = await launch();

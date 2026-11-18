@@ -105,8 +105,10 @@ try {
   const hint = await page.locator('[data-testid=eyes-telescope]').locator('xpath=..').textContent().catch(() => '');
   check('past the deep field, it says what it takes (an Observatory)', /Observatory/.test(hint ?? ''), (hint ?? '').slice(0, 120));
   // the far end of the zoom stops at the deep field's finest
-  await eyes('setFov', 0.0001); await page.waitForTimeout(300);
-  const f0 = (await eyes('telescope'))?.fov;
+  // (the camera takes the new width on its next frame: wait for it, a slow software GPU can take a moment)
+  await eyes('setFov', 0.0001);
+  let f0 = null;
+  for (let i = 0; i < 20; i++) { await page.waitForTimeout(250); f0 = (await eyes('telescope'))?.fov; if (f0 < 0.2) break; }
   check('the zoom stops where your telescope’s reach ends', f0 > 0.05 && f0 < 0.2, String(f0));
 
   // ---- tap a star: its preview ----------------------------------------------------------------------------------------

@@ -102,7 +102,8 @@ The plan and the numbers behind it: the "ops/scaling-architecture.md" doc in the
   same functions the app used, as nobody (read-only: the worker GETs it, caches it a few seconds per Cloudflare location
   and serves a slightly old copy while it refreshes); the app reads it with `cdnSnapshot()` (`src/lib/cdn.ts`) and falls
   back to the old call whenever the CDN is off, down or too old. Snapshots today: leviathan, hot_zone, enchant_world,
-  primordials, travel. A player's own part never goes in a snapshot: it's a separate small call (`leviathan_me`, merged
+  primordials, travel, stars_real, stars_chart. Nothing that says where a player is goes in one (Starbeams come down where
+  their owner stood: they stay a call about the ones near you). A player's own part never goes in a snapshot: it's a separate small call (`leviathan_me`, merged
   by `src/leviathan/levMerge.ts`; `tests/sql/540-world-snapshots` checks snapshot + own part = the old answer) or worked
   out in the app from ids in the snapshot (`owner_id` → "mine"). A new shared read: a key in `world_snapshot`, the same
   key in the worker's `SNAPSHOTS`, and the app's call trying `cdnSnapshot` first. The deploy switches the app over

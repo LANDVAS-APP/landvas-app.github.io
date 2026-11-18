@@ -196,7 +196,9 @@ export const api = {
   // ✨ Skywright: the stars as land
   starCard: (id: number) => rpc<import('../stars/types').StarCard>('star_card', { p_id: id }),
   starsSeen: (ids: number[]) => rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen', { p_ids: ids }),
-  starsSeenReal: () => rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen_real'),
+  /** the claimed real stars in everyone's sky (the same for everyone: the CDN's copy first) */
+  starsSeenReal: async () => (await cdnSnapshot<{ items: import('../stars/skyLayer').SkyClaim[] }>('stars_real', 15 * 60_000))?.items
+    ?? rpc<import('../stars/skyLayer').SkyClaim[]>('stars_seen_real'),
   starPlotsOf: (id: number, cells?: number[] | null) => rpc<{ plots: import('../stars/types').StarPlotRow[]; claimed: number; cells?: number }>('star_plots_of', { p_id: id, p_cells: cells ?? null }),
   starReach: () => rpc<{ reach: number }>('star_reach'),
   starWhere: () => rpc<import('../stars/types').StarWhere>('star_where'),
@@ -209,7 +211,8 @@ export const api = {
   starNamePlot: (id: number, cell: number, name: string) => rpc<{ name: string | null }>('star_name_plot', { p_id: id, p_cell: cell, p_name: name }),
   starName: (id: number, name: string) => rpc<{ name: string | null }>('star_name', { p_id: id, p_name: name }),
   myStars: () => rpc<{ stars: import('../stars/types').MyStar[]; plots: number; usd_per_second: number; where: import('../stars/types').StarWhere }>('my_stars'),
-  starsChart: () => rpc<import('../stars/types').StarsChart>('stars_chart'),
+  /** the star chart's painted, fullest and newest stars (the same for everyone: the CDN's copy first) */
+  starsChart: async () => (await cdnSnapshot<import('../stars/types').StarsChart>('stars_chart', 10 * 60_000)) ?? rpc<import('../stars/types').StarsChart>('stars_chart'),
   starArtSave: (id: number, img: string, w: number, h: number, color: string | null) => rpc<{ rev: number; status: string; achievements: NewAchievement[] }>('star_art_save', { p_id: id, p_img: img, p_w: w, p_h: h, p_color: color }),
   starArtLayer: (id: number, owner: string) => rpc<import('../stars/types').ArtLayer | null>('star_art_layer', { p_id: id, p_owner: owner }),
   adminStarArtQueue: () => rpc<{ star: number; owner: string; username: string | null; star_name: string; status: string; rev: number; w: number; h: number; img: string; color: string | null; updated_at: string; plots: number }[]>('admin_star_art_queue'),

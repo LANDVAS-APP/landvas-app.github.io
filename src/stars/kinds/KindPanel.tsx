@@ -50,7 +50,7 @@ function useNow(ms = 1000) {
 const Box = ({ children, className, testid }: { children: React.ReactNode; className?: string; testid?: string }) =>
   <div className={cn('grid gap-2 rounded-2xl bg-white/6 p-3 text-[12.5px]', className)} data-testid={testid}>{children}</div>;
 const Btn = ({ children, onClick, disabled, on, testid, className }: { children: React.ReactNode; onClick(): void; disabled?: boolean; on?: boolean; testid?: string; className?: string }) =>
-  <button className={cn('lv-btn h-10 px-3 text-[13px]', on && 'on', className)} disabled={disabled} onClick={onClick} data-testid={testid}>{children}</button>;
+  <button className={cn('lv-btn h-10 shrink-0 whitespace-nowrap px-3 text-[13px]', on && 'on', className)} disabled={disabled} onClick={onClick} data-testid={testid}>{children}</button>;
 const Chip = ({ el, n, dim }: { el: string; n: number; dim?: boolean }) => (
   <span className={cn('inline-flex items-center gap-1 rounded-full bg-black/35 px-2 py-0.5 text-[11.5px] font-bold tabular-nums', dim && 'opacity-35')}>
     <span className="grid h-4 min-w-4 place-items-center rounded-full px-0.5 text-[9px] font-black text-[#0b0b1e]" style={{ background: EL[el]?.color }}>{EL[el]?.sym}</span>{n.toLocaleString()}
